@@ -310,6 +310,42 @@ export function isAllowedDestructionReviewTransition(
   return DESTRUCTION_REVIEW_TRANSITIONS[from]?.includes(to) ?? false;
 }
 
+/**
+ * A REVIEW THAT IS STILL WAITING FOR A PERSON.
+ *
+ * Four read sites across three services asked for
+ * `status in ('PROPOSED', 'PENDING_APPROVAL')`. Neither value is in
+ * `DESTRUCTION_REVIEW_STATUSES` and nothing has ever written either one:
+ * `createDestructionReview` writes PENDING. Because `status` is a
+ * `VARCHAR(16)` and not a database enum, nothing rejected the impossible
+ * value and no query ever failed — the counts were simply zero, everywhere,
+ * always, and a workspace with a hundred reviews awaiting a decision was told
+ * it had none.
+ *
+ * PENDING and UNDER_REVIEW are the two non-terminal states in which the queue
+ * is waiting on a human. DEFERRED is excluded deliberately: a deferred review
+ * is waiting on a DATE, and counting it as queue depth tells an operator to
+ * act on something they have already decided to postpone.
+ *
+ * Defined HERE, next to the vocabulary it is drawn from, so a status that
+ * leaves the vocabulary cannot survive in a counter — the guard asserts
+ * exactly that.
+ */
+export const DESTRUCTION_REVIEW_AWAITING_DECISION = [
+  "PENDING",
+  "UNDER_REVIEW",
+] as const satisfies readonly DestructionReviewStatus[];
+
+/**
+ * Newly proposed and not yet picked up.
+ *
+ * PENDING is what creation writes; nothing writes anything else at creation.
+ * This is the narrower subset the retention surface calls "candidates".
+ */
+export const DESTRUCTION_REVIEW_PROPOSED = [
+  "PENDING",
+] as const satisfies readonly DestructionReviewStatus[];
+
 export const DESTRUCTION_REVIEW_TERMINAL_STATUSES: ReadonlySet<DestructionReviewStatus> =
   new Set(["RESTORED", "EXECUTED", "CANCELLED"]);
 

@@ -21,6 +21,9 @@
 
 import { prisma } from "../../db.js";
 import {
+  DESTRUCTION_REVIEW_AWAITING_DECISION,
+} from "@proovra/shared";
+import {
   workspaceCaseWhere,
   workspaceEvidenceWhere,
 } from "@proovra/shared-runtime";
@@ -329,11 +332,17 @@ export async function buildWorkspaceAdmin(input: {
       prisma.evidenceRetentionPolicy
         .count({ where: { teamId: input.teamId, status: "ACTIVE" } })
         .catch(() => 0),
+      /*
+       * The workspace-admin governance snapshot counted statuses that do not
+       * exist, so `pendingDestructionCount` was structurally zero — the same
+       * defect as the governance control plane and the Home dashboard, in a
+       * third place, because the vocabulary was retyped rather than imported.
+       */
       prisma.destructionReview
         .count({
           where: {
             teamId: input.teamId,
-            status: { in: ["PROPOSED", "PENDING_APPROVAL"] },
+            status: { in: [...DESTRUCTION_REVIEW_AWAITING_DECISION] },
           },
         })
         .catch(() => 0),

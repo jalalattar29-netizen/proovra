@@ -41,7 +41,16 @@
  * defensible: a page cannot show two different nows.
  */
 
-import type { DestructionReviewStatus } from "@proovra/shared";
+/*
+ * The two status sets are the governance vocabulary's, not this module's.
+ * They lived here while the defect was being fixed on the dashboard; three
+ * other surfaces had the same hole, so they now live beside
+ * `DESTRUCTION_REVIEW_STATUSES` and every reader imports the same pair.
+ */
+export {
+  DESTRUCTION_REVIEW_AWAITING_DECISION,
+  DESTRUCTION_REVIEW_PROPOSED,
+} from "@proovra/shared";
 
 import { prisma } from "../../db.js";
 
@@ -332,48 +341,6 @@ export async function loadEvidenceCounters(
  * only the questions that were already being asked — an engine wanting a
  * predicate that is not a plain status or category still asks for itself.
  */
-/**
- * A DESTRUCTION REVIEW STILL WAITING FOR A HUMAN.
- *
- * A DEFECT FOUND WHILE CONSOLIDATING, NOT INTRODUCED BY IT
- * ---------------------------------------------------------------------------
- * The three engines that count this queue asked for
- * `status in ('PROPOSED', 'PENDING_APPROVAL')`. Neither value exists. The
- * canonical vocabulary is `DESTRUCTION_REVIEW_STATUSES` in
- * `@proovra/shared` — PENDING, UNDER_REVIEW, APPROVED, DENIED, DEFERRED,
- * RESTORED, EXECUTED, CANCELLED — and the only status any writer has ever
- * persisted on creation is PENDING.
- *
- * So "Pending destruction reviews" and "Retention candidates" were not
- * approximately right or occasionally stale. They were STRUCTURALLY ZERO: a
- * workspace with a hundred reviews awaiting a decision was told it had none,
- * on the Home dashboard, in the governance section. `status` is a
- * `VARCHAR(16)` rather than a database enum, so nothing rejected the
- * impossible value and nothing ever failed.
- *
- * PENDING and UNDER_REVIEW are the two non-terminal states in which a review
- * is waiting on a person. DEFERRED is deliberately excluded: a deferred review
- * is waiting on a DATE, and surfacing it as queue depth would tell an operator
- * to act on something they have already decided to postpone.
- *
- * `command-center-destruction-status-vocabulary.test.ts` fails if any of
- * these leaves the canonical list, which is the only reason the original was
- * able to be wrong for as long as it was.
- */
-export const DESTRUCTION_REVIEW_AWAITING_DECISION = [
-  "PENDING",
-  "UNDER_REVIEW",
-] as const satisfies readonly DestructionReviewStatus[];
-
-/**
- * Newly proposed and not yet picked up — the "retention candidates" figure.
- * PENDING is what `createDestructionReview` writes; nothing writes anything
- * else at creation.
- */
-export const DESTRUCTION_REVIEW_PROPOSED = [
-  "PENDING",
-] as const satisfies readonly DestructionReviewStatus[];
-
 export type OperationsCounters = {
   /** Open (OPEN + ACKNOWLEDGED) incidents for this workspace, by category. */
   openIncidentsByCategory: Readonly<Record<string, number>>;

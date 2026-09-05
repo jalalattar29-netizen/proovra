@@ -19,6 +19,10 @@
  */
 
 import * as prismaPkg from "@prisma/client";
+import {
+  DESTRUCTION_REVIEW_AWAITING_DECISION,
+  DESTRUCTION_REVIEW_PROPOSED,
+} from "@proovra/shared";
 import { prisma } from "../../db.js";
 import {
   workspaceEvidenceWhere,
@@ -188,14 +192,29 @@ export async function buildGovernanceControlPlane(input: {
       prisma.evidenceLegalHold.count({
         where: { teamId: input.teamId, status: "ACTIVE" },
       }),
+      /*
+       * "Candidates" is the narrower set: proposed and not yet picked up.
+       * "Pending reviews" is everything still waiting on a person.
+       *
+       * Both asked for statuses that do not exist — see
+       * `DESTRUCTION_REVIEW_AWAITING_DECISION` for what that cost. Because
+       * `status` is a VARCHAR and not an enum, the queries succeeded and
+       * returned zero, so this section reported a clean governance posture to
+       * every workspace whose destruction queue was full.
+       */
       prisma.destructionReview
-        .count({ where: { teamId: input.teamId, status: "PROPOSED" } })
+        .count({
+          where: {
+            teamId: input.teamId,
+            status: { in: [...DESTRUCTION_REVIEW_PROPOSED] },
+          },
+        })
         .catch(() => 0),
       prisma.destructionReview
         .count({
           where: {
             teamId: input.teamId,
-            status: { in: ["PROPOSED", "PENDING_APPROVAL"] },
+            status: { in: [...DESTRUCTION_REVIEW_AWAITING_DECISION] },
           },
         })
         .catch(() => 0),
@@ -344,7 +363,13 @@ export async function buildGovernanceControlPlane(input: {
   let destructionReviews: NonNullable<GovernanceControlPlaneEnvelope["sections"]["retention"]["data"]>["pendingDestructionReviews"] = [];
   try {
     const rows = await prisma.destructionReview.findMany({
-      where: { teamId: input.teamId, status: "PROPOSED" },
+      // The LIST behind `retentionCandidatesCount`. It carried the same dead
+      // status as the count, so the tab showed an empty candidates list and a
+      // zero beside it and looked entirely consistent while being wrong.
+      where: {
+        teamId: input.teamId,
+        status: { in: [...DESTRUCTION_REVIEW_PROPOSED] },
+      },
       orderBy: { createdAt: "desc" },
       take: RETENTION_CANDIDATES_LIMIT,
       select: {
@@ -367,9 +392,12 @@ export async function buildGovernanceControlPlane(input: {
   }
   try {
     const rows = await prisma.destructionReview.findMany({
+      // The LIST behind the count above, and it has to agree with it: a
+      // posture reporting N pending beside a list showing none is worse than
+      // either number alone.
       where: {
         teamId: input.teamId,
-        status: { in: ["PROPOSED", "PENDING_APPROVAL"] },
+        status: { in: [...DESTRUCTION_REVIEW_AWAITING_DECISION] },
       },
       orderBy: { createdAt: "desc" },
       take: DESTRUCTION_REVIEWS_LIMIT,
