@@ -8,11 +8,37 @@
  * Exactly one of them is in the layout AND in the accessibility tree at any
  * width, because the other is `display: none` (see `intake-links.css`).
  *
- * Lifecycle and activity are SEPARATE regions with explicit labels. The old
- * surface stacked an "Archived" chip on top of a "Submitted" chip in one cell
- * and let the browser run them together; here the lifecycle answers "can this
- * still accept submissions?", the activity answers "what have contributors
- * done?", and the delivery line answers "what did the provider do?".
+ * ---------------------------------------------------------------------------
+ * SEVEN COLUMNS, NOT TEN
+ * ---------------------------------------------------------------------------
+ *
+ * The table used to give ten facts ten columns at one level of hierarchy:
+ * Request, Customer ID, Recipient, Channel, Lifecycle, Delivery & activity,
+ * Latest activity, Expiration, Submissions, Actions. Ten peers is not a
+ * hierarchy, it is a list, and the columns that paid for it were the ones
+ * holding identifiers — a Customer ID in a 10ch column breaks into
+ * "1551004 / 55151", which stops being a number you can read.
+ *
+ * The facts are now grouped by the QUESTION an operator is asking:
+ *
+ *   Request     what was asked for
+ *   Recipient   who it concerns, and under which of your own references
+ *   & reference
+ *   Delivery    how it was sent, and what the provider did
+ *   Status      whether the link still works, and what the contributor did
+ *   Timeline    when it last moved, and when it stops working
+ *   Submissions what came back
+ *   Actions
+ *
+ * THIS IS GROUPING, NOT MERGING. Every value the ten columns carried is still
+ * rendered, still from its own field on the row model, still with its own
+ * machine-readable probe. `customerId`, `recipientLabel`, `recipientEmail` and
+ * `recipientPhone` remain four independent fields end to end — four separate
+ * search arms on the server, four separate lines in the cell. Nothing is
+ * concatenated into a display label, and nothing falls back to anything else.
+ *
+ * The two renderers now share their cells rather than each composing the row
+ * from primitives, so a card cannot drift from a row.
  */
 
 import * as React from "react";
@@ -86,78 +112,187 @@ function buildActions(
 }
 
 // ---------------------------------------------------------------------------
-// Shared cell fragments — rendered identically by the table and the cards.
+// Shared cells — the table and the cards render THESE, not their own markup.
 // ---------------------------------------------------------------------------
 
-/**
- * The lifecycle chip. It has exactly ONE home in each renderer — its own
- * column in the table, the card head on narrow widths — so the operator never
- * reads the same state twice in one record.
- */
-/**
- * WHO THE REQUEST WAS SENT TO — name, address and number, each labelled,
- * none standing in for another.
- *
- * The old cell rendered `label ?? email ?? phone`, so a request that had a
- * name showed nothing else. These are three different operational facts: the
- * person, the mailbox it went to, the number it was texted to. A row can have
- * all three, and when it does an operator needs all three.
- *
- * Compact by construction — a stack of small lines inside one cell rather
- * than three more columns, so the table stays readable at laptop width.
- */
-function RecipientStack({ row }: { row: IntakeRowModel }) {
-  if (row.recipientIsPlaceholder) {
-    return (
-      <span className="ilk-empty" data-intake-links-recipient="none">
-        No recipient
-      </span>
-    );
-  }
+/** What was asked for: the template, then the mode it was issued in. */
+function RequestCell({
+  row,
+  onOpenDetails,
+}: {
+  row: IntakeRowModel;
+  onOpenDetails: (id: string) => void;
+}) {
   return (
-    <div className="ilk-recipient" data-intake-links-recipient="present">
-      {row.recipientName ? (
-        <span className="ilk-recipient__name" data-intake-links-recipient-name>
-          {row.recipientName}
+    <>
+      <button
+        type="button"
+        className="ilk-row__title"
+        onClick={() => onOpenDetails(row.id)}
+        aria-label={`Open details for ${row.requestName}`}
+        data-intake-links-row-open-details
+      >
+        {row.requestName}
+      </button>
+      <p className="ilk-row__sub">{row.modeLabel}</p>
+    </>
+  );
+}
+
+/**
+ * WHO THE REQUEST CONCERNS — and under whose reference.
+ *
+ * Four independent facts in one cell, each on its own line, none standing in
+ * for another. The cell used to be two columns and a substitution: a
+ * `label ?? email ?? phone` chain that showed only the name when a name
+ * existed, beside a Customer ID column narrow enough to hyphenate a number.
+ *
+ * The hierarchy is deliberate. The NAME is what a person recognises, so it
+ * leads in the heading weight. The address and the number are operational
+ * metadata — where it went — so they sit under it in the secondary tone. The
+ * Customer ID is the ORGANIZATION's own business reference, not a property of
+ * the recipient at all, so it is labelled and set apart from the contact
+ * block rather than being mistaken for a fourth way of naming the person.
+ *
+ * Absence omits a line. It does not print a dash, and it never substitutes.
+ */
+function IdentityCell({ row }: { row: IntakeRowModel }) {
+  const maskedEmailTitle = row.recipientContactIsMasked
+    ? "Masked — you do not have permission to view the full address"
+    : row.recipientEmail ?? undefined;
+  const maskedPhoneTitle = row.recipientContactIsMasked
+    ? "Masked — you do not have permission to view the full number"
+    : undefined;
+
+  return (
+    <div className="ilk-identity" data-intake-links-identity>
+      {row.recipientIsPlaceholder ? (
+        /*
+         * A manual Copy link genuinely has nobody to name — the operator sent
+         * it themselves. Saying so is a fact; a dash would be a shrug, and
+         * inventing a placeholder name would be a lie.
+         */
+        <span className="ilk-identity__none" data-intake-links-recipient="none">
+          <span className="ilk-identity__none-primary">No recipient</span>
+          {row.channelWire === "MANUAL" ? (
+            <span className="ilk-identity__none-sub">Manual link</span>
+          ) : null}
         </span>
-      ) : null}
-      {row.recipientEmail ? (
-        <span
-          className="ilk-recipient__line ilk-ltr"
-          data-intake-links-recipient-email
-          title={row.recipientContactIsMasked ? "Masked — you do not have permission to view the full address" : undefined}
-        >
-          {row.recipientEmail}
-        </span>
-      ) : null}
-      {row.recipientPhone ? (
-        <span
-          className="ilk-recipient__line ilk-ltr"
-          data-intake-links-recipient-phone
-          title={row.recipientContactIsMasked ? "Masked — you do not have permission to view the full number" : undefined}
-        >
-          {row.recipientPhone}
+      ) : (
+        <div className="ilk-identity__who" data-intake-links-recipient="present">
+          {row.recipientName ? (
+            <span
+              className="ilk-identity__name"
+              data-intake-links-recipient-name
+            >
+              {row.recipientName}
+            </span>
+          ) : null}
+          {row.recipientEmail ? (
+            /*
+             * An address may be long and is the one identifier here that can
+             * lose its tail without losing its meaning, so it is the one
+             * allowed to truncate. The full value stays on the title, and the
+             * text is still selectable and copyable in full.
+             */
+            <span
+              className="ilk-identity__email ilk-ltr"
+              data-intake-links-recipient-email
+              title={maskedEmailTitle}
+            >
+              {row.recipientEmail}
+            </span>
+          ) : null}
+          {row.recipientPhone ? (
+            <span
+              className="ilk-identity__phone ilk-ltr"
+              data-intake-links-recipient-phone
+              title={maskedPhoneTitle}
+            >
+              {row.recipientPhone}
+            </span>
+          ) : null}
+        </div>
+      )}
+
+      {row.customerId ? (
+        <span className="ilk-identity__ref">
+          <span className="ilk-identity__ref-key">Customer ID</span>
+          <span className="ilk-identity__ref-sep" aria-hidden="true">
+            ·
+          </span>
+          {/*
+            The probe stays on the element whose text is the identifier ALONE,
+            so a machine reading it gets "CUST-849271" rather than the labelled
+            phrase around it.
+          */}
+          <span
+            className="ilk-identity__ref-value ilk-ltr"
+            data-intake-links-customer-id
+            title={row.customerId}
+          >
+            {row.customerId}
+          </span>
         </span>
       ) : null}
     </div>
   );
 }
 
+/**
+ * HOW IT WAS SENT, and what the provider did with it.
+ *
+ * Channel and delivery state were two columns and are one fact in two parts:
+ * "SMS · With provider" answers in one read what "SMS" in one column and
+ * "Delivery: With provider" three columns later answered in two. The wire
+ * values, the tones and the probes are unchanged, and WhatsApp still renders
+ * truthfully for the historical rows that carry it even though no new link
+ * can be created on it.
+ */
+function DeliveryCell({ row }: { row: IntakeRowModel }) {
+  return (
+    <div className="ilk-delivery" data-intake-links-delivery-cell>
+      <span className="ilk-delivery__channel">
+        <DeliveryChannelIcon
+          icon={CHANNEL_ICON[row.channelWire] ?? "link"}
+          size={14}
+        />
+        <span className="ilk-delivery__channel-label">{row.channelLabel}</span>
+      </span>
+      <span className="ilk-delivery__line">
+        <span className="app-visually-hidden">Delivery status: </span>
+        <span
+          className="ilk-delivery__state ilk-state-text"
+          data-ilk-tone={row.deliveryVocab.tone}
+          data-intake-links-row-delivery={row.delivery}
+          title={row.deliveryVocab.explanation}
+        >
+          {row.deliveryVocab.label}
+        </span>
+      </span>
+      {row.deliveryDetail ? (
+        <span
+          className="ilk-delivery__detail"
+          data-intake-links-row-delivery-detail
+        >
+          {row.deliveryDetail}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * The lifecycle chip. It has exactly ONE home in each renderer — the Status
+ * column in the table, the card head on narrow widths — so the operator never
+ * reads the same state twice in one record.
+ *
+ * Every state renders the same filled badge — same height, padding, radius,
+ * size, weight and alignment — and only the semantic colour varies. Active is
+ * the canonical green (`--success-ink`, #167A5B); white on it measures
+ * 5.29:1, so the badge holds WCAG AA.
+ */
 function LifecycleBadge({ row }: { row: IntakeRowModel }) {
-  /**
-   * ONE STRUCTURE FOR THE WHOLE COLUMN.
-   *
-   * Active briefly took the SOFT badge variant, on the reasoning that the
-   * ordinary case should be quieter than the exceptions. In the column it read
-   * as a different KIND of thing rather than a different state: a pale capsule
-   * with coloured text beside three solid chips with white text implied a
-   * hierarchy the lifecycle does not have.
-   *
-   * Every state now renders the same filled badge — same height, padding,
-   * radius, size, weight and alignment — and only the semantic colour varies.
-   * Active is the canonical green (`--success-ink`, #167A5B); white on it
-   * measures 5.29:1, so the badge holds WCAG AA.
-   */
   return (
     <AppStatusBadge
       tone={row.lifecycleVocab.tone}
@@ -171,90 +306,88 @@ function LifecycleBadge({ row }: { row: IntakeRowModel }) {
 }
 
 /**
- * Delivery and Activity — and deliberately NOTHING else.
+ * The contributor's activity — subordinate to the lifecycle, never merged
+ * with it.
  *
- * Lifecycle sits in its own adjacent column and used to be restated here with
- * a visible "Lifecycle:" key, which meant a wide row showed the same state in
- * two places a few pixels apart. Both values are labelled in the cell rather
- * than relying on the column header alone, because "Delivered / Submitted"
- * stacked without keys reads as one status with two words.
- *
- * NEUTRAL TEXT, NOT BADGES.
- *
- * These two are supporting facts about a request, read after the operator has
- * found the row they want. Filling them made a row carry three saturated
- * rectangles, which is a colour vocabulary competing with itself: the eye had
- * no way to tell that the Lifecycle chip is the record's state and these two
- * are details of it. Lifecycle keeps the fill because it is the one state the
- * row is scanned by. The wording, the vocabulary authority, the machine-
- * readable axis probes and the unknown-value fallbacks are all unchanged —
- * only the treatment is.
+ * NEUTRAL TEXT, NOT A BADGE. The lifecycle is the state the row is SCANNED
+ * by and keeps the fill; this is a detail of it, read after the operator has
+ * found the row they want. Two saturated rectangles in one cell would be a
+ * colour vocabulary competing with itself.
  */
-function StatusCluster({ row }: { row: IntakeRowModel }) {
+function ActivityLine({ row }: { row: IntakeRowModel }) {
   return (
-    <dl className="ilk-status">
-      <div className="ilk-status__line">
-        <dt className="ilk-status__key">Delivery</dt>
-        <dd
-          className="ilk-status__value ilk-state-text"
-          data-ilk-tone={row.deliveryVocab.tone}
-          data-intake-links-row-delivery={row.delivery}
-          title={row.deliveryVocab.explanation}
-        >
-          {row.deliveryVocab.label}
-        </dd>
-      </div>
-      <div className="ilk-status__line">
-        <dt className="ilk-status__key">Activity</dt>
-        <dd
-          className="ilk-status__value ilk-state-text"
-          data-ilk-tone={row.activityVocab.tone}
-          data-intake-links-row-session-state={row.activity}
-          title={row.activityVocab.explanation}
-        >
-          {row.activityVocab.label}
-        </dd>
-      </div>
-      {row.deliveryDetail ? (
-        <div className="ilk-status__line">
-          <dt className="app-visually-hidden">Delivery detail</dt>
-          <dd
-            className="ilk-status__detail"
-            data-intake-links-row-delivery-detail
-          >
-            {row.deliveryDetail}
-          </dd>
-        </div>
-      ) : null}
-    </dl>
+    <span className="ilk-status__activity-line">
+      <span className="app-visually-hidden">Contributor activity: </span>
+      <span
+        className="ilk-status__activity ilk-state-text"
+        data-ilk-tone={row.activityVocab.tone}
+        data-intake-links-row-session-state={row.activity}
+        title={row.activityVocab.explanation}
+      >
+        {row.activityVocab.label}
+      </span>
+    </span>
   );
 }
 
 /**
- * The DATE, and only the date.
+ * WHETHER THE LINK STILL WORKS, and what the contributor did.
  *
- * The word "Expired" belongs to the Lifecycle column, which is one cell away.
- * Printing it here too made the row state its own status twice — and made a
- * column that only ever needs to hold a date carry a phrase that fragmented
- * when it did not fit. Assistive technology still hears the relationship,
- * because the visually-hidden prefix names it, and the full local timestamp
- * stays one hover away.
+ * One column, two levels — a filled badge over quiet toned text. They are
+ * separate elements with separate probes and separate treatments, so
+ * "Expired" over "Submitted" cannot read as one status made of two words,
+ * which is the confusion the old two-column arrangement was protecting
+ * against by separation. A visual hierarchy answers it better than a column
+ * boundary did, and costs three fewer columns.
  */
-function ExpiryCell({ row }: { row: IntakeRowModel }) {
+function StatusCell({ row }: { row: IntakeRowModel }) {
   return (
-    <span
-      className="ilk-expiry"
-      data-state={row.expiryState}
-      data-intake-links-row-expires={row.expiryState}
-      title={row.expiryAbsolute}
-    >
-      <span className="app-visually-hidden">
-        {row.expiryState === "expired" ? "Expired on " : "Expires on "}
-      </span>
-      <span className="ilk-expiry__date" data-intake-links-row-expiry-date>
-        {row.expiryDate}
-      </span>
-    </span>
+    <div className="ilk-status" data-intake-links-status-cell>
+      <LifecycleBadge row={row} />
+      <ActivityLine row={row} />
+    </div>
+  );
+}
+
+/**
+ * WHEN IT LAST MOVED, and when it stops working.
+ *
+ * Two dates were two columns; they are one question. The keys are visible,
+ * because "4h ago" stacked over "07 Sep 2026" with no keys is two numbers,
+ * not two facts.
+ *
+ * The key is "Expires" in every state. The Status column one cell away
+ * already says "Expired" when it is, and printing the word twice in one row
+ * is how a table talks over itself. The near-expiry caution stays, because
+ * "this stops working within three days" is a fact no badge carries. Exact
+ * local timestamps stay one hover away.
+ */
+function TimelineCell({ row }: { row: IntakeRowModel }) {
+  return (
+    <dl className="ilk-timeline" data-intake-links-timeline-cell>
+      <div className="ilk-timeline__line">
+        <dt className="ilk-timeline__key">Latest</dt>
+        <dd
+          className="ilk-timeline__value ilk-relative"
+          title={row.latestActivityAbsolute}
+        >
+          {row.latestActivityRelative}
+        </dd>
+      </div>
+      <div className="ilk-timeline__line">
+        <dt className="ilk-timeline__key">Expires</dt>
+        <dd
+          className="ilk-timeline__value ilk-expiry"
+          data-state={row.expiryState}
+          data-intake-links-row-expires={row.expiryState}
+          title={row.expiryAbsolute}
+        >
+          <span className="ilk-expiry__date" data-intake-links-row-expiry-date>
+            {row.expiryDate}
+          </span>
+        </dd>
+      </div>
+    </dl>
   );
 }
 
@@ -291,6 +424,26 @@ function SubmissionsCell({
   );
 }
 
+function RowMenu({
+  row,
+  handlers,
+}: {
+  row: IntakeRowModel;
+  handlers: RecordsHandlers;
+}) {
+  return (
+    <AppRowMenu
+      label={`Actions for ${row.requestName}`}
+      actions={buildActions(row, handlers)}
+      dataPrefix="intake-links"
+      triggerLabel="Actions"
+      triggerLabelClassName="ilk-when-wide"
+      icon={<IconDots size={16} />}
+      pendingIcon={<IconSpinner size={14} />}
+    />
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Wide layout — the management table
 // ---------------------------------------------------------------------------
@@ -310,79 +463,39 @@ function TableRow({
       data-intake-links-row-lifecycle={row.computedLifecycle}
     >
       <td data-col="request">
-        <button
-          type="button"
-          className="ilk-row__title"
-          onClick={() => handlers.onOpenDetails(row.id)}
-          aria-label={`Open details for ${row.requestName}`}
-          data-intake-links-row-open-details
-        >
-          {row.requestName}
-        </button>
-        <p className="ilk-row__sub">
-          {row.modeLabel}
-          <span className="ilk-fold" data-fold="channel">
-            {" · "}
-            {row.channelLabel}
-          </span>
-        </p>
+        <RequestCell row={row} onOpenDetails={handlers.onOpenDetails} />
       </td>
-      <td data-col="customer">
-        {row.customerId ? (
-          <span className="ilk-ltr ilk-customer" data-intake-links-customer-id>
-            {row.customerId}
-          </span>
-        ) : (
-          <span className="ilk-empty" aria-label="No customer ID">
-            —
-          </span>
-        )}
+      <td data-col="identity">
+        <IdentityCell row={row} />
       </td>
-      <td data-col="recipient">
-        <RecipientStack row={row} />
-      </td>
-      <td data-col="channel">
-        <span className="app-chip">
-          <DeliveryChannelIcon icon={CHANNEL_ICON[row.channelWire] ?? "link"} size={14} />
-          <span>{row.channelLabel}</span>
-        </span>
-      </td>
-      <td data-col="lifecycle">
-        <LifecycleBadge row={row} />
+      <td data-col="delivery">
+        <DeliveryCell row={row} />
       </td>
       <td data-col="status">
-        <StatusCluster row={row} />
+        <StatusCell row={row} />
       </td>
-      <td data-col="latest">
-        <span className="ilk-relative" title={row.latestActivityAbsolute}>
-          {row.latestActivityRelative}
-        </span>
-      </td>
-      <td data-col="expires">
-        <ExpiryCell row={row} />
+      <td data-col="timeline">
+        <TimelineCell row={row} />
       </td>
       <td data-col="submissions">
         <SubmissionsCell row={row} onOpenSubmissions={handlers.onOpenSubmissions} />
       </td>
       <td data-col="actions">
-        <AppRowMenu
-          label={`Actions for ${row.requestName}`}
-          actions={buildActions(row, handlers)}
-          dataPrefix="intake-links"
-          triggerLabel="Actions"
-          triggerLabelClassName="ilk-when-wide"
-          icon={<IconDots size={16} />}
-          pendingIcon={<IconSpinner size={14} />}
-        />
+        <RowMenu row={row} handlers={handlers} />
       </td>
     </tr>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Narrow layout — purpose-built cards
+// Narrow layout — the same cells, stacked
 // ---------------------------------------------------------------------------
 
+/**
+ * The card is a SECOND LAYOUT, not a second implementation. It renders the
+ * very cells the table renders, in the order the columns run, so a value can
+ * never appear on one and not the other.
+ */
 function RecordCard({
   row,
   handlers,
@@ -397,93 +510,26 @@ function RecordCard({
       data-intake-links-card-id={row.id}
       data-intake-links-card-lifecycle={row.computedLifecycle}
     >
+      {/* Lifecycle leads the card the way it leads the Status column — it is
+          the one state the record is scanned by. */}
       <div className="ilk-card__head">
         <div className="ilk-card__heading">
-          <button
-            type="button"
-            className="ilk-row__title"
-            onClick={() => handlers.onOpenDetails(row.id)}
-            aria-label={`Open details for ${row.requestName}`}
-          >
-            {row.requestName}
-          </button>
-          <p className="ilk-row__sub">
-            {row.modeLabel} · {row.channelLabel}
-          </p>
+          <RequestCell row={row} onOpenDetails={handlers.onOpenDetails} />
         </div>
         <LifecycleBadge row={row} />
       </div>
 
-      {/* Lifecycle is in the head above; Delivery and Activity are two more
-          separate, labelled facts here. Three concepts, three regions — the
-          card never merges them any more than the table does. */}
-      <dl className="ilk-card__facts">
-        <dt>Customer ID</dt>
-        <dd className="ilk-ltr">
-          {row.customerId ?? <span className="ilk-empty">—</span>}
-        </dd>
-        <dt>Recipient</dt>
-        <dd>
-          <RecipientStack row={row} />
-        </dd>
-        <dt>Delivery</dt>
-        {/* The SAME neutral fact surface the table cell uses — `app-fact-value`
-            is one authority, so the card is a second renderer of one row
-            model, not a second design.
+      <IdentityCell row={row} />
 
-            The provider DETAIL sits outside the surface, exactly as it sits
-            outside the value in the table: the surface frames the state, and a
-            provider code wrapped inside it would stretch a content-width chip
-            across the card. Each run keeps its own direction so an RTL page
-            does not reorder a provider code. */}
-        <dd className="ilk-ltr">
-          <span
-            className="ilk-state-text"
-            data-ilk-tone={row.deliveryVocab.tone}
-            data-intake-links-row-delivery={row.delivery}
-            title={row.deliveryVocab.explanation}
-          >
-            {row.deliveryVocab.label}
-          </span>
-          {row.deliveryDetail ? (
-            <span className="ilk-card__fact-detail">{row.deliveryDetail}</span>
-          ) : null}
-        </dd>
-        <dt>Activity</dt>
-        {/* The card carries the SAME machine-readable axis probes as the table
-            row, so a matrix can prove the two renderers agree instead of
-            comparing prose. */}
-        <dd>
-          <span
-            className="ilk-state-text"
-            data-ilk-tone={row.activityVocab.tone}
-            data-intake-links-row-session-state={row.activity}
-            title={row.activityVocab.explanation}
-          >
-            {row.activityVocab.label}
-          </span>
-        </dd>
-        <dt>Latest activity</dt>
-        <dd>{row.latestActivityRelative}</dd>
-        {/* A neutral field name, so the card does not restate the lifecycle
-            badge sitting a few lines above it. */}
-        <dt>Expiry</dt>
-        <dd className="ilk-ltr" data-intake-links-row-expiry-date>
-          {row.expiryDate}
-        </dd>
-      </dl>
+      <div className="ilk-card__facts">
+        <DeliveryCell row={row} />
+        <ActivityLine row={row} />
+        <TimelineCell row={row} />
+      </div>
 
       <div className="ilk-card__foot">
         <SubmissionsCell row={row} onOpenSubmissions={handlers.onOpenSubmissions} />
-        <AppRowMenu
-          label={`Actions for ${row.requestName}`}
-          actions={buildActions(row, handlers)}
-          dataPrefix="intake-links"
-          triggerLabel="Actions"
-          triggerLabelClassName="ilk-when-wide"
-          icon={<IconDots size={16} />}
-          pendingIcon={<IconSpinner size={14} />}
-        />
+        <RowMenu row={row} handlers={handlers} />
       </div>
     </li>
   );
@@ -511,11 +557,11 @@ export function RecordsSurface({
   return (
     <>
       {/* `--scroll` is the primitive's opt-in for a table wider than its
-          column. Without it `.app-table-surface` clips — and a nine-column
-          table in a 1068px frame does not fit, so the Actions column was
-          silently cut off between about 1100px and 1380px with no scrollbar to
-          reach it. Scrolling inside the surface is what this page promises;
-          losing a column is not. */}
+          column. Seven columns fit the frame the page gives them at every
+          width the table is shown at, so this is now a safety net rather than
+          a working mechanism — but a long user-generated template name is
+          still allowed to make one row wide, and losing the Actions column to
+          a clip is not an acceptable answer to that. */}
       <div
         className="app-table-surface app-table-surface--scroll ilk-records--wide"
         data-intake-links-table-surface
@@ -523,29 +569,23 @@ export function RecordsSurface({
         <table className="app-table ilk-table" data-intake-links-table aria-label="Intake links">
           <colgroup>
             <col data-col="request" />
-            <col data-col="customer" />
-            <col data-col="recipient" />
-            <col data-col="channel" />
-            <col data-col="lifecycle" />
+            <col data-col="identity" />
+            <col data-col="delivery" />
             <col data-col="status" />
-            <col data-col="latest" />
-            <col data-col="expires" />
+            <col data-col="timeline" />
             <col data-col="submissions" />
             <col data-col="actions" />
           </colgroup>
           <thead>
             <tr>
               <th scope="col" data-col="request">Request</th>
-              {/* Customer ID is the ORGANIZATION's own identifier and gets its
-                  own column: it is how an insurer or a law office finds the
-                  request, and it is not a property of the recipient. */}
-              <th scope="col" data-col="customer">Customer ID</th>
-              <th scope="col" data-col="recipient">Recipient</th>
-              <th scope="col" data-col="channel">Channel</th>
-              <th scope="col" data-col="lifecycle">Lifecycle</th>
-              <th scope="col" data-col="status">Delivery &amp; activity</th>
-              <th scope="col" data-col="latest">Latest activity</th>
-              <th scope="col" data-col="expires">Expiration</th>
+              {/* One heading over four independent fields. The GROUPING is
+                  visual; the fields, and the four search arms that match
+                  them, remain separate everywhere else. */}
+              <th scope="col" data-col="identity">Recipient &amp; reference</th>
+              <th scope="col" data-col="delivery">Delivery</th>
+              <th scope="col" data-col="status">Status</th>
+              <th scope="col" data-col="timeline">Timeline</th>
               <th scope="col" data-col="submissions">Submissions</th>
               <th scope="col" data-col="actions">
                 <span className="app-visually-hidden">Actions</span>

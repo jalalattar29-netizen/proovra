@@ -459,7 +459,14 @@ describe("KPI metrics", () => {
 // ===========================================================================
 
 describe("lifecycle and activity vocabulary", () => {
-  it("keeps lifecycle and contributor activity in separate labelled regions", async () => {
+  it("keeps lifecycle and contributor activity as separate named facts", async () => {
+    /*
+     * They now share the Status column — a filled badge over quiet toned text
+     * — so the guarantee is stated directly rather than through the cell
+     * boundary that used to stand in for it: two distinct elements, two
+     * distinct values, and a name on the subordinate one so it is never heard
+     * as part of the badge above it.
+     */
     await mount();
     const row = document.querySelector(
       '[data-intake-links-row-id="submitted-1"]',
@@ -468,34 +475,44 @@ describe("lifecycle and activity vocabulary", () => {
     const activity = row.querySelector("[data-intake-links-row-session-state]");
     expect(lifecycle?.textContent?.trim()).toBe("Expired");
     expect(activity?.textContent?.trim()).toBe("Submitted");
-    // They are NOT in the same cell, and they never concatenate.
-    expect(lifecycle?.closest("td")).not.toBe(activity?.closest("td"));
+    expect(lifecycle).not.toBe(activity);
+    expect(lifecycle?.contains(activity as Node)).toBe(false);
     expect(row.textContent).not.toContain("ArchivedSubmitted");
+    expect(row.textContent).not.toContain("ExpiredSubmitted");
   });
 
-  it("labels the delivery and activity facts visibly, and carries nothing else", async () => {
+  it("names the delivery and activity facts, and states each exactly once", async () => {
+    /*
+     * Delivery and activity used to share one cell under two visible keys,
+     * because "Failed" stacked over "Not opened" with no keys reads as one
+     * status made of two words. They are now two columns whose HEADINGS carry
+     * those keys, and each subordinate value is named for assistive
+     * technology inside its own cell. The confusion the visible keys were
+     * paying for is gone; the naming is not.
+     */
     await mount();
     const row = document.querySelector(
       '[data-intake-links-row-id="failed-1"]',
     ) as HTMLElement;
-    const cluster = row.querySelector(".ilk-status") as HTMLElement;
+    const delivery = row.querySelector(".ilk-delivery") as HTMLElement;
+    const status = row.querySelector(".ilk-status") as HTMLElement;
 
-    // Two labelled facts, both keys visible — "Failed" stacked over
-    // "Not opened" with no keys reads as one status made of two words.
-    const keys = Array.from(
-      cluster.querySelectorAll(".ilk-status__key"),
-    ).map((k) => k.textContent?.trim());
-    expect(keys).toContain("Delivery");
-    expect(keys).toContain("Activity");
-    expect(cluster.textContent).toContain("Failed");
-    expect(cluster.textContent).toContain("Not opened");
+    expect(delivery.textContent).toContain("Failed");
+    expect(delivery.textContent).toContain("Delivery status:");
+    expect(status.textContent).toContain("Not opened");
+    expect(status.textContent).toContain("Contributor activity:");
 
-    // Lifecycle belongs to its own adjacent column and must NOT be restated
-    // here — that duplication is exactly what this cell was corrected for.
-    expect(keys).not.toContain("Lifecycle");
-    expect(cluster.textContent).not.toMatch(/Lifecycle/i);
+    // Each fact is stated once, in one place.
+    expect(row.querySelectorAll("[data-intake-links-row-delivery]").length).toBe(1);
     expect(
-      cluster.querySelector("[data-intake-links-row-link-state]"),
+      row.querySelectorAll("[data-intake-links-row-session-state]").length,
+    ).toBe(1);
+    expect(
+      row.querySelectorAll("[data-intake-links-row-link-state]").length,
+    ).toBe(1);
+    // And the delivery cell does not restate the lifecycle.
+    expect(
+      delivery.querySelector("[data-intake-links-row-link-state]"),
     ).toBeNull();
   });
 

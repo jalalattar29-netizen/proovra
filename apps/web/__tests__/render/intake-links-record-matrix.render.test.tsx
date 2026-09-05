@@ -101,6 +101,12 @@ type Spec = {
   recipientLabel?: string | null;
   email?: string | null;
   phone?: string | null;
+  /** The ORGANIZATION's own reference for this request. */
+  customerId?: string | null;
+  /** What the SERVER decided this caller may see. Never a client choice. */
+  revealed?: boolean;
+  rawEmail?: string | null;
+  rawPhone?: string | null;
   channel?: string | null;
   delivery?: string | null;
   attempts?: number;
@@ -122,8 +128,12 @@ function item(s: Spec) {
       intakeMode: s.mode ?? "EXTERNAL_ONE_TIME",
       caseId: null,
       recipientLabel: s.recipientLabel ?? null,
+      customerId: s.customerId ?? null,
       recipientEmailPreview: s.email ?? null,
       recipientPhonePreview: s.phone ?? null,
+      recipientEmail: s.revealed ? (s.rawEmail ?? s.email ?? null) : null,
+      recipientPhone: s.revealed ? (s.rawPhone ?? s.phone ?? null) : null,
+      recipientContactRevealAuthorized: s.revealed === true,
       maxUses: 1,
       usedCount: s.used ?? 0,
       status: s.status ?? "ACTIVE",
@@ -333,12 +343,27 @@ describe("lifecycle, activity and delivery stay three separate axes", () => {
       expect(row.textContent).not.toContain("ArchivedSubmitted");
       expect(card.textContent).not.toContain("ArchivedSubmitted");
 
-      // The lifecycle chip and the activity chip are never the same node, and
-      // in the wide table they are never even the same cell.
+      /*
+       * The lifecycle chip and the activity value are never the same node, and
+       * neither ever contains the other.
+       *
+       * They used to be required to sit in DIFFERENT CELLS. That was a proxy
+       * for the real guarantee — that an operator never reads them as one
+       * value — and the seven-column hierarchy answers it a better way: they
+       * are one Status column, a filled badge over quiet toned text, with the
+       * subordinate line named for assistive technology. A column boundary is
+       * not the only way to separate two facts, and it was costing three
+       * columns.
+       */
       const life = row.querySelector("[data-intake-links-row-link-state]");
       const act_ = row.querySelector("[data-intake-links-row-session-state]");
       expect(life).not.toBe(act_);
-      expect(life?.closest("td")).not.toBe(act_?.closest("td"));
+      expect(life?.contains(act_ as Node)).toBe(false);
+      expect(act_?.contains(life as Node)).toBe(false);
+      // Different treatments: the lifecycle is the filled badge, the activity
+      // is text. That is what stops them reading as a pair of equals.
+      expect(life?.classList.contains("app-status-badge")).toBe(true);
+      expect(act_?.classList.contains("ilk-state-text")).toBe(true);
     });
   }
 
@@ -406,6 +431,98 @@ describe("recipient, channel and submission variants", () => {
     expect(bothRenderers("r2").row.textContent).toContain("j•••@example.com");
     expect(bothRenderers("r3").row.textContent).toContain("+491••23");
     expect(bothRenderers("r4").row.textContent).toContain("No recipient");
+  });
+
+  it("shows all four identifiers at once, none standing in for another", async () => {
+    /*
+     * THE DEFECT THE GROUPED CELL EXISTS FOR.
+     *
+     * Customer ID, recipient name, address and number are four independent
+     * facts. They used to be two columns and a substitution chain
+     * (`label ?? email ?? phone`), so a request that had a name showed only
+     * the name — the address it went to and the number it was texted to
+     * simply vanished. They now share one cell and are all rendered; the
+     * cell GROUPS them visually and merges nothing.
+     */
+    await mount([
+      {
+        id: "all4",
+        recipientLabel: "Bilal Attar",
+        customerId: "CUST-849271",
+        rawEmail: "bilal@example.test",
+        rawPhone: "+49 174 906 1823",
+        email: "b***@example.test",
+        phone: "+49 ••• ••• 1823",
+        revealed: true,
+        channel: "SMS",
+        delivery: "SENT",
+      },
+    ]);
+    for (const renderer of ["row", "card"] as const) {
+      const scope = bothRenderers("all4")[renderer];
+      const q = (a: string) => scope.querySelector(`[${a}]`)?.textContent?.trim();
+      expect(q("data-intake-links-recipient-name"), renderer).toBe("Bilal Attar");
+      expect(q("data-intake-links-recipient-email"), renderer).toBe("bilal@example.test");
+      expect(q("data-intake-links-recipient-phone"), renderer).toBe("+49 174 906 1823");
+      // The probe carries the identifier ALONE, not the labelled phrase.
+      expect(q("data-intake-links-customer-id"), renderer).toBe("CUST-849271");
+      // …and the label is beside it, so the reference is not mistaken for a
+      // fourth way of naming the person.
+      expect(scope.textContent, renderer).toContain("Customer ID");
+    }
+  });
+
+  it("renders what the server authorised, and decides nothing itself", async () => {
+    /*
+     * The cell consumes the ALREADY-AUTHORIZED projection. When the server
+     * says the caller may not see the raw contact it sends only the masked
+     * preview, and the cell renders that — it does not fetch the raw value,
+     * and it does not decide who may see it. The only thing the client adds
+     * is a title explaining why the value looks the way it does.
+     */
+    await mount([
+      {
+        id: "masked",
+        recipientLabel: "Bilal Attar",
+        customerId: "CUST-849271",
+        email: "b***@example.test",
+        phone: "+49 ••• ••• 1823",
+        revealed: false,
+        channel: "SMS",
+        delivery: "SENT",
+      },
+    ]);
+    const row = bothRenderers("masked").row;
+    expect(
+      row.querySelector("[data-intake-links-recipient-email]")?.textContent,
+    ).toBe("b***@example.test");
+    expect(
+      row.querySelector("[data-intake-links-recipient-phone]")?.textContent,
+    ).toBe("+49 ••• ••• 1823");
+    // The mask is explained rather than left looking like a broken value.
+    expect(
+      row
+        .querySelector("[data-intake-links-recipient-email]")
+        ?.getAttribute("title"),
+    ).toMatch(/Masked/);
+    // Neither the raw address nor the raw number is anywhere in the row.
+    expect(row.textContent).not.toContain("bilal@example.test");
+    expect(row.textContent).not.toContain("174 906 1823");
+    // The business reference is NOT contact data and is unaffected.
+    expect(
+      row.querySelector("[data-intake-links-customer-id]")?.textContent,
+    ).toBe("CUST-849271");
+  });
+
+  it("says so plainly when a manual link has no recipient", async () => {
+    await mount([{ id: "manual", channel: null }]);
+    const row = bothRenderers("manual").row;
+    const cell = row.querySelector('[data-intake-links-recipient="none"]');
+    expect(cell?.textContent).toContain("No recipient");
+    expect(cell?.textContent).toContain("Manual link");
+    // No dash, no invented placeholder.
+    expect(row.querySelector("[data-intake-links-recipient-name]")).toBeNull();
+    expect(row.querySelector("[data-intake-links-customer-id]")).toBeNull();
   });
 
   it("labels every channel, including the never-sent copy-link case", async () => {
@@ -687,10 +804,21 @@ describe("expiration column and the single lifecycle region", () => {
       // …the canonical formatter produced it (a real day/month/year), not a
       // fabricated or relative string.
       expect(date.textContent).toMatch(/\d{1,2}\s+\w{3}\s+\d{4}/);
-      // …and assistive technology still hears the relationship.
-      const hidden = cell.querySelector(".app-visually-hidden") as HTMLElement;
-      expect(hidden.textContent).toMatch(
-        id === "e-past" ? /Expired on/ : /Expires on/,
+      /*
+       * …and assistive technology still hears the relationship — now from a
+       * real <dt> key rather than a visually-hidden phrase, because the
+       * Timeline column labels both of its dates in the open. The key reads
+       * "Expires" in every state on purpose: the Status column one cell away
+       * already says "Expired" when it is, and a row that prints the word
+       * twice is a row talking over itself.
+       */
+      const line = cell.closest(".ilk-timeline__line") as HTMLElement;
+      expect(line, `${id} has no timeline line`).toBeTruthy();
+      const key = line.querySelector(".ilk-timeline__key") as HTMLElement;
+      expect(key.textContent?.trim()).toBe("Expires");
+      // The state is still machine-readable, which is what the probe is for.
+      expect(cell.getAttribute("data-intake-links-row-expires")).toBe(
+        id === "e-past" ? "expired" : "ok",
       );
     }
   });
@@ -703,10 +831,10 @@ describe("expiration column and the single lifecycle region", () => {
     expect(date.textContent?.trim()).toBe("Not available");
   });
 
-  it("the Expired lifecycle badge stays in the Lifecycle column", async () => {
+  it("the Expired lifecycle badge stays in the Status column", async () => {
     await mount([{ id: "e1", status: "EXPIRED", used: 1, expires: PAST }]);
     const cell = document.querySelector(
-      '.ilk-records--wide [data-intake-links-row-id="e1"] td[data-col="lifecycle"]',
+      '.ilk-records--wide [data-intake-links-row-id="e1"] td[data-col="status"]',
     ) as HTMLElement;
     expect(cell.textContent).toContain("Expired");
     expect(
@@ -724,9 +852,9 @@ describe("expiration column and the single lifecycle region", () => {
         row.querySelectorAll("[data-intake-links-row-link-state]").length,
         `${combo.name} repeats its lifecycle`,
       ).toBe(1);
-      // …and the one it has is in the lifecycle column, not the status cell.
+      // …and the one it has leads the Status column.
       const badge = row.querySelector("[data-intake-links-row-link-state]");
-      expect(badge?.closest("td")?.getAttribute("data-col")).toBe("lifecycle");
+      expect(badge?.closest("td")?.getAttribute("data-col")).toBe("status");
     }
   });
 
@@ -750,10 +878,16 @@ describe("expiration column and the single lifecycle region", () => {
         facts.querySelector("[data-intake-links-row-session-state]"),
       ).toBeTruthy();
       // The card's expiry field is a date under a neutral key.
+      /*
+       * The card renders the SAME cells the table renders, so its keys are the
+       * Timeline column's keys. "Expires", never "Expired" — the lifecycle
+       * badge in the card head already carries that word.
+       */
       const keys = Array.from(facts.querySelectorAll("dt")).map((d) =>
         d.textContent?.trim(),
       );
-      expect(keys).toContain("Expiry");
+      expect(keys).toContain("Latest");
+      expect(keys).toContain("Expires");
       expect(keys).not.toContain("Expired");
       expect(
         facts.querySelector("[data-intake-links-row-expiry-date]")?.textContent,
@@ -909,24 +1043,52 @@ describe("row status treatment comes from one map", () => {
     });
   }
 
-  it("the whole Delivery & activity cell carries no fill at all", async () => {
+  it("carries exactly one fill per row, and it is the lifecycle", async () => {
+    /*
+     * The rule has not changed, only where it applies. EXACTLY ONE filled
+     * badge per row, and it is the state the row is scanned by. Delivery and
+     * activity are supporting facts and stay as toned text — three saturated
+     * rectangles in a row is a colour vocabulary competing with itself.
+     *
+     * The Status cell now holds that one badge, because the lifecycle moved
+     * into it. So the assertion moved with it: the cell has one badge, the
+     * activity beside it has none, and the Delivery cell has none either.
+     */
     await mount(COMBINATIONS.map((c) => c.spec));
-    const cells = Array.from(
-      document.querySelectorAll<HTMLElement>(".ilk-records--wide .ilk-status"),
+    const rows = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        ".ilk-records--wide [data-intake-links-row-id]",
+      ),
     );
-    expect(cells.length).toBe(COMBINATIONS.length);
-    for (const cell of cells) {
-      expect(cell.querySelectorAll(".app-status-badge").length).toBe(0);
-      expect(cell.querySelectorAll("[data-tone]").length).toBe(0);
-      expect(cell.querySelectorAll("[data-fill]").length).toBe(0);
-      // …and the two labelled facts are still both there.
+    expect(rows.length).toBe(COMBINATIONS.length);
+    for (const row of rows) {
+      // One fill in the whole row.
+      expect(row.querySelectorAll(".app-status-badge").length).toBe(1);
       expect(
-        Array.from(cell.querySelectorAll(".ilk-status__key")).map((k) =>
-          k.textContent?.trim(),
+        row.querySelector(".app-status-badge")?.getAttribute(
+          "data-intake-links-row-link-state",
         ),
-      ).toEqual(["Delivery", "Activity"]);
-      // …with lifecycle still absent from it.
-      expect(cell.querySelector("[data-intake-links-row-link-state]")).toBeNull();
+      ).toBeTruthy();
+
+      const status = row.querySelector(".ilk-status") as HTMLElement;
+      const delivery = row.querySelector(".ilk-delivery") as HTMLElement;
+      expect(status).toBeTruthy();
+      expect(delivery).toBeTruthy();
+
+      // The subordinate values carry no fill of their own.
+      for (const value of [
+        status.querySelector("[data-intake-links-row-session-state]"),
+        delivery.querySelector("[data-intake-links-row-delivery]"),
+      ]) {
+        expect(value).toBeTruthy();
+        expect(value?.classList.contains("app-status-badge")).toBe(false);
+        expect(value?.getAttribute("data-tone")).toBeNull();
+        expect(value?.getAttribute("data-fill")).toBeNull();
+      }
+
+      // Both facts are still NAMED, so neither is heard as part of the other.
+      expect(status.textContent).toMatch(/Contributor activity:/);
+      expect(delivery.textContent).toMatch(/Delivery status:/);
     }
   });
 

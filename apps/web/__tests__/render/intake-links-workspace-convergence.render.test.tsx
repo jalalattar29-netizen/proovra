@@ -430,14 +430,23 @@ describe("one design anatomy across authorised workspaces", () => {
       );
     }
     for (const shape of shapes) expect(shape).toEqual(shapes[0]);
+    /*
+     * THE SEVEN-COLUMN HIERARCHY.
+     *
+     * This list had drifted: it still named the nine columns from before the
+     * Customer ID column was added, so it described a table that had not
+     * existed for some time. Grouping the ten into seven is the occasion to
+     * correct it, and the grouping is the point — Customer ID, recipient name,
+     * address and number are FOUR independent fields rendered as four lines
+     * inside `identity`, not one merged value. The search arms that match them
+     * are untouched and remain four.
+     */
     expect(shapes[0]).toEqual([
       "request",
-      "recipient",
-      "channel",
-      "lifecycle",
+      "identity",
+      "delivery",
       "status",
-      "latest",
-      "expires",
+      "timeline",
       "submissions",
       "actions",
     ]);

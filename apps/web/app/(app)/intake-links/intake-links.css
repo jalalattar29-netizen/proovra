@@ -199,7 +199,17 @@
 .ilk-records--narrow {
   display: none;
 }
-@media (max-width: 900px) {
+/* THE CUTOVER IS 1199px.
+   Measured against the real page, not guessed. Seven columns of real content
+   ask for ~874px of table; the records frame is the viewport minus the shell,
+   which is 986px at 1200 and 810px at 1024. So the table fits from about
+   1200px up and does not below it.
+   The old surface answered the same shortfall by HIDING two columns below
+   1500px. That is worse than handing over: a hidden column is a fact the
+   operator cannot see at all, whereas the cards carry every one of them —
+   they render the very same cells the row does, stacked. Nothing is squeezed
+   and nothing is dropped. */
+@media (max-width: 1199px) {
   .ilk-records--wide {
     display: none;
   }
@@ -220,11 +230,7 @@
   display: inline;
 }
 @media (max-width: 1080px) {
-  .ilk-fold[data-fold="channel"] {
-    display: inline;
-  }
-  .ilk-fold[data-fold="short"] {
-    display: inline;
+  .ilk-fold[data-fold="short"] {    display: inline;
   }
   .ilk-when-wide {
     display: none;
@@ -280,12 +286,11 @@
    `.ilk-table th[data-col="…"]` is `(0,2,1)` — the general rule outranks the
    specific one, which is exactly backwards. Matching its shape and adding the
    attribute puts the decision back where the column made it. */
-.ilk-table.app-table thead th[data-col="channel"],
-.ilk-table.app-table thead th[data-col="latest"],
 .ilk-table.app-table thead th[data-col="submissions"],
 .ilk-table.app-table thead th[data-col="actions"] {
   white-space: nowrap;
 }
+
 /* Chips inside the table may wrap rather than escape their cell.
    `white-space: nowrap` is a badge's contract so it never breaks mid-phrase in
    a toolbar; in a table cell that same contract used to make it overflow into
@@ -302,59 +307,143 @@
 .ilk-table .app-chip {
   white-space: normal;
 }
-/* …EXCEPT THE CHANNEL CHIP, which holds one short word.
-   The rule above lets a long chip wrap rather than push the table wider, which
-   is right for a chip whose text can run long. The channel chip cannot: it is
-   "Email", "SMS" or "Link", and `overflow-wrap: anywhere` on the cell was
-   therefore free to break those into "Ema / il" and "SM / S" — a single word
-   split down a column, which reads as a rendering fault rather than as a
-   value. The column floor above reserves the width this needs. */
-.ilk-table td[data-col="channel"] .app-chip {
-  white-space: nowrap;
-}
-/* Column geometry — floors and ceilings, in CHARACTERS, so the sizing follows
-   the text a locale actually produces rather than a pixel count measured from
-   English. `ch` is resolved against the cell font, so a larger text scale
-   widens the floor with the text instead of overflowing it. */
+/* ---------------------------------------------------------------------------
+ * COLUMN GEOMETRY — seven columns, in CHARACTERS.
+ *
+ * `ch` rather than pixels so the sizing follows the text a locale actually
+ * produces rather than a measurement taken from English, and so a larger text
+ * scale widens a floor with the text instead of overflowing it.
+ *
+ * The grouping bought room. Ten columns asked for roughly 1132ch-equivalent of
+ * table and had to hide two of themselves below 1500px; seven ask for far
+ * less, which is why the fold rule that used to live at the end of this block
+ * is gone rather than retuned. No column is hidden at any width the table is
+ * shown at.
+ * ------------------------------------------------------------------------ */
 .ilk-table th[data-col="request"],
 .ilk-table td[data-col="request"] {
   /* The request title wraps freely, so its floor costs the columns that
-     cannot wrap.
-
-     It gave up 2ch to the status column, which stopped being a wrapping column
-     when Delivery and Activity were put on one line each. That is this rule's
-     own principle applied: the column that CAN wrap yields to the ones that
-     cannot. The ceiling is untouched, so a wide table still gives the title
-     everything it had. */
-  min-inline-size: 11ch;
-  max-inline-size: 32ch;
-}
-/* The organization's own identifier. Its own column because it is how the
-   operator's own system names this request — not a property of the recipient,
-   and not something to fall back to when a name is missing. Monospace-ish
-   tracking so "CUST-849271" and "CUST-849277" are distinguishable at a
-   glance in a long list. */
-.ilk-table th[data-col="customer"],
-.ilk-table td[data-col="customer"] {
+     cannot wrap. It yields first, and its ceiling is generous because a
+     template name is the row's headline. */
   min-inline-size: 10ch;
-  max-inline-size: 18ch;
+  max-inline-size: 26ch;
 }
-.ilk-customer {
+
+/* -------------------------------------------------------------------------
+ * RECIPIENT & REFERENCE — the cell this redesign exists for.
+ *
+ * It carries up to four independent lines, and three of them are IDENTIFIERS
+ * rather than prose. The previous arrangement gave the Customer ID its own
+ * 10ch–18ch column with `overflow-wrap: anywhere` inherited from the table,
+ * which is a licence to hyphenate a number: "CUST-849271" came out as
+ * "CUST-8 / 49271", and a phone number fared worse.
+ *
+ * The floor here is sized to hold a full E.164 number and a typical Customer
+ * ID on one line each, and the identifier rules below take away the licence
+ * to break them.
+ * ---------------------------------------------------------------------- */
+.ilk-table th[data-col="identity"],
+.ilk-table td[data-col="identity"] {
+  min-inline-size: 17ch;
+  max-inline-size: 26ch;
+}
+.ilk-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-inline-size: 0;
+}
+.ilk-identity__who {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-inline-size: 0;
+}
+/* A person's name is prose. It is the one value here that SHOULD wrap. */
+.ilk-identity__name {
+  font-weight: 600;
+  color: var(--app-ink-heading, #172033);
+  overflow-wrap: anywhere;
+}
+/* -------------------------------------------------------------------------
+ * IDENTIFIERS ARE NOT PARAGRAPHS.
+ *
+ * An address, a number and a business reference are single tokens: broken
+ * across lines they stop being readable as one value, and a reader cannot
+ * tell a line break from a character that is part of the identifier.
+ *
+ * The email is the ONE that may lose its tail, because a truncated address is
+ * still recognisably the same address and the full value stays selectable,
+ * copyable and on the title. The phone and the Customer ID never truncate —
+ * a number missing its end is a different number.
+ * ---------------------------------------------------------------------- */
+.ilk-identity__email,
+.ilk-identity__phone {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--app-ink-secondary, #667085);
+}
+.ilk-identity__email {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+.ilk-identity__phone {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+/* The organization's own reference — labelled, and set apart from the contact
+   block above it, because it names the operator's file rather than the
+   person. Tabular figures so "155100455151" and "155100455157" differ at a
+   glance in a long list. */
+.ilk-identity__ref {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-inline-size: 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.ilk-identity__ref-key {
+  flex: 0 0 auto;
+  color: var(--ink-muted);
+}
+.ilk-identity__ref-sep {
+  flex: 0 0 auto;
+  color: var(--app-ink-tertiary, #98a2b3);
+}
+.ilk-identity__ref-value {
+  /* A SHRINK FLOOR, not a display width.
+     `min-inline-size: 0` lets a flex item shrink, but it does not reduce what
+     the item contributes to its COLUMN's min-content: a nowrap span still
+     asks for its whole string, and "Customer ID · CUST-849271" was therefore
+     setting a 223px floor on this column — 72px more than the table could
+     afford at 1024px, which the surface then answered with a sideways
+     scroller.
+     A small explicit floor lets the column come down to what it can afford
+     while the value still takes every pixel that is going. Where the width is
+     there the identifier is complete; where it is not, it ellipses rather than
+     breaking, and the full value stays on the title, selectable and
+     copyable. */
+  min-inline-size: 5ch;
+  flex: 0 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
+  color: var(--app-ink-control, #263247);
 }
-.ilk-table th[data-col="recipient"],
-.ilk-table td[data-col="recipient"] {
-  /* Wider than before: this cell now carries up to three stacked lines
-     (name, address, number) rather than one substituted value. */
-  min-inline-size: 12ch;
-  max-inline-size: 28ch;
-}
-
-/* Three facts, stacked, each on its own line and each able to wrap. The name
-   leads because it is what a person recognises; the address and number sit
-   under it in the secondary tone so the cell reads as one identity rather
-   than three competing values. */
+/* -------------------------------------------------------------------------
+ * The DETAILS DRAWER's recipient stack.
+ *
+ * The drawer is a reading surface, not a dense row: it has room, it labels
+ * Customer ID as its own field, and nothing in it should truncate. So it keeps
+ * these three rules rather than borrowing the table cell's, whose whole job is
+ * to hold four lines inside a column.
+ * ---------------------------------------------------------------------- */
 .ilk-recipient {
   display: flex;
   flex-direction: column;
@@ -372,73 +461,86 @@
   color: var(--app-ink-secondary, #667085);
   overflow-wrap: anywhere;
 }
-/* An absent value is absent. "—" says "nothing here", which is a different
-   statement from a blank cell that might be a rendering failure. */
+
+/* An absent recipient is a fact, not a rendering failure — and on a manual
+   Copy link it is the expected one. */
+.ilk-identity__none {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.ilk-identity__none-primary {
+  color: var(--app-ink-secondary, #667085);
+}
+.ilk-identity__none-sub {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--app-ink-tertiary, #98a2b3);
+}
 .ilk-empty {
   color: var(--app-ink-tertiary, #98a2b3);
 }
-.ilk-table th[data-col="channel"],
-.ilk-table td[data-col="channel"] {
-  /* ONE LINE, for the same reason the Latest activity column takes one.
-     The floor was 7ch — the character count of "CHANNEL" — but `ch` measures
-     the "0" glyph, and this heading is uppercase with letter-spacing, so it
-     was reliably wider than its own floor and broke to "CHANN / EL". The
-     values ("Email", "SMS") were being squeezed onto a letter per line by the
-     same shortfall. */
+
+/* -------------------------------------------------------------------------
+ * DELIVERY — channel over provider state.
+ * ---------------------------------------------------------------------- */
+.ilk-table th[data-col="delivery"],
+.ilk-table td[data-col="delivery"] {
+  min-inline-size: 11ch;
+  max-inline-size: 15ch;
+}
+.ilk-delivery {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+.ilk-delivery__channel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-inline-size: 0;
+  font-weight: 600;
+  color: var(--app-ink-heading, #172033);
+}
+/* "Email", "SMS", "Link" — one short word that must never be split down the
+   column into "Ema / il". */
+.ilk-delivery__channel-label {
   white-space: nowrap;
-  min-inline-size: 9.5ch;
 }
-.ilk-table th[data-col="lifecycle"],
-.ilk-table td[data-col="lifecycle"] {
-  min-inline-size: 8ch;
+.ilk-delivery__line,
+.ilk-status__activity-line {
+  display: block;
+  min-inline-size: 0;
 }
-/* The status column's floor reserves KEY + GAP + the widest value surface,
-   because the line no longer wraps. `With provider` is the widest English
-   value; the floor is expressed in `ch` so a larger text scale or a longer
-   translation widens it with the text rather than overflowing it.
-   The ceiling is unchanged, so this cannot grow the table beyond what it was
-   already allowed to take. */
+.ilk-delivery__state {
+  font-size: 12px;
+  line-height: 1.4;
+}
+.ilk-delivery__detail {
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--app-ink-secondary, #667085);
+}
+
+/* -------------------------------------------------------------------------
+ * STATUS — the lifecycle badge, then the contributor's activity under it.
+ * ---------------------------------------------------------------------- */
 .ilk-table th[data-col="status"],
 .ilk-table td[data-col="status"] {
-  min-inline-size: 17ch;
-  max-inline-size: 30ch;
-  /* SLIGHTLY TIGHTER SIDE PADDING, and only here.
-     This is the densest cell in the table — two key/value lines that may not
-     wrap — and at 901px the table's minimum was landing a fraction of a pixel
-     over its frame, which the surface then answered with a 2px sideways
-     scroller. Three pixels a side is the difference between "fits" and "fits
-     with room", and it is taken from the one cell that is paying for the
-     no-wrap contract rather than from the shared table primitive, which every
-     other table in the product also uses. */
-  padding-inline: 13px;
+  min-inline-size: 11ch;
+  max-inline-size: 14ch;
 }
-.ilk-table th[data-col="latest"],
-.ilk-table td[data-col="latest"] {
-  /* ONE LINE, HEADING AND VALUE.
-     Both were wrapping at desktop width: "Latest activity" broke after
-     "Latest", and "04 Jul 2026" broke after "Jul" — a date split across two
-     lines stops reading as a date at all.
 
-     The floor is sized to the HEADING, which is the widest thing this column
-     carries (15ch against the value's 11ch). The ceiling moves with it,
-     because a max below the floor would re-introduce the wrap the nowrap is
-     there to prevent. That is ~2ch more than before; the Delivery & activity
-     column beside it gave up more than that when its values stopped being
-     padded, bordered capsules, so the row is not wider overall. */
-  white-space: nowrap;
-  min-inline-size: 15ch;
+/* -------------------------------------------------------------------------
+ * TIMELINE — two labelled dates.
+ * ---------------------------------------------------------------------- */
+.ilk-table th[data-col="timeline"],
+.ilk-table td[data-col="timeline"] {
+  min-inline-size: 14ch;
   max-inline-size: 16ch;
 }
-/* Wide enough for the longest value this column carries — and that value is
-   now a DATE, "01 Jan 2020", not the "Expired 01 Jan 2020" phrase it used to
-   print. The floor was measured for the longer string and kept ~3ch this
-   column no longer needs, which is exactly the width the Lifecycle chip needs
-   to hold "Link disabled" on one line at 1024px. */
-.ilk-table th[data-col="expires"],
-.ilk-table td[data-col="expires"] {
-  min-inline-size: 11ch;
-  max-inline-size: 20ch;
-}
+
 /* The two columns whose control cannot wrap take exactly what the control
    needs — auto layout gives them their intrinsic width, and nothing here may
    cap it below that. */
@@ -452,40 +554,6 @@
 .ilk-table td[data-col="actions"],
 .ilk-table th[data-col="actions"] {
   text-align: end;
-}
-
-/* Medium width: drop the two columns whose value is restated elsewhere.
-   Channel reappears in the request cell's sub-line (see `.ilk-fold`); Latest
-   activity is available in the details drawer and through the sort.
-
-   LIFECYCLE IS NOT IN THIS SET. It used to be — it was folded into the
-   Delivery & activity cell with a visible "Lifecycle:" key, which meant a
-   medium row carried the state twice at wide widths and read as a third
-   delivery fact at narrow ones. It folded only because a fixed percentage grid
-   could not give the widest badge its 98px; the container-aware grid above
-   sizes the column to its content, so the column simply stays.
-
-   THE THRESHOLD IS 1400px, NOT 1080px.
-
-   Measured, not guessed: nine columns ask for ~1132px of table. The page
-   clamps to 1360px, so the records frame is the viewport minus the shell —
-   1068px at a 1280px viewport, 968px at 1180px. Below 1400px the nine columns
-   therefore do not fit, and the two that fold are the two whose value is
-   restated elsewhere. Above it the frame is 1228px and the nine fit. */
-/* Ten columns now, so the fold threshold rises with them: the Customer ID
-   column asks for ~10ch more table. Channel and Latest activity still fold
-   first — both are restated in the row's own sub-line and in the drawer —
-   and Customer ID never folds, because it is the value the operator is
-   scanning for. */
-@media (max-width: 1500px) {
-  .ilk-table col[data-col="channel"],
-  .ilk-table th[data-col="channel"],
-  .ilk-table td[data-col="channel"],
-  .ilk-table col[data-col="latest"],
-  .ilk-table th[data-col="latest"],
-  .ilk-table td[data-col="latest"] {
-    display: none;
-  }
 }
 
 /* The row title is the primary control in its cell, so it carries a real
@@ -525,56 +593,23 @@
   overflow-wrap: anywhere;
 }
 
-/* The status cluster — one region, two explicitly labelled facts, and
-   deliberately no third. Lifecycle has its own column at every table width. */
+/* The status cell — a filled lifecycle badge over quiet toned activity text.
+   Two levels, not two peers: the badge is what the row is scanned by and the
+   activity is a detail of it. They are separate elements with separate probes,
+   so they can never read as one status made of two words. */
 .ilk-status {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  align-items: flex-start;
+  gap: 4px;
   margin: 0;
   min-inline-size: 0;
 }
-.ilk-status__line {
-  display: flex;
-  gap: 8px;
-  /* CENTRE, not baseline: the value is now a bordered surface with its own
-     padding, and baseline-aligning a box against a bare label leaves the box
-     sitting low. */
-  align-items: center;
-  /* ONE LINE, ALWAYS.
-     This used to wrap, on the reasoning that key-above-value is a fine narrow
-     answer. It is not: the key and the value are one fact, and splitting them
-     turns two facts into four stacked lines that read as a list of unrelated
-     words. The table hands over to the card renderer at 900px, well before the
-     line runs out of room, and the column floor below reserves the width this
-     costs. */
-  flex-wrap: nowrap;
-  gap: 6px;
-  min-inline-size: 0;
-  font-size: 12.5px;
+.ilk-status__activity {
+  font-size: 12px;
   line-height: 1.4;
 }
-/* Two labelled facts, in a key/value grid. The keys are VISIBLE: "Delivered"
-   stacked over "Submitted" with no keys reads as one status made of two
-   words, which is the confusion this cell exists to remove. */
-/* Two labelled facts, in a key/value grid. The keys are VISIBLE: "Delivered"
-   stacked over "Submitted" with no keys reads as one status made of two
-   words, which is the confusion this cell exists to remove.
 
-   The key column is sized to the longer of the two words it actually holds
-   ("Delivery"/"Activity") rather than to a round number. It was 4.5rem, which
-   was ~20px of air per row that the value now needs to stay on the line. */
-.ilk-status__key {
-  flex: 0 0 auto;
-  /* A FIXED label column, so "Delivery" and "Activity" put their values at the
-     same inline offset on every row. The values themselves are ragged — the
-     words are different lengths and that is fine — but the column they start
-     in must not be. */
-  inline-size: 3.9rem;
-  font-weight: 500;
-  /* The label is the quiet half of the pair; the value carries the colour. */
-  color: var(--ink-muted);
-}
 /* ===========================================================================
    DELIVERY & ACTIVITY — TONED TEXT, NOT CAPSULES.
 
@@ -615,48 +650,53 @@
 .ilk-state-text[data-ilk-tone="red"] { --ilk-tone: var(--ilk-tone-red); }
 .ilk-state-text[data-ilk-tone="orange"] { --ilk-tone: var(--orange-500); }
 
-/* The VALUE treatment moved to `.app-fact-value` in app-primitives.css.
-   Both renderers now put that one class on the element that carries the wire
-   probe, so the table cell and the card fact cannot drift — previously the
-   card was matched by two attribute selectors that had to be kept in step by
-   hand, and a third fact would have needed a third selector.
-   What stays here is only the cell's own box behaviour. */
-.ilk-status__value {
+/* -------------------------------------------------------------------------
+ * TIMELINE — two labelled dates in one cell.
+ *
+ * The keys are VISIBLE. "4h ago" stacked over "07 Sep 2026" with no keys is
+ * two numbers; with them it is two facts.
+ * ---------------------------------------------------------------------- */
+.ilk-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
   margin: 0;
-  min-inline-size: 0;
-}
-.ilk-status__detail {
-  margin: 0;
-  font-size: 11.5px;
-  line-height: 1.4;
-  color: var(--app-ink-secondary, #667085);
-}
-/* Expiry — a DATE.
-
-   The lifecycle badge one cell away already says whether the link is expired,
-   so this column neither repeats the word nor repeats the alarm: an expired
-   date is ordinary ink. What it DOES keep is the forward-looking caution,
-   because "this expires within three days" is a fact no badge carries. */
-.ilk-expiry {
-  display: inline-block;
   min-inline-size: 0;
   font-size: 12.5px;
+  line-height: 1.4;
+}
+.ilk-timeline__line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-inline-size: 0;
+}
+/* A fixed label column so both values start at the same inline offset. */
+.ilk-timeline__key {
+  flex: 0 0 auto;
+  inline-size: 3.1rem;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+.ilk-timeline__value {
+  margin: 0;
+  min-inline-size: 0;
   color: var(--app-ink-control, #263247);
 }
+/* Expiry keeps the forward-looking caution — "this stops working within three
+   days" is a fact no badge carries — and nothing else. The Status cell one
+   column away already says "Expired" when it is. */
 .ilk-expiry[data-state="soon"] {
   color: var(--ilk-tone-amber);
   font-weight: 650;
 }
-/* A date is one value: it wraps at its spaces if it must, and never breaks
-   into day / month / year on separate lines. */
+/* A date is one value: it never breaks into day / month / year. */
 .ilk-expiry__date {
   white-space: nowrap;
 }
-/* Relative phrases are short ("3d ago") and never wrap on their own, but the
-   helper falls back to an absolute date past 30 days — and a `nowrap` on that
-   fallback pushed the value straight out of its column. Wrapping at a space is
-   correct; what must never happen is a value broken one word per line, which is
-   why the columns above are sized to fit their content. */
+/* Relative phrases are short ("3d ago"), but the helper falls back to an
+   absolute date past 30 days — and a nowrap on that fallback pushed the value
+   straight out of its column. Wrapping at a space is correct. */
 .ilk-relative {
   white-space: normal;
 }
@@ -689,31 +729,29 @@
 .ilk-card__heading {
   min-inline-size: 0;
 }
+/* The card's middle region holds the SAME cells the table renders, stacked
+   in column order. It is a layout, not a second implementation, so it declares
+   spacing and nothing else — every value inside it is styled by the shared
+   cell rules above. */
 .ilk-card__facts {
-  display: grid;
-  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
-  column-gap: 12px;
-  row-gap: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   margin: 0;
   font-size: 12.5px;
 }
-.ilk-card__facts dt {
-  font-weight: 600;
-}
-.ilk-card__facts dd {
-  margin: 0;
-  min-inline-size: 0;
-  color: var(--app-ink-control, #263247);
+/* On a card there is room for the email to run to its full length, so it is
+   allowed to wrap rather than truncate. The phone and the Customer ID keep
+   their nowrap: a number is a number at every width. */
+.ilk-card .ilk-identity__email {
+  white-space: normal;
+  overflow: visible;
   overflow-wrap: anywhere;
 }
-/* The provider detail beside a delivery fact surface. Outside the surface, so
-   a long provider sentence wraps as ordinary secondary text instead of
-   stretching a content-width chip across the card. */
-.ilk-card__fact-detail {
-  display: inline;
-  margin-inline-start: 6px;
-  color: var(--app-ink-secondary, #667085);
+.ilk-card .ilk-identity__ref-value {
+  overflow: visible;
 }
+
 .ilk-card__foot {
   display: flex;
   flex-wrap: wrap;
@@ -1365,7 +1403,8 @@
 .ilk-facts dt,
 .ilk-preview__meta dt,
 .ilk-card__facts dt,
-.ilk-status__key {
+.ilk-timeline__key,
+.ilk-identity__ref-key {
   color: var(--app-ink-label, #344054);
 }
 /* --------------------------------------------------------------------------
