@@ -611,6 +611,154 @@ describe("PHASE 5 — mutation family attribution (live PostgreSQL 16)", () => {
   });
 
   // =========================================================================
+  // FAMILY G — SIGNING AND CUSTODY.
+  //
+  // A product whose whole claim is that its evidence is signed had no operator
+  // audit trail for retiring a signing key.
+  // =========================================================================
+  describe("family G — signer lifecycle", () => {
+    async function stageAndPromote(purpose: string) {
+      const { stageSigner } = await import(
+        "../src/services/operations/signer-rotation.service.js"
+      );
+      const keyId = `p5-key-${randomUUID().slice(0, 8)}`;
+      const staged = await stageSigner({
+        teamId: orgA.workspaceId,
+        actorUserId: platformAdmin.userId,
+        signerPurpose: purpose as never,
+        provider: "local_pem" as never,
+        keyId,
+        keyVersion: "1",
+        kmsKeyArn: "arn:aws:kms:eu-west-1:123456789012:key/p5-should-never-persist",
+        algorithm: "ES256",
+        notes: null,
+      });
+      return staged;
+    }
+
+    it("staging does NOT persist the KMS ARN in the event's details", async () => {
+      /*
+       * PHASE 5 §12. `projectSecurityEventDetails` filtered the ARN on the way
+       * out, so it never reached the console — but the allow-list runs at
+       * READ, so the value was persisted and every future reader of that JSON
+       * column had to remember to use the projector. Phase 12B built that
+       * projector because a signer projection had leaked exactly these fields
+       * once already.
+       *
+       * Asserted against the STORED row, not the projection.
+       */
+      const staged = await stageAndPromote("report_pdf");
+      expect(staged.ok, JSON.stringify(staged)).toBe(true);
+
+      // safeEmitSecurityEvent is fire-and-forget; poll rather than sleep.
+      let rows: Array<{ details: unknown }> = [];
+      const deadline = Date.now() + 6_000;
+      while (Date.now() < deadline) {
+        rows = await prisma.securityEvent.findMany({
+          where: { teamId: orgA.workspaceId, eventType: "signer_staged" },
+          orderBy: { createdAt: "desc" },
+          take: 5,
+          select: { details: true },
+        });
+        if (rows.length > 0) break;
+        await new Promise((r) => setTimeout(r, 60));
+      }
+      expect(rows.length, "the staging event was never written").toBeGreaterThan(0);
+      const serialized = JSON.stringify(rows);
+      expect(
+        serialized,
+        "a KMS ARN is persisted at rest in the security event details",
+      ).not.toContain("arn:aws:kms");
+      expect(serialized).not.toContain("p5-should-never-persist");
+    });
+
+    it("retiring a signer writes an operator audit row with both real states", async () => {
+      /*
+       * The signer set is derived from environment configuration, not from the
+       * staging table: `listAllSigners` overlays persisted control state onto
+       * the env-configured signers, so a merely-staged signer is a promotable
+       * candidate and is correctly NOT retirable. Configuring the env here is
+       * what makes the real lifecycle transition reachable — the alternative
+       * would have been to assert on a path that always returns
+       * `signer_not_found`, which would have proved nothing.
+       */
+      const { retireSigner, listAllSigners } = await import(
+        "../src/services/operations/signer-rotation.service.js"
+      ).then(async (m) => ({
+        ...m,
+        listAllSigners: (
+          await import("../src/services/operations/signer-registry.service.js")
+        ).listAllSigners,
+      }));
+
+      const previousKeyId = process.env.SIGNING_KEY_ID;
+      const previousKeyVersion = process.env.SIGNING_KEY_VERSION;
+      process.env.SIGNING_KEY_ID = `p5-signing-${randomUUID().slice(0, 8)}`;
+      process.env.SIGNING_KEY_VERSION = "1";
+
+      const visible = await listAllSigners({ teamId: orgA.workspaceId });
+      const target = visible.find((s) => s.signerPurpose === "report_pdf");
+      expect(target, "no configured signer became visible").toBeTruthy();
+      const staged = { ok: true as const, signerId: target!.signerId };
+
+      const result = await retireSigner({
+        teamId: orgA.workspaceId,
+        actorUserId: platformAdmin.userId,
+        signerId: staged.signerId,
+        reason: "p5 rotation rehearsal",
+      });
+
+      process.env.SIGNING_KEY_ID = previousKeyId;
+      process.env.SIGNING_KEY_VERSION = previousKeyVersion;
+
+      // A staged-but-never-active signer may legitimately refuse the
+      // transition. Either way the row must exist and must be truthful — a
+      // refusal that leaves no trace is the defect this closes.
+      const rows = await waitForAudit({ resourceId: staged.signerId });
+      expect(
+        rows.length,
+        `retiring a signing key left no operator audit row at all (result: ${JSON.stringify(result)})`,
+      ).toBeGreaterThan(0);
+
+      const row = rows[rows.length - 1] as unknown as AuditRow;
+      assertCoreAttribution(row, {
+        actorUserId: platformAdmin.userId,
+        label: "signer retire",
+      });
+      expect(row.actorAuthority).toBe("PLATFORM_OPS");
+      expect(row.targetDisplay).toContain(staged.signerId);
+      expect(row.requestedState).toBe("RETIRED");
+      if (row.outcome === "success") {
+        expect(row.resultingState).toBe("RETIRED");
+        expect(row.reasonCode).toBe("OPERATOR_RETIRED_SIGNER");
+      } else {
+        /*
+         * The refusal is the case a single-signer deployment actually reaches,
+         * and it is the one that matters most: an operator retiring the last
+         * usable signer for a purpose is one click from leaving the deployment
+         * unable to sign. It must say what was asked for and claim no result.
+         */
+        expect(["denied", "no_op"]).toContain(row.outcome);
+        if (row.outcome === "denied") {
+          expect(
+            row.resultingState,
+            "a refused signer transition claimed a resulting state",
+          ).toBeNull();
+          expect(row.previousState, "the refusal lost the state it refused from").toBeTruthy();
+          expect(["LAST_USABLE_SIGNER_FOR_PURPOSE", "TRANSITION_NOT_ALLOWED"]).toContain(
+            row.reasonCode,
+          );
+        }
+      }
+
+      // NOTHING about the key material, in any outcome.
+      assertNoSecret(row, "signer retire");
+      expect(JSON.stringify(row)).not.toContain("arn:aws:kms");
+      expect(result).toBeTruthy();
+    });
+  });
+
+  // =========================================================================
   // FAMILY H — SSO, SCIM AND PROVISIONING.
   //
   // The one family where the audit row is next to a secret at every step.

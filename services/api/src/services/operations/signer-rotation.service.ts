@@ -24,6 +24,7 @@ import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { bump } from "../ops/metrics.service.js";
 // Phase O1.5 — bounded signer rotation spans. Attributes carry only
 // bounded fields (teamId, signerPurpose, compatibility outcome).
@@ -118,7 +119,21 @@ export async function stageSigner(
       provider: input.provider,
       keyId: input.keyId,
       keyVersion: input.keyVersion,
-      kmsKeyArn: input.kmsKeyArn,
+      /*
+       * PHASE 5 §12 — THE KMS ARN IS NOT WRITTEN INTO THE EVENT.
+       *
+       * It used to be. `projectSecurityEventDetails` filters it on the way
+       * out, so it never reached the console — but the allow-list runs at
+       * READ, which means the ARN was persisted in the details JSON and every
+       * future reader of that column had to remember to use the projector.
+       * Phase 12B built that projector precisely because a signer projection
+       * had leaked `kmsKeyArn`, `keyId` and `keyVersion` once already.
+       *
+       * The event does not need it. A signer is identified by its signerId,
+       * purpose, provider and key version, all of which are here; the ARN adds
+       * nothing an operator reads and is infrastructure material at rest in a
+       * table that outlives the key.
+       */
       algorithm: input.algorithm,
       notes: input.notes,
     },
@@ -475,6 +490,38 @@ async function runSignerLifecycleTransition(
       excluding: input.signerId,
     });
     if (remaining === 0) {
+      /*
+       * PHASE 5 §4 — THE MOST IMPORTANT REFUSAL IN THIS FAMILY, UNRECORDED.
+       *
+       * An operator trying to retire the last signer for a purpose is one
+       * click away from leaving the deployment unable to sign — discovered at
+       * the next upload rather than here. The guard was already right; what
+       * was missing is that it left no trace, so a repeated attempt during an
+       * incident was invisible to everyone reviewing afterwards.
+       *
+       * Recorded as REFUSED with the requested state and no result, because
+       * nothing changed.
+       */
+      await emitTenantAudit({
+        action: "operations.signer.retired",
+        outcome: "denied",
+        denialReason: "last_active_signer",
+        sourceApp: "API",
+        actorUserId: input.actorUserId,
+        actorAuthority: "PLATFORM_OPS",
+        workspaceId: input.teamId,
+        resourceType: "signer",
+        resourceId: input.signerId,
+        targetDisplay: `Signer ${input.signerId}`,
+        previousState: currentStatus,
+        requestedState: "RETIRED",
+        resultingState: null,
+        reasonCode: "LAST_USABLE_SIGNER_FOR_PURPOSE",
+        metadata: {
+          signerPurpose: target.signerPurpose,
+          operatorReason: input.reason.trim().slice(0, 240),
+        },
+      }).catch(() => null);
       return {
         ok: false,
         code: "last_active_signer",
@@ -510,6 +557,26 @@ async function runSignerLifecycleTransition(
           "This signer changed while the page was open. Reload and review the current state before acting.",
       };
     }
+    // PHASE 5 §4 — a refused lifecycle transition is recorded as REFUSED,
+    // with what was asked for and no resulting state. Attempting to revoke an
+    // already-retired signing key is exactly the kind of thing an incident
+    // review needs to see, and until now it left no trace at all.
+    await emitTenantAudit({
+      action: to === "REVOKED" ? "operations.signer.revoked" : "operations.signer.retired",
+      outcome: "denied",
+      denialReason: "transition_not_allowed",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      actorAuthority: "PLATFORM_OPS",
+      workspaceId: input.teamId,
+      resourceType: "signer",
+      resourceId: input.signerId,
+      targetDisplay: `Signer ${input.signerId}`,
+      previousState: outcome.from,
+      requestedState: to,
+      resultingState: null,
+      reasonCode: "TRANSITION_NOT_ALLOWED",
+    }).catch(() => null);
     return {
       ok: false,
       code: "transition_not_allowed",
@@ -519,8 +586,30 @@ async function runSignerLifecycleTransition(
     };
   }
 
-  // Idempotent repeat: nothing changed, so no transition is claimed or audited.
+  // PHASE 5 §4 — an idempotent repeat is `no_op`, not a second success.
+  //
+  // The comment here used to say "no transition is claimed or audited", and
+  // the second half was the problem: a replayed revoke left no record, so an
+  // operator who clicked twice could not tell their second click had reached
+  // the server at all. It is recorded, as the canonical value for a valid
+  // request that changed nothing, with previous and resulting equal — and the
+  // original success row's timestamp is untouched.
   if (outcome.state === "already") {
+    await emitTenantAudit({
+      action: to === "REVOKED" ? "operations.signer.revoked" : "operations.signer.retired",
+      outcome: "no_op",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      actorAuthority: "PLATFORM_OPS",
+      workspaceId: input.teamId,
+      resourceType: "signer",
+      resourceId: input.signerId,
+      targetDisplay: `Signer ${input.signerId}`,
+      previousState: outcome.status,
+      requestedState: to,
+      resultingState: outcome.status,
+      reasonCode: "ALREADY_IN_REQUESTED_STATE",
+    }).catch(() => null);
     return { ok: true, state: "already", status: outcome.status };
   }
 
@@ -538,6 +627,42 @@ async function runSignerLifecycleTransition(
       reason: input.reason.trim().slice(0, 240),
     },
   });
+
+  /*
+   * PHASE 5 §3 (family G) — RETIRING A SIGNING KEY LEFT NO OPERATOR AUDIT.
+   *
+   * This family wrote security events and nothing else, so retiring or
+   * revoking a signing identity — among the most consequential things anyone
+   * can do to a product whose whole claim is that its evidence is signed —
+   * appeared nowhere in the Admin audit trail.
+   *
+   * The states come from the transition's own outcome, which was read and
+   * compared under the state-version guard above, so `previousState` is the
+   * value the compare-and-set actually raced against and `resultingState` is
+   * what it wrote. The signer is named by its signerId; no ARN, no key
+   * material, and the operator's free-text reason stays in metadata, bounded,
+   * while `reasonCode` carries the machine-readable transition.
+   */
+  await emitTenantAudit({
+    action: to === "REVOKED" ? "operations.signer.revoked" : "operations.signer.retired",
+    outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    actorAuthority: "PLATFORM_OPS",
+    workspaceId: input.teamId,
+    resourceType: "signer",
+    resourceId: input.signerId,
+    targetDisplay: `Signer ${input.signerId}`,
+    previousState: outcome.from,
+    requestedState: to,
+    resultingState: outcome.to,
+    reasonCode: to === "REVOKED" ? "OPERATOR_REVOKED_SIGNER" : "OPERATOR_RETIRED_SIGNER",
+    metadata: {
+      signerId: input.signerId,
+      stateVersion: outcome.stateVersion,
+      operatorReason: input.reason.trim().slice(0, 240),
+    },
+  }).catch(() => null);
 
   return {
     ok: true,
