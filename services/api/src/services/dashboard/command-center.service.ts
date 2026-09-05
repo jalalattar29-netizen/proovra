@@ -25,6 +25,14 @@
 
 import { prisma } from "../../db.js";
 import {
+  loadEvidenceCounters,
+  loadReviewQueueCounters,
+  OPEN_REVIEW_STATUSES,
+  reviewQueueWindow,
+  type EvidenceCounters,
+  type ReviewQueueCounters,
+} from "./command-center-counters.js";
+import {
   caseScopeFor,
   evidenceScopeFor,
   resolvePersonalScope,
@@ -1628,69 +1636,39 @@ async function runCaseOperations(
 async function runReviewerOrchestration(
   teamId: string,
   scope: WorkspaceScope,
+  counters: ReviewQueueCounters,
 ): Promise<CommandCenterEnvelope["sections"]["reviewerOrchestration"]> {
   if (scope === "SINGLE_OCCUPANT") {
     return { status: "not_applicable", data: null };
   }
   try {
-    const now = new Date();
-    const dueSoonCutoff = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    const last7dStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const prev7dStart = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+    /*
+     * SEVEN COUNTS, NONE OF THEM ISSUED HERE.
+     *
+     * Every figure below came from its own `COUNT(*)` against
+     * `evidence_review_workflows`, and four of the seven were asked again by
+     * other engines in the same request. They are read from the request's
+     * snapshot now — same predicates, same exactness, two round trips for the
+     * whole page instead of thirteen.
+     *
+     * `now` is the SNAPSHOT's clock rather than a fresh one, so this section
+     * and the reviewer-workload section below cannot disagree about which
+     * items are overdue.
+     */
+    const now = counters.now;
+    // The same 24h horizon the snapshot used, from the same clock.
+    const dueSoonCutoff = new Date(now.getTime() + 24 * 60 * 60 * 1000);
     const inactivityCutoff = new Date(
-      Date.now() - REVIEWER_INACTIVITY_HOURS * 60 * 60 * 1000,
+      now.getTime() - REVIEWER_INACTIVITY_HOURS * 60 * 60 * 1000,
     );
 
-    const [
-      queueDepth,
-      overdueCount,
-      dueSoonCount,
-      unassignedCount,
-      openEscalationsCount,
-      completedLast7dCount,
-      completedPrev7dCount,
-    ] = await Promise.all([
-      prisma.evidenceReviewWorkflow.count({
-        where: {
-          teamId,
-          status: { in: ["QUEUED", "ASSIGNED", "IN_REVIEW", "NEEDS_INFO"] },
-        },
-      }),
-      prisma.evidenceReviewWorkflow.count({
-        where: {
-          teamId,
-          status: { in: ["QUEUED", "ASSIGNED", "IN_REVIEW", "NEEDS_INFO"] },
-          dueAt: { lt: now },
-        },
-      }),
-      prisma.evidenceReviewWorkflow.count({
-        where: {
-          teamId,
-          status: { in: ["QUEUED", "ASSIGNED", "IN_REVIEW", "NEEDS_INFO"] },
-          dueAt: { gte: now, lt: dueSoonCutoff },
-        },
-      }),
-      prisma.evidenceReviewWorkflow.count({
-        where: { teamId, status: "QUEUED" },
-      }),
-      prisma.reviewEscalation.count({
-        where: { teamId, status: "OPEN" },
-      }),
-      prisma.evidenceReviewWorkflow.count({
-        where: {
-          teamId,
-          status: "CLOSED",
-          updatedAt: { gte: last7dStart },
-        },
-      }),
-      prisma.evidenceReviewWorkflow.count({
-        where: {
-          teamId,
-          status: "CLOSED",
-          updatedAt: { gte: prev7dStart, lt: last7dStart },
-        },
-      }),
-    ]);
+    const queueDepth = counters.inStatus(OPEN_REVIEW_STATUSES);
+    const overdueCount = counters.overdue;
+    const dueSoonCount = counters.dueSoon;
+    const unassignedCount = counters.inStatus(["QUEUED"]);
+    const openEscalationsCount = counters.openEscalations;
+    const completedLast7dCount = counters.closedLast7d;
+    const completedPrev7dCount = counters.closedPrev7d;
 
     // Top reviewers by load + inactivity flag
     const grouped = await prisma.evidenceReviewWorkflow.groupBy({
@@ -2524,6 +2502,7 @@ async function runAuditReadiness(
   teamId: string,
   scope: WorkspaceScope,
   pop: WorkspacePopulation,
+  reviewCounters: ReviewQueueCounters,
 ): Promise<CommandCenterEnvelope["sections"]["auditReadiness"]> {
   try {
     const unsignedAgeCutoff = new Date(
@@ -2595,12 +2574,8 @@ async function runAuditReadiness(
         severity: unresolvedEscalations > 0 ? "high" : "info",
       });
 
-      const pendingReviewerSignoff = await prisma.evidenceReviewWorkflow.count({
-        where: {
-          teamId,
-          status: { in: ["IN_REVIEW", "NEEDS_INFO"] },
-        },
-      });
+      // From the request snapshot; the same two statuses, exactly counted.
+      const pendingReviewerSignoff = reviewCounters.inStatus(["IN_REVIEW", "NEEDS_INFO"]);
       counters.push({
         key: "evidence_pending_reviewer_signoff",
         label: "Evidence pending reviewer signoff",
@@ -2871,30 +2846,18 @@ async function runLegacyPipelineSummary(
 async function runLegacyReviewerWorkload(
   teamId: string,
   scope: WorkspaceScope,
+  counters: ReviewQueueCounters,
 ): Promise<CommandCenterEnvelope["sections"]["reviewerWorkload"]> {
   if (scope === "SINGLE_OCCUPANT") return { status: "not_applicable", data: null };
   try {
-    const now = new Date();
-    const [queuedCount, assignedCount, inReviewCount, overdueCount, openEscalationsCount] =
-      await Promise.all([
-        prisma.evidenceReviewWorkflow.count({
-          where: { teamId, status: "QUEUED" },
-        }),
-        prisma.evidenceReviewWorkflow.count({
-          where: { teamId, status: "ASSIGNED" },
-        }),
-        prisma.evidenceReviewWorkflow.count({
-          where: { teamId, status: "IN_REVIEW" },
-        }),
-        prisma.evidenceReviewWorkflow.count({
-          where: {
-            teamId,
-            status: { in: ["QUEUED", "ASSIGNED", "IN_REVIEW", "NEEDS_INFO"] },
-            dueAt: { lt: now },
-          },
-        }),
-        prisma.reviewEscalation.count({ where: { teamId, status: "OPEN" } }),
-      ]);
+    // Read from the request snapshot. Four of these five were already being
+    // counted by the orchestration engine above, against a different `now`.
+    const queuedCount = counters.inStatus(["QUEUED"]);
+    const assignedCount = counters.inStatus(["ASSIGNED"]);
+    const inReviewCount = counters.inStatus(["IN_REVIEW"]);
+    const overdueCount = counters.overdue;
+    const openEscalationsCount = counters.openEscalations;
+    void teamId;
     return {
       status: "ok",
       data: {
@@ -2931,6 +2894,25 @@ export async function buildCommandCenter(input: {
 }): Promise<CommandCenterEnvelope> {
   const { scope, memberCount, population: pop } =
     await detectWorkspaceScope(input.teamId);
+
+  /*
+   * THE REVIEW-QUEUE COUNTERS, LOADED ONCE.
+   *
+   * Five of the engines below each issued their own COUNT(*) against
+   * `evidence_review_workflows` — thirteen in total for one page, and
+   * `{ status: "QUEUED" }` four times over. They read a request-scoped
+   * snapshot instead, built by two queries: one GROUP BY status, one
+   * conditional aggregate for the time-windowed figures.
+   *
+   * Loaded HERE rather than inside the barrier because it is an input to the
+   * engines, not one of them. It costs one sequential step and removes eleven
+   * round trips; `detectWorkspaceScope` above already establishes the same
+   * shape of dependency.
+   */
+  const [counters, evidenceCounters] = await Promise.all([
+    loadReviewQueueCounters(input.teamId, reviewQueueWindow()),
+    loadEvidenceCounters(pop.evidence as never),
+  ]);
 
   /*
    * TWENTY-FOUR ENGINES, ONE BARRIER.
@@ -2985,20 +2967,20 @@ export async function buildCommandCenter(input: {
   ] = await Promise.all([
     runOperationalPressure(input.teamId, scope, input.role),
     runCaseOperations(input.teamId, scope, pop),
-    runReviewerOrchestration(input.teamId, scope),
+    runReviewerOrchestration(input.teamId, scope, counters),
     runPipelineDetail(input.teamId, pop),
     runGovernancePosture(input.teamId, scope, pop),
     runOrganizationalIntelligence(input.teamId, pop),
     runTimeline(input.teamId, pop),
-    runAuditReadiness(input.teamId, scope, pop),
+    runAuditReadiness(input.teamId, scope, pop, counters),
     runRecentEvidence(input.teamId, pop),
     runIncidents(input.teamId),
     runLegacyPipelineSummary(input.teamId, pop),
-    runLegacyReviewerWorkload(input.teamId, scope),
+    runLegacyReviewerWorkload(input.teamId, scope, counters),
 
     // Phase 32.8C intelligence engines (partial-failure tolerant).
     runInvestigationIntelligence(input.teamId, scope, pop),
-    runQueueCongestion(input.teamId, scope, pop),
+    runQueueCongestion(input.teamId, scope, pop, counters, evidenceCounters),
     runCustodyIntegrityAnomalies(input.teamId, pop),
     runAccessSecurityAnomalies(input.teamId),
     runWorkloadEngine(input.teamId, scope),
@@ -3009,7 +2991,7 @@ export async function buildCommandCenter(input: {
     runReconstructedTimeline(input.teamId),
     runDeepIntegrityWatch(input.teamId, pop),
     runAccessSecurityClassifier(input.teamId),
-    runQueueWorkerTelemetry(input.teamId, scope, pop),
+    runQueueWorkerTelemetry(input.teamId, scope, pop, counters, evidenceCounters),
     runCoordinationSignals(input.teamId, scope),
   ]);
 
@@ -3952,6 +3934,8 @@ async function runQueueCongestion(
   teamId: string,
   scope: WorkspaceScope,
   pop: WorkspacePopulation,
+  counters: ReviewQueueCounters,
+  evidenceCounters: EvidenceCounters,
 ): Promise<{ meta: SectionMeta; items: QueueCongestionItem[] }> {
   const meta: SectionMeta = {
     status: "ok",
@@ -3974,9 +3958,8 @@ async function runQueueCongestion(
   try {
     // Review queue depth (QUEUED workflows + oldest age)
     if (scope === "SHARED") {
-      const queuedDepth = await prisma.evidenceReviewWorkflow.count({
-        where: { teamId, status: "QUEUED" },
-      });
+      // The fourth engine in this request to want this number.
+      const queuedDepth = counters.inStatus(["QUEUED"]);
       const oldestQueued = await prisma.evidenceReviewWorkflow.findFirst({
         where: { teamId, status: "QUEUED" },
         orderBy: { createdAt: "asc" },
@@ -3998,9 +3981,8 @@ async function runQueueCongestion(
     }
 
     // Report pipeline pressure: evidence SIGNED without a Report row.
-    const reportPending = await prisma.evidence.count({
-      where: { AND: [pop.evidence], status: "SIGNED", reports: { none: {} } },
-    });
+    // From the request snapshot — three engines asked this same question.
+    const reportPending = evidenceCounters.signedWithoutReport;
     items.push({
       queueId: "report_queue_pending",
       label: "Report generation pending",
@@ -4011,13 +3993,7 @@ async function runQueueCongestion(
     });
 
     // Package pipeline pressure: evidence REPORTED without a Package row.
-    const packagePending = await prisma.evidence.count({
-      where: {
-        AND: [pop.evidence],
-        status: "REPORTED",
-        verificationPackages: { none: {} },
-      },
-    });
+    const packagePending = evidenceCounters.reportedWithoutPackage;
     items.push({
       queueId: "package_queue_pending",
       label: "Verification package pending",
@@ -5878,6 +5854,8 @@ async function runQueueWorkerTelemetry(
   teamId: string,
   scope: WorkspaceScope,
   pop: WorkspacePopulation,
+  counters: ReviewQueueCounters,
+  evidenceCounters: EvidenceCounters,
 ): Promise<{ meta: SectionMeta; data: QueueWorkerTelemetry }> {
   const meta: SectionMeta = {
     status: "ok",
@@ -5943,21 +5921,11 @@ async function runQueueWorkerTelemetry(
       oldestQueued,
       retryStormIncidents,
     ] = await Promise.all([
-      scope === "SHARED"
-        ? prisma.evidenceReviewWorkflow.count({
-            where: { teamId, status: "QUEUED" },
-          })
-        : Promise.resolve(0),
-      prisma.evidence.count({
-        where: { AND: [pop.evidence], status: "SIGNED", reports: { none: {} } },
-      }),
-      prisma.evidence.count({
-        where: {
-          AND: [pop.evidence],
-          status: "REPORTED",
-          verificationPackages: { none: {} },
-        },
-      }),
+      // Same number again; the guard stays, the query does not.
+      Promise.resolve(scope === "SHARED" ? counters.inStatus(["QUEUED"]) : 0),
+      // Both already in the snapshot; the shape of the array is preserved.
+      Promise.resolve(evidenceCounters.signedWithoutReport),
+      Promise.resolve(evidenceCounters.reportedWithoutPackage),
       scope === "SHARED"
         ? prisma.evidenceReviewWorkflow.findFirst({
             where: { teamId, status: "QUEUED" },

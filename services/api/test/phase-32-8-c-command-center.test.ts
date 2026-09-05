@@ -45,6 +45,9 @@ function readWeb(rel: string): string {
 
 const ROUTE = readApi("src/routes/dashboard.routes.ts");
 const SERVICE = readApi("src/services/dashboard/command-center.service.ts");
+const COUNTERS = readApi(
+  "src/services/dashboard/command-center-counters.ts",
+);
 const SERVER = readApi("src/server.ts");
 const CC = readWeb("components/command-center/CommandCenter.tsx");
 const CC_TYPES = readWeb("components/command-center/types.ts");
@@ -1047,9 +1050,23 @@ describe("Phase 32.8C+ — Queue Congestion engine", () => {
   });
 
   it("review queue depth derives from real Prisma queries (no fabrication)", () => {
-    expect(SERVICE).toMatch(
-      /prisma\.evidenceReviewWorkflow\.count\(\{[\s\S]{0,80}status:\s*"QUEUED"/,
+    /*
+     * THE PROPERTY IS "MEASURED, NOT INVENTED" — not "queried from this file".
+     *
+     * The depth was counted by four engines in one request, each issuing its
+     * own `COUNT(*)`. It now comes from a request-scoped snapshot built by
+     * ONE `GROUP BY status`, so the literal this used to match no longer
+     * appears in the service — the query moved to
+     * `command-center-counters.ts`, and the assertion follows it.
+     *
+     * Both halves matter, which is why both are asserted: the counters module
+     * must really ask the database, and the engine must really read that
+     * answer rather than a constant.
+     */
+    expect(COUNTERS).toMatch(
+      /prisma\.evidenceReviewWorkflow\.groupBy\(\{[\s\S]{0,120}by:\s*\["status"\]/,
     );
+    expect(SERVICE).toMatch(/counters\.inStatus\(\["QUEUED"\]\)/);
   });
 
   it("report + package queue pending derive from real evidence/Report/VerificationPackage relations", () => {
