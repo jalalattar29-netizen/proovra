@@ -101,9 +101,34 @@ test("the wizard's channel union has no WhatsApp, and nothing falls back to it",
     code(CATALOG),
     /export type DeliveryChannelWire = "MANUAL" \| "EMAIL" \| "SMS"/,
   );
-  // Dead `else → whatsapp` branches are how a retirement looks finished
-  // without being it.
-  assert.doesNotMatch(code(WIZARD_STATE), /whatsapp/i);
+  /*
+   * Dead `else → whatsapp` branches are how a retirement looks finished
+   * without being it. That is what this forbids — a SEND shape.
+   *
+   * It used to forbid the STRING, anywhere in the module. That was too much:
+   * it also forbade being able to READ a WhatsApp delivery record, and the
+   * consequence was live. When the retirement removed the
+   * `whatsapp_template_unconfigured` entry from `friendlyDeliveryReason`,
+   * every stored WhatsApp failure began rendering to operators as that raw
+   * code, and this guard is why it could not simply be put back.
+   *
+   * The read-side mapping is now REQUIRED — by the sibling test below, and by
+   * `whatsapp-historical-read-only.test.ts`, which also proves no send path
+   * came back with it. A record of a send is not a way to send.
+   */
+  const wizard = code(WIZARD_STATE);
+  assert.doesNotMatch(wizard, /"WHATSAPP"/);
+  assert.doesNotMatch(wizard, /channel\s*===\s*['"`]?WHATSAPP/i);
+  assert.doesNotMatch(wizard, /:\s*['"`]whatsapp['"`]/i);
+  // Only the historical reason keys may name the channel in this module.
+  const wizardMentions = [...wizard.matchAll(/whatsapp[a-z_]*/gi)].map((m) =>
+    m[0].toLowerCase(),
+  );
+  assert.deepEqual(
+    [...new Set(wizardMentions)].sort(),
+    ["whatsapp", "whatsapp_template_unconfigured", "whatsapp_unconfigured"],
+    "wizardState may name WhatsApp only in its historical delivery-reason map",
+  );
   assert.doesNotMatch(code(PREVIEW), /whatsapp/i);
   assert.match(code(PREVIEW), /export type PreviewChannel = "EMAIL" \| "SMS"/);
 });

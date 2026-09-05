@@ -421,7 +421,21 @@ export function friendlyCreateError(
   return message ?? "Couldn't create the intake link.";
 }
 
-/** Delivery-failure reason codes → plain English. */
+/**
+ * Delivery-failure reason codes → plain English.
+ *
+ * THIS IS A READ-SIDE MAPPER AND IT HAS TO OUTLIVE THE CHANNELS.
+ *
+ * A delivery record is history: it says what happened when it happened, and it
+ * is still on screen long after the channel that produced it is gone. When
+ * WhatsApp was retired from External Intake the SEND path went — correctly —
+ * and its reason mapping went with it, which left every stored WhatsApp
+ * failure rendering as `whatsapp_template_unconfigured` to an operator.
+ *
+ * Retiring a way of SENDING does not retire the records it already wrote. The
+ * WhatsApp entries below are past tense and read-only; nothing here can start
+ * a send, and no WhatsApp send path exists to reach.
+ */
 export function friendlyDeliveryReason(reason: string): string {
   const map: Record<string, string> = {
     link_missing_email: "no recipient email on the link",
@@ -432,6 +446,13 @@ export function friendlyDeliveryReason(reason: string): string {
     delivery_failed: "the message provider rejected the send",
     delivery_failed_or_skipped:
       "the message provider rejected or skipped the send",
+
+    // Historical only — WhatsApp is retired as an intake delivery option and
+    // no send path can produce these again. They are kept so records written
+    // while it was supported stay readable.
+    whatsapp_template_unconfigured:
+      "the WhatsApp request template was never approved",
+    whatsapp_unconfigured: "WhatsApp was not configured on this deployment",
   };
   return map[reason] ?? reason;
 }

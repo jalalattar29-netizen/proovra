@@ -55,6 +55,7 @@ const LIFECYCLE = src(
   "services/api/src/services/cases/case-lifecycle.service.ts",
 );
 const SEARCH_ROUTES = src("services/api/src/routes/search.routes.ts");
+const REINDEX_SERVICE = src("services/api/src/services/search/reindex.service.ts");
 const BACKFILL = src("services/api/scripts/backfill-search-index.ts");
 const SEARCH_PAGE = src("apps/web/app/(app)/search/page.tsx");
 const SEARCH_CSS = src("apps/web/app/(app)/search/search.css");
@@ -142,24 +143,31 @@ test("deleteCaseComment service drops the NOTE projection row + re-indexes the p
 // ===========================================================================
 
 test("Reconcile endpoint queries orphans for REPORT / PACKAGE / NOTE in addition to evidence + cases", () => {
-  // Each query uses the document-type literal as the LEFT JOIN
-  // filter. Pin all three new ones.
-  assert.match(SEARCH_ROUTES, /document_type = 'REPORT'/);
-  assert.match(SEARCH_ROUTES, /document_type = 'PACKAGE'/);
-  assert.match(SEARCH_ROUTES, /document_type = 'NOTE'/);
+  // Each query uses the document-type literal as the LEFT JOIN filter. They
+  // live in the reindex service now — the route delegates rather than keeping
+  // a second copy that has to be remembered whenever the first one changes.
+  assert.match(REINDEX_SERVICE, /document_type = 'REPORT'/);
+  assert.match(REINDEX_SERVICE, /document_type = 'PACKAGE'/);
+  assert.match(REINDEX_SERVICE, /document_type = 'NOTE'/);
+  assert.match(SEARCH_ROUTES, /runWorkspaceReindexBodyUnderLock/);
 });
 
-test("Reconcile endpoint response carries per-type orphan/indexed/failed counters for all five types", () => {
-  for (const block of [
-    "evidence: {",
-    "cases: {",
-    "reports: {",
-    "packages: {",
-    "notes: {",
-  ]) {
+test("Reconcile endpoint response carries per-type counters for all five types", () => {
+  // The route projects the reindex result, so the five buckets are named
+  // here and their SHAPE is the service's.
+  for (const key of ["evidence:", "cases:", "reports:", "packages:", "notes:"]) {
     assert.ok(
-      SEARCH_ROUTES.includes(block),
-      `reconcile response must include ${block}`,
+      SEARCH_ROUTES.includes(`${key} result.${key.slice(0, -1)}`),
+      `reconcile response must carry ${key} from the reindex result`,
+    );
+  }
+  // And a stale document is counted apart from a missing one — an orphan is a
+  // record search has never seen, a stale document is one it answers WRONGLY
+  // about, which is worse and looks like success.
+  for (const field of ["orphans:", "stale:", "indexed:", "skipped:", "failed:"]) {
+    assert.ok(
+      REINDEX_SERVICE.includes(field),
+      `the reindex bucket must carry ${field}`,
     );
   }
 });

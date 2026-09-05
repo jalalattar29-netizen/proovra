@@ -45,6 +45,7 @@ function src(rel: string): string {
 
 const SEARCH_PAGE = src("apps/web/app/(app)/search/page.tsx");
 const SEARCH_ROUTES = src("services/api/src/routes/search.routes.ts");
+const REINDEX_SERVICE = src("services/api/src/services/search/reindex.service.ts");
 const CASES_ROUTES = src("services/api/src/routes/cases.routes.ts");
 const EVIDENCE_ROUTES = src("services/api/src/routes/evidence.routes.ts");
 const SHARED_SEARCH = src("packages/shared/src/search.ts");
@@ -139,10 +140,21 @@ test("POST /v1/search/reconcile endpoint is registered + queries for orphan evid
     SEARCH_ROUTES,
     /app\.post\(\s*\n?\s*"\/v1\/search\/reconcile"/,
   );
-  // The endpoint actually walks both source tables for missing
-  // projection rows.
-  assert.match(SEARCH_ROUTES, /FROM evidence e/);
-  assert.match(SEARCH_ROUTES, /FROM cases c/);
+  /*
+   * The endpoint still walks both source tables — through the reindex
+   * service, not through a copy of the queries.
+   *
+   * It used to carry its own, and that duplication had a cost that was not
+   * theoretical: when the reindex learned to refresh documents written by an
+   * older build of the projection, this route did not, so the one entry point
+   * an operator actually reaches kept reporting "0 orphans, complete" over an
+   * index full of stale documents. Asserting the SQL lived HERE is what made
+   * the second copy look correct.
+   */
+  assert.match(SEARCH_ROUTES, /runWorkspaceReindexBodyUnderLock/);
+  assert.doesNotMatch(SEARCH_ROUTES, /FROM evidence e/);
+  assert.match(REINDEX_SERVICE, /FROM evidence e/);
+  assert.match(REINDEX_SERVICE, /FROM cases c/);
 });
 
 test("Case create route calls indexCase() inline (no worker dependency)", () => {
