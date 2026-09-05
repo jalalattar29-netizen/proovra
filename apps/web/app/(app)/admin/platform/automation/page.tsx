@@ -49,6 +49,7 @@ import type { AutomationRule } from "../../../../../components/automation/types"
 import { formatUserDateTime } from "../../../../../lib/date";
 import { ResultCount } from "../../../../../components/ui/ResultCount";
 import { FilterBar } from "../../../../../components/ui/FilterBar";
+import { Button } from "../../../../../components/ui/Button";
 
 type AutomationRun = {
   id: string;
@@ -178,7 +179,7 @@ function AutomationPageInner(): JSX.Element {
       }
       >
         <section className="apf-section">
-          <div className="cc-skeleton" />
+          <div className="adm-skeleton" />
         </section>
       </PageShell>
     );
@@ -242,7 +243,7 @@ function AutomationPageInner(): JSX.Element {
           subtitle={"Bounded operational automation. Each rule has a strictly-typed trigger and a strictly-typed action — no scripts, no visual builder, no marketplace. Rules are team-scoped and audited."}
           secondaryActions={
             <>
-              <div className="cc-meta">
+              <div className="apf-muted">
               <span data-automation-counts>
               {envelope.rules.length} rule
               {envelope.rules.length === 1 ? "" : "s"} ·{" "}
@@ -279,10 +280,10 @@ function AutomationPageInner(): JSX.Element {
 
       {/* Rules list */}
       <section className="apf-section" data-automation-rules-list>
-        <header className="cc-section-header">
+        <header className="apf-section-head">
           <h2 className="apf-section-title">Rules</h2>
           <span
-            className="cc-section-subtitle"
+            className="apf-section-note"
             data-automation-manage-hint
           >
             {/*
@@ -298,8 +299,7 @@ function AutomationPageInner(): JSX.Element {
               ? "Owner/admin: create, edit, enable and disable rules here."
               : "View-only access — changing a rule needs the AUTOMATION_MANAGE capability, held by a workspace owner or admin, on this platform-admin console. Both are required."}
           </span>
-          <button
-            type="button"
+          <Button variant="secondary" size="sm"
             data-automation-new-rule
             onClick={() => {
               setLastAction(null);
@@ -311,12 +311,9 @@ function AutomationPageInner(): JSX.Element {
                 ? undefined
                 : "Requires the AUTOMATION_MANAGE capability (workspace owner or admin) on this platform-admin console."
             }
-            style={newRuleButtonStyle(
-              !canManage || formMode.kind === "create" || !teamId,
-            )}
           >
             New rule
-          </button>
+          </Button>
         </header>
 
         {/* Page-level screen-reader status for a control that closes on
@@ -361,14 +358,13 @@ function AutomationPageInner(): JSX.Element {
         ) : null}
 
         {envelope.rules.length === 0 ? (
-          <div className="cc-empty" data-automation-empty>
+          <div className="apf-empty" data-automation-empty>
             <p>No automation rules configured yet.</p>
             <p style={{ fontSize: 12, color: "var(--ink-muted)" }}>
               Allowed triggers: {envelope.allowlist.triggerTypes.length}.
               Allowed actions: {envelope.allowlist.actionTypes.length}.
             </p>
-            <button
-              type="button"
+            <Button variant="secondary" size="sm"
               data-automation-empty-create
               onClick={() => {
                 setLastAction(null);
@@ -380,12 +376,9 @@ function AutomationPageInner(): JSX.Element {
                   ? undefined
                   : "Requires the AUTOMATION_MANAGE capability (workspace owner or admin) on this platform-admin console."
               }
-              style={newRuleButtonStyle(
-                !canManage || formMode.kind === "create" || !teamId,
-              )}
             >
               Create the first rule
-            </button>
+            </Button>
           </div>
         ) : (
           <div className="apf-table-wrap">
@@ -460,8 +453,7 @@ function AutomationPageInner(): JSX.Element {
                             reload();
                           }}
                         />
-                        <button
-                          type="button"
+                        <Button variant="secondary" size="sm"
                           data-automation-rule-edit={r.id}
                           onClick={() => {
                             setLastAction(null);
@@ -474,10 +466,9 @@ function AutomationPageInner(): JSX.Element {
                               ? undefined
                               : "Requires the AUTOMATION_MANAGE capability (workspace owner or admin) on this platform-admin console."
                           }
-                          style={newRuleButtonStyle(!canManage || !teamId)}
                         >
                           Edit
-                        </button>
+                        </Button>
                       </div>
                     </td>
                   </tr>
@@ -490,7 +481,7 @@ function AutomationPageInner(): JSX.Element {
 
       {/* Run history */}
       <section className="apf-section" data-automation-runs-list>
-        <header className="cc-section-header">
+        <header className="apf-section-head">
           <h2 className="apf-section-title">Recent runs</h2>
           {/* "Latest 50 runs" was almost honest — it said "latest" — but it
               could not say latest of HOW MANY, so an operator could not tell a
@@ -527,7 +518,7 @@ function AutomationPageInner(): JSX.Element {
           />
         </FilterBar>
         {runs.length === 0 ? (
-          <div className="cc-empty">
+          <div className="apf-empty">
             {/* Two different statements. "No runs recorded" while a status
                 filter is applied tells the reader their history is gone. */}
             <p>No automation runs recorded yet.</p>
@@ -586,9 +577,9 @@ function AutomationPageInner(): JSX.Element {
 
       {/* Allowlist reference */}
       <section className="apf-section" data-automation-allowlists>
-        <header className="cc-section-header">
+        <header className="apf-section-head">
           <h2 className="apf-section-title">Bounded allowlists</h2>
-          <span className="cc-section-subtitle">
+          <span className="apf-section-note">
             Read-only. Adding a value requires a coordinated DB migration.
           </span>
         </header>
@@ -617,26 +608,6 @@ function AutomationPageInner(): JSX.Element {
       </section>
     </PageShell>
   );
-}
-
-function newRuleButtonStyle(disabled: boolean): React.CSSProperties {
-  return {
-    // 44px touch floor (matrix measured 28px), centred like every other
-    // raised admin control.
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 44,
-    padding: "4px 10px",
-    border: "1px solid var(--border-standard)",
-    background: "var(--surface-card)",
-    color: "var(--ink-primary)",
-    fontWeight: 600,
-    fontSize: 12,
-    borderRadius: 6,
-    cursor: disabled ? "not-allowed" : "pointer",
-    opacity: disabled ? 0.6 : 1,
-  };
 }
 
 // ---------------------------------------------------------------------------

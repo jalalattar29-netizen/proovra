@@ -426,3 +426,44 @@
   color: var(--ink-primary);
   border-top: 1px solid var(--border-subtle);
 }
+
+/* ---------------------------------------------------------------------------
+   Empty — "nothing here, and here is why"
+   ---------------------------------------------------------------------------
+   The last piece of the `cc-*` migration this file's header describes.
+   `/admin/platform/automation` had three blocks marked `cc-empty`, and that
+   class is defined NOWHERE the admin console loads — so the block was
+   unstyled and its first line fell back to the console's 15px body size,
+   which made "No automation rules configured yet." read as a heading and the
+   caption beneath it as the body. The hierarchy was upside down.
+
+   Its shape is deliberately the stacked one rather than `.adm-inline`'s 56px
+   row: these carry a statement, a caption naming what WILL appear, and
+   sometimes the action that creates the first one.
+   --------------------------------------------------------------------------- */
+
+.apf-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px dashed var(--border-default);
+  border-radius: var(--radius-md);
+  background: transparent;
+}
+
+/* The statement. Deliberately NOT larger than the section title above it. */
+.apf-empty > p:first-of-type {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  color: var(--ink-primary);
+}
+
+.apf-empty > p:first-of-type ~ p {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--ink-secondary);
+}

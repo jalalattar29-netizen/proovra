@@ -351,7 +351,7 @@ function AnalyticsPageInner(): JSX.Element {
       }
       >
         <section className="apf-section">
-          <div className="cc-skeleton" />
+          <div className="adm-skeleton" />
         </section>
       </PageShell>
     );
@@ -404,7 +404,7 @@ function AnalyticsPageInner(): JSX.Element {
           secondaryActions={
             <>
               <div
-              className="cc-meta"
+              className="apf-muted"
               style={{ display: "flex", gap: 12, alignItems: "center" }}
               >
               <label
@@ -487,9 +487,9 @@ function AnalyticsPageInner(): JSX.Element {
         className="apf-section"
         data-analytics-section="operations"
       >
-        <header className="cc-section-header">
+        <header className="apf-section-head">
           <h2 className="apf-section-title">Operations overview</h2>
-          <span className="cc-section-subtitle">
+          <span className="apf-section-note">
             Workspace pulse: evidence flow, open cases, reviewer headcount.
           </span>
         </header>
@@ -547,9 +547,9 @@ function AnalyticsPageInner(): JSX.Element {
 
       {/* -------------------- Reviewer analytics -------------------- */}
       <section className="apf-section" data-analytics-section="reviewer">
-        <header className="cc-section-header">
+        <header className="apf-section-head">
           <h2 className="apf-section-title">Reviewer activity</h2>
-          <span className="cc-section-subtitle">
+          <span className="apf-section-note">
             Review queue depth, assignment fill rate, escalation rhythm.
           </span>
         </header>
@@ -600,9 +600,9 @@ function AnalyticsPageInner(): JSX.Element {
 
       {/* -------------------- Governance analytics -------------------- */}
       <section className="apf-section" data-analytics-section="governance">
-        <header className="cc-section-header">
+        <header className="apf-section-head">
           <h2 className="apf-section-title">Governance posture</h2>
-          <span className="cc-section-subtitle">
+          <span className="apf-section-note">
             Legal-hold state and lifecycle. No legal conclusions — just counts.
           </span>
         </header>
@@ -646,9 +646,9 @@ function AnalyticsPageInner(): JSX.Element {
 
       {/* -------------------- Automation analytics -------------------- */}
       <section className="apf-section" data-analytics-section="automation">
-        <header className="cc-section-header">
+        <header className="apf-section-head">
           <h2 className="apf-section-title">Automation health</h2>
-          <span className="cc-section-subtitle">
+          <span className="apf-section-note">
             Bounded rules + run + webhook delivery counts. Detailed
             webhook destinations and delivery logs are exposed via the
             backend `/v1/automation/webhooks` and
@@ -754,9 +754,9 @@ function AnalyticsPageInner(): JSX.Element {
 
       {/* -------------------- Artifact readiness -------------------- */}
       <section className="apf-section" data-analytics-section="artifacts">
-        <header className="cc-section-header">
+        <header className="apf-section-head">
           <h2 className="apf-section-title">Artifact readiness</h2>
-          <span className="cc-section-subtitle">
+          <span className="apf-section-note">
             Reports + verification packages generated in window.
           </span>
         </header>
