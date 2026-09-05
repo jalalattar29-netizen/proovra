@@ -140,6 +140,48 @@ async function getActiveWorkspaceStorageAddonBytes(params: {
   return aggregate._sum.extraStorageBytes ?? 0n;
 }
 
+/**
+ * WHO PAYS FOR ONE EVIDENCE RECORD — as a value that can be compared.
+ *
+ * A record is admitted at creation and funded at completion, and until now
+ * nothing named the thing those two decisions were supposed to agree about.
+ * They resolved a `WorkspaceScope` each, from different inputs, and compared
+ * nothing: a difference between them could only be discovered by a customer.
+ *
+ * The principal is derived from the BILLING SHAPE, which is itself derived
+ * from the canonical `WorkspaceKind` — never from a plan name, an
+ * `isPersonal` flag read at a call site, or the presence of a `teamId`.
+ *
+ *   SINGLE_OCCUPANT  the person is the payer. Their Personal Space is a Team
+ *                    row too, so the same subject is reachable BY TEAM ID and
+ *                    BY USER ID; the principal is the user either way, which
+ *                    is exactly what makes the two phases comparable.
+ *   SHARED           the workspace is the payer. Deliberately NOT the owner:
+ *                    a member's personal wallet must never fund shared
+ *                    workspace evidence.
+ */
+export type CommercialPrincipal = `PERSONAL:${string}` | `WORKSPACE:${string}`;
+
+export function commercialPrincipalOf(scope: {
+  billingShape: WorkspaceBillingShape;
+  ownerUserId: string;
+  teamId: string | null;
+}): CommercialPrincipal {
+  if (scope.billingShape === "SINGLE_OCCUPANT") {
+    return `PERSONAL:${scope.ownerUserId}`;
+  }
+  /*
+   * A SHARED scope without a team id cannot name its payer. Failing here is
+   * the point: the alternative is silently charging somebody.
+   */
+  if (!scope.teamId) {
+    throw new Error(
+      "commercialPrincipalOf: SHARED scope carries no teamId — the payer is unidentifiable",
+    );
+  }
+  return `WORKSPACE:${scope.teamId}`;
+}
+
 export async function getPersonalWorkspaceScope(
   userId: string
 ): Promise<WorkspaceScope> {
@@ -297,10 +339,31 @@ export async function getTeamWorkspaceScope(
       ? "SHARED"
       : billingShapeForWorkspaceKind(workspaceKind);
 
-  const activeStorageAddonBytes = await getActiveWorkspaceStorageAddonBytes({
-    ownerUserId: team.ownerUserId,
-    teamId: team.id,
-  });
+  /*
+   * THE ADD-ONS FOLLOW THE PRINCIPAL, FOR THE SAME REASON THE WALLET DOES.
+   *
+   * `workspace_storage_addons` is keyed `(owner_user_id, team_id)`, and a
+   * PERSONAL add-on is bought through the personal checkout, which passes no
+   * team — so its row carries `team_id NULL`. Asking by team id for a
+   * SINGLE_OCCUPANT subject therefore matches nothing, and the storage
+   * allowance SHRINKS between the phase that admits a record and the phase
+   * that finalises it.
+   *
+   * That is the storage twin of the credits defect above, with the same
+   * consequence: `createEvidence` counts the add-on and admits the record,
+   * `completeEvidence` does not and refuses it, and a customer who has paid
+   * for extra storage watches an upload finish and then fail. Found while
+   * auditing the wallet; fixed here rather than left to be discovered the
+   * expensive way.
+   *
+   * Keyed on the resolved SHAPE, not on `team.isPersonal`, so the two
+   * allowances that travel on this scope answer to the same principal.
+   */
+  const activeStorageAddonBytes = await getActiveWorkspaceStorageAddonBytes(
+    billingShape === "SINGLE_OCCUPANT"
+      ? { ownerUserId: team.ownerUserId, teamId: null }
+      : { ownerUserId: team.ownerUserId, teamId: team.id },
+  );
 
   // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the contract is resolved
   // ONCE, here, and travels on the scope. Every downstream limit (storage,
@@ -323,7 +386,38 @@ export async function getTeamWorkspaceScope(
     // an error rather than letting it propagate as a silent fallback.
     organizationId: team.organizationId,
     plan: effectivePlan,
-    credits: 0,
+    /*
+     * THE WALLET FOLLOWS THE COMMERCIAL PRINCIPAL.
+     *
+     * PROVEN AGAINST THE LOCAL FIXTURE (2026-09-05). A Personal PRO account at
+     * its 100-record cap holding 3 evidence credits: `POST /v1/evidence`
+     * returned 201, the bytes uploaded, and `POST /v1/evidence/:id/complete`
+     * returned 402 INSUFFICIENT_EVIDENCE_CREDITS with the wallet untouched at
+     * 3. The record stranded in UPLOADING and the purchased credit was
+     * unspendable.
+     *
+     * The cause was this line. Both phases resolve the SAME subject and agree
+     * on everything else — the probe printed
+     * `billingShape=SINGLE_OCCUPANT plan=PRO` for both — but creation reaches
+     * it through `getPersonalWorkspaceScope` (teamId null) while completion
+     * reaches it through here, because `evidence.team_id` is never null since
+     * HOME-DATA-OWNERSHIP: a personal record carries its owner's personal Team
+     * id, so `resolveEvidenceWorkspaceScope` takes the by-team branch. One
+     * subject, two builders, and only one of them carried the wallet.
+     *
+     * `credits: 0` was right when this function only ever answered for a
+     * collaboration workspace, and it stays right for one: a member's personal
+     * wallet must never fund shared workspace evidence, and `billingShape`
+     * SHARED is what says so. What was wrong is that a Personal Space is also
+     * a Team row, so this builder answers for SINGLE_OCCUPANT subjects too —
+     * and for those the payer IS `ownerUserId`, whose entitlement is already
+     * loaded above for the effective plan and the grandfather override.
+     *
+     * Keyed on the resolved SHAPE, not on `team.isPersonal` and not on a plan
+     * name: the shape is the one place tenancy has already become commerce.
+     */
+    credits:
+      billingShape === "SINGLE_OCCUPANT" ? (ownerEntitlement.credits ?? 0) : 0,
     // Canonical seat cap lives in @proovra/shared-billing; this service
     // must not re-derive the plan-cap precedence itself.
     teamSeats: getEffectiveSeatLimit({

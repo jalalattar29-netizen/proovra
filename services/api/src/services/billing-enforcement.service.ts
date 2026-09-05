@@ -14,7 +14,10 @@ import {
 import { getPlanCapabilities } from "./plan-catalog.service.js";
 // §9.7 — the enforcement chokepoint consumes the canonical commercial
 // envelope (explicit subjects); this file no longer calls the scope adapter.
-import { type WorkspaceScope } from "./workspace-billing.service.js";
+import {
+  commercialPrincipalOf,
+  type WorkspaceScope,
+} from "./workspace-billing.service.js";
 import { resolveCommercialContext } from "./billing/commercial-context.service.js";
 import {
   resolveEffectiveContractAiCap,
@@ -538,6 +541,51 @@ export async function settleEvidenceCompletionFunding(
   client: EvidenceCreditClient,
 ): Promise<{ funding: EvidenceFundingSource }> {
   const { scope } = params;
+
+  /*
+   * THE SCOPE MUST BELONG TO THE RECORD IT IS ABOUT TO CHARGE.
+   *
+   * This function spends money. It takes the payer from its caller's scope and
+   * the record from an id, and nothing checked that the two were about the
+   * same thing — so a caller resolving a scope from anything other than this
+   * record would have charged the wrong wallet, silently and successfully.
+   *
+   * That is not hypothetical drift. The defect this closes was a milder
+   * version of it: creation and completion resolved the same subject through
+   * different builders and disagreed about the wallet, and the disagreement
+   * surfaced only as a customer being refused with credits in hand. A
+   * mismatch of PRINCIPAL rather than of balance would not surface at all — it
+   * would work, and bill somebody else.
+   *
+   * One primary-key read against a row the completion transaction is already
+   * holding, next to the hashing and signing this sits beside. It fails closed
+   * and UNEXPECTED, because there is no legitimate caller for which this is
+   * false: it is a programming error, not a commercial outcome.
+   */
+  const subject = await prisma.evidence.findUnique({
+    where: { id: params.evidenceId },
+    select: { ownerUserId: true, teamId: true },
+  });
+  if (subject) {
+    const belongs =
+      scope.billingShape === "SINGLE_OCCUPANT"
+        ? scope.ownerUserId === subject.ownerUserId
+        : scope.teamId === subject.teamId;
+    if (!belongs) {
+      throw new DomainError("Evidence funding scope does not match the record", {
+        httpStatus: 500,
+        publicCode: "INTERNAL_SERVER_ERROR",
+        publicMessage: "Request failed.",
+        reportability: "UNEXPECTED",
+        severity: "critical",
+        metadata: {
+          billingShape: scope.billingShape,
+          // The PRINCIPAL, never the balance and never an email.
+          scopePrincipal: commercialPrincipalOf(scope),
+        },
+      });
+    }
+  }
 
   // A SHARED workspace is funded by its own subscription; there is no personal
   // wallet behind it and nothing to settle per record.

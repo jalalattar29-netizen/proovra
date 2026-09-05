@@ -168,21 +168,39 @@ export async function getTeamWorkspaceScope(
     select: { plan: true },
   });
   const ownerPlan = ownerEntitlement?.plan ?? prismaPkg.PlanType.FREE;
+  const workspaceKind = normalizeWorkspaceKind({
+    workspaceKind: (team as { workspaceKind?: string | null }).workspaceKind ?? null,
+    isPersonal: (team as { isPersonal?: boolean | null }).isPersonal ?? null,
+    billingPlan: team.billingPlan,
+    teamLoaded: true,
+  });
   const effectivePlan = resolveWorkspaceEffectivePlan({
-    workspaceKind: normalizeWorkspaceKind({
-      workspaceKind: (team as { workspaceKind?: string | null }).workspaceKind ?? null,
-      isPersonal: (team as { isPersonal?: boolean | null }).isPersonal ?? null,
-      billingPlan: team.billingPlan,
-      teamLoaded: true,
-    }),
+    workspaceKind,
     billingPlan: team.billingPlan as prismaPkg.PlanType,
     billingStatus: team.billingStatus as WorkspaceBillingStatus,
     ownerPlan: ownerPlan as prismaPkg.PlanType,
   }).plan as prismaPkg.PlanType;
 
+  /*
+   * A PERSONAL SPACE IS A TEAM ROW, HERE TOO.
+   *
+   * This function is reached by team id, and every evidence record carries one
+   * since HOME-DATA-OWNERSHIP — including a personal record, which carries its
+   * owner's personal Team. The kind above already knows the difference; two
+   * fields below did not.
+   *
+   * The add-on lookup is the one that decides something. Storage add-ons are
+   * keyed `(owner_user_id, team_id)` and a PERSONAL add-on is bought with no
+   * team, so its row carries `team_id NULL`: asking by team id for a personal
+   * subject matched nothing, and the worker's artifact-storage gate did not
+   * see storage the customer had paid for. It is the same defect proven on the
+   * API side, one host along — an allowance visible to one phase and invisible
+   * to the next, for the same payer.
+   */
+  const isPersonalSubject = workspaceKind === "PERSONAL";
   const activeStorageAddonBytes = await getActiveStorageAddonBytes({
     ownerUserId: team.ownerUserId,
-    teamId: team.id,
+    teamId: isPersonalSubject ? null : team.id,
   });
 
   // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — read the ACTIVE contract's
@@ -203,10 +221,23 @@ export async function getTeamWorkspaceScope(
       : null;
 
   return {
-    billingShape: "SHARED",
+    /*
+     * Derived, not asserted. This read "SHARED" for every subject, which was
+     * wrong for a Personal Space and travelled into the STORAGE_LIMIT_REACHED
+     * diagnostic — the one place an operator looks to find out whose limit was
+     * reached. It decides nothing in this host; a diagnostic that misnames the
+     * subject is still a diagnostic that sends someone to the wrong place.
+     */
+    billingShape: isPersonalSubject ? "SINGLE_OCCUPANT" : "SHARED",
     ownerUserId: team.ownerUserId,
     teamId: team.id,
     plan: effectivePlan,
+    /*
+     * The worker never settles a credit — settlement is the API's, inside the
+     * completion transaction — so this is a shape requirement, not a balance.
+     * Left at zero deliberately: a wallet that nothing here spends should not
+     * be carried around looking spendable.
+     */
     credits: 0,
     teamSeats: Math.max(0, team.includedSeats ?? 0),
     storageBytesOverride: team.storageBytesOverride ?? null,
