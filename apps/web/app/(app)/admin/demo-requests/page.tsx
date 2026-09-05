@@ -21,6 +21,9 @@ import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 import { describeClient } from "../../../../lib/ui/describeClient";
+// PHASE 6 §7 — carry the list state onto the detail URL so the return link
+// puts the operator back on the queue they filtered.
+import { detailHrefWithReturn } from "../../../../lib/navigation/adminReturnState";
 import {
   classifyStatusRefusal,
   commercialStatusActions,
@@ -1012,7 +1015,10 @@ export default function AdminDemoRequestsPage() {
                           link — the second is invalid markup and was the other
                           half of the hydration error. */}
                       <Link
-                        href={`/admin/demo-requests/${encodeURIComponent(item.id)}`}
+                        href={detailHrefWithReturn(
+                                `/admin/demo-requests/${encodeURIComponent(item.id)}`,
+                                params?.toString() ?? null,
+                              )}
                         style={buttonSurfaceStyle("secondary", "sm")}
                       >
                         Open →

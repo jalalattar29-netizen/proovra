@@ -28,6 +28,11 @@ import { Button } from "../../../../components/ui/Button";
 import { apiFetch } from "../../../../lib/api";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { formatUserDateTime } from "../../../../lib/date";
+// PHASE 6 §7 — carry the list state onto the detail URL so the return link
+// can put the operator back on the page they filtered, not on page one of
+// everything. Only the OWNING collection does this: a link from Billing to
+// a customer should return to Billing, not to the customer directory.
+import { detailHrefWithReturn } from "../../../../lib/navigation/adminReturnState";
 
 type OnboardingHealth = "HEALTHY" | "ATTENTION" | "BLOCKED" | "UNKNOWN";
 
@@ -408,7 +413,12 @@ export default function AdminOrganizationsPage() {
         getRowId={(row) => row.id}
         loading={loading}
         onRowClick={(row) =>
-          router.push(`/admin/customers/${encodeURIComponent(row.id)}`)
+          router.push(
+            detailHrefWithReturn(
+              `/admin/customers/${encodeURIComponent(row.id)}`,
+              params?.toString() ?? null,
+            ),
+          )
         }
         emptyState={
           <EmptyState

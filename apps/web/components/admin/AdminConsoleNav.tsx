@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
 import { useAdminEntityCrumbValue } from "./AdminEntityCrumb";
+import { returnHrefFor } from "../../lib/navigation/adminReturnState";
 
 import {
   ADMIN_NAV_SECTIONS,
@@ -144,6 +145,7 @@ function AdminSecondaryNav({
 export function AdminBreadcrumb() {
   const pathname = usePathname();
   const entityLabel = useAdminEntityCrumbValue();
+  const searchParams = useSearchParams();
   const location = resolveAdminLocation(pathname);
   if (!location) return null;
 
@@ -159,7 +161,19 @@ export function AdminBreadcrumb() {
   if (isDetail && contextual) {
     // The RETURN PATH. `parentHref` is a link and the record is not, so the
     // last thing an operator can click is the list they came from.
-    crumbs.push({ label: contextual.parentLabel, href: contextual.parentHref });
+    /*
+     * PHASE 6 §7 — the RETURN PATH, back to the list AS IT WAS.
+     *
+     * This was the bare collection href, so an operator who filtered a list
+     * to three rows, opened one and clicked back landed on the unfiltered
+     * first page of everything and re-typed the filter. The list state
+     * travelled here on the detail URL; `returnHrefFor` puts it back, and
+     * falls back to the bare collection when nothing travelled.
+     */
+    crumbs.push({
+      label: contextual.parentLabel,
+      href: returnHrefFor(contextual.parentHref, searchParams?.toString() ?? null),
+    });
     /*
      * PHASE 6 6 - the record, by name where the page could tell us.
      *

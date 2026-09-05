@@ -18,6 +18,11 @@ import { EmptyState } from "../../../../components/ui/EmptyState";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
+// PHASE 6 §7 — carry the list state onto the detail URL so the return link
+// can put the operator back on the page they filtered, not on page one of
+// everything. Only the OWNING collection does this: a link from Billing to
+// a customer should return to Billing, not to the customer directory.
+import { detailHrefWithReturn } from "../../../../lib/navigation/adminReturnState";
 
 /**
  * PLATFORM ADMIN — THE WORKSPACE DIRECTORY (ADM-027).
@@ -372,7 +377,12 @@ export default function AdminWorkspacesPage() {
           rows={data?.items ?? []}
           getRowId={(r) => r.id}
           loading={loading}
-          onRowClick={(r) => router.push(`/admin/workspaces/${encodeURIComponent(r.id)}`)}
+          onRowClick={(r) => router.push(
+            detailHrefWithReturn(
+              `/admin/workspaces/${encodeURIComponent(r.id)}`,
+              params?.toString() ?? null,
+            ),
+          )}
           emptyState={
             <EmptyState
               title="No workspaces match"

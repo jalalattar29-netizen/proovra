@@ -24,6 +24,10 @@ import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
 import { ResultCount } from "../../../../components/ui/ResultCount";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
+// PHASE 6 §7 — carry the list state onto the detail URL so the return link
+// puts the operator back on the queue they filtered.
+import { detailHrefWithReturn } from "../../../../lib/navigation/adminReturnState";
+import { useSearchParams } from "next/navigation";
 import {
   classifyStatusRefusal,
   commercialStatusActions,
@@ -130,6 +134,9 @@ function PriorityPill({ value }: { value: Priority }) {
 
 export default function AdminContactSalesPage() {
   const { addToast } = useToast();
+  // PHASE 6 §7 — the queue state an operator filtered, carried onto the detail
+  // so the return link can restore it.
+  const listParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<ListItem[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -524,7 +531,10 @@ export default function AdminContactSalesPage() {
                               Quick view
                             </Button>
                             <Link
-                              href={`/admin/contact-sales/${encodeURIComponent(it.id)}`}
+                              href={detailHrefWithReturn(
+                                `/admin/contact-sales/${encodeURIComponent(it.id)}`,
+                                listParams?.toString() ?? null,
+                              )}
                               style={{ textDecoration: "none" }}
                             >
                               <Button variant="ghost" size="sm">

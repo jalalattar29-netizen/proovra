@@ -311,13 +311,13 @@
 | `/admin/alerts` | 290 | 2c/0t/1s |  |
 | `/admin/audit` | 1047 | 3c/1t/2s |  |
 | `/admin/billing` | 727 | 7c/5t/9s |  |
-| `/admin/contact-sales` | 780 | 3c/1t/0s |  |
+| `/admin/contact-sales` | 790 | 3c/1t/0s |  |
 | `/admin/contact-sales/:id` | 658 | 5c/0t/0s |  |
 | `/admin/costs` | 614 | 7c/3t/9s |  |
-| `/admin/customers` | 463 | 0c/1t/0s |  |
+| `/admin/customers` | 473 | 0c/1t/0s |  |
 | `/admin/customers/:id` | 1177 | 12c/1t/0s |  |
 | `/admin/dashboard` | 905 | 11c/3t/8s |  |
-| `/admin/demo-requests` | 1315 | 3c/0t/2s |  |
+| `/admin/demo-requests` | 1321 | 3c/0t/2s |  |
 | `/admin/demo-requests/:id` | 532 | 5c/0t/0s |  |
 | `/admin/evidence-ops` | 748 | 4c/0t/7s | HARDCODED_STATUS_HEX |
 | `/admin/evidence-ops/records` | 548 | 2c/1t/0s |  |
@@ -349,7 +349,7 @@
 | `/admin/security` | 91 | 13c/6t/25s |  |
 | `/admin/support-access` | 964 | 6c/2t/4s |  |
 | `/admin/timeline` | 465 | 0c/1t/1s |  |
-| `/admin/users` | 467 | 2c/2t/1s |  |
+| `/admin/users` | 477 | 2c/2t/1s |  |
 | `/admin/users/:id` | 578 | 7c/2t/6s |  |
-| `/admin/workspaces` | 427 | 1c/1t/0s |  |
+| `/admin/workspaces` | 437 | 1c/1t/0s |  |
 | `/admin/workspaces/:id` | 620 | 6c/1t/6s |  |
