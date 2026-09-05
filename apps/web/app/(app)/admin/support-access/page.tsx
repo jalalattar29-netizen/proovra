@@ -111,6 +111,17 @@ function classifyFailure(err: unknown, fallback: string): SurfaceFailure {
   };
 }
 
+/**
+ * THE STATUS BOTH TABLES OPEN ON.
+ *
+ * Named because two things depend on agreeing about it: the initial state, and
+ * whether the view counts as FILTERED. Both tables defaulted to "ACTIVE" and
+ * then asked `status !== ""`, so both declared themselves filtered on a first
+ * load and the count read "No support grants match these filters" when the
+ * operator had filtered nothing.
+ */
+const SUPPORT_DEFAULT_STATUS = "ACTIVE";
+
 const STATUS_FILTERS = [
   { value: "ACTIVE", label: "Active" },
   { value: "", label: "All statuses" },
@@ -149,7 +160,7 @@ function Shell() {
     null,
   );
   const [supportFailure, setSupportFailure] = useState<SurfaceFailure | null>(null);
-  const [supportStatus, setSupportStatus] = useState<string>("ACTIVE");
+  const [supportStatus, setSupportStatus] = useState<string>(SUPPORT_DEFAULT_STATUS);
   const [showAllActors, setShowAllActors] = useState(false);
 
   // Break-glass grants
@@ -159,7 +170,7 @@ function Shell() {
   const [emergencyFailure, setEmergencyFailure] = useState<SurfaceFailure | null>(
     null,
   );
-  const [emergencyStatus, setEmergencyStatus] = useState<string>("ACTIVE");
+  const [emergencyStatus, setEmergencyStatus] = useState<string>(SUPPORT_DEFAULT_STATUS);
 
   const [mutating, setMutating] = useState(false);
   const [mutationFailure, setMutationFailure] = useState<SurfaceFailure | null>(
@@ -185,6 +196,31 @@ function Shell() {
   const [mintAccessLevel, setMintAccessLevel] = useState("READ_ONLY");
   const [emergencyUserId, setEmergencyUserId] = useState("");
   const [emergencyRole, setEmergencyRole] = useState("EMERGENCY_READ_ONLY");
+
+  /**
+   * WHY THE TWO GRANT CONTROLS ARE REFUSING, IN WORDS.
+   *
+   * Both sat disabled and grey with nothing on the page saying what was
+   * missing, and both act over a CUSTOMER's data — the two places an operator
+   * most needs to be told rather than left guessing which field is short. The
+   * conditions are the same ones the `disabled` props already evaluate; this
+   * only names them.
+   */
+  const missingShared =
+    !mintOrgId.trim()
+      ? "Enter the customer organization this access is over."
+      : mintReason.trim().length < 8
+        ? "The recorded reason needs at least 8 characters."
+        : null;
+  const grantBlockedReason = mutating
+    ? "A grant request is in flight."
+    : missingShared;
+  const breakGlassBlockedReason = mutating
+    ? "A grant request is in flight."
+    : (missingShared ??
+      (!emergencyUserId.trim()
+        ? "Enter the identity that will hold emergency access."
+        : null));
 
   /**
    * SECRET HELD OFF-RENDER. The opaque support-context token never enters React
@@ -785,7 +821,7 @@ function Shell() {
                 total={supportGrantsTotal ?? undefined}
                 cap={supportGrantsLimit ?? undefined}
                 noun="support grant"
-                filtered={supportStatus !== ""}
+                filtered={supportStatus !== SUPPORT_DEFAULT_STATUS}
                 loading={supportGrants === null}
                 data-testid="admin-support-grants-count"
               />
@@ -833,15 +869,26 @@ function Shell() {
                   <option value="ELEVATED">Elevated</option>
                 </select>
               </label>
+              {/* DISABLED WITH THE REASON. Both controls on this card sat grey
+                  with nothing saying what was missing, and both act over a
+                  CUSTOMER's data — the two places an operator most needs to
+                  know why the console is refusing them rather than guessing at
+                  which field is short. */}
               <Button
                 size="sm"
                 onClick={() => void startSupportGrant()}
                 disabled={
                   mutating || !mintOrgId.trim() || mintReason.trim().length < 8
                 }
+                title={grantBlockedReason ?? undefined}
               >
                 Create support grant
               </Button>
+              {grantBlockedReason ? (
+                <span className="app-field-help" style={{ alignSelf: "center" }}>
+                  {grantBlockedReason}
+                </span>
+              ) : null}
             </div>
 
             <hr style={{ border: 0, borderTop: "1px solid var(--rule)", margin: "4px 0" }} />
@@ -884,9 +931,15 @@ function Shell() {
                   !emergencyUserId.trim() ||
                   mintReason.trim().length < 8
                 }
+                title={breakGlassBlockedReason ?? undefined}
               >
                 Activate break-glass
               </Button>
+              {breakGlassBlockedReason ? (
+                <span className="app-field-help" style={{ alignSelf: "center" }}>
+                  {breakGlassBlockedReason}
+                </span>
+              ) : null}
             </div>
           </div>
         </Card>

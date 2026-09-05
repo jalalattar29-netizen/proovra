@@ -151,6 +151,7 @@ export function MfaSelfCheckSection() {
           </p>
           <div style={{ marginTop: 12 }}>
             <Button
+              title="Enter the six-digit code from your authenticator first."
               type="submit"
               variant="secondary"
               loading={outcome.kind === "checking"}

@@ -332,6 +332,7 @@ export function ExternalMappingsSection({
             onChange={(e) => setDisplayName(e.target.value)}
           />
           <Button
+            title="Select the member this external identity belongs to first."
             variant="enterprise"
             size="sm"
             data-identity-mapping-link

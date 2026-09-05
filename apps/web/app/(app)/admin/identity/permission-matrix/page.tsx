@@ -538,6 +538,7 @@ export default function PermissionMatrixPage() {
               onChange={(e) => setSubjectUserId(e.target.value.trim())}
             />
             <Button
+              title="Paste a member's user id (UUID) to inspect their effective access."
               variant="enterprise"
               data-permission-matrix-inspect
               onClick={() => void loadSnapshot()}

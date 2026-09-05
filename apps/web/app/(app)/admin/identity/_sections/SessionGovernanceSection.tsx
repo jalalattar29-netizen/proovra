@@ -274,6 +274,17 @@ export function SessionGovernanceSection({ stepUp }: { stepUp: StepUpControl }) 
               data-identity-contributor-session-revoke
               disabled={revokeBusy || sessionId.trim().length === 0}
               loading={revokeBusy}
+              /* DISABLED WITH THE REASON. A destructive control that refuses
+                 silently is the worst case of it: the operator cannot tell
+                 whether they lack the authority or simply have not filled the
+                 field. */
+              title={
+                revokeBusy
+                  ? "A revoke request is in flight."
+                  : sessionId.trim().length === 0
+                    ? "Enter the session id to revoke."
+                    : undefined
+              }
               onClick={() => void revokeContributor()}
             >
               Revoke session

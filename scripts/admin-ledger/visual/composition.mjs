@@ -165,6 +165,28 @@ for (const route of routes) {
     ).length;
     const alarmShare = dataRows.length > 0 ? alarmedRows / dataRows.length : 0;
 
+    /* A DISABLED CONTROL THAT DOES NOT SAY WHY.
+       §11's BLOCKED state is "the control is disabled, WITH the reason". A
+       grey button an operator cannot press and cannot explain is a dead end:
+       /admin/support-access had TWO of them, both acting over a customer's
+       data, both refusing silently until the right field happened to be long
+       enough. A pager's Previous on page one is exempt — its own position
+       text is the reason, and it is the one disabled control in the console
+       whose cause is already on screen. */
+    const PAGER = /^(next|previous|prev|older|newer)$/i;
+    const disabledControls = Array.from(
+      main.querySelectorAll("button[disabled], [aria-disabled='true']"),
+    ).filter((b) => b.getBoundingClientRect().height > 0);
+    const silentDisabled = disabledControls.filter((b) => {
+      const label = (b.textContent ?? "").trim();
+      if (PAGER.test(label)) return false;
+      if (b.getAttribute("title")) return false;
+      if (b.getAttribute("aria-describedby")) return false;
+      // A sentence beside it, or in the card that holds it, counts.
+      const near = b.parentElement?.textContent ?? "";
+      return near.replace(label, "").trim().length < 12;
+    }).length;
+
     return {
       probeBorder,
       duplicatePrimary,
@@ -173,6 +195,8 @@ for (const route of routes) {
       secondsInList,
       tallRows,
       alarmedRows,
+      silentDisabled,
+      disabledControls: disabledControls.length,
       dataRows: dataRows.length,
       alarmShare: Math.round(alarmShare * 100),
       rows,
@@ -246,6 +270,11 @@ for (const route of routes) {
     result.dataRows >= 5 && result.alarmShare > 60
       ? `  [advisory] ${result.alarmedRows}/${result.dataRows} rows carry a warning tone (${result.alarmShare}%)`
       : "";
+  if (result.silentDisabled > 0) {
+    bad.push(
+      `${result.silentDisabled}/${result.disabledControls} disabled controls give no reason`,
+    );
+  }
   if (result.tallRows > 0) {
     bad.push(`${result.tallRows}/${result.rows} data rows over four lines tall`);
   }

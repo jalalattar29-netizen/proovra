@@ -301,6 +301,7 @@ export function MfaPolicySection() {
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <Badge tone="neutral">version {saved.policyVersion}</Badge>
           <Button
+            title="Nothing has been changed on this policy yet."
             variant="secondary"
             onClick={() => setDraft({})}
             disabled={busy || !dirty}
@@ -308,6 +309,7 @@ export function MfaPolicySection() {
             Discard changes
           </Button>
           <Button
+            title="Nothing has been changed on this policy yet."
             variant="primary"
             onClick={() => void save()}
             loading={busy}

@@ -587,6 +587,7 @@ export function MembersSection({
                   )}
                 </select>
                 <Button
+                  title="Choose a different role for this member first — the current role is already applied."
                   variant="secondary"
                   size="sm"
                   data-identity-member-role-apply={m.teamMemberId}
