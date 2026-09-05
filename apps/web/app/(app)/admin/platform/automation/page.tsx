@@ -263,12 +263,12 @@ function AutomationPageInner(): JSX.Element {
         className="apf-section"
         data-automation-execution-notice
         style={{
-          borderLeft: "4px solid #10b981",
+          borderLeft: "4px solid var(--success)",
           paddingLeft: 12,
-          background: "#f0fdf4",
+          background: "var(--success-subtle-bg)",
         }}
       >
-        <p style={{ margin: 0, fontSize: 13, color: "#065f46" }}>
+        <p style={{ margin: 0, fontSize: 13, color: "var(--success-strong)" }}>
           <strong>Phase E3.1 — execution runtime active.</strong> Enabled
           rules execute when matching trigger events fire from internal
           services. Rules are always created disabled by default; flip
@@ -325,7 +325,7 @@ function AutomationPageInner(): JSX.Element {
           role="status"
           aria-live="polite"
           data-automation-page-status
-          style={{ minHeight: 16, fontSize: 12, color: "#166534" }}
+          style={{ minHeight: 16, fontSize: 12, color: "var(--success-strong)" }}
         >
           {lastAction ?? ""}
         </div>
@@ -363,7 +363,7 @@ function AutomationPageInner(): JSX.Element {
         {envelope.rules.length === 0 ? (
           <div className="cc-empty" data-automation-empty>
             <p>No automation rules configured yet.</p>
-            <p style={{ fontSize: 12, color: "#64748b" }}>
+            <p style={{ fontSize: 12, color: "var(--ink-muted)" }}>
               Allowed triggers: {envelope.allowlist.triggerTypes.length}.
               Allowed actions: {envelope.allowlist.actionTypes.length}.
             </p>
@@ -427,7 +427,7 @@ function AutomationPageInner(): JSX.Element {
                     <td>
                       <strong>{r.name}</strong>
                       {r.description ? (
-                        <div style={{ fontSize: 12, color: "#64748b" }}>
+                        <div style={{ fontSize: 12, color: "var(--ink-muted)" }}>
                           {r.description}
                         </div>
                       ) : null}
@@ -441,7 +441,7 @@ function AutomationPageInner(): JSX.Element {
                     <td data-automation-rule-enabled={String(r.enabled)}>
                       {r.enabled ? "Yes" : "No"}
                     </td>
-                    <td style={{ color: "#64748b", fontSize: 12 }}>
+                    <td style={{ color: "var(--ink-muted)", fontSize: 12 }}>
                       {formatUserDateTime(r.updatedAt)}
                     </td>
                     <td>
@@ -531,7 +531,7 @@ function AutomationPageInner(): JSX.Element {
             {/* Two different statements. "No runs recorded" while a status
                 filter is applied tells the reader their history is gone. */}
             <p>No automation runs recorded yet.</p>
-            <p style={{ fontSize: 12, color: "#64748b" }}>
+            <p style={{ fontSize: 12, color: "var(--ink-muted)" }}>
               Runs appear here once the E3.1 trigger dispatcher is wired.
             </p>
           </div>
@@ -554,7 +554,7 @@ function AutomationPageInner(): JSX.Element {
               <tbody>
                 {runs.map((r) => (
                   <tr key={r.id} data-automation-run-id={r.id}>
-                    <td style={{ color: "#64748b", fontSize: 12 }}>
+                    <td style={{ color: "var(--ink-muted)", fontSize: 12 }}>
                       {formatUserDateTime(r.createdAt)}
                     </td>
                     <td>
@@ -566,7 +566,7 @@ function AutomationPageInner(): JSX.Element {
                       </code>
                     </td>
                     <td data-automation-run-status={r.status}>{r.status}</td>
-                    <td style={{ color: "#64748b", fontSize: 12 }}>
+                    <td style={{ color: "var(--ink-muted)", fontSize: 12 }}>
                       {r.reason ?? ""}
                     </td>
                   </tr>
@@ -595,7 +595,7 @@ function AutomationPageInner(): JSX.Element {
         <div style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr" }}>
           <div>
             <h3 style={{ fontSize: 13 }}>Trigger types</h3>
-            <ul style={{ fontSize: 12, color: "#475569" }}>
+            <ul style={{ fontSize: 12, color: "var(--ink-secondary)" }}>
               {envelope.allowlist.triggerTypes.map((t) => (
                 <li key={t}>
                   <code>{t}</code>
@@ -605,7 +605,7 @@ function AutomationPageInner(): JSX.Element {
           </div>
           <div>
             <h3 style={{ fontSize: 13 }}>Action types</h3>
-            <ul style={{ fontSize: 12, color: "#475569" }}>
+            <ul style={{ fontSize: 12, color: "var(--ink-secondary)" }}>
               {envelope.allowlist.actionTypes.map((a) => (
                 <li key={a}>
                   <code>{a}</code>
@@ -628,9 +628,9 @@ function newRuleButtonStyle(disabled: boolean): React.CSSProperties {
     justifyContent: "center",
     minHeight: 44,
     padding: "4px 10px",
-    border: "1px solid #cbd5e1",
-    background: "#fff",
-    color: "#0f172a",
+    border: "1px solid var(--border-standard)",
+    background: "var(--surface-card)",
+    color: "var(--ink-primary)",
     fontWeight: 600,
     fontSize: 12,
     borderRadius: 6,

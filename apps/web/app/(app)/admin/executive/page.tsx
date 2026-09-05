@@ -268,7 +268,7 @@ function ExecutiveDashboardBody() {
             ? ` across ${data.revenue.allTimeByCurrency.length} currencies`
             : ""
         }`,
-        accent: "#1e3a5f",
+        accent: "var(--ink-primary)",
         testId: "admin-executive-revenue-all-time",
       },
       {
@@ -289,14 +289,14 @@ function ExecutiveDashboardBody() {
           );
           return `${formatMoneyCents(row?.amountCents ?? 0, primaryRevenue.currency) ?? "—"} last month`;
         })(),
-        accent: "#1e3a5f",
+        accent: "var(--ink-primary)",
         testId: "admin-executive-revenue-mom",
       },
       {
         label: "Active customers",
         value: formatCount(data.customers.activeCustomers),
         sub: `${formatCount(data.customers.activeBillingWorkspaces) ?? 0} live workspaces billing ACTIVE`,
-        accent: "#1e3a5f",
+        accent: "var(--ink-primary)",
         testId: "admin-executive-active-customers",
       },
       {
@@ -304,7 +304,7 @@ function ExecutiveDashboardBody() {
         value: formatCount(data.customers.enterpriseContracts),
         // ADM-003 — the contract, not a plan string.
         sub: "Customers holding an ACTIVE enterprise contract",
-        accent: "#1e3a5f",
+        accent: "var(--ink-primary)",
         testId: "admin-executive-enterprise",
       },
       {
@@ -313,7 +313,7 @@ function ExecutiveDashboardBody() {
           data.leads.demoRequestsTotal + data.leads.contactSalesTotal
         ),
         sub: `${formatCount(data.leads.demoRequestsTotal) ?? 0} demo · ${formatCount(data.leads.contactSalesTotal) ?? 0} contact-sales`,
-        accent: "#1e3a5f",
+        accent: "var(--ink-primary)",
         testId: "admin-executive-leads",
       },
     ];
@@ -326,21 +326,21 @@ function ExecutiveDashboardBody() {
         label: "Evidence",
         value: formatCount(data.usage.evidence.thisMonth),
         sub: momSub(data.usage.evidence),
-        accent: "#1e3a5f",
+        accent: "var(--ink-primary)",
         testId: "admin-executive-usage-evidence",
       },
       {
         label: "Reports",
         value: formatCount(data.usage.reports.thisMonth),
         sub: momSub(data.usage.reports),
-        accent: "#1e3a5f",
+        accent: "var(--ink-primary)",
         testId: "admin-executive-usage-reports",
       },
       {
         label: "Packages",
         value: formatCount(data.usage.packages.thisMonth),
         sub: momSub(data.usage.packages),
-        accent: "#1e3a5f",
+        accent: "var(--ink-primary)",
         testId: "admin-executive-usage-packages",
       },
       {
@@ -350,7 +350,7 @@ function ExecutiveDashboardBody() {
             data.failedOperations.evidenceVerificationFailed
         ),
         sub: `${formatCount(data.failedOperations.evidenceHashMismatch) ?? 0} hash-mismatch · ${formatCount(data.failedOperations.evidenceVerificationFailed) ?? 0} verification FAILED`,
-        accent: "#8f4c4c",
+        accent: "var(--danger-strong)",
         testId: "admin-executive-failed-ops",
       },
     ];

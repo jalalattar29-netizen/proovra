@@ -231,13 +231,27 @@ const FINDINGS = [
     // decorative. What is true is that the values are hard-coded rather than
     // tokenised — a consistency issue, not a correctness one.
     //
-    // It is reported and NOT mass-remapped. The nearest existing tokens
-    // (`--error` #DC2626, `--success-ink` #167A5B, `--warning-ink` #B45309) do
-    // not match these values, so substituting them would shift colours across
-    // 47 pages, and the usual justification — dark mode — does not apply here:
-    // the app has no dark mode at all.
+    // IT WAS REPORTED AND NOT REMAPPED, ON A REASON THAT NO LONGER HOLDS.
+    //
+    // The old note said the nearest existing tokens did not match these values
+    // so substituting them would shift colours across 47 pages. That was true
+    // when it was written, because the semantic aliases these values wanted —
+    // `--danger-standard`, `--danger-strong`, `--warning-strong`,
+    // `--success-strong` — were REFERENCED IN 25 PLACES AND DEFINED NOWHERE.
+    // They exist now, and the console's 184 bare literals were consolidated
+    // onto them, so this detector's count fell from 12 pages to 3.
+    //
+    // A FALLBACK IS NOT A HARDCODED VALUE. The three that remained were
+    // `var(--danger-standard, #b91c1c)` and friends — the hex is what renders
+    // only if the token is missing, which is a safety net rather than drift,
+    // and deleting it to satisfy a regex would remove the net and change
+    // nothing about what the page paints. So the test now strips `var(...)`
+    // before looking, which is what "hardcoded" was always meant to mean.
     id: "HARDCODED_STATUS_HEX",
-    test: (c) => /#(dc2626|ef4444|b91c1c|991b1b|f87171|065f46|78350f|92400e)/i.test(c),
+    test: (c) =>
+      /#(dc2626|ef4444|b91c1c|991b1b|f87171|065f46|78350f|92400e)/i.test(
+        c.replace(/var\((?:[^()]|\([^()]*\))*\)/g, ""),
+      ),
   },
   {
     // THIS is the rule that matters: red must mean a proven, current,

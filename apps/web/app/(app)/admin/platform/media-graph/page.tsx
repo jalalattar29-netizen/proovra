@@ -612,17 +612,17 @@ function freshnessPillStyle(
   err: string | null,
   ageSeconds: number | null,
 ): React.CSSProperties {
-  let bg = "#eff6ff";
-  let border = "#bfdbfe";
-  let color = "#1e40af";
+  let bg = "var(--info-subtle-bg)";
+  let border = "var(--info-border)";
+  let color = "var(--info)";
   if (err) {
-    bg = "#fef2f2";
-    border = "#fca5a5";
-    color = "#991b1b";
+    bg = "var(--danger-subtle-bg)";
+    border = "var(--danger-border)";
+    color = "var(--danger-strong)";
   } else if (ageSeconds != null && ageSeconds > 120) {
-    bg = "#fffbeb";
-    border = "#fcd34d";
-    color = "#92400e";
+    bg = "var(--warning-subtle-bg)";
+    border = "var(--warning-border)";
+    color = "var(--warning-strong)";
   }
   return {
     padding: "4px 12px",
@@ -644,12 +644,12 @@ function tileStyle(
   tone: Tile["tone"] | undefined,
 ): React.CSSProperties {
   const palette: Record<NonNullable<Tile["tone"]>, [string, string]> = {
-    ok: ["#ecfdf5", "#bbf7d0"],
-    info: ["#eff6ff", "#bfdbfe"],
-    warn: ["#fffbeb", "#fcd34d"],
-    danger: ["#fef2f2", "#fca5a5"],
+    ok: ["var(--success-subtle-bg)", "var(--success-border)"],
+    info: ["var(--info-subtle-bg)", "var(--info-border)"],
+    warn: ["var(--warning-subtle-bg)", "var(--warning-border)"],
+    danger: ["var(--danger-subtle-bg)", "var(--danger-border)"],
   };
-  const [bg, border] = tone ? palette[tone] : ["#ffffff", "#e5e7eb"];
+  const [bg, border] = tone ? palette[tone] : ["var(--surface-card)", "var(--border-default)"];
   return {
     border: `1px solid ${border}`,
     background: bg,
@@ -695,9 +695,9 @@ function primaryButtonStyle(disabled: boolean): React.CSSProperties {
     fontWeight: 600,
     padding: "6px 14px",
     borderRadius: 6,
-    border: "1px solid #0f172a",
-    background: disabled ? "#94a3b8" : "#0f172a",
-    color: "#ffffff",
+    border: "1px solid var(--ink-primary)",
+    background: disabled ? "var(--ink-muted)" : "var(--ink-primary)",
+    color: "var(--surface-card)",
     cursor: disabled ? "not-allowed" : "pointer",
     whiteSpace: "nowrap",
   };
@@ -706,17 +706,17 @@ function primaryButtonStyle(disabled: boolean): React.CSSProperties {
 const actionResultSuccessStyle: React.CSSProperties = {
   padding: "8px 12px",
   fontSize: 12,
-  background: "#ecfdf5",
-  border: "1px solid #bbf7d0",
-  color: "#166534",
+  background: "var(--success-subtle-bg)",
+  border: "1px solid var(--success-border)",
+  color: "var(--success-strong)",
   borderRadius: 6,
 };
 
 const actionResultErrorStyle: React.CSSProperties = {
   padding: "8px 12px",
   fontSize: 12,
-  background: "#fef2f2",
-  border: "1px solid #fca5a5",
-  color: "#991b1b",
+  background: "var(--danger-subtle-bg)",
+  border: "1px solid var(--danger-border)",
+  color: "var(--danger-strong)",
   borderRadius: 6,
 };

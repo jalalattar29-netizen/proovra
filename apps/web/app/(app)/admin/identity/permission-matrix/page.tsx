@@ -632,7 +632,7 @@ export default function PermissionMatrixPage() {
               {elevationFailure ? (
                 <div
                   data-elevation-failure={elevationFailure.kind}
-                  style={{ ...mutedStyle, marginTop: 8, color: "#991b1b" }}
+                  style={{ ...mutedStyle, marginTop: 8, color: "var(--danger-strong)" }}
                 >
                   {elevationFailure.message}
                 </div>
@@ -640,7 +640,7 @@ export default function PermissionMatrixPage() {
               {elevationNotice ? (
                 <div
                   data-elevation-notice
-                  style={{ ...mutedStyle, marginTop: 8, color: "#065f46" }}
+                  style={{ ...mutedStyle, marginTop: 8, color: "var(--success-strong)" }}
                 >
                   {elevationNotice}
                 </div>

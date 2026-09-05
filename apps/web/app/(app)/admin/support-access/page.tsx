@@ -529,7 +529,7 @@ function Shell() {
       key: "window",
       header: "Window",
       render: (g) => (
-        <div style={{ fontSize: 12, color: "#334155" }}>
+        <div style={{ fontSize: 12, color: "var(--ink-secondary)" }}>
           <div>{formatUserDateTime(g.startedAtUtc)}</div>
           <div style={muted}>until {formatUserDateTime(g.expiresAtUtc)}</div>
         </div>
@@ -600,7 +600,7 @@ function Shell() {
       key: "window",
       header: "Window",
       render: (g) => (
-        <div style={{ fontSize: 12, color: "#334155" }}>
+        <div style={{ fontSize: 12, color: "var(--ink-secondary)" }}>
           <div>{formatUserDateTime(g.startedAtUtc)}</div>
           <div style={muted}>until {formatUserDateTime(g.expiresAtUtc)}</div>
         </div>
@@ -960,4 +960,4 @@ function Shell() {
   );
 }
 
-const muted: React.CSSProperties = { fontSize: 12, color: "#64748b" };
+const muted: React.CSSProperties = { fontSize: 12, color: "var(--ink-muted)" };

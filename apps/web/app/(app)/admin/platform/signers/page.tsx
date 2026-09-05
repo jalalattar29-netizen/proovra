@@ -459,16 +459,16 @@ function OperationsSignersContent() {
 
 function statusBadge(s: SignerStatus) {
   if (s === "active")
-    return badgeStyle({ bg: "#ecfdf5", fg: "#065f46", border: "#a7f3d0" });
+    return badgeStyle({ bg: "var(--success-subtle-bg)", fg: "var(--success-strong)", border: "var(--success-border)" });
   if (s === "staged")
-    return badgeStyle({ bg: "#eef2ff", fg: "#3730a3", border: "#c7d2fe" });
+    return badgeStyle({ bg: "var(--info-subtle-bg)", fg: "var(--info)", border: "var(--info-border)" });
   if (s === "retiring")
-    return badgeStyle({ bg: "#fef3c7", fg: "#78350f", border: "#fde68a" });
+    return badgeStyle({ bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" });
   if (s === "retired")
-    return badgeStyle({ bg: "#f1f5f9", fg: "#475569", border: "#cbd5e1" });
+    return badgeStyle({ bg: "var(--surface-muted)", fg: "var(--ink-secondary)", border: "var(--border-standard)" });
   if (s === "revoked")
-    return badgeStyle({ bg: "#fef2f2", fg: "#991b1b", border: "#fecaca" });
-  return badgeStyle({ bg: "#fef3c7", fg: "#78350f", border: "#fde68a" });
+    return badgeStyle({ bg: "var(--danger-subtle-bg)", fg: "var(--danger-strong)", border: "var(--danger-border)" });
+  return badgeStyle({ bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" });
 }
 
 function PurposeOverview({
@@ -883,11 +883,11 @@ function SignerDetailDrawer({
             <span
               style={badgeStyle(
                 health.health === "healthy"
-                  ? { bg: "#ecfdf5", fg: "#065f46", border: "#a7f3d0" }
+                  ? { bg: "var(--success-subtle-bg)", fg: "var(--success-strong)", border: "var(--success-border)" }
                   : health.health === "unreachable" ||
                       health.health === "key_disabled"
-                    ? { bg: "#fef2f2", fg: "#991b1b", border: "#fecaca" }
-                    : { bg: "#fef3c7", fg: "#78350f", border: "#fde68a" },
+                    ? { bg: "var(--danger-subtle-bg)", fg: "var(--danger-strong)", border: "var(--danger-border)" }
+                    : { bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" },
               )}
             >
               {health.health}
@@ -920,8 +920,8 @@ function SignerDetailDrawer({
             <span
               style={badgeStyle(
                 preview.compatibility === "compatible"
-                  ? { bg: "#ecfdf5", fg: "#065f46", border: "#a7f3d0" }
-                  : { bg: "#fef3c7", fg: "#78350f", border: "#fde68a" },
+                  ? { bg: "var(--success-subtle-bg)", fg: "var(--success-strong)", border: "var(--success-border)" }
+                  : { bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" },
               )}
             >
               {preview.compatibility}
@@ -975,8 +975,8 @@ function SignerDetailDrawer({
               type="button"
               style={{
                 ...ghostButtonStyle,
-                color: "#991b1b",
-                borderColor: "#fecaca",
+                color: "var(--danger-strong)",
+                borderColor: "var(--danger-border)",
               }}
               disabled={busy !== null || signer.status === "revoked"}
               title={signer.status === "revoked" ? "This signer is already revoked." : undefined}
@@ -1186,10 +1186,10 @@ function CustodyAttestationsPanel({
           <span
             style={badgeStyle(
               verifyResult.outcome === "verified"
-                ? { bg: "#ecfdf5", fg: "#065f46", border: "#a7f3d0" }
+                ? { bg: "var(--success-subtle-bg)", fg: "var(--success-strong)", border: "var(--success-border)" }
                 : verifyResult.outcome === "missing_attestation"
-                  ? { bg: "#f1f5f9", fg: "#475569", border: "#cbd5e1" }
-                  : { bg: "#fef2f2", fg: "#991b1b", border: "#fecaca" },
+                  ? { bg: "var(--surface-muted)", fg: "var(--ink-secondary)", border: "var(--border-standard)" }
+                  : { bg: "var(--danger-subtle-bg)", fg: "var(--danger-strong)", border: "var(--danger-border)" },
             )}
           >
             {verifyResult.outcome}

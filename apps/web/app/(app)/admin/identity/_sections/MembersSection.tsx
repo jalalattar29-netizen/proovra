@@ -432,7 +432,7 @@ export function MembersSection({
               style={{
                 ...mutedStyle,
                 marginTop: 2,
-                color: rowResult.ok ? "#065f46" : "#991b1b",
+                color: rowResult.ok ? "var(--success-strong)" : "var(--danger-strong)",
               }}
             >
               {rowResult.message}

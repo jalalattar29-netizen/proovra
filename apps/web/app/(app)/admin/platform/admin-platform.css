@@ -8,7 +8,7 @@
  * shell, and not in one way — in three:
  *
  *   - six declared their own `pageStyle` / `titleStyle` / `cardStyle` objects
- *     with literal hex colours (#0f172a, #64748b, #e2e8f0, #fff). No dark
+ *     with literal hex colours (var(--ink-primary), var(--ink-muted), var(--border-default), var(--surface-card)). No dark
  *     mode, no tokens, and a `maxWidth: 960` that made them narrower than
  *     every other admin page for no reason a reader could see;
  *   - two used the `cc-*` command-centre classes, which belong to a different

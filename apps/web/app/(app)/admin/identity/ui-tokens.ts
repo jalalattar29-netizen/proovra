@@ -1,37 +1,81 @@
 /**
- * Phase 26 — Admin identity console UI tokens.
+ * SHARED STYLE OBJECTS FOR THE IDENTITY AND PLATFORM-OPERATIONS PAGES.
  *
- * Reuses the PROOVRA enterprise design language from the reviewer-ops
- * pages (clean white, restrained navy accent, dense tables). Identity
- * pages share these tokens so SSO / SCIM / Sessions / Access Reviews
- * stay visually consistent.
+ * =============================================================================
+ * WHAT THIS WAS, AND WHY IT WAS THE CONSOLE'S BIGGEST INCONSISTENCY
+ * =============================================================================
+ * It was a SECOND PALETTE. Twelve colour literals plus eight status palettes
+ * carrying twenty-four more, none of them tokens, consumed by SEVENTEEN admin
+ * pages — every Identity surface and most of Platform Operations. Its own
+ * header called that "reusing the PROOVRA enterprise design language"; what it
+ * actually did was fork it.
+ *
+ * The most visible consequence: `accent` was #1e293b, a near-black NAVY. So
+ * every primary button, every active tab indicator and every selected control
+ * across those seventeen pages rendered navy while the rest of the console
+ * rendered PROOVRA purple. Two thirds of the console disagreed with the other
+ * third about what the brand colour is, and nothing in either half looked
+ * locally wrong — which is exactly why it survived six phases.
+ *
+ * Second consequence, in `pageStyle`: an explicit
+ * `fontFamily: -apple-system, …` override, so those pages rendered in the
+ * platform system font rather than the product typeface.
+ *
+ * =============================================================================
+ * WHAT IT IS NOW
+ * =============================================================================
+ * The same exported shapes — 208 call sites read `mutedStyle` alone, and
+ * rewriting those is churn with no reader benefit — with every VALUE pointing
+ * at `lib/design-tokens/tokens.css`. Nothing here declares a colour any more.
+ *
+ * These are inline styles, so `var(--token)` strings are the mechanism: they
+ * resolve in the cascade at the call site, which is also what lets the admin
+ * console's own overrides (a WCAG-AA muted ink, the corrected radius scale)
+ * reach them without touching this file again.
+ *
+ * The 44px target floors and the reasons for them are preserved verbatim
+ * below; they were the good part.
  */
 
 import type { CSSProperties } from "react";
 import { formatUserDateTime } from "../../../../lib/date";
 
 export const TOKENS = {
-  bgPage: "#f8fafc",
-  surface: "#ffffff",
-  surfaceMuted: "#f1f5f9",
-  border: "#e2e8f0",
-  borderStrong: "#cbd5e1",
-  divider: "#f1f5f9",
-  ink: "#0f172a",
-  inkMuted: "#475569",
-  inkSubtle: "#64748b",
-  accent: "#1e293b",
-  accentInk: "#ffffff",
-  link: "#1e40af",
+  bgPage: "var(--surface-page)",
+  surface: "var(--surface-card)",
+  surfaceMuted: "var(--surface-muted)",
+  border: "var(--border-default)",
+  borderStrong: "var(--border-standard)",
+  divider: "var(--border-subtle)",
+  ink: "var(--ink-primary)",
+  inkMuted: "var(--ink-secondary)",
+  /* Was #64748b. Resolves through --ink-muted, which the admin console pins to
+     an AA-passing value; on this palette's own former literal, helper text
+     measured 4.48:1 against the page ground. */
+  inkSubtle: "var(--ink-muted)",
+  /* WAS #1e293b — a near-black navy, on seventeen pages' primary buttons,
+     active tabs and selected controls. The brand accent is purple. */
+  accent: "var(--accent-500)",
+  accentInk: "var(--ink-inverse)",
+  link: "var(--accent-600)",
 } as const;
 
+/**
+ * NO FONT OVERRIDE, AND NO 100vh.
+ *
+ * `fontFamily: -apple-system, …` made these pages render in the platform
+ * system font while the rest of the product rendered the brand typeface —
+ * a difference nobody would name but everybody would feel. The app shell
+ * already sets the family; inheriting it is the whole point of having one.
+ *
+ * `minHeight: 100vh` on a pane INSIDE the app shell forces a full viewport of
+ * height regardless of content, which is where a short page's trailing
+ * whitespace came from.
+ */
 export const pageStyle: CSSProperties = {
   padding: "20px 24px 40px",
-  fontFamily:
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
   color: TOKENS.ink,
   background: TOKENS.bgPage,
-  minHeight: "100vh",
 };
 
 export const headerRowStyle: CSSProperties = {
@@ -70,7 +114,7 @@ export const sectionTitleStyle: CSSProperties = {
 export const cardStyle: CSSProperties = {
   background: TOKENS.surface,
   border: `1px solid ${TOKENS.border}`,
-  borderRadius: 8,
+  borderRadius: "var(--radius-md)",
   padding: 16,
 };
 
@@ -121,7 +165,7 @@ export const primaryButtonStyle: CSSProperties = {
   background: TOKENS.accent,
   color: TOKENS.accentInk,
   border: `1px solid ${TOKENS.accent}`,
-  borderRadius: 6,
+  borderRadius: "var(--radius-sm)",
   cursor: "pointer",
 };
 
@@ -136,7 +180,7 @@ export const ghostButtonStyle: CSSProperties = {
   background: TOKENS.surface,
   color: TOKENS.ink,
   border: `1px solid ${TOKENS.borderStrong}`,
-  borderRadius: 6,
+  borderRadius: "var(--radius-sm)",
   cursor: "pointer",
 };
 
@@ -156,7 +200,7 @@ export const inputStyle: CSSProperties = {
   minHeight: 44,
   padding: "6px 10px",
   border: `1px solid ${TOKENS.borderStrong}`,
-  borderRadius: 6,
+  borderRadius: "var(--radius-sm)",
   fontSize: 13,
   background: TOKENS.surface,
   color: TOKENS.ink,
@@ -179,7 +223,7 @@ export const selectStyle: CSSProperties = {
   minHeight: 44,
   padding: "6px 10px",
   border: `1px solid ${TOKENS.borderStrong}`,
-  borderRadius: 6,
+  borderRadius: "var(--radius-sm)",
   fontSize: 12,
   background: TOKENS.surface,
   color: TOKENS.ink,
@@ -193,23 +237,28 @@ export const mutedStyle: CSSProperties = {
 export const errorBoxStyle: CSSProperties = {
   marginTop: 12,
   padding: 10,
-  background: "#fef2f2",
-  color: "#7f1d1d",
-  border: "1px solid #fecaca",
-  borderRadius: 6,
+  background: "var(--danger-subtle-bg)",
+  color: "var(--danger-strong)",
+  border: "1px solid var(--danger-border)",
+  borderRadius: "var(--radius-sm)",
   fontSize: 13,
 };
 
 export const successBoxStyle: CSSProperties = {
   ...errorBoxStyle,
-  background: "#ecfdf5",
-  color: "#065f46",
-  borderColor: "#a7f3d0",
+  background: "var(--success-subtle-bg)",
+  color: "var(--success-strong)",
+  borderColor: "var(--success-border)",
 };
 
 export const monoStyle: CSSProperties = {
-  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+  // The canonical stack, so an id or a hash has the same metrics wherever it
+  // appears. A bare generic `monospace` also inherits the browser's separate
+  // monospace default SIZE, which is not the same as the surrounding text's.
+  fontFamily: "var(--font-mono)",
   fontSize: 12,
+  direction: "ltr",
+  unicodeBidi: "isolate",
 };
 
 export function badgeStyle(palette: {
@@ -221,7 +270,7 @@ export function badgeStyle(palette: {
     padding: "2px 8px",
     fontSize: 10,
     fontWeight: 700,
-    borderRadius: 4,
+    borderRadius: "var(--radius-sm)",
     background: palette.bg,
     color: palette.fg,
     border: `1px solid ${palette.border}`,
@@ -232,18 +281,64 @@ export function badgeStyle(palette: {
   };
 }
 
+/**
+ * THE STATE PALETTES, ON THE SEMANTIC FAMILIES.
+ *
+ * Twenty-four literals became four families, and the mapping is the meaning:
+ *
+ *   ACTIVE / ALLOW        success — a confirmed, healthy, permitted state
+ *   PENDING / STEP_UP     warning — waiting for a person to do something
+ *   REVOKED / DENY        danger  — a refusal or a withdrawal
+ *   DISABLED / N/A        neutral — not applicable, never a warning
+ *
+ * NOT_APPLICABLE is deliberately NEUTRAL and not a lighter amber. "This
+ * permission does not apply to this role" is the absence of a question, not a
+ * caution, and painting it as one puts it beside the genuine ones.
+ */
 const STATUS_PALETTES: Record<
   string,
   { bg: string; fg: string; border: string }
 > = {
-  ACTIVE: { bg: "#ecfdf5", fg: "#065f46", border: "#a7f3d0" },
-  PENDING: { bg: "#fef3c7", fg: "#78350f", border: "#fde68a" },
-  DISABLED: { bg: "#f1f5f9", fg: "#475569", border: "#cbd5e1" },
-  REVOKED: { bg: "#fef2f2", fg: "#991b1b", border: "#fecaca" },
-  ALLOW: { bg: "#ecfdf5", fg: "#065f46", border: "#a7f3d0" },
-  DENY: { bg: "#fef2f2", fg: "#991b1b", border: "#fecaca" },
-  STEP_UP_REQUIRED: { bg: "#fef3c7", fg: "#78350f", border: "#fde68a" },
-  NOT_APPLICABLE: { bg: "#f1f5f9", fg: "#64748b", border: "#cbd5e1" },
+  ACTIVE: {
+    bg: "var(--success-subtle-bg)",
+    fg: "var(--success-strong)",
+    border: "var(--success-border)",
+  },
+  PENDING: {
+    bg: "var(--warning-subtle-bg)",
+    fg: "var(--warning-strong)",
+    border: "var(--warning-border)",
+  },
+  DISABLED: {
+    bg: "var(--surface-muted)",
+    fg: "var(--ink-secondary)",
+    border: "var(--border-standard)",
+  },
+  REVOKED: {
+    bg: "var(--danger-subtle-bg)",
+    fg: "var(--danger-strong)",
+    border: "var(--danger-border)",
+  },
+  ALLOW: {
+    bg: "var(--success-subtle-bg)",
+    fg: "var(--success-strong)",
+    border: "var(--success-border)",
+  },
+  DENY: {
+    bg: "var(--danger-subtle-bg)",
+    fg: "var(--danger-strong)",
+    border: "var(--danger-border)",
+  },
+  STEP_UP_REQUIRED: {
+    bg: "var(--warning-subtle-bg)",
+    fg: "var(--warning-strong)",
+    border: "var(--warning-border)",
+  },
+  NOT_APPLICABLE: {
+    bg: "var(--surface-muted)",
+    fg: "var(--ink-muted)",
+    border: "var(--border-standard)",
+  },
 };
 
 export function statusBadgeStyle(status: string): CSSProperties {

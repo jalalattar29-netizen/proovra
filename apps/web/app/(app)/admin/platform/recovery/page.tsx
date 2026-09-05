@@ -326,12 +326,12 @@ function OperationsRecoveryContent() {
 
 function outcomeBadge(outcome: ValidationOutcome | null) {
   if (outcome === "passed")
-    return badgeStyle({ bg: "#ecfdf5", fg: "#065f46", border: "#a7f3d0" });
+    return badgeStyle({ bg: "var(--success-subtle-bg)", fg: "var(--success-strong)", border: "var(--success-border)" });
   if (outcome === "warning")
-    return badgeStyle({ bg: "#fef3c7", fg: "#78350f", border: "#fde68a" });
+    return badgeStyle({ bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" });
   if (outcome === "failed")
-    return badgeStyle({ bg: "#fef2f2", fg: "#991b1b", border: "#fecaca" });
-  return badgeStyle({ bg: "#f1f5f9", fg: "#475569", border: "#cbd5e1" });
+    return badgeStyle({ bg: "var(--danger-subtle-bg)", fg: "var(--danger-strong)", border: "var(--danger-border)" });
+  return badgeStyle({ bg: "var(--surface-muted)", fg: "var(--ink-secondary)", border: "var(--border-standard)" });
 }
 
 function ReadinessSummary({
@@ -362,8 +362,8 @@ function ReadinessSummary({
             <span
               style={badgeStyle(
                 last.objectLockMode === "verified"
-                  ? { bg: "#ecfdf5", fg: "#065f46", border: "#a7f3d0" }
-                  : { bg: "#fef3c7", fg: "#78350f", border: "#fde68a" },
+                  ? { bg: "var(--success-subtle-bg)", fg: "var(--success-strong)", border: "var(--success-border)" }
+                  : { bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" },
               )}
             >
               {last.objectLockMode}

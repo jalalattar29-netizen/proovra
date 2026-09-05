@@ -831,7 +831,7 @@ function PolicyPanel({
           </label>
           {connection.samlSignRequests &&
           connection.samlSpSigningKeySource === "none" ? (
-            <div style={{ ...mutedStyle, fontSize: 12, color: "#92400e" }}>
+            <div style={{ ...mutedStyle, fontSize: 12, color: "var(--warning-strong)" }}>
               Signing is enabled but no signing key is available. Add a
               per-connection key below or set the SAML_SP_PRIVATE_KEY
               environment variable — until then requests are sent unsigned.
@@ -932,7 +932,7 @@ function PolicyPanel({
           <span>Restrict SSO logins to verified domains</span>
         </label>
         {noVerifiedDomains && !connection.restrictToVerifiedDomains ? (
-          <div style={{ ...mutedStyle, fontSize: 12, color: "#92400e" }}>
+          <div style={{ ...mutedStyle, fontSize: 12, color: "var(--warning-strong)" }}>
             Verify at least one organization domain before enabling this
             restriction.
           </div>

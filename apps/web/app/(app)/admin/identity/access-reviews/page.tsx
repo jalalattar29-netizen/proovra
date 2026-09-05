@@ -280,7 +280,7 @@ export default function AccessReviewsPage() {
               data-access-review-result={rowResult.ok ? "ok" : "failed"}
               style={{
                 ...mutedStyle,
-                color: rowResult.ok ? "#065f46" : "#991b1b",
+                color: rowResult.ok ? "var(--success-strong)" : "var(--danger-strong)",
               }}
             >
               {rowResult.message}

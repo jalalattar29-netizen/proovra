@@ -781,8 +781,8 @@ function TokensTab({ teamId }: { teamId: string }) {
                       borderRadius: 999,
                       border: "1px solid",
                       background: active ? TOKENS.accent : TOKENS.surface,
-                      color: active ? TOKENS.accentInk : "#334155",
-                      borderColor: active ? TOKENS.accent : "#cbd5e1",
+                      color: active ? TOKENS.accentInk : "var(--ink-secondary)",
+                      borderColor: active ? TOKENS.accent : "var(--border-standard)",
                       cursor: "pointer",
                     }}
                   >
@@ -823,10 +823,10 @@ function TokensTab({ teamId }: { teamId: string }) {
 function riskBadge(level: ScimDriftRiskLevel) {
   const palette =
     level === "HIGH"
-      ? { bg: "#fef2f2", fg: "#991b1b", border: "#fecaca" }
+      ? { bg: "var(--danger-subtle-bg)", fg: "var(--danger-strong)", border: "var(--danger-border)" }
       : level === "MEDIUM"
-        ? { bg: "#fef3c7", fg: "#78350f", border: "#fde68a" }
-        : { bg: "#f1f5f9", fg: "#475569", border: "#cbd5e1" };
+        ? { bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" }
+        : { bg: "var(--surface-muted)", fg: "var(--ink-secondary)", border: "var(--border-standard)" };
   return badgeStyle(palette);
 }
 
@@ -1001,7 +1001,7 @@ function DriftTab({ teamId }: { teamId: string }) {
                 style={{
                   fontSize: 22,
                   fontWeight: 700,
-                  color: report.summary.byRisk.HIGH > 0 ? "#991b1b" : undefined,
+                  color: report.summary.byRisk.HIGH > 0 ? "var(--danger-strong)" : undefined,
                 }}
               >
                 {report.summary.byRisk.HIGH ?? 0}
@@ -1103,14 +1103,14 @@ function DriftTab({ teamId }: { teamId: string }) {
                           style={
                             i.isDestructive
                               ? badgeStyle({
-                                  bg: "#fef2f2",
-                                  fg: "#991b1b",
-                                  border: "#fecaca",
+                                  bg: "var(--danger-subtle-bg)",
+                                  fg: "var(--danger-strong)",
+                                  border: "var(--danger-border)",
                                 })
                               : badgeStyle({
-                                  bg: "#eef2ff",
-                                  fg: "#3730a3",
-                                  border: "#c7d2fe",
+                                  bg: "var(--info-subtle-bg)",
+                                  fg: "var(--info)",
+                                  border: "var(--info-border)",
                                 })
                           }
                         >
@@ -1264,10 +1264,10 @@ function ReplayTab({ teamId }: { teamId: string }) {
         <span
           style={badgeStyle(
             f.severity === "HIGH"
-              ? { bg: "#fef2f2", fg: "#991b1b", border: "#fecaca" }
+              ? { bg: "var(--danger-subtle-bg)", fg: "var(--danger-strong)", border: "var(--danger-border)" }
               : f.severity === "WARNING"
-                ? { bg: "#fef3c7", fg: "#78350f", border: "#fde68a" }
-                : { bg: "#f1f5f9", fg: "#475569", border: "#cbd5e1" },
+                ? { bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" }
+                : { bg: "var(--surface-muted)", fg: "var(--ink-secondary)", border: "var(--border-standard)" },
           )}
         >
           {f.severity}
@@ -1284,15 +1284,15 @@ function ReplayTab({ teamId }: { teamId: string }) {
       header: "Status",
       render: (f) =>
         f.terminal ? (
-          <span style={badgeStyle({ bg: "#fef2f2", fg: "#991b1b", border: "#fecaca" })}>
+          <span style={badgeStyle({ bg: "var(--danger-subtle-bg)", fg: "var(--danger-strong)", border: "var(--danger-border)" })}>
             TERMINAL
           </span>
         ) : f.retryEligible ? (
-          <span style={badgeStyle({ bg: "#eef2ff", fg: "#3730a3", border: "#c7d2fe" })}>
+          <span style={badgeStyle({ bg: "var(--info-subtle-bg)", fg: "var(--info)", border: "var(--info-border)" })}>
             REPLAYABLE
           </span>
         ) : (
-          <span style={badgeStyle({ bg: "#f1f5f9", fg: "#475569", border: "#cbd5e1" })}>
+          <span style={badgeStyle({ bg: "var(--surface-muted)", fg: "var(--ink-secondary)", border: "var(--border-standard)" })}>
             MANUAL
           </span>
         ),

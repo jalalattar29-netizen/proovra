@@ -374,9 +374,9 @@ function severityBadgeStyle(
   severity: "WARNING" | "HIGH" | "CRITICAL",
 ): React.CSSProperties {
   const palette: Record<typeof severity, [string, string, string]> = {
-    WARNING: ["#fffbeb", "#fcd34d", "#92400e"],
-    HIGH: ["#fff7ed", "#fed7aa", "#9a3412"],
-    CRITICAL: ["#fef2f2", "#fca5a5", "#991b1b"],
+    WARNING: ["var(--warning-subtle-bg)", "var(--warning-border)", "var(--warning-strong)"],
+    HIGH: ["var(--warning-subtle-bg)", "var(--warning-border)", "var(--warning-strong)"],
+    CRITICAL: ["var(--danger-subtle-bg)", "var(--danger-border)", "var(--danger-strong)"],
   };
   const [bg, border, color] = palette[severity];
   return {
@@ -517,17 +517,17 @@ function PlatformPostureBlock({
 }
 
 const POSTURE_TONE: Record<HealthStateWord, { bg: string; border: string; ink: string }> = {
-  HEALTHY: { bg: "#f0fdf4", border: "#86efac", ink: "#166534" },
-  DEGRADED: { bg: "#fffbeb", border: "#fcd34d", ink: "#92400e" },
-  CRITICAL: { bg: "#fef2f2", border: "#fca5a5", ink: "#991b1b" },
+  HEALTHY: { bg: "var(--success-subtle-bg)", border: "var(--success-border)", ink: "var(--success-strong)" },
+  DEGRADED: { bg: "var(--warning-subtle-bg)", border: "var(--warning-border)", ink: "var(--warning-strong)" },
+  CRITICAL: { bg: "var(--danger-subtle-bg)", border: "var(--danger-border)", ink: "var(--danger-strong)" },
   // Neutral, not amber. UNKNOWN is not a lesser warning — it is the absence of
   // a measurement, and colouring it like a warning claims an observation that
   // was never made.
-  UNKNOWN: { bg: "#f8fafc", border: "#cbd5e1", ink: "#334155" },
+  UNKNOWN: { bg: "var(--surface-header)", border: "var(--border-standard)", ink: "var(--ink-secondary)" },
   // Amber, like DEGRADED, because STALE IS an observation: something reported
   // and then stopped. That is a warning, unlike UNKNOWN, which is the absence
   // of any observation at all.
-  STALE: { bg: "#fffbeb", border: "#fcd34d", ink: "#92400e" },
+  STALE: { bg: "var(--warning-subtle-bg)", border: "var(--warning-border)", ink: "var(--warning-strong)" },
 };
 
 function postureBlockStyle(state: HealthStateWord): React.CSSProperties {
@@ -550,7 +550,7 @@ function postureStateStyle(state: HealthStateWord): React.CSSProperties {
     fontSize: 11,
     fontWeight: 700,
     letterSpacing: "0.04em",
-    background: "#ffffff",
+    background: "var(--surface-card)",
     border: `1px solid ${tone.border}`,
     color: tone.ink,
     whiteSpace: "nowrap",
@@ -567,32 +567,32 @@ const postureHeadStyle: React.CSSProperties = {
 const postureReasonStyle: React.CSSProperties = {
   fontSize: 13,
   lineHeight: 1.5,
-  color: "#0f172a",
+  color: "var(--ink-primary)",
   fontWeight: 600,
 };
 
 const postureMetaStyle: React.CSSProperties = {
   marginTop: 6,
   fontSize: 12,
-  color: "#64748b",
+  color: "var(--ink-muted)",
 };
 
 const posturePartialStyle: React.CSSProperties = {
   marginTop: 10,
   padding: "8px 10px",
-  background: "#ffffff",
-  border: "1px solid #cbd5e1",
+  background: "var(--surface-card)",
+  border: "1px solid var(--border-standard)",
   borderRadius: 8,
   fontSize: 12.5,
   lineHeight: 1.5,
-  color: "#334155",
+  color: "var(--ink-secondary)",
 };
 
 const postureReconcileStyle: React.CSSProperties = {
   marginTop: 10,
   fontSize: 12.5,
   lineHeight: 1.6,
-  color: "#334155",
+  color: "var(--ink-secondary)",
 };
 
 const postureSubsystemListStyle: React.CSSProperties = {
@@ -613,16 +613,16 @@ const postureSubsystemRowStyle: React.CSSProperties = {
 };
 
 const postureSubsystemLabelStyle: React.CSSProperties = {
-  color: "#0f172a",
+  color: "var(--ink-primary)",
   textTransform: "capitalize",
 };
 
 const postureSubsystemReasonStyle: React.CSSProperties = {
-  color: "#475569",
+  color: "var(--ink-secondary)",
 };
 
 const postureSubsystemActionStyle: React.CSSProperties = {
-  color: "#334155",
+  color: "var(--ink-secondary)",
   fontStyle: "italic",
 };
 
@@ -1481,21 +1481,21 @@ function SignalList({
 // Styles — enterprise/SOC dense layout
 // -----------------------------------------------------------------------------
 
-const mutedStyle: React.CSSProperties = { fontSize: 13, color: "#64748b" };
+const mutedStyle: React.CSSProperties = { fontSize: 13, color: "var(--ink-muted)" };
 const sectionTitleStyle: React.CSSProperties = {
   fontSize: 14,
   fontWeight: 700,
   textTransform: "uppercase",
   letterSpacing: 0.4,
-  color: "#334155",
+  color: "var(--ink-secondary)",
   marginBottom: 8,
 };
 const cardStyle: React.CSSProperties = {
   marginTop: 16,
   padding: 16,
-  border: "1px solid #e2e8f0",
+  border: "1px solid var(--border-default)",
   borderRadius: 12,
-  background: "#fff",
+  background: "var(--surface-card)",
 };
 const summaryGridStyle: React.CSSProperties = {
   display: "grid",
@@ -1555,7 +1555,7 @@ function HeatCell({
   );
 }
 const navLinkStyle: React.CSSProperties = {
-  color: "#4338ca",
+  color: "var(--info)",
   fontWeight: 600,
   textDecoration: "none",
   fontSize: 13,
@@ -1563,17 +1563,17 @@ const navLinkStyle: React.CSSProperties = {
 const errorBoxStyle: React.CSSProperties = {
   marginTop: 12,
   padding: 12,
-  background: "#fef2f2",
-  color: "#7f1d1d",
-  border: "1px solid #fecaca",
+  background: "var(--danger-subtle-bg)",
+  color: "var(--danger-strong)",
+  border: "1px solid var(--danger-border)",
   borderRadius: 8,
   fontSize: 14,
 };
 const alertRibbonStyle: React.CSSProperties = {
   marginTop: 16,
   padding: 16,
-  background: "#fef2f2",
-  border: "1px solid #fca5a5",
+  background: "var(--danger-subtle-bg)",
+  border: "1px solid var(--danger-border)",
   borderRadius: 12,
 };
 const alertRibbonHeaderStyle: React.CSSProperties = {
@@ -1593,7 +1593,7 @@ const alertRowStyle: React.CSSProperties = {
   gap: 8,
   alignItems: "baseline",
   padding: "6px 0",
-  borderTop: "1px solid #fecaca",
+  borderTop: "1px solid var(--danger-border)",
   fontSize: 13,
 };
 const alertIdStyle: React.CSSProperties = {
@@ -1604,15 +1604,15 @@ const alertIdStyle: React.CSSProperties = {
 };
 const alertReasonStyle: React.CSSProperties = {
   fontSize: 12,
-  color: "#7f1d1d",
+  color: "var(--danger-strong)",
   gridColumn: "1 / -1",
 };
 const okRibbonStyle: React.CSSProperties = {
   marginTop: 16,
   padding: 12,
-  background: "#ecfdf5",
-  border: "1px solid #bbf7d0",
-  color: "#166534",
+  background: "var(--success-subtle-bg)",
+  border: "1px solid var(--success-border)",
+  color: "var(--success-strong)",
   borderRadius: 12,
   display: "flex",
   alignItems: "baseline",
@@ -1620,19 +1620,19 @@ const okRibbonStyle: React.CSSProperties = {
 };
 const groupStyle: React.CSSProperties = {
   marginTop: 8,
-  border: "1px solid #f1f5f9",
+  border: "1px solid var(--surface-muted)",
   borderRadius: 8,
 };
 const groupSummaryStyle: React.CSSProperties = {
   padding: "8px 12px",
   fontSize: 13,
   fontWeight: 600,
-  color: "#334155",
+  color: "var(--ink-secondary)",
   cursor: "pointer",
 };
 const groupCountStyle: React.CSSProperties = {
   marginLeft: 6,
-  color: "#94a3b8",
+  color: "var(--ink-muted)",
   fontWeight: 400,
   fontSize: 12,
 };
@@ -1643,18 +1643,18 @@ const tableStyle: React.CSSProperties = {
 };
 const tdMonoStyle: React.CSSProperties = {
   padding: "6px 12px",
-  borderTop: "1px solid #f8fafc",
+  borderTop: "1px solid var(--surface-header)",
   fontFamily:
     "ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace",
 };
 function tdNumStyle(value: number): React.CSSProperties {
   return {
     padding: "6px 12px",
-    borderTop: "1px solid #f8fafc",
+    borderTop: "1px solid var(--surface-header)",
     textAlign: "right",
     fontVariantNumeric: "tabular-nums",
     fontWeight: value > 0 ? 600 : 400,
-    color: value > 0 ? "#0f172a" : "#94a3b8",
+    color: value > 0 ? "var(--ink-primary)" : "var(--ink-muted)",
   };
 }
 const listStyle: React.CSSProperties = {
@@ -1662,13 +1662,13 @@ const listStyle: React.CSSProperties = {
   margin: "8px 0 0",
   fontSize: 13,
   lineHeight: 1.7,
-  color: "#334155",
+  color: "var(--ink-secondary)",
 };
 const codeStyle: React.CSSProperties = {
   fontFamily:
     "ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace",
   fontSize: 12,
-  background: "#f1f5f9",
+  background: "var(--surface-muted)",
   padding: "2px 6px",
   borderRadius: 4,
 };

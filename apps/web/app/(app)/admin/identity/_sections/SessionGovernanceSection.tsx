@@ -283,7 +283,7 @@ export function SessionGovernanceSection({ stepUp }: { stepUp: StepUpControl }) 
           {revokeFailure ? (
             <div
               data-identity-contributor-session-failure={revokeFailure.kind}
-              style={{ ...mutedStyle, marginTop: 8, color: "#991b1b" }}
+              style={{ ...mutedStyle, marginTop: 8, color: "var(--danger-strong)" }}
             >
               {revokeFailure.message}
             </div>
@@ -325,7 +325,7 @@ export function SessionGovernanceSection({ stepUp }: { stepUp: StepUpControl }) 
           {staleFailure ? (
             <div
               data-identity-reconcile-stale-failure={staleFailure.kind}
-              style={{ ...mutedStyle, marginTop: 8, color: "#991b1b" }}
+              style={{ ...mutedStyle, marginTop: 8, color: "var(--danger-strong)" }}
             >
               {staleFailure.message}
             </div>
@@ -369,7 +369,7 @@ export function SessionGovernanceSection({ stepUp }: { stepUp: StepUpControl }) 
           {runtimeFailure ? (
             <div
               data-identity-reconcile-runtime-failure={runtimeFailure.kind}
-              style={{ ...mutedStyle, marginTop: 8, color: "#991b1b" }}
+              style={{ ...mutedStyle, marginTop: 8, color: "var(--danger-strong)" }}
             >
               {runtimeFailure.message}
             </div>

@@ -111,6 +111,45 @@ const SIZE_STYLE: Record<ButtonSize, React.CSSProperties> = {
   lg: { minHeight: 50, padding: "0 24px", fontSize: 15, borderRadius: 14, gap: 10 },
 };
 
+/**
+ * A DISABLED BUTTON LOSES ITS FILL. IT DOES NOT JUST FADE.
+ *
+ * `opacity: 0.6` was the only disabled signal, and on a filled variant that is
+ * not enough: a 60%-opacity solid purple still reads as an available primary
+ * call to action. /admin/identity/scim showed it exactly — two "New token"
+ * buttons, both correctly `disabled` because directory provisioning is not in
+ * the plan, both rendering as inviting purple CTAs directly above a notice
+ * saying new tokens cannot be issued. The logic was right and the picture
+ * contradicted it.
+ *
+ * Fading a filled variant is also a contrast problem in its own right: white
+ * text at 60% opacity over a lightened fill measures well under AA, so the one
+ * state that most needs to be legible was the least.
+ *
+ * A neutral surface with muted ink is unambiguous, and it keeps the reason
+ * discoverable rather than hiding it — `title`/`aria-describedby` and the
+ * visible caveat beside the control still say WHY.
+ *
+ * `loading` is deliberately NOT routed here: a loading button is mid-action,
+ * not unavailable, and greying it out mid-flight reads as a failure.
+ */
+const DISABLED_SURFACE: React.CSSProperties = {
+  background: "var(--surface-muted)",
+  /* `--ink-secondary`, NOT `--ink-muted`, AND THE REASON IS A MEASUREMENT.
+     `--surface-muted` is translucent (rgba(36,55,59,0.06)) and stacks on the
+     card, which is itself translucent, so a disabled button's ground
+     composites to roughly rgb(222,226,230) rather than to the #F1F4F9 the
+     token nominally names. Muted ink measured 4.20-4.42:1 there — under AA on
+     every admin surface it was tested against. `--ink-secondary` measures
+     ~6.4:1 on the same ground.
+     The control still reads as disabled: the fill is gone, the cursor is
+     `not-allowed`, and the `disabled` attribute is what assistive technology
+     announces. None of that required the label to be hard to read. */
+  color: "var(--ink-secondary)",
+  border: "1px solid var(--border-default)",
+  boxShadow: "none",
+};
+
 function variantStyle(variant: ButtonVariant): React.CSSProperties {
   switch (variant) {
     case "primary":
@@ -211,13 +250,27 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
         fontWeight: 650,
         letterSpacing: "0.01em",
         cursor: isDisabled ? "not-allowed" : "pointer",
-        opacity: isDisabled ? 0.6 : 1,
+        /* NO FADE ON A DISABLED BUTTON, AND NO EXEMPTION CLAIMED.
+           The neutral surface below already says "unavailable" unambiguously,
+           so the opacity was doing no work except making the label harder to
+           read: measured at 0.85 it put the label at 4.42:1, under AA. WCAG
+           1.4.3 does exempt inactive components, but spending an exemption to
+           keep a fade that carries no information is the wrong trade — the
+           label of a disabled control is usually where the reason is. Without
+           it the same label measures 4.93:1 and needs no exemption.
+           A LOADING button keeps its fill and its colour: it is mid-action,
+           not unavailable. */
+        opacity: 1,
         whiteSpace: "nowrap",
         userSelect: "none",
         transition:
           "background-color 180ms ease, box-shadow 200ms ease, border-color 200ms ease, transform 160ms ease, filter 180ms ease, opacity 160ms ease",
         ...SIZE_STYLE[size],
         ...variantStyle(variant),
+        /* AFTER the variant, so a filled variant's fill is genuinely replaced
+           rather than sitting under a fade. BEFORE `style`, so a call site
+           that has a reason to draw its own disabled treatment still can. */
+        ...(disabled && !loading ? DISABLED_SURFACE : null),
         ...style,
       }}
     >

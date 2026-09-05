@@ -322,17 +322,17 @@ export default function AdminDemoRequestDetailPage({
 
         {state.kind === "notFound" && (
           <Card className="p-8 text-center">
-            <div className="text-[15px] font-semibold text-[#0F172A]">
+            <div className="text-[15px] font-semibold text-[var(--ink-primary)]">
               Request not found
             </div>
-            <p className="mt-2 text-[13.5px] text-[#475569]">
+            <p className="mt-2 text-[13.5px] text-[var(--ink-secondary)]">
               The demo request you’re looking for has been removed or the
               link is incorrect.
             </p>
             <div className="mt-4">
               <Link
                 href="/admin/demo-requests"
-                className="inline-flex items-center gap-2 rounded-full bg-[#0F172A] px-5 py-2 text-[13px] font-semibold text-white"
+                className="inline-flex items-center gap-2 rounded-full bg-[var(--ink-primary)] px-5 py-2 text-[13px] font-semibold text-white"
               >
                 Open list
               </Link>
@@ -342,10 +342,10 @@ export default function AdminDemoRequestDetailPage({
 
         {state.kind === "forbidden" && (
           <Card className="p-8 text-center">
-            <div className="text-[15px] font-semibold text-[#0F172A]">
+            <div className="text-[15px] font-semibold text-[var(--ink-primary)]">
               Admin access required
             </div>
-            <p className="mt-2 text-[13.5px] text-[#475569]">
+            <p className="mt-2 text-[13.5px] text-[var(--ink-secondary)]">
               You don’t have permission to view this record. Contact your
               workspace administrator if you believe this is in error.
             </p>
@@ -354,10 +354,10 @@ export default function AdminDemoRequestDetailPage({
 
         {state.kind === "error" && (
           <Card className="p-8 text-center">
-            <div className="text-[15px] font-semibold text-[#0F172A]">
+            <div className="text-[15px] font-semibold text-[var(--ink-primary)]">
               Couldn’t load this record
             </div>
-            <p className="mt-2 text-[13.5px] text-[#475569]">{state.message}</p>
+            <p className="mt-2 text-[13.5px] text-[var(--ink-secondary)]">{state.message}</p>
             <div className="mt-4">
               <Button variant="secondary" onClick={() => void load()}>
                 Retry
@@ -370,10 +370,10 @@ export default function AdminDemoRequestDetailPage({
           <Card className="p-6">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-[1.15rem] font-semibold tracking-[-0.01em] text-[#0F172A]">
+                <h2 className="text-[1.15rem] font-semibold tracking-[-0.01em] text-[var(--ink-primary)]">
                   {state.details.fullName}
                 </h2>
-                <p className="mt-1 text-[13.5px] text-[#475569]">
+                <p className="mt-1 text-[13.5px] text-[var(--ink-secondary)]">
                   {state.details.workEmail} ·{" "}
                   {state.details.organization ?? "No organization"} ·{" "}
                   {state.details.jobTitle ?? "No title"} ·{" "}
@@ -418,13 +418,13 @@ export default function AdminDemoRequestDetailPage({
               </Box>
 
               <Box title="Use case">
-                <p className="whitespace-pre-wrap rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-[13.5px] leading-[1.6] text-[#0F172A]">
+                <p className="whitespace-pre-wrap rounded-lg border border-[var(--border-default)] bg-[var(--surface-header)] p-3 text-[13.5px] leading-[1.6] text-[var(--ink-primary)]">
                   {state.details.useCase}
                 </p>
               </Box>
 
               <Box title="Message">
-                <p className="whitespace-pre-wrap rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-[13.5px] leading-[1.6] text-[#0F172A]">
+                <p className="whitespace-pre-wrap rounded-lg border border-[var(--border-default)] bg-[var(--surface-header)] p-3 text-[13.5px] leading-[1.6] text-[var(--ink-primary)]">
                   {state.details.message ?? "—"}
                 </p>
               </Box>
@@ -470,13 +470,13 @@ export default function AdminDemoRequestDetailPage({
             <div className="mt-6 flex flex-wrap gap-3">
               <Link
                 href={`/admin/demo-requests?id=${encodeURIComponent(state.details.id)}`}
-                className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-[#0F172A] px-5 py-2 text-[13px] font-semibold text-white hover:bg-[#1E293B]"
+                className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-[var(--ink-primary)] px-5 py-2 text-[13px] font-semibold text-white hover:bg-[var(--ink-primary)]"
               >
                 Open full controls in list view
               </Link>
               <a
                 href={`mailto:${state.details.workEmail}`}
-                className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-[#E2E8F0] bg-white px-5 py-2 text-[13px] font-semibold text-[#0F172A] hover:bg-[#F8FAFC]"
+                className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-[var(--border-default)] bg-white px-5 py-2 text-[13px] font-semibold text-[var(--ink-primary)] hover:bg-[var(--surface-header)]"
               >
                 Reply via email
               </a>
@@ -497,11 +497,11 @@ function Box({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-[#E2E8F0] bg-white p-4">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748B]">
+    <div className="rounded-xl border border-[var(--border-default)] bg-white p-4">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--ink-muted)]">
         {title}
       </div>
-      <div className="mt-3 space-y-2 text-[13.5px] text-[#0F172A]">
+      <div className="mt-3 space-y-2 text-[13.5px] text-[var(--ink-primary)]">
         {children}
       </div>
     </div>
@@ -510,9 +510,9 @@ function Box({
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-[#EEF2F6] pb-1.5 last:border-0">
-      <span className="text-[12px] font-medium text-[#64748B]">{label}</span>
-      <span className="text-right text-[13.5px] text-[#0F172A]">{value}</span>
+    <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-[var(--surface-muted)] pb-1.5 last:border-0">
+      <span className="text-[12px] font-medium text-[var(--ink-muted)]">{label}</span>
+      <span className="text-right text-[13.5px] text-[var(--ink-primary)]">{value}</span>
     </div>
   );
 }
@@ -520,10 +520,10 @@ function Row({ label, value }: { label: string; value: string }) {
 function Pre({ title, value }: { title: string; value: string }) {
   return (
     <div>
-      <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#64748B]">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--ink-muted)]">
         {title}
       </div>
-      <pre className="mt-1 whitespace-pre-wrap break-words rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-2 text-[11.5px] leading-[1.5] text-[#475569]">
+      <pre className="mt-1 whitespace-pre-wrap break-words rounded-lg border border-[var(--border-default)] bg-[var(--surface-header)] p-2 text-[11.5px] leading-[1.5] text-[var(--ink-secondary)]">
         {value}
       </pre>
     </div>

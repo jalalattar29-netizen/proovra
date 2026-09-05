@@ -302,7 +302,7 @@ export function ManagedMembershipSection({ teamId }: { teamId: string }) {
               style={{
                 fontSize: 22,
                 fontWeight: 700,
-                color: projection.summary.conflicts > 0 ? "#991b1b" : undefined,
+                color: projection.summary.conflicts > 0 ? "var(--danger-strong)" : undefined,
               }}
               data-testid="scim-ownership-conflicts"
             >

@@ -213,7 +213,15 @@
   /* Tabular, so a column of figures aligns on its digits. */
   font-variant-numeric: tabular-nums;
   color: var(--ink-primary);
-  margin-block-start: auto;
+  /* THE VALUE SITS DIRECTLY UNDER THE LABEL.
+     Bottom-aligning it (`margin-block-start: auto`) reads better in a mockup
+     and is wrong in practice: the number then floats on however much context
+     text happens to sit below it, so ten tiles of identical height put their
+     numbers at seven different heights. Top alignment under a label of fixed
+     height puts every number in a row on one line, which is the entire reason
+     a row of figures exists. The drill-down takes the auto margin instead, so
+     it still pins to the bottom edge. */
+  margin-block-start: 0;
 }
 
 /* The honest non-values. Rendered as WORDS at body size, because a 15px
@@ -255,7 +263,10 @@
 }
 
 .adm-kpi__drill {
-  margin-block-start: var(--space-1);
+  /* Pinned to the bottom edge, so the drill-downs across a row line up even
+     when the tiles carry context lines of different lengths. */
+  margin-block-start: auto;
+  padding-block-start: var(--space-2);
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--accent-600);
@@ -1310,6 +1321,74 @@ a.adm-kpi:focus-visible {
 body.is-admin-console {
   --page-h1-size: 28px;
   --page-h2-size: 18px;
+
+  /* ------------------------------------------------------------------
+   * MUTED INK THAT PASSES WCAG AA.
+   *
+   * MEASURED, NOT ESTIMATED. `--ink-muted` is #94A3B8, and against the three
+   * surfaces this console actually paints it measures:
+   *
+   *   on #FFFFFF (card)    2.56:1
+   *   on #F1F4F9 (muted)   2.33:1
+   *   on #F7F8FC (page)    2.42:1
+   *
+   * The AA threshold for normal-size text is 4.5:1, so every helper line,
+   * every KPI label, every table caption and every "not measured" reason in
+   * the console was failing it — and the 11px uppercase labels are not "large
+   * text" by any reading, so they are not exempt.
+   *
+   * The value is `--silver-ink` (#5B6B7B), which measures 5.48 / 4.97 / 5.16
+   * on the same three surfaces. Deliberately the existing token rather than a
+   * 52nd hex: this is the product's declared "cooler, lighter than
+   * --ink-secondary" metallic neutral, which is exactly the tier a muted ink
+   * occupies, and its own comment already records the measurement.
+   *
+   * #64748B was the other candidate and was rejected on the numbers: 4.76:1 on
+   * white but 4.32:1 on the muted surface, which is below the line on the
+   * surface half these labels sit on.
+   *
+   * SCOPED TO THE CONSOLE. Raising it product-wide is a larger change than
+   * this phase, and doing it here first means the console is not waiting on
+   * that decision to be readable.
+   * ------------------------------------------------------------------ */
+  --ink-muted: var(--silver-ink);
+  /* AND ITS ALIAS, WHICH DOES NOT FOLLOW ON ITS OWN.
+     `--text-muted: var(--ink-muted)` is declared on `:root`, and a custom
+     property is substituted at computed-value time on the element that
+     DECLARES it — so it froze at #94A3B8 and stayed there while the line above
+     moved. Measured in the browser: --ink-muted resolved to #5B6B7B and
+     --text-muted to #94A3B8 on the same element. Overriding one without the
+     other leaves half the console's helper text still failing AA, which is
+     exactly what the first pass did. */
+  --text-muted: var(--silver-ink);
+
+  /* ------------------------------------------------------------------
+   * THE RADIUS AND SHADOW SCALE, DECLARED HERE BECAUSE THE GLOBAL ONE IS
+   * DOUBLE-DECLARED.
+   *
+   * globals.css re-declares six tokens that lib/design-tokens/tokens.css
+   * already owns, and being later it wins. The console was therefore drawing:
+   *
+   *   --radius-sm   10px  (the token file says 6px)
+   *   --radius-md   16px  (says 8px)
+   *   --radius-lg   18px  (says 12px)
+   *   --shadow-card 0 16px 32px rgba(0,0,0,0.07)  (says 0 1px 2px /0.04)
+   *
+   * Two consequences were visible on every page. A KPI tile built on
+   * `--radius-lg` rendered an 18px corner beside a content card on
+   * `--radius-card` at 14px, so peers looked unrelated. And "subtle card
+   * shadow" was a 32px drop — which is the thing §2 rules out, because a
+   * console that leans on shadow for hierarchy is a console whose hierarchy
+   * disappears the moment there are twenty cards.
+   *
+   * These are the token file's own intended values, applied where this phase
+   * is responsible. The duplication itself is recorded at the top of
+   * tokens.css for whoever owns the product-wide decision.
+   * ------------------------------------------------------------------ */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04);
 
   /* The console's own ground and measure. An operations console is read for
      hours beside a terminal; it gets the flat working canvas, and the product

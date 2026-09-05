@@ -225,19 +225,19 @@ function AdminCostsInner() {
         label: "Total estimated spend",
         value: formatMoney(data.totals.estimatedCostUsd, "USD"),
         sub: `${formatCount(data.totals.eventCount)} usage events · last ${data.windowDays} days`,
-        accent: "#1e3a5f",
+        accent: "var(--ink-primary)",
       },
       {
         label: "Providers with usage",
         value: formatCount(data.totals.providerCount),
         sub: "Providers that recorded metered usage in the window",
-        accent: "#1e3a5f",
+        accent: "var(--ink-primary)",
       },
       {
         label: "Budgets at risk",
         value: formatCount(data.totals.budgetsAtRisk),
         sub: "Budgets with a recent alert or in an exhausted state",
-        accent: data.totals.budgetsAtRisk > 0 ? "#8f4c4c" : "#1e3a5f",
+        accent: data.totals.budgetsAtRisk > 0 ? "var(--danger-strong)" : "var(--ink-primary)",
       },
     ];
   }, [data]);
@@ -517,7 +517,7 @@ function AdminCostsInner() {
                   label="Semantic spend (EUR)"
                   value={formatMoney(data.semanticSpend.eurSpent, "EUR")}
                   sub={`${formatCount(data.semanticSpend.dayCount)} days recorded`}
-                  accent="#1e3a5f"
+                  accent="var(--ink-primary)"
                 />
                 <MetricTile
                   label="Chunks embedded"

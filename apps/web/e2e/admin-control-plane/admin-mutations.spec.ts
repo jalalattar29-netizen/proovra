@@ -106,16 +106,24 @@ async function resetToNew(page: Page): Promise<void> {
   // REVIEWED, which offers every control this spec exercises. A fresh seed
   // starts at NEW and is left alone.
   const status = await page.evaluate(
-    async ({ id }) => {
+    async ({ id, api }) => {
       const token = window.localStorage.getItem("proovra-api-token");
-      const res = await fetch(`http://localhost:8191/v1/admin/contact-sales/${id}`, {
+      const res = await fetch(`${api}/v1/admin/contact-sales/${id}`, {
         headers: token ? { authorization: `Bearer ${token}` } : {},
         credentials: "include",
       });
       const body = (await res.json()) as { data?: { status?: string } };
       return body.data?.status ?? null;
     },
-    { id: CONTACT_SALES_ID },
+    // THE API ORIGIN IS A PARAMETER, NOT A LITERAL.
+    //
+    // It was `http://localhost:8191` inline, which is the shared fixture
+    // DEFAULT rather than a fact — and a run on any other port failed here as
+    // an unexplained "TypeError: Failed to fetch" from inside page.evaluate,
+    // which looks like a product defect and is not one. A phase that stands up
+    // its own isolated ports (the whole point of an isolated fixture) hit it
+    // immediately. Default preserved, so an existing run is unaffected.
+    { id: CONTACT_SALES_ID, api: process.env.PROOVRA_FIXTURE_API_BASE ?? "http://localhost:8191" },
   );
   test.info().annotations.push({ type: "fixture-status", description: String(status) });
 }

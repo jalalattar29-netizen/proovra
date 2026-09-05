@@ -291,12 +291,12 @@ function ObjectLockPanel({ status }: { status: ObjectLockStatus | null }) {
   }
   const palette =
     status.mode === "verified"
-      ? { bg: "#ecfdf5", fg: "#065f46", border: "#a7f3d0" }
+      ? { bg: "var(--success-subtle-bg)", fg: "var(--success-strong)", border: "var(--success-border)" }
       : status.mode === "claimed-but-unsupported"
-        ? { bg: "#fef2f2", fg: "#991b1b", border: "#fecaca" }
+        ? { bg: "var(--danger-subtle-bg)", fg: "var(--danger-strong)", border: "var(--danger-border)" }
         : status.mode === "skipped"
-          ? { bg: "#fef3c7", fg: "#78350f", border: "#fde68a" }
-          : { bg: "#f1f5f9", fg: "#475569", border: "#cbd5e1" };
+          ? { bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" }
+          : { bg: "var(--surface-muted)", fg: "var(--ink-secondary)", border: "var(--border-standard)" };
   return (
     <section
       style={{ ...cardStyle, marginTop: 16 }}
@@ -417,9 +417,9 @@ function ExportListTable({
                     {immutable ? (
                       <span
                         style={badgeStyle({
-                          bg: "#ecfdf5",
-                          fg: "#065f46",
-                          border: "#a7f3d0",
+                          bg: "var(--success-subtle-bg)",
+                          fg: "var(--success-strong)",
+                          border: "var(--success-border)",
                         })}
                       >
                         IMMUTABLE · {it.objectLockStoredMode}
@@ -427,9 +427,9 @@ function ExportListTable({
                     ) : it.objectLockStoredMode ? (
                       <span
                         style={badgeStyle({
-                          bg: "#fef3c7",
-                          fg: "#78350f",
-                          border: "#fde68a",
+                          bg: "var(--warning-subtle-bg)",
+                          fg: "var(--warning-strong)",
+                          border: "var(--warning-border)",
                         })}
                       >
                         STORED {it.objectLockStoredMode} (platform unverified)
@@ -437,9 +437,9 @@ function ExportListTable({
                     ) : (
                       <span
                         style={badgeStyle({
-                          bg: "#f1f5f9",
-                          fg: "#475569",
-                          border: "#cbd5e1",
+                          bg: "var(--surface-muted)",
+                          fg: "var(--ink-secondary)",
+                          border: "var(--border-standard)",
                         })}
                       >
                         no lock
@@ -450,9 +450,9 @@ function ExportListTable({
                     {it.artifactSigned ? (
                       <span
                         style={badgeStyle({
-                          bg: "#eef2ff",
-                          fg: "#3730a3",
-                          border: "#c7d2fe",
+                          bg: "var(--info-subtle-bg)",
+                          fg: "var(--info)",
+                          border: "var(--info-border)",
                         })}
                       >
                         SIGNED
@@ -460,9 +460,9 @@ function ExportListTable({
                     ) : it.artifactUnsignedOptOut ? (
                       <span
                         style={badgeStyle({
-                          bg: "#fef2f2",
-                          fg: "#991b1b",
-                          border: "#fecaca",
+                          bg: "var(--danger-subtle-bg)",
+                          fg: "var(--danger-strong)",
+                          border: "var(--danger-border)",
                         })}
                       >
                         UNSIGNED OPT-OUT
@@ -470,9 +470,9 @@ function ExportListTable({
                     ) : it.kind === "verification_package_zip" ? (
                       <span
                         style={badgeStyle({
-                          bg: "#f1f5f9",
-                          fg: "#475569",
-                          border: "#cbd5e1",
+                          bg: "var(--surface-muted)",
+                          fg: "var(--ink-secondary)",
+                          border: "var(--border-standard)",
                         })}
                       >
                         {it.verificationPackageSignatureStatus === "UNSIGNED"
@@ -482,9 +482,9 @@ function ExportListTable({
                     ) : (
                       <span
                         style={badgeStyle({
-                          bg: "#f1f5f9",
-                          fg: "#475569",
-                          border: "#cbd5e1",
+                          bg: "var(--surface-muted)",
+                          fg: "var(--ink-secondary)",
+                          border: "var(--border-standard)",
                         })}
                       >
                         unsigned
@@ -702,9 +702,9 @@ function ExportDrawer({
                       <td style={tdStyle}>
                         <span
                           style={badgeStyle({
-                            bg: "#fef3c7",
-                            fg: "#78350f",
-                            border: "#fde68a",
+                            bg: "var(--warning-subtle-bg)",
+                            fg: "var(--warning-strong)",
+                            border: "var(--warning-border)",
                           })}
                         >
                           UNSIGNED OPT-OUT
@@ -778,14 +778,14 @@ function ReproducibilityResultPanel({
 }) {
   const palette =
     report.outcome === "match"
-      ? { bg: "#ecfdf5", fg: "#065f46", border: "#a7f3d0" }
+      ? { bg: "var(--success-subtle-bg)", fg: "var(--success-strong)", border: "var(--success-border)" }
       : report.outcome === "artifact_missing"
-        ? { bg: "#fef2f2", fg: "#991b1b", border: "#fecaca" }
+        ? { bg: "var(--danger-subtle-bg)", fg: "var(--danger-strong)", border: "var(--danger-border)" }
         : report.outcome === "artifact_drift"
-          ? { bg: "#fef2f2", fg: "#991b1b", border: "#fecaca" }
+          ? { bg: "var(--danger-subtle-bg)", fg: "var(--danger-strong)", border: "var(--danger-border)" }
           : report.outcome === "retention_drift"
-            ? { bg: "#fef3c7", fg: "#78350f", border: "#fde68a" }
-            : { bg: "#f1f5f9", fg: "#475569", border: "#cbd5e1" };
+            ? { bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" }
+            : { bg: "var(--surface-muted)", fg: "var(--ink-secondary)", border: "var(--border-standard)" };
   return (
     <div>
       <span style={badgeStyle(palette)} data-testid="verify-outcome">

@@ -649,9 +649,9 @@ const load = useCallback(() => {
         <div
           style={{
             ...errorBoxStyle,
-            background: "#ecfdf5",
-            color: "#065f46",
-            borderColor: "#a7f3d0",
+            background: "var(--success-subtle-bg)",
+            color: "var(--success-strong)",
+            borderColor: "var(--success-border)",
           }}
         >
           {notice}

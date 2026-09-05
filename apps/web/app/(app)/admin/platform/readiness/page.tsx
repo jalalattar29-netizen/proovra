@@ -584,7 +584,7 @@ function RunbooksSection() {
             <li key={r.slug} style={{ marginBottom: 10 }}>
               <Link
                 href={`/admin/platform/runbooks/${r.slug}`}
-                style={{ color: TOKENS.link ?? "#2563eb", fontWeight: 600 }}
+                style={{ color: TOKENS.link ?? "var(--info)", fontWeight: 600 }}
               >
                 {r.label}
               </Link>

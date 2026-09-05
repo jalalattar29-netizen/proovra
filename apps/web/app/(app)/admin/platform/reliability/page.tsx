@@ -392,7 +392,7 @@ function Stat({
           fontSize: 22,
           fontWeight: 700,
           // The product warning ink, not a literal amber - see `--tone-orange`.
-          color: tone === "warn" ? "var(--orange-500, #EA580C)" : "#0f172a",
+          color: tone === "warn" ? "var(--orange-500, #EA580C)" : "var(--ink-primary)",
         }}
       >
         {value}
@@ -416,7 +416,7 @@ function formatBytes(n: number): string {
 // Styles
 // -----------------------------------------------------------------------------
 
-const mutedStyle: React.CSSProperties = { fontSize: 13, color: "#64748b" };
+const mutedStyle: React.CSSProperties = { fontSize: 13, color: "var(--ink-muted)" };
 const listStyle: React.CSSProperties = { listStyle: "none", padding: 0, margin: 0 };
 
 function statusBadgeStyle(status: string): React.CSSProperties {
@@ -430,9 +430,9 @@ function statusBadgeStyle(status: string): React.CSSProperties {
   if (status === "COMPLETED") {
     return {
       ...base,
-      background: "#f0fdf4",
-      borderColor: "#86efac",
-      color: "#166534",
+      background: "var(--success-subtle-bg)",
+      borderColor: "var(--success-border)",
+      color: "var(--success-strong)",
     };
   }
   if (
@@ -442,23 +442,23 @@ function statusBadgeStyle(status: string): React.CSSProperties {
   ) {
     return {
       ...base,
-      background: "#fef2f2",
-      borderColor: "#fca5a5",
-      color: "#991b1b",
+      background: "var(--danger-subtle-bg)",
+      borderColor: "var(--danger-border)",
+      color: "var(--danger-strong)",
     };
   }
   if (status === "ABANDONED") {
     return {
       ...base,
-      background: "#f1f5f9",
-      borderColor: "#cbd5e1",
-      color: "#475569",
+      background: "var(--surface-muted)",
+      borderColor: "var(--border-standard)",
+      color: "var(--ink-secondary)",
     };
   }
   return {
     ...base,
-    background: "#eff6ff",
-    borderColor: "#93c5fd",
-    color: "#1e40af",
+    background: "var(--info-subtle-bg)",
+    borderColor: "var(--info-border)",
+    color: "var(--info)",
   };
 }

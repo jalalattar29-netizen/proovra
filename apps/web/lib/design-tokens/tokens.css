@@ -7,8 +7,36 @@
  * Imported by apps/web/app/globals.css BEFORE app-shell-v2.css so the
  * shell can consume these tokens directly.
  *
+ * =============================================================================
+ * "SINGLE SOURCE OF TRUTH" IS NOT CURRENTLY TRUE, AND HERE IS THE LIST
+ * =============================================================================
+ * globals.css imports this file at its top and then re-declares six of these
+ * tokens in its own `:root`. Later declaration wins, so for these six the
+ * value the product renders is globals.css's, not this file's:
+ *
+ *   --surface-muted   here #F1F4F9          renders rgba(36, 55, 59, 0.06)
+ *   --radius-sm       here 6px              renders 10px
+ *   --radius-md       here 8px              renders 16px
+ *   --radius-lg       here 12px             renders 18px
+ *   --radius-pill     here 999px            renders 999px  (agrees)
+ *   --shadow-card     here 0 1px 2px/.04    renders 0 16px 32px rgba(0,0,0,.07)
+ *
+ * That is why a surface built against `--radius-lg` expecting 12px sits beside
+ * one using `--radius-card` (14px, declared only here) and the two look
+ * unrelated, and why "subtle card shadow" renders as a 32px marketing drop.
+ *
+ * RECORDED RATHER THAN SILENTLY FIXED. Deleting the six duplicates would be
+ * the right end state and it changes the radius and shadow of every surface in
+ * the product, which is a decision for the phase that owns the product shell —
+ * not a side effect of an admin-console pass. The admin console declares its
+ * own values for these on `body.is-admin-console` (see
+ * app/(app)/admin/admin-system.css) so that it is at least internally
+ * coherent while the duplication stands.
+ *
  * Rules:
  *   - Do NOT hard-code hex or px values in page CSS. Consume tokens.
+ *   - Do NOT add a seventh duplicate. If a value here is wrong, change it
+ *     here.
  *   - The dark sidebar has its own scale (--nav-*) since it lives in a
  *     different colour context than the light content plane.
  *   - Marketing (public) surfaces have a separate token set in
@@ -346,6 +374,15 @@
   --hairline: var(--border-default);
   --rule: var(--border-default);
   --text-strong: var(--ink-primary);
+  /* ALIAS-OF-AN-ALIAS TRAP, RECORDED BECAUSE IT BIT ONCE.
+     A custom property is substituted at COMPUTED-VALUE TIME on the element
+     that declares it, not at use time. So `--text-muted: var(--ink-muted)`
+     resolves HERE, on `:root`, and freezes to whatever `--ink-muted` is at
+     `:root`. A descendant that overrides `--ink-muted` (the admin console
+     does, for contrast) does NOT move `--text-muted` with it — the two
+     silently disagree, and the surfaces reading the alias keep the old value.
+     Any scope that overrides one of these must override both; the console
+     does, in app/(app)/admin/admin-system.css. */
   --text-muted: var(--ink-muted);
   --ink-link: var(--accent-600);
   /* The two the organization-admin surfaces ask for, by their own names. */

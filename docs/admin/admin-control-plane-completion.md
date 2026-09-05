@@ -316,35 +316,35 @@
 | `/admin/costs` | 614 | 7c/3t/9s |  |
 | `/admin/customers` | 473 | 0c/1t/0s |  |
 | `/admin/customers/:id` | 1177 | 12c/1t/0s |  |
-| `/admin/dashboard` | 905 | 11c/3t/8s |  |
+| `/admin/dashboard` | 899 | 8c/3t/8s |  |
 | `/admin/demo-requests` | 1321 | 3c/0t/2s |  |
 | `/admin/demo-requests/:id` | 532 | 5c/0t/0s |  |
-| `/admin/evidence-ops` | 748 | 4c/0t/7s | HARDCODED_STATUS_HEX |
+| `/admin/evidence-ops` | 748 | 4c/0t/7s |  |
 | `/admin/evidence-ops/records` | 590 | 2c/1t/0s |  |
 | `/admin/executive` | 637 | 3c/2t/7s |  |
-| `/admin/identity` | 296 | 13c/3t/7s | HARDCODED_STATUS_HEX |
-| `/admin/identity/access-reviews` | 521 | 4c/1t/1s | HARDCODED_STATUS_HEX |
-| `/admin/identity/permission-matrix` | 755 | 6c/1t/5s | HARDCODED_STATUS_HEX |
-| `/admin/identity/providers` | 967 | 9c/1t/3s | HARDCODED_STATUS_HEX |
-| `/admin/identity/runtime` | 910 | 2c/2t/3s | HARDCODED_STATUS_HEX |
-| `/admin/identity/scim` | 1402 | 7c/4t/0s | HARDCODED_STATUS_HEX |
+| `/admin/identity` | 296 | 13c/3t/7s |  |
+| `/admin/identity/access-reviews` | 521 | 4c/1t/1s |  |
+| `/admin/identity/permission-matrix` | 755 | 6c/1t/5s |  |
+| `/admin/identity/providers` | 967 | 9c/1t/3s |  |
+| `/admin/identity/runtime` | 910 | 2c/2t/3s |  |
+| `/admin/identity/scim` | 1402 | 7c/4t/0s |  |
 | `/admin/identity/sessions` | 56 | 6c/5t/20s |  |
 | `/admin/identity/timeline` | 354 | 0c/1t/1s |  |
 | `/admin/operations` | 513 | 2c/2t/2s |  |
 | `/admin/platform-health` | 378 | 3c/0t/2s |  |
-| `/admin/platform/analytics` | 813 | 0c/0t/9s | HARDCODED_STATUS_HEX |
-| `/admin/platform/automation` | 670 | 0c/2t/5s | HARDCODED_STATUS_HEX |
-| `/admin/platform/exports` | 845 | 0c/4t/0s | HARDCODED_STATUS_HEX |
-| `/admin/platform/media-graph` | 723 | 0c/0t/5s | HARDCODED_STATUS_HEX |
-| `/admin/platform/observability` | 1675 | 0c/2t/0s | HARDCODED_STATUS_HEX |
-| `/admin/platform/queues` | 801 | 0c/2t/0s | HARDCODED_STATUS_HEX |
-| `/admin/platform/readiness` | 604 | 8c/0t/6s | HARDCODED_STATUS_HEX |
-| `/admin/platform/recovery` | 648 | 0c/2t/0s | HARDCODED_STATUS_HEX |
-| `/admin/platform/reliability` | 465 | 0c/0t/3s | HARDCODED_STATUS_HEX |
+| `/admin/platform/analytics` | 813 | 0c/0t/9s |  |
+| `/admin/platform/automation` | 670 | 0c/2t/5s |  |
+| `/admin/platform/exports` | 845 | 0c/4t/0s |  |
+| `/admin/platform/media-graph` | 723 | 0c/0t/5s |  |
+| `/admin/platform/observability` | 1675 | 0c/2t/0s |  |
+| `/admin/platform/queues` | 801 | 0c/2t/0s |  |
+| `/admin/platform/readiness` | 604 | 8c/0t/6s |  |
+| `/admin/platform/recovery` | 648 | 0c/2t/0s |  |
+| `/admin/platform/reliability` | 465 | 0c/0t/3s |  |
 | `/admin/platform/runbooks` | 197 | 1c/0t/0s |  |
 | `/admin/platform/runbooks/:slug` | 233 | 0c/0t/0s |  |
-| `/admin/platform/signers` | 1213 | 0c/3t/0s | HARDCODED_STATUS_HEX |
-| `/admin/provisioning` | 807 | 8c/1t/4s | HARDCODED_STATUS_HEX |
+| `/admin/platform/signers` | 1213 | 0c/3t/0s |  |
+| `/admin/provisioning` | 807 | 8c/1t/4s |  |
 | `/admin/search` | 410 | 1c/0t/0s |  |
 | `/admin/security` | 91 | 13c/6t/25s |  |
 | `/admin/support-access` | 964 | 6c/2t/4s |  |

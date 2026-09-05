@@ -374,14 +374,14 @@ function OperationsQueuesContent() {
 
 function healthBadge(h: QueueInventoryItem["health"]) {
   if (h === "healthy")
-    return badgeStyle({ bg: "#ecfdf5", fg: "#065f46", border: "#a7f3d0" });
+    return badgeStyle({ bg: "var(--success-subtle-bg)", fg: "var(--success-strong)", border: "var(--success-border)" });
   if (h === "degraded")
-    return badgeStyle({ bg: "#fef3c7", fg: "#78350f", border: "#fde68a" });
+    return badgeStyle({ bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" });
   if (h === "outage")
-    return badgeStyle({ bg: "#fef2f2", fg: "#991b1b", border: "#fecaca" });
+    return badgeStyle({ bg: "var(--danger-subtle-bg)", fg: "var(--danger-strong)", border: "var(--danger-border)" });
   if (h === "disabled")
-    return badgeStyle({ bg: "#f5f5f4", fg: "#57534e", border: "#d6d3d1" });
-  return badgeStyle({ bg: "#f1f5f9", fg: "#475569", border: "#cbd5e1" });
+    return badgeStyle({ bg: "var(--surface-muted)", fg: "var(--ink-secondary)", border: "var(--border-standard)" });
+  return badgeStyle({ bg: "var(--surface-muted)", fg: "var(--ink-secondary)", border: "var(--border-standard)" });
 }
 
 function QueueOverviewCards({
@@ -457,13 +457,13 @@ function QueueOverviewCards({
               </span>
               <span
                 style={{
-                  color: q.counts.failed > 0 ? "#991b1b" : TOKENS.inkMuted,
+                  color: q.counts.failed > 0 ? "var(--danger-strong)" : TOKENS.inkMuted,
                 }}
               >
                 <strong>{q.counts.failed}</strong> failed
               </span>
               {q.stalledCount > 0 ? (
-                <span style={{ color: "#991b1b" }}>
+                <span style={{ color: "var(--danger-strong)" }}>
                   <strong>{q.stalledCount}</strong> stalled
                 </span>
               ) : null}
@@ -486,11 +486,11 @@ function WorkerHealthPanel({ workers }: { workers: WorkerHealthRow[] | null }) {
         style={{
           ...cardStyle,
           marginTop: 12,
-          background: "#ecfdf5",
-          border: "1px solid #a7f3d0",
+          background: "var(--success-subtle-bg)",
+          border: "1px solid var(--success-border)",
         }}
       >
-        <span style={{ fontSize: 13, color: "#065f46" }}>
+        <span style={{ fontSize: 13, color: "var(--success-strong)" }}>
           All workers reporting healthy.
         </span>
       </section>
@@ -524,8 +524,8 @@ function WorkerHealthPanel({ workers }: { workers: WorkerHealthRow[] | null }) {
                   <span
                     style={badgeStyle(
                       w.status === "missing"
-                        ? { bg: "#fef2f2", fg: "#991b1b", border: "#fecaca" }
-                        : { bg: "#fef3c7", fg: "#78350f", border: "#fde68a" },
+                        ? { bg: "var(--danger-subtle-bg)", fg: "var(--danger-strong)", border: "var(--danger-border)" }
+                        : { bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" },
                     )}
                   >
                     {w.status}
@@ -548,12 +548,12 @@ function WorkerHealthPanel({ workers }: { workers: WorkerHealthRow[] | null }) {
 
 function categoryBadge(c: ReplayCategory) {
   if (c === "safe")
-    return badgeStyle({ bg: "#ecfdf5", fg: "#065f46", border: "#a7f3d0" });
+    return badgeStyle({ bg: "var(--success-subtle-bg)", fg: "var(--success-strong)", border: "var(--success-border)" });
   if (c === "requires_step_up")
-    return badgeStyle({ bg: "#fef3c7", fg: "#78350f", border: "#fde68a" });
+    return badgeStyle({ bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" });
   if (c === "forbidden")
-    return badgeStyle({ bg: "#fef2f2", fg: "#991b1b", border: "#fecaca" });
-  return badgeStyle({ bg: "#f1f5f9", fg: "#475569", border: "#cbd5e1" });
+    return badgeStyle({ bg: "var(--danger-subtle-bg)", fg: "var(--danger-strong)", border: "var(--danger-border)" });
+  return badgeStyle({ bg: "var(--surface-muted)", fg: "var(--ink-secondary)", border: "var(--border-standard)" });
 }
 
 function FailedJobsPanel({

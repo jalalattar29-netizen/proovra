@@ -181,9 +181,9 @@ function MetricCard(props: {
       data-analytics-degraded={degraded ? "true" : "false"}
       style={{
         padding: 12,
-        border: "1px solid #e2e8f0",
+        border: "1px solid var(--border-default)",
         borderRadius: 8,
-        background: degraded ? "#fffbeb" : "#ffffff",
+        background: degraded ? "var(--warning-subtle-bg)" : "var(--surface-card)",
       }}
     >
       <div
@@ -191,7 +191,7 @@ function MetricCard(props: {
           fontSize: 11,
           textTransform: "uppercase",
           letterSpacing: "0.05em",
-          color: "#64748b",
+          color: "var(--ink-muted)",
         }}
       >
         {props.label}
@@ -201,7 +201,7 @@ function MetricCard(props: {
       </div>
       {props.hint ? (
         <div
-          style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}
+          style={{ fontSize: 11, color: "var(--ink-muted)", marginTop: 2 }}
           data-analytics-metric-hint={props.metric}
         >
           {props.hint}
@@ -209,7 +209,7 @@ function MetricCard(props: {
       ) : null}
       {trace ? (
         <div
-          style={{ fontSize: 10, color: "#94a3b8", marginTop: 8 }}
+          style={{ fontSize: 10, color: "var(--ink-muted)", marginTop: 8 }}
           data-analytics-source-trace={props.metric}
           title={`source=${trace.source} filter=${trace.filter} windowed=${trace.windowed ? "yes" : "no"}`}
         >
@@ -221,7 +221,7 @@ function MetricCard(props: {
         <div
           style={{
             fontSize: 10,
-            color: "#92400e",
+            color: "var(--warning-strong)",
             marginTop: 4,
           }}
           data-analytics-degraded-notice={props.metric}
@@ -409,7 +409,7 @@ function AnalyticsPageInner(): JSX.Element {
               >
               <label
               htmlFor="analytics-window-select"
-              style={{ fontSize: 12, color: "#64748b" }}
+              style={{ fontSize: 12, color: "var(--ink-muted)" }}
               >
               Window
               </label>
@@ -428,7 +428,7 @@ function AnalyticsPageInner(): JSX.Element {
               minHeight: 44,
               fontSize: 13,
               padding: "4px 8px",
-              border: "1px solid #cbd5e1",
+              border: "1px solid var(--border-standard)",
               borderRadius: 6,
               }}
               >
@@ -441,7 +441,7 @@ function AnalyticsPageInner(): JSX.Element {
               {headerWindow ? (
               <span
               data-analytics-window-active
-              style={{ fontSize: 11, color: "#94a3b8" }}
+              style={{ fontSize: 11, color: "var(--ink-muted)" }}
               >
               {formatUserDate(headerWindow.start)} →{" "}
               {formatUserDate(headerWindow.end)}
@@ -452,7 +452,7 @@ function AnalyticsPageInner(): JSX.Element {
               data-analytics-window-contract
               data-analytics-window-min={windowContract.minDays}
               data-analytics-window-max={windowContract.maxDays}
-              style={{ fontSize: 11, color: "#94a3b8" }}
+              style={{ fontSize: 11, color: "var(--ink-muted)" }}
               title={`The API clamps any window to ${windowContract.minDays}–${windowContract.maxDays} days.`}
               >
               {windowContract.minDays}–{windowContract.maxDays} day range
@@ -469,12 +469,12 @@ function AnalyticsPageInner(): JSX.Element {
         className="apf-section"
         data-analytics-honesty-notice
         style={{
-          borderLeft: "4px solid #2563eb",
+          borderLeft: "4px solid var(--info)",
           paddingLeft: 12,
-          background: "#eff6ff",
+          background: "var(--info-subtle-bg)",
         }}
       >
-        <p style={{ margin: 0, fontSize: 13, color: "#1e3a8a" }}>
+        <p style={{ margin: 0, fontSize: 13, color: "var(--info)" }}>
           <strong>How to read this page.</strong> Each tile shows a count
           from a specific Prisma model. Tiles render "—" with an amber
           badge when the underlying source failed — we never estimate.
@@ -787,7 +787,7 @@ function AnalyticsPageInner(): JSX.Element {
       <footer
         className="apf-section"
         data-analytics-footer
-        style={{ fontSize: 11, color: "#94a3b8" }}
+        style={{ fontSize: 11, color: "var(--ink-muted)" }}
       >
         Generated at{" "}
         {state.data.operations?.generatedAt

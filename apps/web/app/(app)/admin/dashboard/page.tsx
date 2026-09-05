@@ -6,6 +6,10 @@ import { useEffect, useMemo, useState } from "react";
 import { PageShell, PageHeader, PageSection, DataTable } from "../../../../components/ui";
 import { Card } from "../../../../components/ui/Card";
 import { Badge } from "../../../../components/ui/Badge";
+import {
+  AdmInline,
+  AdmKpi,
+} from "../../../../components/admin/AdminSurfaces";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { apiFetch } from "../../../../lib/api";
 import { ResultCount } from "../../../../components/ui/ResultCount";
@@ -170,20 +174,41 @@ function eventSeverityTone(severity?: string | null): BadgeTone {
   return "verified";
 }
 
-// A premium top-line metric tile. `value === null` means the value is not
-// present in the analytics bundle — we render an HONEST "Not measured"
-// state instead of fabricating a number.
+/**
+ * A TOP-LINE METRIC TILE, THROUGH THE CANONICAL KPI SURFACE.
+ *
+ * WHAT IT USED TO BE, AND WHY THAT SHOWED. A bare `Card` with four
+ * inline-styled divs and no height floor, so the tile carrying a "View records"
+ * link stood ~40px taller than the tile beside it and a row of eleven peers
+ * read as a row of accidents. Its label had no reserved height either, so
+ * "TEAM-TIER ACCOUNTS" wrapping to two lines pushed its own number below its
+ * neighbour's.
+ *
+ * `AdmKpi` owns all of that: a 112px floor, a two-line label reservation, a
+ * clamped context line, and the honest non-value states rendered as WORDS at
+ * body size rather than as a 30px em-dash.
+ *
+ * THE HONESTY THIS TILE ALREADY HAD IS PRESERVED EXACTLY. `value === null`
+ * still means "not present in the analytics bundle" and still says so rather
+ * than fabricating a number; it is simply now the same "Not measured" the rest
+ * of the console renders, instead of a dash this page invented for itself.
+ */
 function MetricTile({
   label,
   value,
   sub,
-  accent,
+  tone,
   href,
 }: {
   label: string;
   value: string | null;
   sub?: string;
-  accent?: string;
+  /**
+   * Only ever passed when the VALUE is the condition. The KPI surface refuses
+   * a tone on a measured zero regardless of what a caller passes, which is the
+   * rule that removed the eleven coloured zeros from the Control Center.
+   */
+  tone?: "critical" | "attention" | "healthy";
   /**
    * §1.1 — an actionable aggregate leads to its records. A tile without one is
    * a terminal number, which is the defect class this remediation removes; the
@@ -193,68 +218,16 @@ function MetricTile({
   href?: string;
 }) {
   const measured = value != null;
-  const card = (
-    <Card padding="comfortable" style={{ minWidth: 0 }}>
-      <div
-        style={{
-          fontSize: 11,
-          fontWeight: 700,
-          letterSpacing: "0.1em",
-          textTransform: "uppercase",
-          color: INK_MUTED,
-          overflowWrap: "anywhere",
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          marginTop: 10,
-          fontSize: 30,
-          lineHeight: 1.05,
-          fontWeight: 750,
-          letterSpacing: "-0.02em",
-          color: measured ? accent ?? INK_PRIMARY : INK_MUTED,
-          overflowWrap: "anywhere",
-        }}
-      >
-        {measured ? value : "—"}
-      </div>
-      <div
-        style={{
-          marginTop: 8,
-          fontSize: 12.5,
-          lineHeight: 1.5,
-          color: measured ? INK_SECONDARY : INK_MUTED,
-          overflowWrap: "anywhere",
-        }}
-      >
-        {measured ? sub ?? "" : "Not measured — this signal is not in the analytics bundle."}
-      </div>
-      {href && measured ? (
-        <div
-          style={{
-            marginTop: 10,
-            fontSize: 12,
-            fontWeight: 700,
-            letterSpacing: "0.04em",
-            color: "var(--accent-600, #1d4ed8)",
-          }}
-        >
-          View records →
-        </div>
-      ) : null}
-    </Card>
+  return (
+    <AdmKpi
+      label={label}
+      value={measured ? value : "Not measured"}
+      state={measured ? "VALUE" : "NOT_MEASURED"}
+      tone={tone}
+      context={measured ? sub : "This signal is not in the analytics bundle."}
+      href={measured ? href : undefined}
+    />
   );
-
-  if (href && measured) {
-    return (
-      <Link href={href} style={{ textDecoration: "none", color: "inherit" }}>
-        {card}
-      </Link>
-    );
-  }
-  return card;
 }
 
 // A small labelled distribution row (subscription mix, evidence mix, …).
@@ -278,18 +251,26 @@ function StatRow({ label, value, tone }: { label: string; value: number; tone: B
   );
 }
 
-// Honest "we don't collect this signal yet" card — used for referrers and
-// traffic-trend-by-source, which the analytics bundle does NOT provide.
-function NotConnectedCard({ title, signal }: { title: string; signal: string }) {
+/**
+ * AN HONEST "WE DO NOT COLLECT THIS SIGNAL" ROW.
+ *
+ * It was a `Card` with a title wrapping an `EmptyState` — two bordered
+ * surfaces, a 40px icon disc and ~190px of height, twice, side by side, to say
+ * two sentences. Referrers and traffic-by-source are signals the analytics
+ * bundle genuinely does not provide and saying so is right; saying so in a
+ * panel the size of the populated panel beside it is what made this page read
+ * as mostly empty.
+ *
+ * The heading stays, because "Not connected" with no subject is not an answer.
+ */
+function NotConnectedSignal({ title, signal }: { title: string; signal: string }) {
   return (
-    <Card title={title} padding="comfortable">
-      <EmptyState variant="inline"
-        compact
-        title="Not connected"
-        purpose={signal}
-        data-testid="admin-signal-not-connected"
-      />
-    </Card>
+    <div className="adm-stack" data-gap="tight">
+      <span className="adm-subhead">{title}</span>
+      <AdmInline state="not-measured" label="Not connected">
+        <span data-testid="admin-signal-not-connected">{signal}</span>
+      </AdmInline>
+    </div>
   );
 }
 
@@ -333,6 +314,20 @@ export default function AdminDashboardPage() {
   // (storage total, demo / contact-sales requests, enterprise customers)
   // we pass `value: null` so MetricTile renders an honest "Not measured".
   // -------------------------------------------------------------------------
+  /**
+   * THE TILE LIST.
+   *
+   * IT USED TO CARRY AN `accent` OF "var(--ink-primary)" ON EIGHT OF THE ELEVEN TILES.
+   * That navy is not a token, it appears nowhere else in the product, and it
+   * was applied to the metric NAME rather than earned by the metric VALUE — so
+   * "Total Users" and "Reports Generated" were painted the same deliberate
+   * colour whether they read 6 or 0. Colour that means nothing teaches a reader
+   * to stop reading colour, which is how the one figure that IS a condition
+   * gets missed.
+   *
+   * The tiles now use the canonical ink, and a tone is passed only where the
+   * value itself is the condition. `AdmKpi` refuses one on a measured zero.
+   */
   const metrics = useMemo(() => {
     if (!bundle) return [];
     const s = bundle.summary;
@@ -341,19 +336,16 @@ export default function AdminDashboardPage() {
         label: "Total Users",
         value: formatCount(s.totalUsers),
         sub: `${formatCount(s.registeredUsers) ?? "not measured"} registered · ${formatCount(s.guestUsers) ?? "not measured"} guests`,
-        accent: "#1e3a5f",
       },
       {
         label: "Active Users",
         value: formatCount(s.activeUsers),
         sub: "Registered users seen in analytics events",
-        accent: "#1e3a5f",
       },
       {
         label: "Live Workspaces",
         value: formatCount(s.workspaces.total),
         sub: `${formatCount(s.workspaces.active) ?? "not measured"} billing active · ${formatCount(s.workspaces.pastDue) ?? "not measured"} past due`,
-        accent: "#1e3a5f",
         href: "/admin/workspaces?lifecycle=LIVE",
       },
       {
@@ -361,20 +353,17 @@ export default function AdminDashboardPage() {
         label: "Team-tier Accounts",
         value: formatCount(s.accountTierBreakdown.team),
         sub: "People holding an active Team entitlement",
-        accent: "#1e3a5f",
         href: "/admin/users?tier=TEAM",
       },
       {
         label: "Evidence Created",
         value: formatCount(s.totalEvidence),
         sub: `${formatCount(s.usersWithEvidence) ?? "not measured"} owners with evidence`,
-        accent: "#1e3a5f",
       },
       {
         label: "Reports Generated",
         value: formatCount(s.reportsGenerated),
         sub: "Verification reports produced",
-        accent: "#1e3a5f",
       },
       // ADM-012 — gross revenue is reported per currency on the Overview and
       // in Billing. A single tile cannot honestly show several currencies, so
@@ -385,21 +374,18 @@ export default function AdminDashboardPage() {
         sub: `Across ${s.billing.grossRevenueByCurrency.length} currenc${
           s.billing.grossRevenueByCurrency.length === 1 ? "y" : "ies"
         } — see Billing for totals`,
-        accent: "#1e3a5f",
         href: "/admin/billing",
       },
       {
         label: "Active Subscriptions",
         value: formatCount(s.billing.activeSubscriptions),
         sub: `${formatCount(s.billing.trialingSubscriptions) ?? "not measured"} trialing · ${formatCount(s.billing.pastDueSubscriptions) ?? "not measured"} past due`,
-        accent: "#1e3a5f",
       },
       {
         // Storage total is NOT part of the analytics bundle — kept honest.
         label: "Storage Used",
         value: null as string | null,
         sub: undefined,
-        accent: undefined,
       },
       {
         // Demo / contact-sales requests are a separate admin surface, not in
@@ -407,7 +393,6 @@ export default function AdminDashboardPage() {
         label: "Demo / Sales Requests",
         value: null as string | null,
         sub: undefined,
-        accent: undefined,
       },
     ];
   }, [bundle]);
@@ -525,7 +510,7 @@ export default function AdminDashboardPage() {
                     height: 76,
                     borderRadius: 10,
                     background:
-                      "linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 37%, #f1f5f9 63%)",
+                      "linear-gradient(90deg, var(--surface-muted) 25%, var(--border-default) 37%, var(--surface-muted) 63%)",
                     backgroundSize: "400% 100%",
                     animation: "pf-indeterminate-shimmer 1.4s ease infinite",
                   }}
@@ -569,7 +554,6 @@ export default function AdminDashboardPage() {
                   label={m.label}
                   value={m.value}
                   sub={m.sub}
-                  accent={m.accent}
                   href={"href" in m ? (m as { href?: string }).href : undefined}
                 />
               ))}
@@ -584,15 +568,16 @@ export default function AdminDashboardPage() {
             description="Country-level traffic recorded in the AnalyticsEvent table for this window."
           >
             {bundle.geography.countries.length === 0 ? (
-              <Card variant="empty" padding="none">
-                <EmptyState variant="inline"
-                  framed
-                  compact
-                  data-testid="admin-geography-empty"
-                  title="No geographic traffic recorded"
-                  purpose="No country-tagged analytics events were captured for the selected period."
-                />
-              </Card>
+              /* ONE surface, not two. A dashed Card wrapping a framed
+                 EmptyState drew two borders and a 40px icon disc across the
+                 full page width to say one sentence. */
+              <EmptyState
+                variant="inline"
+                framed
+                data-testid="admin-geography-empty"
+                title="No geographic traffic recorded"
+                purpose="No country-tagged analytics events were captured for the selected period."
+              />
             ) : (
               <DataTable
                 ariaLabel="Traffic by country"
@@ -635,6 +620,9 @@ export default function AdminDashboardPage() {
                 display: "grid",
                 gap: 16,
                 gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+                /* START, not stretch. A content panel is as tall as its
+                   content; only a row of peer TILES earns equal height. */
+                alignItems: "start",
               }}
             >
               <Card title="Top pages" subtitle="Most-viewed routes in this window." padding="comfortable">
@@ -769,13 +757,16 @@ export default function AdminDashboardPage() {
                 display: "grid",
                 gap: 16,
                 gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+                /* START, not stretch. A content panel is as tall as its
+                   content; only a row of peer TILES earns equal height. */
+                alignItems: "start",
               }}
             >
-              <NotConnectedCard
+              <NotConnectedSignal
                 title="Referrers"
                 signal="The analytics source does not record referrer attribution for this dashboard."
               />
-              <NotConnectedCard
+              <NotConnectedSignal
                 title="Traffic by source"
                 signal="Channel / source breakdown is not configured for this analytics signal."
               />
@@ -791,6 +782,9 @@ export default function AdminDashboardPage() {
                 display: "grid",
                 gap: 16,
                 gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+                /* START, not stretch. A content panel is as tall as its
+                   content; only a row of peer TILES earns equal height. */
+                alignItems: "start",
               }}
             >
               <Card
