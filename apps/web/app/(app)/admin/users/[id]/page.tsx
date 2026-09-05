@@ -30,7 +30,7 @@ import {
   type DataTableColumn,
 } from "../../../../../components/ui";
 import { Badge, type BadgeTone } from "../../../../../components/ui/Badge";
-import { Button } from "../../../../../components/ui/Button";
+import { Button, buttonSurfaceStyle } from "../../../../../components/ui/Button";
 import { Card } from "../../../../../components/ui/Card";
 import { EmptyState } from "../../../../../components/ui/EmptyState";
 import { formatMoney } from "../../../../../components/admin/AdminMetric";
@@ -309,8 +309,14 @@ export default function AdminPersonDetailPage() {
           }
           secondaryActions={
             <>
-              <Link href="/admin/users" style={{ textDecoration: "none" }}>
-                <Button variant="ghost">← All people</Button>
+              <Link
+                href="/admin/users"
+                className="ui-button"
+                data-variant="ghost"
+                data-size="md"
+                style={buttonSurfaceStyle("ghost")}
+              >
+                ← All people
               </Link>
               <Button variant="secondary" onClick={() => void load()} disabled={loading}>
                 Refresh

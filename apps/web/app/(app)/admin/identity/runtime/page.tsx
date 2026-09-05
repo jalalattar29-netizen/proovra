@@ -686,7 +686,7 @@ const load = useCallback(() => {
             </span>
           </div>
           {scoreResult.signals && scoreResult.signals.length > 0 ? (
-            <ul style={{ margin: "10px 0 0", paddingLeft: 18, fontSize: 12.5 }}>
+            <ul style={{ margin: "10px 0 0", paddingInlineStart: 18, fontSize: 12.5 }}>
               {scoreResult.signals.map((sig) => (
                 <li key={sig.kind}>
                   <strong>{sig.kind.replace(/_/g, " ").toLowerCase()}</strong> (+{sig.weight}) — {sig.reason}

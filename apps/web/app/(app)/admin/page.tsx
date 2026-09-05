@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { PageShell, PageHeader, PageSection, Skeleton, useToast } from "../../../components/ui";
 import { Badge, type BadgeTone } from "../../../components/ui/Badge";
-import { Button } from "../../../components/ui/Button";
+import { Button, buttonSurfaceStyle } from "../../../components/ui/Button";
 import { EmptyState } from "../../../components/ui/EmptyState";
 import {
   AdminStat,
@@ -482,10 +482,15 @@ export default function AdminOverviewPage() {
             </Button>
           }
           primaryAction={
-            <Link href="/admin/provisioning" style={{ textDecoration: "none" }}>
-              <Button variant="primary" data-testid="admin-provision-cta">
-                Provision enterprise customer
-              </Button>
+            <Link
+              href="/admin/provisioning"
+              className="ui-button"
+              data-variant="primary"
+              data-size="md"
+              data-testid="admin-provision-cta"
+              style={buttonSurfaceStyle("primary")}
+            >
+              Provision enterprise customer
             </Link>
           }
         />

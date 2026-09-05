@@ -14,7 +14,7 @@ import {
   type DataTableColumn,
 } from "../../../../../components/ui";
 import { Badge, type BadgeTone } from "../../../../../components/ui/Badge";
-import { Button } from "../../../../../components/ui/Button";
+import { Button, buttonSurfaceStyle } from "../../../../../components/ui/Button";
 import { Card } from "../../../../../components/ui/Card";
 import { EmptyState } from "../../../../../components/ui/EmptyState";
 import { apiFetch } from "../../../../../lib/api";
@@ -261,8 +261,14 @@ export default function AdminWorkspaceDetailPage() {
           }
           secondaryActions={
             <>
-              <Link href="/admin/workspaces" style={{ textDecoration: "none" }}>
-                <Button variant="ghost">← All workspaces</Button>
+              <Link
+                href="/admin/workspaces"
+                className="ui-button"
+                data-variant="ghost"
+                data-size="md"
+                style={buttonSurfaceStyle("ghost")}
+              >
+                ← All workspaces
               </Link>
               <Button variant="secondary" onClick={() => void load()} disabled={loading}>
                 Refresh
@@ -599,7 +605,7 @@ export default function AdminWorkspaceDetailPage() {
                   purpose="No workspace activity events have been recorded for this workspace."
                 />
               ) : (
-                <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13.5 }}>
+                <ul style={{ margin: 0, paddingInlineStart: 18, fontSize: 13.5 }}>
                   {detail.recentActivity.map((a) => (
                     <li key={a.id} style={{ marginBottom: 6 }}>
                       <strong>{a.eventType}</strong>{" "}

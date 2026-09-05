@@ -631,7 +631,7 @@ function TokensTab({ teamId }: { teamId: string }) {
           <code style={{ fontFamily: "monospace" }}>{revealedToken}</code>
           <button
             type="button"
-            style={{ ...ghostButtonStyle, marginLeft: 12 }}
+            style={{ ...ghostButtonStyle, marginInlineStart: 12 }}
             onClick={() => setRevealedToken(null)}
           >
             Dismiss
@@ -1019,7 +1019,7 @@ function DriftTab({ teamId }: { teamId: string }) {
                 {formatDateTime(report.generatedAtUtc)}
               </div>
             </div>
-            <div style={{ marginLeft: "auto" }}>
+            <div style={{ marginInlineStart: "auto" }}>
               <Button
                 variant="enterprise"
                 disabled={selected.size === 0 || executing}

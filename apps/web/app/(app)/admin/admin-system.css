@@ -505,7 +505,10 @@ a.adm-kpi:focus-visible {
   gap: var(--space-1);
   padding: 2px var(--space-2);
   border-radius: var(--radius-sm);
-  font-size: 0.625rem;
+  /* 11px, not 10. See the text-floor note in the responsive sweep: an
+     uppercase micro-label at 10px is legible alone and is not legible in a
+     column of forty at 320px. */
+  font-size: 0.6875rem;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -1552,3 +1555,82 @@ body.is-admin-console .admin-stat-reason {
 
 /* An inventory figure rendered as a fact keeps its baseline with its caveat. */
 [data-adm-figure] { align-items: baseline; gap: var(--space-2); }
+
+/* ==========================================================================
+ * 18. MIXED-DIRECTION DATA
+ *
+ * =============================================================================
+ * THE DEFECT: A MIRRORED IDENTIFIER IS A WRONG IDENTIFIER
+ * =============================================================================
+ * The RTL sweep walked all 47 routes with the locale actually set to Arabic
+ * (not with `dir` forced, which only tests the stylesheet) and found technical
+ * strings inheriting the page direction on 22 of them:
+ *
+ *   org-owner@fixture.local        an email, domain on the wrong side
+ *   0adf0000-0000-4000-8000-…      a UUID, segments reordered
+ *   /v1/auth/email/login           a route
+ *   <code> without direction       every bare code element in the console
+ *
+ * An operator copying a reversed id out of the console pastes a wrong id into
+ * a query. This is the one RTL defect that changes what somebody does.
+ *
+ * =============================================================================
+ * WHY `unicode-bidi: plaintext` AND NOT `direction: ltr`
+ * =============================================================================
+ * A table cell holds whatever the data is. Forcing LTR on every cell would fix
+ * the ids and break genuinely Arabic content — a customer name, a note — which
+ * is the opposite trade.
+ *
+ * `plaintext` resolves each element's direction from its own FIRST STRONG
+ * character, which is precisely the rule wanted: an email or a UUID starts
+ * with a Latin character and reads left to right; an Arabic name starts with
+ * an Arabic character and reads right to left. Per element, from the data,
+ * with no call site having to declare which it holds.
+ *
+ * Applied to the surfaces that carry DATA — cells, definition values, the id
+ * primitive — and deliberately not to prose, where the page direction is the
+ * correct authority.
+ * ========================================================================== */
+
+/*
+ * EVERY ELEMENT INSIDE `main`, AND WHY THAT IS THE RIGHT SCOPE.
+ *
+ * The first attempt listed the surfaces that "hold data" — cells, definition
+ * values, the id primitive. It fixed 15 of the 25 routes and left 10, because
+ * an email is also rendered in a bare `<span>` on the detail headers, in a
+ * `<div>` on the roster rows, in an `<a>` on the workspace members list and in
+ * an `<h1>` on a user page. There is no list of "the elements that hold data":
+ * any element can.
+ *
+ * `unicode-bidi` does not inherit, so this needs the descendant selector
+ * rather than a single declaration on `main`.
+ *
+ * IS THIS SAFE FOR ARABIC CONTENT? Yes, and that is the whole reason for
+ * choosing `plaintext` over `direction: ltr`. Each element resolves its own
+ * direction from its FIRST STRONG character: an Arabic customer name reads
+ * right to left, an email reads left to right, and neither needs its call site
+ * to declare which it is. The known trade is that an Arabic sentence beginning
+ * with a Latin brand name resolves LTR — the standard, documented behaviour of
+ * the first-strong-character heuristic, and a far smaller error than a
+ * reversed identifier an operator then pastes into a query.
+ */
+body.is-admin-console main :where(*) {
+  unicode-bidi: plaintext;
+}
+
+/* The exceptions: prose, where the PAGE direction is the right authority
+   because the block is a paragraph rather than a value. `isolate` keeps any
+   technical span inside it from leaking its direction outward. */
+body.is-admin-console
+  main
+  :where(.adm-prose, .adm-prose *, .adm-section__note, .ui-page-header p) {
+  unicode-bidi: isolate;
+}
+
+/* A bare `<code>` had no direction at all. `.adm-mono` and `.rb-code-inline`
+   set it; the plain element is what the pages actually use, and code is read
+   left to right whatever the surrounding prose does. */
+body.is-admin-console :where(code, pre, samp, kbd) {
+  direction: ltr;
+  unicode-bidi: isolate;
+}

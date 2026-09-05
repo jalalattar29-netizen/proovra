@@ -334,7 +334,7 @@ export function InvitationGovernanceSection({
             {deliveryLabel(i.delivery)}
           </Badge>
           {i.delivery && i.delivery.attempts > 1 ? (
-            <span style={{ ...mutedStyle, marginLeft: 8 }}>
+            <span style={{ ...mutedStyle, marginInlineStart: 8 }}>
               {i.delivery.attempts} attempts
             </span>
           ) : null}

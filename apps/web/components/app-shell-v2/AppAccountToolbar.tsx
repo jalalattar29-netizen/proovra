@@ -304,6 +304,12 @@ export function AppAccountToolbar({
             className="app-account-toolbar-mobile-menu"
             onClick={onToggleMobileSidebar}
             aria-label={mobileSidebarOpen ? "Close navigation" : "Open navigation"}
+            /* The STATE, exposed. The label changed between "Open" and
+               "Close" and nothing announced the panel as expanded, so a
+               screen-reader user could not tell whether pressing it would
+               open or close without pressing it. */
+            aria-expanded={mobileSidebarOpen}
+            aria-controls="app-mobile-drawer"
           >
             {mobileSidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>

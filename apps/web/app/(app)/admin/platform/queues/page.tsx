@@ -741,7 +741,7 @@ function ReplayDialog({
         <code style={{ fontFamily: "monospace", fontSize: 11 }}>
           {target.jobName} · {target.jobId.slice(0, 24)}
         </code>
-        <span style={{ marginLeft: 8 }}>
+        <span style={{ marginInlineStart: 8 }}>
           <span style={categoryBadge(target.category)}>{target.category}</span>
         </span>
       </p>

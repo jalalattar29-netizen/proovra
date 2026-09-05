@@ -558,7 +558,7 @@ function KnownLimitationsSection({
               stated plainly so operators and reviewers can make informed
               decisions.
             </p>
-            <ul style={{ marginTop: 8, paddingLeft: 18, fontSize: 13 }}>
+            <ul style={{ marginTop: 8, paddingInlineStart: 18, fontSize: 13 }}>
               {limitations.map((l) => (
                 <li key={l} style={{ marginBottom: 6 }}>
                   {l}
@@ -579,7 +579,7 @@ function RunbooksSection() {
         <p style={mutedStyle}>
           Operator and reviewer documentation. Each opens in the console.
         </p>
-        <ul style={{ marginTop: 8, paddingLeft: 0, listStyle: "none" }}>
+        <ul style={{ marginTop: 8, paddingInlineStart: 0, listStyle: "none" }}>
           {RUNBOOK_LINKS.map((r) => (
             <li key={r.slug} style={{ marginBottom: 10 }}>
               <Link

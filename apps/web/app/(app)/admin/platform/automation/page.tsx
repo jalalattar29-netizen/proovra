@@ -263,8 +263,8 @@ function AutomationPageInner(): JSX.Element {
         className="apf-section"
         data-automation-execution-notice
         style={{
-          borderLeft: "4px solid var(--success)",
-          paddingLeft: 12,
+          borderInlineStart: "4px solid var(--success)",
+          paddingInlineStart: 12,
           background: "var(--success-subtle-bg)",
         }}
       >

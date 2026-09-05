@@ -25,7 +25,7 @@ import {
 import { Card } from "../../../../../components/ui/Card";
 import { Badge } from "../../../../../components/ui/Badge";
 import type { BadgeTone } from "../../../../../components/ui/Badge";
-import { Button } from "../../../../../components/ui/Button";
+import { Button, buttonSurfaceStyle } from "../../../../../components/ui/Button";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
 import { apiFetch, ApiError } from "../../../../../lib/api";
 import { formatUserDateTime } from "../../../../../lib/date";
@@ -293,10 +293,14 @@ export default function AdminContactSalesDetailPage({
             title="Contact Sales inquiry"
             subtitle="One-record view of a contact-sales inquiry submitted via the public form. Status updates flow through the same admin API as the list view."
             secondaryActions={
-              <Link href="/admin/contact-sales" style={{ textDecoration: "none" }}>
-                <Button variant="ghost" size="sm">
-                  ← Back to list
-                </Button>
+              <Link
+                href="/admin/contact-sales"
+                className="ui-button"
+                data-variant="ghost"
+                data-size="sm"
+                style={buttonSurfaceStyle("ghost", "sm")}
+              >
+                ← Back to list
               </Link>
             }
           />
@@ -392,10 +396,14 @@ export default function AdminContactSalesDetailPage({
                 record.
               </p>
               <div style={{ marginTop: 16 }}>
-                <Link href="/admin/contact-sales" style={{ textDecoration: "none" }}>
-                  <Button variant="primary" size="sm">
-                    Open list
-                  </Button>
+                <Link
+                  href="/admin/contact-sales"
+                  className="ui-button"
+                  data-variant="primary"
+                  data-size="sm"
+                  style={buttonSurfaceStyle("primary", "sm")}
+                >
+                  Open list
                 </Link>
               </div>
             </div>

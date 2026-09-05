@@ -109,7 +109,7 @@ export function SessionTimelineDrawer({
         height: "100vh",
         width: "min(560px, 100vw)",
         background: TOKENS.surface,
-        borderLeft: `1px solid ${TOKENS.border}`,
+        borderInlineStart: `1px solid ${TOKENS.border}`,
         boxShadow: "0 0 40px rgba(15, 23, 42, 0.1)",
         zIndex: 50,
         overflowY: "auto",
@@ -204,15 +204,15 @@ export function SessionTimelineDrawer({
                   margin: 0,
                   padding: 0,
                   listStyle: "none",
-                  borderLeft: `2px solid ${TOKENS.border}`,
+                  borderInlineStart: `2px solid ${TOKENS.border}`,
                 }}
               >
                 {state.data.events.map((e) => (
                   <li
                     key={e.id}
                     style={{
-                      marginLeft: 12,
-                      paddingLeft: 12,
+                      marginInlineStart: 12,
+                      paddingInlineStart: 12,
                       paddingBottom: 12,
                     }}
                   >

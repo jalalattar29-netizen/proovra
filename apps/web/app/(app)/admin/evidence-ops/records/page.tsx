@@ -37,7 +37,7 @@ import {
 } from "../../../../../components/ui";
 import { AdmFacts, AdmId } from "../../../../../components/admin/AdminSurfaces";
 import { Badge, type BadgeTone } from "../../../../../components/ui/Badge";
-import { Button } from "../../../../../components/ui/Button";
+import { Button, buttonSurfaceStyle } from "../../../../../components/ui/Button";
 import { Card } from "../../../../../components/ui/Card";
 import { EmptyState } from "../../../../../components/ui/EmptyState";
 import { apiFetch } from "../../../../../lib/api";
@@ -439,8 +439,14 @@ export default function AdminEvidenceRecordsPage() {
           }
           secondaryActions={
             <>
-              <Link href="/admin/evidence-ops" style={{ textDecoration: "none" }}>
-                <Button variant="ghost">← Evidence health</Button>
+              <Link
+                href="/admin/evidence-ops"
+                className="ui-button"
+                data-variant="ghost"
+                data-size="md"
+                style={buttonSurfaceStyle("ghost")}
+              >
+                ← Evidence health
               </Link>
               <Button variant="secondary" onClick={() => void load(page)} disabled={loading}>
                 Refresh

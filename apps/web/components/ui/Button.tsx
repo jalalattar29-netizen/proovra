@@ -104,9 +104,12 @@ const SIZE_STYLE: Record<ButtonSize, React.CSSProperties> = {
   sm: { minHeight: 44, padding: "0 12px", fontSize: 13, borderRadius: 10, gap: 6 },
   // 44 and not 42: the default button size is the one used for page actions
   // like Refresh and Provision, and the matrix measured every one of them at
-  // 42px tall. `sm` stays 34 on purpose — it is the dense in-table action
-  // size, nothing flagged it, and raising it would loosen every data table
-  // to fix a control that is not the one being missed.
+  // 42px tall.
+  //
+  // (The sentence that used to sit here said "`sm` stays 34 on purpose".
+  // It contradicted the `sm` entry directly above, which had already been
+  // raised to 44 with its own reasons. Removed rather than reconciled: two
+  // comments disagreeing about the same value is worse than either one.)
   md: { minHeight: 44, padding: "0 18px", fontSize: 14, borderRadius: 12, gap: 8 },
   lg: { minHeight: 50, padding: "0 24px", fontSize: 15, borderRadius: 14, gap: 10 },
 };

@@ -333,7 +333,7 @@ export function SessionGovernanceSection({ stepUp }: { stepUp: StepUpControl }) 
           {staleResult ? (
             <ul
               data-identity-reconcile-stale-result
-              style={{ ...mutedStyle, marginTop: 10, paddingLeft: 18 }}
+              style={{ ...mutedStyle, marginTop: 10, paddingInlineStart: 18 }}
             >
               <li>{staleResult.sessions.scanned} sessions scanned</li>
               <li>{staleResult.sessions.staleDetected} found stale</li>
@@ -377,7 +377,7 @@ export function SessionGovernanceSection({ stepUp }: { stepUp: StepUpControl }) 
           {runtimeResult ? (
             <ul
               data-identity-reconcile-runtime-result
-              style={{ ...mutedStyle, marginTop: 10, paddingLeft: 18 }}
+              style={{ ...mutedStyle, marginTop: 10, paddingInlineStart: 18 }}
             >
               <li>
                 {runtimeResult.risk.recomputed} of {runtimeResult.risk.scanned}{" "}

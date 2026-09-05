@@ -363,7 +363,7 @@ export function ManagedMembershipSection({ teamId }: { teamId: string }) {
             purpose="Groups pushed by your identity provider map to a workspace role. Each group's effect on access appears here."
           />
         ) : (
-          <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none", display: "grid", gap: 10 }}>
+          <ul style={{ margin: 0, paddingInlineStart: 0, listStyle: "none", display: "grid", gap: 10 }}>
             {projection.groups.map((g) => (
               <li key={g.id} style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                 <strong style={{ fontSize: 13 }}>{g.displayName}</strong>

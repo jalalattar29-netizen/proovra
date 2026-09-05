@@ -602,7 +602,7 @@ function KmsKeyRow({ arn }: { arn: string | null }) {
         </code>
         {ref.redacted ? (
           <span
-            style={{ marginLeft: 8, fontSize: 11, color: "var(--ink-muted, #94a3b8)" }}
+            style={{ marginInlineStart: 8, fontSize: 11, color: "var(--ink-muted, #94a3b8)" }}
             title="Shortened for display. The full key reference is not shown in the console."
           >
             shortened
@@ -926,7 +926,7 @@ function SignerDetailDrawer({
             >
               {preview.compatibility}
             </span>
-            <ul style={{ marginTop: 8, fontSize: 12, paddingLeft: 18 }}>
+            <ul style={{ marginTop: 8, fontSize: 12, paddingInlineStart: 18 }}>
               {preview.warnings.map((w) => (
                 <li key={w}>
                   <code style={{ fontFamily: "monospace", fontSize: 11 }}>
@@ -1016,7 +1016,7 @@ function SignerDetailDrawer({
                         style={{
                           ...mutedStyle,
                           fontFamily: "monospace",
-                          fontSize: 10,
+                          fontSize: 11,
                         }}
                       >
                         {e.eventType}

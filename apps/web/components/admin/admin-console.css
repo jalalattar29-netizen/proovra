@@ -14,7 +14,9 @@
  *   - nothing scrolls the PAGE sideways: each nav row scrolls inside its own
  *     container, which is what keeps thirteen children in one section from
  *     teaching the whole page to scroll
- *   - a 44px minimum touch target below the cutover, on every control
+ *   - a 44px minimum target on every control, at EVERY width. It used to be
+ *     "below the cutover", which meant the console's own primary navigation
+ *     measured 38px from 961px up — the widths it is used at most.
  * ========================================================================== */
 
 .adminnav {
@@ -54,6 +56,15 @@
 }
 
 .adminnav__primary-link {
+  /* 44px AT EVERY WIDTH, not only below the narrow cutover.
+     The 44px floor further down this file sits inside
+     `@media (max-width: 60rem)`, so from 961px up these pills measured 38px —
+     the console's PRIMARY navigation, at the widths it is used most. The
+     responsive sweep counted 116 of them across the 47 routes at 1024, 1280
+     and 1440. §21 states the minimum without a desktop exemption, and there is
+     no good argument for one: the same person uses the same nav on a laptop
+     trackpad. */
+  min-block-size: 2.75rem;
   padding: 0.5rem 0.875rem;
   border: 1px solid var(--border-default);
   background: var(--surface-card);
@@ -97,6 +108,10 @@
 }
 
 .adminnav__secondary-link {
+  /* Same argument as the primary row above. The secondary row is how an
+     operator moves between the children of the open section, which is most of
+     the navigation they actually do once they have arrived. */
+  min-block-size: 2.75rem;
   padding: 0.3125rem 0.625rem;
   border: 1px solid transparent;
   font-size: 0.78125rem;
@@ -124,7 +139,10 @@
   border-radius: 0.25rem;
   border: 1px solid var(--border-default);
   background: var(--surface-page, var(--surface-card));
-  font-size: 0.625rem;
+  /* 11px, not 10. The scope chip is the thing that tells an operator a
+     surface administers their OWN workspace rather than the platform, and it
+     was the smallest text in the console. */
+  font-size: 0.6875rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -266,7 +284,7 @@ body.is-admin-console .select {
 }
 
 /* ---------------------------------------------------------------------------
-   ADM-013 — breadcrumb links reach a 44px target on touch.
+   ADM-013 — breadcrumb links reach a 44px target. AT EVERY WIDTH.
    ---------------------------------------------------------------------------
    They measured 15px tall at 320px. WCAG 2.5.8 exempts a link inline in a
    sentence, and a breadcrumb is arguably that — but a breadcrumb is also the
@@ -276,13 +294,76 @@ body.is-admin-console .select {
 
    Vertical padding with a negative margin: the target grows, the line box does
    not, so the trail keeps its density.
+
+   THE MEDIA QUERY WAS THE MISTAKE, AND ITS OWN COMMENT SAID SO. This rule sat
+   behind `@media (pointer: coarse), (max-width: 900px)`, so from 901px up the
+   crumbs stayed at 15px — and the Phase 7 responsive sweep counted 138 of them
+   across the 47 routes at 1024, 1280 and 1440, which made the breadcrumb the
+   single most common sub-44px control left in the console. Every word of the
+   argument above applies to a person on a laptop trackpad; none of it is about
+   touch. And because the technique costs no visual height, gating it bought
+   nothing — the trail looks identical at every width with the floor applied.
    --------------------------------------------------------------------------- */
-@media (pointer: coarse), (max-width: 900px) {
-  .adminnav__crumbs a {
-    display: inline-flex;
-    align-items: center;
-    min-height: 44px;
-    padding-block: 12px;
-    margin-block: -12px;
-  }
+.adminnav__crumbs a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding-block: 12px;
+  margin-block: -12px;
+}
+
+/* ---------------------------------------------------------------------------
+   THE CONSOLE'S TOUCH FLOOR, GENERALISED
+
+   The Phase 7 responsive sweep walked all 47 routes at 320/375/390/768/1024/
+   1280/1440 plus 200% zoom, with phone and tablet widths emulated as real
+   touch devices, and counted every interactive control under 44px in either
+   axis. Inside `<main>` it found, beyond the nav pills fixed above:
+
+     SELECT.app-input      120x23    a dense filter dropdown
+     INPUT.app-input       640x24    a dense search field
+     SELECT                220x36    a page-local dropdown
+     INPUT                 162x38    a page-local field
+     INPUT                 335x43    43px -- one pixel under, four widths
+     BUTTON                 65x19    an inline row control
+     A                     108x18    a link outside a table cell
+     INPUT                  13x13    a native checkbox
+
+   Three separate earlier passes raised individual call sites to 44px (the
+   comments above and in identity/ui-tokens.ts record them), and each one
+   missed the next. Element selectors close it for good: a control added
+   tomorrow inherits the floor without anybody remembering it.
+
+   WHY THIS IS NOT LOOSER THAN IT LOOKS
+     - `:where()` keeps specificity at zero, so any page or component rule
+       still wins on everything except the floor itself.
+     - A native checkbox or radio is 13x13 and always will be — that is the
+       platform widget, and its LABEL is the target. Excluded here and handled
+       by `choiceRowStyle`, which is already a 44px row.
+     - An inline link in a sentence is exempt under WCAG 2.5.8 and would look
+       wrong forced to 44px, so links are covered by the existing `td a` /
+       `.admin-hit-link` rules rather than blanket-raised.
+   --------------------------------------------------------------------------- */
+
+body.is-admin-console
+  :where(
+    main button,
+    main select,
+    main textarea,
+    main input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+    main [role="button"],
+    main [role="tab"]
+  ) {
+  min-block-size: 44px;
+}
+
+/* A control in a TABLE CELL keeps the floor without growing the row.
+   The negative block margin hands the extra height back to the line box, so
+   the target genuinely receives the clicks and the row's visual density is
+   unchanged — the same technique the breadcrumb and `td a` rules above use,
+   and the reason /admin/operations rows are 57px rather than 113px. */
+body.is-admin-console
+  :where(td, th)
+  :where(button, [role="button"]) {
+  margin-block: -6px;
 }

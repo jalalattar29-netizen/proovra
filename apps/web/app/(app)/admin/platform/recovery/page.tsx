@@ -449,7 +449,7 @@ function UnsupportedDomainsPanel({
         application layer. They must be exercised through the infrastructure
         provider's tooling and confirmed out-of-band.
       </p>
-      <ul style={{ marginTop: 8, paddingLeft: 18, fontSize: 13 }}>
+      <ul style={{ marginTop: 8, paddingInlineStart: 18, fontSize: 13 }}>
         {domains.map((d) => (
           <li key={d}>
             <code style={{ fontFamily: "monospace", fontSize: 11 }}>{d}</code>
@@ -565,7 +565,7 @@ function ReportDrawer({
         height: "100vh",
         width: "min(640px, 100vw)",
         background: TOKENS.surface,
-        borderLeft: `1px solid ${TOKENS.border}`,
+        borderInlineStart: `1px solid ${TOKENS.border}`,
         boxShadow: "0 0 40px rgba(15,23,42,0.1)",
         zIndex: 50,
         overflowY: "auto",
@@ -633,7 +633,7 @@ function ReportDrawer({
       {report.unsupportedDomains.length > 0 ? (
         <section style={{ marginTop: 16 }}>
           <h2 className="apf-section-title">Unsupported domains</h2>
-          <ul style={{ paddingLeft: 18, fontSize: 12 }}>
+          <ul style={{ paddingInlineStart: 18, fontSize: 12 }}>
             {report.unsupportedDomains.map((d) => (
               <li key={d}>
                 <code style={{ fontFamily: "monospace" }}>{d}</code>

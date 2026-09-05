@@ -209,7 +209,7 @@ function MetricCard(props: {
       ) : null}
       {trace ? (
         <div
-          style={{ fontSize: 10, color: "var(--ink-muted)", marginTop: 8 }}
+          style={{ fontSize: 11, color: "var(--ink-muted)", marginTop: 8 }}
           data-analytics-source-trace={props.metric}
           title={`source=${trace.source} filter=${trace.filter} windowed=${trace.windowed ? "yes" : "no"}`}
         >
@@ -220,7 +220,7 @@ function MetricCard(props: {
       {degraded ? (
         <div
           style={{
-            fontSize: 10,
+            fontSize: 11,
             color: "var(--warning-strong)",
             marginTop: 4,
           }}
@@ -469,8 +469,8 @@ function AnalyticsPageInner(): JSX.Element {
         className="apf-section"
         data-analytics-honesty-notice
         style={{
-          borderLeft: "4px solid var(--info)",
-          paddingLeft: 12,
+          borderInlineStart: "4px solid var(--info)",
+          paddingInlineStart: 12,
           background: "var(--info-subtle-bg)",
         }}
       >

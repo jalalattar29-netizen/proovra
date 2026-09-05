@@ -24,7 +24,7 @@ import {
 import { Card } from "../../../../../components/ui/Card";
 import { Badge } from "../../../../../components/ui/Badge";
 import type { BadgeTone } from "../../../../../components/ui/Badge";
-import { Button } from "../../../../../components/ui/Button";
+import { Button, buttonSurfaceStyle } from "../../../../../components/ui/Button";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
 import { apiFetch, ApiError } from "../../../../../lib/api";
 import { formatUserDateTime } from "../../../../../lib/date";
@@ -253,10 +253,14 @@ export default function AdminDemoRequestDetailPage({
           title={requestTitle}
           subtitle={requestSubtitle}
           secondaryActions={
-            <Link href="/admin/demo-requests" style={{ textDecoration: "none" }}>
-              <Button variant="ghost" size="sm">
-                ← Back to list
-              </Button>
+            <Link
+              href="/admin/demo-requests"
+              className="ui-button"
+              data-variant="ghost"
+              data-size="sm"
+              style={buttonSurfaceStyle("ghost", "sm")}
+            >
+              ← Back to list
             </Link>
           }
         />

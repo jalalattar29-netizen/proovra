@@ -589,7 +589,7 @@ function ExportDrawer({
         height: "100vh",
         width: "min(640px, 100vw)",
         background: TOKENS.surface,
-        borderLeft: `1px solid ${TOKENS.border}`,
+        borderInlineStart: `1px solid ${TOKENS.border}`,
         boxShadow: "0 0 40px rgba(15,23,42,0.1)",
         zIndex: 50,
         overflowY: "auto",
@@ -657,7 +657,7 @@ function ExportDrawer({
                       </code>
                       <button
                         type="button"
-                        style={{ ...ghostButtonStyle, marginLeft: 6 }}
+                        style={{ ...ghostButtonStyle, marginInlineStart: 6 }}
                         onClick={() => copy(envelope.manifestHash)}
                       >
                         Copy

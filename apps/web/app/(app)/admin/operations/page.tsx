@@ -39,7 +39,7 @@ import {
   type DataTableColumn,
 } from "../../../../components/ui";
 import { Badge, type BadgeTone } from "../../../../components/ui/Badge";
-import { Button } from "../../../../components/ui/Button";
+import { Button, buttonSurfaceStyle } from "../../../../components/ui/Button";
 import { Card } from "../../../../components/ui/Card";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
@@ -370,10 +370,14 @@ export default function AdminOperationsPage() {
                 catalog never rendered, so it landed at the top of a list of
                 thirty. */}
             {r.runbookSlug && hasRunbook(r.runbookSlug) ? (
-              <Link href={`/admin/platform/runbooks/${resolveRunbookSlug(r.runbookSlug)}`}>
-                <Button size="sm" variant="ghost">
-                  Runbook
-                </Button>
+              <Link
+                href={`/admin/platform/runbooks/${resolveRunbookSlug(r.runbookSlug)}`}
+                className="ui-button"
+                data-variant="ghost"
+                data-size="sm"
+                style={buttonSurfaceStyle("ghost", "sm")}
+              >
+                Runbook
               </Link>
             ) : null}
           </div>

@@ -306,21 +306,21 @@
 
 | Route | Lines | cards/tables/sections | Open findings |
 | --- | --- | --- | --- |
-| `/admin` | 965 | 0c/0t/9s |  |
+| `/admin` | 970 | 0c/0t/9s |  |
 | `/admin/adoption` | 251 | 0c/1t/1s |  |
 | `/admin/alerts` | 290 | 2c/0t/1s |  |
 | `/admin/audit` | 1047 | 3c/1t/2s |  |
 | `/admin/billing` | 727 | 7c/5t/9s |  |
 | `/admin/contact-sales` | 790 | 3c/1t/0s |  |
-| `/admin/contact-sales/:id` | 658 | 5c/0t/0s |  |
+| `/admin/contact-sales/:id` | 666 | 5c/0t/0s |  |
 | `/admin/costs` | 614 | 7c/3t/9s |  |
 | `/admin/customers` | 473 | 0c/1t/0s |  |
-| `/admin/customers/:id` | 1177 | 12c/1t/0s |  |
+| `/admin/customers/:id` | 1181 | 12c/1t/0s |  |
 | `/admin/dashboard` | 899 | 8c/3t/8s |  |
 | `/admin/demo-requests` | 1321 | 3c/0t/2s |  |
-| `/admin/demo-requests/:id` | 532 | 5c/0t/0s |  |
+| `/admin/demo-requests/:id` | 536 | 5c/0t/0s |  |
 | `/admin/evidence-ops` | 748 | 4c/0t/7s |  |
-| `/admin/evidence-ops/records` | 590 | 2c/1t/0s |  |
+| `/admin/evidence-ops/records` | 596 | 2c/1t/0s |  |
 | `/admin/executive` | 637 | 3c/2t/7s |  |
 | `/admin/identity` | 296 | 13c/3t/7s |  |
 | `/admin/identity/access-reviews` | 521 | 4c/1t/1s |  |
@@ -330,7 +330,7 @@
 | `/admin/identity/scim` | 1402 | 7c/4t/0s |  |
 | `/admin/identity/sessions` | 56 | 6c/5t/20s |  |
 | `/admin/identity/timeline` | 354 | 0c/1t/1s |  |
-| `/admin/operations` | 513 | 2c/2t/2s |  |
+| `/admin/operations` | 517 | 2c/2t/2s |  |
 | `/admin/platform-health` | 378 | 3c/0t/2s |  |
 | `/admin/platform/analytics` | 813 | 0c/0t/9s |  |
 | `/admin/platform/automation` | 670 | 0c/2t/5s |  |
@@ -350,6 +350,6 @@
 | `/admin/support-access` | 964 | 6c/2t/4s |  |
 | `/admin/timeline` | 465 | 0c/1t/1s |  |
 | `/admin/users` | 477 | 2c/2t/1s |  |
-| `/admin/users/:id` | 650 | 7c/2t/6s |  |
+| `/admin/users/:id` | 584 | 7c/2t/6s |  |
 | `/admin/workspaces` | 437 | 1c/1t/0s |  |
-| `/admin/workspaces/:id` | 620 | 6c/1t/6s |  |
+| `/admin/workspaces/:id` | 626 | 6c/1t/6s |  |

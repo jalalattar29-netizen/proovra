@@ -706,7 +706,7 @@ export default function AdminBillingPage() {
                   >
                     Recent governance reconciliation runs
                   </div>
-                  <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13.5 }}>
+                  <ul style={{ margin: 0, paddingInlineStart: 18, fontSize: 13.5 }}>
                     {detail.reconciliation.runHistory.value!.map((r) => (
                       <li key={r.id} style={{ marginBottom: 6 }}>
                         <strong>{r.kind}</strong> · {r.status} · scanned {r.scanned}

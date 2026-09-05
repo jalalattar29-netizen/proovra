@@ -431,7 +431,7 @@ export default function ProvidersPage() {
           <code style={{ fontFamily: "monospace" }}>{revealedSecret}</code>
           <button
             type="button"
-            style={{ ...ghostButtonStyle, marginLeft: 12 }}
+            style={{ ...ghostButtonStyle, marginInlineStart: 12 }}
             onClick={() => setRevealedSecret(null)}
           >
             Dismiss

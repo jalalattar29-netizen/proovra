@@ -462,7 +462,7 @@ export default function PermissionMatrixPage() {
                     <ul
                       style={{
                         margin: 0,
-                        paddingLeft: 16,
+                        paddingInlineStart: 16,
                         maxHeight: 180,
                         overflowY: "auto",
                       }}
@@ -731,7 +731,7 @@ function KV({
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-      <span style={{ fontSize: 10, color: TOKENS.inkSubtle, textTransform: "uppercase" }}>
+      <span style={{ fontSize: 11, color: TOKENS.inkSubtle, textTransform: "uppercase" }}>
         {k}
       </span>
       <span

@@ -264,7 +264,7 @@ function AdminIdentityConsoleInner() {
             fontSize: 12,
             color: TOKENS.inkSubtle,
             margin: 0,
-            paddingLeft: 18,
+            paddingInlineStart: 18,
             lineHeight: 1.6,
           }}
           data-admin-identity-bounded-followups

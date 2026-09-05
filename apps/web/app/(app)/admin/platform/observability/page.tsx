@@ -1631,7 +1631,7 @@ const groupSummaryStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 const groupCountStyle: React.CSSProperties = {
-  marginLeft: 6,
+  marginInlineStart: 6,
   color: "var(--ink-muted)",
   fontWeight: 400,
   fontSize: 12,
@@ -1658,7 +1658,7 @@ function tdNumStyle(value: number): React.CSSProperties {
   };
 }
 const listStyle: React.CSSProperties = {
-  paddingLeft: 20,
+  paddingInlineStart: 20,
   margin: "8px 0 0",
   fontSize: 13,
   lineHeight: 1.7,

@@ -299,7 +299,13 @@
   /* Readable section header — enterprise secondary slate so the group
      titles scan as structure, not noise, over the light artwork. */
   color: var(--nav-ink-secondary);
-  font-size: 10.5px;
+  /* 11px, not 10.5. The admin responsive sweep measured this as the smallest
+     text rendered on any of the 47 console pages, at every one of the seven
+     widths — and a group title is structure, so it is read on arrival at a
+     page rather than sought out. Half a pixel costs nothing in the rail's
+     height (the padding above dominates) and it puts the whole shell at or
+     above the 11px floor the console now holds itself to. */
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -751,7 +757,8 @@
   background: #FFFFFF;
   border: 1px solid rgba(15, 23, 42, 0.1);
   color: var(--content-ink-muted);
-  font-size: 10.5px;
+  /* 11px, not 10.5 — the console text floor. See app-shell group-title. */
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.02em;
   flex: 0 0 auto;
@@ -1194,7 +1201,7 @@
 .app-topbar-v2-user-copy span,
 .app-topbar-v2-workspace-copy span {
   color: var(--content-ink-muted);
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1332,7 +1339,7 @@
 }
 
 .app-topbar-v2-workspace-menu-group-label {
-  font-size: 10.5px;
+  font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   padding: 6px 10px 4px;
@@ -1419,7 +1426,11 @@
   border-radius: 999px;
   background: rgba(15, 23, 42, 0.05);
   color: var(--content-ink-muted);
-  font-size: 10px;
+  /* 11px — the console text floor. This chip says which WORKSPACE a sidebar
+     entry belongs to, which is the one piece of scope information a mis-read
+     turns into an action taken in the wrong tenant. It was the smallest text
+     in the shell. */
+  font-size: 11px;
   font-weight: 650;
   letter-spacing: 0.02em;
   border: 1px solid rgba(15, 23, 42, 0.06);
@@ -1499,7 +1510,7 @@
   background: transparent;
   color: var(--content-ink-muted);
   cursor: pointer;
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.06em;
   line-height: 1;
@@ -1558,7 +1569,7 @@
   width: 40px;
   flex: 0 0 40px;
   color: var(--content-ink-muted);
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.06em;
 }
@@ -1954,7 +1965,7 @@
 
    WHAT IS DELIBERATELY NOT DONE
    -----------------------------
-   Type does not shrink. Labels stay at 13.5px and group titles at 10.5px at
+   Type does not shrink. Labels stay at 13.5px and group titles at 11px at
    every height, because an unreadable sidebar that does not scroll is not an
    improvement on a readable one that does.
 
@@ -2288,4 +2299,85 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------------------
+   SKIP TO CONTENT
+
+   Invisible until focused, and then unmistakable. Positioned rather than
+   clipped so that when it IS focused it is on screen and legible — the common
+   mistake is a skip link that stays clipped when focused, which is a control
+   nobody can see themselves activate.
+
+   `inset-inline-start` rather than `left`, so it lands on the correct edge
+   under RTL.
+   --------------------------------------------------------------------------- */
+
+.app-skip-link {
+  position: fixed;
+  inset-block-start: 8px;
+  inset-inline-start: 8px;
+  z-index: calc(var(--layer-anchored-overlay, 100000) + 1);
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 44px;
+  padding-inline: 16px;
+  border: 1px solid var(--accent-500);
+  border-radius: var(--radius-md, 8px);
+  background: var(--surface-card, #fff);
+  color: var(--accent-600);
+  font-size: 14px;
+  font-weight: 650;
+  text-decoration: none;
+  box-shadow: var(--shadow-dropdown);
+  /* Off screen until focused. `transform` rather than `display: none`, which
+     would take it out of the accessibility tree and out of the tab order —
+     the two things it exists to be in. */
+  transform: translateY(calc(-100% - 16px));
+  transition: transform 120ms ease;
+}
+
+.app-skip-link:focus-visible,
+.app-skip-link:focus {
+  transform: translateY(0);
+  outline: 2px solid var(--accent-500);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-skip-link { transition: none; }
+}
+
+/* ---------------------------------------------------------------------------
+   THE DRAWER'S SCROLL LOCK — the rule this class never had.
+
+   `AppShellV2` has toggled `body.app-mobile-sidebar-open` for as long as the
+   drawer has existed, and nothing in any stylesheet matched it. So opening the
+   navigation left the page behind it scrolling under the finger, which on a
+   phone is the difference between "a panel over the page" and "two things
+   moving at once".
+
+   `overscroll-behavior` as well as `overflow`: without it a scroll gesture
+   that reaches the end of the drawer's own list chains to the document and
+   scrolls the page anyway, which is the same defect one layer down.
+   --------------------------------------------------------------------------- */
+
+body.app-mobile-sidebar-open {
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+/* The drawer scrolls INSIDE itself, so a long navigation list is reachable
+   without the body needing to move. */
+.app-shell-v2-mobile-drawer {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Focus lands on the panel when it opens. It is a `tabIndex={-1}` dialog, so
+   without this the ring is invisible and the jump looks like nothing
+   happened. */
+.app-shell-v2-mobile-drawer:focus-visible {
+  outline: 2px solid var(--accent-500);
+  outline-offset: -2px;
 }

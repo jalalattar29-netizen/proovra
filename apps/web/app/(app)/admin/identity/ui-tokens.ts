@@ -268,7 +268,7 @@ export function badgeStyle(palette: {
 }): CSSProperties {
   return {
     padding: "2px 8px",
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: 700,
     borderRadius: "var(--radius-sm)",
     background: palette.bg,

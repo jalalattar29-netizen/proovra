@@ -210,7 +210,7 @@ export function FederationReadinessSection({ teamId }: { teamId: string }) {
               )}
             </div>
           </div>
-          <div style={{ marginLeft: "auto" }}>
+          <div style={{ marginInlineStart: "auto" }}>
             <Button variant="secondary" size="sm" onClick={() => void load()}>
               Re-check
             </Button>
@@ -237,7 +237,7 @@ export function FederationReadinessSection({ teamId }: { teamId: string }) {
             purpose="Claim and verify a domain to bind single sign-on to email addresses your organization actually controls. Until then, verified-domain restriction cannot be switched on."
           />
         ) : (
-          <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none", display: "grid", gap: 8 }}>
+          <ul style={{ margin: 0, paddingInlineStart: 0, listStyle: "none", display: "grid", gap: 8 }}>
             {readiness.domains.map((d) => (
               <li
                 key={d.id}
@@ -268,12 +268,12 @@ export function FederationReadinessSection({ teamId }: { teamId: string }) {
           title="These connections cannot sign anyone in yet"
           data-testid="federation-readiness-blockers"
         >
-          <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 10 }}>
+          <ul style={{ margin: 0, paddingInlineStart: 18, display: "grid", gap: 10 }}>
             {notReady.map((c) => (
               <li key={c.id}>
                 <strong style={{ fontSize: 13 }}>{c.displayName}</strong>{" "}
                 <span style={mutedStyle}>({c.status.toLowerCase()})</span>
-                <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
+                <ul style={{ margin: "4px 0 0", paddingInlineStart: 18 }}>
                   {c.blockers.map((b) => (
                     <li key={b} style={mutedStyle}>
                       {BLOCKER_COPY[b] ?? "This connection needs more configuration."}

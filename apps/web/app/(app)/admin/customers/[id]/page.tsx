@@ -17,7 +17,7 @@ import { PageShell, PageHeader, DataTable, useToast } from "../../../../../compo
 import type { DataTableColumn } from "../../../../../components/ui";
 import { Card } from "../../../../../components/ui/Card";
 import { Badge } from "../../../../../components/ui/Badge";
-import { Button } from "../../../../../components/ui/Button";
+import { Button, buttonSurfaceStyle } from "../../../../../components/ui/Button";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
 import type { BadgeTone } from "../../../../../components/ui/Badge";
 import {
@@ -532,10 +532,14 @@ export default function AdminOrganizationDetailPage({
             ) : null
           }
           secondaryActions={
-            <Link href="/admin/customers" style={{ textDecoration: "none" }}>
-              <Button variant="ghost" size="sm">
-                ← Back to roster
-              </Button>
+            <Link
+              href="/admin/customers"
+              className="ui-button"
+              data-variant="ghost"
+              data-size="sm"
+              style={buttonSurfaceStyle("ghost", "sm")}
+            >
+              ← Back to roster
             </Link>
           }
         />
