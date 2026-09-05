@@ -89,6 +89,16 @@ function buildPath(
   return { line, area };
 }
 
+/*
+ * 11px, NOT 10, ON EVERY LABEL IN HERE.
+ *
+ * The admin responsive sweep found this component supplying the last sub-11px
+ * text in the console content — the caption, the delta and the "collecting
+ * samples..." placeholder, on /admin/platform/observability at every one of
+ * the seven widths. A sparkline caption is what tells the reader WHICH series
+ * they are looking at, and a delta is the only number on it; both are read,
+ * not decoration.
+ */
 export function Sparkline({
   values,
   caption,
@@ -141,7 +151,7 @@ export function Sparkline({
       >
         <span
           style={{
-            fontSize: 10,
+            fontSize: 11,
             letterSpacing: 0.4,
             textTransform: "uppercase",
             color: OPS_INK.subtle,
@@ -154,7 +164,7 @@ export function Sparkline({
           <span
             data-sparkline-delta
             style={{
-              fontSize: 10,
+              fontSize: 11,
               fontWeight: 700,
               color: deltaColor,
               fontVariantNumeric: "tabular-nums",
@@ -189,7 +199,7 @@ export function Sparkline({
           <span
             data-sparkline-empty
             style={{
-              fontSize: 10,
+              fontSize: 11,
               color: OPS_INK.subtle,
               fontStyle: "italic",
               width,

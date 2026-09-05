@@ -23,6 +23,7 @@
  * an honest "No active alerts" EmptyState.
  */
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { PageShell, PageHeader, PageSection } from "../../../../components/ui";
@@ -31,7 +32,7 @@ import { Badge } from "../../../../components/ui/Badge";
 import type { BadgeTone } from "../../../../components/ui/Badge";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { ResultCount } from "../../../../components/ui/ResultCount";
-import { Button } from "../../../../components/ui/Button";
+import { Button, buttonSurfaceStyle } from "../../../../components/ui/Button";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../../lib/api";
 import { useToast } from "../../../../components/ui";
@@ -207,74 +208,71 @@ export default function AdminAlertsPage() {
                           Loading alerts…
                         </Card>
                       ) : (
-                        rows.map((a, index) => (
-                          <Card
-                            key={`${a.source}:${a.createdAt}:${index}`}
-                            padding="comfortable"
-                            style={{ minWidth: 0 }}
-                          >
-                            <div
-                              style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                gap: 16,
-                                alignItems: "flex-start",
-                                flexWrap: "wrap",
-                              }}
-                            >
-                              <div style={{ minWidth: 0, flex: 1 }}>
-                                <div
-                                  style={{
-                                    fontWeight: 600,
-                                    overflowWrap: "anywhere",
-                                    color: "var(--ink-primary, #0f172a)",
-                                  }}
-                                >
-                                  {a.title}
-                                </div>
-                                <div
-                                  style={{
-                                    marginTop: 6,
-                                    display: "flex",
-                                    gap: 8,
-                                    flexWrap: "wrap",
-                                    alignItems: "center",
-                                  }}
-                                >
-                                  <Badge tone="neutral" subtle>
-                                    {SOURCE_LABEL[a.source] ?? a.source}
-                                  </Badge>
-                                  <span style={{ fontSize: 12, color: INK_MUTED }}>
-                                    {formatTimestamp(a.createdAt)}
-                                  </span>
-                                  {a.organizationId ? (
-                                    <span
-                                      style={{
-                                        fontSize: 12,
-                                        color: INK_MUTED,
-                                        overflowWrap: "anywhere",
-                                      }}
-                                    >
-                                      org · {a.organizationId}
-                                    </span>
-                                  ) : null}
-                                </div>
-                              </div>
+                        /*
+                          A LIST ROW, NOT A CARD PER ALERT.
 
+                          Each alert carries a title, a category chip, a
+                          timestamp and one action — two lines of content — and
+                          it was a `padding="comfortable"` Card, which put it
+                          at 106px. Twenty-six of them is 2,760px of scroll to
+                          read twenty-six one-line facts, and §8 puts a normal
+                          list row at 48-56px.
+
+                          It is a LIST because the rows are heterogeneous
+                          one-liners rather than grouped concepts, and because
+                          the severity headings above them are already the
+                          grouping. Nothing is dropped: the title, the
+                          category, the timestamp, the organization and the
+                          action are all still on the row.
+
+                          The rows are NOT grouped by cause, deliberately.
+                          Fifteen of the sixteen criticals here are "Worker
+                          unreachable: <queue>" — one root cause fanned out per
+                          queue — and collapsing them would mean INFERRING that
+                          relationship from a title prefix. The projection does
+                          not express it, so inventing it here would be this
+                          console asserting something nobody measured. It is
+                          recorded as a finding for whoever owns the alert
+                          builder instead.
+                        */
+                        <ul className="adm-alert-list">
+                          {rows.map((a, index) => (
+                            <li
+                              key={`${a.source}:${a.createdAt}:${index}`}
+                              className="adm-alert-row"
+                            >
+                              <span className="adm-alert-row__title">
+                                {a.title}
+                              </span>
+                              <span className="adm-alert-row__meta">
+                                <Badge tone="neutral" subtle>
+                                  {SOURCE_LABEL[a.source] ?? a.source}
+                                </Badge>
+                                <span className="adm-alert-row__when">
+                                  {formatTimestamp(a.createdAt)}
+                                </span>
+                                {a.organizationId ? (
+                                  <span className="adm-alert-row__org">
+                                    org · {a.organizationId}
+                                  </span>
+                                ) : null}
+                              </span>
                               {a.href ? (
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  onClick={() => {
-                                    window.location.href = a.href as string;
-                                  }}
+                                <Link
+                                  href={a.href}
+                                  className="ui-button adm-alert-row__action"
+                                  data-variant="secondary"
+                                  data-size="sm"
+                                  style={buttonSurfaceStyle("secondary", "sm")}
                                 >
                                   View
-                                </Button>
-                              ) : null}
-                            </div>
-                          </Card>
-                        ))
+                                </Link>
+                              ) : (
+                                <span />
+                              )}
+                            </li>
+                          ))}
+                        </ul>
                       )}
                     </div>
                   </div>

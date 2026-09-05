@@ -423,8 +423,14 @@ function SidebarMoreView({
             background: "transparent",
             border: "none",
             cursor: "pointer",
-            textAlign: "left",
-            fontSize: 10,
+            /* `textAlign: "start"`, not "left": under RTL this label belongs
+               on the right, and a physical value pins it to the left in both
+               directions. */
+            textAlign: "start",
+            /* 11px, not 10 — the console text floor. This is the control that
+               reveals the rest of the navigation, so it is one of the few
+               things in the rail somebody actively looks for. */
+            fontSize: 11,
             fontWeight: 700,
             color: "var(--nav-ink-muted)",
             textTransform: "uppercase",

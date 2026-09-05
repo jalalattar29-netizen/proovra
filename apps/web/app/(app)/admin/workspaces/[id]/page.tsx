@@ -320,7 +320,18 @@ export default function AdminWorkspaceDetailPage() {
                 </Field>
                 <Field label="Customer">
                   {detail.organization && detail.organization.kind === "CUSTOMER" ? (
-                    <Link href={`/admin/customers/${encodeURIComponent(detail.organization.id)}`}>
+                    /*
+                      `admin-hit-link` because this link IS the field's value,
+                      not a link inline in a sentence — so WCAG 2.5.8's inline
+                      exemption does not cover it, and the responsive sweep
+                      measured it at 108x18 at 320px. The class gives it a
+                      44px box and hands the extra height back to the line box,
+                      so the field's own density is unchanged.
+                    */
+                    <Link
+                      href={`/admin/customers/${encodeURIComponent(detail.organization.id)}`}
+                      className="admin-hit-link"
+                    >
                       {detail.organization.name}
                     </Link>
                   ) : (

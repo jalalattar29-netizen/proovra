@@ -1723,3 +1723,89 @@ body.is-admin-console :where(code, pre, samp, kbd) {
 @media (prefers-reduced-motion: reduce) {
   .adm-why > summary::after { transition: none; }
 }
+
+/* ==========================================================================
+ * 21. ALERT LIST — a row per alert, not a card per alert
+ *
+ * Each alert carries a title, a category, a timestamp and one action: two
+ * lines of content, and it was a `padding="comfortable"` Card at 106px.
+ * Twenty-six of them is 2,760px to read twenty-six one-line facts.
+ *
+ * A list rather than a table because the rows are heterogeneous one-liners
+ * and because the severity headings above them are already the grouping —
+ * §8's own distinction. The row is a grid so the title, the metadata and the
+ * action hold their columns however long a title runs.
+ * ========================================================================== */
+
+.adm-alert-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+  overflow: hidden;
+  min-inline-size: 0;
+}
+
+.adm-alert-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  min-block-size: 56px;
+  padding: var(--space-2) var(--space-4);
+  border-block-end: 1px solid var(--border-subtle);
+  min-inline-size: 0;
+}
+
+.adm-alert-row:last-child { border-block-end: 0; }
+.adm-alert-row:hover { background: var(--surface-muted); }
+
+.adm-alert-row__title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--ink-primary);
+  min-inline-size: 0;
+  /* Two lines, then it stops. An alert title is a sentence, and one that runs
+     to four lines makes its own row the tallest thing on the page. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.adm-alert-row__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  min-inline-size: 0;
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+}
+
+.adm-alert-row__when { white-space: nowrap; }
+
+.adm-alert-row__org {
+  max-inline-size: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.adm-alert-row__action { flex: 0 0 auto; }
+
+/* On a phone the three columns become three rows: the title, then its
+   metadata, then the action at full width. */
+@media (max-width: 48rem) {
+  .adm-alert-row {
+    grid-template-columns: minmax(0, 1fr);
+    padding-block: var(--space-3);
+  }
+
+  .adm-alert-row__action { justify-self: start; }
+}
