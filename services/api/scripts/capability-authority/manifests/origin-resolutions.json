@@ -219,11 +219,11 @@
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/worker/src/index.ts:412",
+      "site": "services/worker/src/index.ts:438",
       "verdict": "OURS",
       "originBinding": "url built from the worker's apiBaseUrl()",
-      "evidence": "services/worker/src/index.ts — demo-request follow-up tick calling POST /v1/admin/demo-requests/follow-up/run. Re-anchored from :408 to :412 on 2026-08-24: the trash-grace reconciler scheduler was registered earlier in this file, which shifted the line. The call itself is byte-identical and the verdict is unchanged; this manifest is keyed by file:line, so an insertion above a reviewed site invalidates the review until it is re-anchored.",
-      "reviewedAtUtc": "2026-08-24"
+      "evidence": "services/worker/src/index.ts — demo-request follow-up tick calling POST /v1/admin/demo-requests/follow-up/run. Re-anchored :408 -> :412 (2026-08-24, trash-grace reconciler registered above it) and :412 -> :438 (2026-09-05, Phase 5 added the queue-replay correlation import and its two completion hooks above it). The call itself is byte-identical each time and the verdict is unchanged; this manifest is keyed by file:line, so ANY insertion above a reviewed site invalidates the review until it is re-anchored. That is the point of the key, and re-anchoring is a re-review, not a formality: the fetch was read again and still builds its url from the worker apiBaseUrl().",
+      "reviewedAtUtc": "2026-09-05"
     },
     {
       "site": "services/worker/src/internal-api-client.ts:143",

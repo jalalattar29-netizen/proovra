@@ -85,7 +85,7 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 323,
+    "AuditFilesInventoried": 324,
     "AuditFilesUnclassified": 0,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
@@ -138,7 +138,7 @@
     "ProductionRuntimeFilesModifiedByPhase0": 0,
     "ProductBehaviorTestsRemoved": 0,
     "HistoricalMigrationsModifiedByPhase0": 0,
-    "ProductBehaviorTestsInventoried": 194
+    "ProductBehaviorTestsInventoried": 195
   },
   "reportRoles": {
     "counts": {
@@ -157,7 +157,7 @@
     }
   },
   "byRole": {
-    "PRODUCT_BEHAVIOR_TEST": 194,
+    "PRODUCT_BEHAVIOR_TEST": 195,
     "CONTINUATION_CHECKPOINT": 1,
     "GENERATED_CURRENT_ARTIFACT": 3,
     "LEDGER_VALIDATOR_OR_GENERATOR": 1,
@@ -2958,6 +2958,21 @@
     },
     {
       "path": "services/api/test/governance-platform.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/intake-workflow-authority.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],
