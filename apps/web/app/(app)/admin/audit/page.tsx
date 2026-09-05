@@ -563,7 +563,17 @@ export default function AdminAuditPage() {
                 </span>
               ) : null}
               {actor.reference ? (
-                <span style={{ color: "var(--ink-muted)", fontSize: 11 }}>{actor.reference}</span>
+                /* The full id on the hover. Six characters of tail tell two
+                   rows apart and cannot answer "which user is this?", and
+                   before this the whole value existed nowhere on the page —
+                   so an operator correlating an audit row against a person
+                   had nothing to correlate with. */
+                <span
+                  style={{ color: "var(--ink-muted)", fontSize: 11 }}
+                  title={actor.referenceFull ?? undefined}
+                >
+                  {actor.reference}
+                </span>
               ) : null}
             </span>
           );
@@ -577,8 +587,18 @@ export default function AdminAuditPage() {
           const transition = presentTransition(entry);
           return (
             <span style={{ display: "grid", gap: 1, fontSize: 12.5 }}>
-              <span style={{ color: "var(--ink-primary)" }}>{target.name}</span>
-              <span style={{ color: "var(--ink-secondary)", fontSize: 11.5 }}>{target.scope}</span>
+              <span
+                style={{ color: "var(--ink-primary)" }}
+                title={target.referenceFull ?? undefined}
+              >
+                {target.name}
+              </span>
+              <span
+                style={{ color: "var(--ink-secondary)", fontSize: 11.5 }}
+                title={target.scopeFull ?? undefined}
+              >
+                {target.scope}
+              </span>
               {transition ? (
                 <span style={{ color: "var(--ink-muted)", fontSize: 11 }}>{transition.text}</span>
               ) : null}

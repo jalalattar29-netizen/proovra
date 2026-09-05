@@ -36,6 +36,7 @@ import {
 } from "../../../../../components/ui/PageShell";
 import "../admin-platform.css";
 import { formatUserDate, formatUserDateTime } from "../../../../../lib/date";
+import { IdentifierText } from "../../../../../components/ui/IdentifierText";
 
 // ---------------------------------------------------------------------------
 // Envelope types — mirror services/api/src/services/analytics/analytics.service.ts
@@ -213,7 +214,7 @@ function MetricCard(props: {
           data-analytics-source-trace={props.metric}
           title={`source=${trace.source} filter=${trace.filter} windowed=${trace.windowed ? "yes" : "no"}`}
         >
-          source: {trace.source}
+          source: <IdentifierText value={trace.source} />
           {trace.windowed ? " · windowed" : ""}
         </div>
       ) : null}

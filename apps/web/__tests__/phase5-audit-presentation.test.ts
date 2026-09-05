@@ -41,6 +41,53 @@ test("the actor cell never shows a bare identifier as if it were a name", () => 
   // The reference is short and marked, never the raw identifier alone.
   assert.ok(withSnapshot.reference && withSnapshot.reference.startsWith("User "));
   assert.ok(!withSnapshot.reference!.includes(UUID));
+
+  /*
+    PHASE 7 — AND THE WHOLE ID IS REACHABLE, ON THE HOVER.
+
+    Six characters of tail tell two rows apart; they cannot answer "which user
+    is this?". The full value existed nowhere on the page, so an operator
+    correlating an audit row against a person had nothing to correlate with,
+    and the composition sweep — which separates an honestly repeated column
+    from one whose truncation hides a difference by comparing each cell's
+    title — reported `/admin/audit`'s Actor column on a page where all
+    twenty-five rows genuinely were the same actor.
+  */
+  assert.equal(withSnapshot.referenceFull, UUID);
+});
+
+test("an authority name is already whole, so it offers nothing to reveal", () => {
+  // A title repeating the text beside it is noise on every row.
+  const worker = presentActor({ actorType: "WORKER", actorAuthority: "worker:report" });
+  assert.equal(worker.reference, "worker:report");
+  assert.equal(worker.referenceFull, null);
+
+  // A human's reference IS shortened, even when an authority exists.
+  const human = presentActor({
+    actorType: "HUMAN",
+    actorDisplay: "Jalal Attar",
+    actorAuthority: "PLATFORM_ADMIN",
+    userId: UUID,
+  });
+  assert.equal(human.referenceFull, UUID);
+});
+
+test("a target's reference and its scope both reveal the id they shortened", () => {
+  const WORKSPACE = "0adf0000-0000-4000-8000-0000000000b1";
+  const target = presentTarget({
+    resourceType: "support_access_grant",
+    resourceId: UUID,
+    workspaceId: WORKSPACE,
+  });
+  assert.equal(target.referenceFull, UUID);
+  assert.equal(target.scopeFull, WORKSPACE);
+  assert.ok(!target.reference!.includes(UUID), "the visible form stays short");
+
+  // The platform scope is not a shortened id and must not claim to be one.
+  const platform = presentTarget({ resourceType: "runbook", resourceId: null });
+  assert.equal(platform.scope, "Platform-wide");
+  assert.equal(platform.scopeFull, null);
+  assert.equal(platform.referenceFull, null);
 });
 
 test("an automated actor is named by what it is, not left blank", () => {

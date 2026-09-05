@@ -40,6 +40,22 @@ export type PresentedActor = {
   kind: string;
   /** A stable, safe reference for correlation. Null when there is nothing safe to show. */
   reference: string | null;
+  /**
+   * The identifier the reference was shortened FROM, for the cell's `title`.
+   *
+   * PHASE 7 — the shortened form is six characters of tail ("User …000001"),
+   * which distinguishes two rows and cannot answer "which user is this?". The
+   * full value existed nowhere on the page, so an operator correlating an
+   * audit row against a person had nothing to correlate with, and the
+   * composition sweep — which separates an honestly repeated column from one
+   * whose truncation HIDES a difference by comparing each cell's title —
+   * could not tell the two apart either, and reported the column on a page
+   * where all twenty-five rows genuinely were one actor.
+   *
+   * Null when the reference is not a shortened id (an authority name is
+   * already whole).
+   */
+  referenceFull: string | null;
   /** True when the record genuinely does not know — for styling as absent, not as a value. */
   unknown: boolean;
 };
@@ -64,22 +80,31 @@ const ACTOR_KIND_LABEL: Record<AuditActorType, string> = {
 export function presentActor(row: AuditActorSource): PresentedActor {
   const type = (row.actorType ?? "UNKNOWN_LEGACY") as AuditActorType;
   const kind = ACTOR_KIND_LABEL[type] ?? "Historical record";
-  const reference =
-    row.actorAuthority && type !== "HUMAN"
-      ? row.actorAuthority
-      : shortRef("User", row.userId);
+  const usesAuthority = Boolean(row.actorAuthority) && type !== "HUMAN";
+  const reference = usesAuthority
+    ? row.actorAuthority!
+    : shortRef("User", row.userId);
+  // Only a SHORTENED id has something to reveal. An authority name is already
+  // whole, and a title repeating the visible text is noise on every row.
+  const referenceFull = usesAuthority ? null : (row.userId?.trim() || null);
 
   // A snapshot captured at the time of the action is the best answer, and it
   // keeps working after the account is renamed or deleted.
   if (row.actorDisplay && row.actorDisplay.trim()) {
-    return { name: row.actorDisplay.trim(), kind, reference, unknown: false };
+    return {
+      name: row.actorDisplay.trim(),
+      kind,
+      reference,
+      referenceFull,
+      unknown: false,
+    };
   }
 
   // No snapshot. Say what kind of thing acted rather than printing its id as
   // if the id were a name — an operator can act on "Background worker", and
   // cannot act on a UUID.
   if (type !== "HUMAN" && type !== "UNKNOWN_LEGACY") {
-    return { name: kind, kind, reference, unknown: false };
+    return { name: kind, kind, reference, referenceFull, unknown: false };
   }
 
   if (row.userId) {
@@ -89,6 +114,7 @@ export function presentActor(row: AuditActorSource): PresentedActor {
       name: "Unnamed operator",
       kind: "Person",
       reference: shortRef("User", row.userId),
+      referenceFull: row.userId.trim() || null,
       unknown: false,
     };
   }
@@ -97,6 +123,7 @@ export function presentActor(row: AuditActorSource): PresentedActor {
     name: "Unknown legacy actor",
     kind: "Historical record",
     reference: null,
+    referenceFull: null,
     unknown: true,
   };
 }
@@ -113,8 +140,12 @@ export type PresentedTarget = {
   name: string;
   kind: string | null;
   reference: string | null;
+  /** The id `reference` was shortened from — see `PresentedActor.referenceFull`. */
+  referenceFull: string | null;
   /** Which tenant the row belongs to, or the explicit platform scope. */
   scope: string;
+  /** The id `scope` was shortened from, or null for the platform scope. */
+  scopeFull: string | null;
 };
 
 /** `support_access_grant` reads as machine output; `Support access grant` does not. */
@@ -128,19 +159,36 @@ export function humaniseResourceType(value: string | null | undefined): string |
 export function presentTarget(row: AuditTargetSource): PresentedTarget {
   const kind = humaniseResourceType(row.resourceType);
   const reference = shortRef(kind ?? "Ref", row.resourceId);
+  const referenceFull = row.resourceId?.trim() || null;
   const scope = row.workspaceId
     ? shortRef("Workspace", row.workspaceId)!
     : row.organizationId
       ? shortRef("Organization", row.organizationId)!
       : "Platform-wide";
+  const scopeFull =
+    row.workspaceId?.trim() || row.organizationId?.trim() || null;
 
   if (row.targetDisplay && row.targetDisplay.trim()) {
-    return { name: row.targetDisplay.trim(), kind, reference, scope };
+    return {
+      name: row.targetDisplay.trim(),
+      kind,
+      reference,
+      referenceFull,
+      scope,
+      scopeFull,
+    };
   }
   if (kind) {
-    return { name: kind, kind, reference, scope };
+    return { name: kind, kind, reference, referenceFull, scope, scopeFull };
   }
-  return { name: "No specific target", kind: null, reference: null, scope };
+  return {
+    name: "No specific target",
+    kind: null,
+    reference: null,
+    referenceFull: null,
+    scope,
+    scopeFull,
+  };
 }
 
 export type OutcomeTone = "success" | "danger" | "warning" | "neutral" | "info";

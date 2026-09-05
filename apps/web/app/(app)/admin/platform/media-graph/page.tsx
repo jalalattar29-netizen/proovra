@@ -43,6 +43,7 @@ import {
   PageHeader,
 } from "../../../../../components/ui/PageShell";
 import { Button } from "../../../../../components/ui/Button";
+import { IdentifierText } from "../../../../../components/ui/IdentifierText";
 import "../admin-platform.css";
 type MetricsSnapshot = {
   uptimeSeconds: number;
@@ -594,7 +595,15 @@ function TileGrid({
               className="apf-mono"
               style={{ fontSize: 10.5, color: "var(--ink-muted)", marginTop: 4 }}
             >
-              {t.metric}
+              {/* `media_intelligence_processor_started_total` has no break
+                  opportunity in it and this tile is about 120px wide, so
+                  eleven of these keys were rendering split mid-word
+                  ("...processo / r_started_total"). An operator's next step
+                  with a metric key is to grep for it, and a key they cannot
+                  read is a key they cannot use. `IdentifierText` offers the
+                  break after each underscore and contributes no character, so
+                  the value still copies exactly. */}
+              <IdentifierText value={t.metric} />
               {t.kind === "gauge" ? " (gauge)" : ""}
             </div>
           </li>

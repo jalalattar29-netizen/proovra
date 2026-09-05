@@ -348,7 +348,72 @@ async function measure(page) {
       return near.replace(label, "").trim().length < 12;
     }).length;
 
+    /**
+     * A LINE THAT BREAKS INSIDE A WORD.
+     *
+     * `/admin/platform/analytics` traces every number to the table it came
+     * from, and under the last Automation tile that trace rendered as
+     *
+     *     source: AutomationWebhookDestinati
+     *     on
+     *
+     * — a twenty-eight-character model name with no break opportunity in it,
+     * in a hundred-and-twenty-pixel tile, on a surface whose whole claim is
+     * that a number can be checked against its source. A reader cannot check
+     * a name they cannot read, and an operator's next step is to grep for it.
+     *
+     * MEASURED, NOT GUESSED AT FROM THE SOURCE. Whether a word breaks depends
+     * on the rendered width, the font and the wrap rule, so the only place the
+     * answer exists is the laid-out page. Each text node's characters are
+     * rected and grouped into line boxes; a break is mid-word when a line ends
+     * on a letter or digit and the next line starts on a LOWER-CASE letter,
+     * which no legitimate wrap does.
+     *
+     * Bounded deliberately: only nodes short enough to be a label, a value or
+     * a trace. A paragraph of prose wraps constantly and legitimately, and
+     * walking every character of every paragraph on a 3,000px page costs
+     * seconds for an answer nobody needs.
+     */
+    const splitWords = (() => {
+      const hits = [];
+      const range = document.createRange();
+      const walker = document.createTreeWalker(
+        document.querySelector("main") ?? document.body,
+        NodeFilter.SHOW_TEXT,
+      );
+      let node = walker.nextNode();
+      while (node) {
+        const text = node.data ?? "";
+        // A label, a value or a trace — not a sentence.
+        if (text.trim().length >= 8 && text.trim().length <= 64) {
+          const byTop = new Map();
+          for (let i = 0; i < text.length; i += 1) {
+            range.setStart(node, i);
+            range.setEnd(node, i + 1);
+            const r = range.getBoundingClientRect();
+            if (r.width === 0 && r.height === 0) continue;
+            const top = Math.round(r.top);
+            byTop.set(top, (byTop.get(top) ?? "") + text[i]);
+          }
+          const lines = [...byTop.entries()]
+            .sort((a, b) => a[0] - b[0])
+            .map(([, s]) => s);
+          for (let i = 0; i < lines.length - 1; i += 1) {
+            const endsWord = /[A-Za-z0-9]$/.test(lines[i]);
+            const startsLower = /^[a-z]/.test(lines[i + 1]);
+            if (endsWord && startsLower) {
+              hits.push(`${lines[i].slice(-14)}|${lines[i + 1].slice(0, 14)}`);
+              break;
+            }
+          }
+        }
+        node = walker.nextNode();
+      }
+      return hits;
+    })();
+
     return {
+      splitWords,
       probeBorder,
       duplicatePrimary,
       competingPrimaries,
@@ -386,6 +451,12 @@ async function measure(page) {
 /** Turn a measurement into findings and a printed line. */
 async function report(route, result, bad) {
   if (result.probeBorder === "0px") bad.push("STYLESHEET NOT APPLIED (twice)");
+  if (result.splitWords?.length) {
+    bad.push(
+      `${result.splitWords.length} word(s) broken mid-word: ` +
+        result.splitWords.slice(0, 3).join(", "),
+    );
+  }
   if (result.cells > 0 && result.flatCells > 0)
     bad.push(`${result.flatCells}/${result.cells} cells with no padding`);
   if (result.cells > 0 && result.ruleless === result.cells)
