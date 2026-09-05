@@ -306,11 +306,27 @@ function CohortCard({ c }: { c: CohortCount }) {
       >
         <strong style={{ color: "var(--ink-primary, #0f172a)" }}>Action:</strong>{" "}
         {c.operatorAction}
-        {/* A refusal without a reason is what an operator escalates about. */}
+        {/*
+          A REFUSAL WITHOUT A REASON IS WHAT AN OPERATOR ESCALATES ABOUT, so
+          the reason stays. BEHIND A DISCLOSURE, because of what it is: three
+          of the six cohorts return the SAME 80-word paragraph verbatim — "A
+          timestamp proves a record existed at a moment. Re-contacting the
+          authority now would mint a token whose genTime is later..." — and
+          printed in full it made these cards 340px to 730px tall. A CSS grid
+          stretches its row to the tallest member, so the short cohorts carried
+          ~400px of empty space each and the whole row was 730px.
+
+          Nothing is removed and nothing is summarised: `<details>` is the
+          complete text, one click away, keyboard-operable without any
+          JavaScript, and the same words are in the Runbook this card already
+          links to. What changes is that a count an operator is scanning for is
+          no longer buried under an explanation they have read five times.
+        */}
         {c.reason ? (
-          <div style={{ marginTop: 6, color: "var(--ink-muted, #94a3b8)" }}>
-            {c.reason}
-          </div>
+          <details className="adm-why">
+            <summary>Why</summary>
+            <p>{c.reason}</p>
+          </details>
         ) : null}
       </div>
 
@@ -347,10 +363,36 @@ function CohortCard({ c }: { c: CohortCount }) {
   );
 }
 
+/**
+ * The signal rows: as many 220px tiles as fit. Right for a row of counters.
+ */
 const GRID: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
   gap: 16,
+};
+
+/**
+ * THE COHORT ROW IS NOT A ROW OF COUNTERS, so it does not get the counter
+ * grid.
+ *
+ * Six cohort cards in `minmax(220px, 1fr)` laid out five across at 1440px,
+ * which gave each one about 250px of width for a count, a description and an
+ * operator action — so the text wrapped to eight and nine lines and the cards
+ * ran 340px to 730px. A CSS grid stretches its row to the tallest member, so
+ * every short cohort carried the tallest one's height as empty space.
+ *
+ * Three columns is 410px each at the console width: the same words in three
+ * lines instead of nine. The card is wider and the ROW is less than half as
+ * tall, which is the opposite of the trade it looks like.
+ */
+const COHORT_GRID: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+  gap: 16,
+  /* Peers, so equal height within a row is correct here — what was wrong was
+     the row being 730px, not the cards matching. */
+  alignItems: "stretch",
 };
 
 export default function AdminEvidenceOpsPage() {
@@ -450,7 +492,7 @@ export default function AdminEvidenceOpsPage() {
               title="Records needing attention"
               description="Records, counted once each. A record can carry more than one failure, so the three cohorts below are disjoint and the totals after them are measured unions — never sums."
             >
-              <div style={GRID}>
+              <div style={COHORT_GRID}>
                 {COHORT_ORDER.map((key) => {
                   const c = cohorts.cohorts.find((x) => x.cohort === key);
                   return c ? <CohortCard key={key} c={c} /> : null;

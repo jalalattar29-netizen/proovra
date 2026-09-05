@@ -341,8 +341,30 @@ test("render and measure every admin route", async ({ browser }) => {
       const res = await page
         .goto(url, { waitUntil: "domcontentloaded", timeout: 60_000 })
         .catch(() => null);
-      // Give the client fetches a moment; these pages load their own data.
-      await page.waitForTimeout(2_500);
+      /*
+       * WAIT FOR THE DATA, AND THEN WAIT LONGER.
+       *
+       * 2,500ms was not enough and the failure mode was the worst kind: it
+       * produced a plausible NUMBER. /admin/platform-health captured mid-load
+       * measured 900px against a 2,391px baseline and appeared in the
+       * before/after table as a 1,491px improvement — the single largest
+       * "win" on the branch. It was a screenshot of a loading row.
+       *
+       * That page fans out to the runtime-readiness, signer, queue,
+       * observability and provider probes, and on a freshly re-seeded fixture
+       * those are cold. A capture harness that races the slowest page on the
+       * console does not under-report; it invents results.
+       *
+       * The network is asked first and the timeout is the ceiling, not the
+       * plan, so a fast page still costs a fraction of a second.
+       */
+      await page
+        .waitForLoadState("networkidle", { timeout: 12_000 })
+        .catch(() => {
+          /* A page with a poll or a live connection never goes idle. The
+             floor below is what covers it. */
+        });
+      await page.waitForTimeout(1_500);
 
       const overlaysRemoved = await stripConsentOverlay(page).catch(() => 0);
 

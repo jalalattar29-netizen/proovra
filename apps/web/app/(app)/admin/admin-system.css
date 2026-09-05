@@ -1634,3 +1634,92 @@ body.is-admin-console :where(code, pre, samp, kbd) {
   direction: ltr;
   unicode-bidi: isolate;
 }
+
+/* ==========================================================================
+ * 19. FIXED-COLUMN GRIDS STEP DOWN
+ *
+ * A page that declares `repeat(4, 1fr)` because seven tiles laid out 5+2 at
+ * 1440px must not then show four 80px columns at 375px. These are the
+ * step-downs for the fixed counts the console's page-local grids use, keyed
+ * off the grid's own declared template so no page needs a media query of its
+ * own.
+ *
+ * Two columns on a phone, never one: a phone showing one counter per screen is
+ * a scroll, not a summary.
+ * ========================================================================== */
+
+@media (max-width: 64rem) {
+  body.is-admin-console [style*="repeat(4, minmax(0, 1fr))"],
+  body.is-admin-console [style*="repeat(5, minmax(0, 1fr))"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 48rem) {
+  body.is-admin-console [style*="repeat(3, minmax(0, 1fr))"],
+  body.is-admin-console [style*="repeat(4, minmax(0, 1fr))"],
+  body.is-admin-console [style*="repeat(5, minmax(0, 1fr))"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ==========================================================================
+ * 20. THE "WHY" DISCLOSURE
+ *
+ * For an explanation that must remain available in full and must not be the
+ * first thing on a card. See the Evidence Operations cohort cards, where three
+ * of six returned the same 80-word paragraph and the row stretched to 730px.
+ *
+ * A native `<details>`: keyboard-operable with no JavaScript, announced as an
+ * expandable by assistive technology, and it keeps the text in the DOM so it
+ * is findable with the browser's own Find.
+ * ========================================================================== */
+
+.adm-why {
+  margin-block-start: var(--space-2);
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+}
+
+.adm-why > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  /* 44px, given back to the line box so a card's height does not grow for it —
+     the same technique the table links and the breadcrumb use. */
+  min-block-size: 44px;
+  margin-block: -12px;
+  font-weight: 650;
+  color: var(--accent-600);
+  cursor: pointer;
+  list-style: none;
+}
+
+.adm-why > summary::-webkit-details-marker { display: none; }
+
+.adm-why > summary::after {
+  content: "▾";
+  font-size: 0.625rem;
+  transition: transform 0.15s ease;
+}
+
+.adm-why[open] > summary::after { transform: rotate(180deg); }
+
+.adm-why > summary:hover { text-decoration: underline; }
+
+.adm-why > summary:focus-visible {
+  outline: 2px solid var(--accent-500);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.adm-why > p {
+  margin: var(--space-3) 0 0;
+  max-inline-size: 72ch;
+  line-height: 1.55;
+  color: var(--ink-secondary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .adm-why > summary::after { transition: none; }
+}

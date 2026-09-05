@@ -44,6 +44,10 @@ import type { BadgeTone } from "../../../../components/ui/Badge";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { ResultCount } from "../../../../components/ui/ResultCount";
 import { Button } from "../../../../components/ui/Button";
+import {
+  AdmCard,
+  AdmFacts,
+} from "../../../../components/admin/AdminSurfaces";
 import { apiFetch } from "../../../../lib/api";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
@@ -175,13 +179,30 @@ function MetricTile({
       >
         {label}
       </div>
+      {/*
+        A NON-VALUE IS RENDERED AS WORDS, NOT AS A NUMERAL.
+
+        "Not measured" was set at 30px/750 in the same slot as the figures, and
+        six of this page's sixteen tiles are non-values — two in the top-line
+        row and a whole section of four. The result was that the largest, most
+        emphatic text on the Executive Dashboard said "Not measured", six
+        times, while "Active customers 2" sat beside it at the same weight.
+
+        The honesty was already right and is untouched: the state is still
+        stated, still unestimated, still carries its reason. What changes is
+        that a 15px sentence and a 30px numeral no longer read as the same kind
+        of thing — which is the point of distinguishing them at all. This is
+        the same treatment `.adm-kpi__value[data-state]` applies across the
+        rest of the console.
+      */}
       <div
+        data-state={measured ? undefined : "NOT_MEASURED"}
         style={{
           marginTop: 10,
-          fontSize: 30,
-          lineHeight: 1.05,
-          fontWeight: 750,
-          letterSpacing: "-0.02em",
+          fontSize: measured ? 30 : 15,
+          lineHeight: measured ? 1.05 : 1.4,
+          fontWeight: measured ? 750 : 600,
+          letterSpacing: measured ? "-0.02em" : 0,
           color: measured ? accent ?? INK_PRIMARY : INK_MUTED,
           overflowWrap: "anywhere",
         }}
@@ -321,6 +342,11 @@ function ExecutiveDashboardBody() {
 
   const usageMetrics = useMemo(() => {
     if (!data) return [];
+    /* Computed once, so the tone below and the value cannot disagree about
+       whether there is anything to be alarmed about. */
+    const failedOperationsCount =
+      data.failedOperations.evidenceHashMismatch +
+      data.failedOperations.evidenceVerificationFailed;
     return [
       {
         label: "Evidence",
@@ -350,7 +376,16 @@ function ExecutiveDashboardBody() {
             data.failedOperations.evidenceVerificationFailed
         ),
         sub: `${formatCount(data.failedOperations.evidenceHashMismatch) ?? 0} hash-mismatch · ${formatCount(data.failedOperations.evidenceVerificationFailed) ?? 0} verification FAILED`,
-        accent: "var(--danger-strong)",
+        /*
+         * RED IS EARNED BY THE VALUE, NOT BY THE LABEL.
+         *
+         * This carried `--danger-strong` unconditionally, so "Failed
+         * operations 0" — the good state, and the one an operator most wants
+         * to be able to trust at a glance — rendered in red. A console that
+         * paints zero failures red is a console whose red stops meaning
+         * anything, and then the one figure that IS a failure gets missed.
+         */
+        accent: failedOperationsCount > 0 ? "var(--danger-strong)" : undefined,
         testId: "admin-executive-failed-ops",
       },
     ];
@@ -556,24 +591,45 @@ function ExecutiveDashboardBody() {
             title="Not measured — honestly"
             description="These are NOT computable from the current schema. They are shown as “Not measured” with the reason — they are never fabricated or estimated."
           >
-            <div
-              data-testid="admin-executive-not-measured-grid"
-              style={{
-                display: "grid",
-                gap: 16,
-                gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-              }}
-            >
-              {notMeasuredCards.map((c) => (
-                <MetricTile
-                  key={c.label}
-                  label={c.label}
-                  value={null}
-                  notMeasuredReason={c.reason}
-                  testId={c.testId}
-                />
-              ))}
-            </div>
+            {/*
+              A LIST, NOT FOUR TILES.
+
+              These four are STRUCTURALLY unmeasurable — the schema carries no
+              billed-amount column and no renewal-opportunity model, so none of
+              them can ever become a number. As four 210px metric tiles they
+              occupied a whole screen band at the same visual weight as the
+              revenue and customer figures above, which inverts what the page
+              is for: an executive dashboard whose most prominent section is a
+              list of things it cannot tell you.
+
+              Every reason is preserved verbatim and each keeps its own test id,
+              because "we do not fabricate this, and here is why" is a claim
+              this page should keep making. It simply does not need four cards
+              to make it.
+            */}
+            <AdmCard pad="compact" data-testid="admin-executive-not-measured-grid">
+              <AdmFacts
+                items={notMeasuredCards.map((c) => ({
+                  key: c.label,
+                  label: c.label,
+                  value: (
+                    <span data-testid={c.testId}>
+                      <strong style={{ fontWeight: 650, color: INK_MUTED }}>
+                        Not measured
+                      </strong>
+                      {c.reason ? (
+                        <span
+                          className="adm-secondary"
+                          style={{ fontSize: 12.5, marginInlineStart: 8 }}
+                        >
+                          {c.reason}
+                        </span>
+                      ) : null}
+                    </span>
+                  ),
+                }))}
+              />
+            </AdmCard>
           </PageSection>
 
           <PageSection
