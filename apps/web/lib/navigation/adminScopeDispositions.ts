@@ -234,6 +234,24 @@ export const ADMIN_SCOPE_DISPOSITIONS: readonly AdminScopeDisposition[] = [
       "The page's own header calls it 'Workspace security posture' and it reads /v1/security/* and /v1/identity/mfa-admin/* for one teamId. It is a workspace surface sitting behind the platform gate; labelled, not moved, for the same reason as the identity family.",
   },
   {
+    /**
+     * PHASE 7 — THIS ROUTE HAD NO DISPOSITION AND SHOULD ALWAYS HAVE HAD ONE.
+     *
+     * `admin-inventory.mjs` classified a route from its `page.tsx` alone, and
+     * this page is a five-line shell over `_sections/*`. Every section reads
+     * `useTeamId()` — the sessions inventory, the quarantine table, trusted
+     * devices, the policy-impact table and member risk — so the route was
+     * being reported PLATFORM while reading one workspace's live sessions.
+     * Teaching the scanner that a route is its page AND its sections surfaced
+     * it, which is the classifier working rather than a new finding.
+     */
+    route: "/admin/identity/sessions",
+    observed: "WORKSPACE_UNCLASSIFIED",
+    decision: "WORKSPACE_SURFACE_LABELLED",
+    why:
+      "VERIFIED by reading the sections: ActiveSessionsSection's own description is 'Every live session in the workspace you are currently in', and it reads /v1/admin/identity/sessions, /quarantined-sessions and /v1/identity/sessions/:id/timeline for one teamId resolved from lib/platform-context — the operator can never type one. Revoke, revoke-all, quarantine and release all act on that workspace, and revoke-all is step-up gated. It is a workspace surface behind the platform gate, labelled by the nav registry's scope: 'WORKSPACE' and by AdminTenantScopeNotice on the page, exactly as /admin/security and the rest of the identity family are.",
+  },
+  {
     route: "/admin/platform/analytics",
     observed: "WORKSPACE_FILTERED",
     decision: "WORKSPACE_SURFACE_LABELLED",

@@ -93,7 +93,7 @@
 | `/admin/identity/providers` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP | identity | /admin/identity |
 | `/admin/identity/runtime` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP, requireIntegrationCronSecret, authorizeOrFail, AUTHORIZE(?) | identity | /admin/identity |
 | `/admin/identity/scim` | WORKSPACE_CANDIDATE | adminNavigation registry | PLATFORM_ADMIN | requireIdentityAdmin, requireScimAdmin, requireStepUpForSensitiveAction, +STEP_UP | identity | /admin/identity |
-| `/admin/identity/sessions` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN |  | identity | /admin/identity |
+| `/admin/identity/sessions` | WORKSPACE_UNCLASSIFIED | adminNavigation registry | PLATFORM_ADMIN |  | identity | /admin/identity |
 | `/admin/identity/timeline` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | requireIdentityAdmin | identity | /admin/identity |
 | `/admin/operations` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | platform | /admin |
 | `/admin/platform-health` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | platform | /admin |
@@ -346,7 +346,7 @@
 | `/admin/platform/signers` | 1171 | 0c/3t/0s |  |
 | `/admin/provisioning` | 775 | 13c/1t/4s |  |
 | `/admin/search` | 410 | 1c/0t/0s |  |
-| `/admin/security` | 102 | 13c/6t/25s |  |
+| `/admin/security` | 108 | 13c/6t/25s |  |
 | `/admin/support-access` | 1017 | 6c/2t/4s |  |
 | `/admin/timeline` | 483 | 0c/1t/1s |  |
 | `/admin/users` | 485 | 2c/2t/1s |  |

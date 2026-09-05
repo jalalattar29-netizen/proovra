@@ -516,6 +516,27 @@ function inspectPage(file, apiRoutes) {
   const code = codeOf(file);
 
   /**
+   * The page PLUS the `_sections/*` it composes — see `readsActiveWorkspace`.
+   * Only the sections directory beside this page, so one route's decomposition
+   * never speaks for another's, and only when it exists.
+   */
+  const routeCode = (() => {
+    const dir = dirname(file);
+    const sections = join(dir, "_sections");
+    let extra = "";
+    try {
+      if (statSync(sections).isDirectory()) {
+        for (const entry of walk(sections, (n) => /\.tsx?$/.test(n))) {
+          extra += `\n${codeOf(entry)}`;
+        }
+      }
+    } catch {
+      /* no _sections beside this page */
+    }
+    return code + extra;
+  })();
+
+  /**
    * Read the WHOLE string, not a character class.
    *
    * The previous pattern was `[\"'`](/v1/[A-Za-z0-9/_:${}.[]?&=-]*)`, whose
@@ -606,8 +627,27 @@ function inspectPage(file, apiRoutes) {
     title: title ? title[1] : null,
     purpose: subtitle ? subtitle[1].replace(/\s+/g, " ").slice(0, 160) : null,
     gateRouteId: (/PageRouteGate\s+routeId="([^"]+)"/.exec(code) ?? [])[1] ?? null,
+    /**
+     * A ROUTE IS ITS PAGE **AND** ITS SECTIONS.
+     *
+     * This read `page.tsx` alone, which was true of the console when it was
+     * written and stopped being true as pages were decomposed. `/admin/security`
+     * is an ORCHESTRATOR — six `_sections/*` components, every one of them
+     * calling `useTeamId()` — and its page file held a `teamId` of its own only
+     * for one clause of a note card. Removing that dead variable (it had become
+     * a lint error) flipped the route's classification from
+     * WORKSPACE_UNCLASSIFIED to PLATFORM, which is simply wrong: the page reads
+     * one workspace's MFA policy, its members' factors and its security events,
+     * and the console renders it under an amber "Workspace-scoped surface"
+     * banner.
+     *
+     * The alternative was keeping an unused variable alive with an
+     * eslint-disable so a scanner would keep agreeing with itself. A scope
+     * classifier that can be satisfied by a variable nothing reads is not
+     * measuring scope.
+     */
     readsActiveWorkspace: ACTIVE_WORKSPACE_HOOKS.filter((h) =>
-      new RegExp(`\\b${h}\\b`).test(code),
+      new RegExp(`\\b${h}\\b`).test(routeCode),
     ),
     api: resolved,
     // Visual-system markers. `PageShell` is the shared enterprise shell; the
