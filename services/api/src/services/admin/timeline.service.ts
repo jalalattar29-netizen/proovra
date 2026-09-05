@@ -254,7 +254,20 @@ export async function buildPlatformTimeline(
       targetLabel: r.targetType
         ? `${r.targetType}${r.targetId ? ` · ${r.targetId}` : ""}`
         : null,
-      href: `/admin/organizations/${encodeURIComponent(r.organizationId)}`,
+      /*
+       * PHASE 5 §7 — THIS LINK POINTED AT A ROUTE THAT DOES NOT EXIST.
+       *
+       * `/admin/organizations/:id` has never been a page in this app. The
+       * customer detail surface is `/admin/customers/:id`, and every
+       * organization-audit row on the platform timeline offered an operator a
+       * link that could only 404 — on the feed they open during an incident,
+       * following a lead.
+       *
+       * Pinned by `phase5-deep-links.test.ts`, which resolves every href this
+       * service can emit against the real route tree, so a link cannot be
+       * added again without a page behind it.
+       */
+      href: `/admin/customers/${encodeURIComponent(r.organizationId)}`,
     });
   }
 
