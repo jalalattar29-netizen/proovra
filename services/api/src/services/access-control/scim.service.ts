@@ -206,9 +206,20 @@ export async function createScimToken(
     outcome: "success",
     sourceApp: "API",
     actorUserId: input.actorUserId,
+    actorAuthority: "WORKSPACE_IDENTITY_ADMIN",
     workspaceId: input.teamId,
     resourceType: "scim_provisioning_token",
     resourceId: row.id,
+    // PHASE 5 — the token is named by its PREFIX, which is the same redacted
+    // identifier the list projection shows. The secret and its hash are never
+    // recorded, here or anywhere.
+    targetDisplay: `SCIM token ${tokenPrefix}`,
+    previousState: null,
+    requestedState: "ACTIVE",
+    resultingState: row.status,
+    // Whether the entitlement was live AT THE TIME is what lets an auditor
+    // tell a routine creation from one made during a lapsed subscription.
+    reasonCode: entitlement.ok ? "ENTITLED_AT_ISSUE" : "ISSUED_WITHOUT_LIVE_ENTITLEMENT",
     metadata: {
       scopes: input.scopes,
       tokenPrefix,
@@ -304,9 +315,18 @@ export async function revokeScimToken(
       outcome: "success",
       sourceApp: "API",
       actorUserId: input.actorUserId,
+      actorAuthority: "WORKSPACE_IDENTITY_ADMIN",
       workspaceId: input.teamId,
       resourceType: "scim_provisioning_token",
       resourceId: row.id,
+      targetDisplay: `SCIM token ${row.tokenPrefix}`,
+      previousState: row.status,
+      requestedState: "REVOKED",
+      resultingState: updated.status,
+      // Revocation stays available after a downgrade by design: a customer
+      // must always be able to destroy an existing credential. The reason
+      // code is what distinguishes the two cases in the trail.
+      reasonCode: entitlement.ok ? "OPERATOR_REVOKED" : "REVOKED_WITHOUT_LIVE_ENTITLEMENT",
       metadata: {
         tokenPrefix: row.tokenPrefix,
         previousStatus: row.status,
@@ -408,9 +428,18 @@ export async function rotateScimToken(
     outcome: "success",
     sourceApp: "API",
     actorUserId: input.actorUserId,
+    actorAuthority: "WORKSPACE_IDENTITY_ADMIN",
     workspaceId: input.teamId,
     resourceType: "scim_provisioning_token",
     resourceId: result.created.id,
+    targetDisplay: `SCIM token ${tokenPrefix}`,
+    // A rotation is two transitions on one action: the old credential dies
+    // and a new one is issued. The states describe the NEW token, and the
+    // retired one is named in metadata so the pair is reconstructable.
+    previousState: result.revoked.status,
+    requestedState: "ACTIVE",
+    resultingState: result.created.status,
+    reasonCode: "OPERATOR_ROTATED",
     metadata: {
       rotatedFromTokenId: result.revoked.id,
       scopes: result.created.scopes as string[],

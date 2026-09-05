@@ -1022,9 +1022,32 @@ export async function assignIncident(
       outcome: "success",
       sourceApp: "API",
       actorUserId: input.actorUserId,
+      actorAuthority: "PLATFORM_OPS",
       workspaceId: existing.teamId,
       resourceType: "operational_incident",
       resourceId: updated.id,
+      /*
+       * PHASE 5 §3 (family E) — THE ASSIGNEE IS NOT THE ACTOR.
+       *
+       * An assignment names two people and they are almost never the same
+       * one: the operator who triaged, and the operator now responsible. A
+       * row that recorded only "assigned" and a user id could not say which
+       * of the two it meant, and reading it the wrong way sends an incident
+       * review to the wrong person.
+       *
+       * `actorUserId` is who moved it; the assignee is the STATE.
+       */
+      targetDisplay: existing.title ?? `Incident ${existing.fingerprint.slice(0, 12)}`,
+      previousState: previousAssigneeUserId
+        ? `ASSIGNED_${previousAssigneeUserId.slice(0, 8)}`
+        : "UNASSIGNED",
+      requestedState: isUnassign
+        ? "UNASSIGNED"
+        : `ASSIGNED_${input.assigneeUserId!.slice(0, 8)}`,
+      resultingState: updated.assignedOperatorUserId
+        ? `ASSIGNED_${updated.assignedOperatorUserId.slice(0, 8)}`
+        : "UNASSIGNED",
+      reasonCode: isUnassign ? "OPERATOR_UNASSIGNED" : "OPERATOR_ASSIGNED",
       metadata: {
         // The full transition, so the audit answers "who moved this, from
         // whom, to whom" rather than only naming the destination.
@@ -1281,9 +1304,26 @@ async function transitionIncident(
       outcome: "success",
       sourceApp: "API",
       actorUserId: input.actorUserId,
+      /*
+       * PHASE 5 §3 (family E) — AN OPERATOR ACKNOWLEDGED THIS, NOT THE
+       * EVALUATOR.
+       *
+       * Incidents are RAISED by the detection evaluator and TRANSITIONED by
+       * people, and the two appear in the same feed. Naming the authority on
+       * the human transitions is what keeps them apart: an acknowledgement is
+       * somebody taking responsibility, not the system observing something.
+       */
+      actorAuthority: "PLATFORM_OPS",
       workspaceId: existing.teamId,
       resourceType: "operational_incident",
       resourceId: updated.id,
+      targetDisplay: existing.title ?? `Incident ${existing.fingerprint.slice(0, 12)}`,
+      // From the row read before the transition, to the row after it — never
+      // from the status the caller asked for.
+      previousState: existing.status,
+      requestedState: next,
+      resultingState: updated.status,
+      reasonCode: `OPERATOR_${eventType.toUpperCase()}`,
       metadata: {
         fingerprint: existing.fingerprint,
         severity: existing.severity,
