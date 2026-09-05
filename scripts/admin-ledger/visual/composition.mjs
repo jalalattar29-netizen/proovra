@@ -127,6 +127,51 @@ async function measure(page) {
       (l, i) => l && filledLabels.indexOf(l) !== i,
     ).length;
 
+    /* TWO FILLED PRIMARIES SIDE BY SIDE — the same defect with DIFFERENT
+       labels, which the duplicate-label check above cannot see.
+       /admin/platform/recovery put "Run backup validation" and "Run restore
+       validation (step-up)" in one row, both filled purple, so nothing said
+       which an operator should reach for and the one needing a SECOND FACTOR
+       looked exactly as routine as the one that does not.
+       Measured per PARENT, because a page header's primary and a card's
+       primary are legitimately different actions in different places; two in
+       the same row are competing. */
+    const primaryParents = new Map();
+    for (const b of filled) {
+      const key = b.parentElement;
+      primaryParents.set(key, (primaryParents.get(key) ?? 0) + 1);
+    }
+    const competingPrimaries = [...primaryParents.values()].filter(
+      (n) => n > 1,
+    ).length;
+
+    /* A COLOURED MEASURED ZERO — THE PHASE'S SIGNATURE DEFECT.
+       /admin/platform/media-graph took each tile's tone from a STATIC table
+       and applied it unconditionally, so on a healthy platform where all
+       fourteen counters read 0 the page rendered ten amber/red warning cards
+       and two green ones. A colour that cannot change cannot carry
+       information, and an operator opening the page during an incident had no
+       way to tell the amber that means something from the amber that is
+       always there.
+       Measured as a card-like element whose largest number is 0 and whose
+       background is a tinted (non-white, non-page) ground. */
+    const colouredZeros = Array.from(
+      main.querySelectorAll("li, .adm-card, .adm-kpi, .apf-stat, [data-metric-tile]"),
+    ).filter((el) => {
+      const text = (el.textContent ?? "").trim();
+      // The figure the card is about: its largest standalone number.
+      const nums = text.match(/(?<![\w.])\d+(?![\w.%])/g);
+      if (!nums || nums.length === 0) return false;
+      if (Math.max(...nums.map(Number)) !== 0) return false;
+      const bg = getComputedStyle(el).backgroundColor;
+      const m = /rgba?\(([^)]+)\)/.exec(bg);
+      if (!m) return false;
+      const [r, g, b, a = "1"] = m[1].split(",").map((v) => parseFloat(v));
+      if (Number(a) === 0) return false;
+      // Tinted = the channels disagree by more than a neutral grey would.
+      return Math.max(r, g, b) - Math.min(r, g, b) > 8;
+    }).length;
+
     /* A RATIO OVER ZERO. `5 / 0` seats, `0 of 0` connections ready — two
        facts that disagree, rendered as though they were one measurement. An
        operator reads it as a fault rather than as "there is no denominator". */
@@ -230,8 +275,10 @@ async function measure(page) {
     return {
       probeBorder,
       duplicatePrimary,
+      competingPrimaries,
       filledPrimaries: filled.length,
       zeroDenominator,
+      colouredZeros,
       secondsInList,
       tallRows,
       alarmedRows,
@@ -286,8 +333,16 @@ async function report(route, result, bad) {
   const note = refusals.length
     ? `  (${refusals.length} handled refusal response${refusals.length > 1 ? "s" : ""})`
     : "";
+  if (result.competingPrimaries > 0) {
+    bad.push(
+      `${result.competingPrimaries} row(s) with two filled primary actions`,
+    );
+  }
   if (result.duplicatePrimary > 0) {
     bad.push(`${result.duplicatePrimary} duplicate primary action(s)`);
+  }
+  if (result.colouredZeros > 0) {
+    bad.push(`${result.colouredZeros} measured zero(s) on a tinted ground`);
   }
   if (result.zeroDenominator > 0) {
     bad.push(`${result.zeroDenominator} ratio(s) over a zero denominator`);

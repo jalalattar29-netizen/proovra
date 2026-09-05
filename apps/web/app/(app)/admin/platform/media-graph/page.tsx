@@ -461,7 +461,7 @@ useEffect(() => {
         <h2 className="apf-section-title">Operator actions</h2>
         <div className="apf-section">
           <div className="apf-row">
-            <div className="apf-stat-label">
+            <div style={{ minWidth: 0 }}>
               <div className="apf-section-title">Retry one job</div>
               <div className="apf-stat-hint">
                 Requeues a specific failed BullMQ job. The id is the
@@ -496,7 +496,7 @@ useEffect(() => {
           <div className="apf-row" />
 
           <div className="apf-row">
-            <div className="apf-stat-label">
+            <div style={{ minWidth: 0 }}>
               <div className="apf-section-title">Replay DLQ</div>
               <div className="apf-stat-hint">
                 Walks up to 50 failed jobs and requeues each. Bounded by
@@ -572,16 +572,31 @@ function TileGrid({
             : snapshot!.gauges[t.metric]!
           : null;
         return (
-          <li key={t.metric} style={tileStyle(t.tone)}>
+          <li key={t.metric} style={tileStyle(t.tone, value)}>
             <div className="apf-stat-label">{t.label}</div>
             <div className="apf-stat-value">
               {value == null ? "—" : formatNumber(value)}
             </div>
-            <div className="apf-stat-label" title={t.hint}>
+            {/* THE METRIC KEY IS PROVENANCE, NOT CONTENT.
+                This rendered `MEDIA_INTELLIGENCE_QUEUE_DEPTH (GAUGE)` in
+                shouty uppercase at the label's own weight, directly under the
+                figure and wrapping across three lines — so the internal
+                registry key was the most prominent thing on the tile after
+                the number, and the HINT that says what the number means was
+                pushed below it.
+
+                It stays on the page, because an operator correlating this
+                console with a metrics scrape needs the exact key. It is now
+                the lower-case monospace it actually is, at caption size,
+                after the hint. */}
+            {t.hint ? <div className="apf-stat-hint">{t.hint}</div> : null}
+            <div
+              className="apf-mono"
+              style={{ fontSize: 10.5, color: "var(--ink-muted)", marginTop: 4 }}
+            >
               {t.metric}
               {t.kind === "gauge" ? " (gauge)" : ""}
             </div>
-            {t.hint ? <div className="apf-stat-hint">{t.hint}</div> : null}
           </li>
         );
       })}
@@ -637,8 +652,29 @@ function freshnessPillStyle(
 
 
 
+/**
+ * THE TONE IS THE VALUE'S, NOT THE TILE'S.
+ *
+ * This took `tone` from a STATIC table on the tile definition and applied it
+ * unconditionally — so every "failed", "denied", "dismissed" and "DLQ" tile
+ * was tinted amber or red whether or not anything had failed. On a healthy
+ * platform, where all fourteen counters read 0, the page rendered ten
+ * coloured warning cards and two coloured success cards for a set of measured
+ * zeros.
+ *
+ * That is the defect this phase removed from the Control Center's tiles and
+ * from /admin/adoption's badges, in its purest form: a colour that cannot
+ * change cannot carry information, and an operator who opens this page during
+ * an incident has no way to tell the amber that means something from the
+ * amber that is always there.
+ *
+ * A tone now requires a NON-ZERO value. A zero is a zero, on the plain card
+ * ground, in every tile — which is also what makes a single amber tile
+ * findable at a glance.
+ */
 function tileStyle(
   tone: Tile["tone"] | undefined,
+  value: number | null,
 ): React.CSSProperties {
   const palette: Record<NonNullable<Tile["tone"]>, [string, string]> = {
     ok: ["var(--success-subtle-bg)", "var(--success-border)"],
@@ -646,7 +682,10 @@ function tileStyle(
     warn: ["var(--warning-subtle-bg)", "var(--warning-border)"],
     danger: ["var(--danger-subtle-bg)", "var(--danger-border)"],
   };
-  const [bg, border] = tone ? palette[tone] : ["var(--surface-card)", "var(--border-default)"];
+  const earned = tone != null && value != null && value > 0;
+  const [bg, border] = earned
+    ? palette[tone]
+    : ["var(--surface-card)", "var(--border-default)"];
   return {
     border: `1px solid ${border}`,
     background: bg,

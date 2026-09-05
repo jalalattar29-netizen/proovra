@@ -404,7 +404,14 @@ function ReadinessSummary({
         >
           {busy === "backup" ? "Running…" : "Run backup validation"}
         </Button>
-        <Button variant="primary" size="sm"
+        {/* SECONDARY, beside a primary, deliberately.
+            Two filled purple buttons sat side by side here, identical in
+            weight — so nothing on the card said which validation an operator
+            should reach for, and the one that needs a SECOND FACTOR looked
+            exactly as routine as the one that does not. The backup validation
+            is the ordinary run; the restore validation is the escalation, and
+            its own label already says so. */}
+        <Button variant="secondary" size="sm"
           onClick={onRunRestore}
           disabled={busy !== null}
           data-testid="run-restore-validation"
