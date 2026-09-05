@@ -170,10 +170,23 @@ export function AdminBreadcrumb() {
      * travelled here on the detail URL; `returnHrefFor` puts it back, and
      * falls back to the bare collection when nothing travelled.
      */
-    crumbs.push({
-      label: contextual.parentLabel,
-      href: returnHrefFor(contextual.parentHref, searchParams?.toString() ?? null),
-    });
+    const parentHref = returnHrefFor(
+      contextual.parentHref,
+      searchParams?.toString() ?? null,
+    );
+    /*
+     * PHASE 6 §6 — ONE CRUMB PER DESTINATION.
+     *
+     * A section whose landing page IS the collection — Runbooks, whose
+     * href is the catalog — produced the same link twice: "Runbooks ›
+     * Runbook catalog", two crumbs, one page. The section crumb is replaced
+     * rather than the parent skipped, because the parent carries the return
+     * state and the section crumb does not.
+     */
+    const sectionCrumbIsSamePage =
+      crumbs.length > 1 && crumbs[crumbs.length - 1]!.href === contextual.parentHref;
+    if (sectionCrumbIsSamePage) crumbs.pop();
+    crumbs.push({ label: contextual.parentLabel, href: parentHref });
     /*
      * PHASE 6 6 - the record, by name where the page could tell us.
      *

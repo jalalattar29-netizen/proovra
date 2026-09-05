@@ -283,10 +283,37 @@ async function seedActors(): Promise<void> {
 }
 
 async function seedWorkspaces(): Promise<void> {
+  /*
+   * PHASE 6 §19 — THESE ARE THE FIXTURE'S CUSTOMERS, SO THEY MUST SAY SO.
+   *
+   * `kind` was omitted, so both organizations took the schema default of
+   * SYSTEM — and `/admin/customers` lists CUSTOMER organizations. The
+   * customer directory has therefore been empty for every admin spec that
+   * has ever walked it, which is the quietest kind of fixture bug: the page
+   * loads, renders its empty state, and a test that only checks it renders
+   * passes.
+   *
+   * Northwind Legal is the fixture's populated tenant and Quiet Chambers its
+   * deliberately empty one; both are customers.
+   */
   await prisma.organization.createMany({
     data: [
-      { id: ORG_POPULATED, name: "Northwind Legal" },
-      { id: ORG_EMPTY, name: "Quiet Chambers" },
+      { id: ORG_POPULATED, name: "Northwind Legal", kind: "CUSTOMER" },
+      { id: ORG_EMPTY, name: "Quiet Chambers", kind: "CUSTOMER" },
+    ],
+  });
+
+  /*
+   * A CUSTOMER organization without a security policy is a 503, not an empty
+   * page: `resolveOrgSecurityContext` refuses rather than guessing a posture
+   * for a tenant nobody provisioned. Provisioning creates this row; a fixture
+   * that hand-builds its organizations has to create it too, or every admin
+   * surface that touches a customer returns SECURITY_CONTEXT_UNAVAILABLE.
+   */
+  await prisma.organizationSecurityPolicy.createMany({
+    data: [
+      { organizationId: ORG_POPULATED, policyVersion: 1 },
+      { organizationId: ORG_EMPTY, policyVersion: 1 },
     ],
   });
 
