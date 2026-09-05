@@ -236,7 +236,7 @@ function ServiceCard({ row }: { row: ServiceStatusRow }) {
           justifyContent: "space-between",
           gap: 12,
         }}
- >
+      >
         <div style={{ minWidth: 0 }}>
           <div style={{ fontWeight: 650, color: "var(--ink-primary)" }}>{row.label}</div>
           <div style={{ marginTop: 2, fontSize: 11, color: "var(--ink-muted)" }}>
@@ -256,7 +256,7 @@ function ServiceCard({ row }: { row: ServiceStatusRow }) {
             color: "var(--ink-secondary)",
             overflowWrap: "anywhere",
           }}
- >
+        >
           {row.detail}
         </div>
       ) : null}
@@ -269,7 +269,7 @@ function ServiceCard({ row }: { row: ServiceStatusRow }) {
             color: "var(--ink-muted)",
             overflowWrap: "anywhere",
           }}
- >
+        >
           {row.lastError}
         </div>
       ) : null}
@@ -302,7 +302,7 @@ function NowTile({
           textTransform: "uppercase",
           color: "var(--ink-muted)",
         }}
- >
+      >
         {label}
       </div>
       <div
@@ -314,7 +314,7 @@ function NowTile({
           letterSpacing: "-0.02em",
           color: measured ? "var(--ink-primary)" : "var(--ink-muted)",
         }}
- >
+      >
         {measured
           ? `${new Intl.NumberFormat().format(metric!.value as number)}${
               suffix ? ` ${suffix}` : ""
@@ -408,7 +408,7 @@ function AdminPlatformHealthPage() {
           }
         />
       }
- >
+        >
       <div data-testid="admin-platform-health">
 
         {error ? (
@@ -459,7 +459,7 @@ function AdminPlatformHealthPage() {
               <PageSection
                 title="Needs attention"
                 description="A live probe reports a non-healthy state for these. Everything else on this page is either measured healthy or not measured at all."
- >
+              >
                 <div style={SERVICE_GRID} data-testid="admin-platform-health-attention">
                   {attentionRows.map((row) => (
                     <ServiceCard key={row.key} row={row} />
@@ -471,7 +471,7 @@ function AdminPlatformHealthPage() {
             <PageSection
               title="Now"
               description="Live platform activity. Each number is a real count or an honest 'Not measured' — never a fabricated value."
- >
+            >
               <div style={NOW_GRID} data-testid="admin-platform-health-now">
                 <NowTile label="Active sessions (5m)" metric={now?.activeSessions} />
                 <NowTile label="Uploads in progress" metric={now?.uploadsInProgress} />
@@ -491,7 +491,7 @@ function AdminPlatformHealthPage() {
             <PageSection
               title="Measured healthy"
               description="A live probe proved each of these up. Green appears here and nowhere else on the page."
- >
+            >
               {data.services.length === 0 ? (
                 <EmptyState
                   variant="inline"
@@ -522,7 +522,7 @@ function AdminPlatformHealthPage() {
               <PageSection
                 title="Not measured"
                 description="No live probe exists for these in this build, or no credential is bound. Their state is UNKNOWN — this page never reads an unprobed subsystem as healthy."
- >
+              >
                 <AdmCard pad="compact">
                   <AdmFacts
                     items={unprobedRows.map((row) => ({

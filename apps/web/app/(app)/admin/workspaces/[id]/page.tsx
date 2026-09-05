@@ -143,7 +143,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
           textTransform: "uppercase",
           color: "var(--ink-muted)",
         }}
- >
+      >
         {label}
       </div>
       <div style={{ marginTop: 4, fontSize: 14, color: "var(--ink-primary)" }}>
@@ -161,7 +161,7 @@ function FieldGrid({ children }: { children: React.ReactNode }) {
         gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
         gap: 18,
       }}
- >
+    >
       {children}
     </div>
   );
@@ -267,7 +267,7 @@ export default function AdminWorkspaceDetailPage() {
                 data-variant="ghost"
                 data-size="md"
                 style={buttonSurfaceStyle("ghost")}
- >
+              >
                 ← All workspaces
               </Link>
               <Button variant="secondary" onClick={() => void load()} disabled={loading}>
@@ -277,7 +277,7 @@ export default function AdminWorkspaceDetailPage() {
           }
         />
       }
- >
+              >
 
       {loading ? (
         <Card>
@@ -331,7 +331,7 @@ export default function AdminWorkspaceDetailPage() {
                     <Link
                       href={`/admin/customers/${encodeURIComponent(detail.organization.id)}`}
                       className="admin-hit-link"
- >
+                    >
                       {detail.organization.name}
                     </Link>
                   ) : (
@@ -347,7 +347,7 @@ export default function AdminWorkspaceDetailPage() {
                     <Link
                       href={`/admin/users/${encodeURIComponent(detail.owner.userId)}`}
                       className="admin-hit-link"
- >
+                    >
                       {detail.owner.email}
                     </Link>
                   ) : (
@@ -359,7 +359,7 @@ export default function AdminWorkspaceDetailPage() {
                     <Link
                       href={`/admin/users/${encodeURIComponent(detail.billingOwner.userId)}`}
                       className="admin-hit-link"
- >
+                    >
                       {detail.billingOwner.email}
                     </Link>
                   ) : (
@@ -373,7 +373,7 @@ export default function AdminWorkspaceDetailPage() {
           <PageSection
             title="Commercial context"
             description="Resolved through the canonical commercial authority — the same one checkout and the billing UI read. The stored workspace columns are shown beneath for comparison."
- >
+          >
             <Card>
               {detail.commercial ? (
                 <FieldGrid>
@@ -421,7 +421,7 @@ export default function AdminWorkspaceDetailPage() {
                     paddingTop: 18,
                     borderTop: "1px solid var(--border-default)",
                   }}
- >
+                >
                   <div
                     style={{
                       fontSize: 11,
@@ -431,7 +431,7 @@ export default function AdminWorkspaceDetailPage() {
                       color: "var(--ink-muted)",
                       marginBottom: 12,
                     }}
- >
+                  >
                     Enterprise contract
                   </div>
                   <FieldGrid>
@@ -442,7 +442,7 @@ export default function AdminWorkspaceDetailPage() {
                             ? "verified"
                             : "risk"
                         }
- >
+                      >
                         {detail.commercial.enterpriseContract.status}
                       </Badge>
                     </Field>
@@ -474,7 +474,7 @@ export default function AdminWorkspaceDetailPage() {
                         background: "var(--warning-surface)",
                         fontSize: 13,
                       }}
- >
+                    >
                       <strong>No stored contract row.</strong> This projection was derived
                       from the organization&apos;s status by the compatibility adapter. It is
                       not a contract — treat it as a placeholder until the contract backfill
@@ -490,7 +490,7 @@ export default function AdminWorkspaceDetailPage() {
                   paddingTop: 18,
                   borderTop: "1px solid var(--border-default)",
                 }}
- >
+              >
                 <div
                   style={{
                     fontSize: 11,
@@ -500,7 +500,7 @@ export default function AdminWorkspaceDetailPage() {
                     color: "var(--ink-muted)",
                     marginBottom: 12,
                   }}
- >
+                >
                   Stored projection (Team.billing*)
                 </div>
                 <FieldGrid>
@@ -554,12 +554,12 @@ export default function AdminWorkspaceDetailPage() {
               <Link
                 href={`/admin/operations?teamId=${encodeURIComponent(detail.id)}`}
                 className="admin-stat admin-stat--link"
- >
+              >
                 <div className="admin-stat-label">Open incidents</div>
                 <div
                   className="admin-stat-value"
                   data-emphasis={detail.incidents.open > 0 ? "critical" : undefined}
- >
+                >
                   {detail.incidents.open}
                 </div>
                 <div className="admin-stat-hint">
@@ -573,7 +573,7 @@ export default function AdminWorkspaceDetailPage() {
           <PageSection
             title="Provider subscriptions"
             description="Bound to this workspace. Provider references are masked — enough to correlate with a provider dashboard, never the full handle."
- >
+          >
             <Card>
               <DataTable
                 ariaLabel="Workspace subscriptions"
@@ -599,7 +599,7 @@ export default function AdminWorkspaceDetailPage() {
                       key={a.id}
                       tone={a.status === "ACTIVE" ? "verified" : "neutral"}
                       subtle
- >
+                    >
                       {a.addonKey} · {a.status} · {a.billingCycle}
                     </Badge>
                   ))}

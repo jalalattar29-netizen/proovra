@@ -324,7 +324,7 @@ export function MfaMemberPostureSection() {
       title="Member MFA lifecycle"
       description={description}
       data-mfa-member-posture
- >
+    >
       <Card padding="comfortable" style={{ marginBottom: 14 }}>
         <div
           style={{
@@ -332,7 +332,7 @@ export function MfaMemberPostureSection() {
             gap: 12,
             gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
           }}
- >
+        >
           <label>
             <span style={sectionLabelStyle}>Member</span>
             <select
@@ -340,7 +340,7 @@ export function MfaMemberPostureSection() {
               onChange={(e) => setSelectedUserId(e.target.value || null)}
               style={sectionInputStyle}
               data-mfa-member-select
- >
+            >
               <option value="">Select a member…</option>
               {members.data.map((m) => (
                 <option key={m.userId} value={m.userId}>
@@ -397,7 +397,7 @@ export function MfaMemberPostureSection() {
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <Badge
                 tone={posture.data.posture.activeFactorCount > 0 ? "verified" : "risk"}
- >
+              >
                 {posture.data.posture.activeFactorCount} active factor
                 {posture.data.posture.activeFactorCount === 1 ? "" : "s"}
               </Badge>
@@ -405,7 +405,7 @@ export function MfaMemberPostureSection() {
                 tone={
                   posture.data.posture.recoveryCodesRemaining > 0 ? "neutral" : "pending"
                 }
- >
+              >
                 {posture.data.posture.recoveryCodesRemaining} recovery codes left
               </Badge>
               <Badge tone={posture.data.posture.enrollmentRequired ? "pending" : "neutral"}>
@@ -422,7 +422,7 @@ export function MfaMemberPostureSection() {
             </div>
             <div
               style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}
- >
+            >
               <Button
                 variant="destructive"
                 size="sm"
@@ -443,7 +443,7 @@ export function MfaMemberPostureSection() {
                     failureMessage: "We couldn't require re-enrollment.",
                   })
                 }
- >
+              >
                 Require re-enrollment
               </Button>
               <Button
@@ -466,7 +466,7 @@ export function MfaMemberPostureSection() {
                     failureMessage: "We couldn't reset the trusted devices.",
                   })
                 }
- >
+              >
                 Reset trusted devices
               </Button>
             </div>
@@ -508,7 +508,7 @@ export function MfaMemberPostureSection() {
                       failureMessage: "We couldn't revoke that factor.",
                     })
                   }
- >
+                >
                   Revoke
                 </Button>
               ) : null

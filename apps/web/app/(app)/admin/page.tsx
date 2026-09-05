@@ -485,13 +485,13 @@ export default function AdminOverviewPage() {
               data-size="md"
               data-testid="admin-provision-cta"
               style={buttonSurfaceStyle("primary")}
- >
+            >
               Provision enterprise customer
             </Link>
           }
         />
       }
- >
+            >
 
       {loading ? (
         <PageSection title="Loading platform overview">
@@ -540,7 +540,7 @@ export default function AdminOverviewPage() {
           <PageSection
             title="Needs attention"
             description="Every attention signal on this page that is non-zero or unmeasured, with the records behind it. Measured zeros are omitted here and remain in the summary below — thirty cards reading zero is not a summary."
- >
+          >
             <NeedsAttention ov={ov} />
           </PageSection>
 
@@ -548,7 +548,7 @@ export default function AdminOverviewPage() {
           <PageSection
             title="Platform posture"
             description="One authority: incidents, signals, queues, workers, search, the evidence pipeline and every dependency probe are evaluated together. 'Healthy' is claimed only when every source answered and the evaluation is fresh — a failed read is Unknown, never green and never zero."
- >
+          >
             <div
               style={{
                 marginBottom: 14,
@@ -556,7 +556,7 @@ export default function AdminOverviewPage() {
                 color: "var(--ink-muted)",
               }}
               data-testid="admin-status-freshness"
- >
+            >
               Generated {formatUserDateTime(ov.generatedAtUtc)}
               {ov.status.freshnessSeconds === null
                 ? " · no fully-successful evaluation recorded in this process"
@@ -614,7 +614,7 @@ export default function AdminOverviewPage() {
                 lineHeight: 1.6,
                 color: "var(--ink-secondary)",
               }}
- >
+            >
               <strong style={{ color: "var(--ink-primary)" }}>
                 Incidents and signals overlap.
               </strong>{" "}
@@ -641,7 +641,7 @@ export default function AdminOverviewPage() {
           <PageSection
             title="Customers, workspaces and people"
             description="Customer organizations only — the internal 1:1 bootstrap container every workspace owns is not a customer. Live workspaces exclude closed ones, which are counted separately because closing a workspace revokes its access without touching its billing columns."
- >
+          >
             <AdminStatGrid cols={4}>
               <AdminStat label="Suspended customers" figure={ov.customers.suspended} emphasis="attention" />
               <AdminStat label="SSO outages" metric={ov.customers.ssoOutageConnections} emphasis="attention" />
@@ -653,7 +653,7 @@ export default function AdminOverviewPage() {
               title="Estate"
               note="Inventory, not attention. Every figure links to the records behind it."
               pad="compact"
- >
+            >
               <AdmFacts
                 items={[
                   { label: "Customers", value: <FigureText f={ov.customers.total} suffix={`${metricText(ov.customers.active.metric)} active · ${metricText(ov.customers.archived.metric)} archived`} /> },
@@ -676,7 +676,7 @@ export default function AdminOverviewPage() {
                     color: "var(--ink-muted)",
                     marginBottom: 8,
                   }}
- >
+                >
                   Accounts by commercial tier
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -688,7 +688,7 @@ export default function AdminOverviewPage() {
                       // margin keeps the chip row's visual height unchanged.
                       className="admin-hit-link"
                       style={{ textDecoration: "none" }}
- >
+                    >
                       <Badge tone="governance" subtle>
                         {t.tier}: {t.count} →
                       </Badge>
@@ -707,7 +707,7 @@ export default function AdminOverviewPage() {
           <PageSection
             title="Commercial attention"
             description="The states that need somebody to do something. Every row behind these figures carries the customer it belongs to."
- >
+          >
             <AdminStatGrid cols={4}>
               <AdminStat label="Active subscriptions" figure={ov.billing.activeSubscriptions} />
               <AdminStat
@@ -734,7 +734,7 @@ export default function AdminOverviewPage() {
                   color: "var(--ink-muted)",
                   marginBottom: 8,
                 }}
- >
+              >
                 Gross revenue
               </div>
               {ov.billing.grossRevenueByCurrency.state === "VALUE" &&
@@ -821,7 +821,7 @@ export default function AdminOverviewPage() {
                     color: "var(--ink-muted)",
                     marginBottom: 8,
                   }}
- >
+                >
                   Provider subscriptions by status
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -832,7 +832,7 @@ export default function AdminOverviewPage() {
                       // Same 44px hit box as the tier chips above.
                       className="admin-hit-link"
                       style={{ textDecoration: "none" }}
- >
+                    >
                       <Badge tone={SUBSCRIPTION_STATUS_TONE[s.status] ?? "neutral"} subtle>
                         {s.status}: {s.count} →
                       </Badge>
@@ -847,7 +847,7 @@ export default function AdminOverviewPage() {
           <PageSection
             title="Evidence operations"
             description="Pipeline volume and failure signals. Each failure figure opens the affected records with the workspace and customer they belong to."
- >
+          >
             {/* Three per row: six tiles in the auto-fill grid laid out 5+1 at
                 1440px, and a lone tile on a second row reads as an
                 afterthought rather than as the sixth of six. */}
@@ -893,7 +893,7 @@ export default function AdminOverviewPage() {
           <PageSection
             title="Security"
             description="High-severity events, identity failures and privileged activity."
- >
+          >
             <AdminStatGrid>
               <AdminStat
                 label="High security events (7d)"
@@ -919,7 +919,7 @@ export default function AdminOverviewPage() {
           <PageSection
             title="Traffic"
             description="Consented public analytics. The full breakdown — geography, funnel, referrers — is on Platform Analytics."
- >
+          >
             {ov.traffic.connected ? (
               <AdmCard pad="compact">
                 <AdmFacts

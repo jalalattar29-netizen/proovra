@@ -164,7 +164,7 @@ export default function AdminAlertsPage() {
         <PageSection
           title="Active alerts"
           description="This list is a read-only point-in-time snapshot. There is no per-alert acknowledge / resolve workflow — resolve an alert at its source (resolve the incident, drain the failed job, fix the SSO connection) and it clears on the next refresh. Each alert links to the surface that owns it."
- >
+        >
           {!loading && !hasAlerts ? (
             <EmptyState variant="inline"
               framed
@@ -186,7 +186,7 @@ export default function AdminAlertsPage() {
                         gap: 10,
                         marginBottom: 10,
                       }}
- >
+                    >
                       <Badge tone={severityTone(sev)} dot>
                         {SEVERITY_LABEL[sev]}
                       </Badge>
@@ -239,7 +239,7 @@ export default function AdminAlertsPage() {
                             <li
                               key={`${a.source}:${a.createdAt}:${index}`}
                               className="adm-alert-row"
- >
+                            >
                               <span className="adm-alert-row__title">
                                 {a.title}
                               </span>
@@ -263,7 +263,7 @@ export default function AdminAlertsPage() {
                                   data-variant="secondary"
                                   data-size="sm"
                                   style={buttonSurfaceStyle("secondary", "sm")}
- >
+                                >
                                   View
                                 </Link>
                               ) : (

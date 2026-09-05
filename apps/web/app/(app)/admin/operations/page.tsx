@@ -222,7 +222,7 @@ export default function AdminOperationsPage() {
                 color: "var(--ink-muted)",
                 marginTop: 2,
               }}
- >
+            >
               {r.category} · seen {r.occurrenceCount}× · last{" "}
               {formatUserDateTime(r.lastSeenAtUtc)}
             </div>
@@ -240,7 +240,7 @@ export default function AdminOperationsPage() {
               <span
                 style={{ fontSize: 12, color: "var(--ink-muted)" }}
                 title={`Scope: ${r.scope}`}
- >
+              >
                 {r.scope === "PLATFORM" ? "Platform-wide" : "No owning workspace"}
               </span>
             );
@@ -306,7 +306,7 @@ export default function AdminOperationsPage() {
               flexWrap: "nowrap",
               whiteSpace: "nowrap",
             }}
- >
+          >
             {r.status === "OPEN" ? (
               <Button
                 size="sm"
@@ -315,7 +315,7 @@ export default function AdminOperationsPage() {
                 aria-label={`Acknowledge "${r.title}"`}
                 title="Marks the condition as seen by an operator. It stays open and can still be resolved or reassigned."
                 onClick={() => void runAction(r, "acknowledge")}
- >
+              >
                 Acknowledge
               </Button>
             ) : null}
@@ -335,7 +335,7 @@ export default function AdminOperationsPage() {
                   });
                   if (ok) await runAction(r, "resolve");
                 }}
- >
+              >
                 Resolve
               </Button>
             ) : null}
@@ -359,7 +359,7 @@ export default function AdminOperationsPage() {
                   assigneeUserId: r.assignedOperatorUserId ? null : currentUserId,
                 })
               }
- >
+            >
               {r.assignedOperatorUserId ? "Unassign" : "Assign to me"}
             </Button>
             {/* Only a slug with a runbook behind it gets a button. Most
@@ -376,7 +376,7 @@ export default function AdminOperationsPage() {
                 data-variant="ghost"
                 data-size="sm"
                 style={buttonSurfaceStyle("ghost", "sm")}
- >
+              >
                 Runbook
               </Link>
             ) : null}
@@ -402,7 +402,7 @@ export default function AdminOperationsPage() {
           }
         />
       }
- >
+        >
 
       {data ? (
         <PageSection title="Posture">
@@ -412,7 +412,7 @@ export default function AdminOperationsPage() {
               <div
                 className="admin-stat-value"
                 data-emphasis={data.unresolvedCount > 0 ? "critical" : undefined}
- >
+              >
                 {data.unresolvedCount}
               </div>
               <div className="admin-stat-hint">Open + acknowledged</div>
@@ -425,7 +425,7 @@ export default function AdminOperationsPage() {
                   data-emphasis={
                     s === "CRITICAL" ? "critical" : s === "HIGH" ? "attention" : undefined
                   }
- >
+                >
                   {data.severityBreakdown[s] ?? 0}
                 </div>
               </div>
@@ -444,11 +444,11 @@ export default function AdminOperationsPage() {
               setSeverity("");
               setTeamId("");
             }}
- >
+          >
             Clear
           </Button>
         }
- >
+          >
         <FilterBar.Select
           label="Status"
           value={status}

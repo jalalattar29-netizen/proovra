@@ -423,7 +423,7 @@ function PlatformPostureBlock({
         data-posture-state="UNKNOWN"
         role="status"
         style={postureBlockStyle("UNKNOWN")}
- >
+      >
         <div style={postureHeadStyle}>
           <span style={postureStateStyle("UNKNOWN")}>UNKNOWN</span>
           <span style={postureReasonStyle}>
@@ -441,7 +441,7 @@ function PlatformPostureBlock({
         data-platform-posture
         data-posture-state="PENDING"
         style={postureBlockStyle("UNKNOWN")}
- >
+      >
         <div style={postureHeadStyle}>
           <span style={postureStateStyle("UNKNOWN")}>EVALUATING</span>
           <span style={postureReasonStyle}>
@@ -461,7 +461,7 @@ function PlatformPostureBlock({
       data-platform-posture
       data-posture-state={overall.state}
       style={postureBlockStyle(overall.state)}
- >
+    >
       <div style={postureHeadStyle}>
         <span style={postureStateStyle(overall.state)}>{overall.state}</span>
         <span style={postureReasonStyle}>{overall.reason}</span>
@@ -906,13 +906,13 @@ function ObservabilityDashboardPageInner() {
               // 44px hit box; the header keeps its height (admin-console.css).
               className="admin-hit-link"
               style={navLinkStyle}
- >
+            >
               ← Operations Center
             </Link>
           }
         />
       }
- >
+            >
       {/* ADM-013 PHASE 1 — `RuntimeStatusBanner` is a WORKSPACE surface: it
           takes a teamId and reports that workspace's conditions. On a page whose
           every other number is platform-wide it read as a platform banner, which
@@ -939,7 +939,7 @@ function ObservabilityDashboardPageInner() {
         <section style={alertRibbonStyle}>
           <div style={alertRibbonHeaderStyle}>
             <strong>{alerts.counts.total} alert{alerts.counts.total === 1 ? "" : "s"} firing</strong>
-            <span style={mutedStyle}>
+            <span className="adm-help">
               {alerts.counts.critical} critical · {alerts.counts.high} high · {alerts.counts.warning} warning
             </span>
           </div>
@@ -948,7 +948,7 @@ function ObservabilityDashboardPageInner() {
               <li key={a.id} style={alertRowStyle}>
                 <span style={severityBadgeStyle(a.severity)}>{a.severity}</span>
                 <strong style={alertIdStyle}>{a.id}</strong>
-                <span style={mutedStyle}>
+                <span className="adm-help">
                   {a.metric} {a.op} {a.value} · observed {a.observedValue} · window {a.window}
                 </span>
                 <div style={alertReasonStyle}>{a.reason}</div>
@@ -965,7 +965,7 @@ function ObservabilityDashboardPageInner() {
             all-clear. The alerts and the metrics are separate reads, so one
             can arrive without the other.
           */}
-          <span style={mutedStyle}>
+          <span className="adm-help">
             {metrics
               ? `${Object.keys(metrics.counters ?? {}).length} counters · ${Object.keys(metrics.gauges ?? {}).length} gauges · uptime ${metrics.uptimeSeconds}s`
               : "Metric totals not measured — the alert evaluation loaded, the metric snapshot did not."}
@@ -979,7 +979,7 @@ function ObservabilityDashboardPageInner() {
         data-observability-summary
         aria-label="Observability summary"
         style={summaryGridStyle}
- >
+      >
         <SummaryTile
           label="Alerts firing"
           value={alerts ? alerts.counts.total : "—"}
@@ -1146,13 +1146,10 @@ function ObservabilityDashboardPageInner() {
         <section
           data-observability-heat
           aria-label="Operational heat"
-          style={{
-            ...cardStyle,
-            marginTop: 12,
-          }}
- >
-          <h2 style={sectionTitleStyle}>Operational heat</h2>
-          <p style={mutedStyle}>
+          className="adm-card" style={{ marginTop: 12 }}
+        >
+          <h2 className="adm-subhead">Operational heat</h2>
+          <p className="adm-help">
             Where the system is under the most operator pressure right now.
             Values are the current gauges, not synthetic.
           </p>
@@ -1202,13 +1199,10 @@ function ObservabilityDashboardPageInner() {
         <section
           data-observability-sparklines
           aria-label="Live operational trends"
-          style={{
-            ...cardStyle,
-            marginTop: 12,
-          }}
- >
-          <h2 style={sectionTitleStyle}>Live trends</h2>
-          <p style={mutedStyle}>
+          className="adm-card" style={{ marginTop: 12 }}
+        >
+          <h2 className="adm-subhead">Live trends</h2>
+          <p className="adm-help">
             Last {SAMPLE_CAP} polled samples (~{(SAMPLE_CAP * 15) / 60} min) for
             the most operationally-relevant counters + gauges. Delta is the
             change since the first sample observed this session.
@@ -1237,9 +1231,9 @@ function ObservabilityDashboardPageInner() {
                     style={sparklineNotMeasuredStyle}
                     data-metric-state={present ? "AWAITING_SAMPLE" : "NOT_MEASURED"}
                     data-metric-key={hot.key}
- >
+                  >
                     <div style={{ fontWeight: 600 }}>{hot.caption}</div>
-                    <div style={mutedStyle}>
+                    <div className="adm-help">
                       {present
                         ? "Awaiting the first sample this session."
                         : "Not measured — no metric by this name is registered."}
@@ -1266,9 +1260,9 @@ function ObservabilityDashboardPageInner() {
       ) : null}
 
       {!metrics ? null : (
-        <section style={cardStyle} aria-label="Top non-zero counters">
-          <h2 style={sectionTitleStyle}>Top signals</h2>
-          <p style={mutedStyle}>
+        <section className="adm-card" aria-label="Top non-zero counters">
+          <h2 className="adm-subhead">Top signals</h2>
+          <p className="adm-help">
             Non-zero counters + gauges with the largest current values. Open
             a group below for the full metric list.
           </p>
@@ -1297,12 +1291,12 @@ function ObservabilityDashboardPageInner() {
       )}
 
       {!metrics ? (
-        <p style={mutedStyle}>Loading metrics…</p>
+        <p className="adm-help">Loading metrics…</p>
       ) : (
         <>
-          <section style={cardStyle}>
-            <h2 style={sectionTitleStyle}>Counters</h2>
-            <p style={mutedStyle}>
+          <section className="adm-card">
+            <h2 className="adm-subhead">Counters</h2>
+            <p className="adm-help">
               Monotonic since this api instance started ({metrics.uptimeSeconds}s ago).
               All values reset on restart.
             </p>
@@ -1314,7 +1308,7 @@ function ObservabilityDashboardPageInner() {
                     {title} <span style={groupCountStyle}>({rows.length})</span>
                   </summary>
                   <div className="apf-table-wrap">
-                    <table style={tableStyle}>
+                    <table className="adm-table">
                       <tbody>
                         {rows.map(([name, value]) => (
                           <tr key={name}>
@@ -1329,9 +1323,9 @@ function ObservabilityDashboardPageInner() {
               ))}
           </section>
 
-          <section style={cardStyle}>
-            <h2 style={sectionTitleStyle}>Gauges</h2>
-            <p style={mutedStyle}>
+          <section className="adm-card">
+            <h2 className="adm-subhead">Gauges</h2>
+            <p className="adm-help">
               Last-write-wins. A non-zero gauge typically reflects current
               backlog / outstanding state.
             </p>
@@ -1343,7 +1337,7 @@ function ObservabilityDashboardPageInner() {
                     {title} <span style={groupCountStyle}>({rows.length})</span>
                   </summary>
                   <div className="apf-table-wrap">
-                    <table style={tableStyle}>
+                    <table className="adm-table">
                       <tbody>
                         {rows.map(([name, value]) => (
                           <tr key={name}>
@@ -1360,10 +1354,10 @@ function ObservabilityDashboardPageInner() {
         </>
       )}
 
-      <details style={{ ...cardStyle, marginTop: 16 }}>
+      <details className="adm-card" style={{ marginTop: 16 }}>
         <summary
-          style={{ ...sectionTitleStyle, cursor: "pointer", marginBottom: 0 }}
- >
+          className="adm-subhead" style={{ cursor: "pointer", marginBottom: 0 }}
+        >
           Scrape endpoints + raw API references
         </summary>
         <ul style={{ ...listStyle, marginTop: 12 }}>
@@ -1437,7 +1431,7 @@ function SummaryTile({
       data-tone={tone}
       data-summary-tile={label.toLowerCase().replace(/s+/g, "_")}
       data-summary-tone={tone}
- >
+    >
       <div className="apf-tile-label">{label}</div>
       <div className="apf-tile-value">{value}</div>
       <div className="apf-tile-hint">{hint}</div>
@@ -1460,14 +1454,14 @@ function SignalList({
         {caption}
       </div>
       {rows.length === 0 ? (
-        <p style={{ ...mutedStyle, margin: 0 }}>{emptyHint}</p>
+        <p className="adm-help" style={{ margin: 0 }}>{emptyHint}</p>
       ) : (
         <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
           {rows.map(([name, value]) => (
             <li
               key={name}
               className="apf-signal-row"
- >
+            >
               <code style={tdMonoStyle}>{name}</code>
               <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>
                 {value.toLocaleString()}
@@ -1484,22 +1478,6 @@ function SignalList({
 // Styles — enterprise/SOC dense layout
 // -----------------------------------------------------------------------------
 
-const mutedStyle: React.CSSProperties = { fontSize: 13, color: "var(--ink-muted)" };
-const sectionTitleStyle: React.CSSProperties = {
-  fontSize: 14,
-  fontWeight: 700,
-  textTransform: "uppercase",
-  letterSpacing: 0.4,
-  color: "var(--ink-secondary)",
-  marginBottom: 8,
-};
-const cardStyle: React.CSSProperties = {
-  marginTop: 16,
-  padding: 16,
-  border: "1px solid var(--border-default)",
-  borderRadius: 12,
-  background: "var(--surface-card)",
-};
 const summaryGridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
@@ -1550,7 +1528,7 @@ function HeatCell({
       data-tone={severity}
       data-heat-cell={kicker.toLowerCase().replace(/\s+/g, "_")}
       data-heat-severity={severity}
- >
+    >
       <div className="apf-tile-label">{kicker}</div>
       <div className="apf-tile-value">{value.toLocaleString()}</div>
       <code className="apf-tile-hint apf-mono">{metric}</code>
@@ -1628,11 +1606,6 @@ const groupCountStyle: React.CSSProperties = {
   marginInlineStart: 6,
   color: "var(--ink-muted)",
   fontWeight: 400,
-  fontSize: 12,
-};
-const tableStyle: React.CSSProperties = {
-  width: "100%",
-  borderCollapse: "collapse",
   fontSize: 12,
 };
 const tdMonoStyle: React.CSSProperties = {

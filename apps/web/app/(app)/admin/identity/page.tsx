@@ -183,13 +183,13 @@ function AdminIdentityConsoleInner() {
           />
         </div>
       }
- >
+          >
       <Card
         variant="admin"
         padding="compact"
         data-admin-identity-scope
         data-admin-identity-scope-resolved={resolvedTeamId ? "true" : "false"}
- >
+      >
         <span className="adm-help">
           {resolvedTeamId ? (
             <>
@@ -224,14 +224,14 @@ function AdminIdentityConsoleInner() {
         data-section="admin-identity-specialist"
         title="Specialist surfaces"
         description="Deeper identity surfaces that keep their own console: provider configuration, directory provisioning, live session inventory, runtime risk, access reviews, and the audit timeline."
- >
+      >
         <div
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
             gap: 12,
           }}
- >
+        >
           {SPECIALIST_SURFACES.map((s) => (
             <Link
               key={s.href}
@@ -242,7 +242,7 @@ function AdminIdentityConsoleInner() {
                 color: TOKENS.ink,
                 display: "block",
               }}
- >
+            >
               <Card
                 variant="summary"
                 padding="compact"
@@ -258,7 +258,7 @@ function AdminIdentityConsoleInner() {
         data-section="admin-identity-honest-scope"
         title="Honest scope disclosure"
         description="These capabilities are NOT shipped today and are bounded follow-up work. The platform never surfaces fake controls."
- >
+      >
         <ul
           style={{
             fontSize: 12,
@@ -268,7 +268,7 @@ function AdminIdentityConsoleInner() {
             lineHeight: 1.6,
           }}
           data-admin-identity-bounded-followups
- >
+        >
           <li>
             <strong>Step-up exemption rules</strong> — admin-defined waivers for
             specific actions/roles. Today step-up is workspace-flag driven (per

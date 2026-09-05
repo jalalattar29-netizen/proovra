@@ -56,10 +56,12 @@ import {
   StepUpModal,
   useStepUpAction,
 } from "../../../../../components/identity-security/StepUpModal";
-import { badgeStyle, formatDateTime, ghostButtonStyle, primaryButtonStyle, TOKENS } from "../../identity/ui-tokens";
 import {
   AdmInline,
 } from "../../../../../components/admin/AdminSurfaces";
+import { Badge } from "../../../../../components/ui/Badge";
+import { Button } from "../../../../../components/ui/Button";
+import { TOKENS, badgeStyle, formatDateTime } from "../../identity/ui-tokens";
 
 // ============================================================================
 // Types
@@ -449,16 +451,16 @@ function OperationsSignersContent() {
 
 function statusBadge(s: SignerStatus) {
   if (s === "active")
-    return badgeStyle({ bg: "var(--success-subtle-bg)", fg: "var(--success-strong)", border: "var(--success-border)" });
+    return "verified";
   if (s === "staged")
-    return badgeStyle({ bg: "var(--info-subtle-bg)", fg: "var(--info)", border: "var(--info-border)" });
+    return "info";
   if (s === "retiring")
-    return badgeStyle({ bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" });
+    return "pending";
   if (s === "retired")
-    return badgeStyle({ bg: "var(--surface-muted)", fg: "var(--ink-secondary)", border: "var(--border-standard)" });
+    return "neutral";
   if (s === "revoked")
-    return badgeStyle({ bg: "var(--danger-subtle-bg)", fg: "var(--danger-strong)", border: "var(--danger-border)" });
-  return badgeStyle({ bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" });
+    return "risk";
+  return "pending";
 }
 
 function PurposeOverview({
@@ -492,7 +494,7 @@ function PurposeOverview({
         marginTop: 16,
       }}
       data-testid="signer-overview"
- >
+    >
       {purposes.map((p) => {
         const active = signers.find(
           (s) => s.signerPurpose === p && s.status === "active",
@@ -505,12 +507,15 @@ function PurposeOverview({
             <strong style={{ fontSize: 14 }}>{PURPOSE_LABELS[p]}</strong>
             {active ? (
               <div style={{ marginTop: 8 }}>
-                <span style={statusBadge(active.status)}>{active.status}</span>
+                <Badge tone={statusBadge(active.status)}>{active.status}</Badge>
                 <div
-                  className="adm-help" style={{ fontSize: 11,
+                  className="adm-help"
+                  style={{
+                    fontSize: 11,
                     marginTop: 4,
-                    fontFamily: "monospace" }}
- >
+                    fontFamily: "monospace",
+                  }}
+                >
                   {active.provider} ·{" "}
                   {active.keyId ? active.keyId.slice(0, 18) : "—"}
                   {active.keyVersion ? `:v${active.keyVersion}` : ""}
@@ -518,13 +523,11 @@ function PurposeOverview({
                 <div className="adm-help" style={{ fontSize: 11 }}>
                   {active.algorithm ?? "—"}
                 </div>
-                <button
-                  type="button"
-                  style={{ ...ghostButtonStyle, marginTop: 8 }}
+                <Button variant="secondary" size="sm" style={{ marginTop: 8 }}
                   onClick={() => onSelect(active.signerId)}
- >
+                >
                   {selectedId === active.signerId ? "Selected" : "Inspect"}
-                </button>
+                </Button>
               </div>
             ) : (
               <p className="adm-help" style={{ marginTop: 8 }}>
@@ -537,23 +540,13 @@ function PurposeOverview({
                   Staged ({staged.length})
                 </div>
                 {staged.map((s) => (
-                  <button
-                    key={s.signerId}
-                    type="button"
-                    style={{
-                      ...ghostButtonStyle,
-                      display: "block",
-                      width: "100%",
-                      textAlign: "left",
-                      marginTop: 4,
-                      fontFamily: "monospace",
-                      fontSize: 11,
-                    }}
+                  <Button variant="secondary" size="sm"
+                    key={s.signerId} style={{ display: "block", width: "100%", textAlign: "left", marginTop: 4, fontFamily: "monospace" }}
                     onClick={() => onSelect(s.signerId)}
- >
+                  >
                     {s.signerId.slice(0, 36)}
                     {s.signerId.length > 36 ? "…" : ""}
-                  </button>
+                  </Button>
                 ))}
               </div>
             ) : null}
@@ -591,7 +584,7 @@ function KmsKeyRow({ arn }: { arn: string | null }) {
           <span
             style={{ marginInlineStart: 8, fontSize: 11, color: "var(--ink-muted)" }}
             title="Shortened for display. The full key reference is not shown in the console."
- >
+          >
             shortened
           </span>
         ) : null}
@@ -778,20 +771,23 @@ function SignerDetailDrawer({
     <section
       className="adm-card" style={{ marginTop: 12 }}
       data-testid="signer-detail"
- >
+    >
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
         }}
- >
+      >
         <h2 className="apf-section-title">
           {PURPOSE_LABELS[signer.signerPurpose]}{" "}
           <span
-            className="adm-help" style={{ fontFamily: "monospace",
-              fontWeight: 400 }}
- >
+            className="adm-help"
+            style={{
+              fontFamily: "monospace",
+              fontWeight: 400,
+            }}
+          >
             · {signer.signerId.slice(0, 48)}
             {signer.signerId.length > 48 ? "…" : ""}
           </span>
@@ -807,7 +803,7 @@ function SignerDetailDrawer({
             <tr>
               <td>status</td>
               <td>
-                <span style={statusBadge(signer.status)}>{signer.status}</span>
+                <Badge tone={statusBadge(signer.status)}>{signer.status}</Badge>
               </td>
             </tr>
             <tr>
@@ -859,7 +855,7 @@ function SignerDetailDrawer({
           onClick={runHealth}
           disabled={busy !== null}
           data-testid="run-health"
- >
+        >
           {busy === "health" ? "Probing…" : "Run health probe"}
         </button>
         {health ? (
@@ -873,7 +869,7 @@ function SignerDetailDrawer({
                     ? { bg: "var(--danger-subtle-bg)", fg: "var(--danger-strong)", border: "var(--danger-border)" }
                     : { bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" },
               )}
- >
+            >
               {health.health}
             </span>
             <p className="adm-help" style={{ marginTop: 6 }}>
@@ -896,7 +892,7 @@ function SignerDetailDrawer({
           className="apf-control"
           onClick={runPreview}
           disabled={busy !== null || signer.status !== "staged"}
- >
+        >
           {busy === "preview" ? "Previewing…" : "Preview rotation"}
         </button>
         {preview ? (
@@ -907,7 +903,7 @@ function SignerDetailDrawer({
                   ? { bg: "var(--success-subtle-bg)", fg: "var(--success-strong)", border: "var(--success-border)" }
                   : { bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" },
               )}
- >
+            >
               {preview.compatibility}
             </span>
             <ul style={{ marginTop: 8, fontSize: 12, paddingInlineStart: 18 }}>
@@ -936,15 +932,13 @@ function SignerDetailDrawer({
             />
           </label>
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-            <button
-              type="button"
-              style={primaryButtonStyle}
+            <Button variant="primary" size="sm"
               disabled={busy !== null}
               onClick={() => runStepUpAction("promote")}
               data-testid="signer-promote"
- >
+            >
               Promote (step-up)
-            </button>
+            </Button>
             <button
               type="button"
               className="apf-control"
@@ -952,23 +946,17 @@ function SignerDetailDrawer({
               title={terminalState ? `A ${signer.status} signer cannot be retired.` : undefined}
               onClick={() => runStepUpAction("retire")}
               data-testid="signer-retire"
- >
+            >
               Retire (step-up)
             </button>
-            <button
-              type="button"
-              style={{
-                ...ghostButtonStyle,
-                color: "var(--danger-strong)",
-                borderColor: "var(--danger-border)",
-              }}
+            <Button variant="destructive" size="sm"
               disabled={busy !== null || signer.status === "revoked"}
               title={signer.status === "revoked" ? "This signer is already revoked." : undefined}
               onClick={() => runStepUpAction("revoke")}
               data-testid="signer-revoke"
- >
+            >
               Revoke (step-up)
-            </button>
+            </Button>
           </div>
         </div>
       </section>
@@ -997,9 +985,12 @@ function SignerDetailDrawer({
                     <td>
                       <div style={{ fontSize: 12 }}>{e.summary}</div>
                       <div
-                        className="adm-help" style={{ fontFamily: "monospace",
-                          fontSize: 11 }}
- >
+                        className="adm-help"
+                        style={{
+                          fontFamily: "monospace",
+                          fontSize: 11,
+                        }}
+                      >
                         {e.eventType}
                       </div>
                     </td>
@@ -1047,7 +1038,7 @@ function CustodyAttestationsPanel({
     <section
       className="adm-card" style={{ marginTop: 12, padding: 0 }}
       data-testid="custody-attestations"
- >
+    >
       <div
         style={{
           padding: 12,
@@ -1056,19 +1047,17 @@ function CustodyAttestationsPanel({
           justifyContent: "space-between",
           alignItems: "center",
         }}
- >
+      >
         <strong style={{ fontSize: 14 }}>Detached custody attestations</strong>
-        <button
-          type="button"
-          style={primaryButtonStyle}
+        <Button variant="primary" size="sm"
           disabled={busy !== null}
           onClick={onBackfill}
           data-testid="run-backfill"
- >
+        >
           {busy === "backfill"
             ? "Running…"
             : "Backfill 50 events (step-up)"}
-        </button>
+        </Button>
       </div>
       {/* Server-side, and only once the value is a complete uuid — the
           endpoint validates it as one, so sending a half-typed id would be a
@@ -1145,7 +1134,7 @@ function CustodyAttestationsPanel({
                       aria-label={`Verify attestation ${a.attestationId} for evidence ${a.evidenceId}`}
                       title="Re-checks this attestation's signature against its custody event and shows the report. Nothing is written."
                       data-testid={`verify-${a.attestationId}`}
- >
+                    >
                       {busy === a.attestationId ? "Verifying…" : "Verify"}
                     </button>
                   </td>
@@ -1163,7 +1152,7 @@ function CustodyAttestationsPanel({
             background: TOKENS.surfaceMuted,
           }}
           data-testid="verify-result"
- >
+        >
           <span
             style={badgeStyle(
               verifyResult.outcome === "verified"
@@ -1172,7 +1161,7 @@ function CustodyAttestationsPanel({
                   ? { bg: "var(--surface-muted)", fg: "var(--ink-secondary)", border: "var(--border-standard)" }
                   : { bg: "var(--danger-subtle-bg)", fg: "var(--danger-strong)", border: "var(--danger-border)" },
             )}
- >
+          >
             {verifyResult.outcome}
           </span>
           <p style={{ marginTop: 6, fontSize: 13 }}>{verifyResult.summary}</p>

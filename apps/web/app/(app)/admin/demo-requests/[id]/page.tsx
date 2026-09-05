@@ -259,13 +259,13 @@ export default function AdminDemoRequestDetailPage({
               data-variant="ghost"
               data-size="sm"
               style={buttonSurfaceStyle("ghost", "sm")}
- >
+            >
               ← Back to list
             </Link>
           }
         />
       }
- >
+            >
 
       <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
         <div className="flex flex-wrap items-center justify-end gap-3">
@@ -281,7 +281,7 @@ export default function AdminDemoRequestDetailPage({
               fontSize: 12,
               color: "var(--ink-secondary)",
             }}
- >
+          >
             <span
               style={{
                 fontWeight: 700,
@@ -289,7 +289,7 @@ export default function AdminDemoRequestDetailPage({
                 letterSpacing: "0.14em",
                 color: "var(--ink-muted)",
               }}
- >
+            >
               Request ID
             </span>
             <code
@@ -298,7 +298,7 @@ export default function AdminDemoRequestDetailPage({
                 fontSize: 12,
                 color: "var(--ink-primary)",
               }}
- >
+            >
               {id}
             </code>
             <Button
@@ -306,7 +306,7 @@ export default function AdminDemoRequestDetailPage({
               size="sm"
               onClick={() => void copyId()}
               aria-label="Copy request ID"
- >
+            >
               {copied ? "Copied" : "Copy"}
             </Button>
           </div>
@@ -337,7 +337,7 @@ export default function AdminDemoRequestDetailPage({
               <Link
                 href="/admin/demo-requests"
                 className="inline-flex items-center gap-2 rounded-full bg-[var(--ink-primary)] px-5 py-2 text-[13px] font-semibold text-white"
- >
+              >
                 Open list
               </Link>
             </div>
@@ -475,13 +475,13 @@ export default function AdminDemoRequestDetailPage({
               <Link
                 href={`/admin/demo-requests?id=${encodeURIComponent(state.details.id)}`}
                 className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-[var(--ink-primary)] px-5 py-2 text-[13px] font-semibold text-white hover:bg-[var(--ink-primary)]"
- >
+              >
                 Open full controls in list view
               </Link>
               <a
                 href={`mailto:${state.details.workEmail}`}
                 className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-[var(--border-default)] bg-white px-5 py-2 text-[13px] font-semibold text-[var(--ink-primary)] hover:bg-[var(--surface-header)]"
- >
+              >
                 Reply via email
               </a>
             </div>

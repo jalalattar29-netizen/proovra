@@ -115,7 +115,7 @@ function AdminAdoptionInner() {
                 marginTop: 2,
                 overflowWrap: "anywhere",
               }}
- >
+            >
               {row.source}
             </div>
           </div>
@@ -216,7 +216,7 @@ function AdminAdoptionInner() {
       <PageSection
         title="Capability adoption"
         description="Each row is derived from a single real backing table. 'Enabled' counts orgs/teams/rows with the capability active; 'Used' / 'Count' come from live row counts. Absent signals show 'Not measured' — never estimated."
- >
+      >
         <DataTable
           ariaLabel="Feature adoption by capability"
           columns={columns}

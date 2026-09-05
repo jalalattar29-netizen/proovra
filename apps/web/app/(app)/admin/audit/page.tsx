@@ -151,7 +151,7 @@ function AuditEntryDetails({ entry }: { entry: AuditRow }) {
           fontSize: 12.5,
           color: "var(--ink-secondary)",
         }}
- >
+      >
         {facts.map(([label, value]) => (
           <div key={label} style={{ minWidth: 0 }}>
             <dt style={{ fontSize: 11, color: "var(--ink-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
@@ -196,7 +196,7 @@ function AuditEntryDetails({ entry }: { entry: AuditRow }) {
               borderRadius: 10,
               padding: 12,
             }}
- >
+          >
             {meta.entries.map(([label, value]) => (
               <div key={label} style={{ minWidth: 0 }}>
                 <dt style={{ fontSize: 11, color: "var(--ink-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
@@ -259,13 +259,13 @@ function SummaryCard({
           textTransform: "uppercase",
           color: "var(--ink-muted)",
         }}
- >
+      >
         {label}
       </div>
       <div
         style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 10 }}
         data-metric-state={state}
- >
+      >
         <span
           style={{
             fontSize: state === "UNAVAILABLE" ? 17 : 30,
@@ -273,7 +273,7 @@ function SummaryCard({
             letterSpacing: "-0.02em",
             color: state === "UNAVAILABLE" ? "var(--ink-muted)" : "var(--ink-primary)",
           }}
- >
+        >
           {state === "UNAVAILABLE" ? "Unavailable" : value}
         </span>
         {/* A tile with no number has nothing to be verified or at risk about. */}
@@ -506,7 +506,7 @@ export default function AdminAuditPage() {
                 fontFamily: "var(--font-mono)",
                 overflowWrap: "anywhere",
               }}
- >
+            >
               {entry.action}
             </div>
             <div style={{ fontSize: 12, color: "var(--ink-muted)", overflowWrap: "anywhere" }}>
@@ -547,7 +547,7 @@ export default function AdminAuditPage() {
                   color: actor.unknown ? "var(--ink-muted)" : "var(--ink-primary)",
                   fontStyle: actor.unknown ? "italic" : "normal",
                 }}
- >
+              >
                 {actor.name}
               </span>
               <span style={{ color: "var(--ink-secondary)", fontSize: 11.5 }}>{actor.kind}</span>
@@ -592,7 +592,7 @@ export default function AdminAuditPage() {
         disabled={loading || cursors.length === 0}
         onClick={goPrevious}
         data-testid="admin-audit-previous"
- >
+      >
         Previous
       </Button>
       <Button
@@ -602,7 +602,7 @@ export default function AdminAuditPage() {
         disabled={loading || !hasMore || !nextCursor}
         onClick={goNext}
         data-testid="admin-audit-next"
- >
+      >
         Next
       </Button>
     </div>
@@ -629,7 +629,7 @@ export default function AdminAuditPage() {
                 disabled={exporting}
                 loading={exporting}
                 onClick={() => void exportAudit()}
- >
+              >
                 {exporting ? "Exporting…" : "Export CSV"}
               </Button>
               <Button variant="primary" onClick={() => void verifyChain()}>
@@ -639,7 +639,7 @@ export default function AdminAuditPage() {
           }
         />
       }
- >
+              >
 
       {/* A <p>, not a <div>: this is one running sentence, and the element
           says so — a reader in a screen reader hears a paragraph, and the
@@ -652,7 +652,7 @@ export default function AdminAuditPage() {
           color: "var(--ink-secondary)",
           lineHeight: 1.6,
         }}
- >
+      >
         This is the <strong style={{ color: "var(--ink-primary)" }}>tamper-evident admin audit log</strong> — a
         hash-chained record of privileged actions with chain-integrity verification. For the
         broader platform event feed (security events, incidents, org lifecycle, billing/team
@@ -660,7 +660,7 @@ export default function AdminAuditPage() {
         <Link
           href="/admin/timeline"
           style={{ color: "var(--accent-500)", fontWeight: 700, textDecoration: "underline" }}
- >
+        >
           Global timeline
         </Link>
         . The timeline is a broader, non-tamper-evident operational feed; this page is the
@@ -670,14 +670,14 @@ export default function AdminAuditPage() {
       <PageSection
         title="Audit summary"
         description="Rollup of the audit rows currently loaded in this view."
- >
+      >
         <div
           style={{
             display: "grid",
             gap: 16,
             gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
           }}
- >
+        >
           <SummaryCard
             label="Audit Entries"
             value={summary.total}
@@ -716,7 +716,7 @@ export default function AdminAuditPage() {
         <p
           data-audit-coverage
           style={{ marginTop: 12, fontSize: 13, color: "var(--silver-ink)" }}
- >
+        >
           {loadFailed
             ? "These rollups could not be counted — the audit log did not load, so no figure above is a measurement."
             : hasMore
@@ -731,7 +731,7 @@ export default function AdminAuditPage() {
           gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
           gap: 16,
         }}
- >
+      >
         <Card padding="comfortable" style={{ minWidth: 0 }}>
           <div style={{ fontSize: 16, fontWeight: 700, color: "var(--ink-primary)", letterSpacing: "-0.01em" }}>
             Chain Status
@@ -751,7 +751,7 @@ export default function AdminAuditPage() {
                   padding: 16,
                   minWidth: 0,
                 }}
- >
+              >
                 <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink-secondary)", overflowWrap: "anywhere" }}>
                   Verification unavailable
                 </div>
@@ -769,7 +769,7 @@ export default function AdminAuditPage() {
                   padding: 16,
                   minWidth: 0,
                 }}
- >
+              >
                 {/*
                   THE HEADLINE MAY NOT OUTRUN THE VERIFICATION.
                   The page always requests `?limit=1000`, so `partial: true` is
@@ -782,7 +782,7 @@ export default function AdminAuditPage() {
                 <div
                   style={{ display: "flex", alignItems: "center", gap: 10 }}
                   data-metric-state={verify.partial ? "PARTIAL" : "MEASURED"}
- >
+                >
                   <span style={{ fontSize: 15, fontWeight: 700, color: "var(--ink-primary)", overflowWrap: "anywhere" }}>
                     {verify.partial
                       ? "Audit chain tail verified"
@@ -810,7 +810,7 @@ export default function AdminAuditPage() {
                   padding: 16,
                   minWidth: 0,
                 }}
- >
+              >
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <span style={{ fontSize: 15, fontWeight: 700, color: "var(--ink-primary)", overflowWrap: "anywhere" }}>
                     Integrity issue detected
@@ -833,7 +833,7 @@ export default function AdminAuditPage() {
                 padding: 16,
                 minWidth: 0,
               }}
- >
+            >
               <div
                 style={{
                   fontSize: 11,
@@ -842,7 +842,7 @@ export default function AdminAuditPage() {
                   textTransform: "uppercase",
                   color: "var(--ink-muted)",
                 }}
- >
+              >
                 Current Snapshot
               </div>
 
@@ -853,7 +853,7 @@ export default function AdminAuditPage() {
                   gap: 12,
                   marginTop: 12,
                 }}
- >
+              >
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 12, color: "var(--ink-muted)" }}>Loaded rows</div>
                   <div
@@ -865,7 +865,7 @@ export default function AdminAuditPage() {
                       letterSpacing: "-0.02em",
                       overflowWrap: "anywhere",
                     }}
- >
+                  >
                     {summary.total}
                   </div>
                 </div>
@@ -881,7 +881,7 @@ export default function AdminAuditPage() {
                       letterSpacing: "-0.02em",
                       overflowWrap: "anywhere",
                     }}
- >
+                  >
                     {summary.publicCount}
                   </div>
                 </div>
@@ -907,7 +907,7 @@ export default function AdminAuditPage() {
                 borderRadius: 14,
                 padding: 16,
               }}
- >
+            >
               <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink-primary)" }}>
                 What you can check here
               </div>
@@ -920,7 +920,7 @@ export default function AdminAuditPage() {
                   color: "var(--ink-secondary)",
                   lineHeight: 1.7,
                 }}
- >
+              >
                 <div>• action names and categories</div>
                 <div>• outcome and severity markers</div>
                 <div>• linked request, resource, and user identifiers</div>
@@ -935,7 +935,7 @@ export default function AdminAuditPage() {
                 borderRadius: 14,
                 padding: 16,
               }}
- >
+            >
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <Badge tone={severityTone("low")}>Low / Info</Badge>
                 <Badge tone={severityTone("medium")}>Medium</Badge>
@@ -965,7 +965,7 @@ export default function AdminAuditPage() {
       <PageSection
         title="Recent Admin Actions"
         description="One line per audit row, newest first, in pages of 25. Open a row's details for its identifiers and raw metadata."
- >
+      >
         <FilterBar style={{ marginBottom: 16 }}>
           <FilterBar.Search
             label="Category"
@@ -1017,7 +1017,7 @@ export default function AdminAuditPage() {
               aria-expanded={isExpanded(entry.id)}
               data-admin-audit-details-toggle={entry.id}
               onClick={() => toggleExpanded(entry.id)}
- >
+            >
               {isExpanded(entry.id) ? "Hide details" : "Details"}
             </Button>
           )}

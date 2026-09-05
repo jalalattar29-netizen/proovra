@@ -167,7 +167,7 @@ export function SectionDescription({ text }: { text: string }) {
           cursor: "pointer",
           minHeight: 0,
         }}
- >
+      >
         {open ? "Show less" : "Read more"}
       </button>
     </>

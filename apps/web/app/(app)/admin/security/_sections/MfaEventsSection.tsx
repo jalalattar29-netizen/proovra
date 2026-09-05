@@ -342,7 +342,7 @@ export function MfaEventsSection() {
           Refresh
         </Button>
       }
- >
+    >
       <h3 style={{ fontSize: 13, fontWeight: 700, margin: "0 0 8px" }}>
         Workspace MFA events
       </h3>

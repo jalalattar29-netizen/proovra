@@ -113,7 +113,7 @@ export function RunbookCatalogNav({ activeSlug }: { activeSlug?: string }) {
             type="button"
             className="rb-search__clear"
             onClick={() => setQuery("")}
- >
+          >
             clear the filter
           </button>
           .
@@ -135,7 +135,7 @@ export function RunbookCatalogNav({ activeSlug }: { activeSlug?: string }) {
                       // here"; the inline-start rule in CSS is the visual one.
                       // Colour alone would say it to only some readers.
                       aria-current={r.slug === activeSlug ? "page" : undefined}
- >
+                    >
                       {r.title}
                       <span className="rb-nav-slug">{r.slug}</span>
                     </Link>

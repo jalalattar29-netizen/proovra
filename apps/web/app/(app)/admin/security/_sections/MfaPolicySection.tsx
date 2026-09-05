@@ -39,7 +39,6 @@ import {
   useStepUpAction,
 } from "../../../../../components/identity-security/StepUpModal";
 import {
-  choiceRowStyle,
   NoWorkspaceSelected,
   SectionDenied,
   SectionDescription,
@@ -305,7 +304,7 @@ export function MfaPolicySection() {
             variant="secondary"
             onClick={() => setDraft({})}
             disabled={busy || !dirty}
- >
+          >
             Discard changes
           </Button>
           <Button
@@ -314,12 +313,12 @@ export function MfaPolicySection() {
             loading={busy}
             disabled={busy || !dirty}
             data-mfa-policy-save
- >
+          >
             {busy ? "Saving…" : "Save MFA policy"}
           </Button>
         </div>
       }
- >
+          >
       {conflict ? (
         <Card
           variant="status"
@@ -327,7 +326,7 @@ export function MfaPolicySection() {
           padding="compact"
           style={{ marginBottom: 12 }}
           data-mfa-policy-conflict
- >
+        >
           <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>
             Reloaded — review and retry
           </p>
@@ -347,8 +346,8 @@ export function MfaPolicySection() {
               {LEVELS.map((l) => (
                 <label
                   key={l.value}
-                  style={choiceRowStyle}
- >
+                  className="adm-choice"
+                >
                   <input
                     type="radio"
                     name="mfa-policy-level"
@@ -370,7 +369,7 @@ export function MfaPolicySection() {
               gap: 12,
               gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
             }}
- >
+          >
             <label>
               <span style={sectionLabelStyle}>
                 Step-up validity (seconds, 60–3600)
@@ -421,8 +420,8 @@ export function MfaPolicySection() {
               {FAIL_MODES.map((m) => (
                 <label
                   key={m.value}
-                  style={choiceRowStyle}
- >
+                  className="adm-choice"
+                >
                   <input
                     type="radio"
                     name="mfa-fail-mode"

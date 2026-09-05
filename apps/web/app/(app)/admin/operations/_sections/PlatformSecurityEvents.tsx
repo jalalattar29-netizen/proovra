@@ -214,7 +214,7 @@ export function PlatformSecurityEvents() {
         disabled={loading || cursors.length === 0}
         onClick={goPrevious}
         data-testid="admin-security-events-previous"
- >
+      >
         Previous
       </Button>
       <Button
@@ -223,7 +223,7 @@ export function PlatformSecurityEvents() {
         disabled={loading || !hasMore || !nextCursor}
         onClick={goNext}
         data-testid="admin-security-events-next"
- >
+      >
         Next
       </Button>
     </div>
@@ -233,7 +233,7 @@ export function PlatformSecurityEvents() {
     <PageSection
       title="Security events"
       description="High-severity security events and privileged admin actions, aggregated across every workspace. Read-only. No raw IP address, user-agent string or audit metadata is returned by the API."
- >
+    >
       <FilterBar>
         <FilterBar.Select
           label="Severity"
@@ -253,7 +253,7 @@ export function PlatformSecurityEvents() {
             applyFilters();
           }}
           style={{ display: "contents" }}
- >
+        >
           <FilterBar.Search
             label="Event type"
             value={eventType}

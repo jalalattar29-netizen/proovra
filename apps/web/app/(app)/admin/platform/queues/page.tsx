@@ -43,11 +43,13 @@ import {
   StepUpModal,
   useStepUpAction,
 } from "../../../../../components/identity-security/StepUpModal";
-import { badgeStyle, formatDateTime, primaryButtonStyle, TOKENS } from "../../identity/ui-tokens";
 import { ResultCount } from "../../../../../components/ui/ResultCount";
 import {
   AdmInline,
 } from "../../../../../components/admin/AdminSurfaces";
+import { Badge } from "../../../../../components/ui/Badge";
+import { Button } from "../../../../../components/ui/Button";
+import { TOKENS, badgeStyle, formatDateTime } from "../../identity/ui-tokens";
 
 type QueueInventoryItem = {
   queueName: string;
@@ -365,14 +367,14 @@ function OperationsQueuesContent() {
 
 function healthBadge(h: QueueInventoryItem["health"]) {
   if (h === "healthy")
-    return badgeStyle({ bg: "var(--success-subtle-bg)", fg: "var(--success-strong)", border: "var(--success-border)" });
+    return "verified";
   if (h === "degraded")
-    return badgeStyle({ bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" });
+    return "pending";
   if (h === "outage")
-    return badgeStyle({ bg: "var(--danger-subtle-bg)", fg: "var(--danger-strong)", border: "var(--danger-border)" });
+    return "risk";
   if (h === "disabled")
-    return badgeStyle({ bg: "var(--surface-muted)", fg: "var(--ink-secondary)", border: "var(--border-standard)" });
-  return badgeStyle({ bg: "var(--surface-muted)", fg: "var(--ink-secondary)", border: "var(--border-standard)" });
+    return "neutral";
+  return "neutral";
 }
 
 function QueueOverviewCards({
@@ -400,7 +402,7 @@ function QueueOverviewCards({
         marginTop: 16,
       }}
       data-testid="queue-overview"
- >
+    >
       {queues.map((q) => {
         const isSelected = selectedQueue === q.queueName;
         return (
@@ -408,23 +410,26 @@ function QueueOverviewCards({
             key={q.queueName}
             type="button"
             onClick={() => onSelect(q.queueName)}
-            className="adm-card" style={{ cursor: "pointer",
+            className="adm-card"
+            style={{
+              cursor: "pointer",
               textAlign: "left",
               border: isSelected
                 ? `2px solid ${TOKENS.accent}`
                 : `1px solid ${TOKENS.border}`,
               background: TOKENS.surface,
-              padding: 12 }}
- >
+              padding: 12,
+            }}
+          >
             <div
               style={{
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
               }}
- >
+            >
               <strong style={{ fontSize: 13 }}>{q.label}</strong>
-              <span style={healthBadge(q.health)}>{q.health}</span>
+              <Badge tone={healthBadge(q.health)}>{q.health}</Badge>
             </div>
             <div className="adm-help" style={{ marginTop: 6, fontSize: 11 }}>
               {q.queueName}
@@ -436,7 +441,7 @@ function QueueOverviewCards({
                 marginTop: 8,
                 fontSize: 12,
               }}
- >
+            >
               <span>
                 <strong>{q.counts.waiting}</strong> waiting
               </span>
@@ -447,7 +452,7 @@ function QueueOverviewCards({
                 style={{
                   color: q.counts.failed > 0 ? "var(--danger-strong)" : TOKENS.inkMuted,
                 }}
- >
+              >
                 <strong>{q.counts.failed}</strong> failed
               </span>
               {q.stalledCount > 0 ? (
@@ -471,10 +476,13 @@ function WorkerHealthPanel({ workers }: { workers: WorkerHealthRow[] | null }) {
   if (degradedOrMissing.length === 0) {
     return (
       <section
-        className="adm-card" style={{ marginTop: 12,
+        className="adm-card"
+        style={{
+          marginTop: 12,
           background: "var(--success-subtle-bg)",
-          border: "1px solid var(--success-border)" }}
- >
+          border: "1px solid var(--success-border)",
+        }}
+      >
         <span style={{ fontSize: 13, color: "var(--success-strong)" }}>
           All workers reporting healthy.
         </span>
@@ -485,7 +493,7 @@ function WorkerHealthPanel({ workers }: { workers: WorkerHealthRow[] | null }) {
     <section
       className="adm-card" style={{ marginTop: 12 }}
       data-testid="worker-health"
- >
+    >
       <h2 className="apf-section-title">Worker health</h2>
       <div className="apf-table-wrap">
         <table className="adm-table">
@@ -512,7 +520,7 @@ function WorkerHealthPanel({ workers }: { workers: WorkerHealthRow[] | null }) {
                         ? { bg: "var(--danger-subtle-bg)", fg: "var(--danger-strong)", border: "var(--danger-border)" }
                         : { bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" },
                     )}
- >
+                  >
                     {w.status}
                   </span>
                 </td>
@@ -533,12 +541,12 @@ function WorkerHealthPanel({ workers }: { workers: WorkerHealthRow[] | null }) {
 
 function categoryBadge(c: ReplayCategory) {
   if (c === "safe")
-    return badgeStyle({ bg: "var(--success-subtle-bg)", fg: "var(--success-strong)", border: "var(--success-border)" });
+    return "verified";
   if (c === "requires_step_up")
-    return badgeStyle({ bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" });
+    return "pending";
   if (c === "forbidden")
-    return badgeStyle({ bg: "var(--danger-subtle-bg)", fg: "var(--danger-strong)", border: "var(--danger-border)" });
-  return badgeStyle({ bg: "var(--surface-muted)", fg: "var(--ink-secondary)", border: "var(--border-standard)" });
+    return "risk";
+  return "neutral";
 }
 
 function FailedJobsPanel({
@@ -564,7 +572,7 @@ function FailedJobsPanel({
     <section
       className="adm-card" style={{ marginTop: 12, padding: 0 }}
       data-testid="failed-jobs-panel"
- >
+    >
       <div
         style={{
           padding: 12,
@@ -573,7 +581,7 @@ function FailedJobsPanel({
           justifyContent: "space-between",
           alignItems: "center",
         }}
- >
+      >
         <strong style={{ fontSize: 14 }}>Failed jobs · {queueName}</strong>
       </div>
       {jobs === null ? (
@@ -615,7 +623,7 @@ function FailedJobsPanel({
                     </td>
                     <td>{j.jobName}</td>
                     <td>
-                      <span style={categoryBadge(cat)}>{cat}</span>
+                      <Badge tone={categoryBadge(cat)}>{cat}</Badge>
                     </td>
                     <td>
                       <span className="apf-muted">
@@ -633,7 +641,7 @@ function FailedJobsPanel({
                           fontFamily: "monospace",
                           color: TOKENS.inkMuted,
                         }}
- >
+                      >
                         {j.failureReason}
                       </span>
                     </td>
@@ -650,7 +658,7 @@ function FailedJobsPanel({
                           className="apf-control"
                           disabled={busyJobId !== null}
                           onClick={() => onPickReplay(j, cat)}
- >
+                        >
                           Replay…
                         </button>
                       )}
@@ -709,14 +717,14 @@ function ReplayDialog({
         padding: 16,
         zIndex: 60,
       }}
- >
+    >
       <header
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
         }}
- >
+      >
         <strong style={{ fontSize: 14 }}>Replay job</strong>
         <button type="button" className="apf-control" onClick={onCancel}>
           Close
@@ -727,7 +735,7 @@ function ReplayDialog({
           {target.jobName} · {target.jobId.slice(0, 24)}
         </code>
         <span style={{ marginInlineStart: 8 }}>
-          <span style={categoryBadge(target.category)}>{target.category}</span>
+          <Badge tone={categoryBadge(target.category)}>{target.category}</Badge>
         </span>
       </p>
       {/* What each button does to THIS job, before the operator picks one.
@@ -758,21 +766,19 @@ function ReplayDialog({
           className="apf-control"
           onClick={onRetry}
           disabled={busy || reason.trim().length === 0}
- >
+        >
           {busy ? "Retrying…" : "Retry attempt"}
         </button>
-        <button
-          type="button"
-          style={primaryButtonStyle}
+        <Button variant="primary" size="sm"
           onClick={onReplay}
           disabled={busy || reason.trim().length === 0}
- >
+        >
           {busy
             ? "Replaying…"
             : target.category === "requires_step_up"
               ? "Replay (step-up)"
               : "Replay"}
-        </button>
+        </Button>
       </div>
       {target.category === "requires_step_up" ? (
         <p className="adm-help" style={{ marginTop: 8 }}>

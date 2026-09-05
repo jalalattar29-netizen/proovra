@@ -231,20 +231,20 @@ export function SessionGovernanceSection({ stepUp }: { stepUp: StepUpControl }) 
     <PageSection
       title="Session governance"
       description="Revoke a single external contributor session, or run the same reconciliation sweeps the scheduler runs and see exactly what changed."
- >
+    >
       <div
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
           gap: 12,
         }}
- >
+      >
         <Card
           variant="admin"
           padding="comfortable"
           title="Contributor session"
           data-identity-contributor-session-panel
- >
+        >
           <p className="adm-help" style={{ marginTop: 0 }}>
             Contributor sessions belong to intake links, not to members. Copy the
             session id from the intake surface; a session from another
@@ -275,7 +275,7 @@ export function SessionGovernanceSection({ stepUp }: { stepUp: StepUpControl }) 
               disabled={revokeBusy || sessionId.trim().length === 0}
               loading={revokeBusy}
               onClick={() => void revokeContributor()}
- >
+            >
               Revoke session
             </Button>
           </div>
@@ -283,7 +283,7 @@ export function SessionGovernanceSection({ stepUp }: { stepUp: StepUpControl }) 
             <div
               data-identity-contributor-session-failure={revokeFailure.kind}
               className="adm-help" style={{ marginTop: 8, color: "var(--danger-strong)" }}
- >
+            >
               {revokeFailure.message}
             </div>
           ) : null}
@@ -291,7 +291,7 @@ export function SessionGovernanceSection({ stepUp }: { stepUp: StepUpControl }) 
             <div
               data-identity-contributor-session-result
               style={{ marginTop: 10, fontSize: 12 }}
- >
+            >
               <StatusBadge status={revoked.status} />
               <div className="adm-help" style={{ marginTop: 4 }}>
                 revoked {fmt(revoked.revokedAtUtc)}
@@ -306,7 +306,7 @@ export function SessionGovernanceSection({ stepUp }: { stepUp: StepUpControl }) 
           padding="comfortable"
           title="Stale session reconcile"
           data-identity-reconcile-stale-panel
- >
+        >
           <p className="adm-help" style={{ marginTop: 0 }}>
             Revokes sessions idle beyond the workspace threshold and clears
             abandoned sign-in attempts.
@@ -318,14 +318,14 @@ export function SessionGovernanceSection({ stepUp }: { stepUp: StepUpControl }) 
             disabled={staleBusy}
             loading={staleBusy}
             onClick={() => void reconcileStale()}
- >
+          >
             Run stale reconcile
           </Button>
           {staleFailure ? (
             <div
               data-identity-reconcile-stale-failure={staleFailure.kind}
               className="adm-help" style={{ marginTop: 8, color: "var(--danger-strong)" }}
- >
+            >
               {staleFailure.message}
             </div>
           ) : null}
@@ -333,7 +333,7 @@ export function SessionGovernanceSection({ stepUp }: { stepUp: StepUpControl }) 
             <ul
               data-identity-reconcile-stale-result
               className="adm-help" style={{ marginTop: 10, paddingInlineStart: 18 }}
- >
+            >
               <li>{staleResult.sessions.scanned} sessions scanned</li>
               <li>{staleResult.sessions.staleDetected} found stale</li>
               <li>{staleResult.sessions.swept} revoked</li>
@@ -350,7 +350,7 @@ export function SessionGovernanceSection({ stepUp }: { stepUp: StepUpControl }) 
           padding="comfortable"
           title="Runtime reconcile"
           data-identity-reconcile-runtime-panel
- >
+        >
           <p className="adm-help" style={{ marginTop: 0 }}>
             Recomputes session risk, decays stale trusted devices, releases
             elapsed quarantines, sweeps the geo cache.
@@ -362,14 +362,14 @@ export function SessionGovernanceSection({ stepUp }: { stepUp: StepUpControl }) 
             disabled={runtimeBusy}
             loading={runtimeBusy}
             onClick={() => void reconcileRuntime()}
- >
+          >
             Run runtime reconcile
           </Button>
           {runtimeFailure ? (
             <div
               data-identity-reconcile-runtime-failure={runtimeFailure.kind}
               className="adm-help" style={{ marginTop: 8, color: "var(--danger-strong)" }}
- >
+            >
               {runtimeFailure.message}
             </div>
           ) : null}
@@ -377,7 +377,7 @@ export function SessionGovernanceSection({ stepUp }: { stepUp: StepUpControl }) 
             <ul
               data-identity-reconcile-runtime-result
               className="adm-help" style={{ marginTop: 10, paddingInlineStart: 18 }}
- >
+            >
               <li>
                 {runtimeResult.risk.recomputed} of {runtimeResult.risk.scanned}{" "}
                 sessions re-scored ({runtimeResult.risk.highRiskCount} high risk,{" "}

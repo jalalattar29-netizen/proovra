@@ -281,7 +281,7 @@ export default function AdminContactSalesPage() {
           subtitle="Submissions from the public /contact-sales form. Records persist even when the notification email is unavailable, so operators can replay any missed delivery from the table below."
         />
       }
- >
+        >
 
       <Card>
         {summary ? (
@@ -324,7 +324,7 @@ export default function AdminContactSalesPage() {
                         color: "var(--ink-secondary)",
                         transition: "background 120ms ease, border-color 120ms ease",
                       }}
- >
+                    >
                       <span
                         aria-hidden="true"
                         style={{
@@ -354,7 +354,7 @@ export default function AdminContactSalesPage() {
             alignItems: "flex-end",
             gap: 12,
           }}
- >
+        >
           <Input
             value={search}
             onChange={(v) => setSearch(v)}
@@ -381,7 +381,7 @@ export default function AdminContactSalesPage() {
               setStatusFilter("");
               setSearch("");
             }}
- >
+          >
             Reset
           </Button>
         </div>
@@ -396,7 +396,7 @@ export default function AdminContactSalesPage() {
               textAlign: "left",
               fontSize: 13.5,
             }}
- >
+          >
             <thead style={{ background: "var(--surface-muted)" }}>
               <tr
                 style={{
@@ -406,7 +406,7 @@ export default function AdminContactSalesPage() {
                   textTransform: "uppercase",
                   color: "var(--ink-secondary)",
                 }}
- >
+              >
                 <th style={{ padding: "12px 20px" }}>Submitted</th>
                 <th style={{ padding: "12px 20px" }}>Name</th>
                 <th style={{ padding: "12px 20px" }}>Organization</th>
@@ -424,7 +424,7 @@ export default function AdminContactSalesPage() {
                     <tr
                       key={i}
                       style={{ borderTop: "1px solid var(--border-default)" }}
- >
+                    >
                       <td style={{ padding: "12px 20px" }} colSpan={9}>
                         <Skeleton height="18px" />
                       </td>
@@ -440,7 +440,7 @@ export default function AdminContactSalesPage() {
                             color: "var(--ink-muted)",
                           }}
                           colSpan={9}
- >
+                        >
                           No contact-sales inquiries match your filters.
                         </td>
                       </tr>
@@ -449,13 +449,13 @@ export default function AdminContactSalesPage() {
                       <tr
                         key={it.id}
                         style={{ borderTop: "1px solid var(--border-default)" }}
- >
+                      >
                         <td
                           style={{
                             padding: "12px 20px",
                             color: "var(--ink-secondary)",
                           }}
- >
+                        >
                           {formatTimestamp(it.createdAt)}
                         </td>
                         <td style={{ padding: "12px 20px" }}>
@@ -464,7 +464,7 @@ export default function AdminContactSalesPage() {
                               fontWeight: 600,
                               color: "var(--ink-primary)",
                             }}
- >
+                          >
                             {it.fullName}
                           </div>
                           <div
@@ -472,7 +472,7 @@ export default function AdminContactSalesPage() {
                               fontSize: 12,
                               color: "var(--ink-secondary)",
                             }}
- >
+                          >
                             {it.workEmail}
                           </div>
                         </td>
@@ -481,7 +481,7 @@ export default function AdminContactSalesPage() {
                             padding: "12px 20px",
                             color: "var(--ink-primary)",
                           }}
- >
+                        >
                           {it.organization}
                         </td>
                         <td
@@ -489,7 +489,7 @@ export default function AdminContactSalesPage() {
                             padding: "12px 20px",
                             color: "var(--ink-secondary)",
                           }}
- >
+                        >
                           {it.discussionTopic}
                         </td>
                         <td
@@ -497,7 +497,7 @@ export default function AdminContactSalesPage() {
                             padding: "12px 20px",
                             color: "var(--ink-secondary)",
                           }}
- >
+                        >
                           {it.stage}
                         </td>
                         <td style={{ padding: "12px 20px" }}>
@@ -512,7 +512,7 @@ export default function AdminContactSalesPage() {
                             fontSize: 12,
                             color: "var(--ink-muted)",
                           }}
- >
+                        >
                           {it.emailSentAt ? "Sent" : "—"}
                         </td>
                         <td style={{ padding: "12px 20px", textAlign: "right" }}>
@@ -522,12 +522,12 @@ export default function AdminContactSalesPage() {
                               alignItems: "center",
                               gap: 8,
                             }}
- >
+                          >
                             <Button
                               variant="secondary"
                               size="sm"
                               onClick={() => openDetails(it.id)}
- >
+                            >
                               Quick view
                             </Button>
                             <Link
@@ -536,7 +536,7 @@ export default function AdminContactSalesPage() {
                                 listParams?.toString() ?? null,
                               )}
                               style={{ textDecoration: "none" }}
- >
+                            >
                               <Button variant="ghost" size="sm">
                                 Open →
                               </Button>
@@ -577,11 +577,11 @@ export default function AdminContactSalesPage() {
                 setSelectedId(null);
                 setDetails(null);
               }}
- >
+            >
               Close
             </Button>
           }
- >
+            >
           {details ? (
             <div
               style={{
@@ -589,7 +589,7 @@ export default function AdminContactSalesPage() {
                 gap: 24,
                 gridTemplateColumns: "minmax(0, 1fr) 320px",
               }}
- >
+            >
               <div
                 style={{
                   display: "flex",
@@ -599,7 +599,7 @@ export default function AdminContactSalesPage() {
                   color: "var(--ink-primary)",
                   minWidth: 0,
                 }}
- >
+              >
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                   <StatusPill value={details.status} />
                   <PriorityPill value={details.priority} />
@@ -610,7 +610,7 @@ export default function AdminContactSalesPage() {
                   <FieldLabel>Email</FieldLabel>
                   <div
                     style={{ marginTop: 4, color: "var(--ink-primary)" }}
- >
+                  >
                     {details.workEmail}
                   </div>
                 </div>
@@ -621,7 +621,7 @@ export default function AdminContactSalesPage() {
                     gap: 12,
                     gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
                   }}
- >
+                >
                   <Field label="Job title" value={details.jobTitle} />
                   <Field label="Country" value={details.country} />
                   <Field label="Workspace size" value={details.teamSize} />
@@ -649,7 +649,7 @@ export default function AdminContactSalesPage() {
                       lineHeight: 1.6,
                       color: "var(--ink-primary)",
                     }}
- >
+                  >
                     {details.currentChallenge}
                   </p>
                 </div>
@@ -669,7 +669,7 @@ export default function AdminContactSalesPage() {
                         lineHeight: 1.6,
                         color: "var(--ink-primary)",
                       }}
- >
+                    >
                       {details.additionalDetails}
                     </p>
                   </div>
@@ -684,7 +684,7 @@ export default function AdminContactSalesPage() {
                   fontSize: 12.5,
                   color: "var(--ink-secondary)",
                 }}
- >
+              >
                 <Field
                   label="Submitted"
                   value={formatTimestamp(details.createdAt)}
@@ -711,7 +711,7 @@ export default function AdminContactSalesPage() {
                     borderTop: "1px solid var(--border-default)",
                     paddingTop: 12,
                   }}
- >
+                >
                   <FieldLabel>Set status</FieldLabel>
                   <div
                     style={{
@@ -720,7 +720,7 @@ export default function AdminContactSalesPage() {
                       flexWrap: "wrap",
                       gap: 8,
                     }}
- >
+                  >
                     {commercialStatusActions(details.status).map((rule) => (
                       <Button
                         key={rule.to}
@@ -740,7 +740,7 @@ export default function AdminContactSalesPage() {
                         title={rule.effect}
                         data-testid={`contact-sales-status-${rule.to.toLowerCase()}`}
                         onClick={() => void patchStatus(rule.to)}
- >
+                      >
                         {COMMERCIAL_STATUS_LABEL[rule.to]}
                       </Button>
                     ))}
@@ -765,7 +765,7 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
         textTransform: "uppercase",
         color: "var(--ink-muted)",
       }}
- >
+    >
       {children}
     </div>
   );

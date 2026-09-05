@@ -164,7 +164,7 @@ function MetricCard({
           justifyContent: "space-between",
           gap: 12,
         }}
- >
+      >
         <div
           style={{
             fontSize: 11,
@@ -173,7 +173,7 @@ function MetricCard({
             textTransform: "uppercase",
             color: "var(--ink-muted)",
           }}
- >
+        >
           {label}
         </div>
         <Badge tone={tone} subtle>
@@ -191,7 +191,7 @@ function MetricCard({
             ? "var(--ink-muted)"
             : "var(--ink-primary)",
         }}
- >
+      >
         {formatValue(value)}
       </div>
       {note ? (
@@ -202,7 +202,7 @@ function MetricCard({
             lineHeight: 1.5,
             color: "var(--ink-secondary)",
           }}
- >
+        >
           {note}
         </div>
       ) : null}
@@ -228,7 +228,7 @@ function CohortCard({ c }: { c: CohortCount }) {
       data-cohort={c.cohort}
       data-count={c.count == null ? "unmeasured" : String(c.count)}
       data-retryable={String(c.retryable)}
- >
+    >
       <div
         style={{
           display: "flex",
@@ -236,7 +236,7 @@ function CohortCard({ c }: { c: CohortCount }) {
           justifyContent: "space-between",
           gap: 12,
         }}
- >
+      >
         <div
           style={{
             fontSize: 11,
@@ -245,7 +245,7 @@ function CohortCard({ c }: { c: CohortCount }) {
             textTransform: "uppercase",
             color: "var(--ink-muted)",
           }}
- >
+        >
           {c.label}
         </div>
         {/* The disposition, not the severity. "Retryable" is the fact an
@@ -266,7 +266,7 @@ function CohortCard({ c }: { c: CohortCount }) {
             ? "var(--ink-muted)"
             : "var(--ink-primary)",
         }}
- >
+      >
         {unmeasured ? "Not measured" : String(c.count)}
       </div>
 
@@ -278,7 +278,7 @@ function CohortCard({ c }: { c: CohortCount }) {
             fontWeight: 600,
             color: "var(--ink-muted)",
           }}
- >
+        >
           Overlaps the three cohorts above — do not add to them.
         </div>
       ) : null}
@@ -290,7 +290,7 @@ function CohortCard({ c }: { c: CohortCount }) {
           lineHeight: 1.5,
           color: "var(--ink-secondary)",
         }}
- >
+      >
         {c.description}
       </div>
 
@@ -303,7 +303,7 @@ function CohortCard({ c }: { c: CohortCount }) {
           lineHeight: 1.5,
           color: "var(--ink-secondary)",
         }}
- >
+      >
         <strong style={{ color: "var(--ink-primary)" }}>Action:</strong>{" "}
         {c.operatorAction}
         {/*
@@ -338,7 +338,7 @@ function CohortCard({ c }: { c: CohortCount }) {
           flexWrap: "wrap",
           fontSize: 13,
         }}
- >
+      >
         {/* admin-hit-link: 44px hit boxes; the card footer keeps its height
             (admin-console.css). */}
         {unmeasured ? null : (
@@ -346,7 +346,7 @@ function CohortCard({ c }: { c: CohortCount }) {
             href={c.drillDown}
             data-testid={`cohort-drilldown-${c.cohort}`}
             className="admin-hit-link"
- >
+          >
             View {c.count} record{c.count === 1 ? "" : "s"}
           </Link>
         )}
@@ -354,7 +354,7 @@ function CohortCard({ c }: { c: CohortCount }) {
           <Link
             href={`/admin/platform/runbooks/${resolveRunbookSlug(c.runbookSlug)}`}
             className="admin-hit-link"
- >
+          >
             Runbook
           </Link>
         ) : null}
@@ -446,7 +446,7 @@ export default function AdminEvidenceOpsPage() {
           }
         />
       }
- >
+        >
 
       {error ? (
         <Card variant="status" tone="risk" padding="comfortable">
@@ -459,7 +459,7 @@ export default function AdminEvidenceOpsPage() {
               fontSize: 13.5,
               color: "var(--ink-secondary)",
             }}
- >
+          >
             {error}
           </div>
         </Card>
@@ -491,7 +491,7 @@ export default function AdminEvidenceOpsPage() {
             <PageSection
               title="Records needing attention"
               description="Records, counted once each. A record can carry more than one failure, so the three cohorts below are disjoint and the totals after them are measured unions — never sums."
- >
+            >
               <div style={COHORT_GRID}>
                 {COHORT_ORDER.map((key) => {
                   const c = cohorts.cohorts.find((x) => x.cohort === key);
@@ -514,7 +514,7 @@ export default function AdminEvidenceOpsPage() {
                       : "var(--ink-muted)",
                 }}
                 data-arithmetic-agrees={String(cohorts.arithmetic.agrees)}
- >
+              >
                 {cohorts.arithmetic.agrees === true ? (
                   <>
                     Checked: {cohorts.arithmetic.disjointSum} disjoint records
@@ -550,7 +550,7 @@ export default function AdminEvidenceOpsPage() {
           <PageSection
             title="Uploads"
             description="In-flight and failed upload sessions across the platform."
- >
+          >
             <div style={GRID}>
               <MetricCard
                 label="Uploads in progress"
@@ -576,7 +576,7 @@ export default function AdminEvidenceOpsPage() {
           <PageSection
             title="Evidence"
             description={`Created, signed, and gaps. Windowed count covers the last ${snapshot.windowHours}h.`}
- >
+          >
             <div style={GRID}>
               <MetricCard
                 label="Evidence created"
@@ -614,7 +614,7 @@ export default function AdminEvidenceOpsPage() {
           <PageSection
             title="Reports & packages"
             description="Report generation, verification-package backlog, and queued work."
- >
+          >
             <div style={GRID}>
               <MetricCard
                 label="Failed report generation"
@@ -652,7 +652,7 @@ export default function AdminEvidenceOpsPage() {
           <PageSection
             title="Cryptographic timestamping"
             description="RFC-3161 TSA and OpenTimestamps anchoring failures, from evidence status."
- >
+          >
             <div style={GRID}>
               <MetricCard
                 label="TSA failures"
@@ -672,7 +672,7 @@ export default function AdminEvidenceOpsPage() {
           <PageSection
             title="Open incidents"
             description="Open or acknowledged operational incidents by evidence-relevant category."
- >
+          >
             <div style={GRID}>
               <MetricCard
                 label="Report incidents"
@@ -708,19 +708,19 @@ export default function AdminEvidenceOpsPage() {
                   onClick={() => {
                     window.location.href = wq.detailHref;
                   }}
- >
+                >
                   Open queue console
                 </Button>
               ) : undefined
             }
- >
+                >
             <Card
               variant="status"
               tone={
                 wq == null ? "neutral" : queueDegraded ? "risk" : "verified"
               }
               padding="comfortable"
- >
+            >
               <div
                 style={{
                   display: "flex",
@@ -728,13 +728,13 @@ export default function AdminEvidenceOpsPage() {
                   gap: 10,
                   flexWrap: "wrap",
                 }}
- >
+              >
                 <Badge
                   tone={
                     wq == null ? "neutral" : queueDegraded ? "risk" : "verified"
                   }
                   dot
- >
+                >
                   {wq == null
                     ? "Not connected"
                     : queueDegraded
@@ -746,7 +746,7 @@ export default function AdminEvidenceOpsPage() {
                     fontSize: 13,
                     color: "var(--ink-secondary)",
                   }}
- >
+                >
                   {wq == null
                     ? "Queue inventory is unreachable (worker/Redis not connected)."
                     : `${formatValue(wq.queueCount)} queues monitored.`}
@@ -777,7 +777,7 @@ export default function AdminEvidenceOpsPage() {
               fontSize: 12,
               color: "var(--ink-muted)",
             }}
- >
+          >
             Snapshot generated{" "}
             {formatUserDateTime(snapshot.generatedAtUtc)} · read-only ·
             counts only, no evidence contents.

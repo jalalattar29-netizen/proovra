@@ -245,7 +245,7 @@ useEffect(() => {
           subtitle={"Internal-only view of upload session health for the ACTIVE WORKSPACE — not a platform-wide total. Stalled, failed, and review-required uploads are NEVER auto-deleted. Operator actions move the session through the canonical state machine without mutating the underlying evidence row, custody chain, or stored bytes."}
         />
       }
- >
+        >
 
       {error ? <div className="apf-note" data-tone="critical">{error}</div> : null}
 
@@ -273,7 +273,7 @@ useEffect(() => {
               <Stat label="Completed" value={String(headlineCounts.completed)} />
               <Stat label="Abandoned" value={String(headlineCounts.abandoned)} />
             </div>
-            <p style={{ ...mutedStyle, marginTop: 12 }}>
+            <p className="adm-help" style={{ marginTop: 12 }}>
               Stalled threshold: {summary.thresholds.stalledMinutes} minutes
               · Abandoned threshold: {summary.thresholds.abandonedHours} hours
               · Max upload size: {formatBytes(summary.sizeLimits.maxUploadFileSizeBytes)}
@@ -289,7 +289,7 @@ useEffect(() => {
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="apf-control"
- >
+              >
                 {STATUSES.map((s) => (
                   <option key={s} value={s}>
                     {s} ({summary.counts[s] ?? 0})
@@ -326,7 +326,7 @@ useEffect(() => {
                         className="apf-control"
                         disabled={busyEvidenceId === s.evidenceId}
                         onClick={() => requestReview(s.evidenceId)}
- >
+                      >
                         Request review
                       </button>
                     ) : null}
@@ -336,7 +336,7 @@ useEffect(() => {
                         className="apf-control"
                         disabled={busyEvidenceId === s.evidenceId}
                         onClick={() => markAbandoned(s.evidenceId)}
- >
+                      >
                         Mark abandoned
                       </button>
                     ) : null}
@@ -394,7 +394,7 @@ function Stat({
           // The product warning ink, not a literal amber - see `--tone-orange`.
           color: tone === "warn" ? "var(--orange-500)" : "var(--ink-primary)",
         }}
- >
+      >
         {value}
       </div>
       <div className="apf-muted">{label}</div>
@@ -416,7 +416,6 @@ function formatBytes(n: number): string {
 // Styles
 // -----------------------------------------------------------------------------
 
-const mutedStyle: React.CSSProperties = { fontSize: 13, color: "var(--ink-muted)" };
 const listStyle: React.CSSProperties = { listStyle: "none", padding: 0, margin: 0 };
 
 function statusBadgeStyle(status: string): React.CSSProperties {

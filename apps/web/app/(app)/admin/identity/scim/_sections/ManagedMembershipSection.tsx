@@ -84,12 +84,6 @@ const OWNERSHIP_COPY: Record<Ownership, { label: string; tone: "verified" | "ris
     UNRESOLVED: { label: "Ownership could not be confirmed", tone: "risk" },
   };
 
-const mutedStyle = {
-  fontSize: 12.5,
-  lineHeight: 1.55,
-  color: "var(--ink-secondary)",
-} as const;
-
 type Phase =
   | { kind: "loading" }
   | { kind: "denied"; title: string; detail: string }
@@ -163,7 +157,7 @@ export function ManagedMembershipSection({ teamId }: { teamId: string }) {
       render: (m) => (
         <div style={{ fontSize: 12.5 }}>
           <div style={{ fontWeight: 600 }}>{m.displayName ?? m.email ?? "—"}</div>
-          <div style={mutedStyle}>{m.email ?? "no email on record"}</div>
+          <div className="adm-help">{m.email ?? "no email on record"}</div>
         </div>
       ),
     },
@@ -185,7 +179,7 @@ export function ManagedMembershipSection({ teamId }: { teamId: string }) {
       key: "link",
       header: "Directory link",
       render: (m) => (
-        <span style={mutedStyle} data-directory-link={m.directoryLink}>
+        <span className="adm-help" data-directory-link={m.directoryLink}>
           {m.directoryLink === "LINKED"
             ? "Linked"
             : m.directoryLink === "RELEASED"
@@ -198,7 +192,7 @@ export function ManagedMembershipSection({ teamId }: { teamId: string }) {
       key: "access",
       header: "Workspace access",
       render: (m) => (
-        <span style={mutedStyle}>
+        <span className="adm-help">
           {m.membershipStatus
             ? `${m.membershipStatus.toLowerCase()} · ${(m.role ?? "").toLowerCase()}`
             : "no membership"}
@@ -219,7 +213,7 @@ export function ManagedMembershipSection({ teamId }: { teamId: string }) {
   if (phase.kind === "loading") {
     return (
       <Card variant="summary" padding="comfortable" data-testid="scim-ownership-loading">
-        <p style={mutedStyle}>Resolving directory ownership…</p>
+        <p className="adm-help">Resolving directory ownership…</p>
       </Card>
     );
   }
@@ -231,9 +225,9 @@ export function ManagedMembershipSection({ teamId }: { teamId: string }) {
         tone="risk"
         padding="comfortable"
         data-testid="scim-ownership-denied"
- >
+      >
         <strong style={{ fontSize: 14 }}>{phase.title}</strong>
-        <p style={{ ...mutedStyle, marginTop: 6, marginBottom: 0, maxWidth: 620 }}>
+        <p className="adm-help" style={{ marginTop: 6, marginBottom: 0, maxWidth: 620 }}>
           {phase.detail}
         </p>
       </Card>
@@ -247,9 +241,9 @@ export function ManagedMembershipSection({ teamId }: { teamId: string }) {
         tone="risk"
         padding="comfortable"
         data-testid="scim-ownership-error"
- >
+      >
         <strong style={{ fontSize: 14 }}>Ownership didn&apos;t load</strong>
-        <p style={{ ...mutedStyle, marginTop: 6, marginBottom: 10 }}>{phase.detail}</p>
+        <p className="adm-help" style={{ marginTop: 6, marginBottom: 10 }}>{phase.detail}</p>
         <Button variant="secondary" size="sm" onClick={() => void load()}>
           Try again
         </Button>
@@ -263,7 +257,7 @@ export function ManagedMembershipSection({ teamId }: { teamId: string }) {
     <div
       style={{ display: "flex", flexDirection: "column", gap: 12 }}
       data-testid="scim-ownership"
- >
+    >
       <div
         style={{
           display: "flex",
@@ -272,8 +266,8 @@ export function ManagedMembershipSection({ teamId }: { teamId: string }) {
           gap: 12,
           flexWrap: "wrap",
         }}
- >
-        <p style={{ ...mutedStyle, maxWidth: 720 }}>
+      >
+        <p className="adm-help" style={{ maxWidth: 720 }}>
           Who your identity provider actually owns in this workspace. A person
           your directory deactivated keeps their account and their evidence — the
           directory link is released and workspace access is suspended, never
@@ -288,16 +282,16 @@ export function ManagedMembershipSection({ teamId }: { teamId: string }) {
         variant="status"
         tone={projection.summary.conflicts > 0 ? "risk" : "governance"}
         padding="comfortable"
- >
+      >
         <div style={{ display: "flex", gap: 28, flexWrap: "wrap", alignItems: "flex-start" }}>
           <div>
-            <div style={mutedStyle}>Owned by your directory</div>
+            <div className="adm-help">Owned by your directory</div>
             <div style={{ fontSize: 22, fontWeight: 700 }}>
               {projection.summary.managedByThisOrganization}
             </div>
           </div>
           <div>
-            <div style={mutedStyle}>Needs attention</div>
+            <div className="adm-help">Needs attention</div>
             <div
               style={{
                 fontSize: 22,
@@ -305,23 +299,23 @@ export function ManagedMembershipSection({ teamId }: { teamId: string }) {
                 color: projection.summary.conflicts > 0 ? "var(--danger-strong)" : undefined,
               }}
               data-testid="scim-ownership-conflicts"
- >
+            >
               {projection.summary.conflicts}
             </div>
           </div>
           <div>
-            <div style={mutedStyle}>Released by deactivation</div>
+            <div className="adm-help">Released by deactivation</div>
             <div style={{ fontSize: 22, fontWeight: 700 }}>
               {projection.summary.released}
             </div>
           </div>
           <div>
-            <div style={mutedStyle}>Managed identity</div>
+            <div className="adm-help">Managed identity</div>
             <div style={{ marginTop: 4 }}>
               <Badge
                 tone={projection.managedIdentityRequired ? "governance" : "neutral"}
                 subtle
- >
+              >
                 {projection.managedIdentityRequired
                   ? "Required for every member"
                   : "Not required"}
@@ -332,7 +326,7 @@ export function ManagedMembershipSection({ teamId }: { teamId: string }) {
       </Card>
 
       {projection.truncated ? (
-        <p style={mutedStyle}>
+        <p className="adm-help">
           Showing the most recently linked identities only. Resolve the conflicts
           above, then refresh.
         </p>
@@ -356,7 +350,7 @@ export function ManagedMembershipSection({ teamId }: { teamId: string }) {
         padding="comfortable"
         title="What your groups grant"
         data-testid="scim-group-effects"
- >
+      >
         {projection.groups.length === 0 ? (
           <EmptyState variant="inline"
             title="No SCIM groups"
@@ -370,7 +364,7 @@ export function ManagedMembershipSection({ teamId }: { teamId: string }) {
                 <Badge tone={g.status === "ACTIVE" ? "governance" : "neutral"} subtle>
                   {g.status === "ACTIVE" ? "Active" : "Archived"}
                 </Badge>
-                <span style={mutedStyle}>
+                <span className="adm-help">
                   grants the <strong>{g.mappedRole.toLowerCase()}</strong> role ·{" "}
                   {g.memberCount} member{g.memberCount === 1 ? "" : "s"} hold it
                   today

@@ -20,7 +20,6 @@ import { describeClient } from "../../../../../lib/ui/describeClient";
 import { apiFetch } from "../../../../../lib/api";
 import { useTeamId, useTenantGuard } from "../../../../../lib/platform-context";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
-import { errorBoxStyle, formatDateTime, mutedStyle } from "../ui-tokens";
 import { FilterBar } from "../../../../../components/ui/FilterBar";
 import { PageShell, PageHeader, PageSection } from "../../../../../components/ui/PageShell";
 import { Badge } from "../../../../../components/ui/Badge";
@@ -40,6 +39,7 @@ import {
 import {
   AdmInline,
 } from "../../../../../components/admin/AdminSurfaces";
+import { mutedStyle, errorBoxStyle, formatDateTime } from "../ui-tokens";
 
 type SessionRow = {
   id: string;
@@ -524,7 +524,7 @@ const load = useCallback(() => {
               "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
             fontSize: 12,
           }}
- >
+        >
           {q.userId.slice(0, 12)}…
         </code>
       ),
@@ -565,7 +565,7 @@ const load = useCallback(() => {
               "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
             fontSize: 12,
           }}
- >
+        >
           {s.userId.slice(0, 12)}…
         </code>
       ),
@@ -635,14 +635,14 @@ const load = useCallback(() => {
                 disabled={busy !== null}
                 loading={busy === "emergency"}
                 data-testid="identity-runtime-emergency-revoke-button"
- >
+              >
                 Emergency org revoke
               </Button>
             </span>
           }
         />
       }
- >
+              >
       {error ? <AdmInline state="error">{error}</AdmInline> : null}
       {notice ? (
         <div
@@ -652,7 +652,7 @@ const load = useCallback(() => {
             color: "var(--success-strong)",
             borderColor: "var(--success-border)",
           }}
- >
+        >
           {notice}
         </div>
       ) : null}
@@ -710,11 +710,11 @@ const load = useCallback(() => {
             onClick={() => void runReconcile()}
             loading={busy === "reconcile"}
             disabled={busy !== null}
- >
+          >
             Run reconcile
           </Button>
         }
- >
+          >
         <Card padding="comfortable">
           {reconcile === null ? (
             <p style={{ margin: 0, ...mutedStyle }}>
@@ -759,7 +759,7 @@ const load = useCallback(() => {
               size="sm"
               onClick={() => release(q.sessionId)}
               disabled={busy === q.sessionId}
- >
+            >
               Release
             </Button>
           )}
@@ -855,13 +855,13 @@ const load = useCallback(() => {
                 whiteSpace: "nowrap",
                 justifyContent: "flex-end",
               }}
- >
+            >
               <Button
                 variant="secondary"
                 size="sm"
                 disabled={busy === s.id}
                 onClick={() => scoreNow(s.id)}
- >
+              >
                 Re-score
               </Button>
               <Button
@@ -869,7 +869,7 @@ const load = useCallback(() => {
                 size="sm"
                 disabled={busy === s.id}
                 onClick={() => quarantine(s.id)}
- >
+              >
                 Quarantine
               </Button>
             </div>
@@ -883,7 +883,7 @@ const load = useCallback(() => {
             flexWrap: "wrap",
             gap: 8,
           }}
- >
+        >
           <ResultCount
             shown={sessions?.length ?? 0}
             hasMore={sessionsMore.hasMore}

@@ -42,7 +42,6 @@ import {
   shortId,
   type SurfaceFailure,
 } from "../_sections/identity-admin-shared";
-import { statusBadgeStyle, TOKENS } from "../ui-tokens";
 import { PageShell, PageHeader, PageSection } from "../../../../../components/ui/PageShell";
 import { Card } from "../../../../../components/ui/Card";
 import { Button } from "../../../../../components/ui/Button";
@@ -50,6 +49,7 @@ import { FilterBar } from "../../../../../components/ui/FilterBar";
 import { EmptyState } from "../../../../../components/ui/EmptyState";
 import { DataTable, type DataTableColumn } from "../../../../../components/ui/DataTable";
 import { ResultCount } from "../../../../../components/ui/ResultCount";
+import { TOKENS, statusBadgeStyle } from "../ui-tokens";
 
 type Outcome = "ALLOW" | "DENY" | "STEP_UP_REQUIRED" | "NOT_APPLICABLE";
 
@@ -287,7 +287,7 @@ export default function PermissionMatrixPage() {
         header={
           <PageHeader eyebrow="Identity operations" title="Permission matrix" />
         }
- >
+      >
         <EmptyState variant="inline"
           framed
           title="No workspace selected"
@@ -308,7 +308,7 @@ export default function PermissionMatrixPage() {
               "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
             fontSize: 12,
           }}
- >
+        >
           {r.permission}
         </span>
       ),
@@ -342,7 +342,7 @@ export default function PermissionMatrixPage() {
             size="sm"
             data-identity-elevation-pick={r.permission}
             onClick={() => setElevationPermission(r.permission)}
- >
+          >
             Elevate…
           </Button>
         ) : null,
@@ -363,7 +363,7 @@ export default function PermissionMatrixPage() {
               // 44px hit box; the header keeps its height (admin-console.css).
               className="admin-hit-link"
               style={{ fontSize: 12 }}
- >
+            >
               ← Back to identity administration
             </Link>
           }
@@ -372,27 +372,27 @@ export default function PermissionMatrixPage() {
               variant="secondary"
               data-permission-matrix-refresh
               onClick={() => void loadMatrix()}
- >
+            >
               Refresh matrix
             </Button>
           }
         />
       }
- >
+            >
       {/* ------------------------------------------------------------------ */}
       {/* 1 — the authoritative role matrix.                                  */}
       {/* ------------------------------------------------------------------ */}
       <PageSection
         title="What each role grants"
         description="The server's authoritative projection of the canonical roles. If a role is missing a permission here, no amount of UI state changes that — grant a capability or a bounded elevation instead."
- >
+      >
         {matrixFailure ? (
           <Card
             variant="status"
             tone="risk"
             padding="compact"
             data-role-matrix-failure={matrixFailure.kind}
- >
+          >
             <strong>
               {matrixFailure.kind === "denied"
                 ? "Not available to you"
@@ -438,7 +438,7 @@ export default function PermissionMatrixPage() {
                 gap: 12,
                 marginTop: 12,
               }}
- >
+            >
               {matrixRows.map((r) => (
                 <Card
                   key={r.role}
@@ -447,7 +447,7 @@ export default function PermissionMatrixPage() {
                   title={r.role}
                   subtitle={`${r.allowed.length} of ${r.total} permissions`}
                   data-role-matrix-role={r.role}
- >
+                >
                   {r.allowed.length === 0 ? (
                     <p className="adm-help">
                       No permissions match the current filter for this role.
@@ -460,7 +460,7 @@ export default function PermissionMatrixPage() {
                         maxHeight: 180,
                         overflowY: "auto",
                       }}
- >
+                    >
                       {r.allowed.map((p) => (
                         <li
                           key={p.permission}
@@ -470,7 +470,7 @@ export default function PermissionMatrixPage() {
                             fontSize: 11,
                             color: TOKENS.inkMuted,
                           }}
- >
+                        >
                           {p.permission}
                         </li>
                       ))}
@@ -489,11 +489,11 @@ export default function PermissionMatrixPage() {
       <PageSection
         title="Inspect a member"
         description="Paste a member's user id (the member list on the identity administration console shows them) to see every permission outcome and where it comes from."
- >
+      >
         <Card variant="admin" padding="comfortable">
           <div
             style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}
- >
+          >
             <input
               data-permission-matrix-subject
               aria-label="Member user id (UUID) to inspect"
@@ -508,7 +508,7 @@ export default function PermissionMatrixPage() {
               onClick={() => void loadSnapshot()}
               loading={busy}
               disabled={busy || !subjectUserId}
- >
+            >
               {busy ? "Loading…" : "Inspect"}
             </Button>
           </div>
@@ -521,7 +521,7 @@ export default function PermissionMatrixPage() {
             padding="compact"
             data-permission-matrix-failure={snapshotFailure.kind}
             style={{ marginTop: 12 }}
- >
+          >
             <strong>
               {snapshotFailure.kind === "denied"
                 ? "Not available to you"
@@ -545,7 +545,7 @@ export default function PermissionMatrixPage() {
                   gap: 12,
                   flexWrap: "wrap",
                 }}
- >
+              >
                 <KV k="Member" v={shortId(snapshot.userId)} mono />
                 <KV k="Canonical role" v={snapshot.canonicalRole} />
                 <KV k="Status" v={snapshot.status} />
@@ -571,7 +571,7 @@ export default function PermissionMatrixPage() {
           <PageSection
             title="Temporary elevation"
             description="One permission, one bounded window. It expires by itself — there is no standing exception, and the grant is step-up confirmed and audited."
- >
+          >
             <Card variant="admin" padding="comfortable" data-elevation-form>
               <div
                 style={{
@@ -580,7 +580,7 @@ export default function PermissionMatrixPage() {
                   flexWrap: "wrap",
                   alignItems: "center",
                 }}
- >
+              >
                 <input
                   data-elevation-permission
                   className="adm-input" style={{ maxWidth: 280 }}
@@ -594,7 +594,7 @@ export default function PermissionMatrixPage() {
                   className="adm-select"
                   value={elevationTtl}
                   onChange={(e) => setElevationTtl(e.target.value)}
- >
+                >
                   {ELEVATION_TTL_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>
                       {o.label}
@@ -619,7 +619,7 @@ export default function PermissionMatrixPage() {
                     !elevationReason.trim()
                   }
                   onClick={() => void grantElevation()}
- >
+                >
                   Grant elevation
                 </Button>
               </div>
@@ -627,7 +627,7 @@ export default function PermissionMatrixPage() {
                 <div
                   data-elevation-failure={elevationFailure.kind}
                   className="adm-help" style={{ marginTop: 8, color: "var(--danger-strong)" }}
- >
+                >
                   {elevationFailure.message}
                 </div>
               ) : null}
@@ -635,7 +635,7 @@ export default function PermissionMatrixPage() {
                 <div
                   data-elevation-notice
                   className="adm-help" style={{ marginTop: 8, color: "var(--success-strong)" }}
- >
+                >
                   {elevationNotice}
                 </div>
               ) : null}
@@ -655,12 +655,12 @@ export default function PermissionMatrixPage() {
                       setFilter("");
                       setOutcomeFilter("");
                     }}
- >
+                  >
                     Clear
                   </Button>
                 </>
               }
- >
+                  >
               <FilterBar.Search
                 value={filter}
                 onChange={setFilter}
@@ -740,7 +740,7 @@ function KV({
               }
             : {}),
         }}
- >
+      >
         {v}
       </span>
     </div>

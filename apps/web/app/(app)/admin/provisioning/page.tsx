@@ -148,10 +148,10 @@ function AdminProvisioningInner() {
           />
         </div>
       }
- >
+          >
       {!teamId ? (
         <Card variant="summary" padding="comfortable">
-          <p style={mutedStyle} data-testid="admin-provisioning-loading">
+          <p className="adm-help" data-testid="admin-provisioning-loading">
             Preparing your platform-admin context…
           </p>
         </Card>
@@ -160,7 +160,7 @@ function AdminProvisioningInner() {
           <PageSection
             title="Provision new enterprise customer"
             description="Stand up a brand-new organization and its enterprise workspace, or invite an owner who doesn't have an account yet."
- >
+          >
             <ProvisionPanel
               teamId={teamId}
               onOrganizationProvisioned={setTargetOrganizationId}
@@ -170,7 +170,7 @@ function AdminProvisioningInner() {
           <PageSection
             title="Grant enterprise to an existing organization"
             description="Apply the ENTERPRISE plan to every workspace in an organization that already exists."
- >
+          >
             <GrantPlanPanel
               teamId={teamId}
               organizationId={targetOrganizationId}
@@ -181,7 +181,7 @@ function AdminProvisioningInner() {
           <PageSection
             title="Invitations for this organization"
             description="Durable delivery state for every pending invitation, with resend (which rotates the link) and revoke."
- >
+          >
             <InvitationGovernanceSection
               organizationId={targetOrganizationId}
               onOrganizationIdChange={setTargetOrganizationId}
@@ -191,7 +191,7 @@ function AdminProvisioningInner() {
           <PageSection
             title="Recent provisioning events"
             description="Every provision and plan grant is written to the platform audit log."
- >
+          >
             <RecentEventsCard />
           </PageSection>
         </>
@@ -214,28 +214,10 @@ const labelStyle = {
   color: "var(--ink-primary)",
 } as const;
 
-const inputStyle = {
-  padding: "10px 12px",
-  border: "1px solid var(--border-default)",
-  borderRadius: 10,
-  fontSize: 14,
-  fontWeight: 400,
-  background: "var(--surface-card)",
-  color: "var(--ink-primary)",
-  width: "100%",
-  outline: "none",
-} as const;
-
 const mutedStyle = {
   fontSize: 12.5,
   lineHeight: 1.55,
   color: "var(--ink-secondary)",
-} as const;
-
-const monoStyle = {
-  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-  fontSize: 12,
-  color: "var(--ink-primary)",
 } as const;
 
 const errorBoxStyle = {
@@ -287,7 +269,7 @@ function RecentEventsCard() {
           gap: 16,
           flexWrap: "wrap",
         }}
- >
+      >
         <div style={{ minWidth: 0 }}>
           <div
             style={{
@@ -296,7 +278,7 @@ function RecentEventsCard() {
               gap: 8,
               marginBottom: 6,
             }}
- >
+          >
             <strong style={{ fontSize: 14, color: "var(--ink-primary)" }}>
               Recorded in the platform audit log
             </strong>
@@ -304,7 +286,7 @@ function RecentEventsCard() {
               Tamper-evident
             </Badge>
           </div>
-          <p style={{ ...mutedStyle, margin: 0, maxWidth: 560 }}>
+          <p className="adm-help" style={{ margin: 0, maxWidth: 560 }}>
             Each enterprise provision and plan grant is written to the platform
             audit log with the operator, timestamp and outcome. Open the audit
             log to review recent provisioning activity.
@@ -314,7 +296,7 @@ function RecentEventsCard() {
           href="/admin/audit"
           style={{ textDecoration: "none", flexShrink: 0 }}
           data-testid="recent-events-audit-link"
- >
+        >
           <Button variant="secondary">Open audit log</Button>
         </a>
       </div>
@@ -481,8 +463,8 @@ function ProvisionPanel({
       variant="summary"
       padding="comfortable"
       data-section="provision-new-customer"
- >
-      <p style={{ ...mutedStyle, marginTop: 0, marginBottom: 18, maxWidth: 640 }}>
+    >
+      <p className="adm-help" style={{ marginTop: 0, marginBottom: 18, maxWidth: 640 }}>
         Creates the organization. If the owner already has an account, an
         enterprise workspace is created and they can sign in immediately. If
         not, the owner is invited — copy the invite URL, and once they accept,
@@ -493,7 +475,7 @@ function ProvisionPanel({
         <label style={labelStyle}>
           <span>Company / organization name</span>
           <input
-            style={inputStyle}
+            className="adm-input"
             value={organizationName}
             onChange={(e) => setOrganizationName(e.target.value)}
             placeholder="Acme Corporation"
@@ -504,7 +486,7 @@ function ProvisionPanel({
         <label style={labelStyle}>
           <span>Owner email</span>
           <input
-            style={inputStyle}
+            className="adm-input"
             type="email"
             value={ownerEmail}
             onChange={(e) => setOwnerEmail(e.target.value)}
@@ -516,7 +498,7 @@ function ProvisionPanel({
         <label style={labelStyle}>
           <span>Seats (optional)</span>
           <input
-            style={inputStyle}
+            className="adm-input"
             type="number"
             min={1}
             value={seats}
@@ -529,7 +511,7 @@ function ProvisionPanel({
         <label style={labelStyle}>
           <span>Workspace name (optional)</span>
           <input
-            style={inputStyle}
+            className="adm-input"
             value={workspaceName}
             onChange={(e) => setWorkspaceName(e.target.value)}
             placeholder="Defaults to the organization name"
@@ -545,7 +527,7 @@ function ProvisionPanel({
           loading={busy}
           onClick={submit}
           data-testid="provision-submit"
- >
+        >
           {busy ? "Provisioning…" : "Provision customer"}
         </Button>
       </div>
@@ -560,15 +542,15 @@ function ProvisionPanel({
         isProvisioned(result) ? (
           <div style={successBoxStyle} data-testid="provision-success-created">
             <strong>Enterprise workspace created.</strong> The owner{" "}
-            <span style={monoStyle}>{ownerEmail.trim()}</span> can sign in now.
+            <span className="adm-mono">{ownerEmail.trim()}</span> can sign in now.
             <div style={{ marginTop: 8, ...mutedStyle }}>
               Organization id:{" "}
-              <span style={monoStyle}>{result.organizationId}</span>
+              <span className="adm-mono">{result.organizationId}</span>
               <br />
-              Workspace id: <span style={monoStyle}>{result.workspaceId}</span>
+              Workspace id: <span className="adm-mono">{result.workspaceId}</span>
               <br />
               Owner user id:{" "}
-              <span style={monoStyle}>{result.ownerUserId}</span>
+              <span className="adm-mono">{result.ownerUserId}</span>
             </div>
           </div>
         ) : (
@@ -581,14 +563,14 @@ function ProvisionPanel({
                 : "The invitation email is queued for delivery — you can also share the invite URL below directly."}{" "}
             After they accept, come back and use “Grant enterprise to an
             existing organization” below with organization id{" "}
-            <span style={monoStyle}>{result.organizationId}</span> to activate
+            <span className="adm-mono">{result.organizationId}</span> to activate
             the plan.
             {result.ownerInviteDelivery ? (
               <div
                 data-testid="provision-invite-delivery"
                 data-delivery-status={result.ownerInviteDelivery.status}
                 style={{ marginTop: 6, ...mutedStyle }}
- >
+              >
                 Email delivery: {result.ownerInviteDelivery.status.toLowerCase()}
               </div>
             ) : null}
@@ -600,10 +582,10 @@ function ProvisionPanel({
                 alignItems: "center",
                 flexWrap: "wrap",
               }}
- >
+            >
               <input
                 readOnly
-                style={{ ...inputStyle, maxWidth: 480 }}
+                className="adm-input" style={{ maxWidth: 480 }}
                 value={absoluteInviteUrl(result.inviteUrl)}
                 data-testid="provision-invite-url"
                 onFocus={(e) => e.currentTarget.select()}
@@ -614,7 +596,7 @@ function ProvisionPanel({
                   copyInvite(absoluteInviteUrl(result.inviteUrl))
                 }
                 data-testid="provision-invite-copy"
- >
+              >
                 {copied ? "Copied" : "Copy invite URL"}
               </Button>
             </div>
@@ -736,8 +718,8 @@ function GrantPlanPanel({
       variant="summary"
       padding="comfortable"
       data-section="grant-existing-org"
- >
-      <p style={{ ...mutedStyle, marginTop: 0, marginBottom: 18, maxWidth: 640 }}>
+    >
+      <p className="adm-help" style={{ marginTop: 0, marginBottom: 18, maxWidth: 640 }}>
         Sets every workspace in the organization to the ENTERPRISE plan. Use
         this after an invited owner accepts, or for any existing organization
         that needs the plan applied.
@@ -747,7 +729,7 @@ function GrantPlanPanel({
         <label style={labelStyle}>
           <span>Organization id</span>
           <input
-            style={inputStyle}
+            className="adm-input"
             value={orgId}
             onChange={(e) => setOrgId(e.target.value)}
             placeholder="00000000-0000-0000-0000-000000000000"
@@ -758,7 +740,7 @@ function GrantPlanPanel({
         <label style={labelStyle}>
           <span>Seats (optional)</span>
           <input
-            style={inputStyle}
+            className="adm-input"
             type="number"
             min={1}
             value={seats}
@@ -776,7 +758,7 @@ function GrantPlanPanel({
           loading={busy}
           onClick={submit}
           data-testid="grant-submit"
- >
+        >
           {busy ? "Granting…" : "Grant ENTERPRISE"}
         </Button>
       </div>
@@ -795,7 +777,7 @@ function GrantPlanPanel({
           {result.seats} seat{result.seats === 1 ? "" : "s"}.
           <div style={{ marginTop: 8, ...mutedStyle }}>
             Organization id:{" "}
-            <span style={monoStyle}>{result.organizationId}</span>
+            <span className="adm-mono">{result.organizationId}</span>
           </div>
         </div>
       ) : null}

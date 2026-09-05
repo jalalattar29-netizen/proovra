@@ -204,7 +204,7 @@ export default function AdminOrganizationsPage() {
                 color: "var(--ink-muted)",
                 marginTop: 2,
               }}
- >
+            >
               Created {formatUserDateTime(row.createdAt)}
             </div>
           </div>
@@ -222,7 +222,7 @@ export default function AdminOrganizationsPage() {
                 ? row.lifecycleReasons.join(" ")
                 : undefined
             }
- >
+          >
             {LIFECYCLE_LABEL[row.lifecycleStage] ?? row.lifecycleStage}
           </Badge>
         ),
@@ -335,7 +335,7 @@ export default function AdminOrganizationsPage() {
           subtitle="Read-only roster of every customer organization: plan, workspaces, seat usage, owner, domain verification, SSO/SCIM posture, and onboarding health. Aggregated from live records — nothing here is fabricated."
         />
       }
- >
+        >
 
       <FilterBar
         actions={
@@ -348,7 +348,7 @@ export default function AdminOrganizationsPage() {
             </Button>
           </>
         }
- >
+      >
         <FilterBar.Search
           label="Search organizations"
           value={search}
@@ -438,7 +438,7 @@ export default function AdminOrganizationsPage() {
           fontSize: 13,
           color: "var(--ink-secondary)",
         }}
- >
+      >
         <div>
           {/* "page 1 of 0" is what an unguarded totalPages prints on an
               empty result, and it reads as a broken pager rather than an
@@ -454,7 +454,7 @@ export default function AdminOrganizationsPage() {
             size="sm"
             disabled={loading || page <= 1}
             onClick={() => void load(page - 1)}
- >
+          >
             Previous
           </Button>
           <Button
@@ -462,7 +462,7 @@ export default function AdminOrganizationsPage() {
             size="sm"
             disabled={loading || page >= totalPages}
             onClick={() => void load(page + 1)}
- >
+          >
             Next
           </Button>
         </div>

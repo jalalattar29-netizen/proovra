@@ -86,7 +86,7 @@ function RunbookCatalog() {
           subtitle="The procedure an incident's runbook slug points at. Every runbook here is the text from the repository, not a summary of it — open one to read the steps, not to confirm it exists."
         />
       }
- >
+        >
       <div className="rb-layout">
         <RunbookSidebar />
 
@@ -106,7 +106,7 @@ function RunbookCatalog() {
               color: "var(--ink-muted)",
               margin: "12px 0 16px",
             }}
- >
+          >
             {matches.length} of {RUNBOOK_INDEX.length} runbook
             {RUNBOOK_INDEX.length === 1 ? "" : "s"}
             {query.trim() === "" ? "" : ` matching “${query.trim()}”`}
@@ -131,14 +131,14 @@ function RunbookCatalog() {
                       "repeat(auto-fill, minmax(300px, 1fr))",
                     gap: 12,
                   }}
- >
+                >
                   {g.entries.map((r) => (
                     <Link
                       key={r.slug}
                       href={`/admin/platform/runbooks/${r.slug}`}
                       style={{ textDecoration: "none", color: "inherit" }}
                       data-runbook-link={r.slug}
- >
+                    >
                       <Card variant="summary" padding="comfortable">
                         <div style={{ fontWeight: 650, fontSize: 14.5 }}>
                           {r.title}
@@ -150,7 +150,7 @@ function RunbookCatalog() {
                             lineHeight: 1.5,
                             color: "var(--ink-secondary)",
                           }}
- >
+                        >
                           {r.summary}
                         </div>
                         <div
@@ -161,7 +161,7 @@ function RunbookCatalog() {
                             flexWrap: "wrap",
                             alignItems: "center",
                           }}
- >
+                        >
                           {r.subsystems.map((s) => (
                             <Badge key={s} tone="neutral" subtle>
                               {s}
@@ -170,7 +170,7 @@ function RunbookCatalog() {
                           <code
                             className="rb-code-inline"
                             style={{ marginInlineStart: "auto" }}
- >
+                          >
                             {r.slug}
                           </code>
                         </div>

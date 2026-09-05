@@ -428,9 +428,12 @@ export function MembersSection({
           {rowResult && rowResult.rowId === m.teamMemberId ? (
             <div
               data-identity-member-result={rowResult.ok ? "ok" : "failed"}
-              className="adm-help" style={{ marginTop: 2,
-                color: rowResult.ok ? "var(--success-strong)" : "var(--danger-strong)" }}
- >
+              className="adm-help"
+              style={{
+                marginTop: 2,
+                color: rowResult.ok ? "var(--success-strong)" : "var(--danger-strong)",
+              }}
+            >
               {rowResult.message}
             </div>
           ) : null}
@@ -484,18 +487,18 @@ export function MembersSection({
             size="sm"
             data-identity-members-refresh
             onClick={() => void load()}
- >
+          >
             Refresh
           </Button>
         }
- >
+          >
         {failure ? (
           <Card
             variant="status"
             tone="risk"
             padding="compact"
             data-identity-members-failure={failure.kind}
- >
+          >
             <strong>
               {failure.kind === "denied"
                 ? "Not available to you"
@@ -555,7 +558,7 @@ export function MembersSection({
                   justifyContent: "flex-end",
                   alignItems: "center",
                 }}
- >
+              >
                 <select
                   aria-label="Role"
                   data-identity-member-role-select={m.teamMemberId}
@@ -568,7 +571,7 @@ export function MembersSection({
                       [m.teamMemberId]: e.target.value,
                     }))
                   }
- >
+                >
                   {[m.role, ...ASSIGNABLE_ROLES.filter((r) => r !== m.role)].map(
                     (r) => (
                       <option key={r} value={r}>
@@ -586,7 +589,7 @@ export function MembersSection({
                     (roleDraft[m.teamMemberId] ?? m.role) === m.role
                   }
                   onClick={() => void changeRole(m)}
- >
+                >
                   Apply role
                 </Button>
                 {m.status === "ACTIVE" ? (
@@ -596,7 +599,7 @@ export function MembersSection({
                     data-identity-member-suspend={m.teamMemberId}
                     disabled={busyRow === m.teamMemberId}
                     onClick={() => void lifecycle(m, "suspend")}
- >
+                  >
                     Suspend
                   </Button>
                 ) : null}
@@ -607,7 +610,7 @@ export function MembersSection({
                     data-identity-member-restore={m.teamMemberId}
                     disabled={busyRow === m.teamMemberId}
                     onClick={() => void lifecycle(m, "restore")}
- >
+                  >
                     Restore
                   </Button>
                 ) : null}
@@ -618,7 +621,7 @@ export function MembersSection({
                     data-identity-member-revoke={m.teamMemberId}
                     disabled={busyRow === m.teamMemberId}
                     onClick={() => void lifecycle(m, "revoke")}
- >
+                  >
                     Revoke
                   </Button>
                 ) : null}
@@ -631,7 +634,7 @@ export function MembersSection({
                       selectedId === m.teamMemberId ? null : m.teamMemberId,
                     )
                   }
- >
+                >
                   {selectedId === m.teamMemberId ? "Managing" : "Access"}
                 </Button>
               </div>
@@ -656,7 +659,7 @@ export function MembersSection({
           <label
             htmlFor="identity-admin-reason"
             className="adm-help" style={{ display: "block", marginBottom: 4 }}
- >
+          >
             Reason (optional) — recorded on the audit entry for the next action
             you take on this surface.
           </label>
@@ -682,7 +685,7 @@ export function MembersSection({
             : "Extra access"
         }
         description="Capabilities and delegated-admin scopes stack on top of the member's role. Both are time-bounded when the grant carries an expiry, and both are revocable here."
- >
+      >
         {!selected ? (
           <EmptyState variant="inline"
             framed
@@ -696,13 +699,13 @@ export function MembersSection({
               gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
               gap: 12,
             }}
- >
+          >
             <Card
               variant="admin"
               padding="comfortable"
               title="Capability grants"
               data-identity-capabilities-panel
- >
+            >
               <div
                 style={{
                   display: "flex",
@@ -711,7 +714,7 @@ export function MembersSection({
                   alignItems: "center",
                   marginBottom: 10,
                 }}
- >
+              >
                 <select
                   aria-label="Capability"
                   data-identity-capability-select
@@ -720,7 +723,7 @@ export function MembersSection({
                   onChange={(e) =>
                     setPermissionDraft(e.target.value as Permission)
                   }
- >
+                >
                   {PERMISSIONS.map((p) => (
                     <option key={p} value={p}>
                       {p}
@@ -733,7 +736,7 @@ export function MembersSection({
                   data-identity-capability-grant
                   disabled={busyRow === selected.teamMemberId}
                   onClick={() => void grantCapability()}
- >
+                >
                   Grant
                 </Button>
               </div>
@@ -755,7 +758,7 @@ export function MembersSection({
                         gap: 8,
                         padding: "6px 0",
                       }}
- >
+                    >
                       <span>
                         <code style={{ fontSize: 12 }}>{g.permission}</code>
                         <span className="adm-help" style={{ display: "block" }}>
@@ -769,7 +772,7 @@ export function MembersSection({
                         data-identity-capability-revoke={g.id}
                         disabled={busyRow === selected.teamMemberId}
                         onClick={() => void revokeCapability(g)}
- >
+                      >
                         Revoke
                       </Button>
                     </li>
@@ -783,7 +786,7 @@ export function MembersSection({
               padding="comfortable"
               title="Delegated administration"
               data-identity-delegated-panel
- >
+            >
               <div
                 style={{
                   display: "flex",
@@ -792,7 +795,7 @@ export function MembersSection({
                   alignItems: "center",
                   marginBottom: 10,
                 }}
- >
+              >
                 <select
                   aria-label="Delegated-admin scope"
                   data-identity-delegated-select
@@ -801,7 +804,7 @@ export function MembersSection({
                   onChange={(e) =>
                     setScopeDraft(e.target.value as DelegatedAdminScopeKind)
                   }
- >
+                >
                   {DELEGATED_ADMIN_SCOPE_KINDS.map((s) => (
                     <option key={s} value={s}>
                       {s}
@@ -814,7 +817,7 @@ export function MembersSection({
                   data-identity-delegated-grant
                   disabled={busyRow === selected.teamMemberId}
                   onClick={() => void grantDelegated()}
- >
+                >
                   Grant
                 </Button>
               </div>
@@ -836,7 +839,7 @@ export function MembersSection({
                         gap: 8,
                         padding: "6px 0",
                       }}
- >
+                    >
                       <span>
                         <code style={{ fontSize: 12 }}>{s.scopeKind}</code>
                         <span className="adm-help" style={{ display: "block" }}>
@@ -850,7 +853,7 @@ export function MembersSection({
                         data-identity-delegated-revoke={s.id}
                         disabled={busyRow === selected.teamMemberId}
                         onClick={() => void revokeDelegated(s)}
- >
+                      >
                         Revoke
                       </Button>
                     </li>

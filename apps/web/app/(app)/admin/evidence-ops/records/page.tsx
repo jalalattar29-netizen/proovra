@@ -321,7 +321,7 @@ export default function AdminEvidenceRecordsPage() {
                 color: "var(--ink-muted)",
                 marginTop: 2,
               }}
- >
+            >
               {r.ageDays} day{r.ageDays === 1 ? "" : "s"} old
             </div>
           </div>
@@ -354,7 +354,7 @@ export default function AdminEvidenceRecordsPage() {
               <Link
                 href={`/admin/platform/runbooks/${resolveRunbookSlug(r.runbookSlug)}`}
                 style={{ fontSize: 12.5 }}
- >
+              >
                 Runbook
               </Link>
             ) : null}
@@ -398,7 +398,7 @@ export default function AdminEvidenceRecordsPage() {
                   lineHeight: 1.55,
                   color: "var(--ink-secondary)",
                 }}
- >
+              >
                 {r.notRetryableReason}
               </p>
             </div>
@@ -445,7 +445,7 @@ export default function AdminEvidenceRecordsPage() {
                 data-variant="ghost"
                 data-size="md"
                 style={buttonSurfaceStyle("ghost")}
- >
+              >
                 ← Evidence health
               </Link>
               <Button variant="secondary" onClick={() => void load(page)} disabled={loading}>
@@ -455,7 +455,7 @@ export default function AdminEvidenceRecordsPage() {
           }
         />
       }
- >
+              >
 
       {!evidenceId ? (
         <FilterBar>
@@ -524,7 +524,7 @@ export default function AdminEvidenceRecordsPage() {
               variant="ghost"
               aria-expanded={openRow === r.id}
               onClick={() => setOpenRow(openRow === r.id ? null : r.id)}
- >
+            >
               {openRow === r.id ? "Hide detail" : "What to do"}
             </Button>
           )}
@@ -560,7 +560,7 @@ export default function AdminEvidenceRecordsPage() {
               color: "var(--ink-secondary)",
               marginTop: 16,
             }}
- >
+          >
             <span>
               {total === 0
                 ? "No records"
@@ -572,7 +572,7 @@ export default function AdminEvidenceRecordsPage() {
                 size="sm"
                 onClick={() => void load(page - 1)}
                 disabled={loading || page <= 1}
- >
+              >
                 Previous
               </Button>
               <span style={{ minWidth: 90, textAlign: "center" }}>
@@ -583,7 +583,7 @@ export default function AdminEvidenceRecordsPage() {
                 size="sm"
                 onClick={() => void load(page + 1)}
                 disabled={loading || page >= (data?.totalPages ?? 0)}
- >
+              >
                 Next
               </Button>
             </div>

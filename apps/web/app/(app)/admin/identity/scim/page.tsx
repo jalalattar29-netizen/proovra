@@ -38,7 +38,6 @@ import {
 import { FilterBar } from "../../../../../components/ui/FilterBar";
 import { ResultCount } from "../../../../../components/ui/ResultCount";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
-import { formatDateTime, ghostButtonStyle, statusBadgeStyle, successBoxStyle, badgeStyle, TOKENS } from "../ui-tokens";
 import { PageShell, PageHeader } from "../../../../../components/ui/PageShell";
 import { Card } from "../../../../../components/ui/Card";
 import { Button } from "../../../../../components/ui/Button";
@@ -50,6 +49,8 @@ import {
   AdmTabs,
 } from "../../../../../components/admin/AdminSurfaces";
 import { ManagedMembershipSection } from "./_sections/ManagedMembershipSection";
+import { Badge, type BadgeTone } from "../../../../../components/ui/Badge";
+import { TOKENS, successBoxStyle, badgeStyle, statusBadgeStyle, formatDateTime } from "../ui-tokens";
 
 // ============================================================================
 // PHASE 12B — denial classification.
@@ -101,7 +102,7 @@ function ScimDenialPanel({ denial }: { denial: ScimDenial }) {
       padding="comfortable"
       data-testid="scim-denied"
       style={{ marginTop: 12 }}
- >
+    >
       <strong style={{ fontSize: 14 }}>{denial.title}</strong>
       <p className="adm-help" style={{ marginTop: 6, marginBottom: 0, maxWidth: 620 }}>
         {denial.detail}
@@ -333,7 +334,7 @@ export default function ScimPage() {
           }
         />
       }
- >
+        >
       <AdmTabs
         label="SCIM operations"
         tabs={(Object.keys(TAB_LABELS) as TabKey[]).map((k) => ({
@@ -604,7 +605,7 @@ function TokensTab({ teamId }: { teamId: string }) {
               "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
             fontSize: 12,
           }}
- >
+        >
           {t.tokenPrefix}…
         </code>
       ),
@@ -644,7 +645,7 @@ function TokensTab({ teamId }: { teamId: string }) {
           alignItems: "center",
           marginBottom: 8,
         }}
- >
+      >
         <p className="adm-help">
           Bearer tokens for SCIM v2 provisioning. Tokens are scope-bounded and
           hashed at rest; raw values are shown exactly once at creation.
@@ -661,7 +662,7 @@ function TokensTab({ teamId }: { teamId: string }) {
             setShowCreate(true);
             setRevealedToken(null);
           }}
- >
+        >
           New token
         </Button>
       </div>
@@ -673,13 +674,11 @@ function TokensTab({ teamId }: { teamId: string }) {
           <strong>Token issued.</strong> Copy now — this is the only time it
           will be shown:{" "}
           <code style={{ fontFamily: "monospace" }}>{revealedToken}</code>
-          <button
-            type="button"
-            style={{ ...ghostButtonStyle, marginInlineStart: 12 }}
+          <Button variant="secondary" size="sm" style={{ marginInlineStart: 12 }}
             onClick={() => setRevealedToken(null)}
- >
+          >
             Dismiss
-          </button>
+          </Button>
         </div>
       ) : null}
 
@@ -695,7 +694,7 @@ function TokensTab({ teamId }: { teamId: string }) {
             fontSize: 13,
             lineHeight: 1.5,
           }}
- >
+        >
           <strong style={{ display: "block", marginBottom: 2 }}>
             Directory provisioning is not included in this plan
           </strong>
@@ -730,7 +729,7 @@ function TokensTab({ teamId }: { teamId: string }) {
                       setShowCreate(true);
                       setRevealedToken(null);
                     }}
- >
+                  >
                     New token
                   </Button>
                 }
@@ -749,7 +748,7 @@ function TokensTab({ teamId }: { teamId: string }) {
                         : "Rotating a token is part of the Enterprise plan. You can still revoke this token."
                     }
                     onClick={() => rotate(t)}
- >
+                  >
                     Rotate
                   </Button>
                   {/*
@@ -763,7 +762,7 @@ function TokensTab({ teamId }: { teamId: string }) {
                     size="sm"
                     disabled={busy === t.id}
                     onClick={() => revoke(t.id)}
- >
+                  >
                     Revoke
                   </Button>
                 </div>
@@ -785,7 +784,7 @@ function TokensTab({ teamId }: { teamId: string }) {
               color: TOKENS.inkMuted,
               maxWidth: 360,
             }}
- >
+          >
             <span>Token name</span>
             <input
               className="adm-input"
@@ -796,9 +795,12 @@ function TokensTab({ teamId }: { teamId: string }) {
           </label>
           <div style={{ marginTop: 12 }}>
             <div
-              className="adm-subhead" style={{ fontSize: 11,
-                marginBottom: 4 }}
- >
+              className="adm-subhead"
+              style={{
+                fontSize: 11,
+                marginBottom: 4,
+              }}
+            >
               Scopes
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -826,7 +828,7 @@ function TokensTab({ teamId }: { teamId: string }) {
                       borderColor: active ? TOKENS.accent : "var(--border-standard)",
                       cursor: "pointer",
                     }}
- >
+                  >
                     {s}
                   </button>
                 );
@@ -839,13 +841,13 @@ function TokensTab({ teamId }: { teamId: string }) {
               loading={busy === "create"}
               disabled={busy === "create" || createScopes.size === 0}
               onClick={submitCreate}
- >
+            >
               {busy === "create" ? "Creating…" : "Create token"}
             </Button>
             <Button
               variant="ghost"
               onClick={() => setShowCreate(false)}
- >
+            >
               Cancel
             </Button>
           </div>
@@ -861,14 +863,13 @@ function TokensTab({ teamId }: { teamId: string }) {
 // Tab 2: Drift detection
 // ============================================================================
 
-function riskBadge(level: ScimDriftRiskLevel) {
-  const palette =
-    level === "HIGH"
-      ? { bg: "var(--danger-subtle-bg)", fg: "var(--danger-strong)", border: "var(--danger-border)" }
-      : level === "MEDIUM"
-        ? { bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" }
-        : { bg: "var(--surface-muted)", fg: "var(--ink-secondary)", border: "var(--border-standard)" };
-  return badgeStyle(palette);
+function riskBadge(level: ScimDriftRiskLevel): BadgeTone {
+  if (level === "HIGH") return "risk";
+  if (level === "MEDIUM") return "pending";
+  // LOW is NEUTRAL, not a lighter amber. A low-risk drift item is a thing to
+  // note, not a thing to worry about, and painting it as a quiet warning puts
+  // it beside the genuine ones.
+  return "neutral";
 }
 
 function DriftTab({ teamId }: { teamId: string }) {
@@ -992,7 +993,7 @@ function DriftTab({ teamId }: { teamId: string }) {
           gap: 12,
           flexWrap: "wrap",
         }}
- >
+      >
         <p className="adm-help" style={{ maxWidth: 720 }}>
           Detect drift between PROOVRA workspace state and IdP source of truth:
           orphan memberships, unlinked-but-active users, stale tokens, orphan
@@ -1004,7 +1005,7 @@ function DriftTab({ teamId }: { teamId: string }) {
           onClick={scan}
           loading={scanning}
           disabled={scanning}
- >
+        >
           {scanning ? "Scanning…" : "Re-scan"}
         </Button>
       </div>
@@ -1028,7 +1029,7 @@ function DriftTab({ teamId }: { teamId: string }) {
             tone={report.summary.byRisk.HIGH > 0 ? "risk" : "governance"}
             padding="comfortable"
             style={{ marginTop: 16 }}
- >
+          >
             <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "center" }}>
             <div>
               <div className="adm-help">Drift items</div>
@@ -1044,7 +1045,7 @@ function DriftTab({ teamId }: { teamId: string }) {
                   fontWeight: 700,
                   color: report.summary.byRisk.HIGH > 0 ? "var(--danger-strong)" : undefined,
                 }}
- >
+              >
                 {report.summary.byRisk.HIGH ?? 0}
               </div>
             </div>
@@ -1066,7 +1067,7 @@ function DriftTab({ teamId }: { teamId: string }) {
                 disabled={selected.size === 0 || executing}
                 loading={executing}
                 onClick={execute}
- >
+              >
                 {executing
                   ? "Reconciling…"
                   : `Reconcile selected (${selected.size})`}
@@ -1122,9 +1123,9 @@ function DriftTab({ teamId }: { teamId: string }) {
                         </span>
                       </td>
                       <td>
-                        <span style={riskBadge(i.riskLevel)}>
+                        <Badge tone={riskBadge(i.riskLevel)}>
                           {i.riskLevel}
-                        </span>
+                        </Badge>
                       </td>
                       <td>
                         <div style={{ fontSize: 12 }}>
@@ -1140,23 +1141,9 @@ function DriftTab({ teamId }: { teamId: string }) {
                         <span style={{ fontSize: 12 }}>{i.summary}</span>
                       </td>
                       <td>
-                        <span
-                          style={
-                            i.isDestructive
-                              ? badgeStyle({
-                                  bg: "var(--danger-subtle-bg)",
-                                  fg: "var(--danger-strong)",
-                                  border: "var(--danger-border)",
-                                })
-                              : badgeStyle({
-                                  bg: "var(--info-subtle-bg)",
-                                  fg: "var(--info)",
-                                  border: "var(--info-border)",
-                                })
-                          }
- >
+                        <Badge tone={i.isDestructive ? "risk" : "info"}>
                           {i.proposedAction}
-                        </span>
+                        </Badge>
                       </td>
                     </tr>
                   ))}
@@ -1310,7 +1297,7 @@ function ReplayTab({ teamId }: { teamId: string }) {
                 ? { bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" }
                 : { bg: "var(--surface-muted)", fg: "var(--ink-secondary)", border: "var(--border-standard)" },
           )}
- >
+        >
           {f.severity}
         </span>
       ),
@@ -1325,17 +1312,17 @@ function ReplayTab({ teamId }: { teamId: string }) {
       header: "Status",
       render: (f) =>
         f.terminal ? (
-          <span style={badgeStyle({ bg: "var(--danger-subtle-bg)", fg: "var(--danger-strong)", border: "var(--danger-border)" })}>
+          <Badge tone="risk">
             TERMINAL
-          </span>
+          </Badge>
         ) : f.retryEligible ? (
-          <span style={badgeStyle({ bg: "var(--info-subtle-bg)", fg: "var(--info)", border: "var(--info-border)" })}>
+          <Badge tone="info">
             REPLAYABLE
-          </span>
+          </Badge>
         ) : (
-          <span style={badgeStyle({ bg: "var(--surface-muted)", fg: "var(--ink-secondary)", border: "var(--border-standard)" })}>
+          <Badge tone="neutral">
             MANUAL
-          </span>
+          </Badge>
         ),
     },
   ];
@@ -1349,7 +1336,7 @@ function ReplayTab({ teamId }: { teamId: string }) {
           alignItems: "center",
           marginBottom: 8,
         }}
- >
+      >
         <p className="adm-help" style={{ maxWidth: 720 }}>
           Recent SCIM sync failures. Transient failures (e.g. failed user
           creation) can be replayed; terminal failures (bad token) require
@@ -1417,7 +1404,7 @@ function ReplayTab({ teamId }: { teamId: string }) {
                 size="sm"
                 disabled={busy === f.id}
                 onClick={() => replay(f.id)}
- >
+              >
                 {busy === f.id ? "Replaying…" : "Replay"}
               </Button>
             ) : (

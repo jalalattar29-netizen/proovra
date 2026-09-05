@@ -255,7 +255,7 @@ export default function AdminTimelinePage() {
                 color: actor.unknown ? "var(--ink-muted)" : "var(--ink-primary)",
                 fontStyle: actor.unknown ? "italic" : "normal",
               }}
- >
+            >
               {actor.name}
             </span>
             <span style={{ color: "var(--ink-muted)", fontSize: 11 }}>{actor.kind}</span>
@@ -278,7 +278,7 @@ export default function AdminTimelinePage() {
                 color: o.unknown ? "var(--ink-muted)" : "var(--ink-primary)",
                 fontStyle: o.unknown ? "italic" : "normal",
               }}
- >
+            >
               {o.label}
             </span>
             {transition ? (
@@ -323,7 +323,7 @@ export default function AdminTimelinePage() {
         <PageSection
           title="This is the PLATFORM timeline — not evidence custody"
           description="This feed covers platform operations only. It is deliberately kept SEPARATE from evidence custody timelines: it never reads or displays per-item evidence custody chains, verification ledgers, or chain-of-custody events. For evidence custody, use the evidence detail surfaces."
- >
+        >
           <FilterBar
             actions={
               <Button variant="secondary" onClick={() => void load()}>
@@ -331,7 +331,7 @@ export default function AdminTimelinePage() {
               </Button>
             }
             style={{ marginBottom: 12 }}
- >
+          >
             <FilterBar.Select
               label="Source"
               value={sourceFilter}
@@ -373,7 +373,7 @@ export default function AdminTimelinePage() {
                 aria-expanded={Boolean(expanded[rowKey(r, index)])}
                 onClick={() => toggleExpanded(rowKey(r, index))}
                 data-testid="admin-timeline-details-toggle"
- >
+              >
                 {expanded[rowKey(r, index)] ? "Hide details" : "Details"}
               </Button>
             )}
@@ -388,7 +388,7 @@ export default function AdminTimelinePage() {
                     fontSize: 12.5,
                   }}
                   data-testid="admin-timeline-details"
- >
+                >
                   {(
                     [
                       ["Organization", dash(r.organizationId)],
@@ -404,7 +404,7 @@ export default function AdminTimelinePage() {
                           textTransform: "uppercase",
                           letterSpacing: "0.06em",
                         }}
- >
+                      >
                         {label}
                       </dt>
                       <dd style={{ margin: "2px 0 0", overflowWrap: "anywhere" }}>{value}</dd>
@@ -419,7 +419,7 @@ export default function AdminTimelinePage() {
                           textTransform: "uppercase",
                           letterSpacing: "0.06em",
                         }}
- >
+                      >
                         Open
                       </dt>
                       <dd style={{ margin: "2px 0 0" }}>
@@ -450,7 +450,7 @@ export default function AdminTimelinePage() {
                   onClick={() => void loadMore()}
                   loading={loadingMore}
                   data-testid="admin-timeline-load-more"
- >
+                >
                   Load older events
                 </Button>
               ) : null

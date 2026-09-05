@@ -210,7 +210,7 @@ export function UserRiskSection() {
             onChange={(e) => setSelectedUserId(e.target.value || null)}
             style={sectionInputStyle}
             data-user-risk-member-select
- >
+          >
             <option value="">Select a member…</option>
             {members.data.map((m) => (
               <option key={m.userId} value={m.userId}>

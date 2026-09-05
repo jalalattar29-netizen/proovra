@@ -209,13 +209,13 @@ export default function AdminSearchPage() {
             subtitle="Read-only search across organizations, users, workspaces, demo & contact-sales requests, evidence, reports, and verification packages. Results are metadata and IDs only — no secrets, no evidence content."
           />
         }
- >
+          >
 
         <Card>
           <div
             data-testid="admin-search"
             style={{ display: "flex", flexDirection: "column", gap: 16 }}
- >
+          >
             <FilterBar
               actions={
                 <Button
@@ -223,18 +223,18 @@ export default function AdminSearchPage() {
                   size="sm"
                   onClick={() => setAppliedSearch(search)}
                   disabled={loading}
- >
+                >
                   {loading ? "Searching…" : "Search"}
                 </Button>
               }
- >
+                >
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
                   setAppliedSearch(search);
                 }}
                 style={{ display: "contents" }}
- >
+              >
                 <FilterBar.Search
                   label="Search platform entities"
                   value={search}
@@ -288,7 +288,7 @@ export default function AdminSearchPage() {
                     fontSize: 13,
                     color: "var(--ink-secondary)",
                   }}
- >
+                >
                   {truncatedGroups.length > 0 ? "At least " : ""}
                   {total} match{total === 1 ? "" : "es"} across {groups.length}{" "}
                   categor{groups.length === 1 ? "y" : "ies"}
@@ -308,14 +308,14 @@ export default function AdminSearchPage() {
                   <section
                     key={group.type}
                     style={{ display: "flex", flexDirection: "column", gap: 8 }}
- >
+                  >
                     <div
                       style={{
                         display: "flex",
                         alignItems: "center",
                         gap: 8,
                       }}
- >
+                    >
                       <Badge tone={TYPE_TONE[group.type]}>
                         {TYPE_LABEL[group.type]}
                       </Badge>
@@ -324,7 +324,7 @@ export default function AdminSearchPage() {
                           fontSize: 12,
                           color: "var(--ink-muted)",
                         }}
- >
+                      >
                         {group.results.length} result
                         {group.results.length === 1 ? "" : "s"}
                         {truncatedGroups.includes(group.type) ? " (capped)" : ""}
@@ -340,7 +340,7 @@ export default function AdminSearchPage() {
                         flexDirection: "column",
                         gap: 6,
                       }}
- >
+                    >
                       {group.results.map((result) => (
                         <li key={`${result.type}:${result.id}`}>
                           <Link
@@ -357,7 +357,7 @@ export default function AdminSearchPage() {
                               textDecoration: "none",
                               color: "var(--ink-primary)",
                             }}
- >
+                          >
                             <span style={{ minWidth: 0 }}>
                               <span
                                 style={{
@@ -367,7 +367,7 @@ export default function AdminSearchPage() {
                                   textOverflow: "ellipsis",
                                   whiteSpace: "nowrap",
                                 }}
- >
+                              >
                                 {result.label}
                               </span>
                               {result.sublabel ? (
@@ -378,7 +378,7 @@ export default function AdminSearchPage() {
                                     color: "var(--ink-muted)",
                                     marginTop: 2,
                                   }}
- >
+                                >
                                   {result.sublabel}
                                 </span>
                               ) : null}
@@ -390,7 +390,7 @@ export default function AdminSearchPage() {
                                 color: "var(--ink-muted)",
                                 whiteSpace: "nowrap",
                               }}
- >
+                            >
                               {result.id}
                             </span>
                           </Link>

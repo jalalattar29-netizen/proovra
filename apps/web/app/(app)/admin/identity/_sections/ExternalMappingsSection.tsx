@@ -200,7 +200,7 @@ export function ExternalMappingsSection({
             <div
               data-identity-mapping-result={rowResult.ok ? "ok" : "failed"}
               className="adm-help" style={{ color: rowResult.ok ? "var(--success-strong)" : "var(--danger-strong)" }}
- >
+            >
               {rowResult.message}
             </div>
           ) : null}
@@ -248,18 +248,18 @@ export function ExternalMappingsSection({
           size="sm"
           data-identity-mappings-refresh
           onClick={() => void load()}
- >
+        >
           Refresh
         </Button>
       }
- >
+        >
       {failure ? (
         <Card
           variant="status"
           tone="risk"
           padding="compact"
           data-identity-mappings-failure={failure.kind}
- >
+        >
           <strong>
             {failure.kind === "denied"
               ? "Not available to you"
@@ -276,21 +276,21 @@ export function ExternalMappingsSection({
         padding="compact"
         data-identity-mapping-link-form
         style={{ marginBottom: 12 }}
- >
+      >
         <p className="adm-help" style={{ marginTop: 0 }}>
           The member is chosen from this workspace's own member list — there is
           no free-text organization or workspace field on this surface.
         </p>
         <div
           style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}
- >
+        >
           <select
             aria-label="Member"
             data-identity-mapping-member
             className="adm-select" style={{ maxWidth: 260 }}
             value={subjectUserId}
             onChange={(e) => setSubjectUserId(e.target.value)}
- >
+          >
             <option value="">Select a member…</option>
             {activeMembers.map((m) => (
               <option key={m.userId} value={m.userId}>
@@ -306,7 +306,7 @@ export function ExternalMappingsSection({
             onChange={(e) =>
               setProvider(e.target.value as ExternalIdentityProvider)
             }
- >
+          >
             {EXTERNAL_IDENTITY_PROVIDERS.map((p) => (
               <option key={p} value={p}>
                 {p}
@@ -341,16 +341,19 @@ export function ExternalMappingsSection({
               busyRow === `new:${subjectUserId}`
             }
             onClick={() => void link()}
- >
+          >
             Link identity
           </Button>
         </div>
         {rowResult && rowResult.rowId.startsWith("new:") ? (
           <div
             data-identity-mapping-link-result={rowResult.ok ? "ok" : "failed"}
-            className="adm-help" style={{ marginTop: 8,
-              color: rowResult.ok ? "var(--success-strong)" : "var(--danger-strong)" }}
- >
+            className="adm-help"
+            style={{
+              marginTop: 8,
+              color: rowResult.ok ? "var(--success-strong)" : "var(--danger-strong)",
+            }}
+          >
             {rowResult.message}
           </div>
         ) : null}
@@ -386,7 +389,7 @@ export function ExternalMappingsSection({
                 data-identity-mapping-unlink={m.id}
                 disabled={busyRow === m.id}
                 onClick={() => void unlink(m)}
- >
+              >
                 Unlink
               </Button>
             )

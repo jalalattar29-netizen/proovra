@@ -263,7 +263,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
           textTransform: "uppercase",
           color: "var(--ink-muted)",
         }}
- >
+      >
         {label}
       </div>
       <div
@@ -273,7 +273,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
           color: "var(--ink-primary)",
           wordBreak: "break-word",
         }}
- >
+      >
         {children}
       </div>
     </div>
@@ -288,7 +288,7 @@ function fieldGrid(children: React.ReactNode) {
         gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
         gap: 16,
       }}
- >
+    >
       {children}
     </div>
   );
@@ -500,7 +500,7 @@ export default function AdminOrganizationDetailPage({
                   disabled={lifecycleBusy !== null}
                   aria-label={`Resume customer ${detail.overview.name}`}
                   data-testid="customer-resume"
- >
+                >
                   {lifecycleBusy === "resume" ? "Resuming…" : "Resume customer"}
                 </Button>
               ) : (
@@ -524,7 +524,7 @@ export default function AdminOrganizationDetailPage({
                     disabled={lifecycleBusy !== null}
                     aria-label={`Suspend customer ${detail.overview.name}`}
                     data-testid="customer-suspend"
- >
+                  >
                     {lifecycleBusy === "suspend" ? "Suspending…" : "Suspend customer"}
                   </Button>
                 </span>
@@ -538,13 +538,13 @@ export default function AdminOrganizationDetailPage({
               data-variant="ghost"
               data-size="sm"
               style={buttonSurfaceStyle("ghost", "sm")}
- >
+            >
               ← Back to roster
             </Link>
           }
         />
       }
- >
+            >
 
       {loading ? (
         <Card>Loading organization…</Card>
@@ -560,7 +560,7 @@ export default function AdminOrganizationDetailPage({
                 color: "var(--ink-secondary)",
                 fontSize: 13.5,
               }}
- >
+            >
               This organization does not exist or is not visible.
             </div>
           </div>
@@ -576,7 +576,7 @@ export default function AdminOrganizationDetailPage({
           <Card
             title="Enterprise contract"
             subtitle="The canonical contract authority. The workspace plan below is a projection and does not decide enterprise status."
- >
+          >
             {detail.enterpriseContract ? (
               <>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
@@ -585,7 +585,7 @@ export default function AdminOrganizationDetailPage({
                       detail.enterpriseContract.status === "ACTIVE" ? "verified" : "risk"
                     }
                     dot
- >
+                  >
                     {detail.enterpriseContract.status}
                   </Badge>
                   {detail.enterpriseContract.activationState ? (
@@ -646,7 +646,7 @@ export default function AdminOrganizationDetailPage({
                       background: "var(--warning-surface)",
                       fontSize: 13,
                     }}
- >
+                  >
                     <strong>No stored contract row.</strong> This projection was derived
                     from the organization&apos;s status by the compatibility adapter that
                     remains in place until the contract backfill completes. It is a
@@ -665,7 +665,7 @@ export default function AdminOrganizationDetailPage({
           <Card
             title="Overview"
             subtitle="Identity, workspace plan projection, ownership, and setup completion."
- >
+          >
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
               <Badge tone={HEALTH_TONE[detail.overview.onboardingStatus]} dot>
                 {detail.overview.onboardingStatus}
@@ -722,7 +722,7 @@ export default function AdminOrganizationDetailPage({
                     color: "var(--ink-muted)",
                     marginBottom: 8,
                   }}
- >
+                >
                   Admins
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -749,7 +749,7 @@ export default function AdminOrganizationDetailPage({
                     color: "var(--ink-muted)",
                     marginBottom: 8,
                   }}
- >
+                >
                   Workspaces
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -766,7 +766,7 @@ export default function AdminOrganizationDetailPage({
                         padding: "8px 0",
                         borderTop: "1px solid var(--border-subtle)",
                       }}
- >
+                    >
                       <span style={{ fontWeight: 600 }}>{w.name}</span>
                       <span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                         <Badge tone="info" subtle>
@@ -791,7 +791,7 @@ export default function AdminOrganizationDetailPage({
           <Card
             title="Customer Success"
             subtitle="Adoption milestones and health signals from live records. Fields with no backing model are shown honestly as 'Not modelled' — never fabricated."
- >
+          >
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
               <Badge tone={LIFECYCLE_TONE[detail.lifecycle.stage] ?? "neutral"} dot>
                 {LIFECYCLE_LABEL[detail.lifecycle.stage] ?? detail.lifecycle.stage}
@@ -809,7 +809,7 @@ export default function AdminOrganizationDetailPage({
                   color: "var(--ink-secondary)",
                   marginBottom: 16,
                 }}
- >
+              >
                 {detail.lifecycle.reasons.join(" ")}
               </div>
             ) : null}
@@ -861,7 +861,7 @@ export default function AdminOrganizationDetailPage({
           <Card
             title="Workspaces"
             subtitle="Platform map: every workspace under this organization with its member, case, evidence, report, and package counts. Counts are live; a null count means that signal is not measured for the workspace."
- >
+          >
             {detail.workspaces.length === 0 ? (
               <div style={{ color: "var(--ink-secondary)", fontSize: 13.5 }}>
                 This organization has no workspaces.
@@ -880,7 +880,7 @@ export default function AdminOrganizationDetailPage({
           <Card
             title="Identity"
             subtitle="SSO health, SCIM provisioning, and verified domains. No IdP secrets or SCIM tokens are shown."
- >
+          >
             {fieldGrid(
               <>
                 <Field label="SSO configured">
@@ -917,7 +917,7 @@ export default function AdminOrganizationDetailPage({
                   color: "var(--ink-muted)",
                   marginBottom: 8,
                 }}
- >
+              >
                 SSO connections
               </div>
               {detail.identity.sso.connections.length === 0 ? (
@@ -939,7 +939,7 @@ export default function AdminOrganizationDetailPage({
                         padding: "8px 0",
                         borderTop: "1px solid var(--border-subtle)",
                       }}
- >
+                    >
                       <span style={{ fontWeight: 600 }}>
                         {c.provider}{" "}
                         <span style={{ color: "var(--ink-muted)", fontWeight: 400 }}>
@@ -971,7 +971,7 @@ export default function AdminOrganizationDetailPage({
                   color: "var(--ink-muted)",
                   marginBottom: 8,
                 }}
- >
+              >
                 Domains
               </div>
               {detail.identity.domains.verified.length === 0 &&
@@ -1000,7 +1000,7 @@ export default function AdminOrganizationDetailPage({
           <Card
             title="Evidence operations"
             subtitle="Read-only counts. Hashes are never recomputed here."
- >
+          >
             {fieldGrid(
               <>
                 <Field label="Evidence records">
@@ -1021,7 +1021,7 @@ export default function AdminOrganizationDetailPage({
           <Card
             title="Governance"
             subtitle="Legal holds, retention, and destruction posture across the org's workspaces."
- >
+          >
             {fieldGrid(
               <>
                 <Field label="Active legal holds">
@@ -1041,7 +1041,7 @@ export default function AdminOrganizationDetailPage({
           <Card
             title="Billing"
             subtitle="Subscription + payment posture. No card, Stripe, or payment-instrument data is shown."
- >
+          >
             {fieldGrid(
               <>
                 <Field label="Billing owner">
@@ -1075,7 +1075,7 @@ export default function AdminOrganizationDetailPage({
           <Card
             title="Activity & provisioning history"
             subtitle="Recent organization audit events and platform provisioning actions."
- >
+          >
             <div
               style={{
                 fontSize: 11,
@@ -1085,7 +1085,7 @@ export default function AdminOrganizationDetailPage({
                 color: "var(--ink-muted)",
                 marginBottom: 8,
               }}
- >
+            >
               Provisioning history
             </div>
             {detail.activity.provisioningHistory.length === 0 ? (
@@ -1107,7 +1107,7 @@ export default function AdminOrganizationDetailPage({
                       padding: "8px 0",
                       borderTop: "1px solid var(--border-subtle)",
                     }}
- >
+                  >
                     <span>
                       <Badge tone="governance" subtle>
                         {p.action}
@@ -1133,7 +1133,7 @@ export default function AdminOrganizationDetailPage({
                 color: "var(--ink-muted)",
                 margin: "18px 0 8px",
               }}
- >
+            >
               Recent org events
             </div>
             {detail.activity.recentEvents.length === 0 ? (
@@ -1155,7 +1155,7 @@ export default function AdminOrganizationDetailPage({
                       padding: "8px 0",
                       borderTop: "1px solid var(--border-subtle)",
                     }}
- >
+                  >
                     <span>
                       <Badge tone="neutral" subtle>
                         {e.eventType}

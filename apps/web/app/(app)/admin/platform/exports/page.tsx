@@ -41,7 +41,9 @@ import {
 } from "../../../../../components/ui/PageShell";
 import "../admin-platform.css";
 import { AccessGate } from "../../../../../components/access/AccessGate";
-import { badgeStyle, formatDateTime, ghostButtonStyle, primaryButtonStyle, TOKENS } from "../../identity/ui-tokens";
+import { Badge } from "../../../../../components/ui/Badge";
+import { Button } from "../../../../../components/ui/Button";
+import { TOKENS, badgeStyle, formatDateTime } from "../../identity/ui-tokens";
 
 // ============================================================================
 // Types (mirror the backend response shapes)
@@ -215,7 +217,7 @@ function OperationsExportsContent() {
           className="apf-control"
           onClick={load}
           disabled={loading}
- >
+          >
           {loading ? "Refreshing…" : "Refresh"}
           </button>
         </>
@@ -290,7 +292,7 @@ function ObjectLockPanel({ status }: { status: ObjectLockStatus | null }) {
     <section
       className="adm-card" style={{ marginTop: 16 }}
       data-testid="object-lock-panel"
- >
+    >
       <h2 className="apf-section-title">S3 Object Lock platform status</h2>
       <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
         <span style={badgeStyle(palette)} data-testid="object-lock-badge">
@@ -349,7 +351,7 @@ function ExportListTable({
     return (
       <section
         className="adm-card" style={{ marginTop: 12, padding: 24, textAlign: "center" }}
- >
+      >
         <p className="apf-muted">No exports recorded for this workspace yet.</p>
       </section>
     );
@@ -358,7 +360,7 @@ function ExportListTable({
     <section
       className="adm-card" style={{ marginTop: 12, padding: 0 }}
       data-testid="export-list"
- >
+    >
       <div className="apf-table-wrap">
         <table className="adm-table">
           <thead>
@@ -385,7 +387,7 @@ function ExportListTable({
                       ? { background: TOKENS.surfaceMuted }
                       : undefined
                   }
- >
+                >
                   <td>
                     <strong>{it.kindLabel}</strong>
                   </td>
@@ -404,80 +406,38 @@ function ExportListTable({
                   </td>
                   <td>
                     {immutable ? (
-                      <span
-                        style={badgeStyle({
-                          bg: "var(--success-subtle-bg)",
-                          fg: "var(--success-strong)",
-                          border: "var(--success-border)",
-                        })}
- >
+                      <Badge tone="verified">
                         IMMUTABLE · {it.objectLockStoredMode}
-                      </span>
+                      </Badge>
                     ) : it.objectLockStoredMode ? (
-                      <span
-                        style={badgeStyle({
-                          bg: "var(--warning-subtle-bg)",
-                          fg: "var(--warning-strong)",
-                          border: "var(--warning-border)",
-                        })}
- >
+                      <Badge tone="pending">
                         STORED {it.objectLockStoredMode} (platform unverified)
-                      </span>
+                      </Badge>
                     ) : (
-                      <span
-                        style={badgeStyle({
-                          bg: "var(--surface-muted)",
-                          fg: "var(--ink-secondary)",
-                          border: "var(--border-standard)",
-                        })}
- >
+                      <Badge tone="neutral">
                         no lock
-                      </span>
+                      </Badge>
                     )}
                   </td>
                   <td>
                     {it.artifactSigned ? (
-                      <span
-                        style={badgeStyle({
-                          bg: "var(--info-subtle-bg)",
-                          fg: "var(--info)",
-                          border: "var(--info-border)",
-                        })}
- >
+                      <Badge tone="info">
                         SIGNED
-                      </span>
+                      </Badge>
                     ) : it.artifactUnsignedOptOut ? (
-                      <span
-                        style={badgeStyle({
-                          bg: "var(--danger-subtle-bg)",
-                          fg: "var(--danger-strong)",
-                          border: "var(--danger-border)",
-                        })}
- >
+                      <Badge tone="risk">
                         UNSIGNED OPT-OUT
-                      </span>
+                      </Badge>
                     ) : it.kind === "verification_package_zip" ? (
-                      <span
-                        style={badgeStyle({
-                          bg: "var(--surface-muted)",
-                          fg: "var(--ink-secondary)",
-                          border: "var(--border-standard)",
-                        })}
- >
+                      <Badge tone="neutral">
                         {it.verificationPackageSignatureStatus === "UNSIGNED"
                           ? "unsigned package"
                           : "unsigned"}
-                      </span>
+                      </Badge>
                     ) : (
-                      <span
-                        style={badgeStyle({
-                          bg: "var(--surface-muted)",
-                          fg: "var(--ink-secondary)",
-                          border: "var(--border-standard)",
-                        })}
- >
+                      <Badge tone="neutral">
                         unsigned
-                      </span>
+                      </Badge>
                     )}
                   </td>
                   <td>
@@ -485,7 +445,7 @@ function ExportListTable({
                       type="button"
                       className="apf-control"
                       onClick={() => onSelect(it.exportId)}
- >
+                    >
                       Inspect
                     </button>
                   </td>
@@ -584,7 +544,7 @@ function ExportDrawer({
         overflowY: "auto",
         padding: 20,
       }}
- >
+    >
       <header
         style={{
           display: "flex",
@@ -592,7 +552,7 @@ function ExportDrawer({
           alignItems: "center",
           marginBottom: 12,
         }}
- >
+      >
         <h2 style={{ fontSize: 16, margin: 0 }}>Export detail</h2>
         <button type="button" className="apf-control" onClick={onClose}>
           Close
@@ -620,7 +580,7 @@ function ExportDrawer({
                       <code
                         style={{ fontFamily: "monospace", fontSize: 12 }}
                         data-testid="manifest-export-id"
- >
+                      >
                         {envelope.manifest.exportId}
                       </code>
                     </td>
@@ -641,16 +601,14 @@ function ExportDrawer({
                       <code
                         style={{ fontFamily: "monospace", fontSize: 11 }}
                         data-testid="manifest-hash"
- >
+                      >
                         {envelope.manifestHash.slice(0, 24)}…
                       </code>
-                      <button
-                        type="button"
-                        style={{ ...ghostButtonStyle, marginInlineStart: 6 }}
+                      <Button variant="secondary" size="sm" style={{ marginInlineStart: 6 }}
                         onClick={() => copy(envelope.manifestHash)}
- >
+                      >
                         Copy
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 </tbody>
@@ -689,15 +647,9 @@ function ExportDrawer({
                     <tr>
                       <td>opt-out</td>
                       <td>
-                        <span
-                          style={badgeStyle({
-                            bg: "var(--warning-subtle-bg)",
-                            fg: "var(--warning-strong)",
-                            border: "var(--warning-border)",
-                          })}
- >
+                        <Badge tone="pending">
                           UNSIGNED OPT-OUT
-                        </span>
+                        </Badge>
                       </td>
                     </tr>
                   ) : null}
@@ -708,15 +660,13 @@ function ExportDrawer({
 
           <section style={{ marginTop: 16 }}>
             <h2 className="apf-section-title">Reproducibility verification</h2>
-            <button
-              type="button"
-              style={primaryButtonStyle}
+            <Button variant="primary" size="sm"
               onClick={verify}
               disabled={verifying}
               data-testid="verify-button"
- >
+            >
               {verifying ? "Verifying…" : "Verify reproducibility"}
-            </button>
+            </Button>
             {report ? (
               <div style={{ marginTop: 12 }} data-testid="verify-result">
                 <ReproducibilityResultPanel report={report} />
@@ -743,14 +693,14 @@ function ExportDrawer({
                 overflow: "auto",
               }}
               data-testid="manifest-json"
- >
+            >
               {manifestJson}
             </pre>
             <button
               type="button"
               className="apf-control"
               onClick={() => copy(manifestJson)}
- >
+            >
               Copy manifest JSON
             </button>
           </section>

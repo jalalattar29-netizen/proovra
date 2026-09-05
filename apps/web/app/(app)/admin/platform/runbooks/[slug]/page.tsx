@@ -145,13 +145,13 @@ export default async function RunbookDetailPage({
                 // 44px hit box; the header keeps its height (admin-console.css).
                 className="admin-hit-link"
                 style={{ textDecoration: "none" }}
- >
+              >
                 ← All runbooks
               </Link>
             }
           />
         }
- >
+              >
         <RunbookLayout activeSlug={rb.slug}>
           <div
             style={{
@@ -161,7 +161,7 @@ export default async function RunbookDetailPage({
               alignItems: "center",
               marginBottom: 20,
             }}
- >
+          >
             <Badge tone="info" subtle>
               {rb.category}
             </Badge>
@@ -177,7 +177,7 @@ export default async function RunbookDetailPage({
               className="rb-code-inline"
               data-runbook-slug={rb.slug}
               style={{ marginInlineStart: "auto" }}
- >
+            >
               {rb.slug}
             </code>
           </div>
@@ -193,7 +193,7 @@ export default async function RunbookDetailPage({
               lineHeight: 1.6,
               color: "var(--ink-muted)",
             }}
- >
+          >
             {/*
               THE REPOSITORY PATH IS GONE, THE HASH STAYS.
 

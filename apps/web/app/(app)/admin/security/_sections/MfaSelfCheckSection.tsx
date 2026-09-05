@@ -34,7 +34,6 @@ import { Button } from "../../../../../components/ui/Button";
 import { Card } from "../../../../../components/ui/Card";
 import { PageSection } from "../../../../../components/ui/PageShell";
 import {
-  choiceRowStyle,
   SectionDescription,
   safeMessage,
   sectionInputStyle,
@@ -92,10 +91,10 @@ export function MfaSelfCheckSection() {
         <SectionDescription text="Verify that your second factor still works before you tighten the policy or reset someone else's factors. This checks your own account only — the server takes the identity from your session and there is no field to point it at anyone else." />
       }
       data-mfa-self-check-section
- >
+    >
       <Card padding="comfortable">
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 12 }}>
-          <label style={{ ...choiceRowStyle, alignItems: "center", gap: 6, fontSize: 13 }}>
+          <label className="adm-choice" style={{ alignItems: "center", gap: 6, fontSize: 13 }}>
             <input
               type="radio"
               name="mfa-self-check-mode"
@@ -108,7 +107,7 @@ export function MfaSelfCheckSection() {
             />
             Authenticator code
           </label>
-          <label style={{ ...choiceRowStyle, alignItems: "center", gap: 6, fontSize: 13 }}>
+          <label className="adm-choice" style={{ alignItems: "center", gap: 6, fontSize: 13 }}>
             <input
               type="radio"
               name="mfa-self-check-mode"
@@ -128,7 +127,7 @@ export function MfaSelfCheckSection() {
             e.preventDefault();
             void submit();
           }}
- >
+        >
           <label htmlFor="mfa-self-check-code" style={sectionLabelStyle}>
             {mode === "totp"
               ? "Six-digit code from your authenticator app"
@@ -156,7 +155,7 @@ export function MfaSelfCheckSection() {
               variant="secondary"
               loading={outcome.kind === "checking"}
               disabled={outcome.kind === "checking" || code.trim().length === 0}
- >
+            >
               Check code
             </Button>
           </div>
@@ -172,7 +171,7 @@ export function MfaSelfCheckSection() {
             style={{ marginTop: 12 }}
             role="alert"
             data-mfa-self-check-result="rejected"
- >
+          >
             <Badge tone="risk">Not accepted</Badge>
             <p style={{ ...sectionMuted, margin: "6px 0 0" }}>{outcome.message}</p>
           </div>

@@ -133,7 +133,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
           textTransform: "uppercase",
           color: "var(--ink-muted)",
         }}
- >
+      >
         {label}
       </div>
       <div style={{ marginTop: 4, fontSize: 14, color: "var(--ink-primary)" }}>
@@ -151,7 +151,7 @@ function FieldGrid({ children }: { children: React.ReactNode }) {
         gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
         gap: 18,
       }}
- >
+    >
       {children}
     </div>
   );
@@ -252,7 +252,7 @@ export default function AdminPersonDetailPage() {
                 : "risk"
           }
           subtle
- >
+        >
           {w.memberStatus ?? "—"}
         </Badge>
       ),
@@ -283,7 +283,7 @@ export default function AdminPersonDetailPage() {
           tone={
             p.status === "SUCCEEDED" ? "verified" : p.status === "FAILED" ? "risk" : "neutral"
           }
- >
+        >
           {p.status}
         </Badge>
       ),
@@ -315,7 +315,7 @@ export default function AdminPersonDetailPage() {
                 data-variant="ghost"
                 data-size="md"
                 style={buttonSurfaceStyle("ghost")}
- >
+              >
                 ← All people
               </Link>
               <Button variant="secondary" onClick={() => void load()} disabled={loading}>
@@ -325,7 +325,7 @@ export default function AdminPersonDetailPage() {
           }
         />
       }
- >
+              >
 
       {loading ? (
         <Card>
@@ -388,7 +388,7 @@ export default function AdminPersonDetailPage() {
           <PageSection
             title="Commercial"
             description="The canonical account verdict, beside the stored entitlement tier. In the grace window these legitimately differ — that difference is the answer to 'do they still have access?'."
- >
+          >
             <Card>
               <FieldGrid>
                 <Field label="Stored entitlement tier">
@@ -406,7 +406,7 @@ export default function AdminPersonDetailPage() {
                     <Field label="Commercial lifecycle">
                       <Badge
                         tone={LIFECYCLE_TONE[detail.commercial.lifecycleState] ?? "neutral"}
- >
+                      >
                         {detail.commercial.lifecycleState}
                       </Badge>
                       {detail.commercial.graceEndsAtUtc ? (
@@ -416,7 +416,7 @@ export default function AdminPersonDetailPage() {
                             marginTop: 4,
                             color: "var(--ink-secondary)",
                           }}
- >
+                        >
                           Grace ends {formatUserDateTime(detail.commercial.graceEndsAtUtc)}
                         </div>
                       ) : null}
@@ -436,7 +436,7 @@ export default function AdminPersonDetailPage() {
                   {detail.personalWorkspaceId ? (
                     <Link
                       href={`/admin/workspaces/${encodeURIComponent(detail.personalWorkspaceId)}`}
- >
+                    >
                       Open personal space
                     </Link>
                   ) : (
@@ -504,7 +504,7 @@ export default function AdminPersonDetailPage() {
                   paddingTop: 18,
                   borderTop: "1px solid var(--border-default)",
                 }}
- >
+              >
                 <div
                   style={{
                     fontSize: 11,
@@ -514,7 +514,7 @@ export default function AdminPersonDetailPage() {
                     color: "var(--ink-muted)",
                     marginBottom: 10,
                   }}
- >
+                >
                   Provider subscriptions
                 </div>
                 {detail.subscriptions.length === 0 ? (
@@ -527,7 +527,7 @@ export default function AdminPersonDetailPage() {
                       <div
                         key={s.id}
                         style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}
- >
+                      >
                         <Badge tone={s.status === "ACTIVE" ? "verified" : "neutral"}>
                           {s.provider} {s.plan} · {s.status}
                         </Badge>
@@ -581,7 +581,7 @@ export default function AdminPersonDetailPage() {
                           tone="neutral"
                           subtle
                           title="Internal bootstrap container, not a customer organization"
- >
+                        >
                           {o.name} · container
                         </Badge>
                       )}
@@ -612,7 +612,7 @@ export default function AdminPersonDetailPage() {
           <PageSection
             title="Account lifecycle requests"
             description="Closure and data-export requests. Read-only here — both are driven by their own state machines with cooling-off windows and blocker preflights, and an admin surface must not write their status directly."
- >
+          >
             <Card>
               {detail.lifecycleRequests.closure.length === 0 &&
               detail.lifecycleRequests.dataExport.length === 0 ? (

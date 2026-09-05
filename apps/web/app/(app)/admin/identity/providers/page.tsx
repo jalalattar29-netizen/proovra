@@ -25,7 +25,6 @@ import {
   useStepUpAction,
 } from "../../../../../components/identity-security/StepUpModal";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
-import { formatDateTime, ghostButtonStyle, statusBadgeStyle, successBoxStyle, TOKENS } from "../ui-tokens";
 import { PageShell, PageHeader, PageSection } from "../../../../../components/ui/PageShell";
 import { Card } from "../../../../../components/ui/Card";
 import { Button } from "../../../../../components/ui/Button";
@@ -34,6 +33,7 @@ import { FederationReadinessSection } from "./_sections/FederationReadinessSecti
 import {
   AdmInline,
 } from "../../../../../components/admin/AdminSurfaces";
+import { TOKENS, successBoxStyle, statusBadgeStyle, formatDateTime } from "../ui-tokens";
 
 type SsoProvider =
   | "GENERIC_OIDC"
@@ -131,7 +131,7 @@ function DenialPanel({ denial }: { denial: Denial }) {
       padding="comfortable"
       data-testid="providers-denied"
       data-denial-kind={denial.kind}
- >
+    >
       <strong style={{ fontSize: 14 }}>
         {denial.kind === "entitlement"
           ? "Not included in this plan"
@@ -406,40 +406,38 @@ export default function ProvidersPage() {
                 setShowCreate(true);
                 setRevealedSecret(null);
               }}
- >
+            >
               New connection
             </Button>
           }
         />
       }
- >
+            >
       {error ? <AdmInline state="error">{error}</AdmInline> : null}
       {revealedSecret ? (
         <div style={successBoxStyle}>
           <strong>Client secret created.</strong> Copy now — this is the
           only time it will be shown:{" "}
           <code style={{ fontFamily: "monospace" }}>{revealedSecret}</code>
-          <button
-            type="button"
-            style={{ ...ghostButtonStyle, marginInlineStart: 12 }}
+          <Button variant="secondary" size="sm" style={{ marginInlineStart: 12 }}
             onClick={() => setRevealedSecret(null)}
- >
+          >
             Dismiss
-          </button>
+          </Button>
         </div>
       ) : null}
 
       <PageSection
         title="Readiness"
         description="Whether each connection can actually sign someone in, which organization domains are DNS-verified, and whether this organization requires directory-managed identity. Every check is computed server-side."
- >
+      >
         <FederationReadinessSection teamId={teamId} />
       </PageSection>
 
       <PageSection
         title="Connections"
         description="Configuration and lifecycle for each identity provider."
- >
+      >
         {providers === null ? (
           <Card variant="summary" padding="comfortable" data-testid="providers-loading">
             <p className="adm-help">Loading identity providers…</p>
@@ -458,7 +456,7 @@ export default function ProvidersPage() {
                   setShowCreate(true);
                   setRevealedSecret(null);
                 }}
- >
+              >
                 New connection
               </Button>
             }
@@ -472,7 +470,7 @@ export default function ProvidersPage() {
               borderRadius: "var(--radius-card)",
               background: "var(--surface-card)",
             }}
- >
+          >
           <table className="adm-table">
             <thead>
               <tr>
@@ -498,9 +496,12 @@ export default function ProvidersPage() {
                     {p.displayName}
                     {p.clientSecretPreview ? (
                       <div
-                        className="adm-help" style={{ fontFamily: "monospace",
-                          fontSize: 11 }}
- >
+                        className="adm-help"
+                        style={{
+                          fontFamily: "monospace",
+                          fontSize: 11,
+                        }}
+                      >
                         secret {p.clientSecretPreview}
                       </div>
                     ) : null}
@@ -535,7 +536,7 @@ export default function ProvidersPage() {
                         onClick={() =>
                           setExpanded((cur) => (cur === p.id ? null : p.id))
                         }
- >
+                      >
                         {expanded === p.id ? "Hide policy" : "Signing & policy"}
                       </Button>
                       {p.status === "PENDING" ? (
@@ -544,7 +545,7 @@ export default function ProvidersPage() {
                           size="sm"
                           disabled={busy === p.id}
                           onClick={() => transition(p.id, "ACTIVE")}
- >
+                        >
                           Activate
                         </Button>
                       ) : null}
@@ -554,7 +555,7 @@ export default function ProvidersPage() {
                           size="sm"
                           disabled={busy === p.id}
                           onClick={() => transition(p.id, "DISABLED")}
- >
+                        >
                           Disable
                         </Button>
                       ) : null}
@@ -564,7 +565,7 @@ export default function ProvidersPage() {
                           size="sm"
                           disabled={busy === p.id}
                           onClick={() => transition(p.id, "ACTIVE")}
- >
+                        >
                           Re-activate
                         </Button>
                       ) : null}
@@ -574,7 +575,7 @@ export default function ProvidersPage() {
                           size="sm"
                           disabled={busy === p.id}
                           onClick={() => transition(p.id, "REVOKED")}
- >
+                        >
                           Revoke
                         </Button>
                       ) : null}
@@ -620,7 +621,7 @@ export default function ProvidersPage() {
               gridTemplateColumns: "1fr 1fr",
               gap: 12,
             }}
- >
+          >
             <Field label="Provider">
               <select
                 className="adm-select"
@@ -631,7 +632,7 @@ export default function ProvidersPage() {
                     provider: e.target.value as SsoProvider,
                   }))
                 }
- >
+              >
                 {(Object.keys(PROVIDER_LABELS) as SsoProvider[]).map((k) => (
                   <option key={k} value={k}>
                     {PROVIDER_LABELS[k]}
@@ -713,7 +714,7 @@ export default function ProvidersPage() {
                     jitDefaultRole: e.target.value as "MEMBER" | "VIEWER" | "",
                   }))
                 }
- >
+              >
                 <option value="">JIT disabled</option>
                 <option value="MEMBER">Member</option>
                 <option value="VIEWER">Viewer</option>
@@ -726,13 +727,13 @@ export default function ProvidersPage() {
               loading={busy === "create"}
               disabled={busy === "create"}
               onClick={submitCreate}
- >
+            >
               {busy === "create" ? "Creating…" : "Create connection"}
             </Button>
             <Button
               variant="ghost"
               onClick={() => setShowCreate(false)}
- >
+            >
               Cancel
             </Button>
           </div>
@@ -781,7 +782,7 @@ function PolicyPanel({
         flexDirection: "column",
         gap: 16,
       }}
- >
+    >
       {isSaml ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <strong style={{ fontSize: 13 }}>SAML SP request signing</strong>
@@ -805,7 +806,7 @@ function PolicyPanel({
               gap: 8,
               fontSize: 13,
             }}
- >
+          >
             <input
               type="checkbox"
               checked={connection.samlSignRequests}
@@ -833,18 +834,24 @@ function PolicyPanel({
             disabled={busy}
             onChange={(e) => setKeyDraft(e.target.value)}
             placeholder="-----BEGIN PRIVATE KEY-----&#10;…&#10;-----END PRIVATE KEY-----"
-            className="adm-input" style={{ minHeight: 80,
+            className="adm-input"
+            style={{
+              minHeight: 80,
               fontFamily: "monospace",
-              fontSize: 11 }}
+              fontSize: 11,
+            }}
           />
           <textarea
             value={certDraft}
             disabled={busy}
             onChange={(e) => setCertDraft(e.target.value)}
             placeholder="SP certificate (base64, no PEM header) — optional"
-            className="adm-input" style={{ minHeight: 60,
+            className="adm-input"
+            style={{
+              minHeight: 60,
               fontFamily: "monospace",
-              fontSize: 11 }}
+              fontSize: 11,
+            }}
           />
           <div style={{ display: "flex", gap: 8 }}>
             <Button
@@ -864,7 +871,7 @@ function PolicyPanel({
                 setKeyDraft("");
                 setCertDraft("");
               }}
- >
+            >
               {busy ? "Saving…" : "Install / rotate key"}
             </Button>
             {connection.samlSpKeyConfigured ? (
@@ -873,7 +880,7 @@ function PolicyPanel({
                 size="sm"
                 disabled={busy}
                 onClick={() => onUpdate({ samlSpPrivateKey: "" })}
- >
+              >
                 Clear stored key
               </Button>
             ) : null}
@@ -898,7 +905,7 @@ function PolicyPanel({
             gap: 8,
             fontSize: 13,
           }}
- >
+        >
           <input
             type="checkbox"
             checked={connection.restrictToVerifiedDomains}
@@ -939,7 +946,7 @@ function Field({
         fontSize: 12,
         color: TOKENS.inkMuted,
       }}
- >
+    >
       <span>{label}</span>
       {children}
     </label>

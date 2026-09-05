@@ -214,7 +214,7 @@ export function ServiceAccountsSection({ stepUp }: { stepUp: StepUpControl }) {
             <div
               data-identity-service-account-result={rowResult.ok ? "ok" : "failed"}
               className="adm-help" style={{ color: rowResult.ok ? "var(--success-strong)" : "var(--danger-strong)" }}
- >
+            >
               {rowResult.message}
             </div>
           ) : null}
@@ -284,18 +284,18 @@ export function ServiceAccountsSection({ stepUp }: { stepUp: StepUpControl }) {
           size="sm"
           data-identity-service-accounts-refresh
           onClick={() => void load()}
- >
+        >
           Refresh
         </Button>
       }
- >
+        >
       {failure ? (
         <Card
           variant="status"
           tone="risk"
           padding="compact"
           data-identity-service-accounts-failure={failure.kind}
- >
+        >
           <strong>
             {failure.kind === "denied"
               ? "Restricted section"
@@ -335,7 +335,7 @@ export function ServiceAccountsSection({ stepUp }: { stepUp: StepUpControl }) {
                 flexWrap: "wrap",
                 justifyContent: "flex-end",
               }}
- >
+            >
               {a.status === "REVOKED" ? (
                 <span className="adm-help">revoked</span>
               ) : (
@@ -347,7 +347,7 @@ export function ServiceAccountsSection({ stepUp }: { stepUp: StepUpControl }) {
                       data-identity-service-account-enable={a.id}
                       disabled={busyRow === a.id}
                       onClick={() => void setEnabled(a, true)}
- >
+                    >
                       Re-enable
                     </Button>
                   ) : (
@@ -357,7 +357,7 @@ export function ServiceAccountsSection({ stepUp }: { stepUp: StepUpControl }) {
                       data-identity-service-account-disable={a.id}
                       disabled={busyRow === a.id}
                       onClick={() => void setEnabled(a, false)}
- >
+                    >
                       Disable
                     </Button>
                   )}
@@ -370,7 +370,7 @@ export function ServiceAccountsSection({ stepUp }: { stepUp: StepUpControl }) {
                         ? setHardeningFor(null)
                         : openHardening(a)
                     }
- >
+                  >
                     Hardening
                   </Button>
                 </>
@@ -387,14 +387,14 @@ export function ServiceAccountsSection({ stepUp }: { stepUp: StepUpControl }) {
           title={`Hardening — ${editing.name}`}
           data-identity-service-account-hardening-form={editing.id}
           style={{ marginTop: 12 }}
- >
+        >
           <div
             style={{
               display: "grid",
               gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
               gap: 10,
             }}
- >
+          >
             <label className="adm-help">
               IP allowlist (comma-separated)
               <input
@@ -443,14 +443,14 @@ export function ServiceAccountsSection({ stepUp }: { stepUp: StepUpControl }) {
               data-identity-hardening-save={editing.id}
               disabled={busyRow === editing.id}
               onClick={() => void saveHardening(editing)}
- >
+            >
               Save hardening
             </Button>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setHardeningFor(null)}
- >
+            >
               Cancel
             </Button>
           </div>

@@ -125,7 +125,7 @@ export function SessionTimelineDrawer({
       subtitle="Sign-in, second factor, step-up, quarantine and revoke — in order. Page views, mouse activity and evidence reads are never recorded here."
       onClose={onClose}
       testId="session-timeline-drawer"
- >
+    >
       {state.kind === "loading" ? <AdmSkeleton shape="row" count={4} /> : null}
 
       {state.kind === "denied" ? (
@@ -143,7 +143,7 @@ export function SessionTimelineDrawer({
               Try again
             </Button>
           }
- >
+        >
           {state.message}
         </AdmInline>
       ) : null}
@@ -219,7 +219,7 @@ export function SessionTimelineDrawer({
                               ? "pending"
                               : "info"
                         }
- >
+                      >
                         {e.severity}
                       </Badge>
                       <span className="adm-timeline__kind">{e.eventType}</span>

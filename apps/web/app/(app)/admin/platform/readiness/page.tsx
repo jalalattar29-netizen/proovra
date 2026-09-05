@@ -203,7 +203,7 @@ function OperationsReadinessContent() {
           }
         />
       }
- >
+        >
       {error ? (
         <Card variant="status" tone="risk" data-testid="readiness-error">
           <div style={{ color: "var(--status-risk-fg)" }}>{error}</div>
@@ -286,7 +286,7 @@ function BackupSection({ backup }: { backup: ReadinessPosture["backup"] }) {
     <PageSection
       title="Backup & preservation posture"
       description="Object Lock, honest database-backup label, and artifact regeneration."
- >
+    >
       <Card data-testid="backup-section">
         <div style={gridStyle}>
           <Row label="S3 Object Lock">
@@ -314,7 +314,7 @@ function BackupSection({ backup }: { backup: ReadinessPosture["backup"] }) {
             <PostureBadge
               tone={backup.objectLockStatus.mode === "verified" ? GREEN : AMBER}
               testId="object-lock-status"
- >
+            >
               {backup.objectLockStatus.mode}
             </PostureBadge>
           </Row>
@@ -407,7 +407,7 @@ function MfaThrottleSection({
             <PostureBadge
               tone={mfaThrottle.shared ? GREEN : AMBER}
               testId="mfa-throttle-store"
- >
+            >
               {mfaThrottle.store}
               {mfaThrottle.shared ? " (shared)" : " (per-instance)"}
             </PostureBadge>
@@ -443,7 +443,7 @@ function KeySection({ keys }: { keys: ReadinessPosture["keys"] }) {
             <PostureBadge
               tone={keys.signerProvider === "disabled" ? AMBER : NEUTRAL}
               testId="signer-provider"
- >
+            >
               {keys.signerProvider}
             </PostureBadge>
           </Row>
@@ -496,7 +496,7 @@ function ResiliencySection({
             gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
             gap: 16,
           }}
- >
+        >
           <div>
             <Row label="Runtime readiness">
               <PostureBadge tone={statusTone(rr.status)} testId="runtime-status">
@@ -585,7 +585,7 @@ function RunbooksSection() {
               <Link
                 href={`/admin/platform/runbooks/${r.slug}`}
                 style={{ color: TOKENS.link ?? "var(--info)", fontWeight: 600 }}
- >
+              >
                 {r.label}
               </Link>
               <div className="adm-help" style={{ fontSize: 12 }}>{r.summary}</div>

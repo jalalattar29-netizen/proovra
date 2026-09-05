@@ -203,7 +203,7 @@ export function LifecycleRequestQueue() {
     <PageSection
       title="Account lifecycle requests"
       description="Closure and data-export requests across the platform. Read-only — each request is driven by its own state machine with a cooling-off window and a blocker preflight, and this console never writes their status directly."
- >
+    >
       <FilterBar>
         <FilterBar.Select
           label="Request type"

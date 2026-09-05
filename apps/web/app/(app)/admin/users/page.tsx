@@ -214,7 +214,7 @@ export default function AdminPeoplePage() {
                 key={s.id}
                 tone={s.status === "ACTIVE" ? "verified" : "neutral"}
                 subtle
- >
+              >
                 {s.provider} {s.plan} · {s.status}
               </Badge>
             ))}
@@ -317,7 +317,7 @@ export default function AdminPeoplePage() {
           subtitle="Every person on the platform, with the commercial context that answers 'what do they pay for?'. Membership states are shown as memberships — this platform models no account-level disable, so nothing here claims one."
         />
       }
- >
+        >
 
       <FilterBar
         actions={
@@ -330,14 +330,14 @@ export default function AdminPeoplePage() {
             </Button>
           </>
         }
- >
+      >
         <form
           onSubmit={(e) => {
             e.preventDefault();
             setApplied(search);
           }}
           style={{ display: "contents" }}
- >
+        >
           <FilterBar.Search
             label="Search people by email or name"
             value={search}
@@ -440,7 +440,7 @@ export default function AdminPeoplePage() {
             color: "var(--ink-secondary)",
             marginTop: 16,
           }}
- >
+        >
           <span>
             {total === 0
               ? "No people"
@@ -452,7 +452,7 @@ export default function AdminPeoplePage() {
               size="sm"
               onClick={() => void load(page - 1)}
               disabled={loading || page <= 1}
- >
+            >
               Previous
             </Button>
             <span style={{ minWidth: 90, textAlign: "center" }}>
@@ -463,7 +463,7 @@ export default function AdminPeoplePage() {
               size="sm"
               onClick={() => void load(page + 1)}
               disabled={loading || page >= (data?.totalPages ?? 0)}
- >
+            >
               Next
             </Button>
           </div>

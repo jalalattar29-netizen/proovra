@@ -173,7 +173,7 @@ function MetricTile({
           textTransform: "uppercase",
           color: "var(--ink-muted)",
         }}
- >
+      >
         {label}
       </div>
       {/*
@@ -203,7 +203,7 @@ function MetricTile({
           color: measured ? accent ?? "var(--ink-primary)" : "var(--ink-muted)",
           overflowWrap: "anywhere",
         }}
- >
+      >
         {measured ? value : "Not measured"}
       </div>
       <div
@@ -213,7 +213,7 @@ function MetricTile({
           lineHeight: 1.5,
           color: measured ? "var(--ink-secondary)" : "var(--ink-muted)",
         }}
- >
+      >
         {measured
           ? sub ?? ""
           : notMeasuredReason ?? "Not safely derivable from the schema."}
@@ -503,13 +503,13 @@ function ExecutiveDashboardBody() {
               gap: 16,
               gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
             }}
- >
+          >
             {Array.from({ length: 5 }).map((_, i) => (
               <Card
                 key={i}
                 padding="comfortable"
                 data-testid="admin-executive-loading-tile"
- >
+              >
                 <div
                   aria-hidden="true"
                   style={{
@@ -538,7 +538,7 @@ function ExecutiveDashboardBody() {
           <PageSection
             title="Top-line KPIs"
             description="Revenue, customers and leads — every value read live from real records."
- >
+          >
             <div
               data-testid="admin-executive-kpi-grid"
               style={{
@@ -546,7 +546,7 @@ function ExecutiveDashboardBody() {
                 gap: 16,
                 gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
               }}
- >
+            >
               {revenueMetrics.map((m) => (
                 <MetricTile
                   key={m.label}
@@ -563,14 +563,14 @@ function ExecutiveDashboardBody() {
           <PageSection
             title="Usage (this month vs last month)"
             description="Evidence, reports and verification packages by real createdAt / generatedAtUtc, plus failed operations."
- >
+          >
             <div
               style={{
                 display: "grid",
                 gap: 16,
                 gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
               }}
- >
+            >
               {usageMetrics.map((m) => (
                 <MetricTile
                   key={m.label}
@@ -587,7 +587,7 @@ function ExecutiveDashboardBody() {
           <PageSection
             title="Not measured — honestly"
             description="These are NOT computable from the current schema. They are shown as “Not measured” with the reason — they are never fabricated or estimated."
- >
+          >
             {/*
               A LIST, NOT FOUR TILES.
 
@@ -618,7 +618,7 @@ function ExecutiveDashboardBody() {
                         <span
                           className="adm-secondary"
                           style={{ fontSize: 12.5, marginInlineStart: 8 }}
- >
+                        >
                           {c.reason}
                         </span>
                       ) : null}
@@ -632,7 +632,7 @@ function ExecutiveDashboardBody() {
           <PageSection
             title="Top customers by usage"
             description="Top workspaces ranked by live evidence count (real join via evidence teamId)."
- >
+          >
             <DataTable
               columns={topColumns}
               rows={data.topCustomers}
@@ -651,7 +651,7 @@ function ExecutiveDashboardBody() {
           <PageSection
             title="At-risk customers"
             description={data.atRisk.rule}
- >
+          >
             <DataTable
               columns={atRiskColumns}
               rows={data.atRisk.items}

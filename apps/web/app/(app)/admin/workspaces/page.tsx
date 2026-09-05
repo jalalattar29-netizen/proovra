@@ -194,7 +194,7 @@ export default function AdminWorkspacesPage() {
             <a
               href={`/admin/customers/${encodeURIComponent(r.organization.id)}`}
               style={{ color: "var(--accent-600)" }}
- >
+            >
               {r.organization.name}
             </a>
           ) : (
@@ -211,7 +211,7 @@ export default function AdminWorkspacesPage() {
             <a
               href={`/admin/users/${encodeURIComponent(r.owner.userId)}`}
               style={{ color: "var(--accent-600)", fontSize: 12.5 }}
- >
+            >
               {r.owner.email}
             </a>
           ) : (
@@ -258,7 +258,7 @@ export default function AdminWorkspacesPage() {
             <a
               href={`/admin/operations?teamId=${encodeURIComponent(r.id)}`}
               style={{ color: "var(--risk-strong)", fontWeight: 700 }}
- >
+            >
               {r.openIncidents}
             </a>
           ) : (
@@ -292,7 +292,7 @@ export default function AdminWorkspacesPage() {
           subtitle="Every workspace on the platform, by kind and lifecycle. A closed workspace is excluded from the live view by default and remains findable under Closed — closure revokes access without touching billing, so the two are reported separately."
         />
       }
- >
+        >
 
       <FilterBar
         actions={
@@ -305,14 +305,14 @@ export default function AdminWorkspacesPage() {
             </Button>
           </>
         }
- >
+      >
         <form
           onSubmit={(e) => {
             e.preventDefault();
             setApplied(search);
           }}
           style={{ display: "contents" }}
- >
+        >
           <FilterBar.Search
             label="Search workspaces"
             value={search}
@@ -402,7 +402,7 @@ export default function AdminWorkspacesPage() {
             color: "var(--ink-secondary)",
             marginTop: 16,
           }}
- >
+        >
           <span>
             {total === 0
               ? "No workspaces"
@@ -414,7 +414,7 @@ export default function AdminWorkspacesPage() {
               size="sm"
               onClick={() => void load(page - 1)}
               disabled={loading || page <= 1}
- >
+            >
               Previous
             </Button>
             <span style={{ minWidth: 90, textAlign: "center" }}>
@@ -425,7 +425,7 @@ export default function AdminWorkspacesPage() {
               size="sm"
               onClick={() => void load(page + 1)}
               disabled={loading || page >= (data?.totalPages ?? 0)}
- >
+            >
               Next
             </Button>
           </div>

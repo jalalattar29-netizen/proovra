@@ -44,11 +44,13 @@ import {
   StepUpModal,
   useStepUpAction,
 } from "../../../../../components/identity-security/StepUpModal";
-import { badgeStyle, formatDateTime, primaryButtonStyle, TOKENS } from "../../identity/ui-tokens";
 import { ResultCount } from "../../../../../components/ui/ResultCount";
 import {
   AdmInline,
 } from "../../../../../components/admin/AdminSurfaces";
+import { Badge } from "../../../../../components/ui/Badge";
+import { Button } from "../../../../../components/ui/Button";
+import { TOKENS, badgeStyle, formatDateTime } from "../../identity/ui-tokens";
 
 type ValidationOutcome = "passed" | "warning" | "failed" | "unsupported";
 
@@ -318,12 +320,12 @@ function OperationsRecoveryContent() {
 
 function outcomeBadge(outcome: ValidationOutcome | null) {
   if (outcome === "passed")
-    return badgeStyle({ bg: "var(--success-subtle-bg)", fg: "var(--success-strong)", border: "var(--success-border)" });
+    return "verified";
   if (outcome === "warning")
-    return badgeStyle({ bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" });
+    return "pending";
   if (outcome === "failed")
-    return badgeStyle({ bg: "var(--danger-subtle-bg)", fg: "var(--danger-strong)", border: "var(--danger-border)" });
-  return badgeStyle({ bg: "var(--surface-muted)", fg: "var(--ink-secondary)", border: "var(--border-standard)" });
+    return "risk";
+  return "neutral";
 }
 
 function ReadinessSummary({
@@ -347,7 +349,7 @@ function ReadinessSummary({
           gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
           gap: 16,
         }}
- >
+      >
         <div>
           <div className="apf-muted">S3 Object Lock platform mode</div>
           <div style={{ marginTop: 4 }}>
@@ -357,7 +359,7 @@ function ReadinessSummary({
                   ? { bg: "var(--success-subtle-bg)", fg: "var(--success-strong)", border: "var(--success-border)" }
                   : { bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" },
               )}
- >
+            >
               {last.objectLockMode}
             </span>
           </div>
@@ -367,9 +369,9 @@ function ReadinessSummary({
           <div style={{ marginTop: 4 }}>
             {last.lastBackupReport ? (
               <>
-                <span style={outcomeBadge(last.lastBackupReport.outcome)}>
+                <Badge tone={outcomeBadge(last.lastBackupReport.outcome)}>
                   {last.lastBackupReport.outcome ?? "unknown"}
-                </span>
+                </Badge>
                 <div className="adm-help" style={{ fontSize: 12, marginTop: 4 }}>
                   {formatDateTime(last.lastBackupReport.generatedAtUtc)}
                 </div>
@@ -384,9 +386,9 @@ function ReadinessSummary({
           <div style={{ marginTop: 4 }}>
             {last.lastRestoreReport ? (
               <>
-                <span style={outcomeBadge(last.lastRestoreReport.outcome)}>
+                <Badge tone={outcomeBadge(last.lastRestoreReport.outcome)}>
                   {last.lastRestoreReport.outcome ?? "unknown"}
-                </span>
+                </Badge>
                 <div className="adm-help" style={{ fontSize: 12, marginTop: 4 }}>
                   {formatDateTime(last.lastRestoreReport.generatedAtUtc)}
                 </div>
@@ -398,24 +400,20 @@ function ReadinessSummary({
         </div>
       </div>
       <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-        <button
-          type="button"
-          style={primaryButtonStyle}
+        <Button variant="primary" size="sm"
           onClick={onRunBackup}
           disabled={busy !== null}
           data-testid="run-backup-validation"
- >
+        >
           {busy === "backup" ? "Running…" : "Run backup validation"}
-        </button>
-        <button
-          type="button"
-          style={primaryButtonStyle}
+        </Button>
+        <Button variant="primary" size="sm"
           onClick={onRunRestore}
           disabled={busy !== null}
           data-testid="run-restore-validation"
- >
+        >
           {busy === "restore" ? "Running…" : "Run restore validation (step-up)"}
-        </button>
+        </Button>
       </div>
     </section>
   );
@@ -428,10 +426,13 @@ function UnsupportedDomainsPanel({
 }) {
   return (
     <section
-      className="adm-card" style={{ marginTop: 12,
-        background: TOKENS.surfaceMuted }}
+      className="adm-card"
+      style={{
+        marginTop: 12,
+        background: TOKENS.surfaceMuted,
+      }}
       data-testid="unsupported-domains"
- >
+    >
       <h2 className="apf-section-title">Unsupported domains (honest disclosure)</h2>
       <p className="apf-muted">
         These categories are explicitly NOT validated by the PROOVRA
@@ -467,7 +468,7 @@ function RecentReportsTable({
     <section
       className="adm-card" style={{ marginTop: 12, padding: 0 }}
       data-testid="recent-reports"
- >
+    >
       <div style={{ padding: 12, borderBottom: `1px solid ${TOKENS.border}` }}>
         <strong style={{ fontSize: 14 }}>Recent reports</strong>
       </div>
@@ -497,9 +498,9 @@ function RecentReportsTable({
                     </span>
                   </td>
                   <td>
-                    <span style={outcomeBadge(r.outcome)}>
+                    <Badge tone={outcomeBadge(r.outcome)}>
                       {r.outcome ?? "unknown"}
-                    </span>
+                    </Badge>
                   </td>
                   <td>
                     <code style={{ fontFamily: "monospace", fontSize: 11 }}>
@@ -512,7 +513,7 @@ function RecentReportsTable({
                       type="button"
                       className="apf-control"
                       onClick={() => onOpen(r.reportId)}
- >
+                    >
                       Open
                     </button>
                   </td>
@@ -560,14 +561,14 @@ function ReportDrawer({
         overflowY: "auto",
         padding: 20,
       }}
- >
+    >
       <header
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
         }}
- >
+      >
         <h2 style={{ fontSize: 16, margin: 0 }}>{report.kind}</h2>
         <button type="button" className="apf-control" onClick={onClose}>
           Close
@@ -580,9 +581,9 @@ function ReportDrawer({
         {formatDateTime(report.finishedAtUtc)}
       </p>
       <div style={{ marginTop: 12 }}>
-        <span style={outcomeBadge(report.overallOutcome)}>
+        <Badge tone={outcomeBadge(report.overallOutcome)}>
           {report.overallOutcome}
-        </span>
+        </Badge>
         {report.recommendedAction ? (
           <p style={{ marginTop: 8, fontSize: 13 }}>
             <strong>Recommended action:</strong> {report.recommendedAction}
@@ -608,7 +609,7 @@ function ReportDrawer({
                     <div className="adm-help" style={{ fontSize: 11 }}>{c.id}</div>
                   </td>
                   <td>
-                    <span style={outcomeBadge(c.outcome)}>{c.outcome}</span>
+                    <Badge tone={outcomeBadge(c.outcome)}>{c.outcome}</Badge>
                   </td>
                   <td>
                     <span style={{ fontSize: 12 }}>{c.detail}</span>
