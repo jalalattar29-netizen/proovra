@@ -27,7 +27,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 import {
   PageShell,
@@ -50,6 +50,8 @@ import { formatRelativeTime, formatUserDateTime } from "../../../../lib/date";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { hasRunbook, resolveRunbookSlug } from "../../../../lib/runbooks/slugs.generated";
 import { ResultCount } from "../../../../components/ui/ResultCount";
+import { shortId } from "../../../../lib/short-id";
+import { useUrlFilterSync } from "../../../../lib/use-url-filter-sync";
 
 type IncidentRow = {
   id: string;
@@ -67,6 +69,19 @@ type IncidentRow = {
   resolvedAtUtc: string | null;
   assignedOperatorUserId: string | null;
   runbookSlug: string | null;
+  // THE SUBJECT THE CONDITION IS ABOUT.
+  //
+  // `projectIncident` has always returned these three and this page declared
+  // none of them, so a per-record condition rendered with nothing that said
+  // WHICH record. Five rows read "Trusted timestamping failed ·
+  // EVIDENCE_INTEGRITY · seen 10x · last 1m ago" against the same workspace at
+  // the same severity and status, and their own safeSummary said "Each
+  // affected record is tracked separately — this condition covers one record
+  // only". An operator could not tell them apart, could not say which one a
+  // colleague had acknowledged, and had no basis for choosing between them.
+  relatedEvidenceId: string | null;
+  relatedJobId: string | null;
+  relatedProvider: string | null;
   affected: {
     workspaceId: string;
     workspaceName: string;
@@ -98,9 +113,58 @@ const STATUS_TONE: Record<string, BadgeTone> = {
   SUPPRESSED: "neutral",
 };
 
+/**
+ * WHICH THING THIS CONDITION IS ABOUT.
+ *
+ * Renders at most one subject, in the order of how specifically it identifies
+ * the condition: the affected record, else the job, else the provider. A
+ * condition with none — a platform-wide rollup, a workspace aggregate —
+ * renders nothing rather than an empty line, because for those the workspace
+ * in the Affected column IS the subject.
+ *
+ * The record links to `/admin/evidence-ops/records?evidenceId=…`, which
+ * resolves exactly one record and whose default signal is TSA_FAILED. The job
+ * and the provider do not link: no admin surface resolves a single job id, and
+ * this page's rule is already that a control which dead-ends mid-incident is
+ * worse than no control (see the Runbook button).
+ */
+function ConditionSubject({ row }: { row: IncidentRow }) {
+  const style = { marginTop: 2, fontVariantNumeric: "tabular-nums" } as const;
+
+  if (row.relatedEvidenceId) {
+    return (
+      <div className="adm-help" style={style}>
+        Record{" "}
+        <Link
+          href={`/admin/evidence-ops/records?evidenceId=${encodeURIComponent(
+            row.relatedEvidenceId,
+          )}`}
+          title={row.relatedEvidenceId}
+        >
+          {shortId(row.relatedEvidenceId)}
+        </Link>
+      </div>
+    );
+  }
+  if (row.relatedJobId) {
+    return (
+      <div className="adm-help" style={style} title={row.relatedJobId}>
+        Job {shortId(row.relatedJobId)}
+      </div>
+    );
+  }
+  if (row.relatedProvider) {
+    return (
+      <div className="adm-help" style={style}>
+        Provider {row.relatedProvider}
+      </div>
+    );
+  }
+  return null;
+}
+
 export default function AdminOperationsPage() {
   const { addToast } = useToast();
-  const router = useRouter();
   const params = useSearchParams();
   const { confirm } = useConfirmAction();
   // ADM-011 — "Assign to me" needs the operator's own id. It comes from the
@@ -131,13 +195,6 @@ export default function AdminOperationsPage() {
         `/v1/admin/incidents?${qs.toString()}`,
       )) as IncidentsResponse;
       setData(res ?? null);
-
-      const shareable = new URLSearchParams(qs);
-      shareable.delete("limit");
-      router.replace(
-        shareable.toString() ? `/admin/operations?${shareable.toString()}` : "/admin/operations",
-        { scroll: false },
-      );
     } catch (err) {
       addToast(
         toSafeUserError(err, { message: "We couldn't load platform operations." })
@@ -148,7 +205,11 @@ export default function AdminOperationsPage() {
     } finally {
       setLoading(false);
     }
-  }, [addToast, status, severity, teamId, router]);
+  }, [addToast, status, severity, teamId]);
+
+  // The shareable URL follows the FILTERS, not the response — see
+  // `lib/use-url-filter-sync.ts` for the click this used to cancel.
+  useUrlFilterSync("/admin/operations", { status, severity, teamId });
 
   useEffect(() => {
     void load();
@@ -215,7 +276,15 @@ export default function AdminOperationsPage() {
         header: "Condition",
         render: (r) => (
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 620 }}>{r.title}</div>
+            {/* The summary is the only description of the condition that
+                exists — there is no platform incident detail surface, and
+                `/operations`' inspector is workspace-scoped and 404s a
+                cross-workspace id by design. Three sentences per row across
+                thirteen rows is not a table, so it reads on the hover of the
+                line it describes. */}
+            <div style={{ fontWeight: 620 }} title={r.safeSummary}>
+              {r.title}
+            </div>
             {/* RECENCY IS THE FACT AN OPERATOR IS TRIAGING FOR, so it reads
                 "last 3m ago" rather than "last 05 Sept 2026, 16:21:53
                 Europe/Berlin" — which wrapped to two lines and made every
@@ -230,6 +299,7 @@ export default function AdminOperationsPage() {
               {r.category} · seen {r.occurrenceCount}× · last{" "}
               {formatRelativeTime(r.lastSeenAtUtc)}
             </div>
+            <ConditionSubject row={r} />
           </div>
         ),
       },
@@ -254,10 +324,21 @@ export default function AdminOperationsPage() {
               <Link href={`/admin/workspaces/${encodeURIComponent(r.affected.workspaceId)}`}>
                 {r.affected.workspaceName}
               </Link>
+              {/* THE SECOND LINE ANSWERS "WHICH CUSTOMER", AND WHEN THE
+                  CUSTOMER IS SELF-TITLED IT ANSWERED IT WITH THE LINE ABOVE.
+                  Every row read "Northwind Legal / Northwind Legal" — the same
+                  string stacked twice, on thirteen rows, which reads as a
+                  rendering fault rather than as a fact. The customer is still
+                  one click away; only the repeated name is gone. */}
               <div style={{ fontSize: 12, color: "var(--ink-muted)", marginTop: 2 }}>
                 {r.affected.customer ? (
-                  <Link href={`/admin/customers/${encodeURIComponent(r.affected.customer.id)}`}>
-                    {r.affected.customer.name}
+                  <Link
+                    href={`/admin/customers/${encodeURIComponent(r.affected.customer.id)}`}
+                    title={r.affected.customer.name}
+                  >
+                    {r.affected.customer.name === r.affected.workspaceName
+                      ? "Customer account"
+                      : r.affected.customer.name}
                   </Link>
                 ) : (
                   "Self-service"

@@ -23,6 +23,7 @@ import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 // everything. Only the OWNING collection does this: a link from Billing to
 // a customer should return to Billing, not to the customer directory.
 import { detailHrefWithReturn } from "../../../../lib/navigation/adminReturnState";
+import { useUrlFilterSync } from "../../../../lib/use-url-filter-sync";
 
 /**
  * PLATFORM ADMIN — THE WORKSPACE DIRECTORY (ADM-027).
@@ -121,17 +122,6 @@ export default function AdminWorkspacesPage() {
         )) as ListResponse;
         setData(res ?? null);
         setPage(res?.page ?? targetPage);
-
-        // Reflect the view in the address bar so it can be shared and returned to.
-        const shareable = new URLSearchParams(qs);
-        shareable.delete("page");
-        shareable.delete("limit");
-        router.replace(
-          shareable.toString()
-            ? `/admin/workspaces?${shareable.toString()}`
-            : "/admin/workspaces",
-          { scroll: false },
-        );
       } catch (err) {
         addToast(
           toSafeUserError(err, { message: "We couldn't load the workspace directory." })
@@ -143,8 +133,19 @@ export default function AdminWorkspacesPage() {
         setLoading(false);
       }
     },
-    [addToast, applied, kind, lifecycle, plan, customersOnly, router],
+    [addToast, applied, kind, lifecycle, plan, customersOnly],
   );
+
+  // Reflect the view in the address bar so it can be shared and returned to —
+  // from the FILTERS, not from the response. See `lib/use-url-filter-sync.ts`
+  // for the outbound click a late replace used to cancel.
+  useUrlFilterSync("/admin/workspaces", {
+    search: applied.trim(),
+    kind,
+    lifecycle,
+    plan,
+    customersOnly,
+  });
 
   useEffect(() => {
     void load(1);

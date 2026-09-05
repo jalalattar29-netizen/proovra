@@ -46,6 +46,7 @@ import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 // everything. Only the OWNING collection does this: a link from Billing to
 // a customer should return to Billing, not to the customer directory.
 import { detailHrefWithReturn } from "../../../../lib/navigation/adminReturnState";
+import { useUrlFilterSync } from "../../../../lib/use-url-filter-sync";
 
 type PersonRow = {
   id: string;
@@ -138,14 +139,6 @@ export default function AdminPeoplePage() {
         const res = (await apiFetch(`/v1/admin/users?${qs.toString()}`)) as Response;
         setData(res ?? null);
         setPage(res?.page ?? targetPage);
-
-        const shareable = new URLSearchParams(qs);
-        shareable.delete("page");
-        shareable.delete("pageSize");
-        router.replace(
-          shareable.toString() ? `/admin/users?${shareable.toString()}` : "/admin/users",
-          { scroll: false },
-        );
       } catch (err) {
         addToast(
           toSafeUserError(err, { message: "Failed to load platform people" }).message,
@@ -164,9 +157,19 @@ export default function AdminPeoplePage() {
       subscriptionStatus,
       pendingCancellation,
       platformRole,
-      router,
     ],
   );
+
+  // The shareable URL follows the FILTERS, not the response — see
+  // `lib/use-url-filter-sync.ts` for the click this used to cancel.
+  useUrlFilterSync("/admin/users", {
+    search: applied.trim(),
+    tier,
+    provider,
+    subscriptionStatus,
+    pendingCancellation,
+    platformRole,
+  });
 
   useEffect(() => {
     void load(1);

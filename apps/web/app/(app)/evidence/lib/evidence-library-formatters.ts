@@ -40,12 +40,9 @@ export function formatBytes(value: string | number | null | undefined): string {
   return `${size.toFixed(index === 0 ? 0 : 2)} ${units[index]}`;
 }
 
-export function shortId(value: string | null | undefined): string {
-  const text = (value ?? "").trim();
-  if (!text) return "Not available";
-  if (text.length <= 14) return text;
-  return `${text.slice(0, 8)}…${text.slice(-6)}`;
-}
+// Re-exported, not redefined: `lib/short-id.ts` is the one authority. Three
+// copies of this function disagreed with each other — see that file.
+export { shortId } from "../../../../lib/short-id";
 
 export function safeText(
   value: string | null | undefined,

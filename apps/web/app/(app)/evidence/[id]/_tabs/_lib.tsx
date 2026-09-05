@@ -168,12 +168,9 @@ export function SectionHeading({
 // Primitive value formatters
 // ---------------------------------------------------------------------------
 
-export function shortId(value: string | null | undefined): string {
-  const text = (value ?? "").trim();
-  if (!text) return "Not available";
-  if (text.length <= 14) return text;
-  return `${text.slice(0, 8)}…${text.slice(-6)}`;
-}
+// Re-exported, not redefined: `lib/short-id.ts` is the one authority. Three
+// copies of this function disagreed with each other — see that file.
+export { shortId } from "../../../../../lib/short-id";
 
 export function formatBytes(sizeBytes: string | number | null | undefined) {
   const numeric =

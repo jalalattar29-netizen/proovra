@@ -25,7 +25,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 import {
   PageShell,
@@ -44,6 +44,7 @@ import { apiFetch } from "../../../../../lib/api";
 import { formatUserDateTime } from "../../../../../lib/date";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { resolveRunbookSlug } from "../../../../../lib/runbooks/slugs.generated";
+import { useUrlFilterSync } from "../../../../../lib/use-url-filter-sync";
 
 type RecordRow = {
   id: string;
@@ -130,7 +131,6 @@ const STATUS_TONE: Record<string, BadgeTone> = {
 
 export default function AdminEvidenceRecordsPage() {
   const { addToast } = useToast();
-  const router = useRouter();
   const params = useSearchParams();
 
   const evidenceId = params.get("evidenceId") ?? "";
@@ -185,16 +185,6 @@ export default function AdminEvidenceRecordsPage() {
         )) as Response;
         setData(res ?? null);
         setPage(res?.page ?? targetPage);
-
-        if (!evidenceId) {
-          const shareable = new URLSearchParams();
-          if (cohort) shareable.set("cohort", cohort);
-          if (signal) shareable.set("signal", signal);
-          if (teamId) shareable.set("teamId", teamId);
-          router.replace(`/admin/evidence-ops/records?${shareable.toString()}`, {
-            scroll: false,
-          });
-        }
       } catch (err) {
         addToast(
           toSafeUserError(err, {
@@ -207,7 +197,20 @@ export default function AdminEvidenceRecordsPage() {
         setLoading(false);
       }
     },
-    [addToast, evidenceId, cohort, signal, teamId, router],
+    [addToast, evidenceId, cohort, signal, teamId],
+  );
+
+  // A RECORD LOOKUP OWNS ITS OWN URL.
+  //
+  // In `?evidenceId=…` mode the cohort and the signal are not the query — the
+  // record is — so nothing here manages the address bar and the inbound deep
+  // link survives verbatim. Passing no managed keys is how that is said: the
+  // sync computes a target identical to the current URL and issues nothing.
+  // Otherwise the filters own it, from the filters rather than from the
+  // response (see `lib/use-url-filter-sync.ts`).
+  useUrlFilterSync(
+    "/admin/evidence-ops/records",
+    evidenceId ? {} : { cohort, signal, teamId },
   );
 
   useEffect(() => {
