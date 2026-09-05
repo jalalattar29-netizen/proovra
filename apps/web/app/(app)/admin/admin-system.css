@@ -1809,3 +1809,52 @@ body.is-admin-console :where(code, pre, samp, kbd) {
 
   .adm-alert-row__action { justify-self: start; }
 }
+
+/* ==========================================================================
+ * 22. THE SHELL'S TOUCH FLOOR, INSIDE THE CONSOLE
+ *
+ * =============================================================================
+ * WHAT THE SWEEP FOUND
+ * =============================================================================
+ * 187 of 376 responsive checks reported sub-44px targets in the app CHROME —
+ * the sidebar rail. The cause is a documented density path in
+ * `app-shell-v2.css`:
+ *
+ *   @media (pointer: coarse), (max-width: 900px)          -> 44px
+ *   @media (pointer: fine) and (max-height: 900px)        -> 40px
+ *   @media (pointer: fine) and (max-height: 820px)        -> 38px
+ *
+ * The fine path is LATER in the file, so on a laptop — a mouse and a viewport
+ * 900px tall or shorter, which is most laptops — the rail's links are 40px or
+ * 38px. A phone gets `pointer: coarse` and keeps 44px, so this is a laptop
+ * condition, not a touch one. That is why an earlier pass's own 44px comment
+ * and these measurements can both be true.
+ *
+ * =============================================================================
+ * WHY RAISING IT COSTS NOTHING IT WAS PROTECTING
+ * =============================================================================
+ * The density reduction exists to fit more of the rail in view. Measured, on
+ * /admin, it does not achieve that — the rail overflows either way:
+ *
+ *   1440x900   34 links   content 958px   visible 696px   overflow-y: auto
+ *   1280x800   34 links   content 890px   visible 635px   overflow-y: auto
+ *   1024x768   34 links   content 890px   visible 604px   overflow-y: auto
+ *
+ * The list already scrolls at every laptop height. Returning the links to
+ * 44px adds ~136px to a column that is already 262px past its viewport and
+ * already scrolling; nothing that fitted before stops fitting.
+ *
+ * =============================================================================
+ * WHY IT IS SCOPED TO THE CONSOLE
+ * =============================================================================
+ * The density decision belongs to the product shell and was made with its own
+ * reasoning, which is written down in that file. Reversing it product-wide is
+ * that surface's call, not an admin pass's side effect. This raises the floor
+ * where THIS phase is responsible for meeting it, and leaves the measurement
+ * above for whoever owns the shell.
+ * ========================================================================== */
+
+body.is-admin-console .app-sidebar-v2-link,
+body.is-admin-console .app-sidebar-v2-help {
+  min-block-size: 44px;
+}

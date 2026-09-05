@@ -307,7 +307,15 @@ body.is-admin-console .select {
 .adminnav__crumbs a {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   min-height: 44px;
+  /* AND THE INLINE AXIS. The floor is 44px in BOTH directions, and a short
+     crumb label is narrower than it is tall: the responsive sweep measured
+     "People" on /admin/users/:id at 41x44 — three pixels under, which only a
+     measurement finds. Centred, so the extra width is symmetric and the trail
+     keeps its rhythm; the cost is 3px on the shortest labels and nothing on
+     the rest. */
+  min-inline-size: 44px;
   padding-block: 12px;
   margin-block: -12px;
 }
