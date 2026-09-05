@@ -46,17 +46,57 @@ test("overview shows the control-plane sections", () => {
   // reports. "Quick actions" is GONE: the console nav (now in the layout) is
   // the navigation, and every tile on this page is itself a drill-down link,
   // which is a better answer to the same need than a row of buttons.
-  for (const section of [
+  //
+  // PHASE 7 — "Customers" and "Workspaces" were separate sections and are now
+  // one, because nineteen identical tiles said the count of archived customers
+  // mattered as much as the count of suspended ones. This asserts that each
+  // POPULATION is still reported, which is the contract; it deliberately does
+  // not pin how many section headings they are distributed across, because
+  // that is a composition decision and pinning it made a legitimate
+  // recomposition look like a lost population.
+  for (const population of [
     "Platform posture",
-    "Customers",
-    "Workspaces",
+    /Customers/,
+    /workspaces/i,
     "Commercial attention",
     "Evidence operations",
     "Security",
     "Traffic",
   ]) {
-    assert.match(src, new RegExp(section), `must have a "${section}" section`);
+    const re = typeof population === "string" ? new RegExp(population) : population;
+    assert.match(src, re, `must still report "${re.source}"`);
   }
+});
+
+/**
+ * PHASE 7 — THE ORDER IS PART OF THE CONTRACT NOW.
+ *
+ * An operator arriving at a control plane asks "is anything critical", then
+ * "what needs me", then "how big is the estate" — and the page answered them
+ * in the reverse of that order: the verdict was a Badge in the fourth block of
+ * the first section, under a 90-word methodology paragraph, and "Needs
+ * attention" came after it.
+ *
+ * Pinned by source position rather than by rendering, for the same reason
+ * every other guard in this file reads the source: the page's data comes from
+ * a live API and these tests do not stand up a server.
+ */
+test("the verdict and what needs attention come before the inventory", () => {
+  const src = read(PAGE);
+  const verdict = src.indexOf("admin-status-level");
+  const attention = src.indexOf("Needs attention");
+  const estate = src.indexOf("Customers, workspaces and people");
+  assert.ok(verdict > 0, "the status verdict must be on the page");
+  assert.ok(attention > 0, "the attention list must be on the page");
+  assert.ok(estate > 0, "the estate section must be on the page");
+  assert.ok(
+    verdict < attention,
+    "the platform verdict must come before the attention list",
+  );
+  assert.ok(
+    attention < estate,
+    "what needs an operator must come before the inventory of what exists",
+  );
 });
 
 // ADM-002 — the Overview counts CUSTOMER organizations, never every
@@ -75,7 +115,21 @@ test("overview says its customer population excludes bootstrap containers", () =
 test("overview separates live workspaces from closed ones", () => {
   const src = read(PAGE);
   assert.match(src, /Live workspaces/, "a live-workspace figure");
-  assert.match(src, /Closed \(history\)/, "closed workspaces reported separately");
+  // PHASE 7 — the label reads "Closed workspaces" rather than "Closed
+  // (history)": the parenthetical was carrying the whole explanation, and the
+  // figure now states it in words beside itself ("History. Access already
+  // revoked."). The CONTRACT is that the two populations are reported
+  // separately, which is what this asserts.
+  assert.match(
+    src,
+    /Closed workspaces|Closed \(history\)/,
+    "closed workspaces reported separately from live ones",
+  );
+  assert.match(
+    src,
+    /ov\.workspaces\.closed/,
+    "the closed figure must come from its own field, never derived",
+  );
 });
 
 // §1.1 — NO DEAD LINKS.

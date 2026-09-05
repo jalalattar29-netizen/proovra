@@ -306,7 +306,7 @@
 
 | Route | Lines | cards/tables/sections | Open findings |
 | --- | --- | --- | --- |
-| `/admin` | 856 | 0c/0t/10s |  |
+| `/admin` | 965 | 0c/0t/9s |  |
 | `/admin/adoption` | 251 | 0c/1t/1s |  |
 | `/admin/alerts` | 290 | 2c/0t/1s |  |
 | `/admin/audit` | 1047 | 3c/1t/2s |  |
@@ -320,7 +320,7 @@
 | `/admin/demo-requests` | 1321 | 3c/0t/2s |  |
 | `/admin/demo-requests/:id` | 532 | 5c/0t/0s |  |
 | `/admin/evidence-ops` | 748 | 4c/0t/7s | HARDCODED_STATUS_HEX |
-| `/admin/evidence-ops/records` | 548 | 2c/1t/0s |  |
+| `/admin/evidence-ops/records` | 590 | 2c/1t/0s |  |
 | `/admin/executive` | 637 | 3c/2t/7s |  |
 | `/admin/identity` | 296 | 13c/3t/7s | HARDCODED_STATUS_HEX |
 | `/admin/identity/access-reviews` | 521 | 4c/1t/1s | HARDCODED_STATUS_HEX |
@@ -342,7 +342,7 @@
 | `/admin/platform/recovery` | 648 | 0c/2t/0s | HARDCODED_STATUS_HEX |
 | `/admin/platform/reliability` | 465 | 0c/0t/3s | HARDCODED_STATUS_HEX |
 | `/admin/platform/runbooks` | 197 | 1c/0t/0s |  |
-| `/admin/platform/runbooks/:slug` | 221 | 0c/0t/0s |  |
+| `/admin/platform/runbooks/:slug` | 233 | 0c/0t/0s |  |
 | `/admin/platform/signers` | 1213 | 0c/3t/0s | HARDCODED_STATUS_HEX |
 | `/admin/provisioning` | 807 | 8c/1t/4s | HARDCODED_STATUS_HEX |
 | `/admin/search` | 410 | 1c/0t/0s |  |
