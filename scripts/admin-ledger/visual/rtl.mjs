@@ -119,6 +119,30 @@ const MEASURE = () => {
      * inline-flex or inline-block reports a real margin and should be caught.
      */
     if (cs.display === "inline" || cs.display === "inline flow") continue;
+
+    /*
+     * AN ELEMENT THAT PINS ITS OWN DIRECTION HAS ITS OWN INLINE AXIS.
+     *
+     * This check reads COMPUTED left/right, and under `direction: rtl` a
+     * logical `padding-inline-start` computes to padding-RIGHT — which is what
+     * makes the asymmetry test work. It does not hold for an element whose own
+     * direction is LTR: there, inline-start IS the left, and a correctly
+     * written logical property computes to padding-left.
+     *
+     * `.adm-mono` and `.rb-code-inline` do exactly that, on purpose:
+     *
+     *     .adm-mono { direction: ltr; unicode-bidi: isolate; }
+     *
+     * because an identifier is read left to right whatever the prose around it
+     * does — this sweep's own header says a mirrored UUID is a wrong UUID.
+     * Without this exemption the sweep reported 5 findings on
+     * /admin/identity/permission-matrix and 33 on /admin/platform/runbooks, and
+     * every one of them was a `paddingInlineStart` written correctly in the
+     * source. An instrument that condemns the behaviour the phase implemented
+     * deliberately does not find defects, it manufactures them.
+     */
+    if (cs.direction !== "rtl") continue;
+
     const ml = parseFloat(cs.marginLeft) || 0;
     const mr = parseFloat(cs.marginRight) || 0;
     const pl = parseFloat(cs.paddingLeft) || 0;
@@ -202,6 +226,35 @@ for (const route of routes) {
    * localStorage), which is an app-shell change rather than a visual one.
    */
   await page.waitForTimeout(3_500);
+  /**
+   * 3.5s IS STILL A GUESS, AND ONE ROUTE KEPT LOSING IT.
+   *
+   * This sweep seeds `preferences: false`, which is the honest thing to seed:
+   * the locale cookie may not be written without preferences consent, so in
+   * THIS configuration the server can only render `ltr` and the client effect
+   * is what flips it. Every measurement here is therefore of a
+   * post-hydration attribute, and a page slow to hydrate reads as an RTL
+   * failure rather than as a slow page.
+   *
+   * `/admin/identity` — the heaviest page in the console, 2,900px and seven
+   * selects — was reported `dir=ltr` on one pass. Re-run with this sweep's
+   * exact seeding it reports `dir=rtl lang=ar` every time.
+   *
+   * So the flip is waited for, with a ceiling, instead of being timed. A page
+   * that genuinely never flips still reports after the ceiling.
+   *
+   * (The flash this comment used to describe as unfixable IS fixed for the
+   * consented case: the locale is mirrored into a cookie and the root layout
+   * renders `dir` from it, so the document arrives correct. Where consent has
+   * not been given there is no cookie to read, and LTR-then-flip is the
+   * designed behaviour rather than a defect — a preference that may not be
+   * stored cannot be known before hydration.)
+   */
+  await page
+    .waitForFunction(() => document.documentElement.getAttribute("dir") === "rtl", {
+      timeout: 12_000,
+    })
+    .catch(() => null);
   await strip(page).catch(() => {});
   const m = await page.evaluate(MEASURE).catch((e) => ({ error: String(e) }));
   rows.push({ route, ...m });

@@ -81,6 +81,31 @@ export async function signIn(page, who = "platform-admin@fixture.local") {
 export async function visit(page, route, wait = 2500) {
   await page.goto(`${WEB}${route}`, { waitUntil: "domcontentloaded", timeout: 60_000 });
   await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
+  /**
+   * AND WAIT FOR THE PAGE TO EXIST, NOT ONLY FOR TIME TO PASS.
+   *
+   * networkidle plus a floor is still a guess, and three separate sweeps lost
+   * the same race in the same way — each reporting an empty page as a finding
+   * about the page:
+   *
+   *   responsive  /admin/identity at 1024   "h1=0 · NO MAIN LANDMARK"
+   *   responsive  /admin/billing at 320     "h1=0 · NO MAIN LANDMARK"
+   *   keyboard    /admin/costs              "stops=0 · h1=0"
+   *
+   * Every one was false. `/admin/costs` measured on its own reports one h1 and
+   * sixty-seven tab stops, twice. The dev server compiles per request and a
+   * cold compile of a heavy route outruns any fixed wait, so the primary
+   * region is waited FOR rather than waited out.
+   *
+   * The wait resolves either way: a page that genuinely has no landmark still
+   * gets measured after the ceiling, so this cannot hide a real finding — it
+   * only stops a slow compile from impersonating one. The three sweeps that
+   * carry their own settle add their own precondition on top; this is the
+   * floor every caller of `visit` now inherits.
+   */
+  await page
+    .waitForSelector("main, [role='main']", { timeout: 15_000, state: "attached" })
+    .catch(() => null);
   await page.waitForTimeout(wait);
   await strip(page);
 }

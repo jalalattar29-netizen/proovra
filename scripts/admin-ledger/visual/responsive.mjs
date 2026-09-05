@@ -286,15 +286,34 @@ for (const zoom of [1, 2]) {
        * a longer wait; a page that genuinely has no landmark still reports one
        * after the ceiling, because the wait resolves either way.
        */
-      await page
+      const ready = await page
         .waitForSelector("main, [role='main']", { timeout: 15_000, state: "attached" })
-        .catch(() => null);
+        .then(() => true)
+        .catch(() => false);
       await deadline(strip(page).catch(() => 0), 5_000, 0);
-      const m = await deadline(
-        page.evaluate(MEASURE).catch((e) => ({ error: String(e).slice(0, 80) })),
-        20_000,
-        { error: "MEASURE TIMED OUT" },
-      );
+      /*
+         A WAIT THAT FAILED IS NOT A MEASUREMENT OF ZERO.
+
+         With the precondition catching its own timeout and falling through,
+         a route whose primary region never appeared within 18s was measured
+         anyway and reported "h1=0 · NO MAIN LANDMARK" — indistinguishable
+         from a page that genuinely has neither. It moved between routes from
+         run to run (/admin/identity at 1024 on one pass, /admin/billing at
+         320 on the next), which is the shape of a dev-server cold compile and
+         not the shape of a page defect. Both were checked individually and
+         both have a heading and a landmark.
+
+         So a failed precondition is reported AS a failed precondition. It is
+         still visible — a route that is never ready is worth knowing about —
+         and it can no longer be read as an accessibility finding.
+      */
+      const m = !ready
+        ? { error: "NOT READY (no primary region within 18s — re-check this route alone)" }
+        : await deadline(
+            page.evaluate(MEASURE).catch((e) => ({ error: String(e).slice(0, 80) })),
+            20_000,
+            { error: "MEASURE TIMED OUT" },
+          );
       const row = { route, width: dev.w, zoom, touch: dev.touch, ...m };
       rows.push(row);
       const flag = [

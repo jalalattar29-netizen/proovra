@@ -55,7 +55,8 @@ import {
   PageSection,
 } from "../../../../components/ui/PageShell";
 import { Card } from "../../../../components/ui/Card";
-import { Button } from "../../../../components/ui/Button";
+import Link from "next/link";
+import { Button, buttonSurfaceStyle } from "../../../../components/ui/Button";
 import { Badge } from "../../../../components/ui/Badge";
 import { InvitationGovernanceSection } from "./_sections/InvitationGovernanceSection";
 
@@ -267,13 +268,23 @@ function RecentEventsCard() {
             log to review recent provisioning activity.
           </p>
         </div>
-        <a
+        {/* ONE ELEMENT, NOT A BUTTON INSIDE A LINK.
+            `<a><button></a>` is invalid HTML — interactive content may not
+            nest — and a browser is free to reparent it. The keyboard sweep
+            reported it as a nested interactive stop. The console already has
+            the right shape for a link that looks like a button:
+            `buttonSurfaceStyle` on the anchor itself, which is what
+            /admin/operations' Runbook link uses. */}
+        <Link
           href="/admin/audit"
-          style={{ textDecoration: "none", flexShrink: 0 }}
+          className="ui-button"
+          data-variant="secondary"
+          data-size="md"
+          style={{ ...buttonSurfaceStyle("secondary", "md"), flexShrink: 0 }}
           data-testid="recent-events-audit-link"
         >
-          <Button variant="secondary">Open audit log</Button>
-        </a>
+          Open audit log
+        </Link>
       </div>
     </Card>
   );

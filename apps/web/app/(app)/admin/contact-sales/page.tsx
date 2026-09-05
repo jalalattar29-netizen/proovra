@@ -19,7 +19,7 @@ import {
 import { Card } from "../../../../components/ui/Card";
 import { Badge } from "../../../../components/ui/Badge";
 import type { BadgeTone } from "../../../../components/ui/Badge";
-import { Button } from "../../../../components/ui/Button";
+import { Button, buttonSurfaceStyle } from "../../../../components/ui/Button";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
 import { ResultCount } from "../../../../components/ui/ResultCount";
@@ -558,16 +558,24 @@ export default function AdminContactSalesPage() {
                             >
                               Quick view
                             </Button>
+                            {/* ONE ELEMENT, NOT A BUTTON INSIDE A LINK.
+                                `<a><button></a>` is invalid HTML —
+                                interactive content may not nest — and the
+                                keyboard sweep reported it as a nested
+                                interactive stop. `buttonSurfaceStyle` on the
+                                anchor is the console's existing shape for a
+                                link that looks like a button. */}
                             <Link
                               href={detailHrefWithReturn(
                                 `/admin/contact-sales/${encodeURIComponent(it.id)}`,
                                 listParams?.toString() ?? null,
                               )}
-                              style={{ textDecoration: "none" }}
+                              className="ui-button"
+                              data-variant="ghost"
+                              data-size="sm"
+                              style={buttonSurfaceStyle("ghost", "sm")}
                             >
-                              <Button variant="ghost" size="sm">
-                                Open →
-                              </Button>
+                              Open →
                             </Link>
                           </div>
                         </td>

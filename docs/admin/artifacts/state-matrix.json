@@ -183,8 +183,8 @@
           "reason": "every capability this page fronts is always present in a deployment that has the console"
         },
         "BUSY": {
-          "verdict": "HANDLED",
-          "evidence": "/\"pending\"/"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
         },
         "DONE": {
           "verdict": "HANDLED",
@@ -788,7 +788,7 @@
         },
         "TRUNCATED": {
           "verdict": "HANDLED",
-          "evidence": "/limit/"
+          "evidence": "/\\bcap\\b/"
         },
         "STALE": {
           "verdict": "NOT_APPLICABLE",
@@ -815,7 +815,7 @@
         },
         "DONE": {
           "verdict": "HANDLED",
-          "evidence": "/addToast\\(/"
+          "evidence": "/tone=\"verified\"/"
         },
         "ACTION_FAILED": {
           "verdict": "NOT_APPLICABLE",
@@ -2191,7 +2191,7 @@
         "isStatic": false,
         "workspaceScoped": false,
         "reads": 3,
-        "hasOptionalCapability": false
+        "hasOptionalCapability": true
       },
       "states": {
         "LOADING": {
@@ -2246,8 +2246,7 @@
           "reason": "platform-scoped surface: not gated by any workspace's plan"
         },
         "UNAVAILABLE": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "every capability this page fronts is always present in a deployment that has the console"
+          "verdict": "UNHANDLED"
         },
         "BUSY": {
           "verdict": "HANDLED",
@@ -2550,7 +2549,7 @@
       "states": {
         "LOADING": {
           "verdict": "HANDLED",
-          "evidence": "/Loading[^\"`\\n]{0,40}…/"
+          "evidence": "/<AdmSkeleton/"
         },
         "REFRESHING": {
           "verdict": "HANDLED",
@@ -2565,7 +2564,7 @@
         },
         "EMPTY": {
           "verdict": "HANDLED",
-          "evidence": "/No .* yet/"
+          "evidence": "/state=\"empty\"/"
         },
         "FILTERED_EMPTY": {
           "verdict": "NOT_APPLICABLE",
@@ -3629,7 +3628,7 @@
         },
         "FILTERED_EMPTY": {
           "verdict": "HANDLED",
-          "evidence": "/match the current filters/"
+          "evidence": "/filtered=\\{/"
         },
         "NOT_MEASURED": {
           "verdict": "NOT_APPLICABLE",
@@ -3717,7 +3716,7 @@
         },
         "FILTERED_EMPTY": {
           "verdict": "HANDLED",
-          "evidence": "/filtered=\\{/"
+          "evidence": "/match these filters/"
         },
         "NOT_MEASURED": {
           "verdict": "NOT_APPLICABLE",
@@ -4270,6 +4269,7 @@
     "/admin/identity/timeline: PLAN_GATED",
     "/admin/identity/timeline: DONE",
     "/admin/operations: PARTIAL",
+    "/admin/operations: UNAVAILABLE",
     "/admin/operations: ACTION_FAILED",
     "/admin/operations: STEP_UP_REQUIRED",
     "/admin/platform/analytics: LOADING",

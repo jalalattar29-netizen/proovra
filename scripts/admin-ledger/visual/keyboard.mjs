@@ -62,16 +62,45 @@ const FOCUS_PROBE = () => {
 const STATIC_PROBE = () => {
   const FOCUSABLE =
     'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"]), [role="button"], [role="tab"]';
+  /**
+   * INVALID NESTING, NOT MERELY A FOCUSABLE CONTAINER.
+   *
+   * The HTML rule this exists to enforce is narrow and absolute: `<a>` and
+   * `<button>` may not contain interactive content. A browser is free to
+   * reparent `<a><button></a>`, and it found two real ones — the "Open →" on
+   * /admin/contact-sales and "Open audit log" on /admin/provisioning, both
+   * since rewritten as a single anchor carrying `buttonSurfaceStyle`.
+   *
+   * Checking every FOCUSABLE ancestor instead also reported two things that
+   * are valid HTML and deliberate here:
+   *
+   *   DIV.adm-tabpanel > BUTTON   a scroll region needs `tabindex="0"` or a
+   *                               keyboard operator cannot scroll it at all —
+   *                               which is why the permission matrix has one.
+   *   TR.ui-datatable__row > A    the row-link pattern: the row navigates and
+   *                               a cell links elsewhere, with propagation
+   *                               stopped. It has its own guard test.
+   *
+   * Condemning both would push the console toward removing the tabindex that
+   * makes a scrollable panel reachable. So the flag is the spec's rule — a
+   * NATIVELY interactive element inside `<a>` or `<button>` — and a container
+   * made focusable by tabindex or role is reported separately as context.
+   */
+  const NATIVE = "a[href], button, input, select, textarea";
   const nested = [];
+  const focusableContainers = [];
   for (const el of document.querySelectorAll(FOCUSABLE)) {
     const inner = el.querySelector(FOCUSABLE);
-    if (inner) {
-      nested.push({
-        outer: `${el.tagName}.${(el.className || "").toString().slice(0, 22)}`,
-        inner: `${inner.tagName}.${(inner.className || "").toString().slice(0, 22)}`,
-        txt: (el.textContent || "").trim().slice(0, 26),
-      });
-    }
+    if (!inner) continue;
+    const row = {
+      outer: `${el.tagName}.${(el.className || "").toString().slice(0, 22)}`,
+      inner: `${inner.tagName}.${(inner.className || "").toString().slice(0, 22)}`,
+      txt: (el.textContent || "").trim().slice(0, 26),
+    };
+    const outerIsAnchorOrButton = el.matches("a[href], button");
+    const innerIsNative = inner.matches(NATIVE);
+    if (outerIsAnchorOrButton && innerIsNative) nested.push(row);
+    else focusableContainers.push(row);
   }
   // A div that takes a click but is not reachable by keyboard.
   const clickableDiv = [];
@@ -90,6 +119,7 @@ const STATIC_PROBE = () => {
   }
   return {
     nested,
+    focusableContainers,
     clickableDiv,
     h1: document.querySelectorAll("h1").length,
     headingSkips: skips,
@@ -146,6 +176,15 @@ const results = [];
 
   for (const route of ROUTES) {
     await page.goto(`${WEB}${route}`, { waitUntil: "domcontentloaded", timeout: 45_000 }).catch(() => {});
+    /* WAIT FOR THE PAGE, NOT FOR TIME. This reported /admin/costs as
+       "stops=0 · h1=0" — a page with no controls and no heading — on one
+       pass. Measured on its own it has one h1 and sixty-seven tab stops,
+       twice. A cold compile of a heavy route outruns three seconds, and an
+       empty measurement is indistinguishable from an empty page. Same
+       precondition as `visit()` and the responsive sweep. */
+    await page
+      .waitForSelector("main, [role='main']", { timeout: 15_000, state: "attached" })
+      .catch(() => null);
     await page.waitForTimeout(3_000);
     await strip(page).catch(() => 0);
 
@@ -187,15 +226,30 @@ const results = [];
       const first = await page.evaluate(FIRST_STOP);
       await page.keyboard.press("Enter");
       await page.waitForTimeout(350);
-      const landed = await page.evaluate(() => {
-        const a = document.activeElement;
-        const main = document.querySelector("main");
-        return {
-          tag: a?.tagName ?? null,
-          id: a?.id ?? null,
-          inMain: !!(main && a && (main === a || main.contains(a))),
-        };
-      });
+      /*
+         PRESSING ENTER ON THE FIRST STOP CAN NAVIGATE, AND THAT IS A RESULT.
+
+         A skip link moves focus and stays on the page. On the console's not-found
+         state the first stop is an ordinary link, so Enter navigates and the
+         execution context is destroyed before this evaluate runs — which
+         crashed the whole sweep mid-run rather than recording anything, on
+         the 34th of 47 routes.
+
+         Reported as what it is instead. A first stop that navigates is not a
+         skip link, and that is worth knowing; it is not a reason to lose the
+         other thirteen routes.
+      */
+      const landed = await page
+        .evaluate(() => {
+          const a = document.activeElement;
+          const main = document.querySelector("main");
+          return {
+            tag: a?.tagName ?? null,
+            id: a?.id ?? null,
+            inMain: !!(main && a && (main === a || main.contains(a))),
+          };
+        })
+        .catch(() => ({ tag: null, id: null, inMain: false, navigated: true }));
       skip = { firstStop: first, landed };
     }
 
@@ -347,6 +401,7 @@ console.log(
     `routes                       ${rows.length}`,
     `with no-focus-signal stops   ${n((r) => r.noFocusSignal)}`,
     `with nested interactive      ${n((r) => r.nested?.length)}`,
+    `with focusable containers    ${n((r) => r.focusableContainers?.length)}   (valid: a scroll region or a row link)`,
     `with clickable divs          ${n((r) => r.clickableDiv?.length)}`,
     `with h1 != 1                 ${n((r) => r.h1 !== 1)}`,
     `with heading skips           ${n((r) => r.headingSkips?.length)}`,

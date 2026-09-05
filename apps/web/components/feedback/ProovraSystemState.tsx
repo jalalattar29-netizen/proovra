@@ -382,12 +382,31 @@ const symbolBase: CSSProperties = {
   color: FEEDBACK_SURFACE.inkSubtle,
 };
 
+/**
+ * THE ONLY AA FAILURE LEFT ON ANY OF THE 47 ROUTES, AND IT WAS THIS EYEBROW.
+ *
+ * Measured by `scripts/admin-ledger/visual/contrast.mjs` on
+ * `/admin/platform/runbooks/:slug`, the console's not-found state: "Error ·
+ * 404" at 12px, rgb(100,116,139) on rgb(243,244,241) — 4.31:1, against the
+ * 4.5:1 WCAG AA needs for small text.
+ *
+ * `inkSubtle` is #64748B, which is 4.76:1 on pure white and 4.31:1 on this
+ * component's off-white ground. That is the same value, on the same kind of
+ * surface, that this phase already rejected once when raising the console's
+ * muted ink: "#64748B was the other candidate and was rejected on the numbers
+ * — 4.76:1 on white but 4.32:1 on the muted surface."
+ *
+ * The eyebrow takes the next tier up rather than a new colour, and the token
+ * set is left alone: `inkSubtle` is correct at larger sizes and on white, and
+ * darkening it product-wide would change surfaces that already pass. Small
+ * uppercase text is the case that needs the extra weight of contrast.
+ */
 const labelStyle: CSSProperties = {
   fontSize: 12,
   fontWeight: 700,
   letterSpacing: "0.14em",
   textTransform: "uppercase",
-  color: FEEDBACK_SURFACE.inkSubtle,
+  color: FEEDBACK_SURFACE.inkMuted,
   marginBottom: 10,
 };
 
