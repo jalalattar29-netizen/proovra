@@ -47,6 +47,7 @@ describe("COMMAND CENTER — counter equivalence (live PostgreSQL 16)", () => {
    * harness has pointed DATABASE_URL at the test database — and the server
    * then boots against nothing and reports every table as missing.
    */
+  let workspaceIncidentWhere: typeof import("../src/services/observability/incident-scope.js")["workspaceIncidentWhere"];
   let RECENT_ESCALATION_WINDOW_DAYS: number;
   let RECENT_ESCALATION_LIMIT: number;
   let DESTRUCTION_REVIEW_AWAITING_DECISION: readonly string[];
@@ -65,6 +66,9 @@ describe("COMMAND CENTER — counter equivalence (live PostgreSQL 16)", () => {
      * registerPrisma()", which is a harness gap rather than product behaviour.
      */
     await import("../src/register-shared-runtime.js");
+    ({ workspaceIncidentWhere } = await import(
+      "../src/services/observability/incident-scope.js"
+    ));
     ({
       loadReviewQueueCounters,
       reviewQueueWindow,
@@ -486,11 +490,29 @@ describe("COMMAND CENTER — counter equivalence (live PostgreSQL 16)", () => {
   // OPERATIONS SNAPSHOT
   // =========================================================================
 
-  it("open incidents by category equal the per-category counts they replaced", async () => {
+  it("open incidents by category equal the canonical tenant predicate", async () => {
+    /*
+     * THIS COMPARED AGAINST THE WRONG PREDICATE, AND THAT IS THE FINDING.
+     *
+     * It reproduced the engines' `OR: [{ teamId }, { teamId: null }]` as
+     * "the original", so it proved the snapshot faithfully reproduced a
+     * cross-tenant read. `services/observability/incident-scope.ts` exists to
+     * abolish that predicate: `team_id` is nullable and the team relation is
+     * ON DELETE SET NULL, so one absence means a deliberate platform
+     * condition, a legacy pre-scope row, OR an orphan of some other tenant's
+     * deleted workspace — and the NULL arm returns all three to whoever asks.
+     *
+     * On the shared-database gate that was not theoretical: incidents carrying
+     * `scope = 'WORKSPACE'` with `team_id = NULL` — self-contradictory rows —
+     * were counted into this workspace AND into an unrelated one.
+     *
+     * The equivalence target is now the authority every other dashboard
+     * service already composes.
+     */
     const original = (category: string) =>
       prisma.operationalIncident.count({
         where: {
-          OR: [{ teamId }, { teamId: null }],
+          ...workspaceIncidentWhere(teamId),
           status: { in: ["OPEN", "ACKNOWLEDGED"] as never },
           category: category as never,
         },
@@ -500,38 +522,170 @@ describe("COMMAND CENTER — counter equivalence (live PostgreSQL 16)", () => {
 
     expect(ops.openIncidents(["REPORT"])).toBe(report);
     expect(ops.openIncidents(["PACKAGE"])).toBe(pkg);
-    // Both categories present, and the RESOLVED row excluded from PACKAGE.
-    expect(report).toBe(2);
-    expect(pkg).toBe(2); // one team-scoped OPEN + one platform-wide OPEN
+
+    /*
+     * The fixture's OWN rows, counted by fingerprint rather than by asking the
+     * whole table. The absolute numbers here used to assume this database held
+     * nothing else, which is false in a gate where 103 files share one — the
+     * assertion failed for a reason that had nothing to do with the code under
+     * test, and hid the reason that did.
+     */
+    const mine = async (category: string) =>
+      prisma.operationalIncident.count({
+        where: {
+          ...workspaceIncidentWhere(teamId),
+          status: { in: ["OPEN", "ACKNOWLEDGED"] as never },
+          category: category as never,
+          fingerprint: { startsWith: `${deps.tag}-inc-` },
+        },
+      });
+    // r1 OPEN + r2 ACKNOWLEDGED.
+    expect(await mine("REPORT")).toBe(2);
+    /*
+     * p1 only. p2 is RESOLVED, p4 belongs to the other workspace, and p3 is
+     * PLATFORM — which a TENANT surface must not see at all. The old
+     * expectation of 2 counted p3, which is exactly the leak.
+     */
+    expect(await mine("PACKAGE")).toBe(1);
   });
 
-  it("keeps the platform-wide incidents the engines' predicate included", async () => {
+  it("a PLATFORM incident is not visible on a tenant surface", async () => {
     /*
-     * Every engine scoped incidents as "mine OR the platform's". A snapshot
-     * that quietly narrowed that to `teamId` alone would under-report and
-     * still look entirely reasonable, so the fixture holds a platform-wide
-     * OPEN incident and this asserts it is counted.
+     * The scope authority is explicit: a platform-wide condition is reachable
+     * "ONLY through protected platform authorities, never through a tenant
+     * surface". The fixture holds one — p3, OPEN, category PACKAGE — and it
+     * must appear in NEITHER workspace's counters.
+     */
+    const platformRow = await prisma.operationalIncident.findFirstOrThrow({
+      where: { fingerprint: `${deps.tag}-inc-p3` },
+      select: { scope: true, teamId: true, status: true, category: true },
+    });
+    expect(String(platformRow.scope)).toBe("PLATFORM");
+    expect(platformRow.teamId).toBeNull();
+
+    const visibleHere = await prisma.operationalIncident.count({
+      where: {
+        ...workspaceIncidentWhere(teamId),
+        fingerprint: `${deps.tag}-inc-p3`,
+      },
+    });
+    const visibleThere = await prisma.operationalIncident.count({
+      where: {
+        ...workspaceIncidentWhere(otherTeamId),
+        fingerprint: `${deps.tag}-inc-p3`,
+      },
+    });
+    expect(visibleHere).toBe(0);
+    expect(visibleThere).toBe(0);
+  });
+
+  it("no incident belonging to another workspace is ever counted here", async () => {
+    /*
+     * The isolation claim stated as a property rather than as a number: every
+     * incident this workspace's predicate selects must actually BE this
+     * workspace's. A count of "0 in the other workspace" was the old form, and
+     * it broke the moment an unrelated suite left an orphan in the database —
+     * while saying nothing about whether the rows it DID return were ours.
+     */
+    const selected = await prisma.operationalIncident.findMany({
+      where: workspaceIncidentWhere(teamId),
+      select: { id: true, teamId: true, scope: true },
+    });
+    for (const row of selected) {
+      expect(row.teamId).toBe(teamId);
+      expect(String(row.scope)).toBe("WORKSPACE");
+    }
+    // And the fixture genuinely exercises it.
+    expect(selected.length).toBeGreaterThan(0);
+  });
+
+  it("does NOT include platform incidents in a workspace's counters", async () => {
+    /*
+     * THIS TEST ASSERTED THE OPPOSITE, AND IT WAS WRONG.
+     *
+     * It said: "every engine scoped incidents as 'mine OR the platform's', so
+     * a snapshot that narrowed that to teamId alone would under-report" — and
+     * required the platform row to be counted. That took the engines' existing
+     * predicate as the specification. It was the defect.
+     *
+     * `services/observability/incident-scope.ts` is the authority, and it is
+     * explicit on both halves: a PLATFORM condition is "visible ONLY through
+     * protected platform authorities, never through a tenant surface", and the
+     * `OR: [{ teamId }, { teamId: null }]` form it replaces "returned every
+     * OTHER tenant's orphans to whoever asked".
+     *
+     * The NULL arm could not distinguish the fixture's deliberate PLATFORM row
+     * from an orphan of a deleted workspace, because both are simply "team_id
+     * is null". Requiring the first to be counted therefore required the
+     * second to be counted too — which is what the clean-database gate
+     * surfaced when an unrelated suite's orphan appeared in this workspace's
+     * count, and in a second workspace's.
      */
     const ops = await loadOperationsCounters(teamId);
     const teamOnly = await prisma.operationalIncident.count({
       where: {
-        teamId,
+        ...workspaceIncidentWhere(teamId),
         status: { in: ["OPEN", "ACKNOWLEDGED"] as never },
         category: "PACKAGE" as never,
+        fingerprint: { startsWith: `${deps.tag}-inc-` },
       },
     });
     expect(teamOnly).toBe(1);
-    expect(ops.openIncidents(["PACKAGE"])).toBe(teamOnly + 1);
+
+    // The fixture's platform row exists, is OPEN, and is in this category —
+    // so its absence from the count is the RULE and not an empty fixture.
+    const platformRow = await prisma.operationalIncident.findFirstOrThrow({
+      where: { fingerprint: `${deps.tag}-inc-p3` },
+      select: { scope: true, status: true, category: true },
+    });
+    expect(String(platformRow.scope)).toBe("PLATFORM");
+    expect(String(platformRow.status)).toBe("OPEN");
+    expect(String(platformRow.category)).toBe("PACKAGE");
+
+    const fixturePackages = await prisma.operationalIncident.count({
+      where: {
+        ...workspaceIncidentWhere(teamId),
+        status: { in: ["OPEN", "ACKNOWLEDGED"] as never },
+        category: "PACKAGE" as never,
+        fingerprint: { startsWith: `${deps.tag}-inc-` },
+      },
+    });
+    expect(fixturePackages).toBe(teamOnly);
+    // And the snapshot agrees with the authority over the whole table.
+    expect(ops.openIncidents(["PACKAGE"])).toBe(
+      await prisma.operationalIncident.count({
+        where: {
+          ...workspaceIncidentWhere(teamId),
+          status: { in: ["OPEN", "ACKNOWLEDGED"] as never },
+          category: "PACKAGE" as never,
+        },
+      }),
+    );
   });
 
   it("does not count another workspace's incidents, reviews or escalations", async () => {
     const mine = await loadOperationsCounters(teamId);
     const theirs = await loadOperationsCounters(otherTeamId);
 
-    // The other workspace has its own PACKAGE incident and sees the same
-    // platform-wide one; it must NOT see this workspace's REPORT incidents.
-    expect(theirs.openIncidents(["REPORT"])).toBe(0);
-    expect(mine.openIncidents(["REPORT"])).toBe(2);
+    /*
+     * The other workspace has its own PACKAGE incident and must not see this
+     * workspace's REPORT ones. Counted over the FIXTURE's rows: asking for the
+     * whole table's REPORT count in the other workspace returned 1 on the
+     * shared-database gate, and the row responsible was an orphan left by an
+     * unrelated suite — a real leak through the NULL arm, now closed, but not
+     * something this fixture created or should assert about.
+     */
+    const reportsIn = async (ws: string) =>
+      prisma.operationalIncident.count({
+        where: {
+          ...workspaceIncidentWhere(ws),
+          status: { in: ["OPEN", "ACKNOWLEDGED"] as never },
+          category: "REPORT" as never,
+          fingerprint: { startsWith: `${deps.tag}-inc-` },
+        },
+      });
+    expect(await reportsIn(otherTeamId)).toBe(0);
+    expect(await reportsIn(teamId)).toBe(2);
     expect(theirs.destructionReviews(DESTRUCTION_REVIEW_AWAITING_DECISION)).not.toBe(
       mine.destructionReviews(DESTRUCTION_REVIEW_AWAITING_DECISION),
     );

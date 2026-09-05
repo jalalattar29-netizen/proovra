@@ -24,6 +24,13 @@
  */
 
 import { prisma } from "../../db.js";
+/*
+ * The ONE tenant predicate for incidents. Five reads on this endpoint composed
+ * `OR: [{ teamId }, { teamId: null }]` by hand — the predicate that hands a
+ * tenant every other tenant's orphaned incidents. Every other dashboard
+ * service had already converged here.
+ */
+import { workspaceIncidentWhere } from "../observability/incident-scope.js";
 import {
   DESTRUCTION_REVIEW_AWAITING_DECISION,
   DESTRUCTION_REVIEW_PROPOSED,
@@ -2356,7 +2363,7 @@ async function runTimeline(
     Promise.resolve(opsCounters.recentEscalations),
     prisma.operationalIncident.findMany({
       where: {
-        OR: [{ teamId }, { teamId: null }],
+        ...workspaceIncidentWhere(teamId),
         firstSeenAtUtc: { gte: since14d },
       },
       orderBy: { firstSeenAtUtc: "desc" },
@@ -2822,7 +2829,7 @@ async function runIncidents(
   try {
     const incidents = await prisma.operationalIncident.findMany({
       where: {
-        OR: [{ teamId }, { teamId: null }],
+        ...workspaceIncidentWhere(teamId),
         status: { in: ["OPEN", "ACKNOWLEDGED"] },
       },
       orderBy: [{ severity: "desc" }, { lastSeenAtUtc: "desc" }],
@@ -4902,7 +4909,7 @@ async function runCrossCaseIntelligenceV2(
     // Shared failed pattern — multiple cases affected by same incident category.
     const incidentSample = await prisma.operationalIncident.findMany({
       where: {
-        OR: [{ teamId }, { teamId: null }],
+        ...workspaceIncidentWhere(teamId),
         status: { in: ["OPEN", "ACKNOWLEDGED"] },
         category: { in: ["REPORT", "PACKAGE"] },
         relatedEvidenceId: { not: null },
@@ -5186,7 +5193,7 @@ async function runReconstructedTimeline(
     const [incidents, escalations, security] = await Promise.all([
       prisma.operationalIncident.findMany({
         where: {
-          OR: [{ teamId }, { teamId: null }],
+          ...workspaceIncidentWhere(teamId),
           firstSeenAtUtc: { gte: since },
         },
         orderBy: { firstSeenAtUtc: "desc" },
@@ -5993,7 +6000,7 @@ async function runQueueWorkerTelemetry(
         : Promise.resolve(null),
       prisma.operationalIncident.count({
         where: {
-          OR: [{ teamId }, { teamId: null }],
+          ...workspaceIncidentWhere(teamId),
           status: { in: ["OPEN", "ACKNOWLEDGED"] },
           occurrenceCount: { gte: RETRY_STORM_OCCURRENCE_THRESHOLD },
         },

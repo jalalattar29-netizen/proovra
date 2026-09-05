@@ -53,6 +53,7 @@ export {
 } from "@proovra/shared";
 
 import { prisma } from "../../db.js";
+import { workspaceIncidentWhere } from "../observability/incident-scope.js";
 
 /** The statuses the product treats as "open work in the queue". */
 export const OPEN_REVIEW_STATUSES = [
@@ -383,15 +384,36 @@ export type OperationsCounters = {
   recentEscalations: ReadonlyArray<RecentEscalation>;
 };
 
-/**
- * The incident scope every caller used: this workspace's incidents PLUS the
- * platform-wide ones (`teamId: null`) that affect it. Written once here
- * because a snapshot that quietly narrowed the scope would under-report, and
- * an engine reading it would have no way to notice.
+/*
+ * THE INCIDENT SCOPE COMES FROM THE SCOPE AUTHORITY, NOT FROM HERE.
+ *
+ * This module used to write `OR: [{ teamId }, { teamId: null }]`, copied from
+ * the engines it consolidated. That predicate is the one
+ * `services/observability/incident-scope.ts` exists to abolish, and its
+ * header says why: `team_id` is nullable and the `team` relation is
+ * `ON DELETE SET NULL`, so ONE absence means three different things — a
+ * deliberate platform condition, a legacy row written before the scope column,
+ * and an ORPHAN of some other tenant's deleted workspace. A tenant read with a
+ * NULL arm returns all three, which is a cross-tenant read produced by an
+ * overloaded absence rather than by a missing check.
+ *
+ * Every other dashboard service had already converged on
+ * `workspaceIncidentWhere`. Command centre had not, and consolidating its
+ * counters carried the old predicate into the shared snapshot — so the one
+ * place that was supposed to end the duplication also spread the defect.
+ *
+ * Proven on the clean-database gate rather than argued: with the whole
+ * integration suite sharing one database, a workspace's REPORT count read 3
+ * instead of 2 and a SECOND workspace's read 1 instead of 0. The extra rows
+ * were incidents carrying `scope = 'WORKSPACE'` with `team_id = NULL` —
+ * self-contradictory rows that the NULL arm handed to every workspace on the
+ * platform.
+ *
+ * `workspaceIncidentWhere` is a conjunction with no OR arm at all: scope
+ * WORKSPACE and this team, minus the platform-internal sources. A PLATFORM
+ * condition is deliberately NOT visible here — the scope authority states it
+ * is reachable only through protected platform surfaces, never a tenant one.
  */
-const incidentScopeFor = (teamId: string) => ({
-  OR: [{ teamId }, { teamId: null }],
-});
 
 export async function loadOperationsCounters(
   teamId: string,
@@ -405,7 +427,7 @@ export async function loadOperationsCounters(
       .groupBy({
         by: ["category"],
         where: {
-          ...incidentScopeFor(teamId),
+          ...workspaceIncidentWhere(teamId),
           status: { in: ["OPEN", "ACKNOWLEDGED"] },
         },
         _count: { _all: true },
