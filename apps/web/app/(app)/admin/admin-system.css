@@ -1381,15 +1381,18 @@ body.is-admin-console {
    * that decision to be readable.
    * ------------------------------------------------------------------ */
   --ink-muted: var(--silver-ink);
-  /* AND ITS ALIAS, WHICH DOES NOT FOLLOW ON ITS OWN.
-     `--text-muted: var(--ink-muted)` is declared on `:root`, and a custom
-     property is substituted at computed-value time on the element that
-     DECLARES it — so it froze at #94A3B8 and stayed there while the line above
-     moved. Measured in the browser: --ink-muted resolved to #5B6B7B and
-     --text-muted to #94A3B8 on the same element. Overriding one without the
-     other leaves half the console's helper text still failing AA, which is
-     exactly what the first pass did. */
-  --text-muted: var(--silver-ink);
+  /* THE ALIAS OVERRIDE THAT USED TO BE HERE IS GONE WITH THE ALIAS.
+     `--text-muted` was an alias whose value froze at computed-value time on
+     the element that declared it, so overriding `--ink-muted` alone left half
+     the console's helper text still failing AA and this line existed to move
+     both. The alias was then DELETED — all sixty consumers migrated to
+     `--silver-ink` or `--ink-primary` by role — and this override outlived it:
+     a re-declaration of a custom property nothing reads, in a comment
+     asserting a `:root` declaration that no longer exists.
+
+     Found by `scripts/admin-ledger/deletion-proof.mjs`, which re-proves every
+     §21 deletion against the current tree instead of trusting the commit
+     message that claimed this one. */
 
   /* ------------------------------------------------------------------
    * THE RADIUS AND SHADOW SCALE IS NO LONGER DECLARED HERE.
