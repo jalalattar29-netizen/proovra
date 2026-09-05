@@ -8,30 +8,37 @@
  * shell can consume these tokens directly.
  *
  * =============================================================================
- * "SINGLE SOURCE OF TRUTH" IS NOT CURRENTLY TRUE, AND HERE IS THE LIST
+ * IT IS THE SINGLE SOURCE OF TRUTH, AND THAT TOOK A DELETION
  * =============================================================================
- * globals.css imports this file at its top and then re-declares six of these
- * tokens in its own `:root`. Later declaration wins, so for these six the
- * value the product renders is globals.css's, not this file's:
+ * globals.css imports this file at its top and then RE-DECLARED six of these
+ * tokens in its own `:root`. Later declaration wins, so for those six the
+ * value the product rendered was globals.css's, not this file's:
  *
- *   --surface-muted   here #F1F4F9          renders rgba(36, 55, 59, 0.06)
- *   --radius-sm       here 6px              renders 10px
- *   --radius-md       here 8px              renders 16px
- *   --radius-lg       here 12px             renders 18px
- *   --radius-pill     here 999px            renders 999px  (agrees)
- *   --shadow-card     here 0 1px 2px/.04    renders 0 16px 32px rgba(0,0,0,.07)
+ *   --surface-muted   here #F1F4F9          rendered rgba(36, 55, 59, 0.06)
+ *   --radius-sm       here 6px              rendered 10px
+ *   --radius-md       here 8px              rendered 16px
+ *   --radius-lg       here 12px             rendered 18px
+ *   --radius-pill     here 999px            rendered 999px  (agreed)
+ *   --shadow-card     here 0 1px 2px/.04    rendered 0 16px 32px rgba(0,0,0,.07)
  *
- * That is why a surface built against `--radius-lg` expecting 12px sits beside
- * one using `--radius-card` (14px, declared only here) and the two look
- * unrelated, and why "subtle card shadow" renders as a 32px marketing drop.
+ * That is why a surface built against `--radius-lg` expecting 12px sat beside
+ * one using `--radius-card` (14px, declared only here) and the two looked
+ * unrelated, and why "subtle card shadow" rendered as a 32px marketing drop on
+ * every operational card in the product.
  *
- * RECORDED RATHER THAN SILENTLY FIXED. Deleting the six duplicates would be
- * the right end state and it changes the radius and shadow of every surface in
- * the product, which is a decision for the phase that owns the product shell —
- * not a side effect of an admin-console pass. The admin console declares its
- * own values for these on `body.is-admin-console` (see
- * app/(app)/admin/admin-system.css) so that it is at least internally
- * coherent while the duplication stands.
+ * THE SIX DUPLICATES ARE DELETED. A consumer scan of every `var(--radius-*)`,
+ * `var(--shadow-card)` and `var(--surface-muted)` in apps/web found them used
+ * only by AUTHENTICATED APP surfaces — Home, Evidence, Billing, Review, Cases,
+ * Reports, Notifications and the shared ui/ + app-primitives components — and
+ * by zero marketing or public surfaces. This file's own header says the
+ * authenticated shell is what it owns, and those consumers already ask for
+ * these canonical names, so removing the shadowing WAS the migration rather
+ * than a prelude to one.
+ *
+ * The change was verified by capturing ten authenticated non-admin routes
+ * before and after and comparing overflow, WCAG AA and console errors — a
+ * radius or a shadow changing is the intent; a page overflowing, losing
+ * contrast or throwing would have been a regression.
  *
  * Rules:
  *   - Do NOT hard-code hex or px values in page CSS. Consume tokens.

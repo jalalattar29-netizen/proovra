@@ -86,10 +86,37 @@ textarea {
   --input: rgba(36, 55, 59, 0.1);
 
   --radius: 16px;
-  --radius-lg: 18px;
-  --radius-md: 16px;
-  --radius-sm: 10px;
-  --radius-pill: 999px;
+
+  /* ------------------------------------------------------------------
+   * --radius-sm / -md / -lg / -pill, --shadow-card AND --surface-muted ARE
+   * DECLARED IN lib/design-tokens/tokens.css AND NOWHERE ELSE.
+   *
+   * They used to be declared here as well, with different values: 10 / 16 /
+   * 18px, a "0 16px 32px" shadow, and a translucent muted surface. This file
+   * imports tokens.css at its top, so these later declarations won the
+   * cascade — and the whole AUTHENTICATED APP therefore rendered the values
+   * from this block rather than the ones the token file describes and
+   * documents.
+   *
+   * The consequences were not subtle. A surface built against --radius-lg
+   * expecting 12px drew an 18px corner beside one using --radius-card at
+   * 14px, so peers looked unrelated; and "subtle card shadow" resolved to a
+   * 32px marketing drop on every operational card in the product. A 32px
+   * drop is elevation for a MODAL, not for a card in a table of twenty, and
+   * hierarchy carried by shadow disappears at twenty cards.
+   *
+   * EVERY CONSUMER OF THOSE SIX NAMES IS AN AUTHENTICATED APP SURFACE —
+   * Home, Evidence, Billing, Review, Cases, Reports, Notifications and the
+   * shared ui/ and app-primitives components. A consumer scan found ZERO
+   * marketing or public consumers, and tokens.css states in its own header
+   * that the authenticated shell is precisely what it owns. So the duplicates
+   * are removed rather than renamed: the consumers already ask for the
+   * canonical names, and deleting the shadowing IS the migration.
+   *
+   * --radius (16px) above is NOT one of the six. It is this file's own
+   * marketing radius, it has its own consumers on the public pages, and it is
+   * declared nowhere else.
+   * ------------------------------------------------------------------ */
 
   --container-max: 1180px;
   --container-gutter: 24px;
@@ -97,7 +124,7 @@ textarea {
   --page-bg: #f3f4f1;
   --surface: #ffffff;
   --surface-soft: #f5f6f4;
-  --surface-muted: rgba(36, 55, 59, 0.06);
+  /* --surface-muted: declared in tokens.css only — see the note above. */
 
   /* PROOVRA marketing surface palette — cool slate / blue-white.
      Used only by public marketing pages (homepage, pricing, verify,
@@ -113,7 +140,7 @@ textarea {
   --proovra-border-warm-hover: #cbd5e1;
 
   --border-soft: rgba(15, 23, 42, 0.08);
-  --shadow-card: 0 16px 32px rgba(0, 0, 0, 0.07);
+  /* --shadow-card: declared in tokens.css only — see the note above. */
 
   --velvet-950: #081318;
   --velvet-900: #102126;

@@ -1366,32 +1366,22 @@ body.is-admin-console {
   --text-muted: var(--silver-ink);
 
   /* ------------------------------------------------------------------
-   * THE RADIUS AND SHADOW SCALE, DECLARED HERE BECAUSE THE GLOBAL ONE IS
-   * DOUBLE-DECLARED.
+   * THE RADIUS AND SHADOW SCALE IS NO LONGER DECLARED HERE.
    *
-   * globals.css re-declares six tokens that lib/design-tokens/tokens.css
-   * already owns, and being later it wins. The console was therefore drawing:
+   * It used to be. globals.css re-declared six tokens that
+   * lib/design-tokens/tokens.css owns and, being later in the cascade, won —
+   * so the console drew 10 / 16 / 18px radii and a 0 16px 32px shadow where
+   * the token file says 6 / 8 / 12 and 0 1px 2px. This block re-asserted the
+   * token file's own values for the console because reversing the duplication
+   * product-wide was a larger decision than an admin pass should take alone.
    *
-   *   --radius-sm   10px  (the token file says 6px)
-   *   --radius-md   16px  (says 8px)
-   *   --radius-lg   18px  (says 12px)
-   *   --shadow-card 0 16px 32px rgba(0,0,0,0.07)  (says 0 1px 2px /0.04)
-   *
-   * Two consequences were visible on every page. A KPI tile built on
-   * `--radius-lg` rendered an 18px corner beside a content card on
-   * `--radius-card` at 14px, so peers looked unrelated. And "subtle card
-   * shadow" was a 32px drop — which is the thing §2 rules out, because a
-   * console that leans on shadow for hierarchy is a console whose hierarchy
-   * disappears the moment there are twenty cards.
-   *
-   * These are the token file's own intended values, applied where this phase
-   * is responsible. The duplication itself is recorded at the top of
-   * tokens.css for whoever owns the product-wide decision.
+   * THE DUPLICATION IS NOW GONE. The six declarations were removed from
+   * globals.css after proving every consumer of those names is an
+   * authenticated app surface and none is marketing or public, so
+   * tokens.css is the single authority and the console inherits the right
+   * values without asking. Re-declaring them here would be a second
+   * authority of exactly the kind that was just deleted.
    * ------------------------------------------------------------------ */
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04);
 
   /* The console's own ground and measure. An operations console is read for
      hours beside a terminal; it gets the flat working canvas, and the product
