@@ -44,6 +44,26 @@ import { IntakeChecklist } from "../../../components/intake/IntakeChecklist";
  * means recipients NEVER see raw JSON or raw enum strings even on
  * legacy responses still in flight during deploy.
  */
+/**
+ * Append the server's request id when it sent one.
+ *
+ * A contributor who cannot upload can do nothing with "we hit a problem on our
+ * side" except try again and give up. With an id they can quote it to the
+ * sender, and the sender's operator can find the exact log line — which is the
+ * difference between a report that can be diagnosed and one that cannot.
+ *
+ * Only ever the id. The raw backend message is never shown; that rule is what
+ * `friendlyIntakeError` exists to enforce and this does not weaken it.
+ */
+function withSupportId(
+  copy: string,
+  err: { requestId?: string; details?: { requestId?: string } } | null,
+): string {
+  const id = err?.requestId ?? err?.details?.requestId;
+  if (!id || copy.includes(id)) return copy;
+  return `${copy}\n\nSupport ID: ${id}`;
+}
+
 function friendlyIntakeError(err: {
   code?: string;
   message?: string;
@@ -655,9 +675,13 @@ export default function ExternalIntakePage({
         ),
       );
     } catch (err) {
-      setErrorMessage(
-        friendlyIntakeError(err as { code?: string; message?: string }),
-      );
+      const e = err as {
+        code?: string;
+        message?: string;
+        requestId?: string;
+        details?: { requestId?: string };
+      };
+      setErrorMessage(withSupportId(friendlyIntakeError(e), e));
     }
   }
 

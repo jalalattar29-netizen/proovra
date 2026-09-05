@@ -127,17 +127,49 @@ describe("a failure the contributor cannot fix is at least recorded", () => {
      * server had a problem; the operator was told nothing at all. The
      * incident could not be diagnosed from either end, which is why it lasted.
      */
-    const unhandled = ROUTES.match(/intakeErrorUnhandled: true/g) ?? [];
-    expect(unhandled.length).toBe(5);
+    /*
+     * THE GUARANTEE IS THE SAME; THE SHAPE IS NOT.
+     *
+     * This counted five `intakeErrorUnhandled: true` sites because there were
+     * five copies of the same catch-all. They now delegate to ONE
+     * `intakeUnhandled`, which logs before it answers and re-throws a schema
+     * rejection so the caller gets a bounded 400 instead of being told the
+     * fault was ours. Counting copies would now measure the duplication that
+     * was removed rather than the property that matters.
+     *
+     * So the property is asserted directly: every catch-all reaches the one
+     * handler, and that handler always records before it answers.
+     */
+    const delegations = ROUTES.match(/intakeUnhandled\(err, req, reply, "/g) ?? [];
+    expect(
+      delegations.length,
+      "every generic catch-all must go through the one handler",
+    ).toBe(5);
 
-    // No INTERNAL_ERROR answer without a log immediately before it.
+    const handler = ROUTES.slice(
+      ROUTES.indexOf("function intakeUnhandled("),
+      ROUTES.indexOf("export async function externalIntakeRoutes("),
+    );
+    // Logs, and logs BEFORE it answers.
+    const logAt = handler.indexOf("intakeErrorUnhandled: true");
+    const answerAt = handler.indexOf('code: "INTERNAL_ERROR"');
+    expect(logAt).toBeGreaterThanOrEqual(0);
+    expect(answerAt).toBeGreaterThan(logAt);
+
+    // And the answer carries the id that finds that log line.
+    expect(handler).toContain('code: "INTERNAL_ERROR", requestId');
+
+    // No INTERNAL_ERROR answer anywhere without a record of why.
     const answers = [...ROUTES.matchAll(/code: "INTERNAL_ERROR"/g)];
     for (const m of answers) {
       const before = ROUTES.slice(Math.max(0, m.index! - 400), m.index!);
       const logged =
         before.includes("intakeErrorUnhandled") ||
         // The orchestration mapper's `default:` is a deliberate, named branch.
-        before.includes("default:");
+        before.includes("default:") ||
+        // The public page's friendly-copy map names the code; it is copy, not
+        // an answer.
+        before.includes("friendlyPublicIntakeMessage");
       expect(logged, "an INTERNAL_ERROR answer with no record of why").toBe(true);
     }
   });

@@ -90,4 +90,25 @@ describe("public intake error contract", () => {
     expect(handler).toMatch(/intakeErrorUnhandled: true/);
     expect(handler).toMatch(/code: "INTERNAL_ERROR"/);
   });
+
+  it("gives the contributor something the operator can grep for", () => {
+    /*
+     * A bounded 500 with no correlation id is a dead end for everyone: the
+     * contributor has nothing to quote and the operator has no key to find the
+     * log line. A production report of this exact banner could not be traced
+     * to a server log for that reason.
+     *
+     * The submit route already returned a requestId and the public page
+     * already rendered it as a Support ID; every public intake route now does
+     * the same. The id identifies a REQUEST — it carries nothing about the
+     * contributor, the link or the token.
+     */
+    const handler = ROUTES.slice(
+      ROUTES.indexOf("function intakeUnhandled("),
+      ROUTES.indexOf("export async function externalIntakeRoutes("),
+    );
+    expect(handler).toContain("const requestId = req.id ?? null;");
+    expect(handler).toContain('code: "INTERNAL_ERROR", requestId');
+    expect(handler).toContain("{ err, route, requestId, intakeErrorUnhandled: true }");
+  });
 });

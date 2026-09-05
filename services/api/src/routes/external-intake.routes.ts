@@ -568,11 +568,34 @@ function intakeUnhandled(
 ): void {
   if (err instanceof ZodError) throw err;
 
+  /*
+   * THE REQUEST ID GOES BACK WITH THE ERROR.
+   *
+   * A genuine unexpected fault still answers 500 INTERNAL_ERROR, which is
+   * right — there is nothing honest to tell a contributor about it. What was
+   * missing is the one thing that makes it actionable for anyone else: this
+   * response carried no correlation id, so the contributor saw a red banner
+   * with nothing to quote and the operator had no key to grep for.
+   *
+   * That is not hypothetical. A production report of exactly this banner could
+   * not be traced to a server log at all, because nothing tied the two
+   * together; the same failure on the local fixture was diagnosable in
+   * seconds only because the log was the whole log.
+   *
+   * The submit route already did this and the public page already knows how to
+   * render a Support ID from it. This makes every other public intake route
+   * behave the same way, which is what it should have been from the start.
+   *
+   * `req.id` is Fastify's own request id — the value already on every log line
+   * for this request. It identifies a request, not a person, and it carries
+   * nothing about the contributor, the link or the token.
+   */
+  const requestId = req.id ?? null;
   req.log.error(
-    { err, route, intakeErrorUnhandled: true },
+    { err, route, requestId, intakeErrorUnhandled: true },
     "external intake: unhandled error",
   );
-  reply.code(500).send({ error: { code: "INTERNAL_ERROR" } });
+  reply.code(500).send({ error: { code: "INTERNAL_ERROR", requestId } });
 }
 
 export async function externalIntakeRoutes(app: FastifyInstance) {
