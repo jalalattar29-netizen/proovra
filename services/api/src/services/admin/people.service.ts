@@ -357,6 +357,21 @@ export type AdminPersonDetail = AdminPersonRow & {
     billingOwnerUserId: string | null;
   } | null;
   commercialUnavailableReason: string | null;
+  /**
+   * The evidence-credit WALLET, read through the canonical reader.
+   *
+   * An operator deciding whether to grant credits has to see what is already
+   * there — and `granted` is reported separately from `purchased` because
+   * they are different facts: one the customer paid for, one the platform gave
+   * them. A single "credits" figure would let a support decision look like a
+   * purchase in the very surface used to make the next one.
+   */
+  wallet: {
+    availableCredits: number;
+    purchasedCredits: number;
+    grantedCredits: number;
+    consumedCredits: number;
+  } | null;
   workspaces: Array<{
     id: string;
     name: string;
@@ -401,6 +416,7 @@ export async function getAdminPersonDetail(
   if (!base) throw new PersonNotFoundError();
 
   let commercial: AdminPersonDetail["commercial"] = null;
+  let wallet: AdminPersonDetail["wallet"] = null;
   let commercialUnavailableReason: string | null = null;
   try {
     const ctx = await resolveCommercialContext({
@@ -418,6 +434,23 @@ export async function getAdminPersonDetail(
   } catch {
     commercialUnavailableReason =
       "The canonical commercial context could not be resolved for this account. The stored entitlement tier is shown unchanged; it is not a substitute.";
+  }
+
+  try {
+    const { readEvidenceCreditWallet } = await import(
+      "../billing/evidence-credits.service.js"
+    );
+    const w = await readEvidenceCreditWallet(userId);
+    wallet = {
+      availableCredits: w.availableCredits,
+      purchasedCredits: w.purchasedCredits,
+      grantedCredits: w.grantedCredits,
+      consumedCredits: w.consumedCredits,
+    };
+  } catch {
+    // A wallet that cannot be read is reported as absent, never as zero: an
+    // operator must not be shown a balance the platform did not confirm.
+    wallet = null;
   }
 
   const [memberships, orgMemberships, payments, closures, exports, evidenceCount] =
@@ -482,6 +515,7 @@ export async function getAdminPersonDetail(
     ...base,
     commercial,
     commercialUnavailableReason,
+    wallet,
     workspaces: memberships
       .filter((m) => m.team)
       .map((m) => ({

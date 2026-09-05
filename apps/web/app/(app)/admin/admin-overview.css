@@ -153,3 +153,70 @@
     min-block-size: 2.75rem;
   }
 }
+
+/* ===========================================================================
+   EVIDENCE CREDIT GRANT (Platform Admin)
+
+   A form, not a feature card. It sits inside the Commercial section of one
+   person's page, so it borrows that section's surface and adds only the
+   layout its own controls need — no second card, no modal, no chrome that
+   would make a three-field decision look like a workflow.
+   =========================================================================== */
+.adm-credit-grant {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.adm-credit-grant__lede {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--app-ink-secondary);
+  max-width: 68ch;
+}
+.adm-credit-grant__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 28px;
+  margin: 0;
+}
+.adm-credit-grant__facts div {
+  min-width: 0;
+}
+.adm-credit-grant__facts dt {
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--app-ink-label);
+}
+.adm-credit-grant__facts dd {
+  margin: 3px 0 0;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--app-ink-heading);
+  font-variant-numeric: tabular-nums;
+}
+.adm-credit-grant__fields {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+.adm-credit-grant__field {
+  min-width: 0;
+}
+.adm-credit-grant__actions {
+  display: flex;
+  justify-content: flex-start;
+}
+@media (max-width: 720px) {
+  .adm-credit-grant__fields {
+    grid-template-columns: 1fr;
+  }
+  .adm-credit-grant__actions > * {
+    width: 100%;
+    justify-content: center;
+  }
+}

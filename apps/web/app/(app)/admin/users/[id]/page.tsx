@@ -18,7 +18,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   PageShell,
@@ -38,6 +38,7 @@ import { apiFetch } from "../../../../../lib/api";
 import { formatUserDateTime } from "../../../../../lib/date";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useAdminEntityCrumb } from "../../../../../components/admin/AdminEntityCrumb";
+import { EvidenceCreditGrant } from "./EvidenceCreditGrant";
 
 type Detail = {
   id: string;
@@ -76,6 +77,12 @@ type Detail = {
     billingOwnerUserId: string | null;
   } | null;
   commercialUnavailableReason: string | null;
+  wallet: {
+    availableCredits: number;
+    purchasedCredits: number;
+    grantedCredits: number;
+    consumedCredits: number;
+  } | null;
   workspaces: Array<{
     id: string;
     name: string;
@@ -161,16 +168,27 @@ export default function AdminPersonDetailPage() {
   // terminal and the other is retryable, and a page that shows one message
   // for both teaches operators to retry a 404.
   const [notFound, setNotFound] = useState(false);
+  const detailRef = useRef<Detail | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
-    setLoading(true);
+    /*
+     * KEEP-PREVIOUS-DATA on a refresh.
+     *
+     * A refresh after an inline action — granting evidence credits, say —
+     * used to blank the page to a skeleton, which unmounted the form that
+     * had just succeeded and took its "50 credits granted. Balance: 12 → 62"
+     * with it. The operator was left looking at a reloaded page with no
+     * confirmation that anything had happened.
+     */
+    setLoading((prev) => (detailRef.current ? prev : true));
     setNotFound(false);
     try {
       const data = (await apiFetch(
         `/v1/admin/users/${encodeURIComponent(id)}`,
       )) as Detail;
       setDetail(data ?? null);
+      detailRef.current = data ?? null;
     } catch (err) {
       if ((err as { statusCode?: number })?.statusCode === 404) {
         setNotFound(true);
@@ -185,6 +203,8 @@ export default function AdminPersonDetailPage() {
     } finally {
       setLoading(false);
     }
+    // `detail` is read through the ref so this callback stays referentially
+    // stable and the mount effect does not refire on every load.
   }, [id, addToast]);
 
   useEffect(() => {
@@ -419,6 +439,58 @@ export default function AdminPersonDetailPage() {
                 </Field>
                 <Field label="Evidence records">{detail.evidenceCount}</Field>
               </FieldGrid>
+
+              {/*
+                THE WALLET, AND THE ONE ACTION THAT CHANGES IT.
+                Placed inside Commercial, beside the plan and the lifecycle it
+                must not alter, so the operator is looking at the account's
+                commercial state while deciding. Granted and purchased credits
+                are shown apart: one the customer paid for, one the platform
+                gave them, and a single figure would let a support decision
+                read as a sale.
+              */}
+              <div
+                style={{
+                  marginTop: 20,
+                  paddingTop: 18,
+                  borderTop: "1px solid var(--border-default, #e2e8f0)",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: "0.08em",
+                    textTransform: "uppercase",
+                    color: "var(--ink-muted, #64748b)",
+                    marginBottom: 10,
+                  }}
+                >
+                  Evidence credit grant
+                </div>
+                {detail.wallet ? (
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: "var(--ink-secondary)",
+                      marginBottom: 12,
+                    }}
+                    data-admin-wallet-breakdown
+                  >
+                    {detail.wallet.purchasedCredits} purchased ·{" "}
+                    {detail.wallet.grantedCredits} granted ·{" "}
+                    {detail.wallet.consumedCredits} used
+                  </div>
+                ) : null}
+                <EvidenceCreditGrant
+                  userId={detail.id}
+                  plan={detail.commercial?.plan ?? detail.accountTier ?? null}
+                  availableCredits={detail.wallet?.availableCredits ?? null}
+                  onGranted={() => {
+                    void load();
+                  }}
+                />
+              </div>
 
               <div
                 style={{

@@ -469,6 +469,24 @@ textarea.app-form-input {
   line-height: 1.45;
   color: var(--app-ink-secondary);
 }
+/*
+ * THE ERROR THAT BELONGS TO ONE CONTROL.
+ *
+ * Same metrics as `.app-field-help` — it replaces the help line rather than
+ * pushing it around, so a field does not resize when it becomes invalid — and
+ * the only difference is the colour and the weight. An ordinary mistake
+ * (a number out of range, a missing reason, an unsupported file) is answered
+ * HERE, next to the control that caused it. Promoting it to a page-level
+ * banner makes the person hunt for which input was wrong, and it makes their
+ * typo look like a system failure.
+ */
+.app-field-error {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  font-weight: 550;
+  color: var(--error, #dc2626);
+}
 /* The "(optional)" marker that sits INSIDE a field label.
    A marker is not a tier of its own: it steps the weight back to normal and
    takes the description ink, so the label still reads as one phrase. It is a
