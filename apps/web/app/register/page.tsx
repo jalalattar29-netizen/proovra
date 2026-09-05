@@ -1250,7 +1250,24 @@ function RegisterPageContent() {
                                   }}
                                   onKeyDown={handleCapsLockKey}
                                   onKeyUp={handleCapsLockKey}
-                                  aria-describedby={PASSWORD_RULES_DESC_ID}
+                                  /*
+                                   * A DESCRIPTION ONLY WHILE THERE IS ONE.
+                                   *
+                                   * The requirements list is rendered under
+                                   * `showPasswordRules`, so it does not exist
+                                   * at rest — but this attribute used to name
+                                   * it unconditionally. A screen reader
+                                   * meeting the field for the first time was
+                                   * therefore pointed at an element that was
+                                   * not in the document, which is a dangling
+                                   * reference rather than a description.
+                                   *
+                                   * Tied to the same condition as the list, so
+                                   * the two cannot disagree.
+                                   */
+                                  aria-describedby={
+                                    showPasswordRules ? PASSWORD_RULES_DESC_ID : undefined
+                                  }
                                   aria-invalid={passwordTouched && !passwordEval.allMet}
                                   disabled={busy}
                                   style={{
