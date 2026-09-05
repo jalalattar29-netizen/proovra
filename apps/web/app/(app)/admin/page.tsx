@@ -167,20 +167,16 @@ const SUBSCRIPTION_STATUS_TONE: Record<string, BadgeTone> = {
   CANCELED: "neutral",
 };
 
-const STATUS_TONE: Record<StatusLevel, BadgeTone> = {
-  healthy: "verified",
-  degraded: "pending",
-  critical: "risk",
-  unknown: "neutral",
-};
-
 /**
- * The same four levels, mapped onto the attention surface's severities.
+ * The four platform levels, mapped onto the attention surface's severities.
  *
- * A SEPARATE MAP FROM `STATUS_TONE`, deliberately: that one names a Badge
- * tone and this one names a severity, and `degraded` maps to "warning" here
- * while it maps to "pending" there. Collapsing them would make one of the two
- * wrong to keep the other right.
+ * THIS REPLACED A `STATUS_TONE` BADGE MAP. The verdict used to be a `<Badge>`
+ * inside the Platform posture section, so it needed a Badge TONE; it is now
+ * the page's first element and an `AdmAttention`, which needs a SEVERITY —
+ * and the two vocabularies do not agree on `degraded`, which is "pending" as
+ * a badge tone and "warning" as a severity. The old map is gone rather than
+ * kept beside this one: two maps over the same four values, differing on one
+ * of them, is how a page ends up painting a state two ways.
  */
 const ADM_SEVERITY: Record<StatusLevel, AdmSeverity> = {
   healthy: "healthy",

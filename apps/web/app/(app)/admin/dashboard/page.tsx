@@ -1,6 +1,5 @@
 "use client";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
-import Link from "next/link";
 
 import { useEffect, useMemo, useState } from "react";
 import { PageShell, PageHeader, PageSection, DataTable } from "../../../../components/ui";
@@ -152,7 +151,9 @@ const DATE_RANGES: ReadonlyArray<{ key: DateRangeKey; label: string }> = [
 
 const INK_PRIMARY = "var(--ink-primary, #0f172a)";
 const INK_SECONDARY = "var(--ink-secondary, #475569)";
-const INK_MUTED = "var(--ink-muted, #94a3b8)";
+/* INK_MUTED is gone: MetricTile now renders through AdmKpi, which owns the
+   muted ink for its label and its non-value states, and the not-connected
+   rows render through AdmInline. Nothing left in this file sets it by hand. */
 
 function formatTimestamp(value: string) {
   const d = new Date(value);
