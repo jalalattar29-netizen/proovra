@@ -380,9 +380,35 @@ export function ActiveSessionsSection() {
       key: "user",
       header: "Member",
       render: (s) => (
-        <code className="adm-mono" title={s.userId}>
-          {shortId(s.userId)}
-        </code>
+        <div style={{ display: "grid", gap: 2, minWidth: 0 }}>
+          <code className="adm-mono" title={s.userId}>
+            {shortId(s.userId)}
+          </code>
+          {/* TIMELINE IS A READ, AND IT WAS COSTING THE ROW ITS LAST ACTION.
+              Four controls in the actions cell made the table 1268px inside a
+              1216px wrapper, so on a 1440px desktop "Revoke all" sat at x=1403
+              against a container edge at x=1362 — clipped, on every one of
+              twenty-five rows. Measured, not estimated.
+              This one is not a mutation: it opens the session's own history.
+              Moving it beside the session's identity buys back 80px and a gap,
+              and leaves the actions cell holding only actions. */}
+          <button
+            type="button"
+            className="adm-link"
+            onClick={() => setTimelineFor(s.id)}
+            style={{
+              justifySelf: "start",
+              background: "none",
+              border: 0,
+              padding: 0,
+              font: "inherit",
+              fontSize: 11.5,
+              cursor: "pointer",
+            }}
+          >
+            Timeline
+          </button>
+        </div>
       ),
     },
     {
@@ -590,9 +616,7 @@ export function ActiveSessionsSection() {
               justifyContent: "flex-end",
             }}
           >
-            <Button variant="secondary" size="sm" onClick={() => setTimelineFor(s.id)}>
-              Timeline
-            </Button>
+            {/* Timeline moved to the Member cell — see the comment there. */}
             {!s.revoked && !isQuarantined(s) ? (
               <Button
                 variant="secondary"
@@ -640,11 +664,36 @@ export function ActiveSessionsSection() {
                 Revoke
               </Button>
             ) : null}
+            {/*
+              ONE RED BUTTON PER ROW, AND IT IS THE ROW'S OWN ACTION.
+
+              This was `destructive` too, so every row carried TWO identical
+              solid-red buttons — fifty on a full page, measured — and the more
+              dangerous of the pair was indistinguishable from the safer one.
+              Nothing about "Revoke" and "Revoke all" told them apart except
+              the word.
+
+              It is also the wrong SCOPE for a row action: "Revoke all" acts on
+              the MEMBER, so a member with ten live sessions rendered ten
+              identical copies of the same button. A member-scoped action
+              repeated per session cannot be the loudest thing in the row.
+
+              What guards it is not its colour. It requires step-up
+              verification, and its dialog demands the words REVOKE ALL typed
+              out — a gate a red fill does not add to. Meanwhile fifty red
+              buttons remove red's meaning from the page entirely, which makes
+              the surface less safe rather than more: when everything is an
+              alarm, the one genuine alarm is invisible.
+
+              For scale: the other three admin routes that render a filled
+              destructive control render one, one and four of them.
+            */}
             <Button
-              variant="destructive"
+              variant="secondary"
               size="sm"
               loading={busy === `session-revoke-all-${s.userId}`}
               disabled={busy !== null}
+              title="Signs this member out of every device. Requires step-up verification."
               onClick={() =>
                 void runMutation({
                   key: `session-revoke-all-${s.userId}`,
