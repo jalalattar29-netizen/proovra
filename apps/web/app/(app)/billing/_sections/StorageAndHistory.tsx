@@ -355,7 +355,7 @@ export function BillingHistorySection({
             margin: 0,
             fontSize: "0.9rem",
             lineHeight: 1.65,
-            color: "var(--text-muted, #475569)",
+            color: "var(--silver-ink)",
           }}
         >
           Payment records for this account are visible to its billing owner.
@@ -371,7 +371,7 @@ export function BillingHistorySection({
           style={{
             margin: "0 0 12px",
             fontSize: "0.9rem",
-            color: "var(--text-muted, #475569)",
+            color: "var(--silver-ink)",
           }}
         >
           We could not load payment history just now.
@@ -427,7 +427,7 @@ export function BillingHistorySection({
       style={{ borderColor: "var(--border-strong, rgba(15, 23, 42, 0.14))" }}
     >
       {state === "LOADING" ? (
-        <p style={{ margin: 0, color: "var(--text-muted, #5F6878)" }}>Loading…</p>
+        <p style={{ margin: 0, color: "var(--silver-ink)" }}>Loading…</p>
       ) : entries.length === 0 ? (
         <EmptyState
           compact

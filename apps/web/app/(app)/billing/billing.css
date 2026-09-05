@@ -153,7 +153,7 @@
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--text-muted, #5f6878);
+  color: var(--silver-ink);
 }
 
 .bill-overview__plan {
@@ -162,14 +162,14 @@
   line-height: 1.12;
   font-weight: 700;
   letter-spacing: -0.02em;
-  color: var(--text-strong, #172033);
+  color: var(--ink-primary);
   overflow-wrap: anywhere;
 }
 
 .bill-overview__meta {
   margin: 2px 0 0;
   font-size: 0.88rem;
-  color: var(--text-muted, #475569);
+  color: var(--silver-ink);
   overflow-wrap: anywhere;
 }
 
@@ -189,13 +189,13 @@
   font-size: clamp(1.35rem, 1.1rem + 0.7vw, 1.6rem);
   font-weight: 700;
   letter-spacing: -0.02em;
-  color: var(--text-strong, #172033);
+  color: var(--ink-primary);
 }
 
 .bill-overview__cadence {
   font-size: 0.86rem;
   font-weight: 400;
-  color: var(--text-muted, #5f6878);
+  color: var(--silver-ink);
 }
 
 /* BILLING UI REFINEMENT (2026-09-01) — `.bill-overview__status` is DELETED.
@@ -234,7 +234,7 @@
   margin: 0;
   font-size: 0.88rem;
   line-height: 1.55;
-  color: var(--text-muted, #475569);
+  color: var(--silver-ink);
   overflow-wrap: anywhere;
 }
 
@@ -287,14 +287,14 @@
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--text-muted, #5f6878);
+  color: var(--silver-ink);
 }
 
 .bill-metric__value {
   margin: 0;
   font-size: 1.05rem;
   font-weight: 650;
-  color: var(--text-strong, #172033);
+  color: var(--ink-primary);
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
@@ -325,7 +325,7 @@
   margin: 0;
   font-size: 0.8rem;
   line-height: 1.5;
-  color: var(--text-muted, #5f6878);
+  color: var(--silver-ink);
   overflow-wrap: anywhere;
 }
 
@@ -356,14 +356,14 @@
   font-size: 0.95rem;
   font-weight: 700;
   letter-spacing: -0.01em;
-  color: var(--text-strong, #172033);
+  color: var(--ink-primary);
 }
 
 .bill-panel__note {
   margin: 0;
   font-size: 0.84rem;
   line-height: 1.6;
-  color: var(--text-muted, #475569);
+  color: var(--silver-ink);
   overflow-wrap: anywhere;
 }
 
@@ -385,7 +385,7 @@
   font-size: 1.35rem;
   font-weight: 700;
   letter-spacing: -0.02em;
-  color: var(--text-strong, #172033);
+  color: var(--ink-primary);
   font-variant-numeric: tabular-nums;
 }
 
@@ -410,7 +410,7 @@
   border: 1px solid var(--accent-200, #ddd3fb);
   background: var(--accent-050, #f6f2ff);
   font-size: 0.88rem;
-  color: var(--text-strong, #172033);
+  color: var(--ink-primary);
 }
 
 .bill-support-strip__icon {
@@ -509,14 +509,14 @@
 
 .bill-choice__title {
   font-weight: 600;
-  color: var(--text-strong, #172033);
+  color: var(--ink-primary);
   overflow-wrap: anywhere;
 }
 
 .bill-choice__meta {
   font-size: 0.86rem;
   line-height: 1.6;
-  color: var(--text-muted, #475569);
+  color: var(--silver-ink);
   overflow-wrap: anywhere;
 }
 
@@ -534,7 +534,7 @@
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--text-muted, #5f6878);
+  color: var(--silver-ink);
 }
 
 /* A summary is a list of facts, each on its own line, with the total set
@@ -554,12 +554,12 @@
   justify-content: space-between;
   gap: 16px;
   font-size: 0.9rem;
-  color: var(--text-muted, #475569);
+  color: var(--silver-ink);
 }
 
 .bill-summary__row > span:last-child {
   font-variant-numeric: tabular-nums;
-  color: var(--text-strong, #172033);
+  color: var(--ink-primary);
   text-align: end;
 }
 
@@ -569,13 +569,13 @@
   border-block-start: 1px solid var(--border-default, rgba(15, 23, 42, 0.09));
   font-size: 1rem;
   font-weight: 700;
-  color: var(--text-strong, #172033);
+  color: var(--ink-primary);
 }
 
 .bill-summary__note {
   margin: 4px 0 0;
   font-size: 0.82rem;
-  color: var(--text-muted, #5f6878);
+  color: var(--silver-ink);
 }
 
 /* A fact list inside the management drawer: what the customer is on now. */
@@ -594,7 +594,7 @@
 }
 
 .bill-facts__label {
-  color: var(--text-muted, #5f6878);
+  color: var(--silver-ink);
 }
 
 /* ---------------------------------------------------------------------------
@@ -633,7 +633,7 @@
   color: var(--accent-600, #6d28d9);
 }
 .bill-lead__of {
-  color: var(--text-muted, #5f6878);
+  color: var(--silver-ink);
   font-weight: 600;
 }
 
@@ -686,13 +686,13 @@
 
 .bill-addon__size {
   font-weight: 600;
-  color: var(--text-strong, #172033);
+  color: var(--ink-primary);
   overflow-wrap: anywhere;
 }
 
 .bill-addon__meta {
   font-size: 0.82rem;
-  color: var(--text-muted, #5f6878);
+  color: var(--silver-ink);
   overflow-wrap: anywhere;
 }
 
@@ -718,7 +718,7 @@
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   white-space: nowrap;
-  color: var(--text-strong, #172033);
+  color: var(--ink-primary);
 }
 
 .bill-history__what {
@@ -729,7 +729,7 @@
 
 .bill-history__when {
   font-size: 0.82rem;
-  color: var(--text-muted, #5f6878);
+  color: var(--silver-ink);
 }
 
 .bill-history__actions {
@@ -789,7 +789,7 @@
   flex: 1 1 320px;
   font-size: 0.9rem;
   line-height: 1.65;
-  color: var(--text-muted, #475569);
+  color: var(--silver-ink);
   overflow-wrap: anywhere;
 }
 
@@ -951,7 +951,7 @@
   margin: 0;
   font-size: 0.85rem;
   line-height: 1.6;
-  color: var(--text-muted, #5F6878);
+  color: var(--silver-ink);
   overflow-wrap: anywhere;
 }
 
@@ -961,7 +961,7 @@
 .bill-choice__price {
   font-weight: 600;
   font-size: 0.95rem;
-  color: var(--text-strong, #172033);
+  color: var(--ink-primary);
   overflow-wrap: anywhere;
 }
 
@@ -1029,7 +1029,7 @@
      the violet is dropped, because a disabled control that still looks
      actionable is worse than a grey one. */
   background: var(--surface-muted, #f8fafc) !important;
-  color: var(--text-muted, #5f6878) !important;
+  color: var(--silver-ink) !important;
   border-color: var(--border-default, rgba(15, 23, 42, 0.09)) !important;
   transform: none;
 }
@@ -1261,9 +1261,9 @@
 .bill-panel [data-billing-evidence-action="SEE_PLANS"].ui-button,
 .bill-panel [data-billing-storage-upgrade].ui-button,
 .bill-panel [data-billing-recheck].ui-button {
-  background: var(--text-strong, #172033) !important;
+  background: var(--ink-primary) !important;
   background-image: none !important;
-  border: 1px solid var(--text-strong, #172033) !important;
+  border: 1px solid var(--ink-primary) !important;
   color: #ffffff !important;
   -webkit-text-fill-color: #ffffff !important;
   box-shadow: none !important;

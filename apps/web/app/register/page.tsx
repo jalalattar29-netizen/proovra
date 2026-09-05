@@ -971,7 +971,7 @@ function RegisterPageContent() {
                                 background: resendBusy
                                   ? "var(--accent-050, #f2ecfe)"
                                   : "var(--btn-primary-bg)",
-                                color: resendBusy ? "var(--text-muted, #5F6878)" : "#ffffff",
+                                color: resendBusy ? "var(--silver-ink)" : "#ffffff",
                                 border: "1px solid var(--btn-primary-border)",
                                 boxShadow: resendBusy
                                   ? "none"
@@ -1095,7 +1095,7 @@ function RegisterPageContent() {
                             <div
                               className="auth-divider"
                               style={{
-                                color: "var(--text-muted, #5F6878)",
+                                color: "var(--silver-ink)",
                               }}
                             >
                               {t("orDivider")}
@@ -1113,7 +1113,7 @@ function RegisterPageContent() {
                                 <span
                                   className="auth-input-icon"
                                   aria-hidden="true"
-                                  style={{ color: "var(--text-muted, #5F6878)" }}
+                                  style={{ color: "var(--silver-ink)" }}
                                 >
                                   <EmailIcon />
                                 </span>
@@ -1229,7 +1229,7 @@ function RegisterPageContent() {
                                 <span
                                   className="auth-input-icon"
                                   aria-hidden="true"
-                                  style={{ color: "var(--text-muted, #5F6878)" }}
+                                  style={{ color: "var(--silver-ink)" }}
                                 >
                                   <LockIcon />
                                 </span>
@@ -1427,7 +1427,7 @@ function RegisterPageContent() {
                                 <span
                                   className="auth-input-icon"
                                   aria-hidden="true"
-                                  style={{ color: "var(--text-muted, #5F6878)" }}
+                                  style={{ color: "var(--silver-ink)" }}
                                 >
                                   <CheckIcon />
                                 </span>

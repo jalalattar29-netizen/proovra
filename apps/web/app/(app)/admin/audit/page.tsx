@@ -718,7 +718,7 @@ export default function AdminAuditPage() {
         */}
         <p
           data-audit-coverage
-          style={{ marginTop: 12, fontSize: 13, color: "var(--text-muted)" }}
+          style={{ marginTop: 12, fontSize: 13, color: "var(--silver-ink)" }}
         >
           {loadFailed
             ? "These rollups could not be counted — the audit log did not load, so no figure above is a measurement."

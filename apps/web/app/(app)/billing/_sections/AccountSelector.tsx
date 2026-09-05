@@ -95,7 +95,7 @@ export function AccountSelector({
           fontWeight: 600,
           letterSpacing: "0.12em",
           textTransform: "uppercase",
-          color: "var(--text-muted, #5F6878)",
+          color: "var(--silver-ink)",
           marginBottom: 6,
         }}
       >
@@ -137,7 +137,7 @@ export function AccountSelector({
             style={{
               display: "block",
               fontWeight: 600,
-              color: "var(--text-strong, #172033)",
+              color: "var(--ink-primary)",
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
@@ -146,7 +146,7 @@ export function AccountSelector({
             {selected.displayName}
           </span>
           <span
-            style={{ fontSize: "0.8rem", color: "var(--text-muted, #5F6878)" }}
+            style={{ fontSize: "0.8rem", color: "var(--silver-ink)" }}
           >
             {KIND_LABEL[selected.type]}
           </span>
@@ -220,7 +220,7 @@ export function AccountSelector({
                   style={{
                     display: "block",
                     fontWeight: isSelected ? 600 : 500,
-                    color: "var(--text-strong, #172033)",
+                    color: "var(--ink-primary)",
                   }}
                 >
                   {account.displayName}
@@ -232,7 +232,7 @@ export function AccountSelector({
                 <span
                   style={{
                     fontSize: "0.8rem",
-                    color: "var(--text-muted, #5F6878)",
+                    color: "var(--silver-ink)",
                   }}
                 >
                   {KIND_LABEL[account.type]}

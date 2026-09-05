@@ -831,7 +831,7 @@ function LoginPageContent() {
                         <div
                           className="auth-divider"
                           style={{
-                            color: "var(--text-muted, #5F6878)",
+                            color: "var(--silver-ink)",
                           }}
                         >
                           {t("orDivider")}
@@ -839,7 +839,7 @@ function LoginPageContent() {
 
                         <form onSubmit={onEmailLogin} style={{ display: "grid", gap: 10 }}>
                           <div className="auth-input-wrap">
-                            <span className="auth-input-icon" aria-hidden="true" style={{ color: "var(--text-muted, #5F6878)" }}>
+                            <span className="auth-input-icon" aria-hidden="true" style={{ color: "var(--silver-ink)" }}>
                               <EmailIcon />
                             </span>
                             <input
@@ -878,7 +878,7 @@ function LoginPageContent() {
 
                           <div style={{ display: "grid", gap: 6 }}>
                             <div className="auth-input-wrap">
-                              <span className="auth-input-icon" aria-hidden="true" style={{ color: "var(--text-muted, #5F6878)" }}>
+                              <span className="auth-input-icon" aria-hidden="true" style={{ color: "var(--silver-ink)" }}>
                                 <LockIcon />
                               </span>
                               {/*
@@ -1069,7 +1069,7 @@ function LoginPageContent() {
                                       ? "var(--accent-050, #f2ecfe)"
                                       : "var(--btn-primary-bg)",
                                   color:
-                                    verifyResendBusy || !email ? "var(--text-muted, #5F6878)" : "#ffffff",
+                                    verifyResendBusy || !email ? "var(--silver-ink)" : "#ffffff",
                                   border: "1px solid var(--btn-primary-border)",
                                   boxShadow:
                                     verifyResendBusy || !email

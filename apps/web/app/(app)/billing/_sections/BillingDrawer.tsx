@@ -169,7 +169,7 @@ export function BillingDrawer({
                 fontSize: "1.05rem",
                 fontWeight: 600,
                 letterSpacing: "-0.01em",
-                color: "var(--text-strong, #172033)",
+                color: "var(--ink-primary)",
               }}
             >
               {title}
@@ -180,7 +180,7 @@ export function BillingDrawer({
                   margin: "6px 0 0",
                   fontSize: "0.88rem",
                   lineHeight: 1.6,
-                  color: "var(--text-muted, #475569)",
+                  color: "var(--silver-ink)",
                 }}
               >
                 {description}
@@ -201,7 +201,7 @@ export function BillingDrawer({
               cursor: "pointer",
               fontSize: 18,
               lineHeight: 1,
-              color: "var(--text-muted, #475569)",
+              color: "var(--silver-ink)",
             }}
           >
             ×

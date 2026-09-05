@@ -67,7 +67,7 @@ export function ActionRequiredBanner({
               margin: 0,
               fontSize: "0.9rem",
               lineHeight: 1.65,
-              color: "var(--text-muted, #475569)",
+              color: "var(--silver-ink)",
             }}
           >
             {m}
@@ -79,7 +79,7 @@ export function ActionRequiredBanner({
           style={{
             margin: "12px 0 0",
             fontSize: "0.85rem",
-            color: "var(--text-muted, #5F6878)",
+            color: "var(--silver-ink)",
           }}
         >
           {banner.reassurance}
@@ -253,7 +253,7 @@ export function EnterpriseContractCard({
               style={{
                 marginInlineStart: 8,
                 fontSize: "0.9rem",
-                color: "var(--text-muted, #475569)",
+                color: "var(--silver-ink)",
               }}
             >
               {activation.detail}
@@ -270,7 +270,7 @@ export function EnterpriseContractCard({
             margin: "0 0 12px",
             fontSize: "0.9rem",
             lineHeight: 1.65,
-            color: "var(--text-muted, #475569)",
+            color: "var(--silver-ink)",
           }}
           data-billing-contract-legacy
         >
@@ -296,7 +296,7 @@ export function EnterpriseContractCard({
                   fontWeight: 600,
                   letterSpacing: "0.12em",
                   textTransform: "uppercase",
-                  color: "var(--text-muted, #5F6878)",
+                  color: "var(--silver-ink)",
                 }}
               >
                 {label}
@@ -305,7 +305,7 @@ export function EnterpriseContractCard({
                 style={{
                   margin: "4px 0 0",
                   fontSize: "0.95rem",
-                  color: "var(--text-strong, #172033)",
+                  color: "var(--ink-primary)",
                 }}
               >
                 {value}

@@ -380,17 +380,19 @@
   --border-standard: var(--border-strong);
   --hairline: var(--border-default);
   --rule: var(--border-default);
-  --text-strong: var(--ink-primary);
-  /* ALIAS-OF-AN-ALIAS TRAP, RECORDED BECAUSE IT BIT ONCE.
-     A custom property is substituted at COMPUTED-VALUE TIME on the element
-     that declares it, not at use time. So `--text-muted: var(--ink-muted)`
-     resolves HERE, on `:root`, and freezes to whatever `--ink-muted` is at
-     `:root`. A descendant that overrides `--ink-muted` (the admin console
-     does, for contrast) does NOT move `--text-muted` with it — the two
-     silently disagree, and the surfaces reading the alias keep the old value.
-     Any scope that overrides one of these must override both; the console
-     does, in app/(app)/admin/admin-system.css. */
-  --text-muted: var(--ink-muted);
+  /* --text-strong and --text-muted are GONE, not re-pointed.
+     They were alias-of-an-alias declarations, and both problems they had were
+     avoidable rather than fixable. A custom property is substituted at
+     computed-value time on the element that DECLARES it, so an alias on :root
+     freezes there and does not follow a descendant override. And they were
+     aimed at the wrong values: on the baseline both names were UNDEFINED, so
+     every consumer rendered its own fallback -- #5f6878 (5.36:1, AA) for
+     muted and #172033 for strong -- and aliasing muted to --ink-muted
+     (#94A3B8, 2.56:1) made ten files LIGHTER than what they were written
+     against and dropped them below AA.
+     All 60 consumers now name a canonical token directly: --silver-ink
+     (#5B6B7B, 5.48:1, within 0.12:1 of the #5f6878 they expected) and
+     --ink-primary. With no alias there is nothing left to freeze. */
   --ink-link: var(--accent-600);
   /* The two the organization-admin surfaces ask for, by their own names. */
   --status-ok-fg: var(--success-standard);

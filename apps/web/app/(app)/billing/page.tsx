@@ -919,7 +919,7 @@ function BillingPageInner() {
       <PageShell data-billing-page header={header}>
         <PageSection>
           <Card variant="status" tone="risk" role="alert" data-billing-error title={phase.title}>
-            <p style={{ margin: 0, color: "var(--text-muted, #475569)" }}>{phase.message}</p>
+            <p style={{ margin: 0, color: "var(--silver-ink)" }}>{phase.message}</p>
             <div style={{ marginTop: 14 }}>
               <Button variant="secondary" size="sm" onClick={() => window.location.reload()}>
                 Try again
