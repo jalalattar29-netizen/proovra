@@ -135,6 +135,43 @@ test("the registry does not describe codes the API no longer emits", () => {
    * above only reads the route layer.
    */
   const known = new Set(EMITTED);
+  /*
+   * THE COMMERCIAL AUTHORITY EMITS ON THE WIRE TOO.
+   *
+   * `assertWorkspaceAllowsEvidenceCreation` throws `DomainError`s that the
+   * central handler answers verbatim — httpStatus, publicCode and public
+   * message straight onto the response — so these codes reach a customer
+   * exactly as a route-emitted one does. The scan above only reads the route
+   * layer, which is why the record-allowance family looked like registry
+   * cruft while being the single most common commercial refusal in the
+   * product.
+   *
+   * Exempting them from the staleness check would be enough to make the
+   * suite pass, and would also let the exemption outlive the code. So each
+   * is checked against the authority that raises it: delete the throw and
+   * this fails, which is the same guarantee the registry's own `customer`
+   * claims already get.
+   */
+  const COMMERCIAL_AUTHORITY =
+    "services/api/src/services/billing-enforcement.service.ts";
+  const authoritySrc = read(COMMERCIAL_AUTHORITY);
+  for (const c of [
+    "EVIDENCE_RECORD_LIMIT_REACHED",
+    "FREE_LIMIT_REACHED",
+    "EVIDENCE_RECORD_MONTHLY_LIMIT_REACHED",
+    "INSUFFICIENT_EVIDENCE_CREDITS",
+  ]) {
+    assert.ok(
+      authoritySrc.includes('"' + c + '"'),
+      c +
+        " is exempted from the staleness check as a commercially-emitted " +
+        "code, but " +
+        COMMERCIAL_AUTHORITY +
+        " no longer emits it. Remove the exemption and the registry entry, " +
+        "or restore the throw.",
+    );
+    known.add(c);
+  }
   // Codes that reach the client from the API's global error handler or from
   // the web client's own normalization rather than from a route file.
   for (const c of [

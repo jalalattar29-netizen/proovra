@@ -201,6 +201,64 @@ const CODE_MAP: Record<
     actionLabel: "View billing",
     actionHref: "/billing",
   },
+  /**
+   * THE RECORD ALLOWANCE, AS THE ACCOUNT HOLDER SEES IT.
+   *
+   * `assertWorkspaceAllowsEvidenceCreation` refuses a new evidence record
+   * with one of these three codes and a 409 — the most ordinary commercial
+   * outcome the product has. None of them was mapped, so all three fell to
+   * the 400-bucket default: "We couldn't complete that action. Please review
+   * your input and try again." There is nothing to review. The input was
+   * fine, the plan is full, and the one sentence that would have said so was
+   * on the wire the whole time.
+   *
+   * Three entries rather than one alias, because the audiences differ by a
+   * word that matters: FREE has a published number worth repeating, PRO is
+   * "your current plan", and TEAM's is a rolling 30-day window, so "reached
+   * your limit" without "this month" would read as permanent.
+   *
+   * Every one of them keeps the reassurance. A person who has just been told
+   * they cannot add evidence needs to know that what they already recorded is
+   * safe before they need to know what to buy.
+   */
+  EVIDENCE_RECORD_LIMIT_REACHED: {
+    title: "Evidence record limit reached",
+    message:
+      "Your plan includes a set number of evidence records and this workspace has used them all. Your existing records remain available — buy evidence credits or upgrade to add more.",
+    severity: "warning",
+    actionLabel: "View plans",
+    actionHref: "/billing",
+  },
+  FREE_LIMIT_REACHED: {
+    title: "Free record limit reached",
+    message:
+      "The Free plan includes 3 evidence records and this account has used them all. Your existing records remain available — buy evidence credits or upgrade to add more.",
+    severity: "warning",
+    actionLabel: "View plans",
+    actionHref: "/billing",
+  },
+  EVIDENCE_RECORD_MONTHLY_LIMIT_REACHED: {
+    title: "Monthly record limit reached",
+    message:
+      "This workspace has used every evidence record its plan includes for the last 30 days. Your existing records remain available — buy evidence credits or upgrade to add more.",
+    severity: "warning",
+    actionLabel: "View plans",
+    actionHref: "/billing",
+  },
+  /**
+   * The wallet is empty on an account whose plan grants no free allowance at
+   * all. A 402, and a different sentence from the three above: there is no
+   * included allowance to have exhausted, so "you have reached your plan's
+   * limit" would describe a limit the customer never had.
+   */
+  INSUFFICIENT_EVIDENCE_CREDITS: {
+    title: "No evidence credits left",
+    message:
+      "Recording new evidence on this account uses credits, and there are none left. Your existing records remain available — buy more credits to continue.",
+    severity: "warning",
+    actionLabel: "Buy credits",
+    actionHref: "/billing",
+  },
   STORAGE_LIMIT_REACHED: {
     title: "Storage limit reached",
     message: "Add storage or upgrade your plan to keep preserving evidence. Your existing records remain available.",
@@ -569,6 +627,27 @@ const GENERIC: Omit<SafeUserError, "supportReference"> = {
   message: "Please try again. Your evidence data has not been changed. If the problem continues, contact support.",
   severity: "error",
 };
+
+/**
+ * Does this repository have DELIBERATE copy for the error's code?
+ *
+ * The question a client-side error reporter should be asking before it files
+ * an issue. A code with an entry in `CODE_MAP` is an outcome somebody
+ * anticipated, wrote a sentence for, and gave the customer a next step on —
+ * a plan allowance reached, a session expired, a name already taken. Sending
+ * those to the error tracker buries the failures nobody anticipated under the
+ * ones everybody did.
+ *
+ * It is deliberately NOT "is this a 4xx". Status is the transport's opinion;
+ * this asks whether the PRODUCT has an answer. An unmapped 409 is still worth
+ * reporting, because the fact that we have nothing to say about it is itself
+ * the finding.
+ */
+export function hasExplanationFor(error: unknown): boolean {
+  const e = (error && typeof error === "object" ? error : {}) as ErrorLike;
+  const code = readString(e.code)?.toUpperCase();
+  return Boolean(code && CODE_MAP[code]);
+}
 
 function fromStatus(status: number): Omit<SafeUserError, "supportReference"> {
   if (status === 401) return CODE_MAP.UNAUTHORIZED;

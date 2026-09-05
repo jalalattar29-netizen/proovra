@@ -59,6 +59,7 @@ import { verifyCaptureSignature } from "./signature-verifier.service.js";
 // and evidence-complete.service.ts (completeEvidence) for the canonical
 // flow. The fanout (search index, media-intelligence signals, graph
 // reconcile) is triggered by completeEvidence itself.
+import { classifyReportability } from "../../errors.js";
 import { createEvidence } from "../evidence.service.js";
 import { completeEvidence } from "../evidence-complete.service.js";
 import { putObjectBuffer } from "../../storage.js";
@@ -132,6 +133,17 @@ export type AcceptCitizenCaptureResult =
         | "SIGNATURE_INVALID"
         | "BYTES_HASH_MISMATCH"
         | "PROVENANCE_CLASS_DECLINED"
+        /*
+         * The workspace refused to record another evidence item — its plan's
+         * record allowance, its storage, or its subscription state. A
+         * deliberate commercial decision, and a DIFFERENT outcome from
+         * "persisting failed": the route maps every denial except
+         * EVIDENCE_PERSIST_FAILED to a 409, so separating them is what stops
+         * a workspace reaching its published limit from being served, and
+         * counted, as a server fault. Same defect as the one proven on the
+         * public intake path; same fix, one entry point along.
+         */
+        | "WORKSPACE_CAPACITY_REACHED"
         | "EVIDENCE_PERSIST_FAILED";
     };
 
@@ -304,8 +316,18 @@ export async function acceptCitizenCapture(
       contentType: mimeType,
     });
   } catch (err) {
-    // Bounded denial — the route returns a 5xx and the trust chain
-    // already records the verification verdict. The caller can retry.
+    /*
+     * An expected denial is not a persistence failure. `createEvidence` raises
+     * the canonical commercial gates (record allowance, credits, storage,
+     * subscription lifecycle) as errors that declare themselves EXPECTED
+     * denials; everything else here — S3, the database, signing — does not.
+     * Asking the platform's own classifier keeps this boundary from carrying
+     * a list of commercial codes that would drift from the authority.
+     */
+    const denial =
+      classifyReportability(err) === "UNEXPECTED"
+        ? ("EVIDENCE_PERSIST_FAILED" as const)
+        : ("WORKSPACE_CAPACITY_REACHED" as const);
     await emitCaptureTrustEvent({
       prisma,
       teamId: input.teamId,
@@ -315,10 +337,11 @@ export async function acceptCitizenCapture(
       code: "CAPTURE_ARTIFACT_VERIFICATION_FAILED",
       payload: {
         stage: "evidence_persist",
+        denial,
         error: err instanceof Error ? err.message.slice(0, 200) : "unknown",
       },
     });
-    return { ok: false, denial: "EVIDENCE_PERSIST_FAILED" };
+    return { ok: false, denial };
   }
 
   try {
@@ -339,7 +362,15 @@ export async function acceptCitizenCapture(
         error: err instanceof Error ? err.message.slice(0, 200) : "unknown",
       },
     });
-    return { ok: false, denial: "EVIDENCE_PERSIST_FAILED" };
+    // Completion spends an evidence credit and re-checks storage, so the same
+    // commercial gates can refuse here too.
+    return {
+      ok: false,
+      denial:
+        classifyReportability(err) === "UNEXPECTED"
+          ? "EVIDENCE_PERSIST_FAILED"
+          : "WORKSPACE_CAPACITY_REACHED",
+    };
   }
 
   // Link the trust chain to the new Evidence id so downstream operators

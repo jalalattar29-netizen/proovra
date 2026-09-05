@@ -58,6 +58,8 @@ import {
   submitExternalIntake,
   updateExternalEvidencePartMapping,
 } from "../services/external-intake-orchestration.service.js";
+import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
+import { classifyReportability, isDomainError } from "../errors.js";
 import { prisma } from "../db.js";
 // PHASE1-003 — the one trusted-client-IP binding; see `clientIp` below.
 import { trustedClientIpKey } from "../middleware/client-ip.js";
@@ -352,6 +354,20 @@ function orchestrationErrorToReply(
  */
 function friendlyPublicIntakeMessage(code: string): string {
   switch (code) {
+    case "INTAKE_NOT_ACCEPTING_EVIDENCE":
+      /*
+       * The workspace RECEIVING this submission refused to record another
+       * evidence item — its plan's record allowance is exhausted, its storage
+       * is full, its subscription no longer permits paid operations, or the
+       * admin who issued the link is no longer an active member.
+       *
+       * Every one of those is the sender's to resolve and none of them is the
+       * contributor's business. Naming the plan, the allowance, the usage or
+       * the remedy would disclose the receiving organization's commercial
+       * position to an unauthenticated outsider holding nothing but a link,
+       * so this says what is true and what to do, and stops there.
+       */
+      return "This intake can't accept evidence right now. Nothing is wrong with your file — please contact the sender.";
     case "CONSENT_REQUIRED":
       return "Please accept the consent disclosure before uploading.";
     case "SESSION_TERMINAL":
@@ -560,13 +576,154 @@ function intakeErrorToReply(
  * production signal pointed at the wrong endpoint. Each call site now names
  * itself.
  */
+type IntakeDenialContext = {
+  /** Workspace the submission was being recorded into, when resolved. */
+  workspaceId?: string | null;
+  /** The admin who issued the link — the owner-of-record for the audit row. */
+  actorUserId?: string | null;
+};
+
+/**
+ * A DENIAL THE PLATFORM MEANT IS NOT A SERVER FAULT.
+ *
+ * PROVEN IN PRODUCTION (support id cd2f011d-…, 2026-09-05). A contributor
+ * accepted consent, chose a file, and was told "We hit a problem on our side."
+ * Nothing was wrong on our side. `createEvidence` had refused — correctly —
+ * because the receiving workspace had reached the evidence-record allowance
+ * included in its plan, and it said so in the canonical way: a `DomainError`
+ * carrying httpStatus 409, publicCode EVIDENCE_RECORD_LIMIT_REACHED and
+ * `reportability: "EXPECTED_DENIAL"`.
+ *
+ * The identical refusal on POST /v1/evidence reaches that contributor's
+ * authenticated counterpart as a 409 with that code, because nothing catches
+ * it and the central error handler answers it from its own declaration. Here
+ * the route's catch-all got there first and flattened it to 500
+ * INTERNAL_ERROR. The cost was not only the wrong sentence:
+ *
+ *   - the operator's log said `intakeErrorUnhandled`, so a deliberate
+ *     commercial outcome was recorded as an unexplained fault;
+ *   - the bounded reason — the ONE fact that says what to do — was discarded
+ *     at the boundary and existed nowhere afterwards;
+ *   - and it counted as a 5xx, so a workspace filling up looked like an
+ *     availability incident.
+ *
+ * So the classification is asked, not guessed. `classifyReportability` is the
+ * platform's existing answer to "is this a fault?": a `DomainError` states its
+ * own reportability, an `AppError` or any thrower carrying a 4xx is a
+ * client-visible outcome someone already decided on, and silence still means
+ * UNEXPECTED. There is no allowlist of codes here to drift out of step with
+ * the commercial authority — this boundary never learns what
+ * EVIDENCE_RECORD_LIMIT_REACHED is.
+ *
+ * WHAT CROSSES THE WIRE IS NOT WHAT THE ERROR SAYS. The canonical
+ * `publicMessage` — "buy evidence credits or upgrade to add more" — is
+ * addressed to the account holder, and this endpoint is unauthenticated. The
+ * STATUS and the reason are preserved; the SENTENCE is the public intake one.
+ */
+function intakeBoundedDenial(
+  err: unknown,
+  req: FastifyRequest,
+  reply: FastifyReply,
+  route: string,
+  context?: IntakeDenialContext,
+): void {
+  const domain = isDomainError(err) ? err : null;
+  const rawStatus =
+    domain?.httpStatus ??
+    (typeof (err as { statusCode?: unknown })?.statusCode === "number"
+      ? (err as { statusCode: number }).statusCode
+      : null);
+  /*
+   * 409 is the fallback, not 400: a thrower that classified itself as an
+   * expected denial without naming a status has refused because of the state
+   * of the workspace, never because the contributor's request was malformed.
+   * A 5xx can never be reached from here — that would reintroduce the bug.
+   */
+  const status = rawStatus && rawStatus >= 400 && rawStatus < 500 ? rawStatus : 409;
+  const internalCode =
+    domain?.publicCode ??
+    (typeof (err as { code?: unknown })?.code === "string"
+      ? (err as { code: string }).code
+      : "REQUEST_REFUSED");
+
+  /*
+   * WARN, not ERROR, and named for what it is. The canonical code is the
+   * whole point of the line: an operator looking at a contributor's report
+   * needs "the workspace is at its record limit", not "something threw".
+   */
+  req.log.warn(
+    {
+      route,
+      statusCode: status,
+      intakeDenialCode: internalCode,
+      reportability: classifyReportability(err),
+      ...(domain ? domain.metadata : {}),
+      intakeBoundedDenial: true,
+    },
+    "external intake: bounded denial",
+  );
+
+  /*
+   * THE SENDER HAS TO BE ABLE TO FIND OUT.
+   *
+   * A contributor who is told to contact the sender is only helped if the
+   * sender can then learn what happened, and until now nothing internal
+   * recorded an intake refusal at all — the workspace's own audit trail went
+   * quiet at exactly the moment its capacity ran out. This reuses the audit
+   * chain the intake orchestration already writes to, with the link's creator
+   * as the actor for the same reason evidence creation uses them: the
+   * contributor has no User row. Best-effort by construction — an audit
+   * failure must not change the answer the contributor already earned.
+   */
+  if (context?.workspaceId && context.actorUserId) {
+    void emitTenantAudit({
+      actorUserId: context.actorUserId,
+      action: "evidence.create",
+      outcome: "denied",
+      denialReason: internalCode,
+      sourceApp: "API",
+      workspaceId: context.workspaceId,
+      resourceType: "evidence",
+      metadata: {
+        source: "external_intake",
+        route,
+        reason: internalCode,
+        statusCode: status,
+      },
+    }).catch(() => {
+      /* audit emission must never break the public intake contract */
+    });
+  }
+
+  /*
+   * No requestId. A support id is what you give someone whose failure needs
+   * diagnosing; this one is understood, and printing "Support ID: …" under a
+   * capacity message would invite a contributor to report an incident that
+   * does not exist. The id is on every log line for this request regardless.
+   */
+  reply.code(status).send({
+    error: {
+      code: "INTAKE_NOT_ACCEPTING_EVIDENCE",
+      message: friendlyPublicIntakeMessage("INTAKE_NOT_ACCEPTING_EVIDENCE"),
+    },
+  });
+}
+
 function intakeUnhandled(
   err: unknown,
   req: FastifyRequest,
   reply: FastifyReply,
   route: string,
+  context?: IntakeDenialContext,
 ): void {
   if (err instanceof ZodError) throw err;
+
+  // See intakeBoundedDenial: an expected denial keeps its status and its
+  // reason, and never becomes a server fault.
+  if (classifyReportability(err) !== "UNEXPECTED") {
+    intakeBoundedDenial(err, req, reply, route, context);
+    return;
+  }
 
   /*
    * THE REQUEST ID GOES BACK WITH THE ERROR.
@@ -806,8 +963,20 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
         })
         .parse(req.body ?? {});
 
+      /*
+       * Carried out of the try so the catch can name the workspace whose
+       * commercial refusal it is recording. It is only ever set AFTER the
+       * token validated, so an audit row can never be attributed to a
+       * workspace on the strength of an unverified token.
+       */
+      let denialContext: IntakeDenialContext | undefined;
+
       try {
         const { link } = await validateIntakeToken(params.token);
+        denialContext = {
+          workspaceId: link.teamId,
+          actorUserId: link.createdByUserId,
+        };
         const session = await getIntakeSession(params.sid);
         if (!session || session.intakeLinkId !== link.id) {
           return reply
@@ -937,7 +1106,13 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
         if (err instanceof ExternalIntakeOrchestrationError) {
           return orchestrationErrorToReply(err, reply);
         }
-        intakeUnhandled(err, req, reply, "external-intake.part.create");
+        intakeUnhandled(
+          err,
+          req,
+          reply,
+          "external-intake.part.create",
+          denialContext,
+        );
         return;
       }
     },
@@ -1017,8 +1192,15 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
       const okRate = await applyRateLimits(req, reply, params.token);
       if (!okRate) return;
 
+      // Same reason as part.create: only ever set after the token validated.
+      let denialContext: IntakeDenialContext | undefined;
+
       try {
         const { link } = await validateIntakeToken(params.token);
+        denialContext = {
+          workspaceId: link.teamId,
+          actorUserId: link.createdByUserId,
+        };
         const session = await getIntakeSession(params.sid);
         if (!session || session.intakeLinkId !== link.id) {
           return reply.code(404).send({
@@ -1137,6 +1319,24 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
          * unchanged and still applies to a genuine unexpected fault.
          */
         if (err instanceof ZodError) throw err;
+        /*
+         * And a bounded denial is not a submission failure either. Submit runs
+         * `completeEvidence`, which spends an evidence credit and re-checks
+         * storage — so the same commercial authorities that refuse at part
+         * creation can refuse here, and answering SUBMIT_FAILED would tell a
+         * contributor to press Submit again against a workspace that will
+         * refuse every time. Same one classification, same public sentence.
+         */
+        if (classifyReportability(err) !== "UNEXPECTED") {
+          intakeBoundedDenial(
+            err,
+            req,
+            reply,
+            "external-intake.submit",
+            denialContext,
+          );
+          return;
+        }
         // P0 audit-fix: the public submit endpoint previously returned a
         // bare `{error: {code: INTERNAL_ERROR}}` for any unhandled error
         // from completeEvidence (signing / S3 headObject / custody /

@@ -78,7 +78,12 @@ import {
   buildEvidencePreviewPolicy,
 } from "@proovra/shared-evidence-presentation";
 import { z } from "zod";
-import { AppError, ErrorCode, isDomainError } from "../errors.js";
+import {
+  AppError,
+  ErrorCode,
+  classifyReportability,
+  isDomainError,
+} from "../errors.js";
 import { requireAuth } from "../middleware/auth.js";
 import { trustedClientIpKey } from "../middleware/client-ip.js";
 import { getAuthUserId } from "../auth.js";
@@ -5220,13 +5225,40 @@ if (
         });
       }
 
+      /*
+       * THE AUDIT HAS TO AGREE WITH THE ANSWER.
+       *
+       * The arms above name three record-cap codes explicitly. The commercial
+       * authority raises more than three — INSUFFICIENT_EVIDENCE_CREDITS and
+       * COMMERCIAL_LIFECYCLE_RESTRICTED among them — and each of those fell
+       * to this line and was audited as a CRITICAL FAILURE of evidence
+       * creation. The wire answer was already right (the central handler
+       * reads the `DomainError` and returns its 402), so the two records of
+       * the same event disagreed: a customer out of credits appeared in the
+       * workspace audit trail as a critical incident.
+       *
+       * Rather than lengthen the list of codes — which is how it fell behind
+       * in the first place — the error is asked to classify itself. Anything
+       * that declares an expected denial is audited as the blocked, warning
+       * -severity outcome it is. Silence still means UNEXPECTED and still
+       * audits critical.
+       *
+       * Both branches re-throw unchanged: this decides what is RECORDED, never
+       * what is ANSWERED. The central handler remains the one authority for
+       * the response.
+       */
+      const expected = classifyReportability(err) !== "UNEXPECTED";
       auditEvidenceAction(req, {
         userId: ownerUserId,
         action: "evidence.create",
-        outcome: "failure",
-        severity: "critical",
+        outcome: expected ? "blocked" : "failure",
+        severity: expected ? "warning" : "critical",
         metadata: {
-          reason: err instanceof Error ? err.message : "unknown_error",
+          reason: expected
+            ? ((err as { code?: string }).code ?? "REQUEST_REFUSED")
+            : err instanceof Error
+              ? err.message
+              : "unknown_error",
         },
       });
 

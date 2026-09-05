@@ -125,6 +125,19 @@ function friendlyIntakeError(err: {
       "This step can't be completed right now. Refresh the page and try again, or contact the sender if it keeps happening.",
     SESSION_NOT_FOUND:
       "We couldn't find this upload session. Refresh the page or open the link again to start a new session.",
+    /*
+     * The receiving workspace refused to record another evidence item. Its
+     * plan's allowance, its storage or its subscription — all of them the
+     * sender's to resolve, none of them safe to describe to an
+     * unauthenticated contributor.
+     *
+     * This used to arrive as INTERNAL_ERROR ("we hit a problem on our side"),
+     * which was false in the way that matters most: it told a contributor to
+     * try again, and trying again cannot work. It also read as our fault, so
+     * nobody contacted the one person who could fix it.
+     */
+    INTAKE_NOT_ACCEPTING_EVIDENCE:
+      "This intake can't accept evidence right now. Nothing is wrong with your file — please contact the sender.",
     // The consent payload was rejected — a contributor CAN fix this by
     // re-accepting, so it should not fall to the unmapped line.
     CONSENT_INVALID:

@@ -140,7 +140,7 @@ describe("a failure the contributor cannot fix is at least recorded", () => {
      * So the property is asserted directly: every catch-all reaches the one
      * handler, and that handler always records before it answers.
      */
-    const delegations = ROUTES.match(/intakeUnhandled\(err, req, reply, "/g) ?? [];
+    const delegations = ROUTES.match(/intakeUnhandled\(\s*err,\s*req,\s*reply,\s*"/g) ?? [];
     expect(
       delegations.length,
       "every generic catch-all must go through the one handler",

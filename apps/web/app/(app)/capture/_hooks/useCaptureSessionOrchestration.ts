@@ -33,6 +33,8 @@ import { computeIntegrityFromBlob } from "../_lib/hash-utils";
 import {
   buildStorageLimitMessage,
   buildTeamPlanRequiredDetails,
+  captureFailureToast,
+  shouldReportCaptureFailure,
   logCaptureClientError,
 } from "../_lib/capture-errors";
 
@@ -523,6 +525,11 @@ export function useCaptureSessionOrchestration({
   const finalizeSession = async () => {
     const items = sessionItemsRef.current;
 
+    // A STANDING condition (workspace full; plan excludes this) survives the
+    // reset in `finally`; a progress status does not. That reset compared
+    // against two hard-coded sentences and dropped any third.
+    let standingStatus: string | null = null;
+
     if (items.length === 0) {
       addToast("No items in session", "error");
       return;
@@ -944,34 +951,40 @@ export function useCaptureSessionOrchestration({
       if (teamPlanGate) {
         setError(teamPlanGate.message);
         addToast(teamPlanGate.message, "warning");
-        setSessionStatus("Team plan required");
+        standingStatus = "Team plan required";
         setBusy(false);
         return;
       }
 
-      logCaptureClientError("web_capture_finalize_session", err, {
-        itemCount: items.length,
-      });
+      // What happened, and whether it is ours — one resolution, because the
+      // sentence and the report decision both turn on it. See capture-errors.
+      const safe = toSafeUserError(err, { message: "Evidence intake failed" });
+      const explained = !shouldReportCaptureFailure(err);
+
+      if (!explained) {
+        logCaptureClientError("web_capture_finalize_session", err, {
+          itemCount: items.length,
+        });
+      }
 
       const storageMessage = buildStorageLimitMessage(err);
-      const baseMsg =
-        storageMessage || (toSafeUserError(err, { message: "Evidence intake failed" }).message);
+      const baseMsg = storageMessage || safe.message;
 
-      const reqId = (err as { requestId?: string }).requestId;
-      // Request id goes to a copyable support reference — never inline.
+      const toast = captureFailureToast(safe, {
+        explained,
+        requestId: (err as { requestId?: string }).requestId,
+      });
       setError(baseMsg);
-      addToast(baseMsg, "error", undefined, reqId ? { supportReference: reqId } : undefined);
+      addToast(baseMsg, toast.severity, undefined, toast.options);
 
-      if (storageMessage) {
-        setSessionStatus("Storage limit reached");
-      }
+      standingStatus = storageMessage
+        ? "Storage limit reached"
+        : explained
+          ? safe.title
+          : null;
     } finally {
       setBusy(false);
-      setSessionStatus((current) =>
-        current === "Storage limit reached" || current === "Team plan required"
-          ? current
-          : null
-      );
+      setSessionStatus(standingStatus);
     }
   };
 

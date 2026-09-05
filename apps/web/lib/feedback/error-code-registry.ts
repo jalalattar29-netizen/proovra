@@ -211,6 +211,19 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   LOCATION_REQUIRED: { disposition: "customer", where: PUBLIC_INTAKE },
   INVALID_LOCATION_BODY: { disposition: "customer", where: PUBLIC_INTAKE },
   INTAKE_MODE_MISMATCH: { disposition: "customer", where: PUBLIC_INTAKE },
+  /*
+   * The public face of a commercial refusal, and the reason it is CONTEXTUAL
+   * rather than global: the authenticated codes above name the plan, the
+   * allowance and the remedy, and every one of those facts belongs to the
+   * receiving organization. The contributor holds a link and nothing else, so
+   * this surface says what is true for them — the intake cannot take files,
+   * their file is fine, talk to the sender — and the commercial detail stays
+   * on the sender's side of the boundary.
+   */
+  INTAKE_NOT_ACCEPTING_EVIDENCE: {
+    disposition: "customer",
+    where: PUBLIC_INTAKE,
+  },
   INTAKE_LINK_BLOCKED_BY_POLICY: {
     disposition: "internal",
     why: "The machine-to-machine integrations API; the caller is a program.",
@@ -218,6 +231,18 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
 
   // -- Commercial -----------------------------------------------------------
   TEAM_PLAN_REQUIRED: { disposition: "customer", where: "global" },
+  /*
+   * The evidence-record allowance. Global copy: the same three codes reach
+   * Capture, the mobile ingest and any other authenticated creation surface,
+   * and the sentence does not change with where you are standing.
+   */
+  EVIDENCE_RECORD_LIMIT_REACHED: { disposition: "customer", where: "global" },
+  FREE_LIMIT_REACHED: { disposition: "customer", where: "global" },
+  EVIDENCE_RECORD_MONTHLY_LIMIT_REACHED: {
+    disposition: "customer",
+    where: "global",
+  },
+  INSUFFICIENT_EVIDENCE_CREDITS: { disposition: "customer", where: "global" },
   SUBSCRIPTION_NOT_FOUND: { disposition: "customer", where: "global" },
   SUBSCRIPTION_ALREADY_ACTIVE: { disposition: "customer", where: "global" },
   CHECKOUT_REQUIRED: { disposition: "customer", where: "global" },
