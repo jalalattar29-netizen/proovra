@@ -123,7 +123,14 @@ function AuditEntryDetails({ entry }: { entry: AuditRow }) {
   const transition = presentTransition(entry);
   const meta = presentMetadata(entry.metadata);
   const facts: Array<[string, string]> = [
-    ["Actor", `${actor.name} · ${actor.kind}`],
+    /* Not "Automated service · Automated service". `presentActor` returns a
+       name and a kind, and for a non-human actor they are the same words. */
+    [
+      "Actor",
+      actor.kind && actor.kind !== actor.name
+        ? `${actor.name} · ${actor.kind}`
+        : actor.name,
+    ],
     ["Acting as", dash(entry.actorAuthority)],
     ["Actor reference", dash(actor.reference)],
     ["Target", `${target.name}${target.reference ? ` · ${target.reference}` : ""}`],
@@ -550,7 +557,11 @@ export default function AdminAuditPage() {
               >
                 {actor.name}
               </span>
-              <span style={{ color: "var(--ink-secondary)", fontSize: 11.5 }}>{actor.kind}</span>
+              {actor.kind && actor.kind !== actor.name ? (
+                <span style={{ color: "var(--ink-secondary)", fontSize: 11.5 }}>
+                  {actor.kind}
+                </span>
+              ) : null}
               {actor.reference ? (
                 <span style={{ color: "var(--ink-muted)", fontSize: 11 }}>{actor.reference}</span>
               ) : null}

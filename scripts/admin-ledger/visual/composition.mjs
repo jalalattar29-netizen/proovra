@@ -175,8 +175,14 @@ async function measure(page) {
     /* A RATIO OVER ZERO. `5 / 0` seats, `0 of 0` connections ready — two
        facts that disagree, rendered as though they were one measurement. An
        operator reads it as a fault rather than as "there is no denominator". */
+    /* `textContent` CONCATENATES ACROSS ELEMENTS, so the trailing `\b` was
+       the wrong boundary. On /admin/customers/:id the page reads
+       "…(used / included)4 / 0Over-seat workspaces0…" once flattened, and
+       `0O` is two word characters — no boundary — so the one page carrying
+       this defect on a detail surface was reported clean. The requirement is
+       only that the zero is not part of a LARGER number. */
     const zeroDenominator = (
-      (main.textContent ?? "").match(/\b\d+\s*(?:\/|of)\s*0\b/g) ?? []
+      (main.textContent ?? "").match(/\d+\s*(?:\/|of)\s*0(?!\d)/g) ?? []
     ).length;
 
     /* A FULL TIMESTAMP AS A SUB-LINE IN A SCANNABLE LIST. Correct on an audit

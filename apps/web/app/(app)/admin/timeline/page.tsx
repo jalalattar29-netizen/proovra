@@ -258,7 +258,18 @@ export default function AdminTimelinePage() {
             >
               {actor.name}
             </span>
-            <span style={{ color: "var(--ink-muted)", fontSize: 11 }}>{actor.kind}</span>
+            {/* THE KIND, ONLY WHEN IT ADDS SOMETHING.
+                `presentActor` returns a name and a kind, and for a
+                non-human actor they are the SAME WORDS — so every automated
+                row rendered "Automated service" twice, stacked, and every
+                human row carried a second line reading "Person" that the
+                name above it had already implied. The kind earns its line
+                when it disambiguates the name and not otherwise. */}
+            {actor.kind && actor.kind !== actor.name ? (
+              <span style={{ color: "var(--ink-muted)", fontSize: 11 }}>
+                {actor.kind}
+              </span>
+            ) : null}
           </span>
         );
       },

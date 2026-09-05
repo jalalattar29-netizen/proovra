@@ -692,7 +692,9 @@ export default function AdminOrganizationDetailPage({
                     "Not measured"}
                 </Field>
                 <Field label="Seats (used / included)">
-                  {detail.overview.seats.used} / {detail.overview.seats.included}
+                  {detail.overview.seats.included > 0
+                    ? `${detail.overview.seats.used} / ${detail.overview.seats.included}`
+                    : `${detail.overview.seats.used} · no allocation`}
                 </Field>
                 <Field label="Over-seat workspaces">
                   {detail.overview.seats.overSeatWorkspaceCount}
@@ -776,7 +778,9 @@ export default function AdminOrganizationDetailPage({
                           {w.billingStatus}
                         </Badge>
                         <span style={{ color: "var(--ink-secondary)" }}>
-                          {w.usedSeats} / {w.includedSeats} seats
+                          {w.includedSeats > 0
+                            ? `${w.usedSeats} / ${w.includedSeats} seats`
+                            : `${w.usedSeats} seats · no allocation`}
                         </span>
                         {w.overSeat ? <Badge tone="risk" subtle>Over seat</Badge> : null}
                       </span>
