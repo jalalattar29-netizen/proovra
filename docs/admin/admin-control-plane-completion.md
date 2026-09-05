@@ -308,7 +308,7 @@
 | --- | --- | --- | --- |
 | `/admin` | 966 | 0c/0t/9s |  |
 | `/admin/adoption` | 251 | 0c/1t/1s |  |
-| `/admin/alerts` | 290 | 2c/0t/1s |  |
+| `/admin/alerts` | 288 | 1c/0t/1s |  |
 | `/admin/audit` | 1047 | 3c/1t/2s |  |
 | `/admin/billing` | 727 | 7c/5t/9s |  |
 | `/admin/contact-sales` | 790 | 3c/1t/0s |  |
@@ -327,7 +327,7 @@
 | `/admin/identity/permission-matrix` | 755 | 6c/1t/5s |  |
 | `/admin/identity/providers` | 967 | 9c/1t/3s |  |
 | `/admin/identity/runtime` | 910 | 2c/2t/3s |  |
-| `/admin/identity/scim` | 1430 | 7c/4t/0s |  |
+| `/admin/identity/scim` | 1460 | 7c/4t/0s |  |
 | `/admin/identity/sessions` | 56 | 6c/5t/20s |  |
 | `/admin/identity/timeline` | 354 | 0c/1t/1s |  |
 | `/admin/operations` | 517 | 2c/2t/2s |  |
@@ -352,4 +352,4 @@
 | `/admin/users` | 477 | 2c/2t/1s |  |
 | `/admin/users/:id` | 584 | 7c/2t/6s |  |
 | `/admin/workspaces` | 437 | 1c/1t/0s |  |
-| `/admin/workspaces/:id` | 626 | 6c/1t/6s |  |
+| `/admin/workspaces/:id` | 637 | 6c/1t/6s |  |
