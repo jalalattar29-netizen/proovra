@@ -544,7 +544,7 @@ export default function AdminOrganizationDetailPage({
           }
         />
       }
-            >
+      >
 
       {loading ? (
         <Card>Loading organization…</Card>

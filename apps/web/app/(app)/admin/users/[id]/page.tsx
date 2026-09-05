@@ -325,7 +325,7 @@ export default function AdminPersonDetailPage() {
           }
         />
       }
-              >
+      >
 
       {loading ? (
         <Card>

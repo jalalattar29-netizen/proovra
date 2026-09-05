@@ -335,7 +335,7 @@ export default function AdminOrganizationsPage() {
           subtitle="Read-only roster of every customer organization: plan, workspaces, seat usage, owner, domain verification, SSO/SCIM posture, and onboarding health. Aggregated from live records — nothing here is fabricated."
         />
       }
-        >
+      >
 
       <FilterBar
         actions={

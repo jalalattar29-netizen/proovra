@@ -414,7 +414,7 @@ export default function ProvidersPage() {
           }
         />
       }
-            >
+      >
       {error ? <AdmInline state="error">{error}</AdmInline> : null}
       {revealedSecret ? (
         <Card variant="status" tone="verified" padding="compact">

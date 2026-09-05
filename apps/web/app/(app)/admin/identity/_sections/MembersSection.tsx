@@ -491,7 +491,7 @@ export function MembersSection({
             Refresh
           </Button>
         }
-          >
+        >
         {failure ? (
           <Card
             variant="status"
@@ -510,7 +510,13 @@ export function MembersSection({
           </Card>
         ) : null}
 
-        <FilterBar>
+        <FilterBar
+          filtered={search !== "" || statusFilter !== "ALL"}
+          onReset={() => {
+            setSearch("");
+            setStatusFilter("ALL");
+          }}
+        >
           <FilterBar.Search
             value={search}
             onChange={setSearch}

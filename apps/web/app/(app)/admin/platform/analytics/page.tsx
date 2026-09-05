@@ -349,7 +349,7 @@ function AnalyticsPageInner(): JSX.Element {
           title={"Operational analytics"}
         />
       }
-        >
+      >
         <section className="apf-section">
           <div className="cc-skeleton" />
         </section>
@@ -370,7 +370,7 @@ function AnalyticsPageInner(): JSX.Element {
           subtitle={"Operational analytics require the ANALYTICS_VIEW capability (team writer or admin)."}
         />
       }
-        >
+      >
       </PageShell>
     );
   }
@@ -386,7 +386,7 @@ function AnalyticsPageInner(): JSX.Element {
           subtitle={state.message}
         />
       }
-        >
+      >
       </PageShell>
     );
   }
@@ -463,7 +463,7 @@ function AnalyticsPageInner(): JSX.Element {
           }
         />
       }
-              >
+      >
 
       <section
         className="apf-section"

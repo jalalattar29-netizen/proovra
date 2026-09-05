@@ -203,7 +203,7 @@ function OperationsReadinessContent() {
           }
         />
       }
-        >
+      >
       {error ? (
         <Card variant="status" tone="risk" data-testid="readiness-error">
           <div style={{ color: "var(--status-risk-fg)" }}>{error}</div>

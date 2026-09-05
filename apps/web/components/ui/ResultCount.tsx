@@ -128,7 +128,21 @@ export function ResultCount({
   });
 
   return (
-    <div style={{ ...rowStyle, ...style }} data-testid={testId}>
+    <div
+      style={{ ...rowStyle, ...style }}
+      data-testid={testId}
+      /* Addressable. This carried nothing but an OPTIONAL test id, so on a
+         page that did not pass one the count was unfindable by anything but
+         a text match against its own sentence — which means no sweep could
+         assert that a table states its count, and §14's "every list states
+         how many" could only be checked by reading. The attribute is what
+         makes the claim measurable. */
+      data-result-count=""
+      /* The sentence changes when a filter changes, and it is the only thing
+         on the page that says a filter found nothing. Announcing it politely
+         is what tells a screen-reader operator their filter did something. */
+      role="status"
+    >
       <span>{text}</span>
       {action ?? null}
     </div>

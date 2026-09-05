@@ -312,7 +312,7 @@ export function MfaDigestPreferencesSection() {
           </Button>
         </div>
       }
-          >
+      >
       {preview ? (
         <Card padding="compact" style={{ marginBottom: 12 }}>
           <p style={{ margin: 0, fontSize: 13 }}>

@@ -318,7 +318,7 @@ export function MfaPolicySection() {
           </Button>
         </div>
       }
-          >
+      >
       {conflict ? (
         <Card
           variant="status"

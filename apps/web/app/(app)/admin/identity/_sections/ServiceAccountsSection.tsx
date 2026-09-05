@@ -288,7 +288,7 @@ export function ServiceAccountsSection({ stepUp }: { stepUp: StepUpControl }) {
           Refresh
         </Button>
       }
-        >
+      >
       {failure ? (
         <Card
           variant="status"

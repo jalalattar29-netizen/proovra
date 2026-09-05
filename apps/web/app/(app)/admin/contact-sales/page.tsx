@@ -281,7 +281,7 @@ export default function AdminContactSalesPage() {
           subtitle="Submissions from the public /contact-sales form. Records persist even when the notification email is unavailable, so operators can replay any missed delivery from the table below."
         />
       }
-        >
+      >
 
       <Card>
         {summary ? (
@@ -363,6 +363,7 @@ export default function AdminContactSalesPage() {
             className="min-w-[260px]"
           />
           <Select
+            aria-label="Filter contact-sales requests by status"
             value={statusFilter}
             onChange={(v) => setStatusFilter(v as Status | "")}
             options={[
@@ -581,7 +582,7 @@ export default function AdminContactSalesPage() {
               Close
             </Button>
           }
-            >
+          >
           {details ? (
             <div
               style={{

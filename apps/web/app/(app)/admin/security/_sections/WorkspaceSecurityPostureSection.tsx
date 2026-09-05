@@ -437,7 +437,14 @@ export function WorkspaceSecurityPostureSection() {
       </dl>
 
       {/* Both filters apply as they change — each is part of its request. */}
-      <FilterBar style={{ marginBottom: 12 }}>
+      <FilterBar
+        style={{ marginBottom: 12 }}
+        filtered={severity !== "all" || scanStatus !== "all"}
+        onReset={() => {
+          setSeverity("all");
+          setScanStatus("all");
+        }}
+      >
         <FilterBar.Select
           label="Event severity"
           value={severity}

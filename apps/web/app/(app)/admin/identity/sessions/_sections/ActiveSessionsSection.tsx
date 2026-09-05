@@ -510,7 +510,14 @@ export function ActiveSessionsSection() {
           the third sets the reason recorded when you quarantine a session.
           Side by side they read as one group, so it was not apparent that
           changing the third alters an audit record rather than the view. */}
-      <FilterBar style={{ marginBottom: 12 }}>
+      <FilterBar
+        style={{ marginBottom: 12 }}
+        filtered={includeRevoked || includeExpired}
+        onReset={() => {
+          setIncludeRevoked(false);
+          setIncludeExpired(false);
+        }}
+      >
         <FilterBar.Select
           label="Revoked sessions"
           value={includeRevoked ? "include" : "exclude"}

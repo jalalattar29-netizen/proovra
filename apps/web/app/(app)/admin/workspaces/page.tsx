@@ -292,7 +292,7 @@ export default function AdminWorkspacesPage() {
           subtitle="Every workspace on the platform, by kind and lifecycle. A closed workspace is excluded from the live view by default and remains findable under Closed — closure revokes access without touching billing, so the two are reported separately."
         />
       }
-        >
+      >
 
       <FilterBar
         actions={

@@ -331,6 +331,14 @@ export default function AdminTimelinePage() {
               </Button>
             }
             style={{ marginBottom: 12 }}
+            filtered={
+              sourceFilter !== "all" || severityFilter !== "all" || orgFilter !== ""
+            }
+            onReset={() => {
+              setSourceFilter("all");
+              setSeverityFilter("all");
+              setOrgFilter("");
+            }}
           >
             <FilterBar.Select
               label="Source"

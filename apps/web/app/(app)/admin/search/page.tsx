@@ -209,7 +209,7 @@ export default function AdminSearchPage() {
             subtitle="Read-only search across organizations, users, workspaces, demo & contact-sales requests, evidence, reports, and verification packages. Results are metadata and IDs only — no secrets, no evidence content."
           />
         }
-          >
+        >
 
         <Card>
           <div
@@ -227,7 +227,7 @@ export default function AdminSearchPage() {
                   {loading ? "Searching…" : "Search"}
                 </Button>
               }
-                >
+              >
               <form
                 onSubmit={(e) => {
                   e.preventDefault();

@@ -639,7 +639,7 @@ export default function AdminAuditPage() {
           }
         />
       }
-              >
+      >
 
       {/* A <p>, not a <div>: this is one running sentence, and the element
           says so — a reader in a screen reader hears a paragraph, and the
@@ -966,7 +966,19 @@ export default function AdminAuditPage() {
         title="Recent Admin Actions"
         description="One line per audit row, newest first, in pages of 25. Open a row's details for its identifiers and raw metadata."
       >
-        <FilterBar style={{ marginBottom: 16 }}>
+        <FilterBar
+          style={{ marginBottom: 16 }}
+          filtered={
+            categoryFilter !== "" ||
+            severityFilter !== "all" ||
+            sourceFilter !== ""
+          }
+          onReset={() => {
+            setCategoryFilter("");
+            setSeverityFilter("all");
+            setSourceFilter("");
+          }}
+        >
           <FilterBar.Search
             label="Category"
             placeholder="Filter by category"

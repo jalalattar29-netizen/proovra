@@ -86,7 +86,7 @@ function RunbookCatalog() {
           subtitle="The procedure an incident's runbook slug points at. Every runbook here is the text from the repository, not a summary of it — open one to read the steps, not to confirm it exists."
         />
       }
-        >
+      >
       <div className="rb-layout">
         <RunbookSidebar />
 

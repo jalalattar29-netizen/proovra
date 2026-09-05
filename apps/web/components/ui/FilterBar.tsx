@@ -35,7 +35,41 @@ export interface FilterBarProps
   extends React.HTMLAttributes<HTMLDivElement> {
   /** Right-aligned actions (buttons, view toggles). */
   actions?: React.ReactNode;
+  /**
+   * IS ANYTHING ACTUALLY FILTERED, and how does the operator get back?
+   *
+   * A page with four filters and no single way to clear them makes "show me
+   * everything again" a hunt: the operator has to remember which of the four
+   * they changed. Measured across the console, NINETEEN routes had two or
+   * more filters and no reset control — and exactly one page had written its
+   * own, which is what a per-page responsibility produces.
+   *
+   * It lives here because the filter row is the one place that can know a
+   * filter row exists. The page still owns what "filtered" MEANS, because
+   * only the page knows its own defaults: passing `filtered` is how it says
+   * so, and the control appears only when it is true. A reset button that is
+   * always visible is a button that usually does nothing.
+   */
+  filtered?: boolean;
+  onReset?: () => void;
+  /** Overrides the control's label where the page's noun reads better. */
+  resetLabel?: string;
 }
+
+const RESET_STYLE: React.CSSProperties = {
+  minHeight: 44,
+  padding: "0 10px",
+  border: "1px solid transparent",
+  borderRadius: "var(--radius-md)",
+  background: "transparent",
+  color: "var(--accent-600)",
+  font: "inherit",
+  fontSize: 13,
+  fontWeight: 600,
+  cursor: "pointer",
+  whiteSpace: "nowrap",
+  flexShrink: 0,
+};
 
 const CONTROL_STYLE: React.CSSProperties = {
   // 44, not 40: the filter row is the most-used control on every list page in
@@ -54,6 +88,9 @@ const CONTROL_STYLE: React.CSSProperties = {
 
 function FilterBarRoot({
   actions,
+  filtered,
+  onReset,
+  resetLabel = "Clear filters",
   children,
   className,
   style,
@@ -83,6 +120,24 @@ function FilterBarRoot({
         }}
       >
         {children}
+        {onReset && filtered ? (
+          <button
+            type="button"
+            data-ui-filter-reset
+            onClick={onReset}
+            style={RESET_STYLE}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = "var(--border-default)";
+              e.currentTarget.style.background = "var(--surface-muted)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = "transparent";
+              e.currentTarget.style.background = "transparent";
+            }}
+          >
+            {resetLabel}
+          </button>
+        ) : null}
       </div>
       {actions != null ? (
         <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>{actions}</div>

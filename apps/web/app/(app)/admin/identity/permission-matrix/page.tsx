@@ -380,7 +380,7 @@ export default function PermissionMatrixPage() {
           }
         />
       }
-            >
+      >
       {/* ------------------------------------------------------------------ */}
       {/* 1 — the authoritative role matrix.                                  */}
       {/* ------------------------------------------------------------------ */}
@@ -414,7 +414,14 @@ export default function PermissionMatrixPage() {
           />
         ) : (
           <>
-            <FilterBar>
+            <FilterBar
+              filtered={filter !== "" || roleFilter !== "" || outcomeFilter !== ""}
+              onReset={() => {
+                setFilter("");
+                setRoleFilter("");
+                setOutcomeFilter("");
+              }}
+            >
               <FilterBar.Search
                 value={filter}
                 onChange={setFilter}
@@ -662,7 +669,7 @@ export default function PermissionMatrixPage() {
                   </Button>
                 </>
               }
-                  >
+              >
               <FilterBar.Search
                 value={filter}
                 onChange={setFilter}

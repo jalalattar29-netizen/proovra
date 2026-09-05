@@ -636,7 +636,7 @@ function Shell() {
           }
         />
       }
-            >
+      >
       {mutationFailure ? (
         <Card
           variant="status"
@@ -720,7 +720,7 @@ function Shell() {
             </Button>
           </FilterBar>
         }
-            >
+        >
         <p style={{ ...muted, marginTop: 0 }}>
           {showAllActors
             ? "Every support grant on the platform. You can only enter context for grants issued to you."
@@ -908,7 +908,7 @@ function Shell() {
             />
           </FilterBar>
         }
-            >
+        >
         <p style={{ ...muted, marginTop: 0 }}>
           Emergency access grants across the platform. Activation is above and
           requires a recorded strong-auth proof; this console also shows the

@@ -408,7 +408,7 @@ function AdminPlatformHealthPage() {
           }
         />
       }
-        >
+      >
       <div data-testid="admin-platform-health">
 
         {error ? (

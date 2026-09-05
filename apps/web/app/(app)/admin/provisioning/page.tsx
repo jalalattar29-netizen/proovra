@@ -148,7 +148,7 @@ function AdminProvisioningInner() {
           />
         </div>
       }
-          >
+      >
       {!teamId ? (
         <Card variant="summary" padding="comfortable">
           <p className="adm-help" data-testid="admin-provisioning-loading">

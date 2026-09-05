@@ -7,7 +7,7 @@ import type {
   InputHTMLAttributes,
   SelectHTMLAttributes,
 } from "react";
-import { createContext, useContext, useState, useCallback } from "react";
+import { createContext, useContext, useId, useState, useCallback } from "react";
 import { ProovraToast, type ProovraToastData } from "./feedback/ProovraToast";
 
 /* =========================
@@ -312,24 +312,59 @@ type SelectProps = Omit<SelectHTMLAttributes<HTMLSelectElement>, "onChange"> & {
   onChange: (value: string) => void;
 };
 
+/**
+ * TWO DEFECTS FIXED, BOTH MEASURED ON ITS ONE REMAINING CONSUMER.
+ *
+ * 1. THE LABEL WAS NOT ATTACHED TO ANYTHING. `<label className="select-label">`
+ *    with no `htmlFor` and no wrapping is a styled paragraph: a screen reader
+ *    announces the control with no name, and clicking the label does not focus
+ *    it. It now carries a generated id pair.
+ *
+ * 2. IT INJECTED ITS OWN EMPTY OPTION IN FRONT OF THE CALLER'S OPTIONS.
+ *    `/admin/contact-sales` passes `{ value: "", label: "All statuses" }` as
+ *    its first option, so the rendered dropdown was:
+ *
+ *      =Select...          <- injected, and SELECTED by default
+ *      =All statuses       <- the caller's
+ *      NEW=New …
+ *
+ *    Two entries with the same empty value doing the same thing, and the
+ *    control read "Select..." while it was in fact showing every status. The
+ *    placeholder is now rendered ONLY when the caller has not supplied an
+ *    empty-valued option of their own, so a page that names its own "all"
+ *    state keeps its wording and a page that does not still gets a
+ *    placeholder.
+ *
+ * `/admin/contact-sales` is the only file still importing this Select, which
+ * is why both changes are safe to make here rather than at the call site.
+ */
 export function Select({
   label,
   options,
   value,
   onChange,
   className,
+  id,
   ...props
 }: SelectProps) {
+  const auto = useId();
+  const selectId = id ?? `select-${auto}`;
+  const hasOwnPlaceholder = options.some((opt) => opt.value === "");
   return (
     <div>
-      {label && <label className="select-label">{label}</label>}
+      {label && (
+        <label className="select-label" htmlFor={selectId}>
+          {label}
+        </label>
+      )}
       <select
+        id={selectId}
         className={`select ${className ?? ""}`.trim()}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         {...props}
       >
-        <option value="">Select...</option>
+        {hasOwnPlaceholder ? null : <option value="">Select...</option>}
         {options.map((opt) => (
           <option key={opt.value} value={opt.value}>
             {opt.label}

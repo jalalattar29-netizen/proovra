@@ -252,7 +252,7 @@ export function ExternalMappingsSection({
           Refresh
         </Button>
       }
-        >
+      >
       {failure ? (
         <Card
           variant="status"

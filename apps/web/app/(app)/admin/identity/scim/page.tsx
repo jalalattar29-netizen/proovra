@@ -335,7 +335,7 @@ export default function ScimPage() {
           }
         />
       }
-        >
+      >
       <AdmTabs
         label="SCIM operations"
         tabs={(Object.keys(TAB_LABELS) as TabKey[]).map((k) => ({

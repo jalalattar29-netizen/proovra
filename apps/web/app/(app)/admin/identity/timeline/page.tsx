@@ -306,11 +306,17 @@ export default function IdentityTimelinePage() {
           }
         />
       }
-        >
+      >
       {error ? <AdmInline state="error">{error}</AdmInline> : null}
 
       <PageSection>
-        <FilterBar>
+        <FilterBar
+          filtered={filterIdx !== 0 || severityFilter !== ""}
+          onReset={() => {
+            setFilterIdx(0);
+            setSeverityFilter("");
+          }}
+        >
           <FilterBar.Select
             label="Event category"
             value={String(filterIdx)}

@@ -317,7 +317,7 @@ export default function AdminPeoplePage() {
           subtitle="Every person on the platform, with the commercial context that answers 'what do they pay for?'. Membership states are shown as memberships — this platform models no account-level disable, so nothing here claims one."
         />
       }
-        >
+      >
 
       <FilterBar
         actions={

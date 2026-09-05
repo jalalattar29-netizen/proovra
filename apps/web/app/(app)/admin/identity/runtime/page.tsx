@@ -642,7 +642,7 @@ const load = useCallback(() => {
           }
         />
       }
-              >
+      >
       {error ? <AdmInline state="error">{error}</AdmInline> : null}
       {notice ? <AdmInline state="done">{notice}</AdmInline> : null}
 
@@ -703,7 +703,7 @@ const load = useCallback(() => {
             Run reconcile
           </Button>
         }
-          >
+        >
         <Card padding="comfortable">
           {reconcile === null ? (
             <p className="adm-help" style={{ margin: 0 }}>
@@ -775,7 +775,15 @@ const load = useCallback(() => {
         {/* Server-side. Every control here goes into the request, so the
             500-row cap applies to the NARROWED set rather than to an
             arbitrary first page that is then filtered in the browser. */}
-        <FilterBar style={{ marginBottom: 12 }}>
+        <FilterBar
+          style={{ marginBottom: 12 }}
+          filtered={userFilter !== "" || includeRevoked || includeExpired}
+          onReset={() => {
+            setUserFilter("");
+            setIncludeRevoked(false);
+            setIncludeExpired(false);
+          }}
+        >
           <FilterBar.Search
             label="User ID"
             placeholder="Full user UUID"

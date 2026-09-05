@@ -491,7 +491,7 @@ export default function AdminOverviewPage() {
           }
         />
       }
-            >
+      >
 
       {loading ? (
         <PageSection title="Loading platform overview">

@@ -402,7 +402,7 @@ export default function AdminOperationsPage() {
           }
         />
       }
-        >
+      >
 
       {data ? (
         <PageSection title="Posture">
@@ -448,7 +448,7 @@ export default function AdminOperationsPage() {
             Clear
           </Button>
         }
-          >
+        >
         <FilterBar.Select
           label="Status"
           value={status}

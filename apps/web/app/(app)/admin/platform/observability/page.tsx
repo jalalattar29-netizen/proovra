@@ -912,7 +912,7 @@ function ObservabilityDashboardPageInner() {
           }
         />
       }
-            >
+      >
       {/* ADM-013 PHASE 1 — `RuntimeStatusBanner` is a WORKSPACE surface: it
           takes a teamId and reports that workspace's conditions. On a page whose
           every other number is platform-wide it read as a platform banner, which

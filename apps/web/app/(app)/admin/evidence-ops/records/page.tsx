@@ -455,10 +455,21 @@ export default function AdminEvidenceRecordsPage() {
           }
         />
       }
-              >
+      >
 
       {!evidenceId ? (
-        <FilterBar>
+        <FilterBar
+          /* "Filtered" here means narrowed BEYOND the page's own default
+             view, which is the TSA_FAILED signal — so arriving on the
+             default is not a filtered state and must not offer a reset that
+             does nothing. A workspace narrowing always is. */
+          filtered={cohort !== "" || signal !== "TSA_FAILED" || teamId !== ""}
+          onReset={() => {
+            setCohort("");
+            setSignal("TSA_FAILED");
+            setTeamId("");
+          }}
+        >
           <FilterBar.Select
             label="Cohort"
             value={cohort}

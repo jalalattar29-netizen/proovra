@@ -176,7 +176,7 @@ function AutomationPageInner(): JSX.Element {
           title={"Automation rules"}
         />
       }
-        >
+      >
         <section className="apf-section">
           <div className="cc-skeleton" />
         </section>
@@ -197,7 +197,7 @@ function AutomationPageInner(): JSX.Element {
           subtitle={"Automation visibility requires the AUTOMATION_VIEW capability (team writer or admin)."}
         />
       }
-        >
+      >
       </PageShell>
     );
   }
@@ -213,7 +213,7 @@ function AutomationPageInner(): JSX.Element {
           subtitle={state.message}
         />
       }
-        >
+      >
       </PageShell>
     );
   }
@@ -253,7 +253,7 @@ function AutomationPageInner(): JSX.Element {
           }
         />
       }
-        >
+      >
 
       {/* Phase E3.1 — execution runtime active. The dispatcher accepts
           trigger events from internal services, matches enabled rules,

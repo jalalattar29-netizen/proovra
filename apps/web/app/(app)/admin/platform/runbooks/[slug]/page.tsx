@@ -151,7 +151,7 @@ export default async function RunbookDetailPage({
             }
           />
         }
-              >
+        >
         <RunbookLayout activeSlug={rb.slug}>
           <div
             style={{

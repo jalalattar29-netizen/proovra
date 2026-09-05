@@ -45,7 +45,7 @@ export default function SessionsPage() {
           subtitle="Who is signed in, on what, for how long, and what the workspace policy does about it. Revocation takes effect on the session's next request. Device and network previews are shown; raw addresses, user-agent strings, session tokens and device fingerprints are never stored or displayed."
         />
       }
-        >
+      >
       <ActiveSessionsSection />
       <TrustedDevicesSection />
       <SessionPolicyImpactSection />

@@ -247,7 +247,7 @@ useEffect(() => {
           subtitle={"Internal-only view of upload session health for the ACTIVE WORKSPACE — not a platform-wide total. Stalled, failed, and review-required uploads are NEVER auto-deleted. Operator actions move the session through the canonical state machine without mutating the underlying evidence row, custody chain, or stored bytes."}
         />
       }
-        >
+      >
 
       {error ? <div className="apf-note" data-tone="critical">{error}</div> : null}
 
@@ -287,7 +287,16 @@ useEffect(() => {
           <section className="apf-section">
             <div className="apf-section-head">
               <h2 className="apf-section-title">Upload sessions</h2>
+              {/* A bare `<select>` is a mystery until it is opened: the
+                  options are lifecycle states (CREATED, PRESIGNED, STALLED…)
+                  and nothing on the page said what they belonged to. The
+                  accessible name is what a screen reader reads, and the
+                  visible "Status" is what everybody else needs. */}
+              <label className="app-field-label" htmlFor="reliability-status">
+                Status
+              </label>
               <select
+                id="reliability-status"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="apf-control"
