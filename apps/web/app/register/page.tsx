@@ -1,5 +1,6 @@
 "use client";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
+import { PasswordVisibilityToggle } from "../../components/auth/PasswordVisibilityToggle";
 
 import {
   Suspense,
@@ -119,28 +120,6 @@ function ShieldIcon() {
       <path
         fill="currentColor"
         d="M12 2l7 3v6c0 5.25-3.438 10.125-7 11-3.562-.875-7-5.75-7-11V5l7-3Zm0 2.18L7 6.32V11c0 4.164 2.61 8.11 5 8.95 2.39-.84 5-4.786 5-8.95V6.32l-5-2.14Z"
-      />
-    </svg>
-  );
-}
-
-function EyeIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path
-        fill="currentColor"
-        d="M12 5c-5 0-9.27 3.11-11 7 1.73 3.89 6 7 11 7s9.27-3.11 11-7c-1.73-3.89-6-7-11-7Zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10Zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"
-      />
-    </svg>
-  );
-}
-
-function EyeOffIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path
-        fill="currentColor"
-        d="M2.39 1.73 1 3.14l3.11 3.11A12.7 12.7 0 0 0 1 12c1.73 3.89 6 7 11 7 1.83 0 3.55-.41 5.07-1.14L20.85 21l1.41-1.41L2.39 1.73ZM12 17a5 5 0 0 1-4.92-5.92l1.86 1.86A3 3 0 0 0 12 16l1.06-.06 1.86 1.86c-.61.13-1.26.2-1.92.2Zm.86-9.94 6.96 6.96A12.74 12.74 0 0 0 23 12c-1.73-3.89-6-7-11-7-.86 0-1.7.11-2.51.31l3.37 3.37Z"
       />
     </svg>
   );
@@ -1257,7 +1236,7 @@ function RegisterPageContent() {
                                 <input
                                   id={PASSWORD_FIELD_ID}
                                   name="new-password"
-                                  className="auth-input"
+                                  className="auth-input auth-input--with-trailing-action"
                                   placeholder="Password"
                                   type={showPwd ? "text" : "password"}
                                   autoComplete="new-password"
@@ -1282,34 +1261,14 @@ function RegisterPageContent() {
                                         : "1px solid rgba(79,112,107,0.16)",
                                     boxShadow: ui.inputShadow,
                                     color: "#102126",
-                                    paddingRight: 44,
                                   }}
                                 />
-                                <button
-                                  type="button"
-                                  aria-label={showPwd ? "Hide password" : "Show password"}
-                                  aria-pressed={showPwd}
-                                  onClick={() => setShowPwd((v) => !v)}
+                                <PasswordVisibilityToggle
+                                  visible={showPwd}
+                                  onToggle={() => setShowPwd((v) => !v)}
+                                  controls={PASSWORD_FIELD_ID}
                                   disabled={busy}
-                                  style={{
-                                    position: "absolute",
-                                    right: 10,
-                                    top: "50%",
-                                    transform: "translateY(-50%)",
-                                    width: 28,
-                                    height: 28,
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    borderRadius: 8,
-                                    border: "1px solid transparent",
-                                    background: "transparent",
-                                    color: "#446166",
-                                    cursor: busy ? "not-allowed" : "pointer",
-                                  }}
-                                >
-                                  {showPwd ? <EyeOffIcon /> : <EyeIcon />}
-                                </button>
+                                />
                               </div>
 
                               {/* Caps Lock + strength meter + rules panel */}
@@ -1458,7 +1417,7 @@ function RegisterPageContent() {
                                 <input
                                   id={PASSWORD_CONFIRM_FIELD_ID}
                                   name="new-password-confirm"
-                                  className="auth-input"
+                                  className="auth-input auth-input--with-trailing-action"
                                   placeholder="Confirm password"
                                   type={showPwd2 ? "text" : "password"}
                                   autoComplete="new-password"
@@ -1477,36 +1436,14 @@ function RegisterPageContent() {
                                       : "1px solid rgba(79,112,107,0.16)",
                                     boxShadow: ui.inputShadow,
                                     color: "#102126",
-                                    paddingRight: 44,
                                   }}
                                 />
-                                <button
-                                  type="button"
-                                  aria-label={
-                                    showPwd2 ? "Hide confirm password" : "Show confirm password"
-                                  }
-                                  aria-pressed={showPwd2}
-                                  onClick={() => setShowPwd2((v) => !v)}
+                                <PasswordVisibilityToggle
+                                  visible={showPwd2}
+                                  onToggle={() => setShowPwd2((v) => !v)}
+                                  controls={PASSWORD_CONFIRM_FIELD_ID}
                                   disabled={busy}
-                                  style={{
-                                    position: "absolute",
-                                    right: 10,
-                                    top: "50%",
-                                    transform: "translateY(-50%)",
-                                    width: 28,
-                                    height: 28,
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    borderRadius: 8,
-                                    border: "1px solid transparent",
-                                    background: "transparent",
-                                    color: "#446166",
-                                    cursor: busy ? "not-allowed" : "pointer",
-                                  }}
-                                >
-                                  {showPwd2 ? <EyeOffIcon /> : <EyeIcon />}
-                                </button>
+                                />
                               </div>
                               {passwordsMismatch ? (
                                 <div

@@ -1133,6 +1133,63 @@ html[dir="rtl"] .section {
   box-shadow: 0 0 0 3px rgba(79, 112, 107, 0.10) !important;
 }
 
+/* ---------------------------------------------------------------------------
+ * PASSWORD VISIBILITY CONTROL
+ *
+ * One trailing-edge button, shared by every auth screen (see
+ * components/auth/PasswordVisibilityToggle.tsx). It replaces two private
+ * copies of the same inline styles, neither of which had a focus ring.
+ *
+ * Logical properties throughout - inset-inline-end, padding-inline-end - so
+ * the control sits on the trailing edge under RTL without a second rule. The
+ * modifier below reserves room for it, because .auth-input declares its own
+ * padding with !important and an unqualified declaration would lose.
+ * ------------------------------------------------------------------------ */
+
+.auth-input--with-trailing-action {
+  padding-inline-end: 46px !important;
+}
+
+.auth-password-toggle {
+  position: absolute;
+  inset-inline-end: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  /* 32px keeps the tap target usable inside a 52px field without crowding
+     the text; the field itself absorbs the rest of the touch area. */
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: #446166;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.auth-password-toggle:hover:not(:disabled) {
+  background: rgba(79, 112, 107, 0.1);
+  color: #102126;
+}
+
+/* Keyboard traversal gets a ring; a mouse press does not. */
+.auth-password-toggle:focus-visible {
+  outline: none;
+  border-color: rgba(79, 112, 107, 0.34);
+  box-shadow: 0 0 0 3px rgba(79, 112, 107, 0.18);
+  color: #102126;
+}
+
+.auth-password-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .auth-social-btn {
   width: 100%;
   min-height: 52px;

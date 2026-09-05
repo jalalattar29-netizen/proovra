@@ -55,6 +55,25 @@ export function hashPassword(password: string): string {
   return `scrypt$${N}$${r}$${p}$${salt.toString("hex")}$${key.toString("hex")}`;
 }
 
+/**
+ * A real hash of a value nobody can present, derived once at module load.
+ *
+ * WHY IT EXISTS. `loginWithEmailPassword` used to return early when no
+ * account matched, so the scrypt verification — by far the most expensive
+ * thing the request does — ran only for addresses that exist. Measured
+ * against the local fixture that was a consistent ~25ms difference between a
+ * registered address with the wrong password and an address that is not
+ * registered at all: the response bodies were identical, and the clock said
+ * which was which.
+ *
+ * Hashing a random secret costs the same as hashing a real one, so the
+ * unknown-account path now does the same work and discards the result. The
+ * input is random bytes generated in this process and never stored, so there
+ * is no value an attacker could supply that would make this comparison
+ * succeed.
+ */
+const ABSENT_ACCOUNT_HASH = hashPassword(randomBytes(32).toString("hex"));
+
 export function verifyPassword(password: string, stored: string): boolean {
   const parts = stored.split("$");
 
@@ -197,8 +216,19 @@ export async function loginWithEmailPassword(params: {
     }
   });
 
-  if (!user) return null;
-  if (!user.passwordHash) return null;
+  /*
+   * Every failure costs the same. See ABSENT_ACCOUNT_HASH above: an account
+   * that does not exist, and one that exists without a password, both run a
+   * full scrypt verification against a hash that cannot match, so the three
+   * ways to fail are indistinguishable by response AND by duration.
+   *
+   * The comparison result is deliberately unused; `void` says so to the
+   * reader and to the linter.
+   */
+  if (!user || !user.passwordHash) {
+    void verifyPassword(params.password, ABSENT_ACCOUNT_HASH);
+    return null;
+  }
 
   if (!verifyPassword(params.password, user.passwordHash)) {
     return null;

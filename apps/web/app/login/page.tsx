@@ -1,5 +1,11 @@
 "use client";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
+import {
+  fieldErrorsFromApiError,
+  hasFieldErrors,
+  type FieldErrorMap,
+} from "../../lib/feedback/fieldErrors";
+import { PasswordVisibilityToggle } from "../../components/auth/PasswordVisibilityToggle";
 
 import {
   Suspense,
@@ -175,6 +181,20 @@ function LoginPageContent() {
   const [appleReady, setAppleReady] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  /*
+   * Visibility is UI-only state and lives here, beside the value it reveals.
+   * The toggle component owns nothing — see components/auth/
+   * PasswordVisibilityToggle.tsx. Hidden is the default and every retry
+   * leaves it exactly where the person put it.
+   */
+  const [showPassword, setShowPassword] = useState(false);
+  /*
+   * Which INPUT the failure belongs to, when the server or the client can say.
+   * The banner above the form says what happened; this says where, so a
+   * rejected email address is marked at the email box instead of being
+   * summarised as "please review your input".
+   */
+  const [fieldErrors, setFieldErrors] = useState<FieldErrorMap>({});
   // EV5 — when the backend returns EMAIL_NOT_VERIFIED we surface a
   // distinct "verify your email" panel with a Resend affordance instead
   // of a flat error string. The flag clears on any retry.
@@ -309,6 +329,7 @@ function LoginPageContent() {
     inFlightRef.current = true;
     setBusy(true);
     setError(null);
+    setFieldErrors({});
     setStatus(`Signing in via ${provider}...`);
 
     // Guest JWT (if any) lives in memory only — the auth context holds it
@@ -417,8 +438,34 @@ function LoginPageContent() {
         return;
       }
 
+      /*
+       * FIELD-LEVEL PLACEMENT.
+       *
+       * The API's validation envelope names the input it rejected in a bounded
+       * `fields[]` array. Only `email` and `password` are declared here, so a
+       * schema key this form does not render can never become visible copy.
+       *
+       * A credential failure is deliberately NOT placed on a field. The server
+       * answers an unknown address and a wrong password identically so the
+       * form cannot be used to discover who has an account, and marking one of
+       * the two boxes would undo that in the UI.
+       */
+      setFieldErrors(
+        fieldErrorsFromApiError(err, ["email", "password"], {
+          email: "Enter a valid email address.",
+        }),
+      );
+
+      /*
+       * The provider prefix answers "which button failed" for Google and
+       * Apple, where more than one sign-in path can be in flight. For
+       * email/password there is only one, and "Email sign-in failed: Email or
+       * password is incorrect" says it twice.
+       */
       const providerLabel =
-        provider === "guest" ? "" : provider.charAt(0).toUpperCase() + provider.slice(1);
+        provider === "guest" || provider === "email"
+          ? ""
+          : provider.charAt(0).toUpperCase() + provider.slice(1);
       const displayMsg = providerLabel ? `${providerLabel} sign-in failed: ${msg}` : msg;
 
       setError(displayMsg);
@@ -591,9 +638,25 @@ function LoginPageContent() {
   const onEmailLogin = (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+    setFieldErrors({});
 
-    if (!email || !password) {
-      setError("Please enter email and password.");
+    /*
+     * Answered here rather than by a round trip, and answered PER FIELD. The
+     * form previously said "Please enter email and password" whichever one was
+     * missing, and sent a malformed address to the server to be told
+     * "review your input" with nothing highlighted.
+     *
+     * Format only. Whether the address belongs to an account is a question
+     * this page must never answer before authentication.
+     */
+    const pre: FieldErrorMap = {};
+    if (!email.trim()) pre.email = "Enter your email address.";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      pre.email = "Enter a valid email address.";
+    }
+    if (!password) pre.password = "Enter your password.";
+    if (hasFieldErrors(pre)) {
+      setFieldErrors(pre);
       return;
     }
 
@@ -780,6 +843,7 @@ function LoginPageContent() {
                               <EmailIcon />
                             </span>
                             <input
+                              id="login-email"
                               className="auth-input"
                               placeholder="Email"
                               type="email"
@@ -787,36 +851,83 @@ function LoginPageContent() {
                               value={email}
                               onChange={(e) => setEmail(e.target.value)}
                               disabled={busy}
+                              aria-invalid={Boolean(fieldErrors.email)}
+                              aria-describedby={
+                                fieldErrors.email ? "login-email-error" : undefined
+                              }
                               style={{
                                 background: "rgba(255,255,255,0.84)",
-                                border: "1px solid rgba(255,255,255,0.44)",
+                                border: fieldErrors.email
+                                  ? "1px solid rgba(209,67,67,0.55)"
+                                  : "1px solid rgba(255,255,255,0.44)",
                                 boxShadow: ui.inputShadow,
                                 color: "#1B1230",
                               }}
                             />
                           </div>
+                          {fieldErrors.email ? (
+                            <div
+                              id="login-email-error"
+                              className="error-text"
+                              role="alert"
+                              style={{ color: "#B42318" }}
+                            >
+                              {fieldErrors.email}
+                            </div>
+                          ) : null}
 
                           <div style={{ display: "grid", gap: 6 }}>
                             <div className="auth-input-wrap">
                               <span className="auth-input-icon" aria-hidden="true" style={{ color: "var(--text-muted, #5F6878)" }}>
                                 <LockIcon />
                               </span>
+                              {/*
+                                * Hidden by default; the toggle swaps the type and
+                                * nothing else. The value is untouched, so the caret,
+                                * the selection and any password-manager fill all
+                                * survive the flip.
+                                */}
                               <input
-                                className="auth-input"
+                                id="login-password"
+                                className="auth-input auth-input--with-trailing-action"
                                 placeholder="Password"
-                                type="password"
+                                type={showPassword ? "text" : "password"}
                                 autoComplete="current-password"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 disabled={busy}
+                                aria-invalid={Boolean(fieldErrors.password)}
+                                aria-describedby={
+                                  fieldErrors.password
+                                    ? "login-password-error"
+                                    : undefined
+                                }
                                 style={{
                                   background: "rgba(255,255,255,0.84)",
-                                  border: "1px solid rgba(255,255,255,0.44)",
+                                  border: fieldErrors.password
+                                    ? "1px solid rgba(209,67,67,0.55)"
+                                    : "1px solid rgba(255,255,255,0.44)",
                                   boxShadow: ui.inputShadow,
                                   color: "#1B1230",
                                 }}
                               />
+                              <PasswordVisibilityToggle
+                                visible={showPassword}
+                                onToggle={() => setShowPassword((v) => !v)}
+                                controls="login-password"
+                                disabled={busy}
+                              />
                             </div>
+                            {fieldErrors.password ? (
+                              <div
+                                id="login-password-error"
+                                className="error-text"
+                                role="alert"
+                                style={{ color: "#B42318" }}
+                              >
+                                {fieldErrors.password}
+                              </div>
+                            ) : null}
 
                             <div style={{ display: "flex", justifyContent: "flex-end" }}>
                               <button

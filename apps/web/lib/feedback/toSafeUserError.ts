@@ -100,6 +100,26 @@ const CODE_MAP: Record<
       "This condition is owned by the surface that reported it and closes when that surface recovers. You can still acknowledge it, assign it, or suppress it with a recorded reason.",
     severity: "warning",
   },
+  /**
+   * A SIGN-IN ATTEMPT FAILED — which is not the same thing as a session
+   * expiring, and `UNAUTHORIZED` below says the second one.
+   *
+   * Both are 401, so before this entry existed a wrong password on the sign-in
+   * page fell into the status bucket and told the person their session had
+   * expired and they should sign in again. They were signing in. That is the
+   * defect this closes.
+   *
+   * The copy names neither field on purpose. The API answers unknown-email and
+   * wrong-password with one identical response so that nobody can use the form
+   * to discover which addresses are registered; saying "that email isn't
+   * registered" here would hand back exactly what the API refuses to say.
+   */
+  INVALID_CREDENTIALS: {
+    title: "Email or password is incorrect",
+    message:
+      "Check the email address and password and try again. If you have forgotten your password, you can reset it.",
+    severity: "warning",
+  },
   UNAUTHORIZED: {
     title: "Please sign in again",
     message: "Your session may have expired. Sign in again to continue — your evidence data has not been changed.",
@@ -195,9 +215,346 @@ const CODE_MAP: Record<
     actionLabel: "View plans",
     actionHref: "/billing",
   },
+  /**
+   * The canonical zod rejection from the API's global error handler. It ships a
+   * bounded `fields[]` array, which `fieldErrorsFromApiError` unpacks for
+   * inline placement; this copy is what a surface shows when it has nowhere to
+   * put a per-field message.
+   */
+  INVALID_INPUT: {
+    title: "Please check the highlighted fields",
+    message: "Some details need attention before we can continue.",
+    severity: "warning",
+  },
   VALIDATION_ERROR: {
     title: "Please check the highlighted fields",
     message: "Some details need attention before we can continue.",
+    severity: "warning",
+  },
+  /*
+   * The same answer under the other names the API uses for a rejected input.
+   * They are aliases, not distinctions, and each was previously answered by
+   * the 400 bucket with wording that read like a server fault.
+   */
+  INVALID_REQUEST: {
+    title: "Please check the highlighted fields",
+    message: "Some details need attention before we can continue.",
+    severity: "warning",
+  },
+  INVALID_BODY: {
+    title: "Please check the highlighted fields",
+    message: "Some details need attention before we can continue.",
+    severity: "warning",
+  },
+  INVALID_QUERY: {
+    title: "That search couldn't be run",
+    message: "Adjust the filters or the search term and try again.",
+    severity: "warning",
+  },
+  INVALID_IDENTIFIER: {
+    title: "That reference isn't valid",
+    message:
+      "The link or identifier is malformed. Open the item from the list rather than from a copied address.",
+    severity: "warning",
+  },
+  INVALID_ORG_ID: {
+    title: "That organization reference isn't valid",
+    message: "Open the organization from your workspace switcher and try again.",
+    severity: "warning",
+  },
+  INVALID_WORKSPACE_ID: {
+    title: "That workspace reference isn't valid",
+    message: "Open the workspace from your workspace switcher and try again.",
+    severity: "warning",
+  },
+  /*
+   * ---------------------------------------------------------------------
+   * BOUNDED DOMAIN REFUSALS
+   *
+   * Every entry below is a decision the server made deliberately and can
+   * explain. Each was previously answered by an HTTP-status bucket — "please
+   * review your input and try again" for a record that is simply not finalized
+   * yet, which is neither true nor actionable. The copy is derived from the
+   * server's semantics; none of it repeats the server's own string, and none
+   * of it names a provider, a key, a table or a seed script.
+   * ---------------------------------------------------------------------
+   */
+  INSUFFICIENT_CREDITS: {
+    title: "Not enough credits",
+    message:
+      "This action needs more credits than your workspace has left. Add credits or upgrade to continue — nothing was charged.",
+    severity: "warning",
+    actionLabel: "View billing",
+    actionHref: "/billing",
+  },
+  EVIDENCE_LOCKED: {
+    title: "This record is locked",
+    message:
+      "The record has been sealed and can no longer be edited. You can still view, verify and export it.",
+    severity: "info",
+  },
+  EVIDENCE_NOT_FINALIZED: {
+    title: "This record isn't finalized yet",
+    message:
+      "Verification becomes available once the record has been finalized. Finish the capture, then try again.",
+    severity: "info",
+  },
+  EVIDENCE_NOT_LOCKED: {
+    title: "This record isn't locked",
+    message: "That action is only available on a record that has been sealed.",
+    severity: "info",
+  },
+  FINALIZE_BLOCKED_BY_UPLOAD_SESSION: {
+    title: "Upload still being verified",
+    message:
+      "This record can't be finalized until every uploaded file has been checked against its recorded fingerprint. That usually takes a moment — try again shortly.",
+    severity: "info",
+  },
+  EVIDENCE_INTEGRITY_FAILED: {
+    title: "This record's fingerprint no longer matches",
+    message:
+      "The stored material does not match the fingerprint recorded when the record was completed, so it cannot be regenerated. Capture or upload the material again as a new record. The existing record has not been altered.",
+    severity: "error",
+  },
+  VERIFICATION_TEMPORARILY_UNAVAILABLE: {
+    title: "Verification is temporarily unavailable",
+    message:
+      "Please try again in a few minutes. Your evidence data has not been changed.",
+    severity: "warning",
+  },
+  VERIFICATION_POLICY_BLOCKED: {
+    title: "Publishing is blocked by workspace policy",
+    message:
+      "Your workspace's verification policy does not allow this record to be published yet. A workspace admin can review the policy.",
+    severity: "warning",
+  },
+  SIGNING_KEY_MISSING: {
+    /*
+     * A server-side configuration fault, not something the person can fix. The
+     * server's own message tells an operator to re-run a seed script; that
+     * sentence must never reach a customer, so this entry exists precisely to
+     * replace it.
+     */
+    title: "This record can't be signed right now",
+    message:
+      "A signing problem is preventing this action. Your evidence data has not been changed. Please contact support with the reference below.",
+    severity: "error",
+  },
+  FEATURE_DISABLED: {
+    title: "This feature is turned off",
+    message:
+      "This capability is not currently enabled for your workspace. A workspace admin can turn it on.",
+    severity: "info",
+  },
+  STEP_UP_REQUIRED: {
+    title: "Confirm your identity to continue",
+    message:
+      "This action needs a second factor. Confirm your identity and try again — nothing has been changed yet.",
+    severity: "warning",
+  },
+  STEP_UP_ENROLLMENT_REQUIRED: {
+    title: "Set up two-factor authentication first",
+    message:
+      "This action requires two-factor authentication. Add a second factor in Security settings, then try again.",
+    severity: "warning",
+    actionLabel: "Security settings",
+    actionHref: "/settings/security",
+  },
+  HIGH_RISK_ACTION_BLOCKED: {
+    title: "This action was blocked",
+    message:
+      "Your workspace's security rules blocked this action. Nothing has been changed. A workspace admin can review the rules.",
+    severity: "warning",
+  },
+  GOVERNANCE_BLOCKED: {
+    title: "Blocked by workspace governance",
+    message:
+      "A governance rule in this workspace prevents this action. Nothing has been changed. A workspace admin can review the policy.",
+    severity: "warning",
+  },
+  WORKSPACE_CONTEXT_REQUIRED: {
+    title: "Choose a workspace first",
+    message: "Select a workspace, then try this action again.",
+    severity: "info",
+  },
+  WORKSPACE_MEMBERSHIP_REQUIRED: {
+    title: "You're not a member of this workspace",
+    message:
+      "Ask a workspace admin to add you, or switch to a workspace you belong to.",
+    severity: "warning",
+  },
+  WORKSPACE_CREATION_NOT_SELF_SERVICE: {
+    title: "Workspaces aren't self-service on this plan",
+    message:
+      "Your organization creates workspaces centrally. Ask an organization admin to set one up.",
+    severity: "info",
+  },
+  STALE_MEMBERSHIP_GENERATION: {
+    title: "Your access changed while you were working",
+    message:
+      "Your membership was updated in another session. Refresh the page to pick up the change — nothing has been changed here.",
+    severity: "warning",
+  },
+  SUBSCRIPTION_NOT_FOUND: {
+    title: "No active subscription",
+    message: "There's no subscription on this account to change yet.",
+    severity: "info",
+    actionLabel: "View plans",
+    actionHref: "/billing",
+  },
+  SUBSCRIPTION_ALREADY_ACTIVE: {
+    title: "This plan is already active",
+    message: "No change was needed — your subscription is already on this plan.",
+    severity: "info",
+  },
+  CHECKOUT_REQUIRED: {
+    title: "Finish checkout to continue",
+    message: "This change needs to go through checkout before it takes effect.",
+    severity: "info",
+    actionLabel: "View billing",
+    actionHref: "/billing",
+  },
+  CANCELLATION_REQUIRED: {
+    title: "Cancel the current plan first",
+    message:
+      "This change can't be applied while the current plan is still running. Cancel it first, then try again.",
+    severity: "info",
+    actionLabel: "View billing",
+    actionHref: "/billing",
+  },
+  PROVIDER_CANCELLATION_FAILED: {
+    title: "The cancellation didn't go through",
+    message:
+      "We couldn't complete the cancellation with the payment provider. Nothing was changed and you have not been charged again. Please try again in a moment.",
+    severity: "error",
+    actionLabel: "View billing",
+    actionHref: "/billing",
+  },
+  STORAGE_ADDON_NOT_FOUND: {
+    title: "Storage add-on not found",
+    message: "That storage add-on is no longer on this account.",
+    severity: "info",
+    actionLabel: "View billing",
+    actionHref: "/billing",
+  },
+  STORAGE_ADDON_NOT_LINKED: {
+    title: "Storage add-on isn't linked yet",
+    message:
+      "This add-on hasn't finished linking to your subscription. Try again shortly, or contact support if it persists.",
+    severity: "warning",
+    actionLabel: "View billing",
+    actionHref: "/billing",
+  },
+  LEGACY_ONE_TIME_ADDON_NOT_CANCELLABLE: {
+    title: "This purchase can't be cancelled",
+    message:
+      "One-time storage purchases don't renew, so there is nothing to cancel. The storage stays on your account.",
+    severity: "info",
+  },
+  REVIEW_PERMISSION_DENIED: {
+    title: "You're not a reviewer on this workspace",
+    message:
+      "Review actions are limited to members with a reviewer role. Ask a workspace admin if you need it.",
+    severity: "warning",
+  },
+  REVIEW_ACTOR_BLOCKED: {
+    title: "Your membership isn't active",
+    message:
+      "Review actions need an active membership in this workspace. Ask a workspace admin to restore it.",
+    severity: "warning",
+  },
+  CASES_MANAGE_REQUIRED: {
+    title: "You can't manage cases here",
+    message:
+      "Managing cases needs additional permissions in this workspace. Ask a workspace admin for access.",
+    severity: "warning",
+  },
+  CASE_DELETE_DENIED: {
+    title: "You can't delete this case",
+    message:
+      "Deleting a case needs additional permissions in this workspace. Ask a workspace admin, or archive it instead.",
+    severity: "warning",
+  },
+  CASE_RENAME_DENIED: {
+    title: "You can't rename this case",
+    message:
+      "Renaming a case needs additional permissions in this workspace. Ask a workspace admin for access.",
+    severity: "warning",
+  },
+  ILLEGAL_MEMBERSHIP_TRANSITION: {
+    title: "That membership change isn't possible",
+    message:
+      "This member's current state doesn't allow that change. Refresh the members list to see where they are now.",
+    severity: "warning",
+  },
+  INTERNAL_MEMBER: {
+    title: "This person is a workspace member",
+    message:
+      "Their access is managed on the Members page rather than as an external grant.",
+    severity: "info",
+  },
+  OWNERSHIP_TRANSFER_REQUIRED: {
+    title: "Transfer ownership first",
+    message:
+      "You're the owner of this organization. Transfer ownership to someone else, or close the organization, before leaving it.",
+    severity: "warning",
+  },
+  TRANSFER_TARGET_REQUIRED: {
+    title: "Re-assign their work first",
+    message:
+      "This member still owns evidence or cases here. Choose who should take them over, then remove the member.",
+    severity: "warning",
+  },
+  INVALID_TRANSFER_TARGET: {
+    title: "Choose a different person",
+    message:
+      "Ownership can't be transferred to the member being removed. Pick another active member.",
+    severity: "warning",
+  },
+  HIGH_SECURITY_PREREQUISITES_UNMET: {
+    title: "High-security mode isn't ready yet",
+    message:
+      "Some prerequisites for this organization aren't met. Review the outstanding items in Security settings, then activate again.",
+    severity: "warning",
+  },
+  MFA_POLICY_VERSION_CONFLICT: {
+    title: "The policy changed while you were editing",
+    message:
+      "Someone else saved a change to this workspace's two-factor policy. Reload to see the current settings, then reapply yours. Nothing you entered has been saved.",
+    severity: "warning",
+  },
+  POLICY_NOT_PROVISIONED: {
+    title: "This policy isn't available yet",
+    message:
+      "The security policy for this organization is still being set up. Try again in a moment.",
+    severity: "warning",
+  },
+  CAPTURE_SESSION_NOT_EDITABLE: {
+    title: "This capture is closed",
+    message:
+      "The capture session has already been completed, so it can no longer be changed. Start a new capture to add more.",
+    severity: "info",
+  },
+  AI_CHAT_RATE_LIMITED: {
+    title: "Too many assistant requests",
+    message: "Wait a moment before asking again. Your evidence workflows are unaffected.",
+    severity: "warning",
+  },
+  AI_CHAT_TIMEOUT: {
+    title: "The assistant took too long",
+    message:
+      "No answer came back in time. Try asking again, or ask a shorter question. Your evidence workflows are unaffected.",
+    severity: "warning",
+  },
+  AI_WORKSPACE_POLICY_DENIED: {
+    /*
+     * The server sends its own policy reason here. It is NOT repeated: a
+     * workspace policy string is administrative configuration, and the person
+     * being refused needs to know who can change it, not how it is worded.
+     */
+    title: "The assistant is restricted in this workspace",
+    message:
+      "Your workspace's AI policy doesn't allow this request. A workspace admin can review the policy.",
     severity: "warning",
   },
   NETWORK_ERROR: {

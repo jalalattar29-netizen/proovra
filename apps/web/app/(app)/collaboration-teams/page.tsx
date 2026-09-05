@@ -160,11 +160,17 @@ function TeamsOverview() {
       const rows = await listTeams();
       setTeams(rows);
     } catch (err) {
-      if (err instanceof ApiError) {
-        setError({ message: err.message, requestId: err.requestId });
-      } else {
-        setError({ message: "Couldn't load Teams. Try again." });
-      }
+      /*
+       * SAFE FEEDBACK, NOT THE BACKEND SENTENCE.
+       *
+       * This branch used to render `err.message` — the raw string the API
+       * happened to send — which is the one thing the platform contract says
+       * never reaches a person. The canonical mapper answers every shape,
+       * including this one, and keeps the request id off the sentence and on
+       * the copyable support reference.
+       */
+      const safe = toSafeUserError(err, { message: "Couldn't load Teams. Try again." });
+      setError({ message: safe.message, requestId: safe.supportReference });
     } finally {
       setLoading(false);
     }

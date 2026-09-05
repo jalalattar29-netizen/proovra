@@ -989,7 +989,14 @@ export async function authRoutes(app: FastifyInstance) {
       return reply
         .code(429)
         .header("Retry-After", String(Math.max(1, Math.ceil((rl.resetAtMs - Date.now()) / 1000))))
-        .send({ message: "too_many_requests" });
+        .send({
+          error: {
+            code: "RATE_LIMITED",
+            message:
+              "Too many sign-in attempts. Wait a minute and try again.",
+            timestamp: new Date().toISOString(),
+          },
+        });
     }
 
     const body = EmailLoginBody.parse(req.body);
@@ -1011,7 +1018,37 @@ export async function authRoutes(app: FastifyInstance) {
         },
       });
 
-      return reply.code(401).send({ message: "invalid_credentials" });
+      /*
+       * ONE ANSWER FOR BOTH FAILURES.
+       *
+       * Unknown email and wrong password arrive here through the same branch
+       * and leave through this same response, byte for byte. That is the
+       * anti-enumeration contract and it is unchanged — `loginWithEmailPassword`
+       * returns null for "no such account", "account has no password" and
+       * "password did not match" alike, and this route never learns which.
+       *
+       * What changed is the SHAPE. It used to answer `{ message:
+       * "invalid_credentials" }`, which carries no `error.code`, so the web
+       * client could not recognise it and fell back to bucketing by HTTP
+       * status. The 401 bucket means "your session expired" — correct
+       * everywhere inside the app, and actively wrong on the sign-in page,
+       * where it told a person who had simply mistyped their password that
+       * their session had expired and they should sign in again. They were
+       * signing in.
+       *
+       * The code is the canonical `INVALID_CREDENTIALS` the platform's own
+       * ErrorCode enum already defines at 401, and the message is the safe
+       * sentence a person can act on. It names neither the email nor the
+       * password as the thing that was wrong, because the server does not
+       * know and must not appear to.
+       */
+      return reply.code(401).send({
+        error: {
+          code: "INVALID_CREDENTIALS",
+          message: "Email or password is incorrect.",
+          timestamp: new Date().toISOString(),
+        },
+      });
     }
 
     // EV4 — verify gate: run AFTER credential check (response shape

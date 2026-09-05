@@ -105,6 +105,14 @@ function friendlyIntakeError(err: {
       "This step can't be completed right now. Refresh the page and try again, or contact the sender if it keeps happening.",
     SESSION_NOT_FOUND:
       "We couldn't find this upload session. Refresh the page or open the link again to start a new session.",
+    // The consent payload was rejected — a contributor CAN fix this by
+    // re-accepting, so it should not fall to the unmapped line.
+    CONSENT_INVALID:
+      "We couldn't accept your consent details. Please review them and submit again.",
+    // The link was issued for a different submission mode. Nothing the
+    // contributor can change; the only way forward is a fresh link.
+    INTAKE_MODE_MISMATCH:
+      "This upload link uses a different submission mode. Please contact the sender for a new link.",
     SUBMIT_FAILED:
       "We couldn't submit these files. Your uploads are still here — try Submit again, or contact the sender with the support ID below.",
     LOCATION_REQUIRED:

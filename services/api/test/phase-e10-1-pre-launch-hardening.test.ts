@@ -156,15 +156,74 @@ describe("E10.1 Test 1 — DEF-037: auth route rate limits", () => {
     }
   });
 
-  it("login enumeration safety preserved: invalid_credentials path unchanged", () => {
-    // Phase R8.1.x contract — login returns 401 + invalid_credentials
-    // for both unknown-user and wrong-password. The E10.1 rate-limit
-    // change must NOT alter that.
+  it("login enumeration safety preserved: ONE 401 for both failure causes", () => {
+    /*
+     * Phase R8.1.x contract — an unknown address and a wrong password produce
+     * the same 401. The E10.1 rate-limit change must not alter that, and
+     * neither did the error-UX pass.
+     *
+     * WHAT CHANGED, AND WHY THIS ASSERTION MOVED WITH IT. The response used to
+     * be `{ message: "invalid_credentials" }`, and this test pinned that exact
+     * literal. That shape carries no `error.code`, so the web client could not
+     * recognise it and bucketed it by HTTP status — and the 401 bucket says
+     * "your session expired", which it told people who were in the middle of
+     * signing in. The body is now the platform's canonical envelope with the
+     * `INVALID_CREDENTIALS` code the ErrorCode enum already defines at 401.
+     *
+     * The security property is UNCHANGED and this test now pins it harder than
+     * the literal did: one 401 in the whole handler, one code, and no branch
+     * anywhere in it that could answer differently depending on whether the
+     * account exists.
+     */
     const loginBlock = AUTH_ROUTES.slice(
       AUTH_ROUTES.indexOf('app.post("/v1/auth/email/login"'),
       AUTH_ROUTES.indexOf('app.post("/v1/auth/password-reset/request"'),
     );
-    expect(loginBlock).toMatch(/reply\.code\(401\)\.send\(\{\s*message:\s*["']invalid_credentials["']/);
+
+    // The canonical envelope, at 401.
+    expect(loginBlock).toMatch(
+      /reply\.code\(401\)\.send\(\{\s*error:\s*\{\s*code:\s*["']INVALID_CREDENTIALS["']/,
+    );
+
+    // EXACTLY ONE 401 exit. A second one is how a "helpful" distinction
+    // between unknown-email and wrong-password would arrive.
+    expect((loginBlock.match(/reply\.code\(401\)/g) ?? []).length).toBe(1);
+
+    // And the handler never asks the question that would let it distinguish.
+    expect(loginBlock).not.toMatch(/user_not_found|no_such_user|EMAIL_NOT_FOUND/);
+
+    // The message names neither field.
+    expect(loginBlock).toContain("Email or password is incorrect.");
+  });
+
+  it("the credential check costs the same whether or not the account exists", () => {
+    /*
+     * The bodies were always identical; the CLOCK was not. `loginWithEmailPassword`
+     * returned early when no user matched, so the scrypt verification — the
+     * expensive part — ran only for addresses that exist. Measured against the
+     * local fixture that was a consistent ~25ms gap between "registered, wrong
+     * password" and "not registered at all".
+     *
+     * Both paths now run a full verification; the absent-account one compares
+     * against a hash of random bytes generated in-process, which cannot match.
+     */
+    const service = readFileSync(
+      repoPath("services/api/src/services/email-password-auth.service.ts"),
+      "utf8",
+    );
+    expect(service).toMatch(/const ABSENT_ACCOUNT_HASH = hashPassword\(randomBytes\(/);
+
+    // Scoped to the login function. `if (!user) return null` is correct in the
+    // neighbouring readers; it is only the CREDENTIAL check that must not
+    // short-circuit, because only that one is timed by an attacker.
+    const loginFn = service.slice(
+      service.indexOf("export async function loginWithEmailPassword"),
+      service.indexOf("export type ChangePasswordResult"),
+    );
+    expect(loginFn).toMatch(
+      /if \(!user \|\| !user\.passwordHash\) \{[\s\S]{0,200}?void verifyPassword\(params\.password, ABSENT_ACCOUNT_HASH\);/,
+    );
+    expect(loginFn).not.toMatch(/if \(!user\) return null;/);
   });
 });
 
