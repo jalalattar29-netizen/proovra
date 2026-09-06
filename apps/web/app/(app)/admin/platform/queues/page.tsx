@@ -136,6 +136,11 @@ function OperationsQueuesContent() {
    */
   const [failedTotal, setFailedTotal] = useState<number | null>(null);
   const [failedLimit, setFailedLimit] = useState<number | null>(null);
+  /* One failure container per source: a shared one means the first failure
+     blanks the other two, which is the defect this replaces. */
+  const [queuesError, setQueuesError] = useState<string | null>(null);
+  const [workersError, setWorkersError] = useState<string | null>(null);
+  const [matrixError, setMatrixError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [busyJobId, setBusyJobId] = useState<string | null>(null);
@@ -146,10 +151,25 @@ function OperationsQueuesContent() {
     category: ReplayCategory;
   } | null>(null);
 
+  /**
+   * THREE SOURCES, THREE OUTCOMES.
+   *
+   * This was `Promise.all` over the queue inventory, worker health and the
+   * replay-safety matrix, behind ONE `.catch`. Any one of them failing threw
+   * away the two that had answered and left the page showing no queues, no
+   * workers and no replay guidance under a single sentence — during an
+   * incident, on the console an operator opens to find out which queue is
+   * backed up. The replay matrix is the worst of the three to lose silently:
+   * `categoryFor` reads it to decide whether replaying a job is safe, and an
+   * empty matrix is not "unsafe", it is "unknown".
+   *
+   * Each source now answers for itself, and each failure is reported where
+   * that source's own section renders.
+   */
   const loadAll = useCallback(() => {
     if (!teamId) return;
     setError(null);
-    Promise.all([
+    void Promise.allSettled([
       apiFetch(`/v1/operations/queues?teamId=${encodeURIComponent(teamId)}`, {
         method: "GET",
       }),
@@ -161,15 +181,41 @@ function OperationsQueuesContent() {
         `/v1/operations/queues/replay-safety?teamId=${encodeURIComponent(teamId)}`,
         { method: "GET" },
       ),
-    ])
-      .then(([qRes, wRes, mRes]) => {
-        setQueues((qRes as { queues: QueueInventoryItem[] }).queues ?? []);
-        setWorkers((wRes as { workers: WorkerHealthRow[] }).workers ?? []);
-        setMatrix((mRes as { matrix: MatrixEntry[] }).matrix ?? []);
-      })
-      .catch((err: { message?: string }) =>
-        setError(toSafeUserError(err, { message: "Could not load queue operations." }).message),
-      );
+    ]).then(([qOut, wOut, mOut]) => {
+      if (qOut.status === "fulfilled") {
+        setQueues((qOut.value as { queues: QueueInventoryItem[] }).queues ?? []);
+        setQueuesError(null);
+      } else {
+        setQueues(null);
+        setQueuesError(
+          toSafeUserError(qOut.reason, {
+            message: "The queue inventory could not be read.",
+          }).message,
+        );
+      }
+      if (wOut.status === "fulfilled") {
+        setWorkers((wOut.value as { workers: WorkerHealthRow[] }).workers ?? []);
+        setWorkersError(null);
+      } else {
+        setWorkers(null);
+        setWorkersError(
+          toSafeUserError(wOut.reason, {
+            message: "Worker health could not be read.",
+          }).message,
+        );
+      }
+      if (mOut.status === "fulfilled") {
+        setMatrix((mOut.value as { matrix: MatrixEntry[] }).matrix ?? []);
+        setMatrixError(null);
+      } else {
+        setMatrix(null);
+        setMatrixError(
+          toSafeUserError(mOut.reason, {
+            message: "The replay-safety matrix could not be read.",
+          }).message,
+        );
+      }
+    });
   }, [teamId]);
 
   const loadFailed = useCallback(
@@ -319,6 +365,17 @@ function OperationsQueuesContent() {
       {error ? <div className="apf-note" data-tone="critical">{error}</div> : null}
       {success ? <AdmInline state="done">{success}</AdmInline> : null}
 
+      {/*
+        Each source reports where it renders. One failing no longer removes the
+        other two, and the replay matrix says so explicitly: an operator
+        deciding whether a replay is safe must not read a missing matrix as
+        permission.
+      */}
+      {queuesError ? (
+        <div className="apf-note" data-tone="critical" data-queues-inventory-error>
+          {queuesError} Worker health and replay safety below are unaffected.
+        </div>
+      ) : null}
       <QueueOverviewCards
         queues={queues}
         workers={workers}
@@ -326,7 +383,19 @@ function OperationsQueuesContent() {
         onSelect={setSelectedQueue}
       />
 
+      {workersError ? (
+        <div className="apf-note" data-tone="critical" data-queues-workers-error>
+          {workersError} The queue list above is unaffected.
+        </div>
+      ) : null}
       <WorkerHealthPanel workers={workers} />
+
+      {matrixError ? (
+        <div className="apf-note" data-tone="warning" data-queues-matrix-error>
+          {matrixError} Replay safety is therefore unknown for every job below —
+          not safe. Reload before replaying anything.
+        </div>
+      ) : null}
 
       {selectedQueue ? (
         <FailedJobsPanel

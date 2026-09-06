@@ -458,11 +458,18 @@ test("removing every rendered count from /admin/support-access is caught", () =>
 });
 
 test("removing the real filtered-empty wording from /admin/contact-sales is caught", () => {
+  // The mutation has to remove the wording the page ACTUALLY renders, or it
+  // proves nothing. `/admin/contact-sales` used to say "match your filters"
+  // for both the empty and the filtered-empty case — one sentence telling an
+  // operator with an empty inbox that their filters were hiding something —
+  // and now says "No inquiry matches the … status", with a Clear filters
+  // control beside it. `matches` is not `match`, so without the inflections
+  // below this mutation left the wording in place and asserted nothing.
   const rows = mutateReal("contact-sales", (src) =>
     src
       .replace(/match these filters/g, "")
-      .replace(/matching/g, "")
-      .replace(/\bmatch\b/g, ""),
+      .replace(/\bmatch(?:es|ing|ed)?\b/g, "")
+      .replace(/Clear filters/g, ""),
   );
   const row = rows.find((r) => r.route === "/admin/contact-sales");
   assert.ok(

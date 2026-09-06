@@ -112,8 +112,25 @@ type CostDashboard = {
 };
 
 
+/**
+ * A FIGURE THAT WAS NOT MEASURED IS NOT ZERO, AND IS NOT AN EM DASH EITHER.
+ *
+ * `formatCount` returned the string "0" for null. On a cost console that is
+ * the worst substitution available: null means the platform has no usage
+ * record for that provider in this window — it did not ask, or the meter is
+ * not connected — and "0" says it asked and the answer was nothing. An
+ * operator reading "0 usage events" for a provider that is quietly billing
+ * has been told the opposite of the truth by a formatter.
+ *
+ * `formatMoney` returned "—", which is better only in that it is not a lie;
+ * it still leaves the reader to guess between "nothing spent", "not billed"
+ * and "we don't know". Both now return one sentinel that says which, and the
+ * tile renders it as prose rather than as a number.
+ */
+const NOT_MEASURED = "Not measured";
+
 function formatMoney(value: number | null | undefined, currency: string) {
-  if (value == null || Number.isNaN(value)) return "—";
+  if (value == null || Number.isNaN(value)) return NOT_MEASURED;
   return new Intl.NumberFormat(undefined, {
     style: "currency",
     currency,
@@ -122,7 +139,7 @@ function formatMoney(value: number | null | undefined, currency: string) {
 }
 
 function formatCount(value: number | null | undefined) {
-  if (value == null || Number.isNaN(value)) return "0";
+  if (value == null || Number.isNaN(value)) return NOT_MEASURED;
   return new Intl.NumberFormat().format(value);
 }
 
@@ -164,19 +181,38 @@ function MetricTile({
       >
         {label}
       </div>
-      <div
-        style={{
-          marginTop: 10,
-          fontSize: 30,
-          lineHeight: 1.05,
-          fontWeight: 750,
-          letterSpacing: "-0.02em",
-          color: accent ?? "var(--ink-primary)",
-          overflowWrap: "anywhere",
-        }}
-      >
-        {value}
-      </div>
+      {/* An unmeasured figure is set as prose, not as a 30px number: it is
+          not a value, and typography that says otherwise is the same claim
+          the old "0" made, made quietly. */}
+      {value === NOT_MEASURED ? (
+        <div
+          data-cost-tile-not-measured
+          style={{
+            marginTop: 10,
+            fontSize: 15,
+            lineHeight: 1.4,
+            fontWeight: 600,
+            color: "var(--ink-muted)",
+          }}
+        >
+          Not measured — this platform has no usage record for it in this
+          window.
+        </div>
+      ) : (
+        <div
+          style={{
+            marginTop: 10,
+            fontSize: 30,
+            lineHeight: 1.05,
+            fontWeight: 750,
+            letterSpacing: "-0.02em",
+            color: accent ?? "var(--ink-primary)",
+            overflowWrap: "anywhere",
+          }}
+        >
+          {value}
+        </div>
+      )}
       <div
         style={{
           marginTop: 8,

@@ -179,6 +179,13 @@ export default function AdminContactSalesDetailPage({
   const { addToast } = useToast();
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const [updating, setUpdating] = useState(false);
+  /**
+   * WHICH transition is in flight, not merely that one is. Every status button
+   * disabled together and none of them showed anything, so a slow PATCH looked
+   * exactly like a click that had not registered — and the natural response to
+   * that is to press another one.
+   */
+  const [pendingStatus, setPendingStatus] = useState<Status | null>(null);
   const [copied, setCopied] = useState(false);
 
   const load = useCallback(async () => {
@@ -238,6 +245,7 @@ export default function AdminContactSalesDetailPage({
     if (ask && !(await confirm(ask))) return;
 
     setUpdating(true);
+    setPendingStatus(next);
     try {
       const res = (await apiFetch(
         `/v1/admin/contact-sales/${encodeURIComponent(id)}`,
@@ -264,6 +272,7 @@ export default function AdminContactSalesDetailPage({
       );
     } finally {
       setUpdating(false);
+      setPendingStatus(null);
     }
   }
 
@@ -640,6 +649,7 @@ export default function AdminContactSalesDetailPage({
                         }
                         size="sm"
                         disabled={updating}
+                        loading={pendingStatus === rule.to}
                         aria-label={statusActionLabel(rule, {
                           id: state.details.id,
                           fullName: state.details.fullName,

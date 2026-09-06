@@ -147,11 +147,24 @@ export default function AdminContactSalesPage() {
   const [details, setDetails] = useState<Details | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [updating, setUpdating] = useState(false);
+  /**
+   * WHICH transition is in flight, not merely that one is.
+   *
+   * Every status button disabled together and none of them showed anything,
+   * so a slow PATCH looked exactly like a click that had not registered — and
+   * the natural response to that is to press another one. Knowing which
+   * button is working is what makes the other buttons being disabled read as
+   * "wait" rather than "broken".
+   */
+  const [pendingStatus, setPendingStatus] = useState<Status | null>(null);
 
   // The cap lives here so the count can name it. It was previously a bare
   // literal in the query string, which is how the page came to carry a comment
   // saying there was no server cap while sending one on every request.
   const PAGE_LIMIT = 50;
+
+  /** Whether anything is currently narrowing the list. */
+  const isFiltered = statusFilter !== "" || search.trim() !== "";
 
   const queryString = useMemo(() => {
     const p = new URLSearchParams({ limit: String(PAGE_LIMIT) });
@@ -241,6 +254,7 @@ export default function AdminContactSalesPage() {
     if (ask && !(await confirm(ask))) return;
 
     setUpdating(true);
+    setPendingStatus(next);
     try {
       const res = (await apiFetch(
         `/v1/admin/contact-sales/${encodeURIComponent(current.id)}`,
@@ -268,6 +282,7 @@ export default function AdminContactSalesPage() {
       );
     } finally {
       setUpdating(false);
+      setPendingStatus(null);
     }
   }
 
@@ -458,7 +473,36 @@ export default function AdminContactSalesPage() {
                           }}
                           colSpan={9}
                         >
-                          No contact-sales inquiries match your filters.
+                          {/*
+                            EMPTY AND FILTERED-EMPTY ARE NOT THE SAME SENTENCE.
+                            One message said "match your filters" whether or
+                            not any were set, so an operator looking at a
+                            genuinely empty inbox was told their filters were
+                            hiding something. The first case has nothing to
+                            clear; the second says what to clear and offers it.
+                          */}
+                          {isFiltered ? (
+                            <>
+                              No inquiry matches{" "}
+                              {statusFilter
+                                ? `the ${COMMERCIAL_STATUS_LABEL[statusFilter]} status`
+                                : "that search"}
+                              {statusFilter && search.trim() ? " and that search" : ""}
+                              .{" "}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setStatusFilter("");
+                                  setSearch("");
+                                }}
+                              >
+                                Clear filters
+                              </Button>
+                            </>
+                          ) : (
+                            "No contact-sales inquiries have been submitted yet. New enquiries from the public site appear here."
+                          )}
                         </td>
                       </tr>
                     )
@@ -767,6 +811,7 @@ export default function AdminContactSalesPage() {
                         }
                         size="sm"
                         disabled={updating}
+                        loading={pendingStatus === rule.to}
                         aria-label={statusActionLabel(rule, {
                           id: details.id,
                           fullName: details.fullName,

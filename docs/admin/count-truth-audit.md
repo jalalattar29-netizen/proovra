@@ -22,6 +22,8 @@ confident wrong answer with no way to tell.
 | `/admin/billing` | ResultCount — reconciliation run | `CAP_DISCLOSED` | — | — |
 | `/admin/contact-sales` | ResultCount — inquiry | `EXACT_TOTAL` | yes | yes |
 | `/admin/costs` | ResultCount — entitlement | `CAP_DISCLOSED` | — | — |
+| `/admin/customers/:id` | ResultCount — provisioning action | `CAP_DISCLOSED` | — | — |
+| `/admin/customers/:id` | ResultCount — organization event | `CAP_DISCLOSED` | — | — |
 | `/admin/dashboard` | ResultCount — recent event | `CAP_DISCLOSED` | — | — |
 | `/admin/executive` | ResultCount — at-risk customer | `CAP_DISCLOSED` | — | — |
 | `/admin/identity/access-reviews` | ResultCount — access review | `CAP_DISCLOSED` | yes | yes |
@@ -53,6 +55,9 @@ confident wrong answer with no way to tell.
 | `/admin/security` | ResultCount — scan | `CAP_DISCLOSED` | yes | yes |
 | `/admin/support-access` | ResultCount — support grant | `EXACT_TOTAL` | yes | yes |
 | `/admin/timeline` | ResultCount — event | `SERVER_HAS_MORE` | yes | yes |
+| `/admin/users/:id` | ResultCount — workspace membership | `CAP_DISCLOSED` | — | — |
+| `/admin/users/:id` | ResultCount — organization membership | `CAP_DISCLOSED` | — | — |
+| `/admin/users/:id` | ResultCount — payment | `CAP_DISCLOSED` | — | — |
 
 ## What each classification means
 

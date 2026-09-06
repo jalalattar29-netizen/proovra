@@ -100,6 +100,22 @@
       "loadingAware": false
     },
     {
+      "route": "/admin/customers/:id",
+      "kind": "ResultCount",
+      "noun": "provisioning action",
+      "truth": "CAP_DISCLOSED",
+      "filteredAware": false,
+      "loadingAware": false
+    },
+    {
+      "route": "/admin/customers/:id",
+      "kind": "ResultCount",
+      "noun": "organization event",
+      "truth": "CAP_DISCLOSED",
+      "filteredAware": false,
+      "loadingAware": false
+    },
+    {
       "route": "/admin/dashboard",
       "kind": "ResultCount",
       "noun": "recent event",
@@ -346,6 +362,30 @@
       "truth": "SERVER_HAS_MORE",
       "filteredAware": true,
       "loadingAware": true
+    },
+    {
+      "route": "/admin/users/:id",
+      "kind": "ResultCount",
+      "noun": "workspace membership",
+      "truth": "CAP_DISCLOSED",
+      "filteredAware": false,
+      "loadingAware": false
+    },
+    {
+      "route": "/admin/users/:id",
+      "kind": "ResultCount",
+      "noun": "organization membership",
+      "truth": "CAP_DISCLOSED",
+      "filteredAware": false,
+      "loadingAware": false
+    },
+    {
+      "route": "/admin/users/:id",
+      "kind": "ResultCount",
+      "noun": "payment",
+      "truth": "CAP_DISCLOSED",
+      "filteredAware": false,
+      "loadingAware": false
     }
   ]
 }

@@ -270,11 +270,58 @@ const EVIDENCE = {
     /refreshing/i, /isRefetching/, /busy\s*&&\s*data/, /Refresh/,
     /void load\(/, /\breload\(/,
   ],
-  VALUE: [/<DataTable/, /<AdmKpi/, /<AdmFacts/, /\.map\(/],
+  /**
+   * VALUE — THE PAGE PUTS THE DATA IT LOADED ON THE SCREEN.
+   *
+   * The most basic state, and the patterns were four ways of rendering a
+   * LIST. `/admin/demo-requests/:id` is a detail page: it renders about forty
+   * fields through a page-local `<Row label value>`, and having no table made
+   * it look like a page that shows nothing.
+   */
+  VALUE: [
+    /<DataTable/, /<AdmKpi/, /<AdmFacts/, /\.map\(/,
+    // A value prop bound to a field path on loaded state.
+    /\bvalue=\{[a-zA-Z_$][\w$]*\./,
+  ],
+  /**
+   * MEASURED_ZERO — A REAL ZERO, SHOWN AS ZERO, DISTINCT FROM NO DATA.
+   *
+   * GATE B. `<ResultCount>` is the component this console built for exactly
+   * this: it takes `shown`, `loading` and `failed`, suppresses its sentence
+   * for the plain empty case so the list's own empty state can carry it, and
+   * says "Count unavailable" rather than "0" when the read failed. Three
+   * routes state their zero through it and were reported as unhandled.
+   */
   MEASURED_ZERO: [
     /state="VALUE"/, /MEASURED_ZERO/, /=== 0 \?/, /\?\? 0/, /count === 0/,
+    /<ResultCount/,
   ],
-  EMPTY: [/state="empty"/, /<EmptyState/, /No .* yet/],
+  /**
+   * EMPTY — THERE ARE NO ROWS, AND THE PAGE SAYS WHAT THAT MEANS.
+   *
+   * GATE B. `<EmptyState>` and the phrase "No … yet" are two of the ways this
+   * console renders it, and four pages use neither because the component does
+   * not fit inside a `<td colSpan>` or an `<li>` list and because their
+   * sentences are better than "No failed jobs yet":
+   *
+   *   queues     "No failed jobs in <queue>. Other queues may still have
+   *              failures — pick another above to check." The queue is the
+   *              filter, so the bare phrase would read as "the platform has
+   *              no failed jobs", which during an incident is the difference
+   *              between all clear and looking in the wrong place.
+   *   signers    names the backfill that would produce the first row.
+   *   customers  "This organization has no workspaces."
+   *   observability  a per-tile hint for a signal set that is empty.
+   *
+   * Checked instead: the page branches on a list being empty and RENDERS
+   * something in that branch. `rows.length === 0 ? null :` does not count, and
+   * neither does a page with no list at all.
+   */
+  EMPTY: [
+    /state="empty"/, /<EmptyState/, /emptyState=\{/, /No .* yet/,
+    /length === 0\s*\?\s*\(?\s*[<"'`]/,
+    /length === 0\s*&&\s*\(?\s*</,
+  ],
   FILTERED_EMPTY: [
     /state="filtered"/, /filtered=\{/, /No matches/,
     /* The console's own marker attribute on the element that renders it —
@@ -287,8 +334,20 @@ const EVIDENCE = {
     /match(?:es)?\s+(?:the\s+)?(?:current\s+)?filters/i,
     /No \w[\w ]{0,30}(?:match|found)/i,
   ],
+  /**
+   * NOT_MEASURED — THE PLATFORM DOES NOT HAVE THIS FIGURE.
+   *
+   * GATE B. `/admin` renders every headline through
+   * `<AdminStat metric={…}>`, and a `Metric` is the API's own four-way
+   * projection — VALUE / NOT_MEASURED / UNKNOWN / ERROR — which that component
+   * draws as four different things precisely so a missing measurement is not
+   * a zero. Handing a state-carrying projection to the component built for it
+   * IS the handling; the page says none of the words because the component
+   * does. A page rendering a bare number cannot match this.
+   */
   NOT_MEASURED: [
     /state="not-measured"/, /NOT_MEASURED/, /Not measured/, /notMeasuredReason/,
+    /<AdminStat[\s\S]{0,300}?metric=\{/,
   ],
   /**
    * PARTIAL — SOME SOURCES ANSWERED, AND THE PAGE STILL SHOWS WHAT IT HAS.
@@ -314,15 +373,66 @@ const EVIDENCE = {
    * fixtures keeps the rule honest.
    */
   PARTIAL: [
-    /PARTIAL/, /partial/i, /some sources/i, /degraded/i,
-    /Promise\.allSettled/,
-    // Two or more DISTINCT setters written from catch blocks.
-    (src) =>
-      new Set(
-        [...src.matchAll(/catch\s*\([\s\S]{0,400}?(set[A-Z]\w*)\(/g)].map(
-          (m) => m[1],
-        ),
-      ).size >= 2,
+    /**
+     * GATE B, SECOND CORRECTION. The note above says plainly that matching the
+     * word `partial` is "a page SAYING the word rather than a page handling
+     * the state" — and then left `/PARTIAL/`, `/partial/i`, `/some sources/i`
+     * and `/degraded/i` in the list beside the structural tests, where they
+     * answered first. `/admin/platform/analytics` passed on the word
+     * "degraded" while loading five metric endpoints through `Promise.all`
+     * behind a single `.catch`, which is the exact defect this state exists to
+     * find: one slow or refused source discards the four that answered.
+     *
+     * The words are gone. What remains is the shape.
+     */
+    /**
+     * The test has to be applied to the FUNCTION THAT READS SEVERAL SOURCES,
+     * not to the file. A first version asked whether the file anywhere
+     * contained two distinct setters written from catch blocks, and
+     * `/admin/platform/analytics` satisfied that from unrelated handlers while
+     * its five metric endpoints went through one `Promise.all` and one
+     * `.catch`. A page can hold both shapes at once; only the one guarding the
+     * concurrent read decides this state.
+     *
+     * So: find the member that asks for the most sources at once, and require
+     * THAT ONE to give them independent outcomes — `allSettled`, or two or
+     * more distinct setters from separate catches inside it.
+     */
+    (code) => {
+      const parts = code.split(
+        /\n\s{0,4}(?=(?:const \w+ = use(?:Callback|Effect|Memo)\(|(?:async )?function \w+))/,
+      );
+      let widest = null;
+      let widestCount = 0;
+      for (const part of parts) {
+        const n = new Set(
+          [...part.matchAll(/apiFetch\(\s*[`"']([^`"'?]+)/g)].map((m) =>
+            m[1].replace(/\$\{[^}]*\}/g, ":x"),
+          ),
+        ).size;
+        if (n > widestCount) {
+          widestCount = n;
+          widest = part;
+        }
+      }
+      if (!widest || widestCount < 2) return false;
+      if (/Promise\.allSettled/.test(widest)) return true;
+      /* A `.catch` attached to ONE of the concurrent requests is an
+         independent outcome by construction — `/admin/security`'s digest
+         section reads preferences and a preview together, catches the
+         preview's failure on the request itself, and renders "No digest
+         preview available … Your preferences below are still accurate."
+         The `[^\];]` bound is what keeps this from matching the trailing
+         `.catch` on a `Promise.all([...])`, which is the opposite shape. */
+      if (/apiFetch\(\s*[^\];]{0,400}?\)\s*\.catch\(/.test(widest)) return true;
+      return (
+        new Set(
+          [...widest.matchAll(/catch\s*[\s\S]{0,400}?(set[A-Z]\w*)\(/g)].map(
+            (m) => m[1],
+          ),
+        ).size >= 2
+      );
+    },
   ],
   /**
    * TRUNCATED — THE LIST IS CAPPED, AND THE PAGE SAYS SO.
@@ -499,9 +609,24 @@ const EVIDENCE = {
       );
     },
   ],
+  /**
+   * BUSY — A CONTROL SAYS ITS OWN ACTION IS IN FLIGHT.
+   *
+   * GATE B. The patterns were spellings of the word `busy`, so the two
+   * contact-sales surfaces were reported as unhandled — correctly, as it
+   * turned out, but for the wrong reason: they disabled every status button
+   * together and showed nothing on any of them, which makes a slow PATCH
+   * indistinguishable from a click that did not register. Both now pass the
+   * in-flight transition to `<Button loading>`, which is what makes the OTHER
+   * buttons being disabled read as "wait" rather than "broken".
+   *
+   * A `loading` prop on a Button is the state; on a DataTable it is LOADING,
+   * which is a different question, so the pattern is anchored to the button.
+   */
   BUSY: [
     /busy/i, /\bmutating\b/, /loading=\{busy/, /disabled=\{.*busy/,
     /"pending"/, /Retrying…|Replaying…|Provisioning…|Probing…/,
+    /<Button[\s\S]{0,600}?loading=\{/,
   ],
   /**
    * DONE — A MUTATION SUCCEEDED, AND THE READER WAS TOLD SO.
@@ -751,7 +876,7 @@ function reasonFor(state, shape) {
       if (hasFilter) return null;
       return shape.hasNonFilterSelect
         ? "the only dropdowns here are form fields and a period control — nothing on this page narrows a list, so there is no filtered set to come back empty"
-        : "no filter on this page";
+        : "nothing here narrows a list: no FilterBar and no filter state, so there is no filtered set that can come back empty";
     /* --------------------------------------------------------------------
      * TRUNCATED — AND THE LISTS THAT PROVABLY ARE NOT.
      *
@@ -767,7 +892,7 @@ function reasonFor(state, shape) {
      * registry's, not one invented here. Everything else still owes it.
      * ------------------------------------------------------------------ */
     case "TRUNCATED": {
-      if (!hasTable) return "no list read to cap";
+      if (!hasTable) return "no list is read on this page: nothing renders a table or a row collection, so there is no read for a server cap to truncate";
       const complete = COMPLETE_LISTS.find((c) => c.route === shape.route);
       if (complete) {
         return `${complete.endpoint} returns every row — declared in admin-complete-lists.mjs and proven by the API's own count-truth test: ${complete.reason}`;
@@ -775,12 +900,12 @@ function reasonFor(state, shape) {
       return null;
     }
     case "MEASURED_ZERO":
-      return hasKpi || hasTable ? null : "no counted figure on this page";
+      return hasKpi || hasTable ? null : "no counted figure here: the page renders neither a metric tile nor a list whose length is stated, so there is no figure that could be a measured zero";
     case "BUSY":
     case "DONE":
     case "ACTION_FAILED":
     case "BLOCKED":
-      return hasMutation ? null : "read-only page: no mutation to be in flight";
+      return hasMutation ? null : "read-only page: no request here uses POST, PUT, PATCH or DELETE, so there is no mutation to be in flight, to finish, to fail, or to be challenged for a second factor";
 
     /* --------------------------------------------------------------------
      * STEP_UP_REQUIRED — ASKED OF THE API, LIKE THE PLAN GATE.
@@ -801,7 +926,7 @@ function reasonFor(state, shape) {
      * ------------------------------------------------------------------ */
     case "STEP_UP_REQUIRED": {
       if (!hasMutation) {
-        return "read-only page: no mutation to be in flight";
+        return "read-only page: no request here uses POST, PUT, PATCH or DELETE, so there is no mutation to be in flight, to finish, to fail, or to be challenged for a second factor";
       }
       const gated = stepUpGatedPaths();
       const touches = shape.requestPaths.some((p) =>
@@ -813,7 +938,7 @@ function reasonFor(state, shape) {
     }
 
     case "EMPTY":
-      return hasTable || hasKpi ? null : "nothing on this page is a list";
+      return hasTable || hasKpi ? null : "nothing here is a collection: the page composes fields and controls, not a set of rows, so there is no set that can be empty";
 
     /* -------------------------------------------------------------------
      * THE FOUR THAT DEPEND ON WHAT THE PAGE IS SCOPED TO
@@ -913,7 +1038,7 @@ function reasonFor(state, shape) {
      * with no metric has no signal to be missing; a table row is either
      * there or it is not, which is EMPTY. */
     case "NOT_MEASURED":
-      return hasKpi ? null : "no measured signal on this page: its content is records, not metrics";
+      return hasKpi ? null : "no measured signal on this page: its content is records, not metrics, so there is no instrumented figure that could be missing";
 
     /* PARTIAL means SOME sources answered. A page reading one endpoint is
      * either loaded or in ERROR; there is no half of one read. */
@@ -921,9 +1046,9 @@ function reasonFor(state, shape) {
       if (reads === 0) {
         return "content is compiled into the page: there are no sources to answer in part";
       }
-      return reads > 1
+      return shape.maxConcurrentReads > 1
         ? null
-        : "reads a single source: there is no subset of one to be partial";
+        : "no view here is composed from concurrent reads — the other endpoints this page calls are operator-triggered actions and drill-downs, each with its own outcome, so there is no partly-answered view to render";
 
     default:
       return null;
@@ -1045,6 +1170,36 @@ for (const route of ROUTES) {
       }
       return [...keys];
     })(),
+    /**
+     * THE MOST SOURCES ANY ONE OF THIS PAGE'S FUNCTIONS ASKS FOR AT ONCE.
+     *
+     * PARTIAL is "some sources answered and the page still shows what it has",
+     * which needs a VIEW built from several reads. Counting every distinct
+     * endpoint in the file counts the wrong thing: `/admin/operations` loads
+     * one list and fetches security events only when an operator opens a row,
+     * and `/admin/platform/recovery` loads one overview and calls its three
+     * validation endpoints when a button is pressed. Neither composes a view
+     * out of concurrent reads, so neither can be half-loaded — and demanding a
+     * partial rendering from them asks for a state that cannot occur.
+     *
+     * The source is split at its top-level members (a `useCallback`, a
+     * `useEffect`, a function) and the reads in each are counted separately.
+     */
+    maxConcurrentReads: (() => {
+      const parts = src.split(
+        /\n\s{0,4}(?=(?:const \w+ = use(?:Callback|Effect|Memo)\(|(?:async )?function \w+))/,
+      );
+      let max = 0;
+      for (const part of parts) {
+        const n = new Set(
+          [...part.matchAll(/apiFetch\(\s*[`"']([^`"'?]+)/g)].map((m) =>
+            m[1].replace(/\$\{[^}]*\}/g, ":x"),
+          ),
+        ).size;
+        if (n > max) max = n;
+      }
+      return max;
+    })(),
     /* Distinct endpoints read. PARTIAL needs more than one. */
     reads: new Set(
       [...src.matchAll(/apiFetch\(\s*[`"']([^`"'?]+)/g)].map((m) =>
@@ -1145,11 +1300,52 @@ for (const [s, t] of Object.entries(tally)) {
     `${s.padEnd(18)} ${String(t.handled).padStart(7)} ${String(t.na).padStart(4)} ${String(t.unhandled).padStart(10)}${t.unhandled ? "  <--" : ""}`,
   );
 }
+/**
+ * A REASON THAT EXPLAINS NOTHING IS NOT A REASON.
+ *
+ * `NOT_APPLICABLE` is the escape hatch in this matrix, and an escape hatch
+ * with no bar on it turns "zero unhandled states" into a statement about how
+ * many cells someone was willing to write "not needed" in. Every reason has to
+ * name the property of THIS page that makes the state unreachable — no table,
+ * no mutation, no filter, no plan gate on any endpoint it calls — so the
+ * phrases below are refused outright and a reason too short to contain a
+ * because is refused with them.
+ *
+ * The check runs here rather than in a test so a generic reason cannot be
+ * written and committed in the same pass that regenerates the artifact.
+ */
+const VAGUE =
+  /\b(not needed|covered elsewhere|unlikely|n\/a|does not apply|not relevant|out of scope|see above|by design)\b/i;
+const genericNa = [];
+for (const r of rows) {
+  for (const [state, cell] of Object.entries(r.states)) {
+    if (cell.verdict !== "NOT_APPLICABLE") continue;
+    const reason = String(cell.reason ?? "");
+    if (reason.length < 40 || VAGUE.test(reason)) {
+      genericNa.push(`${r.route}: ${state} — ${reason || "(no reason)"}`);
+    }
+  }
+}
+
 console.log(`\ncells: ${rows.length * STATES.length}`);
 console.log(`unhandled cells: ${gaps.length}`);
+console.log(`unknown cells: ${
+  rows.reduce(
+    (n, r) =>
+      n +
+      Object.values(r.states).filter(
+        (c) => !["HANDLED", "NOT_APPLICABLE", "UNHANDLED"].includes(c.verdict),
+      ).length,
+    0,
+  )
+}`);
+console.log(`generic NOT_APPLICABLE reasons: ${genericNa.length}`);
+if (genericNa.length) {
+  for (const g of genericNa.slice(0, 30)) console.log("  " + g);
+}
 if (gaps.length) {
   console.log("\nfirst 30:");
   for (const g of gaps.slice(0, 30)) console.log("  " + g);
 }
 console.log("\nartifact: docs/admin/artifacts/state-matrix.json");
-process.exit(gaps.length ? 1 : 0);
+process.exit(gaps.length || genericNa.length ? 1 : 0);

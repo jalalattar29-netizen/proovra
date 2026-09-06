@@ -358,6 +358,22 @@ export type AdminPersonDetail = AdminPersonRow & {
   } | null;
   commercialUnavailableReason: string | null;
   /**
+   * The row cap each list below was read under.
+   *
+   * Sent because the console cannot disclose a cap it cannot see: every list
+   * on the person detail page was rendered as though it were complete, so
+   * someone with four hundred workspace memberships appeared to have two
+   * hundred and a payment history that stops at twenty-five looked like the
+   * whole history.
+   */
+  caps: {
+    workspaces: number;
+    organizations: number;
+    payments: number;
+    closure: number;
+    dataExport: number;
+  };
+  /**
    * The evidence-credit WALLET, read through the canonical reader.
    *
    * An operator deciding whether to grant credits has to see what is already
@@ -453,6 +469,23 @@ export async function getAdminPersonDetail(
     wallet = null;
   }
 
+  /**
+   * THE ROW CAPS, NAMED AND SENT.
+   *
+   * Every list below is read under a `take`, and the person detail page
+   * rendered all five with no indication of it: someone with four hundred
+   * workspace memberships appeared to have two hundred, and a payment history
+   * that stops at twenty-five looked like the whole history. A cap the client
+   * cannot see is a cap the client cannot disclose.
+   */
+  const CAPS = {
+    workspaces: 200,
+    organizations: 100,
+    payments: 25,
+    closure: 10,
+    dataExport: 10,
+  } as const;
+
   const [memberships, orgMemberships, payments, closures, exports, evidenceCount] =
     await Promise.all([
       client.teamMember.findMany({
@@ -470,7 +503,7 @@ export async function getAdminPersonDetail(
             },
           },
         },
-        take: 200,
+        take: CAPS.workspaces,
       }),
       client.organizationMembership.findMany({
         where: { userId },
@@ -479,12 +512,12 @@ export async function getAdminPersonDetail(
           status: true,
           organization: { select: { id: true, name: true, kind: true } },
         },
-        take: 100,
+        take: CAPS.organizations,
       }),
       client.payment.findMany({
         where: { userId },
         orderBy: { createdAt: "desc" },
-        take: 25,
+        take: CAPS.payments,
         // providerPaymentId DELIBERATELY omitted — it is a provider handle.
         select: {
           id: true,
@@ -499,13 +532,13 @@ export async function getAdminPersonDetail(
       client.accountClosureRequest.findMany({
         where: { userId },
         orderBy: { requestedAtUtc: "desc" },
-        take: 10,
+        take: CAPS.closure,
         select: { id: true, status: true, requestedAtUtc: true },
       }),
       client.accountDataExportRequest.findMany({
         where: { userId },
         orderBy: { requestedAtUtc: "desc" },
-        take: 10,
+        take: CAPS.dataExport,
         select: { id: true, status: true, requestedAtUtc: true },
       }),
       client.evidence.count({ where: { ownerUserId: userId, deletedAt: null } }),
@@ -516,6 +549,8 @@ export async function getAdminPersonDetail(
     commercial,
     commercialUnavailableReason,
     wallet,
+    /** The row caps every list below was read under. See CAPS above. */
+    caps: CAPS,
     workspaces: memberships
       .filter((m) => m.team)
       .map((m) => ({

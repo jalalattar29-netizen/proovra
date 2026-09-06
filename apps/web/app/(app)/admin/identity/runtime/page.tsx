@@ -214,6 +214,8 @@ export default function IdentityRuntimePage() {
   const [sessionsFailure, setSessionsFailure] = useState<SurfaceFailure | null>(
     null,
   );
+  /** A re-read in flight with the previous answer still on screen. */
+  const [refreshing, setRefreshing] = useState(false);
   const [quarantineFailure, setQuarantineFailure] =
     useState<SurfaceFailure | null>(null);
   const [quarantineMore, setQuarantineMore] = useState<{ nextCursor: string | null; hasMore: boolean }>({ nextCursor: null, hasMore: false });
@@ -262,6 +264,13 @@ export default function IdentityRuntimePage() {
   const load = useCallback(() => {
     if (!teamId) return;
     const captured = stamp();
+    /* Every mutation on this page re-reads both lists afterwards, and the
+       rows stay on screen while it happens — correctly, because blanking a
+       live-session list mid-incident is worse than showing it a second
+       stale. But nothing said the re-read was running, so a quarantine that
+       had not yet taken effect in the list looked like a quarantine that had
+       not worked. */
+    setRefreshing(true);
     void Promise.allSettled([
       apiFetch(
         `/v1/admin/identity/sessions?${sessionQuery(teamId, userFilter, includeRevoked, includeExpired, sessionsPager.cursor)}`,
@@ -317,6 +326,7 @@ export default function IdentityRuntimePage() {
           ),
         );
       }
+      setRefreshing(false);
     });
   }, [
     teamId,
@@ -710,6 +720,14 @@ export default function IdentityRuntimePage() {
       >
       {error ? <AdmInline state="error">{error}</AdmInline> : null}
       {notice ? <AdmInline state="done">{notice}</AdmInline> : null}
+      {refreshing && sessions !== null ? (
+        <div data-identity-runtime-refreshing>
+          <AdmInline state="loading" label="Refreshing">
+            Re-reading both session lists. The rows below are the previous
+            answer until it arrives.
+          </AdmInline>
+        </div>
+      ) : null}
 
       {/*
         THE RE-SCORE RESULT, SHOWN RATHER THAN SUMMARISED AWAY.

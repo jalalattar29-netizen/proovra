@@ -722,6 +722,12 @@ export type AdminOrgDetail = {
     statusCounts: Record<string, number>;
   };
   activity: {
+    /**
+     * The row cap both lists below were read under. Present so the console can
+     * say "25 of the most recent" instead of presenting a truncated history as
+     * a complete one.
+     */
+    cap: number;
     recentEvents: Array<{
       id: string;
       eventType: string;
@@ -1017,6 +1023,17 @@ export async function getAdminOrganizationDetail(
   }
 
   // --- Activity: org audit events + provisioning history (AdminAuditLog) ---
+  /**
+   * THE CAP, NAMED ONCE AND SENT TO THE READER.
+   *
+   * Both lists below stop at twenty-five, and the console rendered them under
+   * the headings "Recent activity" and "Provisioning history" with nothing
+   * saying so — an organization with two hundred audit events looked like an
+   * organization with twenty-five. A cap the client cannot see is a cap the
+   * client cannot disclose, so it travels with the rows.
+   */
+  const ACTIVITY_CAP = 25;
+
   const recentEvents = await client.organizationAuditEvent.findMany({
     where: { organizationId: org.id },
     select: {
@@ -1028,7 +1045,7 @@ export async function getAdminOrganizationDetail(
       metadata: true,
     },
     orderBy: { createdAt: "desc" },
-    take: 25,
+    take: ACTIVITY_CAP,
   });
 
   // Provisioning history: platform AdminAuditLog rows scoped to this org
@@ -1049,7 +1066,7 @@ export async function getAdminOrganizationDetail(
       metadata: true,
     },
     orderBy: { createdAt: "desc" },
-    take: 25,
+    take: ACTIVITY_CAP,
   });
 
   const onboardingStatus = deriveOnboarding({
@@ -1346,6 +1363,7 @@ export async function getAdminOrganizationDetail(
       statusCounts,
     },
     activity: {
+      cap: ACTIVITY_CAP,
       recentEvents: recentEvents.map((e) => ({
         id: e.id,
         eventType: e.eventType,

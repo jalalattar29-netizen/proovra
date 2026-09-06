@@ -65,9 +65,17 @@ function loadRules() {
   assert.ok(evidenceEnd > evidenceStart, "EVIDENCE map is not terminated");
   const evidenceSrc = src.slice(evidenceStart, evidenceEnd + 3);
 
-  const wsMatch = /workspaceScoped:\s*([\s\S]*?),\n\s{4}\/\*\*/.exec(src);
-  const wsAlt = /workspaceScoped:\s*([\s\S]*?),\n\s{4}\/\*/.exec(src);
-  const wsExpr = (wsMatch ?? wsAlt)?.[1];
+  /*
+   * Anchored on the expression's own STRUCTURE, not on the comment that
+   * happens to follow it. This read "everything up to the next `/**` at four
+   * spaces", and adding a doc comment to a later shape field silently made it
+   * swallow two more fields — the extraction stopped compiling, which is the
+   * lucky outcome; the unlucky one is extracting a DIFFERENT rule than the
+   * sweep runs and reporting it green.
+   */
+  const wsExpr = /workspaceScoped:\s*([\s\S]*?\.test\(\s*src,?\s*\))/.exec(
+    src,
+  )?.[1];
   assert.ok(wsExpr, "the workspaceScoped expression could not be extracted");
 
   // eslint-disable-next-line no-new-func

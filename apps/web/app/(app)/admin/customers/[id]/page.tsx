@@ -27,6 +27,7 @@ import {
 import { useActiveWorkspaceId } from "../../../../../lib/platform-context";
 import { apiFetch } from "../../../../../lib/api";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
+import { ResultCount } from "../../../../../components/ui/ResultCount";
 import { formatUserDateTime } from "../../../../../lib/date";
 import { useAdminEntityCrumb } from "../../../../../components/admin/AdminEntityCrumb";
 
@@ -169,6 +170,8 @@ type Detail = {
     statusCounts: Record<string, number>;
   };
   activity: {
+    /** The row cap the two lists below were read under. */
+    cap: number;
     recentEvents: Array<{
       id: string;
       eventType: string;
@@ -1092,6 +1095,20 @@ export default function AdminOrganizationDetailPage({
             >
               Provisioning history
             </div>
+            {/*
+              THE CAP, STATED. Both lists on this card are read under a
+              server-side `take`, and both were rendered under headings that
+              promise a history. An organization with two hundred audit events
+              looked like an organization with twenty-five. The cap now travels
+              with the rows (see `activity.cap`) so the page can say it rather
+              than assume it.
+            */}
+            <ResultCount
+              shown={detail.activity.provisioningHistory.length}
+              cap={detail.activity.cap}
+              noun="provisioning action"
+              data-testid="admin-customer-provisioning-count"
+            />
             {detail.activity.provisioningHistory.length === 0 ? (
               <div style={{ color: "var(--ink-secondary)", fontSize: 13.5 }}>
                 No provisioning actions recorded for this organization.
@@ -1140,6 +1157,12 @@ export default function AdminOrganizationDetailPage({
             >
               Recent org events
             </div>
+            <ResultCount
+              shown={detail.activity.recentEvents.length}
+              cap={detail.activity.cap}
+              noun="organization event"
+              data-testid="admin-customer-events-count"
+            />
             {detail.activity.recentEvents.length === 0 ? (
               <div style={{ color: "var(--ink-secondary)", fontSize: 13.5 }}>
                 No organization audit events recorded.

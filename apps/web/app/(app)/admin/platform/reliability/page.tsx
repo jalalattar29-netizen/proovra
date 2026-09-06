@@ -114,6 +114,9 @@ function ReliabilityPageInner() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("STALLED");
   const [sessions, setSessions] = useState<Session[] | null>(null);
+  /* The summary answers a different question from the session list, so a
+     failure on one must not take the other with it. */
+  const [summaryError, setSummaryError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyEvidenceId, setBusyEvidenceId] = useState<string | null>(null);
   /**
@@ -133,7 +136,17 @@ function ReliabilityPageInner() {
 useEffect(() => {
     if (!teamId) return;
     let cancelled = false;
-    Promise.all([
+    /*
+      TWO SOURCES, TWO OUTCOMES.
+
+      This was `Promise.all` behind one `.catch`, so a failure on either read
+      left the page with no summary AND no session list. They answer different
+      questions — the summary is the platform's thresholds and per-status
+      counts, the list is the sessions in one status — and losing the counts
+      because a filtered list failed is losing the only thing that would tell
+      the operator which status to look at instead.
+    */
+    void Promise.allSettled([
       apiFetch(
         `/v1/reliability/summary?teamId=${encodeURIComponent(teamId)}`,
         { method: "GET" },
@@ -142,19 +155,31 @@ useEffect(() => {
         `/v1/reliability/upload-sessions?teamId=${encodeURIComponent(teamId)}&status=${statusFilter}&limit=100`,
         { method: "GET" },
       ),
-    ])
-      .then(
-        ([s, list]: [Summary, { sessions: Session[] }]) => {
-          if (cancelled) return;
-          setSummary(s);
-          setSessions(list.sessions ?? []);
-          setError(null);
-        },
-      )
-      .catch((err: { message?: string }) => {
-        if (cancelled) return;
-        setError(toSafeUserError(err, { message: "Could not load reliability data." }).message);
-      });
+    ]).then(([summaryOut, listOut]) => {
+      if (cancelled) return;
+      if (summaryOut.status === "fulfilled") {
+        setSummary(summaryOut.value as Summary);
+        setSummaryError(null);
+      } else {
+        setSummary(null);
+        setSummaryError(
+          toSafeUserError(summaryOut.reason, {
+            message: "The reliability summary could not be read.",
+          }).message,
+        );
+      }
+      if (listOut.status === "fulfilled") {
+        setSessions((listOut.value as { sessions: Session[] }).sessions ?? []);
+        setError(null);
+      } else {
+        setSessions(null);
+        setError(
+          toSafeUserError(listOut.reason, {
+            message: "The upload-session list could not be read.",
+          }).message,
+        );
+      }
+    });
     return () => {
       cancelled = true;
     };
@@ -288,12 +313,33 @@ useEffect(() => {
         </div>
       ) : null}
 
+      {/*
+        A FAILED SUMMARY IS NOT A PERMANENT "LOADING…".
+
+        The whole page sat behind `summary === null`, and `null` is also what a
+        failed read leaves behind — so an operator whose summary request was
+        refused or timed out watched "Loading…" forever, with no session list
+        either. The two reads are now independent, and so are the two
+        renderings: a summary that did not arrive says so, and the upload
+        sessions below still render.
+      */}
       {!teamId ? (
         <p className="apf-muted">Switch to a workspace to view reliability data.</p>
-      ) : summary === null || headlineCounts === null ? (
+      ) : summary === null && summaryError === null ? (
         <p className="apf-muted">Loading…</p>
       ) : (
         <>
+          {summaryError ? (
+            <div
+              className="apf-note"
+              data-tone="critical"
+              data-reliability-summary-error
+            >
+              {summaryError} Thresholds and per-status counts are unavailable;
+              the upload sessions below were read separately and are unaffected.
+            </div>
+          ) : null}
+          {summary && headlineCounts ? (
           <section className="apf-section">
             <h2 className="apf-section-title">Headlines</h2>
             <div className="apf-grid">
@@ -320,6 +366,7 @@ useEffect(() => {
               · Part size: {formatBytes(summary.sizeLimits.multipartPartSizeBytes)}
             </p>
           </section>
+          ) : null}
 
           <section className="apf-section">
             <div className="apf-section-head">
@@ -340,7 +387,9 @@ useEffect(() => {
               >
                 {STATUSES.map((s) => (
                   <option key={s} value={s}>
-                    {s} ({summary.counts[s] ?? 0})
+                    {/* The count is the summary's, so it is omitted rather
+                        than shown as zero when the summary did not arrive. */}
+                    {summary ? `${s} (${summary.counts[s] ?? 0})` : s}
                   </option>
                 ))}
               </select>
@@ -383,7 +432,7 @@ useEffect(() => {
                         size="sm"
                         onClick={() => setStatusFilter(s)}
                       >
-                        {s} ({summary.counts[s]})
+                        {s} ({summary?.counts[s] ?? 0})
                       </Button>
                     ))}
                   </div>
@@ -446,6 +495,15 @@ useEffect(() => {
               Background workers retry with bounded exponential backoff. Failed
               jobs are retained for operator inspection.
             </p>
+            {/* Queue policies come from the summary too, so when the summary
+                did not arrive this section says so rather than rendering an
+                empty list that reads as "no retry policy is configured". */}
+            {!summary ? (
+              <p className="apf-muted">
+                Not read — the reliability summary, which carries these
+                policies, could not be loaded.
+              </p>
+            ) : (
             <ul style={listStyle}>
               {summary.queuePolicies.map((q) => (
                 <li key={q.queueName} className="apf-row">
@@ -463,6 +521,7 @@ useEffect(() => {
                 </li>
               ))}
             </ul>
+            )}
           </section>
         </>
       )}

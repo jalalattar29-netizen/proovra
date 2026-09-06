@@ -33,6 +33,7 @@ import { Badge, type BadgeTone } from "../../../../../components/ui/Badge";
 import { Button, buttonSurfaceStyle } from "../../../../../components/ui/Button";
 import { Card } from "../../../../../components/ui/Card";
 import { EmptyState } from "../../../../../components/ui/EmptyState";
+import { ResultCount } from "../../../../../components/ui/ResultCount";
 import { formatMoney } from "../../../../../components/admin/AdminMetric";
 import { apiFetch } from "../../../../../lib/api";
 import { formatUserDateTime } from "../../../../../lib/date";
@@ -107,6 +108,14 @@ type Detail = {
     status: string;
     createdAt: string;
   }>;
+  /** The row caps every list on this payload was read under. */
+  caps: {
+    workspaces: number;
+    organizations: number;
+    payments: number;
+    closure: number;
+    dataExport: number;
+  };
   lifecycleRequests: {
     closure: Array<{ id: string; status: string; requestedAtUtc: string }>;
     dataExport: Array<{ id: string; status: string; requestedAtUtc: string }>;
@@ -568,6 +577,20 @@ export default function AdminPersonDetailPage() {
                   />
                 }
               />
+              {/*
+                THE CAP, STATED. Every list on this page is read under a
+                server-side `take` — 200 workspaces, 100 organizations, 25
+                payments, 10 of each lifecycle request — and all of them were
+                rendered as complete. The caps now travel with the payload
+                (`caps`) so the page states the one it was read under instead
+                of presenting a truncated list as a whole history.
+              */}
+              <ResultCount
+                shown={detail.workspaces.length}
+                cap={detail.caps.workspaces}
+                noun="workspace membership"
+                data-testid="admin-person-workspaces-count"
+              />
             </Card>
           </PageSection>
 
@@ -595,6 +618,12 @@ export default function AdminPersonDetailPage() {
                     </span>
                   ))}
                 </div>
+                <ResultCount
+                  shown={detail.organizations.length}
+                  cap={detail.caps.organizations}
+                  noun="organization membership"
+                  data-testid="admin-person-orgs-count"
+                />
               </Card>
             </PageSection>
           ) : null}
@@ -612,6 +641,12 @@ export default function AdminPersonDetailPage() {
                     purpose="No payment has been recorded for this account."
                   />
                 }
+              />
+              <ResultCount
+                shown={detail.payments.length}
+                cap={detail.caps.payments}
+                noun="payment"
+                data-testid="admin-person-payments-count"
               />
             </Card>
           </PageSection>

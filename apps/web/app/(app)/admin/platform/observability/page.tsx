@@ -666,10 +666,22 @@ function ObservabilityDashboardPageInner() {
   const [snapshotUnavailable, setSnapshotUnavailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastPolledAtUtc, setLastPolledAtUtc] = useState<string | null>(null);
+  /**
+   * A POLL IN FLIGHT, WITH THE PREVIOUS SAMPLE STILL ON SCREEN.
+   *
+   * This page re-reads every fifteen seconds and said nothing while it did.
+   * The figures never blank — that is deliberate and right — but it left the
+   * "Last sample 14:32:07" badge as the only clue, and a badge that has not
+   * moved for a minute means either "the poll is slow" or "the poll stopped",
+   * which are very different facts on a health console. Refreshing is now
+   * visible, and distinct from both the first load and a failure.
+   */
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     const tick = async () => {
+      if (!cancelled) setRefreshing(true);
       try {
         const [m, a] = await Promise.all([
           apiFetch("/v1/admin/platform/metrics", {
@@ -719,8 +731,9 @@ function ObservabilityDashboardPageInner() {
           setSnapshotUnavailable(true);
         }
       }
+      if (!cancelled) setRefreshing(false);
     };
-    tick();
+    void tick();
     const handle = window.setInterval(tick, POLL_INTERVAL_MS);
     return () => {
       cancelled = true;
@@ -907,6 +920,11 @@ function ObservabilityDashboardPageInner() {
               {lastPolledAtUtc ? (
                 <Badge tone="neutral" subtle>
                   Last sample {formatUserTime(lastPolledAtUtc)}
+                </Badge>
+              ) : null}
+              {refreshing && lastPolledAtUtc ? (
+                <Badge tone="pending" subtle dot data-observability-refreshing>
+                  Refreshing
                 </Badge>
               ) : null}
             </>

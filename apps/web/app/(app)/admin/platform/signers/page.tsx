@@ -248,6 +248,11 @@ function OperationsSignersContent() {
   const [attestationLimit, setAttestationLimit] = useState<number | null>(null);
   const [attestations, setAttestations] =
     useState<AttestationListItem[] | null>(null);
+  /* The attestation list is FILTERED and the signer inventory is not, so
+     they fail for different reasons and must fail separately. */
+  const [attestationsError, setAttestationsError] = useState<string | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -258,7 +263,17 @@ function OperationsSignersContent() {
   const load = useCallback(() => {
     if (!teamId) return;
     setError(null);
-    Promise.all([
+    /*
+      TWO SOURCES, TWO OUTCOMES.
+
+      `Promise.all` behind one `.catch` meant a failure on the custody
+      attestation list — which is FILTERED, so it fails for reasons the signer
+      list never will — took the signer inventory down with it. The signer
+      inventory is the one an operator checks when they need to know which key
+      is active; losing it because a filtered attestation query failed is
+      losing the answer to a question that had already been answered.
+    */
+    void Promise.allSettled([
       apiFetch(`/v1/operations/signers?teamId=${encodeURIComponent(teamId)}`, {
         method: "GET",
       }),
@@ -269,10 +284,22 @@ function OperationsSignersContent() {
         )}`,
         { method: "GET" },
       ),
-    ])
-      .then(([sRes, aRes]) => {
-        setSigners((sRes as { signers: SignerRecord[] }).signers ?? []);
-        const a = aRes as {
+    ]).then(([signersOut, attestationsOut]) => {
+      if (signersOut.status === "fulfilled") {
+        setSigners(
+          (signersOut.value as { signers: SignerRecord[] }).signers ?? [],
+        );
+        setError(null);
+      } else {
+        setSigners(null);
+        setError(
+          toSafeUserError(signersOut.reason, {
+            message: "The signer inventory could not be read.",
+          }).message,
+        );
+      }
+      if (attestationsOut.status === "fulfilled") {
+        const a = attestationsOut.value as {
           attestations?: AttestationListItem[];
           total?: number;
           limit?: number;
@@ -280,10 +307,18 @@ function OperationsSignersContent() {
         setAttestations(a.attestations ?? []);
         setAttestationTotal(typeof a.total === "number" ? a.total : null);
         setAttestationLimit(typeof a.limit === "number" ? a.limit : null);
-      })
-      .catch((err: { message?: string }) =>
-        setError(toSafeUserError(err, { message: "Could not load signer governance." }).message),
-      );
+        setAttestationsError(null);
+      } else {
+        setAttestations(null);
+        setAttestationTotal(null);
+        setAttestationLimit(null);
+        setAttestationsError(
+          toSafeUserError(attestationsOut.reason, {
+            message: "The custody attestation list could not be read.",
+          }).message,
+        );
+      }
+    });
   }, [teamId, evidenceFilter]);
 
   useEffect(() => {
@@ -430,6 +465,7 @@ function OperationsSignersContent() {
 
       <CustodyAttestationsPanel
         attestations={attestations}
+        failure={attestationsError}
         total={attestationTotal}
         limit={attestationLimit}
         evidenceFilter={evidenceFilter}
@@ -1005,6 +1041,7 @@ function SignerDetailDrawer({
 
 function CustodyAttestationsPanel({
   attestations,
+  failure,
   total,
   limit,
   evidenceFilter,
@@ -1015,6 +1052,8 @@ function CustodyAttestationsPanel({
   onBackfill,
 }: {
   attestations: AttestationListItem[] | null;
+  /** This list failed to load. Distinct from an empty one. */
+  failure: string | null;
   /** The server's count for the current filter; null when it sent none. */
   total: number | null;
   /** The cap the request asked for, echoed back. */
@@ -1072,7 +1111,13 @@ function CustodyAttestationsPanel({
         style={{ padding: "0 16px", marginTop: 0 }}
         data-testid="admin-signers-attestations-count"
       />
-      {attestations === null ? (
+      {failure ? (
+        /* A list that could not be read is not an empty list: the empty copy
+           below would tell an operator no attestation exists. */
+        <p className="adm-help" style={{ padding: 24 }} data-attestations-error role="alert">
+          {failure}
+        </p>
+      ) : attestations === null ? (
         <p className="adm-help" style={{ padding: 16 }}>Loading…</p>
       ) : attestations.length === 0 ? (
         <p className="adm-help" style={{ padding: 24 }}>
