@@ -65,7 +65,8 @@ import React, {
   useState,
 } from "react";
 
-import { apiFetch } from "../api";
+import { apiFetch, setActiveWorkspaceId } from "../api";
+import { activeWorkspaceIdFromEnvelope } from "./activeWorkspace";
 import {
   emit as emitStateEvent,
   redactWorkspaceId,
@@ -366,6 +367,20 @@ export function PlatformContextProvider({
       }
       setSchemaCompatible(true);
       setState({ name: "READY", envelope });
+      /**
+       * BIND EVERY SUBSEQUENT REQUEST TO THIS WORKSPACE.
+       *
+       * `ingestEnvelope` is the ONE place a resolved envelope becomes the
+       * application's active context, so it is the one place the API client's
+       * workspace binding is written. Doing it here rather than in an effect
+       * means the binding is in place before any consumer of the READY state
+       * can issue its first fetch.
+       *
+       * The value follows the same precedence `useActiveWorkspaceId` uses —
+       * the active workspace when it is usable, otherwise the personal space —
+       * so the header and the UI can never name different workspaces.
+       */
+      setActiveWorkspaceId(activeWorkspaceIdFromEnvelope(envelope));
       // PHASE 7 §10 — bump the tenant generation only on an actual
       // workspace-id change (never on same-workspace refresh), so
       // consumers can distinguish "new data, same tenant" from "tenant

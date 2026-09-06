@@ -24,6 +24,7 @@
  *      now deleted; this is the canonical helper.
  */
 
+import { activeWorkspaceIdFromEnvelope } from "./activeWorkspace";
 import { usePlatformContext } from "./PlatformContextProvider";
 import type { WorkspaceRole } from "./types";
 
@@ -138,17 +139,7 @@ export function useWorkspaceId(): string | null {
  */
 export function useActiveWorkspaceId(): string | null {
   const { envelope } = usePlatformContext();
-  if (!envelope) return null;
-  if (envelope.workspace.status === "active" && envelope.workspace.id) {
-    return envelope.workspace.id;
-  }
-  if (
-    envelope.personalSpace?.status === "active" &&
-    envelope.personalSpace.id
-  ) {
-    return envelope.personalSpace.id;
-  }
-  return null;
+  return activeWorkspaceIdFromEnvelope(envelope);
 }
 
 // =============================================================================

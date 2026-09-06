@@ -712,6 +712,31 @@ allowedHeaders: [
   // mutating request. Per-route canonical audit writes via
   // the canonical audit facade remain in place.
 
+  /**
+   * A CREDENTIAL IN A PATH IS STILL A CREDENTIAL.
+   *
+   * Invitation accept links carry their single-use token as a PATH SEGMENT,
+   * and this hook logged `req.url` verbatim — so every accept attempt, valid
+   * or not, wrote a live invitation token into the application log, where it
+   * outlives the click and reaches every log sink and backup.
+   *
+   * The token is replaced, not the line: the path shape is what an operator
+   * reads to know which endpoint was hit, and it stays legible.
+   *
+   * Redaction is a backstop, not the fix. The fix is that Phase 2 stops
+   * minting these links; this makes the ones already in flight non-toxic.
+   */
+  const TOKEN_IN_PATH = [
+    /(\/v1\/collaboration-team-invites\/)[^/?]+/,
+    /(\/v1\/teams\/invites\/)[^/?]+/,
+    /(\/collaboration-teams\/invites\/)[^/?]+/,
+  ];
+  const redactUrlSecrets = (url: string): string => {
+    let out = url;
+    for (const re of TOKEN_IN_PATH) out = out.replace(re, "$1[redacted]");
+    return out;
+  };
+
   app.addHook("onResponse", async (req, reply) => {
     const requestWithMeta = req as typeof req & {
       startTimeMs?: number;
@@ -726,7 +751,7 @@ allowedHeaders: [
       requestId: req.id,
       statusCode: reply.statusCode,
       method: req.method,
-      url: req.url,
+      url: redactUrlSecrets(req.url),
       durationMs,
     };
 

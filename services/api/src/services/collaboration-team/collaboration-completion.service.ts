@@ -1103,10 +1103,37 @@ export async function completeAccessReview(
       403,
     );
   await client.$transaction(async (tx) => {
-    await tx.collaborationTeamAccessReview.update({
-      where: { id: input.reviewId },
+    /**
+     * THE REVIEW MUST BELONG TO THIS TEAM, AND THE PREDICATE SAYS SO.
+     *
+     * This was `update({ where: { id: input.reviewId } })`. The actor was
+     * checked against `input.teamId` and the row was then written by id alone,
+     * so a LEAD of any team in any workspace could complete any access review
+     * whose uuid they held — a cross-tenant write on a compliance control. Its
+     * sibling `decideAccessReviewItem` has always checked
+     * `item.review.teamId !== input.teamId`; this one never did.
+     *
+     * Expressed as `updateMany` with the binding IN the WHERE rather than a
+     * read followed by a write: the containment condition and the mutation are
+     * then one statement against one snapshot, and a zero count is the refusal
+     * rather than something a later branch has to remember to check.
+     */
+    const completed = await tx.collaborationTeamAccessReview.updateMany({
+      where: {
+        id: input.reviewId,
+        teamId: input.teamId,
+        workspaceId: team.workspaceId,
+        status: "OPEN",
+      },
       data: { status: "COMPLETED", completedAtUtc: new Date() },
     });
+    if (completed.count === 0) {
+      throw new CollaborationTeamError(
+        "team_not_found",
+        "Access review not found.",
+        404,
+      );
+    }
     await recordActivity(tx, {
       teamId: input.teamId,
       workspaceId: team.workspaceId,

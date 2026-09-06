@@ -117,6 +117,41 @@ function readToken(): string | null {
 }
 
 /**
+ * THE ACTIVE WORKSPACE, SENT ON EVERY REQUEST.
+ *
+ * The client used to send no workspace identity at all — not a header, not a
+ * parameter, nothing. Surfaces that needed one passed `?teamId=` by hand, and
+ * the ones that forgot (every Collaboration Teams page) reached a server-side
+ * resolver that answered "your Personal Space". So the product could show
+ * "Northwind Legal — Organization • OWNER" in its header while reading and
+ * writing a different tenant.
+ *
+ * Kept module-level, in memory, exactly like the auth token above: `apiFetch`
+ * is a plain function called from hooks, effects, event handlers and route
+ * loaders, and threading a workspace id through every one of those call sites
+ * is how surfaces come to disagree about which workspace they are in. One
+ * writer — `PlatformContextProvider`, when it applies an envelope — and one
+ * reader.
+ *
+ * It is a CANDIDATE, never an authorization. The server revalidates it against
+ * membership, status, expiry and organization lifecycle on every request
+ * (`authorizeWorkspaceOrFail`), and a workspace the caller cannot act in is
+ * refused rather than quietly swapped for one they can.
+ */
+export const WORKSPACE_HEADER = "x-proovra-workspace-id";
+
+let activeWorkspaceId: string | null = null;
+
+export function setActiveWorkspaceId(workspaceId: string | null): void {
+  activeWorkspaceId =
+    workspaceId && workspaceId.trim() ? workspaceId.trim() : null;
+}
+
+export function readActiveWorkspaceId(): string | null {
+  return activeWorkspaceId;
+}
+
+/**
  * Does this 401 carry a code the server chose, rather than "no credential"?
  *
  * Read from a CLONE so the caller still owns an unconsumed body. A body that
@@ -167,6 +202,13 @@ async function fetchWithAuthRetry(
 
     if (typeof window !== "undefined") {
       headers.set("x-web-client", "1");
+    }
+
+    // The workspace the operator is looking at. Never overrides an explicit
+    // per-request binding a caller has already set.
+    if (!headers.has(WORKSPACE_HEADER)) {
+      const workspaceId = readActiveWorkspaceId();
+      if (workspaceId) headers.set(WORKSPACE_HEADER, workspaceId);
     }
 
     const token = readToken();

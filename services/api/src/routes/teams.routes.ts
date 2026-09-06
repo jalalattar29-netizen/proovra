@@ -61,8 +61,15 @@ import {
   provisionMembership,
   purgeWorkspaceMembershipsForTeamDeletion,
   removeWorkspaceMembershipPhysical,
-  updateWorkspaceMembershipRole,
 } from "../services/identity/membership-provisioning.service.js";
+// THE canonical workspace role-transition authority. Imported under an
+// explicit name because `changeMemberRole` is also the name of the
+// COLLABORATION TEAM role change in a different service, and the two govern
+// different membership tables.
+import {
+  changeMemberRole as changeWorkspaceMemberRole,
+  RbacError,
+} from "../services/identity/rbac.service.js";
 import {
   ACTIVE_WORKSPACE_CLOSURE_STATUSES,
   CANCELLABLE_WORKSPACE_CLOSURE_STATUSES,
@@ -962,6 +969,48 @@ export async function teamsRoutes(app: FastifyInstance) {
       }
 
       /**
+       * ROLE CEILING — an invitation cannot hand out authority the inviter
+       * does not hold, and never hands out OWNER.
+       *
+       * `InviteBody.role` is the full `TeamRole` enum, so an ADMIN could send
+       * `{"role":"OWNER"}` and mint a workspace owner. The only thing standing
+       * in the way was the web console's `INVITE_ROLE_OPTIONS` array, which
+       * omits OWNER — a dropdown is not an authorization boundary.
+       *
+       * OWNER is refused outright rather than ceiling-checked: ownership moves
+       * by TRANSFER, through `POST /v1/teams/:id/transfer-ownership`, which is
+       * gated on `Team.ownerUserId` and requires step-up. An invitation is not
+       * that.
+       */
+      const invitedRole = body.role ?? prismaPkg.TeamRole.MEMBER;
+      if (invitedRole === prismaPkg.TeamRole.OWNER) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.invite_create",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: teamId,
+          metadata: { reason: "role_transition_to_owner_forbidden", email },
+        });
+        return reply
+          .code(403)
+          .send({ error: { code: "role_transition_to_owner_forbidden" } });
+      }
+      if (!hasRole(actor.role, invitedRole)) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.invite_create",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: teamId,
+          metadata: { reason: "role_above_inviter_authority", email },
+        });
+        return reply
+          .code(403)
+          .send({ error: { code: "role_above_inviter_authority" } });
+      }
+
+      /**
        * Important rule:
        * Invitation creation must NOT be blocked because the team is full.
        * Only actual member addition / invite acceptance should enforce the 5-member cap.
@@ -1106,7 +1155,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         data: {
           teamId,
           email,
-          role: body.role ?? prismaPkg.TeamRole.MEMBER,
+          role: invitedRole,
           token,
           invitedByUserId: userId,
           expiresAt,
@@ -1263,24 +1312,64 @@ export async function teamsRoutes(app: FastifyInstance) {
         return reply.code(404).send({ message: "Member not found" });
       }
 
-      if (target.role === prismaPkg.TeamRole.OWNER) {
-        auditTeamAction(req, {
-          userId,
-          action: "teams.member_update",
-          outcome: "blocked",
-          severity: "warning",
-          resourceId: teamId,
-          metadata: { reason: "owner_role_immutable", memberId },
-        });
-        return reply.code(400).send({ message: "Owner role cannot be changed" });
+      /**
+       * THE CANONICAL ROLE-TRANSITION AUTHORITY, NOT A SECOND ONE.
+       *
+       * This handler used to call `updateWorkspaceMembershipRole` — a bare
+       * `teamMember.update` — after checking only that the ACTOR was ADMIN+
+       * and that the TARGET was not already OWNER. It therefore permitted the
+       * three things `identity/rbac.service.ts:changeMemberRole` exists to
+       * refuse:
+       *
+       *   - acting on yourself, so an ADMIN could PATCH their own member row
+       *     with `{"role":"OWNER"}` and become OWNER in one unprivileged call;
+       *   - granting OWNER at all, which is an ownership TRANSFER and has its
+       *     own step-up-protected route;
+       *   - demoting the last administrator, leaving a workspace nobody can
+       *     administer.
+       *
+       * That service was written with all three guards, atomically, and had
+       * ZERO importers — the correct implementation existed and no route
+       * reached it. Wiring it here deletes the second authority rather than
+       * teaching this route to repeat its predicates.
+       */
+      try {
+        await changeWorkspaceMemberRole(
+          {
+            teamId,
+            teamMemberId: target.id,
+            actorUserId: userId,
+            newRole: body.role,
+            ipAddress: req.ip ?? null,
+            userAgent:
+              typeof req.headers["user-agent"] === "string"
+                ? req.headers["user-agent"]
+                : null,
+          },
+          prisma,
+        );
+      } catch (err) {
+        if (err instanceof RbacError) {
+          const status =
+            err.code === "member_not_found"
+              ? 404
+              : err.code === "member_owner_immutable" ||
+                  err.code === "role_transition_to_owner_forbidden" ||
+                  err.code === "self_action_forbidden"
+                ? 403
+                : 409;
+          auditTeamAction(req, {
+            userId,
+            action: "teams.member_update",
+            outcome: "blocked",
+            severity: "warning",
+            resourceId: teamId,
+            metadata: { reason: err.code, memberId },
+          });
+          return reply.code(status).send({ error: { code: err.code } });
+        }
+        throw err;
       }
-
-      // PHASE 3 — canonical orchestrator: manual workspace role change.
-      await updateWorkspaceMembershipRole(prisma, {
-        teamMemberId: target.id,
-        role: body.role,
-        actorUserId: userId,
-      });
       const updated = { ...target, role: body.role };
 
       await createActivity(teamId, "member_role_changed", "member", userId, target.userId, {

@@ -10,11 +10,15 @@
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { Permission } from "@proovra/shared";
 import { z } from "zod";
 
 import { requireAuth } from "../middleware/auth.js";
 import { getAuthUserId } from "../auth.js";
-import { resolveActiveOperationalWorkspace } from "../services/access/canonical-workspace-resolver.js";
+import {
+  authorizeCollaborationTeam,
+  authorizeCollaborationWorkspace,
+} from "../services/collaboration-team/collaboration-authorization.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { BillingLimitError } from "../services/collaboration-team/billing-guards.js";
 import { CollaborationTeamError } from "../services/collaboration-team/collaboration-team.service.js";
@@ -38,21 +42,21 @@ import {
   updateMyNotificationPreference,
 } from "../services/collaboration-team/collaboration-completion.service.js";
 
-async function requireWorkspaceCtx(
+/**
+ * The PROVEN workspace this request operates in.
+ *
+ * Replaces `requireWorkspaceCtx`, which resolved the caller's Personal Space
+ * whenever no workspace was named — which the web client never did. See
+ * `collaboration-authorization.ts` for why there is no fallback any more.
+ */
+async function requireWorkspace(
   req: FastifyRequest,
   reply: FastifyReply,
+  permission: Permission,
 ): Promise<{ workspaceId: string; userId: string } | null> {
-  const userId = await getAuthUserId(req);
-  if (!userId) {
-    void reply.code(401).send({ error: "auth_required" });
-    return null;
-  }
-  const ws = await resolveActiveOperationalWorkspace(req, userId);
-  if (!ws) {
-    void reply.code(409).send({ error: "no_active_workspace" });
-    return null;
-  }
-  return { workspaceId: ws.teamId, userId };
+  const ctx = await authorizeCollaborationWorkspace(req, reply, permission);
+  if (!ctx) return null;
+  return { workspaceId: ctx.workspaceId, userId: ctx.userId };
 }
 
 function handleError(
@@ -166,8 +170,15 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
     {
       preHandler: requireAuth,
       handler: async (req, reply) => {
-        const ctx = await requireWorkspaceCtx(req, reply);
-        if (!ctx) return;
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "collaboration.thread.read",
+        });
+        if (!binding) return;
+        const ctx = {
+          workspaceId: binding.workspace.workspaceId,
+          userId: binding.workspace.userId,
+        };
         try {
           const q = (req.query as Record<string, string | undefined>) ?? {};
           const res = await listComments({
@@ -190,8 +201,16 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
     {
       preHandler: requireAuth,
       handler: async (req, reply) => {
-        const ctx = await requireWorkspaceCtx(req, reply);
-        if (!ctx) return;
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "collaboration.message.post",
+          requireActiveTeam: true,
+        });
+        if (!binding) return;
+        const ctx = {
+          workspaceId: binding.workspace.workspaceId,
+          userId: binding.workspace.userId,
+        };
         const parsed = CreateCommentBody.safeParse(req.body);
         if (!parsed.success)
           return reply
@@ -211,7 +230,7 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
             resourceType: "collaboration_team_comment",
             resourceId: result.id,
             requestId: req.id ?? null,
-            workspaceId: req.params.teamId,
+            workspaceId: ctx.workspaceId,
             metadata: {
               mentionCount: result.mentionCount,
               notificationCount: result.notificationCount,
@@ -230,8 +249,16 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
     {
       preHandler: requireAuth,
       handler: async (req, reply) => {
-        const ctx = await requireWorkspaceCtx(req, reply);
-        if (!ctx) return;
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "collaboration.message.post",
+          requireActiveTeam: true,
+        });
+        if (!binding) return;
+        const ctx = {
+          workspaceId: binding.workspace.workspaceId,
+          userId: binding.workspace.userId,
+        };
         const parsed = EditCommentBody.safeParse(req.body);
         if (!parsed.success)
           return reply
@@ -250,7 +277,7 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
             resourceType: "collaboration_team_comment",
             resourceId: req.params.commentId,
             requestId: req.id ?? null,
-            workspaceId: req.params.teamId,
+            workspaceId: ctx.workspaceId,
           });
           return reply.send({ ok: true });
         } catch (err) {
@@ -265,8 +292,16 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
     {
       preHandler: requireAuth,
       handler: async (req, reply) => {
-        const ctx = await requireWorkspaceCtx(req, reply);
-        if (!ctx) return;
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "collaboration.message.post",
+          requireActiveTeam: true,
+        });
+        if (!binding) return;
+        const ctx = {
+          workspaceId: binding.workspace.workspaceId,
+          userId: binding.workspace.userId,
+        };
         try {
           await deleteComment({
             teamId: req.params.teamId,
@@ -279,7 +314,7 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
             resourceType: "collaboration_team_comment",
             resourceId: req.params.commentId,
             requestId: req.id ?? null,
-            workspaceId: req.params.teamId,
+            workspaceId: ctx.workspaceId,
           });
           return reply.send({ ok: true });
         } catch (err) {
@@ -296,7 +331,7 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
   app.get("/v1/collaboration-team-notifications", {
     preHandler: requireAuth,
     handler: async (req, reply) => {
-      const ctx = await requireWorkspaceCtx(req, reply);
+      const ctx = await requireWorkspace(req, reply, "collaboration.thread.read");
       if (!ctx) return;
       try {
         const q = (req.query as Record<string, string | undefined>) ?? {};
@@ -336,7 +371,7 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
   app.post("/v1/collaboration-team-notifications/read-all", {
     preHandler: requireAuth,
     handler: async (req, reply) => {
-      const ctx = await requireWorkspaceCtx(req, reply);
+      const ctx = await requireWorkspace(req, reply, "collaboration.thread.read");
       if (!ctx) return;
       try {
         await markAllNotificationsRead({
@@ -359,8 +394,15 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
     {
       preHandler: requireAuth,
       handler: async (req, reply) => {
-        const ctx = await requireWorkspaceCtx(req, reply);
-        if (!ctx) return;
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "collaboration.thread.read",
+        });
+        if (!binding) return;
+        const ctx = {
+          workspaceId: binding.workspace.workspaceId,
+          userId: binding.workspace.userId,
+        };
         try {
           const pref = await getMyNotificationPreference({
             teamId: req.params.teamId,
@@ -379,8 +421,15 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
     {
       preHandler: requireAuth,
       handler: async (req, reply) => {
-        const ctx = await requireWorkspaceCtx(req, reply);
-        if (!ctx) return;
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "collaboration.thread.read",
+        });
+        if (!binding) return;
+        const ctx = {
+          workspaceId: binding.workspace.workspaceId,
+          userId: binding.workspace.userId,
+        };
         const parsed = PrefBody.safeParse(req.body);
         if (!parsed.success)
           return reply
@@ -398,7 +447,7 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
             resourceType: "collaboration_team_notification_preference",
             resourceId: req.params.teamId,
             requestId: req.id ?? null,
-            workspaceId: req.params.teamId,
+            workspaceId: ctx.workspaceId,
           });
           return reply.send({ ok: true });
         } catch (err) {
@@ -417,8 +466,15 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
     {
       preHandler: requireAuth,
       handler: async (req, reply) => {
-        const ctx = await requireWorkspaceCtx(req, reply);
-        if (!ctx) return;
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "collaboration.thread.read",
+        });
+        if (!binding) return;
+        const ctx = {
+          workspaceId: binding.workspace.workspaceId,
+          userId: binding.workspace.userId,
+        };
         try {
           const items = await listGuests({
             teamId: req.params.teamId,
@@ -437,8 +493,17 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
     {
       preHandler: requireAuth,
       handler: async (req, reply) => {
-        const ctx = await requireWorkspaceCtx(req, reply);
-        if (!ctx) return;
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "collaboration.contributor.access.manage",
+          groupPermission: "team.member.invite",
+          requireActiveTeam: true,
+        });
+        if (!binding) return;
+        const ctx = {
+          workspaceId: binding.workspace.workspaceId,
+          userId: binding.workspace.userId,
+        };
         const parsed = GuestInviteBody.safeParse(req.body);
         if (!parsed.success)
           return reply
@@ -458,7 +523,7 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
             resourceType: "collaboration_team_guest",
             resourceId: result.id,
             requestId: req.id ?? null,
-            workspaceId: req.params.teamId,
+            workspaceId: ctx.workspaceId,
           });
           return reply.code(201).send({ guest: { id: result.id } });
         } catch (err) {
@@ -473,8 +538,17 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
     {
       preHandler: requireAuth,
       handler: async (req, reply) => {
-        const ctx = await requireWorkspaceCtx(req, reply);
-        if (!ctx) return;
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "collaboration.contributor.access.manage",
+          groupPermission: "team.member.invite",
+          requireActiveTeam: true,
+        });
+        if (!binding) return;
+        const ctx = {
+          workspaceId: binding.workspace.workspaceId,
+          userId: binding.workspace.userId,
+        };
         try {
           await revokeGuest({
             teamId: req.params.teamId,
@@ -487,7 +561,7 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
             resourceType: "collaboration_team_guest",
             resourceId: req.params.guestId,
             requestId: req.id ?? null,
-            workspaceId: req.params.teamId,
+            workspaceId: ctx.workspaceId,
           });
           return reply.send({ ok: true });
         } catch (err) {
@@ -506,8 +580,15 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
     {
       preHandler: requireAuth,
       handler: async (req, reply) => {
-        const ctx = await requireWorkspaceCtx(req, reply);
-        if (!ctx) return;
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "identity.access_review.read",
+        });
+        if (!binding) return;
+        const ctx = {
+          workspaceId: binding.workspace.workspaceId,
+          userId: binding.workspace.userId,
+        };
         try {
           const reviews = await listAccessReviews({
             teamId: req.params.teamId,
@@ -526,8 +607,16 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
     {
       preHandler: requireAuth,
       handler: async (req, reply) => {
-        const ctx = await requireWorkspaceCtx(req, reply);
-        if (!ctx) return;
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "identity.access_review.action",
+          requireActiveTeam: true,
+        });
+        if (!binding) return;
+        const ctx = {
+          workspaceId: binding.workspace.workspaceId,
+          userId: binding.workspace.userId,
+        };
         const parsed = OpenReviewBody.safeParse(req.body ?? {});
         if (!parsed.success)
           return reply
@@ -545,7 +634,7 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
             resourceType: "collaboration_team_access_review",
             resourceId: result.id,
             requestId: req.id ?? null,
-            workspaceId: req.params.teamId,
+            workspaceId: ctx.workspaceId,
             metadata: { itemCount: result.itemCount },
           });
           return reply.code(201).send({ review: result });
@@ -561,8 +650,16 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
     {
       preHandler: requireAuth,
       handler: async (req, reply) => {
-        const ctx = await requireWorkspaceCtx(req, reply);
-        if (!ctx) return;
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "identity.access_review.action",
+          requireActiveTeam: true,
+        });
+        if (!binding) return;
+        const ctx = {
+          workspaceId: binding.workspace.workspaceId,
+          userId: binding.workspace.userId,
+        };
         const parsed = DecideItemBody.safeParse(req.body);
         if (!parsed.success)
           return reply
@@ -582,7 +679,7 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
             resourceType: "collaboration_team_access_review_item",
             resourceId: req.params.itemId,
             requestId: req.id ?? null,
-            workspaceId: req.params.teamId,
+            workspaceId: ctx.workspaceId,
             metadata: { decision: parsed.data.decision },
           });
           return reply.send({ ok: true });
@@ -598,8 +695,16 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
     {
       preHandler: requireAuth,
       handler: async (req, reply) => {
-        const ctx = await requireWorkspaceCtx(req, reply);
-        if (!ctx) return;
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "identity.access_review.action",
+          requireActiveTeam: true,
+        });
+        if (!binding) return;
+        const ctx = {
+          workspaceId: binding.workspace.workspaceId,
+          userId: binding.workspace.userId,
+        };
         try {
           await completeAccessReview({
             teamId: req.params.teamId,
@@ -612,7 +717,7 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
             resourceType: "collaboration_team_access_review",
             resourceId: req.params.reviewId,
             requestId: req.id ?? null,
-            workspaceId: req.params.teamId,
+            workspaceId: ctx.workspaceId,
           });
           return reply.send({ ok: true });
         } catch (err) {
@@ -632,8 +737,16 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
     {
       preHandler: requireAuth,
       handler: async (req, reply) => {
-        const ctx = await requireWorkspaceCtx(req, reply);
-        if (!ctx) return;
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "collaboration.thread.read",
+          groupPermission: "team.activity.read",
+        });
+        if (!binding) return;
+        const ctx = {
+          workspaceId: binding.workspace.workspaceId,
+          userId: binding.workspace.userId,
+        };
         try {
           const q = (req.query as Record<string, string | undefined>) ?? {};
           const res = await listTeamActivityFiltered({

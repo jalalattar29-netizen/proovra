@@ -10,7 +10,7 @@ import {
   type Locale,
   type LocaleMode,
 } from "../lib/i18n";
-import { apiFetch, setApiToken } from "../lib/api";
+import { apiFetch, setActiveWorkspaceId, setApiToken } from "../lib/api";
 import { initSentry } from "../lib/sentry";
 import { ToastProvider } from "../components/ui";
 import { ConfirmActionProvider } from "../components/ui/ConfirmActionModal";
@@ -189,6 +189,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
       setApiToken(next ?? null);
       if (!next) {
         setUser(null);
+        // The workspace binding is part of the session. Clearing the
+        // credential without clearing it would leave the next sign-in's very
+        // first requests naming the PREVIOUS operator's workspace — refused by
+        // the server, but a confusing refusal and a needless disclosure of
+        // which workspace the last person was in.
+        setActiveWorkspaceId(null);
       }
     };
 

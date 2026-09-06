@@ -19,11 +19,15 @@
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { Permission } from "@proovra/shared";
 import { z } from "zod";
 
 import { requireAuth } from "../middleware/auth.js";
 import { getAuthUserId } from "../auth.js";
-import { resolveActiveOperationalWorkspace } from "../services/access/canonical-workspace-resolver.js";
+import {
+  authorizeCollaborationTeam,
+  authorizeCollaborationWorkspace,
+} from "../services/collaboration-team/collaboration-authorization.js";
 import { prisma } from "../db.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import {
@@ -93,21 +97,26 @@ function handleBillingError(
   return false;
 }
 
-async function requireWorkspaceMembership(
+/**
+ * Resolve the PROVEN workspace this request operates in.
+ *
+ * Replaces `requireWorkspaceMembership`, which called
+ * `resolveActiveOperationalWorkspace` and therefore silently answered "your
+ * Personal Space" whenever the client named no workspace — which the web
+ * client never did. Every caller below now receives a workspace it has been
+ * authorized in, or nothing.
+ *
+ * `permission` is the WORKSPACE-level floor for the operation. Group-local
+ * authority is a second, separate check (`authorizeCollaborationTeam`).
+ */
+async function requireWorkspace(
   req: FastifyRequest,
   reply: FastifyReply,
+  permission: Permission,
 ): Promise<{ workspaceId: string; userId: string } | null> {
-  const userId = await getAuthUserId(req);
-  if (!userId) {
-    void reply.code(401).send({ error: "auth_required" });
-    return null;
-  }
-  const ws = await resolveActiveOperationalWorkspace(req, userId);
-  if (!ws) {
-    void reply.code(409).send({ error: "no_active_workspace" });
-    return null;
-  }
-  return { workspaceId: ws.teamId, userId };
+  const ctx = await authorizeCollaborationWorkspace(req, reply, permission);
+  if (!ctx) return null;
+  return { workspaceId: ctx.workspaceId, userId: ctx.userId };
 }
 
 function handleServiceError(
@@ -245,7 +254,7 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
   app.get("/v1/collaboration-teams", {
     preHandler: requireAuth,
     handler: async (req, reply) => {
-      const ctx = await requireWorkspaceMembership(req, reply);
+      const ctx = await requireWorkspace(req, reply, "collaboration.thread.read");
       if (!ctx) return;
       try {
         const includeArchived =
@@ -269,7 +278,7 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
   app.post("/v1/collaboration-teams", {
     preHandler: requireAuth,
     handler: async (req, reply) => {
-      const ctx = await requireWorkspaceMembership(req, reply);
+      const ctx = await requireWorkspace(req, reply, "collaboration.thread.create");
       if (!ctx) return;
       const parsed = CreateTeamBody.safeParse(req.body);
       if (!parsed.success)
@@ -315,11 +324,19 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
     {
       preHandler: requireAuth,
       handler: async (req, reply) => {
-        const ctx = await requireWorkspaceMembership(req, reply);
-        if (!ctx) return;
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "collaboration.thread.read",
+        });
+        if (!binding) return;
+        const ctx = {
+          workspaceId: binding.workspace.workspaceId,
+          userId: binding.workspace.userId,
+        };
         try {
           const detail = await getCollaborationTeamDetail({
             teamId: req.params.teamId,
+            workspaceId: ctx.workspaceId,
             actorUserId: ctx.userId,
           });
           return reply.send({ team: detail });
@@ -338,8 +355,17 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
     {
       preHandler: requireAuth,
       handler: async (req, reply) => {
-        const ctx = await requireWorkspaceMembership(req, reply);
-        if (!ctx) return;
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "collaboration.thread.create",
+          groupPermission: "team.update_settings",
+          requireActiveTeam: true,
+        });
+        if (!binding) return;
+        const ctx = {
+          workspaceId: binding.workspace.workspaceId,
+          userId: binding.workspace.userId,
+        };
         const parsed = UpdateTeamBody.safeParse(req.body);
         if (!parsed.success)
           return reply
@@ -380,8 +406,17 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
     {
       preHandler: requireAuth,
       handler: async (req, reply) => {
-        const ctx = await requireWorkspaceMembership(req, reply);
-        if (!ctx) return;
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "collaboration.thread.create",
+          groupPermission: "team.archive",
+          requireActiveTeam: true,
+        });
+        if (!binding) return;
+        const ctx = {
+          workspaceId: binding.workspace.workspaceId,
+          userId: binding.workspace.userId,
+        };
         try {
           await archiveCollaborationTeam({
             teamId: req.params.teamId,
@@ -412,8 +447,17 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
     {
       preHandler: requireAuth,
       handler: async (req, reply) => {
-        const ctx = await requireWorkspaceMembership(req, reply);
-        if (!ctx) return;
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "collaboration.thread.create",
+          groupPermission: "team.member.invite",
+          requireActiveTeam: true,
+        });
+        if (!binding) return;
+        const ctx = {
+          workspaceId: binding.workspace.workspaceId,
+          userId: binding.workspace.userId,
+        };
         const parsed = AddMemberBody.safeParse(req.body);
         if (!parsed.success)
           return reply
@@ -455,8 +499,16 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
     {
       preHandler: requireAuth,
       handler: async (req, reply) => {
-        const ctx = await requireWorkspaceMembership(req, reply);
-        if (!ctx) return;
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "collaboration.thread.create",
+          requireActiveTeam: true,
+        });
+        if (!binding) return;
+        const ctx = {
+          workspaceId: binding.workspace.workspaceId,
+          userId: binding.workspace.userId,
+        };
         const parsed = UpdateMemberBody.safeParse(req.body);
         if (!parsed.success)
           return reply
@@ -516,8 +568,17 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
     {
       preHandler: requireAuth,
       handler: async (req, reply) => {
-        const ctx = await requireWorkspaceMembership(req, reply);
-        if (!ctx) return;
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "collaboration.thread.create",
+          groupPermission: "team.member.remove",
+          requireActiveTeam: true,
+        });
+        if (!binding) return;
+        const ctx = {
+          workspaceId: binding.workspace.workspaceId,
+          userId: binding.workspace.userId,
+        };
         try {
           await removeMember({
             teamId: req.params.teamId,
@@ -549,8 +610,17 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
     {
       preHandler: requireAuth,
       handler: async (req, reply) => {
-        const ctx = await requireWorkspaceMembership(req, reply);
-        if (!ctx) return;
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "collaboration.thread.create",
+          groupPermission: "team.member.invite",
+          requireActiveTeam: true,
+        });
+        if (!binding) return;
+        const ctx = {
+          workspaceId: binding.workspace.workspaceId,
+          userId: binding.workspace.userId,
+        };
         const parsed = EmailInviteBody.safeParse(req.body);
         if (!parsed.success)
           return reply
@@ -637,8 +707,17 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
     {
       preHandler: requireAuth,
       handler: async (req, reply) => {
-        const ctx = await requireWorkspaceMembership(req, reply);
-        if (!ctx) return;
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "collaboration.thread.create",
+          groupPermission: "team.invite.revoke",
+          requireActiveTeam: true,
+        });
+        if (!binding) return;
+        const ctx = {
+          workspaceId: binding.workspace.workspaceId,
+          userId: binding.workspace.userId,
+        };
         try {
           await revokeInvite({
             teamId: req.params.teamId,
@@ -722,8 +801,16 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
     {
       preHandler: requireAuth,
       handler: async (req, reply) => {
-        const ctx = await requireWorkspaceMembership(req, reply);
-        if (!ctx) return;
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "collaboration.thread.read",
+          groupPermission: "team.activity.read",
+        });
+        if (!binding) return;
+        const ctx = {
+          workspaceId: binding.workspace.workspaceId,
+          userId: binding.workspace.userId,
+        };
         try {
           const q = (req.query as Record<string, string | undefined>) ?? {};
           const limit = q.limit ? parseInt(q.limit, 10) : undefined;
@@ -750,8 +837,15 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
     {
       preHandler: requireAuth,
       handler: async (req, reply) => {
-        const ctx = await requireWorkspaceMembership(req, reply);
-        if (!ctx) return;
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "collaboration.thread.read",
+        });
+        if (!binding) return;
+        const ctx = {
+          workspaceId: binding.workspace.workspaceId,
+          userId: binding.workspace.userId,
+        };
         try {
           const status =
             (req.query as Record<string, string | undefined>)?.status ?? null;
@@ -776,8 +870,17 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
     {
       preHandler: requireAuth,
       handler: async (req, reply) => {
-        const ctx = await requireWorkspaceMembership(req, reply);
-        if (!ctx) return;
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "collaboration.thread.create",
+          groupPermission: "team.assignment.create",
+          requireActiveTeam: true,
+        });
+        if (!binding) return;
+        const ctx = {
+          workspaceId: binding.workspace.workspaceId,
+          userId: binding.workspace.userId,
+        };
         const parsed = CreateAssignmentBody.safeParse(req.body);
         if (!parsed.success)
           return reply
@@ -826,8 +929,16 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
     {
       preHandler: requireAuth,
       handler: async (req, reply) => {
-        const ctx = await requireWorkspaceMembership(req, reply);
-        if (!ctx) return;
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "collaboration.thread.create",
+          requireActiveTeam: true,
+        });
+        if (!binding) return;
+        const ctx = {
+          workspaceId: binding.workspace.workspaceId,
+          userId: binding.workspace.userId,
+        };
         const parsed = UpdateAssignmentBody.safeParse(req.body);
         if (!parsed.success)
           return reply

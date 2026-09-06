@@ -5,8 +5,10 @@
  * All mutations + reads flow through this module. Route handlers
  * are thin wrappers that:
  *
- *   1. Resolve the active workspace via
- *      `resolveActiveOperationalWorkspace` (Phase 3 canonical resolver).
+ *   1. Prove the actor may act in the workspace, and that the group belongs
+ *      to it, via `collaboration-authorization.ts` (the canonical
+ *      `authorizeWorkspaceOrFail` primitive). There is no fallback: a request
+ *      that cannot name a workspace it may act in is refused.
  *   2. Call a method here.
  *   3. Return the bounded result + emit canonical audit event.
  *
@@ -85,6 +87,31 @@ export function isCollaborationTeamModerator(
   role: string | null | undefined,
 ): boolean {
   return role === "LEAD" || role === "ADMIN";
+}
+
+/**
+ * THE ONE group-role ceiling.
+ *
+ * `changeMemberRole` has always enforced "only a LEAD may grant LEAD" — and
+ * `createEmailInvite` and `addExistingMember`, which reach the SAME role
+ * column by a different door, enforced nothing. A group ADMIN could therefore
+ * mint a LEAD by inviting one or by adding an existing workspace member as
+ * one, and a LEAD they minted could promote them back. A rule that only one
+ * of three writers applies is not a rule.
+ *
+ * Stated here, once, so every writer asks the same question.
+ */
+export function assertGroupRoleWithinActorAuthority(
+  actorRole: CollaborationTeamRole,
+  grantedRole: CollaborationTeamRole,
+): void {
+  if (grantedRole === "LEAD" && actorRole !== "LEAD") {
+    throw new CollaborationTeamError(
+      "team_forbidden",
+      "Only a team LEAD can grant the LEAD role.",
+      403,
+    );
+  }
 }
 
 const E = {
@@ -489,7 +516,18 @@ export async function listCollaborationTeams(
 }
 
 export async function getCollaborationTeamDetail(
-  input: { teamId: string; actorUserId: string },
+  /**
+   * `workspaceId` is the PROVEN workspace from the route's authorization
+   * context, and it is required.
+   *
+   * This function used to take a team id and an actor and nothing else, so a
+   * member of a team could read it while operating in a different workspace —
+   * the read was bound to the group, never to the tenant that contains it.
+   * Route-level binding now refuses that first; this assertion means the
+   * service cannot be reached past it either, and a future caller cannot
+   * reintroduce the hole by forgetting.
+   */
+  input: { teamId: string; workspaceId: string; actorUserId: string },
   client: PrismaClient = defaultPrisma,
 ) {
   const team = await client.collaborationTeam.findUnique({
@@ -522,11 +560,11 @@ export async function getCollaborationTeamDetail(
       },
     },
   });
-  if (!team) throw E.notFound("Team");
+  if (!team || team.workspaceId !== input.workspaceId) throw E.notFound("Team");
   const viewer = team.members.find(
     (m) => m.userId === input.actorUserId && m.status === "ACTIVE",
   );
-  if (!viewer) throw E.forbidden("team.read");
+  if (!viewer) throw E.notFound("Team");
   return {
     id: team.id,
     workspaceId: team.workspaceId,
@@ -696,13 +734,14 @@ export async function addExistingMember(
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<{ id: string }> {
-  const { team } = await requireMemberWithPermission(
+  const { team, role: actorRole } = await requireMemberWithPermission(
     client,
     input.teamId,
     input.actorUserId,
     "team.member.invite",
   );
   const role = validateRole(input.role);
+  assertGroupRoleWithinActorAuthority(actorRole, role);
 
   // Confirm the user is a member of the parent workspace (cross-workspace
   // additions are forbidden — collaboration teams never cross workspace lines).
@@ -871,11 +910,37 @@ export async function suspendMember(
   );
   const member = await client.collaborationTeamMember.findUnique({
     where: { id: input.memberId },
-    select: { id: true, userId: true, status: true, teamId: true },
+    select: { id: true, userId: true, status: true, role: true, teamId: true },
   });
   if (!member || member.teamId !== input.teamId) throw E.notFound("Member");
   if (member.status !== "ACTIVE") return;
+  /**
+   * A TEAM MAY NOT BE SUSPENDED OUT OF ITS OWN LEADERSHIP.
+   *
+   * `removeMember` and `changeMemberRole` both protect the last LEAD; suspend
+   * did not, and suspension denies access exactly as removal does. An ADMIN
+   * could therefore suspend the only LEAD and leave a team where nobody can
+   * grant LEAD — `changeMemberRole` requires a LEAD actor to hand it out, and
+   * there is no longer one.
+   *
+   * The count is taken inside the same transaction as the write below.
+   */
   await client.$transaction(async (tx) => {
+    if (member.role === "LEAD") {
+      const remainingLeads = await tx.collaborationTeamMember.count({
+        where: {
+          teamId: input.teamId,
+          id: { not: member.id },
+          role: "LEAD",
+          status: "ACTIVE",
+        },
+      });
+      if (remainingLeads === 0) {
+        throw E.conflict(
+          "Cannot suspend the last LEAD. Transfer leadership first.",
+        );
+      }
+    }
     await tx.collaborationTeamMember.update({
       where: { id: input.memberId },
       data: {
@@ -975,7 +1040,7 @@ export async function createEmailInvite(
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<CreatedInvite> {
-  const { team } = await requireMemberWithPermission(
+  const { team, role: actorRole } = await requireMemberWithPermission(
     client,
     input.teamId,
     input.actorUserId,
@@ -983,6 +1048,7 @@ export async function createEmailInvite(
   );
   const email = validateEmail(input.email);
   const role = validateRole(input.role);
+  assertGroupRoleWithinActorAuthority(actorRole, role);
   // Canonical invite gate (EMAIL is the ONLY invitation channel):
   //   - TEAM_INVITES_NOT_INCLUDED (402) on zero-team plans,
   //   - TEAM_INVITE_LIMIT_REACHED (429) on pending-per-team / 24h caps.
@@ -1109,12 +1175,43 @@ export async function acceptInvite(
   client: PrismaClient = defaultPrisma,
 ): Promise<{ teamId: string; workspaceId: string; memberId: string; alreadyMember: boolean }> {
   const hash = hashInviteToken(input.rawToken);
-  const invite = await client.collaborationTeamInvite.findUnique({
+  /**
+   * COMPATIBILITY REPAIR — the selector, not the model.
+   *
+   * `CollaborationTeamInvite` declares `@@unique([tokenHash], name:
+   * "collaboration_team_invite_token_hash_uniq")`, and a NAMED single-field
+   * unique is a trap in both directions:
+   *
+   *   - Prisma's RUNTIME validator wants the constraint's NAME, so
+   *     `findUnique({ where: { tokenHash } })` threw
+   *     `PrismaClientValidationError` on EVERY call and the accept route
+   *     returned 500 for every token — valid, expired, revoked and unknown
+   *     alike. Nobody could accept an invitation, in any plan, ever.
+   *   - The generated TYPE does not carry that name as a property, and its
+   *     `AtLeast<O, K>` produces a branch that is plain `O` when `K` is not a
+   *     key of `O`, so `{ tokenHash }` type-checked and `{ <the name> }` does
+   *     not. tsc could not have caught it and cannot express the fix.
+   *
+   * `findFirst` sidesteps both: `tokenHash` is an ordinary, fully-typed filter
+   * field, the column is unique in the database so exactly one row can match,
+   * and no cast is needed to talk past a generated type. Casting here would
+   * have silenced the compiler while leaving the runtime call malformed.
+   *
+   * It went unnoticed because every test that names `acceptInvite` matches the
+   * SOURCE TEXT of this file, and the one behavioural invite test runs against
+   * a proxy-mocked Prisma that cannot produce a validation error.
+   *
+   * The model itself is deprecated by Phase 2 — but a deprecated endpoint that
+   * 500s is still a live defect for every link already in someone's inbox, so
+   * it is repaired before it is retired.
+   */
+  const invite = await client.collaborationTeamInvite.findFirst({
     where: { tokenHash: hash },
     select: {
       id: true,
       teamId: true,
       workspaceId: true,
+      email: true,
       role: true,
       status: true,
       expiresAtUtc: true,
@@ -1159,6 +1256,33 @@ export async function acceptInvite(
   if (invite.status === "ACCEPTED" || invite.useCount >= invite.maxUses)
     throw E.inviteAlreadyUsed();
 
+  /**
+   * BIND THE INVITE TO THE PERSON IT WAS ADDRESSED TO.
+   *
+   * The invite carries an email and nothing compared it to the accepting
+   * account, so anyone who obtained the link — a forwarded mail, a shared
+   * screen, a proxy log — could claim the role it carried. The workspace
+   * invite path has always checked this (`teams.routes.ts`); this path never
+   * did, and the role it hands out can be LEAD.
+   *
+   * Normalised on both sides so a case or whitespace difference is not
+   * mistaken for a different person.
+   */
+  if (invite.email) {
+    const actor = await client.user.findUnique({
+      where: { id: input.actorUserId },
+      select: { email: true },
+    });
+    const actorEmail = (actor?.email ?? "").trim().toLowerCase();
+    if (!actorEmail || actorEmail !== invite.email.trim().toLowerCase()) {
+      throw new CollaborationTeamError(
+        "INVITE_EMAIL_MISMATCH",
+        "Sign in with the address this invitation was sent to.",
+        403,
+      );
+    }
+  }
+
   // Confirm the accepting user is also a member of the parent workspace.
   // Constitutional rule: collaboration teams live inside a workspace,
   // and only workspace members may join its teams. The caller should
@@ -1181,6 +1305,38 @@ export async function acceptInvite(
 
   const role = validateRole(invite.role);
   const result = await client.$transaction(async (tx) => {
+    /**
+     * GUARDED CLAIM FIRST — the write that decides the race.
+     *
+     * This used to read `invite.useCount` OUTSIDE the transaction and then
+     * write `useCount: invite.useCount + 1` with no predicate, so two
+     * concurrent accepts of a single-use invite both read 0, both passed the
+     * `useCount >= maxUses` check above, and both provisioned a membership.
+     * No unique constraint could catch it, because the two memberships are for
+     * two different users.
+     *
+     * `updateMany` with the consumption predicate in its WHERE is one atomic
+     * statement against the row's committed state: exactly one caller sees
+     * `count === 1` and proceeds; every other sees 0 and is refused. The
+     * ORGANIZATION invite path has always done it this way
+     * (`teams.routes.ts` invite accept); this brings the collaboration path to
+     * the same standard rather than inventing a third.
+     */
+    const claimed = await tx.collaborationTeamInvite.updateMany({
+      where: {
+        id: invite.id,
+        status: "PENDING",
+        useCount: { lt: invite.maxUses },
+      },
+      data: {
+        useCount: { increment: 1 },
+        status: "ACCEPTED",
+        acceptedByUserId: input.actorUserId,
+        acceptedAtUtc: new Date(),
+      },
+    });
+    if (claimed.count === 0) throw E.inviteAlreadyUsed();
+
     const existing = await tx.collaborationTeamMember.findUnique({
       where: {
         collaboration_team_member_team_user_uniq: {
@@ -1220,19 +1376,9 @@ export async function acceptInvite(
       });
       memberId = m.id;
     }
-    const nextUseCount = invite.useCount + 1;
-    const nextStatus = nextUseCount >= invite.maxUses ? "ACCEPTED" : "PENDING";
-    await tx.collaborationTeamInvite.update({
-      where: { id: invite.id },
-      data: {
-        useCount: nextUseCount,
-        status: nextStatus,
-        acceptedByUserId:
-          nextStatus === "ACCEPTED" ? input.actorUserId : invite.acceptedByUserId,
-        acceptedAtUtc:
-          nextStatus === "ACCEPTED" ? new Date() : null,
-      },
-    });
+    // The invite was already consumed by the guarded claim at the top of this
+    // transaction. Writing it a second time here is what made the claim
+    // non-atomic in the first place.
     await recordActivity(tx, {
       teamId: invite.teamId,
       workspaceId: invite.workspaceId,
