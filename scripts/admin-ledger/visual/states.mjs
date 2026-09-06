@@ -108,6 +108,111 @@ function filesFor(route) {
 }
 
 /**
+ * COMMENTS ARE NOT EVIDENCE.
+ *
+ * The header below has always claimed the patterns "match the CODE that puts a
+ * state on the screen", and every one of them was run over the raw file
+ * including its comments. So a page could satisfy a state by DISCUSSING it:
+ * `/admin/platform/observability` passed DENIED on the strength of a paragraph
+ * explaining that some retired URLs "return 403 to every caller" — a sentence
+ * about the API's history, in a page that never distinguishes a refusal at all.
+ *
+ * That is a false PASS, which is worse than a false gap: a gap gets looked at.
+ * Stripping comments first is the only way the header's own claim is true.
+ * String and template literals are preserved, because the words a page renders
+ * to a reader ARE evidence — "No sessions match these filters" is the filtered
+ * state, written down.
+ */
+function stripComments(src) {
+  let out = "";
+  let i = 0;
+  const n = src.length;
+  while (i < n) {
+    const c = src[i];
+    const d = src[i + 1];
+    if (c === "/" && d === "/") {
+      while (i < n && src[i] !== "\n") i++;
+      continue;
+    }
+    if (c === "/" && d === "*") {
+      i += 2;
+      while (i < n && !(src[i] === "*" && src[i + 1] === "/")) i++;
+      i += 2;
+      continue;
+    }
+    if (c === '"' || c === "'" || c === "`") {
+      const quote = c;
+      out += c;
+      i++;
+      while (i < n) {
+        if (src[i] === "\\") {
+          out += src[i] + (src[i + 1] ?? "");
+          i += 2;
+          continue;
+        }
+        out += src[i];
+        if (src[i] === quote) {
+          i++;
+          break;
+        }
+        i++;
+      }
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
+}
+
+/**
+ * A FAILED READ THAT TELLS THE PAGE NOTHING ABOUT WHY.
+ *
+ * Two shapes, both found in this console, both of which make it impossible for
+ * the page to distinguish a refusal from an outage no matter what it renders
+ * afterwards:
+ *
+ *   `.catch(() => ({ sessions: [] }))`  substitutes an empty collection for a
+ *                                       failed read, so a refusal arrives on
+ *                                       screen as "none" — the one rendering
+ *                                       an operator must never confuse with
+ *                                       the all-clear.
+ *   `} catch { setX(true) }`            discards the error object entirely, so
+ *                                       a 403 and a 500 set the same flag.
+ *
+ * Scoped to catches that actually guard an `apiFetch`: a `catch {}` around a
+ * clipboard write or a `new URL()` parse is neither of these things, and
+ * `/admin/provisioning` has exactly that.
+ */
+function silentApiFailure(code) {
+  for (const m of code.matchAll(/\.catch\(\s*\(\s*\)\s*=>\s*\(?\s*(\{[^{}]*\[\s*\]|\[\s*\])/g)) {
+    if (/apiFetch\(/.test(code.slice(Math.max(0, m.index - 800), m.index))) {
+      return true;
+    }
+  }
+  for (const m of code.matchAll(/catch\s*\{/g)) {
+    const before = code.slice(Math.max(0, m.index - 1500), m.index);
+    if (!/apiFetch\(/.test(before)) continue;
+    // The catch body, brace-matched.
+    let depth = 0;
+    let i = m.index + m[0].length - 1;
+    let end = i;
+    for (; i < code.length; i++) {
+      if (code[i] === "{") depth++;
+      else if (code[i] === "}") {
+        depth--;
+        if (depth === 0) {
+          end = i;
+          break;
+        }
+      }
+    }
+    if (/set[A-Z]\w*\(/.test(code.slice(m.index, end))) return true;
+  }
+  return false;
+}
+
+/**
  * What construct proves a page can render a state.
  *
  * Deliberately specific. "the word Loading appears" would match a comment;
@@ -120,6 +225,13 @@ const EVIDENCE = {
     // to sit directly against the word reported eight pages as unhandled.
     /Loading[^"`\n]{0,40}…/, /\bloading\b\s*\?/, /setLoading\(true\)/,
     /\bisLoading\b/,
+    /* The load-state union three pages carry — `{ status: "loading" }`
+       branched on as `state.status === "loading"`. Reported as unhandled on
+       analytics and automation, both of which render a full skeleton page
+       from exactly that branch. And `loading…` lowercase, which is what
+       media-graph's freshness pill says while the first snapshot is in
+       flight; the pattern above required a capital L. */
+    /status:\s*"loading"/, /status === "loading"/, /loading…/i,
   ],
   REFRESHING: [
     /refreshing/i, /isRefetching/, /busy\s*&&\s*data/, /Refresh/,
@@ -207,9 +319,65 @@ const EVIDENCE = {
     // through it — as having no error state at all.
     /notifyApiError/, /We couldn't (load|verify)/,
   ],
+  /**
+   * DENIED — THE OPERATOR IS REFUSED, AND LEARNS THAT IT IS A REFUSAL.
+   *
+   * GATE B. The patterns were the literal spellings a page uses when it
+   * PRODUCES the distinction — `kind: "denied"`, `403`, `permission_denied` —
+   * and this console mostly does not produce it locally. It has two central
+   * authorities that already do:
+   *
+   *   `classifyFailure`   the identity family's one classifier. It returns
+   *                       `kind: "denied"` for a 403 or a concealing 404, and
+   *                       `/admin/identity/access-reviews` and
+   *                       `/admin/identity/permission-matrix` each branch on
+   *                       `failure.kind === "denied"` to say so.
+   *   `toSafeUserError`   the app-wide safe-feedback path, whose status bucket
+   *                       maps 403 to "You don't have access to this area …
+   *                       Ask a workspace admin for access". `notifyApiError`
+   *                       is the same path through a toast. A page routing a
+   *                       failure through either renders a refusal, not a
+   *                       retryable fault — which is the invariant: refusal is
+   *                       not generic failure.
+   *
+   * Eight routes were reported as having no denial state while every one of
+   * them routes its failures through one of those two.
+   *
+   * NOT a free pass, and this is the half that matters: the sinks above can
+   * only distinguish a 403 if they are HANDED the error. A read whose failure
+   * is swallowed into an empty list, or caught without binding, has destroyed
+   * that information before any sink sees it — so `silentApiFailure`
+   * disqualifies the page outright, whatever else it contains.
+   *
+   * It found two, and both were real:
+   *   `/admin/identity/runtime`     `.catch(() => ({ sessions: [] }))` on the
+   *                                 live-session list — a refusal rendering as
+   *                                 "No active sessions" during an incident.
+   *   `/admin/platform/media-graph` `catch {}` with a fixed string, so a
+   *                                 refused scope read "Metrics endpoint did
+   *                                 not respond" and sent the operator to
+   *                                 chase an outage that did not exist.
+   * Both are fixed. The rule keeps them fixed.
+   */
   DENIED: [
-    /kind: "denied"/, /state="unavailable"/, /readScimDenial/, /403/,
-    /permission_denied/, /forbidden/i, /don't have access/, /DenialPanel/,
+    (code) => {
+      if (silentApiFailure(code)) return false;
+      return [
+        /kind: "denied"/,
+        /=== "denied"/,
+        /state="unavailable"/,
+        /readScimDenial/,
+        /statusCode === 403/,
+        /status === 403/,
+        /permission_denied/,
+        /forbidden/i,
+        /don't have access/,
+        /DenialPanel/,
+        /classifyFailure/,
+        /toSafeUserError/,
+        /notifyApiError/,
+      ].some((p) => p.test(code));
+    },
   ],
   PLAN_GATED: [
     /402/, /enterprise_feature_required/, /Not included in this plan/,
@@ -322,8 +490,17 @@ function scopeDisposition(route) {
 }
 
 let PLAN_GATED_PATHS = null;
-function planGatedPaths() {
-  if (PLAN_GATED_PATHS) return PLAN_GATED_PATHS;
+/**
+ * WHICH ENDPOINTS APPLY A GIVEN GATE, ASKED OF THE API.
+ *
+ * Generalised from the plan-gate lookup because STEP_UP_REQUIRED has exactly
+ * the same shape of question and exactly the same wrong answer available:
+ * "every page that mutates owes a step-up state" is a guess about the server.
+ * Most admin mutations are not step-up gated — the API calls
+ * `requireStepUpForSensitiveAction` on the destructive few — so demanding the
+ * state everywhere asks for a modal that can never be shown.
+ */
+function pathsApplyingGate(GATE) {
   // Relative to the repo root, like every other path in this script.
   const dir = "services/api/src/routes";
   const found = new Set();
@@ -349,8 +526,6 @@ function planGatedPaths() {
    * file — which is exactly right there, and is why that case is handled
    * explicitly rather than by luck.
    */
-  const GATE =
-    /assertTeamAllowsEnterpriseFeature\(|resolveTeamEnterpriseFeatureGate\(|code:\s*["']enterprise_feature_required["']/;
   for (const name of names) {
     let src = "";
     try {
@@ -379,8 +554,27 @@ function planGatedPaths() {
       if (GATE.test(src.slice(from, to))) found.add(regs[i].path);
     }
   }
-  PLAN_GATED_PATHS = [...found];
+  return [...found];
+}
+
+const PLAN_GATE =
+  /assertTeamAllowsEnterpriseFeature\(|resolveTeamEnterpriseFeatureGate\(|code:\s*["']enterprise_feature_required["']/;
+function planGatedPaths() {
+  if (!PLAN_GATED_PATHS) PLAN_GATED_PATHS = pathsApplyingGate(PLAN_GATE);
   return PLAN_GATED_PATHS;
+}
+
+/**
+ * The API's ONE step-up primitive. `requireStepUpForSensitiveAction` is what
+ * answers 401 `STEP_UP_REQUIRED`, and `StepUpModal` on the web side is what
+ * catches it; a route that never calls it cannot produce the state, so a page
+ * that only reaches such routes owes no modal.
+ */
+const STEP_UP_GATE = /requireStepUpForSensitiveAction\(|assertStepUpVerified\(/;
+let STEP_UP_PATHS = null;
+function stepUpGatedPaths() {
+  if (!STEP_UP_PATHS) STEP_UP_PATHS = pathsApplyingGate(STEP_UP_GATE);
+  return STEP_UP_PATHS;
 }
 
 function reasonFor(state, shape) {
@@ -401,12 +595,42 @@ function reasonFor(state, shape) {
        answer partially, to be capped, or to go stale under a workspace
        switch. Reported as five gaps each before this reason existed. */
     case "LOADING":
-    case "REFRESHING":
     case "ERROR":
       if (reads === 0) {
         return "content is compiled into the page from a generated index: there is no read to be in flight or to fail";
       }
       break;
+
+    /* --------------------------------------------------------------------
+     * REFRESHING — THE SAME QUESTION, ASKED AGAIN, WITH ITS ANSWER STILL UP.
+     *
+     * GATE B. This shared the reads===0 test with LOADING and ERROR, and was
+     * otherwise always applicable, which made it a synonym for "the page
+     * reads something". It is not: refreshing is a distinct state only where
+     * a page RE-ASKS a question it has already answered — a poll, a Refresh
+     * control, or a re-read after a mutation — because only then is there a
+     * previous answer on screen that the new one replaces.
+     *
+     * Five routes had no such mechanism. Every read on them is keyed to a
+     * control, and changing the control asks a DIFFERENT question: analytics
+     * for a different window, search for a different term, reliability for a
+     * different status. Holding the previous figures on screen while that
+     * loads would be showing numbers under a heading they were not measured
+     * for, so those pages return to their loading state — correctly. Demanding
+     * a "refreshing" treatment there asks for the opposite of the truth.
+     *
+     * `/admin/platform/observability` polls, so it keeps the obligation.
+     * ------------------------------------------------------------------ */
+    case "REFRESHING": {
+      if (reads === 0) {
+        return "content is compiled into the page from a generated index: there is no read to be in flight or to fail";
+      }
+      if (shape.rereadMechanism) return null;
+      const keys = shape.readKeys.length
+        ? shape.readKeys.join(", ")
+        : "its route parameters";
+      return `nothing here re-asks a question it has already answered: no poll, no refresh control, and no re-read after a mutation. Every read is keyed to ${keys}, and a change there is a different question whose answer replaces the one on screen rather than refreshing it`;
+    }
 
     case "FILTERED_EMPTY":
       return hasFilter ? null : "no filter on this page";
@@ -417,11 +641,39 @@ function reasonFor(state, shape) {
     case "BUSY":
     case "DONE":
     case "ACTION_FAILED":
-    case "STEP_UP_REQUIRED":
     case "BLOCKED":
       return hasMutation ? null : "read-only page: no mutation to be in flight";
-    case "REFRESHING":
-      return isStatic ? "content is static, generated at build time" : null;
+
+    /* --------------------------------------------------------------------
+     * STEP_UP_REQUIRED — ASKED OF THE API, LIKE THE PLAN GATE.
+     *
+     * GATE B. This shared the "does the page mutate?" test with BUSY and DONE,
+     * which is the same guess-about-the-server that PLAN_GATED made: it
+     * demanded a step-up challenge from every page with a POST. Most admin
+     * mutations are not step-up gated. The API calls
+     * `requireStepUpForSensitiveAction` on the destructive few — emergency
+     * revoke, restore validation, invitation governance — and answers a
+     * structured 401 that `StepUpModal` catches; a route that never calls it
+     * cannot produce the state, and asserting the modal anyway is asking for a
+     * screen nobody can reach.
+     *
+     * Read out of the API's own call sites at sweep time, attributed to the
+     * enclosing registration, so a new gate creates the obligation and a
+     * removed one retires it.
+     * ------------------------------------------------------------------ */
+    case "STEP_UP_REQUIRED": {
+      if (!hasMutation) {
+        return "read-only page: no mutation to be in flight";
+      }
+      const gated = stepUpGatedPaths();
+      const touches = shape.requestPaths.some((p) =>
+        gated.some((g) => p.startsWith(g) || g.startsWith(p)),
+      );
+      return touches
+        ? null
+        : "none of this page's endpoints applies the API's step-up gate (`requireStepUpForSensitiveAction`), so no step-up challenge can reach it";
+    }
+
     case "EMPTY":
       return hasTable || hasKpi ? null : "nothing on this page is a list";
 
@@ -552,7 +804,11 @@ for (const route of ROUTES) {
     gaps.push(`${route}: no source file resolved`);
     continue;
   }
-  const src = files.map((f) => readFileSync(f, "utf8")).join("\n");
+  /* Comments removed before anything is measured. See `stripComments`: the
+     patterns claim to match code, and until this call they did not. */
+  const src = stripComments(
+    files.map((f) => readFileSync(f, "utf8")).join("\n"),
+  );
 
   const shape = {
     /* The route itself, so `reasonFor` can consult the reviewed scope
@@ -602,6 +858,37 @@ for (const route of ROUTES) {
         ),
       ),
     ],
+    /* Does anything here re-ask a question it has already answered? A poll, a
+       Refresh control the operator can press, or a re-read issued after a
+       mutation. Not "does the page load" — see the REFRESHING reason. */
+    rereadMechanism:
+      /setInterval\(|isRefetching|refresh|Refresh|await load\(\)|void load\(\)|await reload\(|void reload\(/.test(
+        src,
+      ),
+    /* What the reads ARE keyed to, so the reason can name them rather than
+       assert a generality. The dependency arrays of the effects and callbacks
+       that issue requests, minus the hooks and functions among them. */
+    readKeys: (() => {
+      const HOOKISH =
+        /^(addToast|confirm|stamp|isStale|stepUp|load|reload|router|apiFetch|setState|notify)/;
+      const keys = new Set();
+      for (const m of src.matchAll(/\}\s*,\s*\[([^\]]*)\]\s*\)/g)) {
+        const before = src.slice(Math.max(0, m.index - 4000), m.index);
+        if (!/apiFetch\(/.test(before)) continue;
+        /* The dep array must belong to the hook that ISSUES the request, not
+           to a `useMemo` that happens to sit after one — otherwise a memo
+           over the loaded data reports the data itself as a read key. */
+        const opener = [...before.matchAll(/use(Effect|Callback|Memo)\(/g)].pop();
+        if (!opener || opener[1] === "Memo") continue;
+        if (!/apiFetch\(/.test(before.slice(opener.index))) continue;
+        for (const raw of m[1].split(",")) {
+          const id = raw.trim().split(".")[0];
+          if (!id || HOOKISH.test(id)) continue;
+          if (/^[A-Za-z_$][\w$]*$/.test(id)) keys.add(id);
+        }
+      }
+      return [...keys];
+    })(),
     /* Distinct endpoints read. PARTIAL needs more than one. */
     reads: new Set(
       [...src.matchAll(/apiFetch\(\s*[`"']([^`"'?]+)/g)].map((m) =>

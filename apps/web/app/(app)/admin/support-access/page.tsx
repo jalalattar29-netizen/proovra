@@ -48,6 +48,10 @@ import { EmptyState } from "../../../../components/ui/EmptyState";
 import { FilterBar } from "../../../../components/ui/FilterBar";
 import { StatusBadge } from "../../../../components/ui/StatusBadge";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
+import {
+  StepUpModal,
+  useStepUpAction,
+} from "../../../../components/identity-security/StepUpModal";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
@@ -148,6 +152,7 @@ function Shell() {
   const teamId = useTeamId();
   const { stamp, isStale } = useTenantGuard();
   const { confirm } = useConfirmAction();
+  const stepUp = useStepUpAction({ teamId });
 
   // Support grants
   const [supportGrants, setSupportGrants] = useState<SupportGrant[] | null>(null);
@@ -439,22 +444,44 @@ function Shell() {
     setMutationFailure(null);
     setNotice(null);
     try {
-      await apiFetch("/v1/break-glass/activate", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          teamId,
-          organizationId: mintOrgId.trim(),
-          emergencyUserId: emergencyUserId.trim(),
-          reason: mintReason.trim(),
-          grantedRole: emergencyRole,
+      /*
+        THE ONE ENDPOINT ON THIS PAGE THAT ASKS FOR A SECOND FACTOR.
+
+        `POST /v1/break-glass/activate` calls
+        `requireStepUpForSensitiveAction` and answers a structured 401
+        `STEP_UP_REQUIRED`. This page had no step-up path at all, so that
+        answer fell through to the failure banner as "Confirm your identity to
+        continue" — advice the operator could not act on, because there was
+        nothing here to confirm it with. During an incident that is a dead
+        end in the one direction that matters: break-glass is what an operator
+        reaches for when the ordinary path has already failed.
+
+        Routing it through the canonical `runStepUpAction` means the challenge
+        is presented and the ORIGINAL request is retried once with the
+        verified challenge id. Revoke is deliberately NOT gated — that is the
+        containment direction, and the dialog beside it says so.
+      */
+      await stepUp.runStepUpAction(async (headers) =>
+        apiFetch("/v1/break-glass/activate", {
+          method: "POST",
+          headers: { "content-type": "application/json", ...(headers ?? {}) },
+          body: JSON.stringify({
+            teamId,
+            organizationId: mintOrgId.trim(),
+            emergencyUserId: emergencyUserId.trim(),
+            reason: mintReason.trim(),
+            grantedRole: emergencyRole,
+          }),
         }),
-      });
+      );
       setNotice("Break-glass access activated.");
       setEmergencyUserId("");
       setMintReason("");
       await loadEmergencyGrants();
     } catch (err) {
+      // A cancelled challenge is the operator's own decision. Nothing was
+      // activated and nothing failed, so nothing is reported.
+      if (isStepUpCancel(err)) return;
       setMutationFailure(
         classifyFailure(err, "Could not activate emergency access."),
       );
@@ -464,6 +491,7 @@ function Shell() {
   }, [
     teamId,
     confirm,
+    stepUp,
     mintOrgId,
     emergencyUserId,
     mintReason,
@@ -1009,8 +1037,15 @@ function Shell() {
           </div>
         )}
       </PageSection>
+
+      <StepUpModal control={stepUp} />
     </PageShell>
   );
+}
+
+/** A cancelled challenge is a decision, not a failure. */
+function isStepUpCancel(err: unknown): boolean {
+  return (err as { code?: string })?.code === "STEP_UP_CANCEL";
 }
 
 const muted: React.CSSProperties = { fontSize: 12, color: "var(--ink-muted)" };

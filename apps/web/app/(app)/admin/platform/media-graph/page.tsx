@@ -246,6 +246,52 @@ type ActionResult =
   | { kind: "success"; label: string; detail: string }
   | { kind: "error"; label: string; detail: string };
 
+/**
+ * WHY THE METRICS READ DID NOT ANSWER — WHICH IS THREE DIFFERENT FACTS.
+ *
+ * This was one string, `"metrics_unavailable"`, written from a `catch {}` that
+ * did not even bind the error. So an operator refused the platform metrics
+ * scope, an operator whose deployment ships no metrics endpoint, and an
+ * operator hitting a five-hundred all read the same sentence: "Metrics
+ * endpoint did not respond." Two of those three are wrong, and the first is
+ * the one that matters — it tells someone to chase an outage that does not
+ * exist instead of asking for the scope they are missing.
+ *
+ *   denied       the platform refused this operator. Nothing is broken and
+ *                retrying will return the same answer.
+ *   unrecognised the endpoint answered, but not with a metrics snapshot this
+ *                console knows how to read. A deployment mismatch, not a fault.
+ *   error        anything else, through the sanctioned safe path.
+ */
+type MetricsFailure = {
+  kind: "denied" | "unrecognised" | "error";
+  message: string;
+};
+
+function classifyMetricsFailure(err: unknown): MetricsFailure {
+  if ((err as { code?: string })?.code === "metrics_envelope_unrecognised") {
+    return {
+      kind: "unrecognised",
+      message:
+        "The platform metrics endpoint answered with a payload this console does not recognise. The tiles below are left blank rather than filled with figures that were not measured.",
+    };
+  }
+  const status = (err as { statusCode?: number })?.statusCode;
+  if (status === 403) {
+    return {
+      kind: "denied",
+      message:
+        "Your operator role does not include the platform metrics scope, so these counters cannot be read here. Nothing is failing — ask a platform administrator for the scope.",
+    };
+  }
+  return {
+    kind: "error",
+    message: toSafeUserError(err, {
+      message: "The platform metrics endpoint did not answer.",
+    }).message,
+  };
+}
+
 // Phase 38.15 — wrap in canonical PageRouteGate.
 export default function MediaGraphOpsPage() {
   return (
@@ -259,7 +305,7 @@ function MediaGraphOpsPageInner() {
   const teamId = useTeamId();
   const [snapshot, setSnapshot] = useState<MetricsSnapshot | null>(null);
   const [lastFetchAt, setLastFetchAt] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<MetricsFailure | null>(null);
   const [retryRunId, setRetryRunId] = useState("");
   const [actionResult, setActionResult] = useState<ActionResult>({
     kind: "idle",
@@ -281,16 +327,18 @@ useEffect(() => {
         // Unwrap. See the MetricsEnvelope note: reading the envelope as the
         // snapshot is what made every tile render an em dash.
         if (!res?.metrics?.counters || !res?.metrics?.gauges) {
-          throw new Error("metrics_envelope_unrecognised");
+          throw Object.assign(new Error("metrics_envelope_unrecognised"), {
+            code: "metrics_envelope_unrecognised",
+          });
         }
         if (!cancelled) {
           setSnapshot(res.metrics);
           setLastFetchAt(Date.now());
           setError(null);
         }
-      } catch {
+      } catch (err) {
         if (!cancelled) {
-          setError("metrics_unavailable");
+          setError(classifyMetricsFailure(err));
         }
       }
     };
@@ -423,7 +471,11 @@ useEffect(() => {
         <>
           <span style={freshnessPillStyle(error, ageSeconds)}>
           {error
-          ? "metrics unavailable"
+          ? error.kind === "denied"
+            ? "metrics not permitted"
+            : error.kind === "unrecognised"
+              ? "metrics not recognised"
+              : "metrics unavailable"
           : ageSeconds == null
           ? "loading…"
           : `updated ${ageSeconds}s ago`}
@@ -437,9 +489,16 @@ useEffect(() => {
     <PageShell width="full" header={pageHeader}>
 
       {error ? (
-        <p className="apf-note" data-tone="critical">
-          Metrics endpoint did not respond. Tiles below show the most
-          recent successful snapshot if one was captured this session.
+        <p
+          className="apf-note"
+          data-tone={error.kind === "error" ? "critical" : "info"}
+          data-media-graph-metrics-failure={error.kind}
+          role={error.kind === "error" ? "alert" : "status"}
+        >
+          {error.message}
+          {snapshot
+            ? " The tiles below are the last snapshot this session captured, not the current one."
+            : " No snapshot has been captured this session, so the tiles below show no figures."}
         </p>
       ) : null}
 
@@ -633,16 +692,23 @@ function formatNumber(n: number): string {
 
 
 function freshnessPillStyle(
-  err: string | null,
+  err: MetricsFailure | null,
   ageSeconds: number | null,
 ): React.CSSProperties {
   let bg = "var(--info-subtle-bg)";
   let border = "var(--info-border)";
   let color = "var(--info)";
-  if (err) {
+  if (err && err.kind === "error") {
     bg = "var(--danger-subtle-bg)";
     border = "var(--danger-border)";
     color = "var(--danger-strong)";
+  } else if (err) {
+    /* A refusal and a payload this console cannot read are both NEUTRAL:
+       neither is a fault, and colouring them red sends an operator to look
+       for an outage that is not there. */
+    bg = "var(--surface-muted)";
+    border = "var(--border)";
+    color = "var(--ink-muted)";
   } else if (ageSeconds != null && ageSeconds > 120) {
     bg = "var(--warning-subtle-bg)";
     border = "var(--warning-border)";

@@ -14,6 +14,10 @@
  */
 
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
+import {
+  classifyFailure,
+  type SurfaceFailure,
+} from "../_sections/identity-admin-shared";
 import { useCallback, useEffect, useState } from "react";
 
 import { describeClient } from "../../../../../lib/ui/describeClient";
@@ -205,6 +209,13 @@ export default function IdentityRuntimePage() {
   const [includeExpired, setIncludeExpired] = useState(false);
   const [sessionsMore, setSessionsMore] = useState<{ nextCursor: string | null; hasMore: boolean }>({ nextCursor: null, hasMore: false });
   const [quarantined, setQuarantined] = useState<QuarantineRow[] | null>(null);
+  /* One failure container per read. Shared state here would mean a refusal on
+     one list blanking the other, which is the defect this replaces. */
+  const [sessionsFailure, setSessionsFailure] = useState<SurfaceFailure | null>(
+    null,
+  );
+  const [quarantineFailure, setQuarantineFailure] =
+    useState<SurfaceFailure | null>(null);
   const [quarantineMore, setQuarantineMore] = useState<{ nextCursor: string | null; hasMore: boolean }>({ nextCursor: null, hasMore: false });
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -228,30 +239,95 @@ export default function IdentityRuntimePage() {
   );
   const quarantinePager = useCursorPager(teamId ?? "");
 
-const load = useCallback(() => {
+/**
+   * THE TWO READS, EACH ANSWERING FOR ITSELF.
+   *
+   * This was `Promise.all` over two requests with `.catch(() => ({ sessions:
+   * [] }))` and `.catch(() => ({ items: [] }))` hung off them, and then
+   * `setError(null)` in the `.then`. Every possible failure of either read —
+   * a refusal, a five-hundred, a dropped connection — arrived on screen as
+   * "No active sessions" and "No quarantined sessions", with any previous
+   * error cleared for good measure. On a console whose purpose is to show an
+   * operator which sessions are live during an incident, an empty table is
+   * the most dangerous thing a failed read can render: it is indistinguishable
+   * from the all-clear.
+   *
+   * `allSettled` gives each read its own outcome, and each outcome is
+   * classified by the identity family's ONE classifier, so a 403 renders as a
+   * refusal rather than as a fault the operator could retry away. Rows stay
+   * `null` on failure — the table never claims a count it did not receive —
+   * and the failure is shown in place of that one table, leaving the other
+   * section, the reconcile panel and the emergency control untouched.
+   */
+  const load = useCallback(() => {
     if (!teamId) return;
-    Promise.all([
+    const captured = stamp();
+    void Promise.allSettled([
       apiFetch(
         `/v1/admin/identity/sessions?${sessionQuery(teamId, userFilter, includeRevoked, includeExpired, sessionsPager.cursor)}`,
         { method: "GET" },
-      ).catch(() => ({ sessions: [] })),
+      ),
       apiFetch(
         `/v1/admin/identity/quarantined-sessions?teamId=${encodeURIComponent(teamId)}&limit=25${quarantinePager.cursor ? `&cursor=${encodeURIComponent(quarantinePager.cursor)}` : ""}`,
         { method: "GET" },
-      ).catch(() => ({ items: [] })),
-    ]).then(
-      ([s, q]: [
-        { sessions?: SessionRow[]; nextCursor?: string | null; hasMore?: boolean },
-        { items?: QuarantineRow[]; nextCursor?: string | null; hasMore?: boolean },
-      ]) => {
+      ),
+    ]).then(([sessionsOutcome, quarantineOutcome]) => {
+      if (isStale(captured)) return;
+      if (sessionsOutcome.status === "fulfilled") {
+        const s = sessionsOutcome.value as {
+          sessions?: SessionRow[];
+          nextCursor?: string | null;
+          hasMore?: boolean;
+        };
+        setSessionsFailure(null);
         setSessions(s.sessions ?? []);
-        setSessionsMore({ nextCursor: s.nextCursor ?? null, hasMore: s.hasMore ?? false });
+        setSessionsMore({
+          nextCursor: s.nextCursor ?? null,
+          hasMore: s.hasMore ?? false,
+        });
+      } else {
+        setSessions(null);
+        setSessionsMore({ nextCursor: null, hasMore: false });
+        setSessionsFailure(
+          classifyFailure(
+            sessionsOutcome.reason,
+            "The active-session list could not be read.",
+          ),
+        );
+      }
+      if (quarantineOutcome.status === "fulfilled") {
+        const q = quarantineOutcome.value as {
+          items?: QuarantineRow[];
+          nextCursor?: string | null;
+          hasMore?: boolean;
+        };
+        setQuarantineFailure(null);
         setQuarantined(q.items ?? []);
-        setQuarantineMore({ nextCursor: q.nextCursor ?? null, hasMore: q.hasMore ?? false });
-        setError(null);
-      },
-    );
-  }, [teamId, userFilter, includeRevoked, includeExpired, sessionsPager.cursor, quarantinePager.cursor]);
+        setQuarantineMore({
+          nextCursor: q.nextCursor ?? null,
+          hasMore: q.hasMore ?? false,
+        });
+      } else {
+        setQuarantined(null);
+        setQuarantineMore({ nextCursor: null, hasMore: false });
+        setQuarantineFailure(
+          classifyFailure(
+            quarantineOutcome.reason,
+            "The quarantined-session list could not be read.",
+          ),
+        );
+      }
+    });
+  }, [
+    teamId,
+    userFilter,
+    includeRevoked,
+    includeExpired,
+    sessionsPager.cursor,
+    quarantinePager.cursor,
+    stamp,
+    isStale,
+  ]);
 
   useEffect(() => {
     load();
@@ -719,6 +795,30 @@ const load = useCallback(() => {
       </PageSection>
 
       <PageSection title="Quarantined sessions">
+        {/*
+          A REFUSAL IS NOT AN EMPTY QUARANTINE LIST.
+          When this read fails the rows are `null`, so nothing below claims a
+          count. `denied` is drawn as `unavailable` rather than `error`:
+          being told you may not see something is not a fault, and offering an
+          operator a retry for it would be a lie.
+        */}
+        {quarantineFailure ? (
+          <div data-identity-runtime-quarantine-failure={quarantineFailure.kind}>
+            <AdmInline
+              state={quarantineFailure.kind === "error" ? "error" : "unavailable"}
+              label={
+                quarantineFailure.kind === "denied"
+                  ? "Not permitted"
+                  : quarantineFailure.kind === "blocked"
+                    ? "Not available here"
+                    : "Could not load"
+              }
+            >
+              {quarantineFailure.message}
+            </AdmInline>
+          </div>
+        ) : (
+        <>
         <DataTable
           columns={quarantineColumns}
           rows={quarantined ?? []}
@@ -758,9 +858,34 @@ const load = useCallback(() => {
             data-testid="admin-identity-runtime-quarantine-pager"
           />
         </div>
+        </>
+        )}
       </PageSection>
 
       <PageSection title="Active sessions">
+        {/*
+          THE ONE THAT MATTERS MOST. During an incident an operator reads this
+          list to decide who is still signed in; a failed read that renders as
+          "No active sessions" is indistinguishable from the all-clear. The
+          filters stay mounted so the operator can narrow and try again, but
+          no table and no count is drawn from data that never arrived.
+        */}
+        {sessionsFailure ? (
+          <div data-identity-runtime-sessions-failure={sessionsFailure.kind}>
+            <AdmInline
+              state={sessionsFailure.kind === "error" ? "error" : "unavailable"}
+              label={
+                sessionsFailure.kind === "denied"
+                  ? "Not permitted"
+                  : sessionsFailure.kind === "blocked"
+                    ? "Not available here"
+                    : "Could not load"
+              }
+            >
+              {sessionsFailure.message}
+            </AdmInline>
+          </div>
+        ) : null}
         {/* Server-side. Every control here goes into the request, so the
             500-row cap applies to the NARROWED set rather than to an
             arbitrary first page that is then filtered in the browser. */}
@@ -815,6 +940,8 @@ const load = useCallback(() => {
             }))}
           />
         </FilterBar>
+        {sessionsFailure ? null : (
+        <>
         <DataTable
           columns={sessionColumns}
           rows={activeSessions}
@@ -886,6 +1013,8 @@ const load = useCallback(() => {
             data-testid="admin-identity-runtime-pager"
           />
         </div>
+        </>
+        )}
       </PageSection>
 
       <StepUpModal control={stepUp} />

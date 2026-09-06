@@ -35,6 +35,8 @@
         "requestPaths": [
           "/v1/admin/overview"
         ],
+        "rereadMechanism": true,
+        "readKeys": [],
         "reads": 1,
         "hasOptionalCapability": true
       },
@@ -64,8 +66,7 @@
           "reason": "no filter on this page"
         },
         "NOT_MEASURED": {
-          "verdict": "HANDLED",
-          "evidence": "/NOT_MEASURED/"
+          "verdict": "UNHANDLED"
         },
         "PARTIAL": {
           "verdict": "HANDLED",
@@ -85,7 +86,7 @@
         },
         "DENIED": {
           "verdict": "HANDLED",
-          "evidence": "/forbidden/i"
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -131,6 +132,8 @@
         "requestPaths": [
           "/v1/admin/adoption"
         ],
+        "rereadMechanism": true,
+        "readKeys": [],
         "reads": 1,
         "hasOptionalCapability": false
       },
@@ -179,8 +182,8 @@
           "evidence": "/toSafeUserError/"
         },
         "DENIED": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -226,6 +229,8 @@
         "requestPaths": [
           "/v1/admin/alerts"
         ],
+        "rereadMechanism": true,
+        "readKeys": [],
         "reads": 1,
         "hasOptionalCapability": false
       },
@@ -275,8 +280,8 @@
           "evidence": "/toSafeUserError/"
         },
         "DENIED": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -323,6 +328,12 @@
           "/v1/admin/audit-log",
           "/v1/admin/audit-log/export${qs ",
           "/v1/admin/audit-log/verify"
+        ],
+        "rereadMechanism": true,
+        "readKeys": [
+          "categoryFilter",
+          "severityFilter",
+          "sourceFilter"
         ],
         "reads": 3,
         "hasOptionalCapability": false
@@ -373,7 +384,8 @@
           "evidence": "/notifyApiError/"
         },
         "DENIED": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -419,6 +431,8 @@
         "requestPaths": [
           "/v1/admin/billing/detail"
         ],
+        "rereadMechanism": true,
+        "readKeys": [],
         "reads": 1,
         "hasOptionalCapability": true
       },
@@ -468,8 +482,8 @@
           "evidence": "/toSafeUserError/"
         },
         "DENIED": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -515,6 +529,8 @@
         "requestPaths": [
           "/v1/admin/contact-sales"
         ],
+        "rereadMechanism": true,
+        "readKeys": [],
         "reads": 2,
         "hasOptionalCapability": false
       },
@@ -563,8 +579,8 @@
           "evidence": "/toSafeUserError/"
         },
         "DENIED": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -586,7 +602,8 @@
           "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1200}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
         },
         "STEP_UP_REQUIRED": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "none of this page's endpoints applies the API's step-up gate (`requireStepUpForSensitiveAction`), so no step-up challenge can reach it"
         },
         "BLOCKED": {
           "verdict": "HANDLED",
@@ -607,6 +624,10 @@
         "workspaceScoped": false,
         "requestPaths": [
           "/v1/admin/contact-sales"
+        ],
+        "rereadMechanism": true,
+        "readKeys": [
+          "id"
         ],
         "reads": 1,
         "hasOptionalCapability": true
@@ -649,8 +670,8 @@
           "reason": "no list read to cap"
         },
         "STALE": {
-          "verdict": "HANDLED",
-          "evidence": "/stale/i"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: no active workspace to change under a read in flight"
         },
         "ERROR": {
           "verdict": "HANDLED",
@@ -658,15 +679,14 @@
         },
         "DENIED": {
           "verdict": "HANDLED",
-          "evidence": "/403/"
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
           "reason": "platform-scoped surface: not gated by any workspace's plan"
         },
         "UNAVAILABLE": {
-          "verdict": "HANDLED",
-          "evidence": "/unavailable/i"
+          "verdict": "UNHANDLED"
         },
         "BUSY": {
           "verdict": "UNHANDLED"
@@ -680,7 +700,8 @@
           "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1200}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
         },
         "STEP_UP_REQUIRED": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "none of this page's endpoints applies the API's step-up gate (`requireStepUpForSensitiveAction`), so no step-up challenge can reach it"
         },
         "BLOCKED": {
           "verdict": "HANDLED",
@@ -702,6 +723,8 @@
         "requestPaths": [
           "/v1/admin/costs"
         ],
+        "rereadMechanism": true,
+        "readKeys": [],
         "reads": 1,
         "hasOptionalCapability": false
       },
@@ -750,8 +773,8 @@
           "evidence": "/toSafeUserError/"
         },
         "DENIED": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -797,6 +820,8 @@
         "requestPaths": [
           "/v1/admin/customers"
         ],
+        "rereadMechanism": true,
+        "readKeys": [],
         "reads": 1,
         "hasOptionalCapability": false
       },
@@ -826,8 +851,8 @@
           "evidence": "/match these filters/"
         },
         "NOT_MEASURED": {
-          "verdict": "HANDLED",
-          "evidence": "/Not measured/"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
         },
         "PARTIAL": {
           "verdict": "NOT_APPLICABLE",
@@ -846,8 +871,8 @@
           "evidence": "/toSafeUserError/"
         },
         "DENIED": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -893,6 +918,10 @@
         "requestPaths": [
           "/v1/admin/orgs",
           "/v1/admin/customers"
+        ],
+        "rereadMechanism": true,
+        "readKeys": [
+          "id"
         ],
         "reads": 2,
         "hasOptionalCapability": true
@@ -941,7 +970,8 @@
           "evidence": "/toSafeUserError/"
         },
         "DENIED": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -987,6 +1017,10 @@
         "requestPaths": [
           "/v1/admin/analytics/dashboard"
         ],
+        "rereadMechanism": false,
+        "readKeys": [
+          "dateRange"
+        ],
         "reads": 1,
         "hasOptionalCapability": false
       },
@@ -996,7 +1030,8 @@
           "evidence": "/<AdmSkeleton/"
         },
         "REFRESHING": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "nothing here re-asks a question it has already answered: no poll, no refresh control, and no re-read after a mutation. Every read is keyed to dateRange, and a change there is a different question whose answer replaces the one on screen rather than refreshing it"
         },
         "VALUE": {
           "verdict": "HANDLED",
@@ -1035,8 +1070,8 @@
           "evidence": "/toSafeUserError/"
         },
         "DENIED": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -1085,6 +1120,14 @@
           "/v1/admin/demo-requests//follow-up/send",
           "/v1/admin/demo-requests/follow-up/run"
         ],
+        "rereadMechanism": true,
+        "readKeys": [
+          "statusFilter",
+          "priorityFilter",
+          "spamFilter",
+          "leadTrackFilter",
+          "followUpStatusFilter"
+        ],
         "reads": 5,
         "hasOptionalCapability": false
       },
@@ -1126,16 +1169,16 @@
           "evidence": "/limit/"
         },
         "STALE": {
-          "verdict": "HANDLED",
-          "evidence": "/stale/i"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: no active workspace to change under a read in flight"
         },
         "ERROR": {
           "verdict": "HANDLED",
           "evidence": "/toSafeUserError/"
         },
         "DENIED": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -1158,7 +1201,8 @@
           "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1200}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
         },
         "STEP_UP_REQUIRED": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "none of this page's endpoints applies the API's step-up gate (`requireStepUpForSensitiveAction`), so no step-up challenge can reach it"
         },
         "BLOCKED": {
           "verdict": "HANDLED",
@@ -1179,6 +1223,10 @@
         "workspaceScoped": false,
         "requestPaths": [
           "/v1/admin/demo-requests"
+        ],
+        "rereadMechanism": true,
+        "readKeys": [
+          "id"
         ],
         "reads": 1,
         "hasOptionalCapability": true
@@ -1229,7 +1277,7 @@
         },
         "DENIED": {
           "verdict": "HANDLED",
-          "evidence": "/403/"
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -1274,6 +1322,8 @@
         "requestPaths": [
           "/v1/admin/evidence-health"
         ],
+        "rereadMechanism": true,
+        "readKeys": [],
         "reads": 1,
         "hasOptionalCapability": true
       },
@@ -1323,8 +1373,8 @@
           "evidence": "/toSafeUserError/"
         },
         "DENIED": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -1370,6 +1420,8 @@
         "requestPaths": [
           "/v1/admin/evidence-health/records"
         ],
+        "rereadMechanism": true,
+        "readKeys": [],
         "reads": 1,
         "hasOptionalCapability": true
       },
@@ -1419,8 +1471,8 @@
           "evidence": "/toSafeUserError/"
         },
         "DENIED": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -1465,6 +1517,8 @@
         "requestPaths": [
           "/v1/admin/executive"
         ],
+        "rereadMechanism": true,
+        "readKeys": [],
         "reads": 1,
         "hasOptionalCapability": true
       },
@@ -1514,8 +1568,8 @@
           "evidence": "/toSafeUserError/"
         },
         "DENIED": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -1573,6 +1627,21 @@
           "/v1/admin/identity/sessions/reconcile-stale",
           "/v1/admin/identity/runtime/reconcile"
         ],
+        "rereadMechanism": true,
+        "readKeys": [
+          "subjectUserId",
+          "provider",
+          "externalSubjectId",
+          "displayName",
+          "run",
+          "onWorkspaceResolved",
+          "onMembersLoaded",
+          "selected",
+          "permissionDraft",
+          "reason",
+          "scopeDraft",
+          "sessionId"
+        ],
         "reads": 15,
         "hasOptionalCapability": true
       },
@@ -1623,7 +1692,7 @@
         },
         "DENIED": {
           "verdict": "HANDLED",
-          "evidence": "/403/"
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -1683,6 +1752,22 @@
           "/v1/admin/identity/sessions/reconcile-stale",
           "/v1/admin/identity/runtime/reconcile"
         ],
+        "rereadMechanism": true,
+        "readKeys": [
+          "statusFilter",
+          "subjectUserId",
+          "provider",
+          "externalSubjectId",
+          "displayName",
+          "run",
+          "onWorkspaceResolved",
+          "onMembersLoaded",
+          "selected",
+          "permissionDraft",
+          "reason",
+          "scopeDraft",
+          "sessionId"
+        ],
         "reads": 18,
         "hasOptionalCapability": true
       },
@@ -1732,7 +1817,8 @@
           "evidence": "/kind: \"error\"/"
         },
         "DENIED": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -1793,6 +1879,26 @@
           "/v1/admin/identity/sessions/reconcile-stale",
           "/v1/admin/identity/runtime/reconcile"
         ],
+        "rereadMechanism": true,
+        "readKeys": [
+          "subjectUserId",
+          "matrixTeamId",
+          "snapshot",
+          "elevationPermission",
+          "elevationReason",
+          "elevationTtl",
+          "provider",
+          "externalSubjectId",
+          "displayName",
+          "run",
+          "onWorkspaceResolved",
+          "onMembersLoaded",
+          "selected",
+          "permissionDraft",
+          "reason",
+          "scopeDraft",
+          "sessionId"
+        ],
         "reads": 18,
         "hasOptionalCapability": true
       },
@@ -1830,8 +1936,7 @@
           "evidence": "(src) =>\n      new Set(\n        [...src.matchAll(/catch\\s*\\([\\s\\S]{0,400}?(set[A-Z]\\w*)\\(/g)].map(\n          (m) => m[1],\n        ),\n      ).size >= 2"
         },
         "TRUNCATED": {
-          "verdict": "HANDLED",
-          "evidence": "/limit/"
+          "verdict": "UNHANDLED"
         },
         "STALE": {
           "verdict": "HANDLED",
@@ -1842,7 +1947,8 @@
           "evidence": "/kind: \"error\"/"
         },
         "DENIED": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -1903,6 +2009,23 @@
           "/v1/admin/identity/sessions/reconcile-stale",
           "/v1/admin/identity/runtime/reconcile"
         ],
+        "rereadMechanism": true,
+        "readKeys": [
+          "teamId",
+          "createForm",
+          "subjectUserId",
+          "provider",
+          "externalSubjectId",
+          "displayName",
+          "run",
+          "onWorkspaceResolved",
+          "onMembersLoaded",
+          "selected",
+          "permissionDraft",
+          "reason",
+          "scopeDraft",
+          "sessionId"
+        ],
         "reads": 19,
         "hasOptionalCapability": true
       },
@@ -1953,7 +2076,7 @@
         },
         "DENIED": {
           "verdict": "HANDLED",
-          "evidence": "/kind: \"denied\"/"
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "HANDLED",
@@ -2018,6 +2141,29 @@
           "/v1/admin/identity/sessions/reconcile-stale",
           "/v1/admin/identity/runtime/reconcile"
         ],
+        "rereadMechanism": true,
+        "readKeys": [
+          "teamId",
+          "userFilter",
+          "includeRevoked",
+          "includeExpired",
+          "sessionsPager",
+          "quarantinePager",
+          "busy",
+          "emergencyReason",
+          "subjectUserId",
+          "provider",
+          "externalSubjectId",
+          "displayName",
+          "run",
+          "onWorkspaceResolved",
+          "onMembersLoaded",
+          "selected",
+          "permissionDraft",
+          "reason",
+          "scopeDraft",
+          "sessionId"
+        ],
         "reads": 22,
         "hasOptionalCapability": true
       },
@@ -2052,11 +2198,11 @@
         },
         "PARTIAL": {
           "verdict": "HANDLED",
-          "evidence": "/partial/i"
+          "evidence": "/Promise\\.allSettled/"
         },
         "TRUNCATED": {
           "verdict": "HANDLED",
-          "evidence": "/\\bcap\\b/"
+          "evidence": "/hasMore/"
         },
         "STALE": {
           "verdict": "HANDLED",
@@ -2067,7 +2213,8 @@
           "evidence": "/state=\"error\"/"
         },
         "DENIED": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -2133,6 +2280,28 @@
           "/v1/admin/identity/sessions/reconcile-stale",
           "/v1/admin/identity/runtime/reconcile"
         ],
+        "rereadMechanism": true,
+        "readKeys": [
+          "teamId",
+          "createName",
+          "createScopes",
+          "report",
+          "selected",
+          "scan",
+          "eventTypeFilter",
+          "severityFilter",
+          "subjectUserId",
+          "provider",
+          "externalSubjectId",
+          "displayName",
+          "run",
+          "onWorkspaceResolved",
+          "onMembersLoaded",
+          "permissionDraft",
+          "reason",
+          "scopeDraft",
+          "sessionId"
+        ],
         "reads": 23,
         "hasOptionalCapability": true
       },
@@ -2183,7 +2352,7 @@
         },
         "DENIED": {
           "verdict": "HANDLED",
-          "evidence": "/kind: \"denied\"/"
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "HANDLED",
@@ -2249,6 +2418,27 @@
           "/v1/admin/identity/sessions/reconcile-stale",
           "/v1/admin/identity/runtime/reconcile"
         ],
+        "rereadMechanism": true,
+        "readKeys": [
+          "teamId",
+          "includeRevoked",
+          "includeExpired",
+          "sessionsPager",
+          "quarantinePager",
+          "sessionId",
+          "ttlDays",
+          "subjectUserId",
+          "provider",
+          "externalSubjectId",
+          "displayName",
+          "run",
+          "onWorkspaceResolved",
+          "onMembersLoaded",
+          "selected",
+          "permissionDraft",
+          "reason",
+          "scopeDraft"
+        ],
         "reads": 23,
         "hasOptionalCapability": true
       },
@@ -2299,7 +2489,7 @@
         },
         "DENIED": {
           "verdict": "HANDLED",
-          "evidence": "/state=\"unavailable\"/"
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -2358,6 +2548,24 @@
           "/v1/admin/identity/sessions/reconcile-stale",
           "/v1/admin/identity/runtime/reconcile"
         ],
+        "rereadMechanism": true,
+        "readKeys": [
+          "teamId",
+          "filterIdx",
+          "severityFilter",
+          "subjectUserId",
+          "provider",
+          "externalSubjectId",
+          "displayName",
+          "run",
+          "onWorkspaceResolved",
+          "onMembersLoaded",
+          "selected",
+          "permissionDraft",
+          "reason",
+          "scopeDraft",
+          "sessionId"
+        ],
         "reads": 16,
         "hasOptionalCapability": true
       },
@@ -2407,7 +2615,8 @@
           "evidence": "/state=\"error\"/"
         },
         "DENIED": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -2452,6 +2661,13 @@
         "requestPaths": [
           "/v1/admin/incidents",
           "/v1/admin/security-events"
+        ],
+        "rereadMechanism": true,
+        "readKeys": [
+          "status",
+          "severity",
+          "teamId",
+          "eventType"
         ],
         "reads": 3,
         "hasOptionalCapability": false
@@ -2501,8 +2717,8 @@
           "evidence": "/toSafeUserError/"
         },
         "DENIED": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -2525,7 +2741,8 @@
           "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1200}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
         },
         "STEP_UP_REQUIRED": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "none of this page's endpoints applies the API's step-up gate (`requireStepUpForSensitiveAction`), so no step-up challenge can reach it"
         },
         "BLOCKED": {
           "verdict": "HANDLED",
@@ -2547,6 +2764,8 @@
         "requestPaths": [
           "/v1/admin/platform-health"
         ],
+        "rereadMechanism": true,
+        "readKeys": [],
         "reads": 1,
         "hasOptionalCapability": true
       },
@@ -2596,8 +2815,8 @@
           "evidence": "/toSafeUserError/"
         },
         "DENIED": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -2648,15 +2867,22 @@
           "/v1/analytics/automation",
           "/v1/analytics/artifacts"
         ],
+        "rereadMechanism": false,
+        "readKeys": [
+          "teamId",
+          "windowDays"
+        ],
         "reads": 6,
         "hasOptionalCapability": true
       },
       "states": {
         "LOADING": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/status:\\s*\"loading\"/"
         },
         "REFRESHING": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "nothing here re-asks a question it has already answered: no poll, no refresh control, and no re-read after a mutation. Every read is keyed to teamId, windowDays, and a change there is a different question whose answer replaces the one on screen rather than refreshing it"
         },
         "VALUE": {
           "verdict": "HANDLED",
@@ -2695,7 +2921,7 @@
         },
         "DENIED": {
           "verdict": "HANDLED",
-          "evidence": "/403/"
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -2742,12 +2968,18 @@
           "/v1/automation/rules",
           "/v1/automation/runs"
         ],
+        "rereadMechanism": false,
+        "readKeys": [
+          "teamId",
+          "statusFilter"
+        ],
         "reads": 2,
         "hasOptionalCapability": false
       },
       "states": {
         "LOADING": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/status:\\s*\"loading\"/"
         },
         "REFRESHING": {
           "verdict": "HANDLED",
@@ -2779,7 +3011,7 @@
         },
         "TRUNCATED": {
           "verdict": "HANDLED",
-          "evidence": "/truncated/i"
+          "evidence": "/\\bcap\\b/"
         },
         "STALE": {
           "verdict": "HANDLED",
@@ -2791,7 +3023,7 @@
         },
         "DENIED": {
           "verdict": "HANDLED",
-          "evidence": "/403/"
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -2839,6 +3071,11 @@
           "/v1/operations/exports/object-lock",
           "/v1/operations/exports//verify"
         ],
+        "rereadMechanism": true,
+        "readKeys": [
+          "teamId",
+          "exportId"
+        ],
         "reads": 4,
         "hasOptionalCapability": true
       },
@@ -2872,7 +3109,7 @@
         },
         "PARTIAL": {
           "verdict": "HANDLED",
-          "evidence": "/PARTIAL/"
+          "evidence": "/Promise\\.allSettled/"
         },
         "TRUNCATED": {
           "verdict": "HANDLED",
@@ -2887,7 +3124,8 @@
           "evidence": "/toSafeUserError/"
         },
         "DENIED": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "HANDLED",
@@ -2898,7 +3136,7 @@
         },
         "BUSY": {
           "verdict": "HANDLED",
-          "evidence": "/busy/i"
+          "evidence": "/\"pending\"/"
         },
         "DONE": {
           "verdict": "HANDLED",
@@ -2909,7 +3147,8 @@
           "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1200}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
         },
         "STEP_UP_REQUIRED": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "none of this page's endpoints applies the API's step-up gate (`requireStepUpForSensitiveAction`), so no step-up challenge can reach it"
         },
         "BLOCKED": {
           "verdict": "HANDLED",
@@ -2933,12 +3172,15 @@
           "/v1/ops/media-intelligence/runs//retry",
           "/v1/ops/media-intelligence/dlq/replay"
         ],
+        "rereadMechanism": true,
+        "readKeys": [],
         "reads": 3,
         "hasOptionalCapability": false
       },
       "states": {
         "LOADING": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/loading…/i"
         },
         "REFRESHING": {
           "verdict": "HANDLED",
@@ -2965,7 +3207,8 @@
           "reason": "no measured signal on this page: its content is records, not metrics"
         },
         "PARTIAL": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "(src) =>\n      new Set(\n        [...src.matchAll(/catch\\s*\\([\\s\\S]{0,400}?(set[A-Z]\\w*)\\(/g)].map(\n          (m) => m[1],\n        ),\n      ).size >= 2"
         },
         "TRUNCATED": {
           "verdict": "NOT_APPLICABLE",
@@ -2980,7 +3223,8 @@
           "evidence": "/kind: \"error\"/"
         },
         "DENIED": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -3002,7 +3246,8 @@
           "evidence": "/setActionResult/"
         },
         "STEP_UP_REQUIRED": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "none of this page's endpoints applies the API's step-up gate (`requireStepUpForSensitiveAction`), so no step-up challenge can reach it"
         },
         "BLOCKED": {
           "verdict": "HANDLED",
@@ -3027,6 +3272,8 @@
           "/v1/admin/platform/readiness",
           "/v1/admin/platform/health-snapshot"
         ],
+        "rereadMechanism": true,
+        "readKeys": [],
         "reads": 4,
         "hasOptionalCapability": true
       },
@@ -3062,8 +3309,7 @@
           "evidence": "/PARTIAL/"
         },
         "TRUNCATED": {
-          "verdict": "HANDLED",
-          "evidence": "/\\bcap\\b/"
+          "verdict": "UNHANDLED"
         },
         "STALE": {
           "verdict": "HANDLED",
@@ -3074,8 +3320,8 @@
           "evidence": "/state=\"error\"/"
         },
         "DENIED": {
-          "verdict": "HANDLED",
-          "evidence": "/403/"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -3126,6 +3372,10 @@
           "/v1/operations/queues//jobs//replay",
           "/v1/operations/queues//jobs"
         ],
+        "rereadMechanism": true,
+        "readKeys": [
+          "teamId"
+        ],
         "reads": 6,
         "hasOptionalCapability": false
       },
@@ -3175,15 +3425,15 @@
         },
         "DENIED": {
           "verdict": "HANDLED",
-          "evidence": "/forbidden/i"
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "HANDLED",
           "evidence": "/<AccessGate/"
         },
         "UNAVAILABLE": {
-          "verdict": "HANDLED",
-          "evidence": "/unavailable/i"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "every capability this page fronts is always present in a deployment that has the console"
         },
         "BUSY": {
           "verdict": "HANDLED",
@@ -3221,6 +3471,8 @@
         "requestPaths": [
           "/v1/operations/readiness"
         ],
+        "rereadMechanism": true,
+        "readKeys": [],
         "reads": 1,
         "hasOptionalCapability": true
       },
@@ -3270,8 +3522,8 @@
           "evidence": "/toSafeUserError/"
         },
         "DENIED": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -3319,6 +3571,11 @@
           "/v1/operations/recovery/validate-backup",
           "/v1/operations/recovery/validate-restore",
           "/v1/operations/recovery/reports"
+        ],
+        "rereadMechanism": true,
+        "readKeys": [
+          "teamId",
+          "busy"
         ],
         "reads": 4,
         "hasOptionalCapability": false
@@ -3368,7 +3625,8 @@
           "evidence": "/toSafeUserError/"
         },
         "DENIED": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "HANDLED",
@@ -3417,6 +3675,11 @@
           "/v1/reliability/upload-sessions//mark-abandoned",
           "/v1/reliability/upload-sessions//request-review"
         ],
+        "rereadMechanism": false,
+        "readKeys": [
+          "teamId",
+          "statusFilter"
+        ],
         "reads": 4,
         "hasOptionalCapability": false
       },
@@ -3426,7 +3689,8 @@
           "evidence": "/Loading[^\"`\\n]{0,40}…/"
         },
         "REFRESHING": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "nothing here re-asks a question it has already answered: no poll, no refresh control, and no re-read after a mutation. Every read is keyed to teamId, statusFilter, and a change there is a different question whose answer replaces the one on screen rather than refreshing it"
         },
         "VALUE": {
           "verdict": "HANDLED",
@@ -3464,7 +3728,8 @@
           "evidence": "/toSafeUserError/"
         },
         "DENIED": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -3486,7 +3751,8 @@
           "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1200}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
         },
         "STEP_UP_REQUIRED": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "none of this page's endpoints applies the API's step-up gate (`requireStepUpForSensitiveAction`), so no step-up challenge can reach it"
         },
         "BLOCKED": {
           "verdict": "HANDLED",
@@ -3506,6 +3772,8 @@
         "isStatic": true,
         "workspaceScoped": false,
         "requestPaths": [],
+        "rereadMechanism": false,
+        "readKeys": [],
         "reads": 0,
         "hasOptionalCapability": true
       },
@@ -3598,6 +3866,8 @@
         "isStatic": true,
         "workspaceScoped": false,
         "requestPaths": [],
+        "rereadMechanism": false,
+        "readKeys": [],
         "reads": 0,
         "hasOptionalCapability": false
       },
@@ -3639,8 +3909,8 @@
           "reason": "no list read to cap"
         },
         "STALE": {
-          "verdict": "HANDLED",
-          "evidence": "/stale/i"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: no active workspace to change under a read in flight"
         },
         "ERROR": {
           "verdict": "NOT_APPLICABLE",
@@ -3700,6 +3970,14 @@
           "/v1/operations/signers//health",
           "/v1/operations/signers//preview"
         ],
+        "rereadMechanism": true,
+        "readKeys": [
+          "teamId",
+          "evidenceFilter",
+          "busy",
+          "signerId",
+          "onError"
+        ],
         "reads": 9,
         "hasOptionalCapability": true
       },
@@ -3733,7 +4011,7 @@
         },
         "PARTIAL": {
           "verdict": "HANDLED",
-          "evidence": "/partial/i"
+          "evidence": "/degraded/i"
         },
         "TRUNCATED": {
           "verdict": "HANDLED",
@@ -3749,7 +4027,7 @@
         },
         "DENIED": {
           "verdict": "HANDLED",
-          "evidence": "/permission_denied/"
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "HANDLED",
@@ -3797,6 +4075,19 @@
           "/v1/admin/orgs//plan",
           "/v1/orgs//invites",
           "/v1/orgs//invites//resend"
+        ],
+        "rereadMechanism": true,
+        "readKeys": [
+          "teamId",
+          "organizationName",
+          "ownerEmail",
+          "seats",
+          "workspaceName",
+          "onOrganizationProvisioned",
+          "orgId",
+          "trimmedOrgId",
+          "orgIdValid",
+          "classify"
         ],
         "reads": 5,
         "hasOptionalCapability": false
@@ -3847,7 +4138,7 @@
         },
         "DENIED": {
           "verdict": "HANDLED",
-          "evidence": "/kind: \"denied\"/"
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -3893,6 +4184,10 @@
         "requestPaths": [
           "/v1/admin/search"
         ],
+        "rereadMechanism": false,
+        "readKeys": [
+          "appliedSearch"
+        ],
         "reads": 1,
         "hasOptionalCapability": false
       },
@@ -3902,7 +4197,8 @@
           "evidence": "/\\bloading\\b\\s*\\?/"
         },
         "REFRESHING": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "nothing here re-asks a question it has already answered: no poll, no refresh control, and no re-read after a mutation. Every read is keyed to appliedSearch, and a change there is a different question whose answer replaces the one on screen rather than refreshing it"
         },
         "VALUE": {
           "verdict": "HANDLED",
@@ -3941,8 +4237,8 @@
           "evidence": "/toSafeUserError/"
         },
         "DENIED": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -3999,6 +4295,22 @@
           "/v1/security/scans",
           "/v1/security/events"
         ],
+        "rereadMechanism": true,
+        "readKeys": [
+          "teamId",
+          "eventsPager",
+          "recoveryPager",
+          "policy",
+          "dirty",
+          "currentLevel",
+          "currentStepUpTtl",
+          "currentDeviceTtl",
+          "currentFailMode",
+          "code",
+          "mode",
+          "scanStatus",
+          "severity"
+        ],
         "reads": 12,
         "hasOptionalCapability": false
       },
@@ -4049,7 +4361,7 @@
         },
         "DENIED": {
           "verdict": "HANDLED",
-          "evidence": "/kind: \"denied\"/"
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "HANDLED",
@@ -4101,6 +4413,18 @@
           "/v1/break-glass/activate",
           "/v1/break-glass/revoke"
         ],
+        "rereadMechanism": true,
+        "readKeys": [
+          "supportStatus",
+          "showAllActors",
+          "emergencyStatus",
+          "teamId",
+          "mintOrgId",
+          "mintReason",
+          "mintAccessLevel",
+          "emergencyUserId",
+          "emergencyRole"
+        ],
         "reads": 7,
         "hasOptionalCapability": false
       },
@@ -4127,7 +4451,7 @@
         },
         "FILTERED_EMPTY": {
           "verdict": "HANDLED",
-          "evidence": "/match these filters/"
+          "evidence": "/filtered=\\{/"
         },
         "NOT_MEASURED": {
           "verdict": "NOT_APPLICABLE",
@@ -4151,7 +4475,7 @@
         },
         "DENIED": {
           "verdict": "HANDLED",
-          "evidence": "/kind: \"denied\"/"
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -4175,7 +4499,7 @@
         },
         "STEP_UP_REQUIRED": {
           "verdict": "HANDLED",
-          "evidence": "/step-up/i"
+          "evidence": "/StepUpModal/"
         },
         "BLOCKED": {
           "verdict": "HANDLED",
@@ -4196,6 +4520,13 @@
         "workspaceScoped": false,
         "requestPaths": [
           "/v1/admin/timeline"
+        ],
+        "rereadMechanism": true,
+        "readKeys": [
+          "sourceFilter",
+          "severityFilter",
+          "orgFilter",
+          "nextCursor"
         ],
         "reads": 1,
         "hasOptionalCapability": false
@@ -4245,8 +4576,8 @@
           "evidence": "/toSafeUserError/"
         },
         "DENIED": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -4292,6 +4623,10 @@
         "requestPaths": [
           "/v1/admin/users",
           "/v1/admin/lifecycle-requests"
+        ],
+        "rereadMechanism": true,
+        "readKeys": [
+          "kind"
         ],
         "reads": 2,
         "hasOptionalCapability": false
@@ -4341,8 +4676,8 @@
           "evidence": "/toSafeUserError/"
         },
         "DENIED": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -4388,6 +4723,11 @@
         "requestPaths": [
           "/v1/admin/users",
           "/v1/admin/lifecycle-requests"
+        ],
+        "rereadMechanism": true,
+        "readKeys": [
+          "id",
+          "kind"
         ],
         "reads": 2,
         "hasOptionalCapability": false
@@ -4437,8 +4777,8 @@
           "evidence": "/toSafeUserError/"
         },
         "DENIED": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -4484,6 +4824,8 @@
         "requestPaths": [
           "/v1/admin/workspaces"
         ],
+        "rereadMechanism": true,
+        "readKeys": [],
         "reads": 1,
         "hasOptionalCapability": false
       },
@@ -4532,8 +4874,8 @@
           "evidence": "/toSafeUserError/"
         },
         "DENIED": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -4578,6 +4920,10 @@
         "workspaceScoped": false,
         "requestPaths": [
           "/v1/admin/workspaces"
+        ],
+        "rereadMechanism": true,
+        "readKeys": [
+          "id"
         ],
         "reads": 1,
         "hasOptionalCapability": false
@@ -4628,8 +4974,8 @@
           "evidence": "/toSafeUserError/"
         },
         "DENIED": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
           "verdict": "NOT_APPLICABLE",
@@ -4663,59 +5009,38 @@
     }
   ],
   "gaps": [
+    "/admin: NOT_MEASURED",
     "/admin/adoption: TRUNCATED",
-    "/admin/audit: DENIED",
     "/admin/contact-sales: EMPTY",
     "/admin/contact-sales: BUSY",
-    "/admin/contact-sales: STEP_UP_REQUIRED",
+    "/admin/contact-sales/:id: UNAVAILABLE",
     "/admin/contact-sales/:id: BUSY",
-    "/admin/contact-sales/:id: STEP_UP_REQUIRED",
     "/admin/costs: NOT_MEASURED",
     "/admin/customers/:id: EMPTY",
     "/admin/customers/:id: TRUNCATED",
-    "/admin/customers/:id: DENIED",
-    "/admin/dashboard: REFRESHING",
-    "/admin/demo-requests: STEP_UP_REQUIRED",
     "/admin/demo-requests/:id: VALUE",
     "/admin/demo-requests/:id: UNAVAILABLE",
     "/admin/evidence-ops/records: UNAVAILABLE",
     "/admin/identity: DONE",
-    "/admin/identity/access-reviews: DENIED",
-    "/admin/identity/permission-matrix: DENIED",
+    "/admin/identity/permission-matrix: TRUNCATED",
     "/admin/identity/permission-matrix: DONE",
-    "/admin/identity/runtime: DENIED",
-    "/admin/identity/timeline: DENIED",
     "/admin/identity/timeline: DONE",
     "/admin/operations: PARTIAL",
-    "/admin/operations: STEP_UP_REQUIRED",
-    "/admin/platform/analytics: LOADING",
-    "/admin/platform/analytics: REFRESHING",
     "/admin/platform/analytics: FILTERED_EMPTY",
-    "/admin/platform/automation: LOADING",
     "/admin/platform/exports: MEASURED_ZERO",
-    "/admin/platform/exports: DENIED",
     "/admin/platform/exports: UNAVAILABLE",
-    "/admin/platform/exports: STEP_UP_REQUIRED",
-    "/admin/platform/media-graph: LOADING",
-    "/admin/platform/media-graph: PARTIAL",
-    "/admin/platform/media-graph: DENIED",
     "/admin/platform/media-graph: DONE",
-    "/admin/platform/media-graph: STEP_UP_REQUIRED",
     "/admin/platform/observability: REFRESHING",
     "/admin/platform/observability: EMPTY",
+    "/admin/platform/observability: TRUNCATED",
     "/admin/platform/queues: EMPTY",
     "/admin/platform/recovery: PARTIAL",
-    "/admin/platform/recovery: DENIED",
-    "/admin/platform/reliability: REFRESHING",
     "/admin/platform/reliability: FILTERED_EMPTY",
-    "/admin/platform/reliability: DENIED",
     "/admin/platform/reliability: DONE",
-    "/admin/platform/reliability: STEP_UP_REQUIRED",
     "/admin/platform/runbooks: FILTERED_EMPTY",
     "/admin/platform/runbooks: UNAVAILABLE",
     "/admin/platform/signers: EMPTY",
     "/admin/provisioning: TRUNCATED",
-    "/admin/search: REFRESHING",
     "/admin/timeline: MEASURED_ZERO",
     "/admin/users: FILTERED_EMPTY",
     "/admin/users/:id: FILTERED_EMPTY",
