@@ -364,9 +364,22 @@ export const COLLABORATION_TEAM_NOTIFICATION_TYPES = [
 export type CollaborationTeamNotificationType =
   (typeof COLLABORATION_TEAM_NOTIFICATION_TYPES)[number];
 
+/**
+ * WORKSPACE AND COLLABORATION RECONCILIATION — "DAILY" was removed.
+ *
+ * It was offered in the preferences panel, stored on the row, and consumed by
+ * nothing: there is no digest job anywhere in the worker, and the notification
+ * fan-out only ever branched on MUTED. Choosing it produced the INSTANT
+ * behaviour under a different name, which is worse than not offering it —
+ * a person who wants fewer emails picked it and got the same number.
+ *
+ * The database column keeps its VARCHAR shape and any row already holding
+ * "DAILY" still reads back; it simply is not offered, and the fan-out treats
+ * it exactly as it always did. If a digest is built, this is where the value
+ * comes back, alongside the job that honours it.
+ */
 export const COLLABORATION_TEAM_DIGEST_MODES = [
   "INSTANT",
-  "DAILY",
   "MUTED",
 ] as const;
 export type CollaborationTeamDigestMode =

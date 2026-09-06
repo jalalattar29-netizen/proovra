@@ -102,12 +102,12 @@ function OverviewTab({
             <ul className="overview-action-list">
               {pendingInvites.length > 0 ? (
                 <ActionRow
-                  label={`${pendingInvites.length} pending ${
-                    pendingInvites.length === 1 ? "invite" : "invites"
+                  label={`${pendingInvites.length} pending workspace ${
+                    pendingInvites.length === 1 ? "invitation" : "invitations"
                   }`}
-                  hint="Review or resend invitations."
-                  cta="Go to invites"
-                  onClick={() => onJumpTab("invites")}
+                  hint="People invited to the workspace can be added here once they accept."
+                  cta="Add people"
+                  onClick={() => onJumpTab("members")}
                 />
               ) : null}
               {openAssignments > 0 ? (

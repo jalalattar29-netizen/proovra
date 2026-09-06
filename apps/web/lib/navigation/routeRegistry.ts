@@ -1406,12 +1406,20 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     allToolsVisible: false,
     sidebarEligible: false,
   },
+  // RETIRED DESTINATION. The route still resolves so links in people's history
+  // and messages keep working, but it only redirects into the team's Discussion
+  // tab. It is not a surface any more: three of its five panels did nothing
+  // (guests granted no access, access reviews enforced nothing, the daily digest
+  // had no consumer) and the other two duplicated the inbox and Settings.
+  //
+  // Kept out of every discovery surface below. When no link to it remains, this
+  // entry and the redirect page go together.
   {
     id: "workspace.collaboration_team_hub",
     href: "/collaboration-teams/[teamId]/collaboration",
-    label: "Team collaboration hub",
+    label: "Team discussion (moved)",
     description:
-      "Comments, mentions, notifications, preferences, guests, access review.",
+      "Retired — redirects to the team's Discussion tab.",
     domain: "PERSONAL_WORKSPACE",
     requiredCapabilities: [],
     requiredActiveSpace: "PERSONAL_OR_ORG",

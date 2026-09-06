@@ -24,7 +24,8 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
-import { PageShell } from "../../../../components/ui";
+import { PageShell, useToast } from "../../../../components/ui";
+import { notifyApiError } from "../../../../lib/feedback/notify";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import {
   type CollaborationTeamDetail,
@@ -36,16 +37,24 @@ import { useBillingSummary } from "../../../../lib/api/billing-summary";
 import { PlanLimitBadge } from "../../../../components/billing/PlanLimitBadge";
 import { OverviewTab } from "./_tabs/OverviewTab";
 import { MembersTab } from "./_tabs/MembersTab";
-import { InvitesTab } from "./_tabs/InvitesTab";
+import { DiscussionPanel } from "./_tabs/DiscussionTab";
 import { AssignmentsTab } from "./_tabs/AssignmentsTab";
 import { ActivityTab } from "./_tabs/ActivityTab";
 import { SettingsTab } from "./_tabs/SettingsTab";
 
+// WORKSPACE AND COLLABORATION RECONCILIATION — Discussion joined the tabs and
+// Invites left them.
+//
+// Discussion arrived from the retired Collaboration Hub, which was a second
+// destination for one group. Invites left because a Collaboration Team no
+// longer invites anyone: it is built from people who already hold authority in
+// the workspace, so  is where someone is added and Workspace People is
+// where someone is brought in.
 const TABS = [
   "overview",
   "members",
-  "invites",
   "assignments",
+  "discussion",
   "activity",
   "settings",
 ] as const;
@@ -111,6 +120,14 @@ function TeamDetail() {
   // identical across renders regardless of which branch we take).
   // Consumed below in the header chips once `team` is loaded.
   const headerBillingSummary = useBillingSummary();
+
+  // One error path for every tab panel: the sanctioned safe-feedback helper,
+  // never a raw message.
+  const { addToast } = useToast();
+  const onTabError = useCallback(
+    (err: unknown) => notifyApiError(addToast, err),
+    [addToast],
+  );
 
   // SCOPE J (Phase 6 collaboration finalization) — deep-link to the
   // EXISTING external-reviewer management console (`/review/external`).
@@ -240,7 +257,6 @@ function TeamDetail() {
   // Per-tab count badges — only where a real count exists on `team`.
   const tabCounts: Partial<Record<TabId, number>> = {
     members: activeMemberCountForBadge,
-    invites: pendingInviteCount,
     assignments: openAssignmentCount,
   };
 
@@ -441,13 +457,13 @@ function TeamDetail() {
               <button
                 type="button"
                 className="app-primary-action"
-                onClick={() => goTab("invites")}
+                onClick={() => goTab("members")}
                 data-testid="quick-invite-button"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                   <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                 </svg>
-                <span>Invite people</span>
+                <span>Add people</span>
               </button>
             ) : null}
             <Link
@@ -508,10 +524,10 @@ function TeamDetail() {
             canInvite={canInvite}
             onJumpTab={goTab}
           />
-        ) : activeTab === "invites" ? (
-          <InvitesTab team={team} onRefresh={refresh} canInvite={canInvite} />
         ) : activeTab === "assignments" ? (
           <AssignmentsTab team={team} canAssign={canAssign} />
+        ) : activeTab === "discussion" ? (
+          <DiscussionPanel team={team} onError={onTabError} />
         ) : activeTab === "activity" ? (
           <ActivityTab team={team} />
         ) : activeTab === "settings" ? (

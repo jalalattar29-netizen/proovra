@@ -101,13 +101,13 @@ function MembersTab({
           <button
             type="button"
             className="app-primary-action"
-            onClick={() => onJumpTab("invites")}
+            onClick={() => onJumpTab("members")}
             disabled={atCapacity}
             aria-disabled={atCapacity || undefined}
             title={
               atCapacity
-                ? "Team is at capacity for your plan. Upgrade to add more."
-                : "Invite a new member"
+                ? "Everyone in this workspace is already in this team."
+                : "Add someone from this workspace"
             }
             data-testid="members-invite-button"
             data-at-capacity={atCapacity ? "true" : "false"}

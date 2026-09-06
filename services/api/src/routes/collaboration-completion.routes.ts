@@ -133,7 +133,8 @@ const PrefBody = z.object({
   mentions: z.boolean().optional(),
   assignments: z.boolean().optional(),
   inviteAccepted: z.boolean().optional(),
-  digest: z.enum(["INSTANT", "DAILY", "MUTED"]).optional(),
+  // DAILY is not offered — nothing consumes it. See COLLABORATION_TEAM_DIGEST_MODES.
+  digest: z.enum(["INSTANT", "MUTED"]).optional(),
 });
 
 const GuestInviteBody = z.object({
