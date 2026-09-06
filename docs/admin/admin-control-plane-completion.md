@@ -311,7 +311,7 @@
 | `/admin/alerts` | 291 | 1c/0t/1s |  |
 | `/admin/audit` | 1087 | 3c/1t/2s |  |
 | `/admin/billing` | 764 | 7c/5t/9s |  |
-| `/admin/contact-sales` | 871 | 3c/1t/0s |  |
+| `/admin/contact-sales` | 802 | 3c/1t/0s |  |
 | `/admin/contact-sales/:id` | 676 | 5c/0t/0s |  |
 | `/admin/costs` | 647 | 7c/3t/9s |  |
 | `/admin/customers` | 526 | 0c/1t/0s |  |

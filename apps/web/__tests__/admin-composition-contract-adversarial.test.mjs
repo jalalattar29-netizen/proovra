@@ -479,10 +479,23 @@ test("removing the real filtered-empty wording from /admin/contact-sales is caug
 });
 
 test("unwrapping a real table's scroll container is caught", () => {
-  // /admin/contact-sales, not /admin/customers: the customers roster renders
-  // through <DataTable>, so it has no `<table` element for this check to apply
-  // to and the mutation would have proved nothing.
-  const rows = mutateReal("contact-sales", (src) =>
+  /*
+   * /admin/platform/queues, and the reason the fixture moved is the reason it
+   * was chosen in the first place.
+   *
+   * This used to mutate /admin/contact-sales, with a comment explaining that a
+   * <DataTable> page "has no `<table` element for this check to apply to and
+   * the mutation would have proved nothing". Phase 7 §B6 migrated
+   * contact-sales onto <DataTable>, which made that comment true of it — the
+   * mutation still ran, changed nothing the contract could see, and the test
+   * failed for exactly the reason it had predicted.
+   *
+   * /admin/platform/queues still renders a hand-rolled <table> inside an
+   * `.apf-table-wrap` scroll container, so the mutation has something to take
+   * away. If that page is ever migrated too, this fixture moves again rather
+   * than being loosened.
+   */
+  const rows = mutateReal("platform/queues", (src) =>
     src
       .replace(/overflowX:\s*"auto"/g, 'overflowX: "visible"')
       .replace(/overflow-x/g, "overflow-y")
@@ -490,7 +503,7 @@ test("unwrapping a real table's scroll container is caught", () => {
       .replace(/table-wrap/g, "table-plain")
       .replace(/overflow:\s*auto/g, "overflow: visible"),
   );
-  const row = rows.find((r) => r.route === "/admin/contact-sales");
+  const row = rows.find((r) => r.route === "/admin/platform/queues");
   assert.ok(
     row.failures.includes("LIST_TABLE_NOT_SCROLLABLE"),
     `got [${row.failures.join(", ")}]`,

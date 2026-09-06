@@ -13,9 +13,12 @@ import {
   PageHeader,
   Input,
   Select,
-  Skeleton,
   useToast,
 } from "../../../../components/ui";
+import {
+  DataTable,
+} from "../../../../components/ui/DataTable";
+import { EmptyState } from "../../../../components/ui/EmptyState";
 import { Card } from "../../../../components/ui/Card";
 import { Badge } from "../../../../components/ui/Badge";
 import type { BadgeTone } from "../../../../components/ui/Badge";
@@ -403,241 +406,169 @@ export default function AdminContactSalesPage() {
         </div>
       </Card>
 
+      {/*
+        §B6 — THE CANONICAL TABLE, NOT A COPY OF IT.
+
+        This was a hand-rolled `<table>`: its own header styling, its own row
+        borders, its own loading skeleton, its own empty cell, and its own
+        sticky actions column — the last of which had to be added here by hand
+        after a measurement found "Open →" rendering five pixels past the
+        container edge, precisely because the fork inherits none of
+        `DataTable`'s rules. Every one of those is a thing the component
+        already does, and every one of them was a second place to fix a bug.
+
+        Nothing about the page's BEHAVIOUR is a reason to fork it. The filters
+        are server-backed and stay above the table; the status transitions live
+        in the detail panel, not in a cell; row selection is a Quick view
+        button and a real link; the counts come from `ResultCount` either way.
+        What the fork bought was styling, and the styling is what was wrong
+        with it.
+      */}
       <Card padding="none">
-        <div style={{ overflowX: "auto" }}>
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              textAlign: "left",
-              fontSize: 13.5,
-            }}
-          >
-            <thead style={{ background: "var(--surface-muted)" }}>
-              <tr
-                style={{
-                  fontSize: 11.5,
-                  fontWeight: 600,
-                  letterSpacing: "0.14em",
-                  textTransform: "uppercase",
-                  color: "var(--ink-secondary)",
-                }}
+        <DataTable
+          ariaLabel="Contact-sales inquiries"
+          rows={loading ? [] : items}
+          getRowId={(it) => it.id}
+          loading={loading}
+          columns={[
+            {
+              key: "createdAt",
+              header: "Submitted",
+              nowrap: true,
+              render: (it) => (
+                <span style={{ color: "var(--ink-secondary)" }}>
+                  {formatTimestamp(it.createdAt)}
+                </span>
+              ),
+            },
+            {
+              key: "fullName",
+              header: "Name",
+              render: (it) => (
+                <>
+                  <div style={{ fontWeight: 600, color: "var(--ink-primary)" }}>
+                    {it.fullName}
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--ink-secondary)" }}>
+                    {it.workEmail}
+                  </div>
+                </>
+              ),
+            },
+            { key: "organization", header: "Organization" },
+            {
+              key: "discussionTopic",
+              header: "Topic",
+              render: (it) => (
+                <span style={{ color: "var(--ink-secondary)" }}>
+                  {it.discussionTopic}
+                </span>
+              ),
+            },
+            {
+              key: "stage",
+              header: "Stage",
+              render: (it) => (
+                <span style={{ color: "var(--ink-secondary)" }}>{it.stage}</span>
+              ),
+            },
+            {
+              key: "priority",
+              header: "Priority",
+              render: (it) => <PriorityPill value={it.priority} />,
+            },
+            {
+              key: "status",
+              header: "Status",
+              render: (it) => <StatusPill value={it.status} />,
+            },
+            {
+              key: "emailSentAt",
+              header: "Email",
+              nowrap: true,
+              /* "Sent" or "—". A dash rather than "Not sent", because the
+                 column header already says what the value is about and an
+                 unsent enquiry is the ordinary case, not a finding. */
+              render: (it) => (
+                <span style={{ fontSize: 12, color: "var(--ink-muted)" }}>
+                  {it.emailSentAt ? "Sent" : "—"}
+                </span>
+              ),
+            },
+          ]}
+          emptyState={
+            /*
+              EMPTY AND FILTERED-EMPTY ARE NOT THE SAME SENTENCE. One message
+              said "match your filters" whether or not any were set, so an
+              operator looking at a genuinely empty inbox was told their
+              filters were hiding something. The first case has nothing to
+              clear; the second says what to clear and offers it.
+            */
+            isFiltered ? (
+              <EmptyState
+                variant="inline"
+                title="No inquiry matches these filters"
+                purpose={`No contact-sales inquiry matches ${
+                  statusFilter
+                    ? `the ${COMMERCIAL_STATUS_LABEL[statusFilter]} status`
+                    : "that search"
+                }${statusFilter && search.trim() ? " and that search" : ""}.`}
+                action={
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      setStatusFilter("");
+                      setSearch("");
+                    }}
+                  >
+                    Clear filters
+                  </Button>
+                }
+              />
+            ) : (
+              <EmptyState
+                variant="inline"
+                title="No contact-sales inquiries yet"
+                purpose="New enquiries from the public site appear here as they are submitted."
+              />
+            )
+          }
+          rowActions={(it) => (
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+              <Button variant="secondary" size="sm" onClick={() => openDetails(it.id)}>
+                Quick view
+              </Button>
+              {/* ONE ELEMENT, NOT A BUTTON INSIDE A LINK. `<a><button></a>` is
+                  invalid HTML — interactive content may not nest — and the
+                  keyboard sweep reported it as a nested interactive stop.
+                  `buttonSurfaceStyle` on the anchor is the console's existing
+                  shape for a link that looks like a button. */}
+              <Link
+                href={detailHrefWithReturn(
+                  `/admin/contact-sales/${encodeURIComponent(it.id)}`,
+                  listParams?.toString() ?? null,
+                )}
+                className="ui-button"
+                data-variant="ghost"
+                data-size="sm"
+                style={buttonSurfaceStyle("ghost", "sm")}
               >
-                <th style={{ padding: "12px 20px" }}>Submitted</th>
-                <th style={{ padding: "12px 20px" }}>Name</th>
-                <th style={{ padding: "12px 20px" }}>Organization</th>
-                <th style={{ padding: "12px 20px" }}>Topic</th>
-                <th style={{ padding: "12px 20px" }}>Stage</th>
-                <th style={{ padding: "12px 20px" }}>Priority</th>
-                <th style={{ padding: "12px 20px" }}>Status</th>
-                <th style={{ padding: "12px 20px" }}>Email</th>
-                {/* THIS TABLE IS HAND-ROLLED, so it inherits none of
-                    `DataTable`'s rules — including the sticky actions column
-                    added there. Measured: "Open →" rendered at x=1372 against
-                    a container edge at x=1367, so the last five pixels of the
-                    row's second action were off-screen at the default desktop
-                    width. Pinned here the same way rather than left to drift
-                    from the component it should be using; the table itself is
-                    recorded as debt. */}
-                <th
-                  style={{
-                    padding: "12px 20px",
-                    position: "sticky",
-                    insetInlineEnd: 0,
-                    background: "var(--surface-muted)",
-                    zIndex: 2,
-                  }}
-                />
-              </tr>
-            </thead>
-            <tbody>
-              {loading
-                ? Array.from({ length: 6 }).map((_, i) => (
-                    <tr
-                      key={i}
-                      style={{ borderTop: "1px solid var(--border-default)" }}
-                    >
-                      <td style={{ padding: "12px 20px" }} colSpan={9}>
-                        <Skeleton height="18px" />
-                      </td>
-                    </tr>
-                  ))
-                : items.length === 0
-                  ? (
-                      <tr style={{ borderTop: "1px solid var(--border-default)" }}>
-                        <td
-                          style={{
-                            padding: "32px 20px",
-                            textAlign: "center",
-                            color: "var(--ink-muted)",
-                          }}
-                          colSpan={9}
-                        >
-                          {/*
-                            EMPTY AND FILTERED-EMPTY ARE NOT THE SAME SENTENCE.
-                            One message said "match your filters" whether or
-                            not any were set, so an operator looking at a
-                            genuinely empty inbox was told their filters were
-                            hiding something. The first case has nothing to
-                            clear; the second says what to clear and offers it.
-                          */}
-                          {isFiltered ? (
-                            <>
-                              No inquiry matches{" "}
-                              {statusFilter
-                                ? `the ${COMMERCIAL_STATUS_LABEL[statusFilter]} status`
-                                : "that search"}
-                              {statusFilter && search.trim() ? " and that search" : ""}
-                              .{" "}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setStatusFilter("");
-                                  setSearch("");
-                                }}
-                              >
-                                Clear filters
-                              </Button>
-                            </>
-                          ) : (
-                            "No contact-sales inquiries have been submitted yet. New enquiries from the public site appear here."
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  : items.map((it) => (
-                      <tr
-                        key={it.id}
-                        style={{ borderTop: "1px solid var(--border-default)" }}
-                      >
-                        <td
-                          style={{
-                            padding: "12px 20px",
-                            color: "var(--ink-secondary)",
-                          }}
-                        >
-                          {formatTimestamp(it.createdAt)}
-                        </td>
-                        <td style={{ padding: "12px 20px" }}>
-                          <div
-                            style={{
-                              fontWeight: 600,
-                              color: "var(--ink-primary)",
-                            }}
-                          >
-                            {it.fullName}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: 12,
-                              color: "var(--ink-secondary)",
-                            }}
-                          >
-                            {it.workEmail}
-                          </div>
-                        </td>
-                        <td
-                          style={{
-                            padding: "12px 20px",
-                            color: "var(--ink-primary)",
-                          }}
-                        >
-                          {it.organization}
-                        </td>
-                        <td
-                          style={{
-                            padding: "12px 20px",
-                            color: "var(--ink-secondary)",
-                          }}
-                        >
-                          {it.discussionTopic}
-                        </td>
-                        <td
-                          style={{
-                            padding: "12px 20px",
-                            color: "var(--ink-secondary)",
-                          }}
-                        >
-                          {it.stage}
-                        </td>
-                        <td style={{ padding: "12px 20px" }}>
-                          <PriorityPill value={it.priority} />
-                        </td>
-                        <td style={{ padding: "12px 20px" }}>
-                          <StatusPill value={it.status} />
-                        </td>
-                        <td
-                          style={{
-                            padding: "12px 20px",
-                            fontSize: 12,
-                            color: "var(--ink-muted)",
-                          }}
-                        >
-                          {it.emailSentAt ? "Sent" : "—"}
-                        </td>
-                        <td
-                          style={{
-                            padding: "12px 20px",
-                            textAlign: "right",
-                            // See the matching <th>: pinned so the row's
-                            // actions do not scroll off the right edge.
-                            position: "sticky",
-                            insetInlineEnd: 0,
-                            background: "var(--surface-card)",
-                            zIndex: 1,
-                          }}
-                        >
-                          <div
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: 8,
-                            }}
-                          >
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => openDetails(it.id)}
-                            >
-                              Quick view
-                            </Button>
-                            {/* ONE ELEMENT, NOT A BUTTON INSIDE A LINK.
-                                `<a><button></a>` is invalid HTML —
-                                interactive content may not nest — and the
-                                keyboard sweep reported it as a nested
-                                interactive stop. `buttonSurfaceStyle` on the
-                                anchor is the console's existing shape for a
-                                link that looks like a button. */}
-                            <Link
-                              href={detailHrefWithReturn(
-                                `/admin/contact-sales/${encodeURIComponent(it.id)}`,
-                                listParams?.toString() ?? null,
-                              )}
-                              className="ui-button"
-                              data-variant="ghost"
-                              data-size="sm"
-                              style={buttonSurfaceStyle("ghost", "sm")}
-                            >
-                              Open →
-                            </Link>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-            </tbody>
-          </table>
-          <ResultCount
-            shown={items.length}
-            total={total ?? undefined}
-            cap={PAGE_LIMIT}
-            noun="inquiry"
-            pluralNoun="inquiries"
-            filtered={statusFilter !== ""}
-            loading={loading}
-            data-testid="admin-contact-sales-count"
-          />
-        </div>
+                Open →
+              </Link>
+            </div>
+          )}
+        />
+        <ResultCount
+          shown={items.length}
+          total={total ?? undefined}
+          cap={PAGE_LIMIT}
+          noun="inquiry"
+          pluralNoun="inquiries"
+          filtered={isFiltered}
+          loading={loading}
+          data-testid="admin-contact-sales-count"
+        />
       </Card>
 
       {selectedId ? (

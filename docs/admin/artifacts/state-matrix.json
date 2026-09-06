@@ -300,8 +300,8 @@
           "reason": "every capability this page fronts is always present in a deployment that has the console"
         },
         "BUSY": {
-          "verdict": "HANDLED",
-          "evidence": "/\"pending\"/"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no request here uses POST, PUT, PATCH or DELETE, so there is no mutation to be in flight, to finish, to fail, or to be challenged for a second factor"
         },
         "DONE": {
           "verdict": "NOT_APPLICABLE",
@@ -559,7 +559,7 @@
         },
         "VALUE": {
           "verdict": "HANDLED",
-          "evidence": "/\\.map\\(/"
+          "evidence": "/<DataTable/"
         },
         "MEASURED_ZERO": {
           "verdict": "HANDLED",
@@ -567,7 +567,7 @@
         },
         "EMPTY": {
           "verdict": "HANDLED",
-          "evidence": "/No .* yet/"
+          "evidence": "/<EmptyState/"
         },
         "FILTERED_EMPTY": {
           "verdict": "HANDLED",
