@@ -30,8 +30,6 @@
  */
 
 import type { Prisma, PrismaClient } from "@prisma/client";
-// PHASE 12 POINT 4 PASS C0 — the ONE commercial authority for invitations.
-import { assertCanInviteCollaborationTeamGuest } from "./billing-guards.js";
 import {
   COLLABORATION_TEAM_COMMENT_TARGETS,
   buildCollaborationTeamUserDirectoryEntry,
@@ -757,9 +755,6 @@ export async function updateMyNotificationPreference(
 // Guests (Stage 7)
 // =============================================================================
 
-const GUEST_EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
-const GUEST_DEFAULT_TTL_DAYS = 14;
-const GUEST_MAX_TTL_DAYS = 90;
 
 export async function inviteGuest(
   input: {
@@ -771,7 +766,7 @@ export async function inviteGuest(
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<{ id: string }> {
-  const { team, role } = await requireMemberRole(
+  const { role } = await requireMemberRole(
     client,
     input.teamId,
     input.actorUserId,
@@ -782,64 +777,60 @@ export async function inviteGuest(
       "Only LEAD and ADMIN can invite guests.",
       403,
     );
-  if (!GUEST_EMAIL_RE.test(input.email))
-    throw new CollaborationTeamError("team_invalid", "Invalid email.", 400);
 
-  // PHASE 12 POINT 4 PASS C0 — commercial entitlement enforced HERE, at the
-  // canonical authority, not in the browser and not from a raw plan column.
-  //
-  // Guest invitation was gated ONLY by `if (!guestsAllowed) return;` in
-  // apps/web: neither this service nor the route checked the plan, so a FREE
-  // workspace could invite external collaborators by calling the API directly.
-  // That made the frontend the authoritative commercial decision-maker.
-  //
-  // The first fix read `Team.billingPlan` here — correct for an OWNED
-  // workspace on a current row, wrong for a PERSONAL workspace (whose
-  // subject is the owner's entitlement), wrong for a legacy OWNED+ENTERPRISE
-  // string, and wrong for a suspended Organization still carrying its plan
-  // string. Guests now go through the SAME subject-correct commercial
-  // authority and the SAME catalog capacity limits as every other invitation
-  // channel, so there is exactly one commercial decision for invitations.
-  await assertCanInviteCollaborationTeamGuest(input.teamId, client);
-
-  const ttlDays = Math.min(
-    Math.max(input.expiresInDays ?? GUEST_DEFAULT_TTL_DAYS, 1),
-    GUEST_MAX_TTL_DAYS,
+  /**
+   * RETIRED — it never granted anything.
+   *
+   * "Guests" wrote a `CollaborationTeamGuest` row and stopped. No email was
+   * ever sent; `acceptedUserId` and `acceptedAtUtc` are written by ZERO code
+   * paths in the repository; the status never left PENDING; and no read path
+   * anywhere consulted the table for access. An operator pressing "Invite
+   * guest" was told an external collaborator had been given time-bounded
+   * access, and no access existed and no one was contacted.
+   *
+   * On an evidence platform that is worse than a missing feature. External
+   * review has a real authority — `/review/external`, with grants, identity,
+   * expiry and audit — and the honest move is to send people there rather than
+   * to keep a second registry that only looks like one.
+   *
+   * Existing rows are untouched and still listed, so an operator who believes
+   * they granted something can see exactly what is there and revoke it.
+   */
+  throw new CollaborationTeamError(
+    "COLLABORATION_TEAM_GUESTS_RETIRED",
+    "External reviewers are granted access in External Review, where the grant is real, time-bounded and audited. This surface never sent an invitation or granted access.",
+    410,
   );
-  const expiresAtUtc = new Date(Date.now() + ttlDays * 24 * 60 * 60 * 1000);
 
-  const result = await client.$transaction(async (tx) => {
-    const g = await tx.collaborationTeamGuest.create({
-      data: {
-        teamId: input.teamId,
-        workspaceId: team.workspaceId,
-        email: input.email.toLowerCase(),
-        expiresAtUtc,
-        status: "PENDING",
-        invitedByUserId: input.actorUserId,
-        scopeNote: input.scopeNote ? input.scopeNote.slice(0, 400) : null,
-      },
-      select: { id: true },
-    });
-    await recordActivity(tx, {
-      teamId: input.teamId,
-      workspaceId: team.workspaceId,
-      actorUserId: input.actorUserId,
-      eventType: "GUEST_INVITED",
-      targetType: "GUEST",
-      targetId: g.id,
-      metadata: { ttlDays },
-    });
-    return g;
-  });
-  return result;
 }
 
 export async function listGuests(
   input: { teamId: string; actorUserId: string },
   client: PrismaClient = defaultPrisma,
 ) {
-  await requireMemberRole(client, input.teamId, input.actorUserId);
+  /**
+   * A GUEST LIST IS A LIST OF THIRD-PARTY ADDRESSES.
+   *
+   * This required only membership, so every VIEWER — and every EXTERNAL
+   * collaborator, who holds `team.read` — could read the address of every
+   * outside party the team had ever contacted. Reading a team is not a reason
+   * to receive that.
+   *
+   * Gated on the same permission that CREATES a guest, because the people who
+   * manage external access are the people who need to see who has it.
+   */
+  const { role } = await requireMemberRole(
+    client,
+    input.teamId,
+    input.actorUserId,
+  );
+  if (!collaborationTeamRoleHasPermission(role, "team.member.invite")) {
+    throw new CollaborationTeamError(
+      "team_forbidden",
+      "Only LEAD and ADMIN can see external collaborators.",
+      403,
+    );
+  }
   const rows = await client.collaborationTeamGuest.findMany({
     where: { teamId: input.teamId },
     orderBy: { createdAt: "desc" },
@@ -1133,6 +1124,115 @@ export async function completeAccessReview(
         "Access review not found.",
         404,
       );
+    }
+
+    /**
+     * A DECISION THAT IS NOT APPLIED IS NOT A CONTROL.
+     *
+     * `decideAccessReviewItem` wrote a decision row and an activity row and
+     * never touched `CollaborationTeamMember`. So an access review could be
+     * marked complete with every item decided REMOVE, and every one of those
+     * people would still be in the team — a compliance surface that recorded
+     * intentions and enforced none of them, on a product whose customers point
+     * at it during audits.
+     *
+     * Completion is where the decisions land, in the SAME transaction that
+     * closes the review: a review cannot be complete while its outcome is
+     * still pending, and a failure rolls both back together.
+     *
+     * KEEP is a decision too — it just has no write. PENDING items are left
+     * alone rather than treated as either answer.
+     */
+    const decided = await tx.collaborationTeamAccessReviewItem.findMany({
+      where: { reviewId: input.reviewId, decision: { in: ["REMOVE", "CHANGE_ROLE"] } },
+      select: { id: true, decision: true, memberId: true },
+    });
+
+    for (const item of decided) {
+      if (item.decision === "REMOVE") {
+        // The last LEAD is protected here as everywhere else: a review may not
+        // leave a team with nobody able to lead it.
+        const member = await tx.collaborationTeamMember.findUnique({
+          where: { id: item.memberId },
+          select: { id: true, role: true, status: true, teamId: true },
+        });
+        if (!member || member.teamId !== input.teamId) continue;
+        if (member.status !== "ACTIVE") continue;
+        if (member.role === "LEAD") {
+          const otherLeads = await tx.collaborationTeamMember.count({
+            where: {
+              teamId: input.teamId,
+              id: { not: member.id },
+              role: "LEAD",
+              status: "ACTIVE",
+            },
+          });
+          if (otherLeads === 0) {
+            throw new CollaborationTeamError(
+              "team_conflict",
+              "This review would remove the last LEAD. Change that decision or transfer leadership first.",
+              409,
+            );
+          }
+        }
+        await tx.collaborationTeamMember.update({
+          where: { id: member.id },
+          data: {
+            status: "REMOVED",
+            removedAt: new Date(),
+            statusReason: "access review",
+          },
+        });
+        await recordActivity(tx, {
+          teamId: input.teamId,
+          workspaceId: team.workspaceId,
+          actorUserId: input.actorUserId,
+          eventType: "MEMBER_REMOVED",
+          targetType: "ACCESS_REVIEW_ITEM",
+          targetId: item.id,
+          metadata: { via: "ACCESS_REVIEW" },
+        });
+      } else {
+        // CHANGE_ROLE without a target role is not a decision anyone can act
+        // on. It demotes to VIEWER — the least authority the group has — which
+        // is the safe reading of "this person should not hold what they hold".
+        const member = await tx.collaborationTeamMember.findUnique({
+          where: { id: item.memberId },
+          select: { id: true, role: true, status: true, teamId: true },
+        });
+        if (!member || member.teamId !== input.teamId) continue;
+        if (member.status !== "ACTIVE" || member.role === "VIEWER") continue;
+        if (member.role === "LEAD") {
+          const otherLeads = await tx.collaborationTeamMember.count({
+            where: {
+              teamId: input.teamId,
+              id: { not: member.id },
+              role: "LEAD",
+              status: "ACTIVE",
+            },
+          });
+          if (otherLeads === 0) {
+            throw new CollaborationTeamError(
+              "team_conflict",
+              "This review would demote the last LEAD. Change that decision or transfer leadership first.",
+              409,
+            );
+          }
+        }
+        await tx.collaborationTeamMember.update({
+          where: { id: member.id },
+          data: { role: "VIEWER" },
+        });
+        await recordActivity(tx, {
+          teamId: input.teamId,
+          workspaceId: team.workspaceId,
+          actorUserId: input.actorUserId,
+          eventType: "MEMBER_ROLE_CHANGED",
+          targetType: "ACCESS_REVIEW_ITEM",
+          targetId: item.id,
+          metadata: { via: "ACCESS_REVIEW", from: member.role, to: "VIEWER" },
+        });
+      }
     }
     await recordActivity(tx, {
       teamId: input.teamId,

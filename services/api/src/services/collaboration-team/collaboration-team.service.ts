@@ -50,6 +50,11 @@ import {
   type CollaborationTeamType,
 } from "@proovra/shared";
 
+import {
+  workspaceCaseWhere,
+  workspaceEvidenceWhere,
+} from "@proovra/shared-runtime";
+
 import { prisma as defaultPrisma } from "../../db.js";
 import {
   assertCanCreateCollaborationTeam,
@@ -1450,6 +1455,59 @@ export async function acceptInvite(
 // -----------------------------------------------------------------------------
 
 // -----------------------------------------------------------------------------
+// Assignment target validation
+// -----------------------------------------------------------------------------
+
+/**
+ * Prove that a Case / Evidence / Review record exists inside THIS workspace.
+ *
+ * A Collaboration Team references its workspace's records; it never owns them
+ * and never reaches outside. The scope predicates are the canonical ones from
+ * `@proovra/shared-runtime`, so this agrees with every other read of the same
+ * population — including the personal-workspace rule for legacy rows whose
+ * `team_id` is NULL.
+ *
+ * The refusal is deliberately the same shape for "does not exist" and "belongs
+ * to another workspace": the caller must not learn which.
+ */
+async function assertAssignmentTargetInWorkspace(
+  client: PrismaClient,
+  workspaceId: string,
+  targetType: CollaborationTeamAssignmentTarget,
+  targetId: string,
+): Promise<void> {
+  if (targetType === "CASE") {
+    const found = await client.case.findFirst({
+      where: { AND: [await workspaceCaseWhere(workspaceId, client), { id: targetId }] },
+      select: { id: true },
+    });
+    if (!found) throw E.notFound("Case");
+    return;
+  }
+  if (targetType === "EVIDENCE") {
+    const found = await client.evidence.findFirst({
+      where: {
+        AND: [await workspaceEvidenceWhere(workspaceId, client), { id: targetId }],
+      },
+      select: { id: true },
+    });
+    if (!found) throw E.notFound("Evidence record");
+    return;
+  }
+  // REVIEW — a review workflow belongs to the workspace THROUGH its evidence.
+  // Scoping it by its own nullable `team_id` would reproduce the original
+  // defect on a second table; scoping through the relation cannot.
+  const found = await client.evidenceReviewWorkflow.findFirst({
+    where: {
+      id: targetId,
+      evidence: await workspaceEvidenceWhere(workspaceId, client),
+    },
+    select: { id: true },
+  });
+  if (!found) throw E.notFound("Review");
+}
+
+// -----------------------------------------------------------------------------
 // Membership directories — the two bounded reads that replace the unbounded one
 // -----------------------------------------------------------------------------
 
@@ -1728,6 +1786,32 @@ export async function createAssignment(
   const targetType = validateAssignmentTarget(input.targetType);
   const priority = validatePriority(input.priority);
   const note = input.note ? input.note.slice(0, 600) : null;
+
+  /**
+   * THE TARGET MUST EXIST, AND IT MUST BE IN THIS WORKSPACE.
+   *
+   * `targetId` was written straight through: any uuid at all was accepted as a
+   * CASE, EVIDENCE or REVIEW reference, with no lookup, no tenant check and no
+   * foreign key. A group could therefore carry an assignment pointing at a
+   * record in someone else's workspace, or at nothing.
+   *
+   * It granted no access — a Collaboration Team owns nothing and confers
+   * nothing, and every read of a Case or an Evidence record still goes through
+   * its own authorization. What it did produce was a dangling reference inside
+   * an evidence system, and a reference an operator cannot open is worse than
+   * no reference at all.
+   *
+   * Validated through the canonical workspace scope predicates, not by a bare
+   * `teamId` equality: a PERSONAL workspace's legacy `team_id IS NULL` rows are
+   * identified by their owner, and `evidenceScopeFor` is the one rule that
+   * knows it.
+   */
+  await assertAssignmentTargetInWorkspace(
+    client,
+    team.workspaceId,
+    targetType,
+    input.targetId,
+  );
 
   if (input.assigneeUserId) {
     const assignee = await client.collaborationTeamMember.findFirst({

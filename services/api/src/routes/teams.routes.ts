@@ -665,10 +665,30 @@ export async function teamsRoutes(app: FastifyInstance) {
         timezone: team.timezone,
         legalEmail: team.legalEmail,
         retentionPolicy: team.retentionPolicy,
-        billingPlan: team.billingPlan,
-        billingStatus: team.billingStatus,
-        includedSeats: team.includedSeats,
-        overSeatLimit: team.overSeatLimit,
+        /**
+         * COMMERCIAL STATE IS ADMINISTRATIVE DATA.
+         *
+         * `billingPlan`, `billingStatus`, `includedSeats` and `overSeatLimit`
+         * were returned to every member, so a VIEWER — a read-only role —
+         * received the workspace's plan, its payment status and its contracted
+         * seat count. None of those are needed to read a workspace, and a
+         * payment problem is not something a workspace's readers are entitled
+         * to learn.
+         *
+         * They are also RAW COLUMNS, and a raw column is not the effective
+         * plan: on a PERSONAL workspace `billingPlan` is meaningless (the
+         * subject is the owner's entitlement) and `includedSeats` is 0 unless
+         * Enterprise provisioning wrote it. `stats.seat*` below carries the
+         * resolved truth for everyone.
+         */
+        ...(hasRole(actorMembership.role, prismaPkg.TeamRole.ADMIN)
+          ? {
+              billingPlan: team.billingPlan,
+              billingStatus: team.billingStatus,
+              includedSeats: team.includedSeats,
+              overSeatLimit: team.overSeatLimit,
+            }
+          : {}),
         currentUserRole: actorMembership.role,
         canManageMembers: hasRole(actorMembership.role, prismaPkg.TeamRole.ADMIN),
         // PHASE 12 POINT 4 STEP 1 — OWNER-level workspace authority, projected
