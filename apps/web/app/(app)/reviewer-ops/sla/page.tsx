@@ -18,23 +18,15 @@ import {
   NoWorkloadSnapshotsEmptyState,
   RuntimeStatusBanner,
 } from "../../../../components/operational";
+import { formatCellDateTime } from "../../../../lib/date";
 import {
-  cardStyle,
-  emptyStateStyle,
-  errorBoxStyle,
-  formatDateTime,
-  headerRowStyle,
-  mutedStyle,
-  pageStyle,
-  sectionTitleStyle,
-  severityBadgeStyle,
-  subtitleStyle,
-  tableStyle,
-  tdStyle,
-  thStyle,
-  titleStyle,
-  TOKENS,
-} from "../ui-tokens";
+  PageShell,
+  PageHeader,
+  PageSection,
+} from "../../../../components/ui/PageShell";
+import { Card } from "../../../../components/ui/Card";
+import { Badge } from "../../../../components/ui/Badge";
+import { EmptyState } from "../../../../components/ui/EmptyState";
 
 type EscalationAnalytics = {
   range: { startUtc: string; endUtc: string };
@@ -176,46 +168,66 @@ function SlaDashboardPageInner() {
   // envelope is still hydrating we render the bounded loading shell.
   if (!teamId) {
     return (
-      <main style={pageStyle} data-sla-loading>
-        <header style={headerRowStyle}>
-          <div>
-            <h1 style={titleStyle}>SLA Operations Dashboard</h1>
-            <p style={subtitleStyle}>Loading organization workspace…</p>
-          </div>
-        </header>
-      </main>
+      <PageShell
+        width="full"
+        data-sla-loading
+        header={
+          <PageHeader
+            eyebrow="Reviewer operations"
+            title="SLA Operations Dashboard"
+            subtitle="Loading organization workspace…"
+          />
+        }
+      />
     );
   }
   if (!data) {
     return (
-      <main style={pageStyle}>
-        {error ? <div style={errorBoxStyle}>{error}</div> : null}
-        <div style={emptyStateStyle}>Loading SLA dashboard…</div>
-      </main>
+      <PageShell
+        width="full"
+        header={
+          <PageHeader
+            eyebrow="Reviewer operations"
+            title="SLA Operations"
+          />
+        }
+      >
+        {error ? (
+          <Card variant="status" tone="risk">
+            {error}
+          </Card>
+        ) : null}
+        <EmptyState variant="inline" title="Loading SLA dashboard…" />
+      </PageShell>
     );
   }
 
   return (
-    <main style={pageStyle}>
+    <PageShell
+      width="full"
+      header={
+        <PageHeader
+          eyebrow="Reviewer operations"
+          title="SLA Operations"
+          subtitle={
+            <span data-sla-dashboard-intro>
+              Read-only operations dashboard reflecting current SLA pressure
+              across the workspace — backlog, breached counts, reviewer
+              workload, and escalation hotspots. SLA policy is administered at
+              /governance/policy; this surface never mutates it.
+              Operator-readable only — no private review notes.
+            </span>
+          }
+        />
+      }
+    >
       {teamId ? (
         <RuntimeStatusBanner teamId={teamId} forDomains={["reviewer_ops"]} />
       ) : null}
-      <header style={headerRowStyle}>
-        <div>
-          <h1 style={titleStyle}>SLA Operations</h1>
-          <p style={subtitleStyle} data-sla-dashboard-intro>
-            Read-only operations dashboard reflecting current SLA
-            pressure across the workspace — backlog, breached counts,
-            reviewer workload, and escalation hotspots. SLA policy is
-            administered at /governance/policy; this surface never
-            mutates it. Operator-readable only — no private review
-            notes.
-          </p>
-        </div>
-      </header>
 
-      <section style={{ ...cardStyle, marginTop: 16 }}>
-        <h3 style={sectionTitleStyle}>Freshness and runtime</h3>
+      <PageSection>
+        <Card padding="comfortable">
+        <h3 className="app-panel__title">Freshness and runtime</h3>
         <div
           style={{
             display: "grid",
@@ -227,7 +239,7 @@ function SlaDashboardPageInner() {
             label="Latest workload snapshot"
             value={
               data.workloadTop[0]?.computedAtUtc
-                ? formatDateTime(data.workloadTop[0].computedAtUtc)
+                ? formatCellDateTime(data.workloadTop[0].computedAtUtc)
                 : "Not yet available"
             }
             tone=""
@@ -236,26 +248,32 @@ function SlaDashboardPageInner() {
             label="Analytics range end"
             value={
               analytics?.range.endUtc
-                ? formatDateTime(analytics.range.endUtc)
+                ? formatCellDateTime(analytics.range.endUtc)
                 : "Not yet loaded"
             }
             tone=""
           />
           <Stat label="Worker health" value="See runtime banner above" tone="" />
         </div>
-        <p style={{ ...mutedStyle, marginTop: 10 }}>
+        <p style={{ marginTop: 10, fontSize: 12, color: "var(--silver-ink)" }}>
           Workload and assignment suggestions depend on reconcile snapshots.
           Escalation analytics refresh separately from the queue snapshot. When
           the runtime banner is degraded and the latest workload snapshot is
           missing, operators should treat workload sections as stale rather than
           assuming a true zero.
         </p>
-      </section>
+        </Card>
+      </PageSection>
 
-      {error ? <div style={errorBoxStyle}>{error}</div> : null}
+      {error ? (
+        <Card variant="status" tone="risk">
+          {error}
+        </Card>
+      ) : null}
 
-      <section style={{ ...cardStyle, marginTop: 16 }}>
-        <h3 style={sectionTitleStyle}>Workspace pressure</h3>
+      <PageSection>
+        <Card padding="comfortable">
+        <h3 className="app-panel__title">Workspace pressure</h3>
         <div style={statGridStyle}>
           <Stat label="Unassigned" value={data.counts.unassigned} tone="" />
           <Stat
@@ -280,69 +298,73 @@ function SlaDashboardPageInner() {
             tone={data.criticalEscalationsOpen > 0 ? "alert" : ""}
           />
         </div>
-      </section>
+        </Card>
+      </PageSection>
 
-      <section style={{ ...cardStyle, marginTop: 16 }}>
-        <h3 style={sectionTitleStyle}>By stage</h3>
-        <table style={tableStyle}>
+      <PageSection>
+        <Card padding="comfortable">
+        <h3 className="app-panel__title">By stage</h3>
+        <table className="app-table">
           <thead>
             <tr>
-              <th style={thStyle}>Stage</th>
-              <th style={thStyle}>Count</th>
+              <th>Stage</th>
+              <th>Count</th>
             </tr>
           </thead>
           <tbody>
             {Object.entries(data.counts.byStage).map(([stage, count]) => (
               <tr key={stage}>
-                <td style={tdStyle}>
+                <td>
                   {stage.toLowerCase().replace(/_/g, " ")}
                 </td>
-                <td style={tdStyle}>{count}</td>
+                <td>{count}</td>
               </tr>
             ))}
           </tbody>
         </table>
-      </section>
+        </Card>
+      </PageSection>
 
-      <section style={{ ...cardStyle, marginTop: 16 }}>
-        <h3 style={sectionTitleStyle}>Reviewer workload (latest snapshots)</h3>
+      <PageSection>
+        <Card padding="comfortable">
+        <h3 className="app-panel__title">Reviewer workload (latest snapshots)</h3>
         {data.workloadTop.length === 0 ? (
-          <p style={mutedStyle}>
+          <p className="app-field-help">
             No workload snapshots yet — run the reconcile job to populate.
           </p>
         ) : (
-          <table style={tableStyle}>
+          <table className="app-table">
             <thead>
               <tr>
-                <th style={thStyle}>Reviewer</th>
-                <th style={thStyle}>Active</th>
-                <th style={thStyle}>Due soon</th>
-                <th style={thStyle}>Overdue</th>
-                <th style={thStyle}>Escalated</th>
-                <th style={thStyle}>Capacity</th>
-                <th style={thStyle}>Computed</th>
+                <th>Reviewer</th>
+                <th>Active</th>
+                <th>Due soon</th>
+                <th>Overdue</th>
+                <th>Escalated</th>
+                <th>Capacity</th>
+                <th>Computed</th>
               </tr>
             </thead>
             <tbody>
               {data.workloadTop.map((w) => (
                 <tr key={w.reviewerUserId}>
-                  <td style={tdStyle}>
+                  <td>
                     <span style={monoStyle}>
                       {w.reviewerUserId.slice(0, 12)}…
                     </span>
                   </td>
-                  <td style={tdStyle}>{w.activeReviewCount}</td>
-                  <td style={tdStyle}>{w.dueSoonReviewCount}</td>
-                  <td style={tdStyle}>{w.overdueReviewCount}</td>
-                  <td style={tdStyle}>{w.escalatedReviewCount}</td>
-                  <td style={tdStyle}>
-                    <span style={capacityChipStyle(w.capacityScore)}>
+                  <td>{w.activeReviewCount}</td>
+                  <td>{w.dueSoonReviewCount}</td>
+                  <td>{w.overdueReviewCount}</td>
+                  <td>{w.escalatedReviewCount}</td>
+                  <td>
+                    <Badge tone={capacityTone(w.capacityScore)} subtle>
                       {w.capacityScore}
-                    </span>
+                    </Badge>
                   </td>
-                  <td style={tdStyle}>
-                    <span style={mutedStyle}>
-                      {formatDateTime(w.computedAtUtc)}
+                  <td>
+                    <span className="app-field-help">
+                      {formatCellDateTime(w.computedAtUtc)}
                     </span>
                   </td>
                 </tr>
@@ -350,12 +372,14 @@ function SlaDashboardPageInner() {
             </tbody>
           </table>
         )}
-      </section>
+        </Card>
+      </PageSection>
 
-      <section style={{ ...cardStyle, marginTop: 16 }}>
-        <h3 style={sectionTitleStyle}>Assignment suggestions</h3>
+      <PageSection>
+        <Card padding="comfortable">
+        <h3 className="app-panel__title">Assignment suggestions</h3>
         {data.suggestions.length === 0 ? (
-          <p style={mutedStyle}>
+          <p className="app-field-help">
             No suggestions available. Run reconcile to compute workload first.
           </p>
         ) : (
@@ -365,21 +389,23 @@ function SlaDashboardPageInner() {
                 <span style={monoStyle}>
                   {s.reviewerUserId.slice(0, 12)}…
                 </span>
-                <span style={capacityChipStyle(s.capacityScore)}>
+                <Badge tone={capacityTone(s.capacityScore)} subtle>
                   {s.capacityScore}
-                </span>
-                <span style={{ flex: 1, ...mutedStyle }}>{s.rationale}</span>
+                </Badge>
+                <span style={{ flex: 1, fontSize: 12, color: "var(--silver-ink)" }}>{s.rationale}</span>
               </li>
             ))}
           </ul>
         )}
-        <p style={{ ...mutedStyle, marginTop: 8 }}>
+        <p style={{ marginTop: 8, fontSize: 12, color: "var(--silver-ink)" }}>
           Suggestions are advisory. The reviewer-ops engine never
           auto-assigns; operators decide.
         </p>
-      </section>
+        </Card>
+      </PageSection>
 
-      <section style={{ ...cardStyle, marginTop: 16 }}>
+      <PageSection>
+        <Card padding="comfortable">
         <div
           style={{
             display: "flex",
@@ -388,7 +414,7 @@ function SlaDashboardPageInner() {
             marginBottom: 8,
           }}
         >
-          <h3 style={sectionTitleStyle}>Escalation analytics</h3>
+          <h3 className="app-panel__title">Escalation analytics</h3>
           <select
             value={rangeDays}
             onChange={(e) => setRangeDays(Number(e.target.value))}
@@ -407,7 +433,7 @@ function SlaDashboardPageInner() {
           </select>
         </div>
         {!analytics ? (
-          <p style={mutedStyle}>Loading analytics…</p>
+          <p className="app-field-help">Loading analytics…</p>
         ) : (
           <>
             <div style={statGridStyle}>
@@ -433,37 +459,37 @@ function SlaDashboardPageInner() {
               />
             </div>
 
-            <h4 style={{ ...sectionTitleStyle, marginTop: 16 }}>
+            <h4 style={{ marginTop: 16 }}>
               Trend (opened vs resolved)
             </h4>
             <SparkBars buckets={analytics.byDay} />
 
-            <h4 style={{ ...sectionTitleStyle, marginTop: 16 }}>
+            <h4 style={{ marginTop: 16 }}>
               Reason hotspots
             </h4>
             {analytics.hotspots.length === 0 ? (
-              <p style={mutedStyle}>No escalations in this range.</p>
+              <p className="app-field-help">No escalations in this range.</p>
             ) : (
-              <table style={tableStyle}>
+              <table className="app-table">
                 <thead>
                   <tr>
-                    <th style={thStyle}>Reason</th>
-                    <th style={thStyle}>Open</th>
-                    <th style={thStyle}>Resolved</th>
-                    <th style={thStyle}>Mean resolution (h)</th>
+                    <th>Reason</th>
+                    <th>Open</th>
+                    <th>Resolved</th>
+                    <th>Mean resolution (h)</th>
                   </tr>
                 </thead>
                 <tbody>
                   {analytics.hotspots.map((h) => (
                     <tr key={h.reason}>
-                      <td style={tdStyle}>
-                        <span style={{ ...mutedStyle, fontSize: 12 }}>
+                      <td>
+                        <span style={{ fontSize: 12, color: "var(--silver-ink)" }}>
                           {h.reason}
                         </span>
                       </td>
-                      <td style={tdStyle}>{h.openCount}</td>
-                      <td style={tdStyle}>{h.resolvedCount}</td>
-                      <td style={tdStyle}>
+                      <td>{h.openCount}</td>
+                      <td>{h.resolvedCount}</td>
+                      <td>
                         {h.meanResolutionMs
                           ? Math.round(h.meanResolutionMs / 3_600_000)
                           : "—"}
@@ -475,66 +501,69 @@ function SlaDashboardPageInner() {
             )}
           </>
         )}
-      </section>
+        </Card>
+      </PageSection>
 
-      <section style={{ ...cardStyle, marginTop: 16 }}>
-        <h3 style={sectionTitleStyle}>Reviewer performance</h3>
+      <PageSection>
+        <Card padding="comfortable">
+        <h3 className="app-panel__title">Reviewer performance</h3>
         {!reviewers ? (
-          <p style={mutedStyle}>Loading…</p>
+          <p className="app-field-help">Loading…</p>
         ) : reviewers.rows.length === 0 ? (
           <div style={{ marginTop: 8 }}>
             <NoWorkloadSnapshotsEmptyState />
           </div>
         ) : (
-          <table style={tableStyle}>
+          <table className="app-table">
             <thead>
               <tr>
-                <th style={thStyle}>Reviewer</th>
-                <th style={thStyle}>Active</th>
-                <th style={thStyle}>Completed</th>
-                <th style={thStyle}>Approved</th>
-                <th style={thStyle}>Rejected</th>
-                <th style={thStyle}>Overdue</th>
-                <th style={thStyle}>Escalated</th>
-                <th style={thStyle}>SLA</th>
-                <th style={thStyle}>Mean (h)</th>
-                <th style={thStyle}>Capacity</th>
+                <th>Reviewer</th>
+                <th>Active</th>
+                <th>Completed</th>
+                <th>Approved</th>
+                <th>Rejected</th>
+                <th>Overdue</th>
+                <th>Escalated</th>
+                <th>SLA</th>
+                <th>Mean (h)</th>
+                <th>Capacity</th>
               </tr>
             </thead>
             <tbody>
               {reviewers.rows.map((r) => (
                 <tr key={r.reviewerUserId}>
-                  <td style={tdStyle}>
+                  <td>
                     <span style={monoStyle}>
                       {r.reviewerUserId.slice(0, 12)}…
                     </span>
                   </td>
-                  <td style={tdStyle}>{r.active}</td>
-                  <td style={tdStyle}>{r.completedInRange}</td>
-                  <td style={tdStyle}>{r.approvedInRange}</td>
-                  <td style={tdStyle}>{r.rejectedInRange}</td>
-                  <td style={tdStyle}>{r.overdue}</td>
-                  <td style={tdStyle}>{r.escalated}</td>
-                  <td style={tdStyle}>
+                  <td>{r.active}</td>
+                  <td>{r.completedInRange}</td>
+                  <td>{r.approvedInRange}</td>
+                  <td>{r.rejectedInRange}</td>
+                  <td>{r.overdue}</td>
+                  <td>{r.escalated}</td>
+                  <td>
                     {Math.round(r.slaComplianceRate * 100)}%
                   </td>
-                  <td style={tdStyle}>
+                  <td>
                     {r.meanResolutionMs
                       ? Math.round(r.meanResolutionMs / 3_600_000)
                       : "—"}
                   </td>
-                  <td style={tdStyle}>
-                    <span style={capacityChipStyle(r.capacityScore)}>
+                  <td>
+                    <Badge tone={capacityTone(r.capacityScore)} subtle>
                       {r.capacityScore}
-                    </span>
+                    </Badge>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
-      </section>
-    </main>
+        </Card>
+      </PageSection>
+    </PageShell>
   );
 }
 
@@ -590,6 +619,16 @@ function SparkBars({
   );
 }
 
+/**
+ * A FIGURE, AND WHETHER IT NEEDS ATTENTION.
+ *
+ * The three tones were a hand-written palette of raw hex — a slate default, an
+ * amber, a red — carried in this file beside the second design system. They
+ * are the product's semantic warning and danger, so they are drawn from the
+ * canonical tokens, and the tone always reaches the reader as a WORD as well
+ * as a colour: the label already names what the figure is, and an alert tone
+ * adds a marker that survives being printed in grey.
+ */
 function Stat({
   label,
   value,
@@ -597,13 +636,25 @@ function Stat({
 }: {
   label: string;
   value: number | string;
-  tone: string;
+  tone: "" | "warn" | "alert";
 }) {
-  const palette: Record<string, { bg: string; fg: string; border: string }> = {
-    "": { bg: TOKENS.surfaceMuted, fg: TOKENS.ink, border: TOKENS.border },
-    warn: { bg: "#fef3c7", fg: "#78350f", border: "#fde68a" },
-    alert: { bg: "#fef2f2", fg: "#991b1b", border: "#fecaca" },
-  };
+  const palette = {
+    "": {
+      bg: "var(--surface-muted)",
+      fg: "var(--ink-primary)",
+      border: "var(--border-standard)",
+    },
+    warn: {
+      bg: "var(--warning-subtle-bg)",
+      fg: "var(--warning-strong)",
+      border: "var(--warning-border)",
+    },
+    alert: {
+      bg: "var(--danger-subtle-bg)",
+      fg: "var(--danger-strong)",
+      border: "var(--danger-border)",
+    },
+  } as const;
   const p = palette[tone] ?? palette[""];
   return (
     <div
@@ -612,46 +663,31 @@ function Stat({
         background: p.bg,
         color: p.fg,
         border: `1px solid ${p.border}`,
-        borderRadius: 6,
+        borderRadius: "var(--radius-md)",
       }}
+      data-sla-stat-tone={tone === "" ? "neutral" : tone}
     >
       <div style={{ fontSize: 22, fontWeight: 700 }}>{value}</div>
       <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.3 }}>
         {label}
+        {tone === "alert" ? " · needs attention" : tone === "warn" ? " · watch" : ""}
       </div>
     </div>
   );
 }
 
-function capacityChipStyle(score: number): React.CSSProperties {
-  let bg = "#ecfdf5";
-  let fg = "#065f46";
-  let border = "#a7f3d0";
-  if (score < 25) {
-    bg = "#fef2f2";
-    fg = "#7f1d1d";
-    border = "#fecaca";
-  } else if (score < 50) {
-    bg = "#fef3c7";
-    fg = "#78350f";
-    border = "#fde68a";
-  } else if (score < 80) {
-    bg = "#eff6ff";
-    fg = "#1e40af";
-    border = "#bfdbfe";
-  }
-  return {
-    padding: "2px 8px",
-    fontSize: 11,
-    fontWeight: 700,
-    borderRadius: 4,
-    background: bg,
-    color: fg,
-    border: `1px solid ${border}`,
-    minWidth: 32,
-    textAlign: "center",
-    display: "inline-block",
-  };
+/**
+ * A REVIEWER'S SPARE CAPACITY, AS A BAND.
+ *
+ * Four raw-hex bands lived here. They are the product's four semantic tones,
+ * so the band is now named and the canonical `<Badge>` renders it — which
+ * also means the number stops being the only thing carrying the meaning.
+ */
+function capacityTone(score: number): "verified" | "pending" | "risk" | "info" {
+  if (score < 25) return "risk";
+  if (score < 50) return "pending";
+  if (score < 80) return "info";
+  return "verified";
 }
 
 const statGridStyle: React.CSSProperties = {
@@ -665,7 +701,7 @@ const suggestionRowStyle: React.CSSProperties = {
   gap: 10,
   alignItems: "center",
   padding: "6px 0",
-  borderBottom: `1px solid ${TOKENS.divider}`,
+  borderBottom: "1px solid var(--border-subtle)",
 };
 
 const monoStyle: React.CSSProperties = {
@@ -673,5 +709,3 @@ const monoStyle: React.CSSProperties = {
   fontSize: 12,
 };
 
-// Re-use the severity-badge import to keep TS happy about it being unused.
-void severityBadgeStyle;

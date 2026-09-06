@@ -20,6 +20,8 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "../../../../lib/api";
+import { Badge } from "../../../../components/ui/Badge";
+import { statusTone } from "../../../../components/ui/StatusBadge";
 import { formatUserDate } from "../../../../lib/date";
 import { usePlatformContext, useTeamId } from "../../../../lib/platform-context";
 // Closure verification Part C — Phase 13 review operations queue is a
@@ -401,9 +403,9 @@ useEffect(() => {
                       </div>
                     </div>
                     {w.slaStatus ? (
-                      <span style={slaBadgeStyle(w.slaStatus)}>
+                      <Badge tone={slaTone(w.slaStatus)} subtle>
                         {w.slaStatus}
-                      </span>
+                      </Badge>
                     ) : null}
                     <span style={stageBadgeStyle(w.stage)}>{w.stage}</span>
                     {!w.assignedToUserId ? (
@@ -600,44 +602,18 @@ function stageBadgeStyle(stage: string): React.CSSProperties {
   };
 }
 
-function slaBadgeStyle(sla: string): React.CSSProperties {
-  const base: React.CSSProperties = {
-    padding: "4px 10px",
-    fontSize: 12,
-    fontWeight: 600,
-    borderRadius: 999,
-    border: "1px solid",
-  };
-  if (sla === "BREACHED" || sla === "OVERDUE") {
-    return {
-      ...base,
-      background: "#fef2f2",
-      borderColor: "#fca5a5",
-      color: "#991b1b",
-    };
-  }
-  if (sla === "DUE_SOON") {
-    return {
-      ...base,
-      background: "#fffbeb",
-      borderColor: "#fcd34d",
-      color: "#92400e",
-    };
-  }
-  if (sla === "PAUSED") {
-    return {
-      ...base,
-      background: "#f1f5f9",
-      borderColor: "#cbd5e1",
-      color: "#475569",
-    };
-  }
-  return {
-    ...base,
-    background: "#f0fdf4",
-    borderColor: "#86efac",
-    color: "#166534",
-  };
+/*
+ * PHASE 7 §B3 — twelve hex literals for the SLA rollup states, which the
+ * canonical status map now carries (HEALTHY, DUE_SOON, BREACHED, BLOCKED were
+ * added to it when the reviewer design system was deleted). `<Badge
+ * tone={statusTone(…)}>` renders them.
+ *
+ * OVERDUE is the one value that map does not know — it is this surface's own
+ * spelling of BREACHED — so it is normalised here rather than added there
+ * under a second name for the same state.
+ */
+function slaTone(sla: string): "verified" | "pending" | "risk" | "neutral" | "info" {
+  return statusTone(sla === "OVERDUE" ? "BREACHED" : sla);
 }
 
 // Closure verification Part C — canonical PageRouteGate wrapper.

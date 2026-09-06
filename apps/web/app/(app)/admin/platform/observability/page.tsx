@@ -63,6 +63,7 @@ import {
 } from "../../../../../components/operational";
 import { PageShell, PageHeader } from "../../../../../components/ui";
 import { Badge } from "../../../../../components/ui/Badge";
+import { severityTone } from "../../../../../components/ui/StatusBadge";
 import {
   AdmInline,
 } from "../../../../../components/admin/AdminSurfaces";
@@ -384,26 +385,15 @@ function classifyForGroup<T extends string>(
   return "Other";
 }
 
-function severityBadgeStyle(
-  severity: "WARNING" | "HIGH" | "CRITICAL",
-): React.CSSProperties {
-  const palette: Record<typeof severity, [string, string, string]> = {
-    WARNING: ["var(--warning-subtle-bg)", "var(--warning-border)", "var(--warning-strong)"],
-    HIGH: ["var(--warning-subtle-bg)", "var(--warning-border)", "var(--warning-strong)"],
-    CRITICAL: ["var(--danger-subtle-bg)", "var(--danger-border)", "var(--danger-strong)"],
-  };
-  const [bg, border, color] = palette[severity];
-  return {
-    padding: "3px 10px",
-    fontSize: 11,
-    fontWeight: 600,
-    background: bg,
-    border: `1px solid ${border}`,
-    color,
-    borderRadius: 999,
-    display: "inline-block",
-  };
-}
+/*
+ * PHASE 7 §B3 — the severity chip is `<Badge tone={severityTone(…)}>`.
+ *
+ * This local one was correctly tokenised, which is why nothing had caught it,
+ * but it was still a second answer to "what colour is a severity" — and it
+ * disagreed with the first: it painted HIGH as a warning where the canonical
+ * map groups HIGH with CRITICAL. Two authorities that agree are a maintenance
+ * problem; two that disagree are a reporting one.
+ */
 
 /**
  * The one posture statement every global surface shares.
@@ -975,7 +965,9 @@ function ObservabilityDashboardPageInner() {
           <ul style={alertListStyle}>
             {alerts.firing.map((a) => (
               <li key={a.id} style={alertRowStyle}>
-                <span style={severityBadgeStyle(a.severity)}>{a.severity}</span>
+                <Badge tone={severityTone(a.severity)} subtle>
+                  {a.severity}
+                </Badge>
                 <strong style={alertIdStyle}>{a.id}</strong>
                 <span className="adm-help">
                   {a.metric} {a.op} {a.value} · observed {a.observedValue} · window {a.window}

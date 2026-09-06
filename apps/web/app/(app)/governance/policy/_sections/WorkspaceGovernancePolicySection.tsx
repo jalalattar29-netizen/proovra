@@ -43,12 +43,6 @@ import {
   StepUpModal,
   useStepUpAction,
 } from "../../../../../components/identity-security/StepUpModal";
-import {
-  inputStyle,
-  mutedStyle,
-  selectStyle,
-  TOKENS,
-} from "../../../reviewer-ops/ui-tokens";
 
 // ---------------------------------------------------------------------------
 // Wire shapes — mirrors of the server projection. Read-only to this file.
@@ -404,7 +398,7 @@ export function WorkspaceGovernancePolicySection() {
         data-workspace-governance-policy-state="loading"
       >
         <Card>
-          <p style={mutedStyle}>Loading workspace governance policy…</p>
+          <p className="app-field-help">Loading workspace governance policy…</p>
         </Card>
       </PageSection>
     );
@@ -419,10 +413,10 @@ export function WorkspaceGovernancePolicySection() {
         data-workspace-governance-policy-state="denied"
       >
         <Card variant="status" tone="neutral">
-          <p style={{ margin: 0, fontSize: 13, color: TOKENS.inkMuted }}>
+          <p style={{ margin: 0, fontSize: 13, color: "var(--ink-secondary)" }}>
             {state.message}
           </p>
-          <p style={{ ...mutedStyle, marginTop: 6 }}>
+          <p style={{ marginTop: 6, fontSize: 12, color: "var(--silver-ink)" }}>
             Ask a workspace owner or admin for governance access.
           </p>
         </Card>
@@ -439,7 +433,7 @@ export function WorkspaceGovernancePolicySection() {
         data-workspace-governance-policy-state="error"
       >
         <Card variant="status" tone="risk">
-          <p style={{ margin: 0, fontSize: 13, color: TOKENS.inkMuted }}>
+          <p style={{ margin: 0, fontSize: 13, color: "var(--ink-secondary)" }}>
             {state.message}
           </p>
           <div style={{ marginTop: 10 }}>
@@ -505,7 +499,7 @@ export function WorkspaceGovernancePolicySection() {
               gap: 16,
               alignItems: "baseline",
               fontSize: 12,
-              color: TOKENS.inkSubtle,
+              color: "var(--silver-ink)",
             }}
           >
             <span data-workspace-governance-policy-version>
@@ -530,10 +524,10 @@ export function WorkspaceGovernancePolicySection() {
             tone="risk"
             data-workspace-governance-policy-conflict
           >
-            <strong style={{ fontSize: 13, color: TOKENS.ink }}>
+            <strong style={{ fontSize: 13, color: "var(--ink-primary)" }}>
               This policy was changed by someone else
             </strong>
-            <p style={{ ...mutedStyle, marginTop: 6 }}>
+            <p style={{ marginTop: 6, fontSize: 12, color: "var(--silver-ink)" }}>
               Nothing was saved. Another administrator updated this policy after
               you loaded it, so your change was refused rather than allowed to
               overwrite theirs. Load the latest values, then reapply your change.
@@ -553,7 +547,7 @@ export function WorkspaceGovernancePolicySection() {
 
         {!canManage ? (
           <Card variant="status" tone="neutral">
-            <p style={{ margin: 0, fontSize: 13, color: TOKENS.inkMuted }}>
+            <p style={{ margin: 0, fontSize: 13, color: "var(--ink-secondary)" }}>
               You can view this policy but not change it. Saving is decided by
               the server on every attempt.
             </p>
@@ -568,7 +562,7 @@ export function WorkspaceGovernancePolicySection() {
                 flexDirection: "column",
                 gap: 4,
                 fontSize: 12,
-                color: TOKENS.inkMuted,
+                color: "var(--ink-secondary)",
               }}
             >
               <span>Default retention (days)</span>
@@ -594,9 +588,10 @@ export function WorkspaceGovernancePolicySection() {
                     }));
                   }
                 }}
-                style={{ ...inputStyle, maxWidth: 160 }}
+                className="app-form-input"
+                style={{ maxWidth: 160 }}
               />
-              <span style={{ fontSize: 11, color: TOKENS.inkSubtle }}>
+              <span style={{ fontSize: 11, color: "var(--silver-ink)" }}>
                 Saved value:{" "}
                 {policy.defaultRetentionDays === null
                   ? "no default"
@@ -612,7 +607,7 @@ export function WorkspaceGovernancePolicySection() {
                 flexDirection: "column",
                 gap: 4,
                 fontSize: 12,
-                color: TOKENS.inkMuted,
+                color: "var(--ink-secondary)",
               }}
             >
               <span>Record deletion</span>
@@ -627,7 +622,8 @@ export function WorkspaceGovernancePolicySection() {
                       .value as EvidenceDeletionMode,
                   }))
                 }
-                style={{ ...selectStyle, maxWidth: 280 }}
+                className="app-form-input"
+                style={{ maxWidth: 280 }}
               >
                 {DELETION_MODES.map((m) => (
                   <option key={m.value} value={m.value}>
@@ -635,7 +631,7 @@ export function WorkspaceGovernancePolicySection() {
                   </option>
                 ))}
               </select>
-              <span style={{ fontSize: 11, color: TOKENS.inkSubtle }}>
+              <span style={{ fontSize: 11, color: "var(--silver-ink)" }}>
                 Saved value:{" "}
                 {DELETION_MODES.find((m) => m.value === policy.evidenceDeletionMode)
                   ?.label ?? policy.evidenceDeletionMode}
@@ -707,7 +703,7 @@ function PolicyToggle({
           alignItems: "center",
           gap: 8,
           fontSize: 13,
-          color: TOKENS.ink,
+          color: "var(--ink-primary)",
         }}
       >
         <input
@@ -719,7 +715,7 @@ function PolicyToggle({
         />
         <span>{label}</span>
       </label>
-      <span style={{ fontSize: 11, color: TOKENS.inkSubtle, paddingLeft: 24 }}>
+      <span style={{ fontSize: 11, color: "var(--silver-ink)", paddingLeft: 24 }}>
         Saved: {savedValue ? "on" : "off"}
         {changed ? ` · unsaved change to ${value ? "on" : "off"}` : ""}
         {hint ? ` · ${hint}` : ""}

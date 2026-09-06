@@ -308,7 +308,7 @@
 | --- | --- | --- | --- |
 | `/admin` | 966 | 0c/0t/9s |  |
 | `/admin/adoption` | 260 | 0c/1t/1s |  |
-| `/admin/alerts` | 287 | 1c/0t/1s |  |
+| `/admin/alerts` | 291 | 1c/0t/1s |  |
 | `/admin/audit` | 1087 | 3c/1t/2s |  |
 | `/admin/billing` | 764 | 7c/5t/9s |  |
 | `/admin/contact-sales` | 871 | 3c/1t/0s |  |
@@ -336,7 +336,7 @@
 | `/admin/platform/automation` | 689 | 0c/2t/5s |  |
 | `/admin/platform/exports` | 844 | 0c/4t/0s |  |
 | `/admin/platform/media-graph` | 818 | 0c/0t/5s |  |
-| `/admin/platform/observability` | 1671 | 0c/2t/0s |  |
+| `/admin/platform/observability` | 1663 | 0c/2t/0s |  |
 | `/admin/platform/queues` | 880 | 0c/2t/0s |  |
 | `/admin/platform/readiness` | 624 | 8c/0t/6s |  |
 | `/admin/platform/recovery` | 641 | 0c/2t/0s |  |

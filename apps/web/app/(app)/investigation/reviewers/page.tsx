@@ -24,6 +24,8 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "../../../../lib/api";
+import { Badge } from "../../../../components/ui/Badge";
+import { severityTone } from "../../../../components/ui/StatusBadge";
 import { useTeamId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { useHealthDestination } from "../../../../lib/navigation/healthDestination";
@@ -795,9 +797,9 @@ function PendingSignalRow({
   return (
     <li style={rowStyle}>
       <div style={rowHeaderStyle}>
-        <span style={severityBadgeStyle(signal.severity)}>
+        <Badge tone={severityTone(signal.severity)} subtle>
           {signal.severity.toLowerCase()}
-        </span>
+        </Badge>
         <span style={reasonChipStyle}>{signal.signalType}</span>
         <span style={statusBadgeStyle(signal.confidence)}>
           {signal.confidence.toLowerCase()} confidence
@@ -846,9 +848,9 @@ function EscalationRow({ esc }: { esc: RecentEscalation }) {
   return (
     <li style={rowStyle}>
       <div style={rowHeaderStyle}>
-        <span style={severityBadgeStyle(esc.severity)}>
+        <Badge tone={severityTone(esc.severity)} subtle>
           {esc.severity.toLowerCase()}
-        </span>
+        </Badge>
         <span style={statusBadgeStyle(esc.status)}>{esc.status.toLowerCase()}</span>
         <span style={reasonChipStyle}>{esc.reason}</span>
         <span style={timestampStyle}>{formatDateTime(esc.createdAtUtc)}</span>
@@ -1130,36 +1132,12 @@ const rowHeaderStyle: React.CSSProperties = {
   marginBottom: 6,
 };
 
-function severityBadgeStyle(severity: string): React.CSSProperties {
-  const norm = severity.toUpperCase();
-  let bg = "#f1f5f9";
-  let border = "#cbd5e1";
-  let color = "#475569";
-  if (norm === "CRITICAL") {
-    bg = "#fef2f2";
-    border = "#fca5a5";
-    color = "#991b1b";
-  } else if (norm === "HIGH") {
-    bg = "#fffbeb";
-    border = "#fcd34d";
-    color = "#92400e";
-  } else if (norm === "WARNING") {
-    bg = "#fffbeb";
-    border = "#fde68a";
-    color = "#92400e";
-  }
-  return {
-    padding: "2px 8px",
-    fontSize: 11,
-    fontWeight: 700,
-    background: bg,
-    border: `1px solid ${border}`,
-    color,
-    borderRadius: 999,
-    textTransform: "uppercase",
-    letterSpacing: "0.04em",
-  };
-}
+/*
+ * PHASE 7 §B3 — nine hex literals for a severity the product has one map for.
+ * `<Badge tone={severityTone(…)}>` renders it now. This copy also disagreed
+ * with the canonical map twice over: CRITICAL and HIGH were different reds,
+ * and HIGH shared its amber with WARNING.
+ */
 
 function statusBadgeStyle(_status: string): React.CSSProperties {
   return {

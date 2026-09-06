@@ -23,6 +23,7 @@ import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
 import { Button } from "../../../../components/ui/Button";
 import { Badge } from "../../../../components/ui/Badge";
+import { severityTone } from "../../../../components/ui/StatusBadge";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { FilterBar } from "../../../../components/ui/FilterBar";
 import { DataTable, type DataTableColumn } from "../../../../components/ui/DataTable";
@@ -134,7 +135,9 @@ function GovernanceNotificationsPageInner() {
       key: "severity",
       header: "Severity",
       render: (n) => (
-        <span style={severityBadgeStyle(n.severity)}>{n.severity}</span>
+        <Badge tone={severityTone(n.severity)} subtle>
+          {n.severity}
+        </Badge>
       ),
     },
     {
@@ -316,25 +319,10 @@ const errorBoxStyle: React.CSSProperties = {
   fontSize: 14,
 };
 
-function severityBadgeStyle(severity: Severity): React.CSSProperties {
-  const palette: Record<Severity, [string, string, string]> = {
-    INFO: ["#eff6ff", "#bfdbfe", "#1e40af"],
-    WARNING: ["#fffbeb", "#fcd34d", "#92400e"],
-    HIGH: ["#fff7ed", "#fed7aa", "#9a3412"],
-    CRITICAL: ["#fef2f2", "#fca5a5", "#991b1b"],
-  };
-  const [bg, border, color] = palette[severity];
-  return {
-    padding: "3px 10px",
-    fontSize: 11,
-    fontWeight: 600,
-    background: bg,
-    border: `1px solid ${border}`,
-    color,
-    borderRadius: 999,
-    display: "inline-block",
-  };
-}
+/*
+ * PHASE 7 §B3 — twelve hex literals encoding a severity the product already
+ * has one map for. `<Badge tone={severityTone(…)}>` renders it now.
+ */
 
 function deliveryBadgeStyle(status: DeliveryStatus): React.CSSProperties {
   const palette: Record<DeliveryStatus, [string, string, string]> = {

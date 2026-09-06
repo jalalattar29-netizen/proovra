@@ -120,16 +120,31 @@ const DELETIONS = [
     what: "the admin TOKENS.* colour alias map",
     why:
       "a second name for every colour, so a surface could be violet through TOKENS and violet through --accent-600 and nobody could tell which one a page was using. Sixty-one uses across the console, all migrated to the canonical tokens before the file was deleted.",
-    // SCOPED, BECAUSE THE CLAIM IS SCOPED. The first version of this predicate
-    // banned `TOKENS.*` across all of apps/web and reported six consumers in
-    // `governance/policy` and `reviewer-ops` — which import their OWN
-    // `reviewer-ops/ui-tokens.ts`, a separate file this phase never undertook
-    // to delete. Widening the pattern to make the number look better would
-    // have been a claim about work nobody did; narrowing it silently would
-    // have hidden that the second copy exists. It is scoped here and recorded
-    // as debt in the report.
+    // NO LONGER SCOPED. This predicate used to be restricted to /admin,
+    // /settings/security and /components, because `governance/policy` and
+    // `reviewer-ops` imported their OWN `reviewer-ops/ui-tokens.ts` — a second
+    // copy of the same idea that the phase which wrote this had not undertaken
+    // to delete. Widening the pattern then would have claimed work nobody did.
+    // §B3 deleted that file, so the scope comes off and the ban is what it
+    // always should have been: `TOKENS.*` appears nowhere in apps/web.
     absent: /\bTOKENS\.[A-Za-z]/,
-    only: ["app/(app)/admin/", "app/(app)/settings/security", "components/"],
+  },
+  {
+    what: "apps/web/app/(app)/reviewer-ops/ui-tokens.ts",
+    why:
+      "the SECOND parallel visual language — a twelve-entry raw-hex palette with a navy accent, three hand-written status palettes and twenty style objects, consumed by five pages outside the console. Its badge palettes went to the canonical status and severity maps, its layout to PageShell/PageSection/Card, its buttons to buttonSurfaceStyle, its inputs to the app-* primitives, and its two date helpers to lib/date — where one of them, a relative formatter that can say \"in 3h\", had no business living in a styling module at all.",
+    gone: "apps/web/app/(app)/reviewer-ops/ui-tokens.ts",
+    absent: /from\s+["'][^"']*reviewer-ops\/ui-tokens["']/,
+  },
+  {
+    what: "the three raw-hex badge palettes that came with it",
+    why:
+      "slaBadgePalette, severityPalette and an inline lifecycle palette — forty-one hex literals encoding statuses the product already has one map for. They had drifted from it: IN_REVIEW was PURPLE, which canonical purple is reserved against, and CRITICAL was a darker red than HIGH, a distinction no operator was ever told the meaning of.",
+    absent: /(slaBadgePalette|severityPalette|lifecycleBadgeStyle|slaBadgeStyle|severityBadgeStyle)\b/,
+    keptIn: {
+      "components/ui/StatusBadge.tsx":
+        "the canonical map's own comments name what they replaced.",
+    },
   },
   {
     what: "--text-muted and --text-strong",
@@ -309,38 +324,34 @@ if (MARKDOWN) {
   );
   out.push("foundation test asserts they are there.");
   out.push("");
-  out.push("## Known debt this proof deliberately does not claim");
+  out.push("## Debt this proof used to carry, now closed");
   out.push("");
   out.push(
-    "**A second `ui-tokens.ts` still exists outside the console.** The deleted file was",
+    "**The second `ui-tokens.ts` is gone.** Until Phase 7 §B3 the deleted file was only",
   );
   out.push(
-    "`app/(app)/admin/identity/ui-tokens.ts`. `app/(app)/reviewer-ops/ui-tokens.ts` is a",
+    "`app/(app)/admin/identity/ui-tokens.ts`, and `app/(app)/reviewer-ops/ui-tokens.ts`",
   );
   out.push(
-    "separate copy of the same idea, consumed by `governance/policy`,",
+    "was a separate copy of the same idea, consumed by five pages outside the console.",
   );
   out.push(
-    "`governance/policy/_sections/WorkspaceGovernancePolicySection`,",
+    "The `TOKENS.*` predicate had to be scoped to /admin because of it, and this",
   );
   out.push(
-    "`reviewer-ops/escalations` and `reviewer-ops/sla` — six `TOKENS.*` uses in four",
+    "section recorded that as debt rather than widening a claim nobody had earned.",
   );
-  out.push("files, none of them under `/admin`.");
   out.push("");
   out.push(
-    "The first version of the `TOKENS.*` predicate banned the name across all of",
+    "§B3 migrated all five — `governance/policy`, its `WorkspaceGovernancePolicySection`,",
   );
   out.push(
-    "`apps/web` and reported those six as regressions. Widening the deletion to cover",
+    "`reviewer-ops/escalations`, `reviewer-ops/sla` and `reviewer-ops/[reviewId]` — onto",
   );
   out.push(
-    "them would have been a claim about work nobody did; deleting the pattern to make",
+    "the shared design system and deleted the file. The scope came off the predicate at",
   );
-  out.push(
-    "the table green would have hidden that the second copy exists. So the predicate is",
-  );
-  out.push("scoped to what this phase actually deleted, and the rest is written down here.");
+  out.push("the same time, so the ban now covers all of `apps/web`.");
   console.log(out.join("\n"));
 } else {
   for (const r of rows) {

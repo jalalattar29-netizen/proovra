@@ -13,9 +13,10 @@
  * Behavior, API contract, and step-up requirements are unchanged
  * from Phase 25.5 — only the URL changed.
  *
- * Gating is owned by the canonical `<PageRouteGate>`; the shared
- * `ui-tokens` styling module still lives under `/reviewer-ops/` and is
- * imported by relative path.
+ * Gating is owned by the canonical `<PageRouteGate>`. Styling comes from
+ * the shared design system — `PageShell`, `Card` and the app-* primitives.
+ * The second `ui-tokens` palette this page used to import was deleted in
+ * Phase 7 §B3.
  */
 
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
@@ -28,7 +29,7 @@ import { RuntimeStatusBanner } from "../../../../components/operational";
 import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
 import { Card } from "../../../../components/ui/Card";
 import { Button } from "../../../../components/ui/Button";
-import { inputStyle, mutedStyle, TOKENS } from "../../reviewer-ops/ui-tokens";
+
 // PHASE 12B CLUSTER 9 — the WorkspaceGovernancePolicy surface. A SEPARATE
 // engine from the reviewer SLA policy this page already administers: different
 // table, different endpoint, different write contract (optimistic
@@ -161,9 +162,9 @@ function GovernancePolicyPageInner() {
         }
       >
         {error ? (
-          <div style={errorBoxStyle}>{error}</div>
+          <Card variant="status" tone="risk">{error}</Card>
         ) : (
-          <p style={mutedStyle}>Loading policy…</p>
+          <p className="app-field-help">Loading policy…</p>
         )}
         {/*
           The workspace governance policy is a DIFFERENT engine from the SLA
@@ -218,18 +219,15 @@ function GovernancePolicyPageInner() {
         <RuntimeStatusBanner teamId={teamId} forDomains={["reviewer_ops"]} />
       ) : null}
 
-      {error ? <div style={errorBoxStyle}>{error}</div> : null}
+      {error ? (
+        <Card variant="status" tone="risk">
+          {error}
+        </Card>
+      ) : null}
       {notice ? (
-        <div
-          style={{
-            ...errorBoxStyle,
-            background: "#ecfdf5",
-            color: "#065f46",
-            borderColor: "#a7f3d0",
-          }}
-        >
+        <Card variant="status" tone="verified" role="status">
           {notice}
-        </div>
+        </Card>
       ) : null}
 
       <PageSection
@@ -359,10 +357,11 @@ function GovernancePolicyPageInner() {
                   n === null || (Number.isFinite(n) && n > 0) ? n : undefined,
               }));
             }}
-            style={{ ...inputStyle, width: 100 }}
+            className="app-form-input"
+            style={{ width: 100 }}
             placeholder="—"
           />
-          <span style={mutedStyle}>hours</span>
+          <span className="app-field-help">hours</span>
         </div>
         </Card>
       </PageSection>
@@ -377,15 +376,6 @@ function GovernancePolicyPageInner() {
     </PageShell>
   );
 }
-
-const errorBoxStyle: React.CSSProperties = {
-  padding: 12,
-  background: "#fef2f2",
-  color: "#7f1d1d",
-  border: "1px solid #fecaca",
-  borderRadius: 8,
-  fontSize: 14,
-};
 
 function PolicyField({
   label,
@@ -408,7 +398,7 @@ function PolicyField({
           flexDirection: "column",
           gap: 4,
           fontSize: 12,
-          color: TOKENS.inkMuted,
+          color: "var(--ink-secondary)",
         }}
       >
         <span>{label}</span>
@@ -423,9 +413,9 @@ function PolicyField({
             const n = Number(e.target.value);
             if (Number.isFinite(n) && n > 0) onChange(n);
           }}
-          style={inputStyle}
+          className="app-form-input"
         />
-        <span style={{ fontSize: 11, color: TOKENS.inkSubtle }}>
+        <span className="app-field-help">
           Effective {effective}h · env {envValue ?? "—"}h
         </span>
       </label>

@@ -36,6 +36,7 @@ import { Button, buttonSurfaceStyle } from "../../../../components/ui/Button";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../../lib/api";
 import { useToast } from "../../../../components/ui";
+import { severityTone } from "../../../../components/ui/StatusBadge";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { formatUserDateTime } from "../../../../lib/date";
 
@@ -94,11 +95,14 @@ const SOURCE_LABEL: Record<AlertSource, string> = {
   identity: "Identity",
 };
 
-function severityTone(sev: AlertSeverity): BadgeTone {
-  if (sev === "critical" || sev === "high") return "risk";
-  if (sev === "medium") return "pending";
-  return "info";
-}
+/*
+ * PHASE 7 §B3 — the severity→tone mapping is `severityTone` in
+ * `components/ui/StatusBadge`. Three copies of it existed: this one,
+ * /admin/audit's, and a raw-hex `severityPalette` in the reviewer-ops design
+ * system — and they had already drifted, the reviewer one painting CRITICAL a
+ * darker red than HIGH, a distinction the Badge palette does not make and
+ * which no operator was ever told the meaning of.
+ */
 
 function formatTimestamp(value: string) {
   const d = new Date(value);

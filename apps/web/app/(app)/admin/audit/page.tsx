@@ -13,6 +13,7 @@ import { EmptyState } from "../../../../components/ui/EmptyState";
 import { ResultCount } from "../../../../components/ui/ResultCount";
 import { apiFetch } from "../../../../lib/api";
 import { useToast } from "../../../../components/ui";
+import { severityTone } from "../../../../components/ui/StatusBadge";
 import { notifyApiError } from "../../../../lib/feedback/notify";
 import { useTenantGuard } from "../../../../lib/platform-context";
 import { formatUtcAuditDateTime } from "../../../../lib/date";
@@ -83,12 +84,11 @@ function formatTimestamp(value: string) {
   return formatUtcAuditDateTime(value);
 }
 
-function severityTone(severity?: string | null): BadgeTone {
-  const value = (severity ?? "").toLowerCase();
-  if (value === "critical" || value === "high") return "risk";
-  if (value === "medium" || value === "warning") return "pending";
-  return "info";
-}
+/*
+ * PHASE 7 §B3 — `severityTone` is now the one in `components/ui/StatusBadge`,
+ * imported below. See the note on /admin/alerts for the three copies this
+ * replaces.
+ */
 
 /**
  * PHASE 5 §10 — outcome tone comes from the canonical presenter now.

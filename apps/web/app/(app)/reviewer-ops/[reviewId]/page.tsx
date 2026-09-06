@@ -37,24 +37,19 @@ import {
   useReviewerHelpHotkey,
 } from "../components/ReviewerShortcutsHelp";
 import {
-  cardStyle,
-  emptyStateStyle,
-  errorBoxStyle,
-  formatDateTime,
-  formatRelative,
-  ghostButtonStyle,
-  headerRowStyle,
-  lifecycleBadgeStyle,
-  mutedStyle,
-  pageStyle,
-  primaryButtonStyle,
-  sectionTitleStyle,
-  severityBadgeStyle,
-  slaBadgeStyle,
-  subtitleStyle,
-  titleStyle,
-  TOKENS,
-} from "../ui-tokens";
+  formatCellDateTime,
+  formatRelativeDeadline,
+} from "../../../../lib/date";
+import {
+  PageShell,
+  PageHeader,
+  PageSection,
+} from "../../../../components/ui/PageShell";
+import { Card } from "../../../../components/ui/Card";
+import { Badge } from "../../../../components/ui/Badge";
+import { buttonSurfaceStyle } from "../../../../components/ui/Button";
+import { EmptyState } from "../../../../components/ui/EmptyState";
+import { severityTone, statusTone } from "../../../../components/ui/StatusBadge";
 
 type LifecycleState =
   | "DRAFT"
@@ -313,62 +308,92 @@ function ReviewWorkspacePageInner() {
   // still hydrating, render the bounded loading shell.
   if (!teamId) {
     return (
-      <main style={pageStyle} data-review-workspace-loading>
-        <header style={headerRowStyle}>
-          <div>
-            <h1 style={titleStyle}>Review workspace</h1>
-            <p style={subtitleStyle}>Loading organization workspace…</p>
-          </div>
-        </header>
-      </main>
+      <PageShell
+        width="full"
+        data-review-workspace-loading
+        header={
+          <PageHeader
+            eyebrow="Reviewer operations"
+            title="Review workspace"
+            subtitle="Loading organization workspace…"
+          />
+        }
+      />
     );
   }
 
   if (!data) {
     return (
-      <main style={pageStyle}>
-        {error ? <div style={errorBoxStyle}>{error}</div> : null}
-        <div style={emptyStateStyle}>Loading workspace…</div>
-      </main>
+      <PageShell
+        width="full"
+        header={
+          <PageHeader eyebrow="Reviewer operations" title="Review workspace" />
+        }
+      >
+        {error ? (
+          <Card variant="status" tone="risk">
+            {error}
+          </Card>
+        ) : null}
+        <EmptyState variant="inline" title="Loading workspace…" />
+      </PageShell>
     );
   }
 
   const p = data.projection;
 
   return (
-    <main style={pageStyle}>
-      <header style={headerRowStyle}>
-        <div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <span style={lifecycleBadgeStyle(p.lifecycleState)}>
-              {p.lifecycleState.toLowerCase().replace("_", " ")}
-            </span>
-            <span style={slaBadgeStyle(p.slaRollupState)}>
-              {p.slaRollupState.toLowerCase().replace("_", " ")}
-            </span>
-          </div>
-          <h1 style={{ ...titleStyle, marginTop: 8 }}>Review workspace</h1>
-          <p style={subtitleStyle}>
-            Workflow {p.workflowId.slice(0, 12)}… · Evidence{" "}
+    <PageShell
+      width="full"
+      header={
+        <PageHeader
+          eyebrow="Reviewer operations"
+          title="Review workspace"
+          subtitle={
+            <>
+              Workflow {p.workflowId.slice(0, 12)}… · Evidence{" "}
+              <a
+                href={`/evidence/${p.evidenceId}`}
+                style={{ color: "var(--ink-link)", textDecoration: "none" }}
+              >
+                {p.evidenceId}
+              </a>
+            </>
+          }
+          contextStrip={
+            <>
+              {/* Both states carry their word as well as their tone: the
+                  lifecycle badge was purple in the palette this replaces, and
+                  canonical purple is reserved for primary actions and
+                  selection, never for a status. */}
+              <Badge tone={statusTone(p.lifecycleState)} dot>
+                {p.lifecycleState.toLowerCase().replace(/_/g, " ")}
+              </Badge>
+              <Badge tone={statusTone(p.slaRollupState)} dot>
+                {p.slaRollupState.toLowerCase().replace(/_/g, " ")}
+              </Badge>
+            </>
+          }
+          secondaryActions={
+            /* A real link, not a Button: middle-click and open-in-new-tab
+               are how an operator keeps the queue open beside a review, and
+               a <button> that navigates takes both away. The canonical look
+               is exported for exactly this. */
             <a
-              href={`/evidence/${p.evidenceId}`}
-              style={{ color: TOKENS.link, textDecoration: "none" }}
+              href="/reviewer-ops"
+              style={{ ...buttonSurfaceStyle("secondary"), textDecoration: "none" }}
             >
-              {p.evidenceId}
+              Back to queue
             </a>
-          </p>
-        </div>
-        <div>
-          <a
-            href="/reviewer-ops"
-            style={{ ...ghostButtonStyle, textDecoration: "none" }}
-          >
-            Back to queue
-          </a>
-        </div>
-      </header>
-
-      {error ? <div style={errorBoxStyle}>{error}</div> : null}
+          }
+        />
+      }
+    >
+      {error ? (
+        <Card variant="status" tone="risk">
+          {error}
+        </Card>
+      ) : null}
 
       {/* Phase G3.2 — Presence + collision wiring for the inspector. */}
       <div
@@ -417,13 +442,17 @@ function ReviewWorkspacePageInner() {
               data.governance.requiresRedactionFieldCount
             }
             style={{
-              ...cardStyle,
+              border: "1px solid var(--border-standard)",
+              borderRadius: "var(--radius-md)",
+              padding: 16,
               marginBottom: 12,
-              borderColor: "rgba(245, 158, 11, 0.55)",
-              background: "rgba(245, 158, 11, 0.06)",
+              /* A governance signal is a WARNING, and the warning tone is the
+                 product's, not two alpha values invented here. */
+              borderColor: "var(--warning-border)",
+              background: "var(--warning-subtle-bg)",
             }}
           >
-            <h3 style={sectionTitleStyle}>Governance signals</h3>
+            <h3 className="app-panel__title">Governance signals</h3>
             <div
               style={{
                 display: "flex",
@@ -471,7 +500,7 @@ function ReviewWorkspacePageInner() {
             </div>
             <p
               style={{
-                ...mutedStyle,
+                color: "var(--silver-ink)",
                 marginTop: 6,
                 fontSize: 12,
               }}
@@ -511,12 +540,15 @@ function ReviewWorkspacePageInner() {
           ReportsIndex uses. */}
       <section
         style={{
-          ...cardStyle,
+          background: "var(--surface-standard)",
+          border: "1px solid var(--border-standard)",
+          borderRadius: "var(--radius-md)",
+          padding: 16,
           marginBottom: 12,
         }}
         data-section="reviewer-workflow-continuity"
       >
-        <h3 style={sectionTitleStyle}>Linked artifacts &amp; context</h3>
+        <h3 className="app-panel__title">Linked artifacts &amp; context</h3>
         <ReviewerCrossSurfaceLinks evidenceId={p.evidenceId} />
       </section>
 
@@ -553,8 +585,8 @@ function ReviewWorkspacePageInner() {
 
 
       <div style={twoColStyle}>
-        <section style={cardStyle}>
-          <h3 style={sectionTitleStyle}>SLA dimensions</h3>
+        <Card padding="comfortable">
+          <h3 className="app-panel__title">SLA dimensions</h3>
           <table
             style={{
               width: "100%",
@@ -576,13 +608,13 @@ function ReviewWorkspacePageInner() {
                     {d.dimension.toLowerCase().replace("_", " ")}
                   </td>
                   <td style={tdLight}>
-                    <span style={slaBadgeStyle(d.state)}>
-                      {d.state.toLowerCase().replace("_", " ")}
-                    </span>
+                    <Badge tone={statusTone(d.state)} subtle>
+                      {d.state.toLowerCase().replace(/_/g, " ")}
+                    </Badge>
                   </td>
                   <td style={tdLight}>
-                    <span style={mutedStyle}>
-                      {formatRelative(d.dueAtUtc)}
+                    <span className="app-field-help">
+                      {formatRelativeDeadline(d.dueAtUtc)}
                     </span>
                   </td>
                 </tr>
@@ -590,7 +622,7 @@ function ReviewWorkspacePageInner() {
             </tbody>
           </table>
 
-          <h3 style={sectionTitleStyle}>Assignment</h3>
+          <h3 className="app-panel__title">Assignment</h3>
           <div style={{ fontSize: 13 }}>
             <KV
               k="Assigned to"
@@ -600,13 +632,13 @@ function ReviewWorkspacePageInner() {
                   : "Unassigned"
               }
             />
-            <KV k="Assigned at" v={formatDateTime(p.assignedAtUtc)} />
+            <KV k="Assigned at" v={formatCellDateTime(p.assignedAtUtc)} />
             <KV k="Priority" v={p.priority} />
           </div>
 
           {data.openEscalation ? (
             <>
-              <h3 style={sectionTitleStyle}>Open escalation</h3>
+              <h3 className="app-panel__title">Open escalation</h3>
               <div
                 style={{
                   border: "1px solid #fecaca",
@@ -625,40 +657,40 @@ function ReviewWorkspacePageInner() {
                     marginBottom: 6,
                   }}
                 >
-                  <span style={severityBadgeStyle(data.openEscalation.severity)}>
+                  <Badge tone={severityTone(data.openEscalation.severity)} subtle>
                     {data.openEscalation.severity}
-                  </span>
-                  <span style={mutedStyle}>
+                  </Badge>
+                  <span className="app-field-help">
                     {data.openEscalation.reason}
                   </span>
-                  <span style={{ marginLeft: "auto", ...mutedStyle }}>
-                    {formatDateTime(data.openEscalation.createdAt)}
+                  <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--silver-ink)" }}>
+                    {formatCellDateTime(data.openEscalation.createdAt)}
                   </span>
                 </div>
                 <div>{data.openEscalation.safeSummary}</div>
               </div>
             </>
           ) : null}
-        </section>
+        </Card>
 
-        <section style={cardStyle}>
-          <h3 style={sectionTitleStyle}>Allowed lifecycle transitions</h3>
+        <Card padding="comfortable">
+          <h3 className="app-panel__title">Allowed lifecycle transitions</h3>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {data.allowedLifecycleTransitions.map((s) => (
-              <span key={s} style={lifecycleBadgeStyle(s)}>
-                {s.toLowerCase().replace("_", " ")}
-              </span>
+              <Badge key={s} tone={statusTone(s)} subtle>
+                {s.toLowerCase().replace(/_/g, " ")}
+              </Badge>
             ))}
             {data.allowedLifecycleTransitions.length === 0 ? (
-              <span style={mutedStyle}>Terminal state</span>
+              <span className="app-field-help">Terminal state</span>
             ) : null}
           </div>
 
-          <h3 style={sectionTitleStyle}>Reviewer actions</h3>
+          <h3 className="app-panel__title">Reviewer actions</h3>
           <div style={actionGridStyle}>
             <button
               type="button"
-              style={primaryButtonStyle}
+              style={buttonSurfaceStyle("primary", "sm")}
               disabled={busy !== null || p.lifecycleState !== "ASSIGNED"}
               onClick={() => post("start", "start", {})}
             >
@@ -666,7 +698,7 @@ function ReviewWorkspacePageInner() {
             </button>
             <button
               type="button"
-              style={ghostButtonStyle}
+              style={buttonSurfaceStyle("secondary", "sm")}
               disabled={
                 busy !== null ||
                 !["IN_REVIEW", "NEEDS_INFORMATION", "ESCALATED"].includes(
@@ -680,7 +712,7 @@ function ReviewWorkspacePageInner() {
             </button>
             <button
               type="button"
-              style={primaryButtonStyle}
+              style={buttonSurfaceStyle("primary", "sm")}
               disabled={
                 busy !== null ||
                 !["IN_REVIEW", "NEEDS_INFORMATION", "ESCALATED"].includes(
@@ -693,7 +725,7 @@ function ReviewWorkspacePageInner() {
             </button>
             <button
               type="button"
-              style={ghostButtonStyle}
+              style={buttonSurfaceStyle("secondary", "sm")}
               disabled={
                 busy !== null ||
                 !["IN_REVIEW", "NEEDS_INFORMATION", "ESCALATED"].includes(
@@ -707,7 +739,7 @@ function ReviewWorkspacePageInner() {
             </button>
             <button
               type="button"
-              style={ghostButtonStyle}
+              style={buttonSurfaceStyle("secondary", "sm")}
               disabled={busy !== null}
               onClick={() => setReasonModal("PAUSE")}
               data-reviewer-action-pause
@@ -717,7 +749,7 @@ function ReviewWorkspacePageInner() {
             <a
               href="/reviewer-ops/escalations"
               style={{
-                ...ghostButtonStyle,
+                ...buttonSurfaceStyle("secondary", "sm"),
                 textDecoration: "none",
                 display: "inline-block",
               }}
@@ -725,7 +757,7 @@ function ReviewWorkspacePageInner() {
               Escalation log
             </a>
           </div>
-        </section>
+        </Card>
       </div>
 
       {/* Phase 2.5 — Keyboard shortcuts help overlay. Triggered by `?`
@@ -761,7 +793,7 @@ function ReviewWorkspacePageInner() {
           setReasonModal(null);
         }}
       />
-    </main>
+    </PageShell>
   );
 }
 
@@ -774,7 +806,7 @@ function KV({ k, v }: { k: string; v: React.ReactNode }) {
         padding: "2px 0",
       }}
     >
-      <span style={mutedStyle}>{k}</span>
+      <span className="app-field-help">{k}</span>
       <span>{v}</span>
     </div>
   );
@@ -792,16 +824,16 @@ const thLight: React.CSSProperties = {
   textAlign: "left",
   fontSize: 11,
   fontWeight: 700,
-  color: TOKENS.inkMuted,
+  color: "var(--ink-secondary)",
   textTransform: "uppercase",
   letterSpacing: 0.3,
   padding: "6px 0",
-  borderBottom: `1px solid ${TOKENS.border}`,
+  borderBottom: "1px solid var(--border-standard)",
 };
 
 const tdLight: React.CSSProperties = {
   padding: "6px 0",
-  borderBottom: `1px solid ${TOKENS.divider}`,
+  borderBottom: "1px solid var(--border-subtle)",
   fontSize: 12,
 };
 
@@ -892,7 +924,7 @@ function ReviewerCrossSurfaceLinks({ evidenceId }: { evidenceId: string }) {
         href={`/evidence/${evidenceId}`}
         data-reviewer-link="open-evidence"
         style={{
-          ...ghostButtonStyle,
+          ...buttonSurfaceStyle("secondary", "sm"),
           textDecoration: "none",
           display: "inline-block",
         }}
@@ -904,7 +936,7 @@ function ReviewerCrossSurfaceLinks({ evidenceId }: { evidenceId: string }) {
         onClick={() => void open("report")}
         disabled={busy !== null}
         data-reviewer-link="download-report"
-        style={ghostButtonStyle}
+        style={buttonSurfaceStyle("secondary", "sm")}
       >
         {busy === "report" ? "Opening…" : "Download latest report"}
       </button>
@@ -913,7 +945,7 @@ function ReviewerCrossSurfaceLinks({ evidenceId }: { evidenceId: string }) {
         onClick={() => void open("package")}
         disabled={busy !== null}
         data-reviewer-link="download-package"
-        style={ghostButtonStyle}
+        style={buttonSurfaceStyle("secondary", "sm")}
       >
         {busy === "package" ? "Opening…" : "Download verification package"}
       </button>
@@ -921,7 +953,7 @@ function ReviewerCrossSurfaceLinks({ evidenceId }: { evidenceId: string }) {
         href="/reports"
         data-reviewer-link="open-reports"
         style={{
-          ...ghostButtonStyle,
+          ...buttonSurfaceStyle("secondary", "sm"),
           textDecoration: "none",
           display: "inline-block",
         }}
@@ -932,7 +964,7 @@ function ReviewerCrossSurfaceLinks({ evidenceId }: { evidenceId: string }) {
         href="/reviewer-ops/escalations"
         data-reviewer-link="open-escalations"
         style={{
-          ...ghostButtonStyle,
+          ...buttonSurfaceStyle("secondary", "sm"),
           textDecoration: "none",
           display: "inline-block",
         }}
@@ -1152,13 +1184,19 @@ function ReviewerNotesPanel({
 
   return (
     <section
-      style={{ ...cardStyle, marginBottom: 12 }}
+      style={{
+        background: "var(--surface-standard)",
+        border: "1px solid var(--border-standard)",
+        borderRadius: "var(--radius-md)",
+        padding: 16,
+        marginBottom: 12,
+      }}
       data-section="reviewer-notes"
       data-reviewer-notes-total={
         state.kind === "ready" ? state.data.summary.total : 0
       }
     >
-      <h3 style={sectionTitleStyle}>
+      <h3 className="app-panel__title">
         Reviewer notes{" "}
         {state.kind === "ready" ? (
           <span style={{ fontSize: 12, opacity: 0.7, marginLeft: 6 }}>
@@ -1168,8 +1206,8 @@ function ReviewerNotesPanel({
       </h3>
       <p
         style={{
-          ...mutedStyle,
           fontSize: 12,
+          color: "var(--silver-ink)",
           marginTop: 0,
           marginBottom: 8,
         }}
@@ -1263,7 +1301,7 @@ function ReviewerNotesPanel({
             type="submit"
             disabled={submitting || composeBody.trim().length === 0}
             data-reviewer-notes-compose-submit
-            style={primaryButtonStyle}
+            style={buttonSurfaceStyle("primary", "sm")}
           >
             {submitting ? "Adding…" : "Add note"}
           </button>
@@ -1317,7 +1355,7 @@ function ReviewerNotesPanel({
 
       {/* ---- list ---- */}
       {state.kind === "loading" ? (
-        <div data-reviewer-notes-state="loading" style={mutedStyle}>
+        <div data-reviewer-notes-state="loading" className="app-field-help">
           Loading notes…
         </div>
       ) : null}
@@ -1353,7 +1391,7 @@ function ReviewerNotesPanel({
       {state.kind === "ready" && state.data.summary.total === 0 ? (
         <div
           data-reviewer-notes-state="empty"
-          style={{ ...mutedStyle, fontSize: 13 }}
+          style={{ fontSize: 13, color: "var(--silver-ink)" }}
         >
           No notes yet. Add the first structured note above to anchor
           this review's context for future reviewers.
@@ -1778,12 +1816,18 @@ function ReviewerDecisionLineagePanel({
   if (state.kind === "loading") {
     return (
       <section
-        style={{ ...cardStyle, marginBottom: 12 }}
+        style={{
+        background: "var(--surface-standard)",
+        border: "1px solid var(--border-standard)",
+        borderRadius: "var(--radius-md)",
+        padding: 16,
+        marginBottom: 12,
+      }}
         data-section="reviewer-decision-lineage"
         data-decision-state="loading"
       >
-        <h3 style={sectionTitleStyle}>Multi-stage review governance</h3>
-        <div style={mutedStyle}>Loading review state…</div>
+        <h3 className="app-panel__title">Multi-stage review governance</h3>
+        <div className="app-field-help">Loading review state…</div>
       </section>
     );
   }
@@ -1791,11 +1835,17 @@ function ReviewerDecisionLineagePanel({
   if (state.kind === "error") {
     return (
       <section
-        style={{ ...cardStyle, marginBottom: 12 }}
+        style={{
+        background: "var(--surface-standard)",
+        border: "1px solid var(--border-standard)",
+        borderRadius: "var(--radius-md)",
+        padding: 16,
+        marginBottom: 12,
+      }}
         data-section="reviewer-decision-lineage"
         data-decision-state="error"
       >
-        <h3 style={sectionTitleStyle}>Multi-stage review governance</h3>
+        <h3 className="app-panel__title">Multi-stage review governance</h3>
         <div role="alert" style={{ fontSize: 13, opacity: 0.85 }}>
           {state.status === 404
             ? "Workflow not found in this workspace."
@@ -1821,7 +1871,9 @@ function ReviewerDecisionLineagePanel({
   return (
     <section
       style={{
-        ...cardStyle,
+        border: "1px solid var(--border-standard)",
+        borderRadius: "var(--radius-md)",
+        padding: 16,
         marginBottom: 12,
         background: tone.bg,
         borderColor: tone.border,
@@ -1839,7 +1891,7 @@ function ReviewerDecisionLineagePanel({
         data.callerContext.isAdjudicator ? "true" : "false"
       }
     >
-      <h3 style={sectionTitleStyle}>
+      <h3 className="app-panel__title">
         Multi-stage review governance{" "}
         <span
           data-decision-state-chip={data.state}
@@ -1987,7 +2039,7 @@ function ReviewerDecisionLineagePanel({
                 composeRationale.trim().length === 0
               }
               data-decision-form-submit
-              style={primaryButtonStyle}
+              style={buttonSurfaceStyle("primary", "sm")}
             >
               {submitting ? "Submitting…" : "Submit decision"}
             </button>
@@ -2157,7 +2209,7 @@ function ReviewerDecisionLineagePanel({
       ) : (
         <div
           data-decision-lineage-empty
-          style={{ marginTop: 10, ...mutedStyle, fontSize: 13 }}
+          style={{ marginTop: 10, fontSize: 13, color: "var(--silver-ink)" }}
         >
           No decisions recorded yet for this workflow.
         </div>
@@ -2182,13 +2234,15 @@ function ReviewerDeferredFeaturesPanel() {
     <section
       data-section="reviewer-deferred-features"
       style={{
-        ...cardStyle,
+        border: "1px solid var(--border-standard)",
+        borderRadius: "var(--radius-md)",
+        padding: 16,
         marginBottom: 12,
-        background: "rgba(127,127,127,0.04)",
+        background: "var(--surface-muted)",
       }}
     >
-      <h3 style={sectionTitleStyle}>Reviewer collaboration scope</h3>
-      <p style={{ ...mutedStyle, fontSize: 12, marginTop: 0 }}>
+      <h3 className="app-panel__title">Reviewer collaboration scope</h3>
+      <p style={{ fontSize: 12, color: "var(--silver-ink)", marginTop: 0 }}>
         Honest summary of what reviewer collaboration supports today
         vs what is deliberately deferred to future backend work. Items
         marked “deferred” are not faked anywhere in this UI — the

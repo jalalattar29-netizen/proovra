@@ -24,16 +24,12 @@ import {
   ReviewerReasonModal,
   type ReviewerReasonKind,
 } from "../components/ReviewerReasonModal";
-import {
-  formatDateTime,
-  mutedStyle,
-  severityBadgeStyle,
-  TOKENS,
-} from "../ui-tokens";
+import { formatCellDateTime } from "../../../../lib/date";
 import { PageShell, PageHeader } from "../../../../components/ui/PageShell";
 import { Card } from "../../../../components/ui/Card";
 import { Button } from "../../../../components/ui/Button";
 import { Badge, type BadgeTone } from "../../../../components/ui/Badge";
+import { severityTone } from "../../../../components/ui/StatusBadge";
 import { DataTable } from "../../../../components/ui/DataTable";
 import { FilterBar } from "../../../../components/ui/FilterBar";
 
@@ -232,14 +228,16 @@ function EscalationsConsolePageInner() {
             key: "severity",
             header: "Severity",
             render: (e) => (
-              <span style={severityBadgeStyle(e.severity)}>{e.severity}</span>
+              <Badge tone={severityTone(e.severity)} subtle>
+                {e.severity}
+              </Badge>
             ),
           },
           {
             key: "reason",
             header: "Reason",
             render: (e) => (
-              <span style={{ ...mutedStyle, fontSize: 12 }}>{e.reason}</span>
+              <span className="app-table__muted">{e.reason}</span>
             ),
           },
           {
@@ -260,7 +258,7 @@ function EscalationsConsolePageInner() {
                   {e.safeSummary}
                 </div>
                 {e.incidentId ? (
-                  <a href={`/operations`} style={{ ...mutedStyle, color: TOKENS.link }}>
+                  <a href="/operations" style={{ fontSize: 12, color: "var(--ink-link)" }}>
                     incident {e.incidentId.slice(0, 8)}…
                   </a>
                 ) : null}
@@ -274,7 +272,7 @@ function EscalationsConsolePageInner() {
               <a
                 href={`/reviewer-ops/${encodeURIComponent(e.workflowId)}`}
                 style={{
-                  color: TOKENS.link,
+                  color: "var(--ink-link)",
                   textDecoration: "none",
                   fontFamily:
                     "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
@@ -290,7 +288,7 @@ function EscalationsConsolePageInner() {
             header: "Created",
             nowrap: true,
             render: (e) => (
-              <span style={mutedStyle}>{formatDateTime(e.createdAt)}</span>
+              <span className="app-table__muted">{formatCellDateTime(e.createdAt)}</span>
             ),
           },
         ]}

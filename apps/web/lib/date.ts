@@ -128,6 +128,35 @@ export function formatCellDateTime(iso: string | null | undefined): string {
  * Those two are outside this phase's surface and are left alone deliberately;
  * they are now the duplicates rather than the definition.
  */
+/**
+ * HOW LONG UNTIL — OR SINCE — A DEADLINE.
+ *
+ * A sibling of `formatRelativeTime`, not a replacement, and the difference is
+ * deliberate. That one answers "how long ago", and treats a future instant as
+ * clock skew because on an incident row it is: an incident cannot have been
+ * last seen tomorrow. A reviewer SLA deadline is the opposite case — the
+ * future IS the answer, and "just now" for a target three hours out would be
+ * the wrong fact rather than a cautious one.
+ *
+ * Written here because `reviewer-ops/ui-tokens.ts` carried its own copy
+ * alongside a hardcoded palette, and the formatter never had anything to do
+ * with the styling it was shipped with. Deleting that module left this behind
+ * as the only thing in it worth keeping.
+ */
+export function formatRelativeDeadline(iso?: string | null): string {
+  if (!iso) return "—";
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return "—";
+  const ms = t - Date.now();
+  const abs = Math.abs(ms);
+  const minutes = Math.round(abs / 60_000);
+  if (minutes < 60) return ms >= 0 ? `in ${minutes}m` : `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return ms >= 0 ? `in ${hours}h` : `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  return ms >= 0 ? `in ${days}d` : `${days}d ago`;
+}
+
 export function formatRelativeTime(value?: string | Date | null): string {
   if (value === null || value === undefined || value === "") return NOT_AVAILABLE;
   const t = value instanceof Date ? value.getTime() : new Date(value).getTime();

@@ -20,20 +20,24 @@ excluded by path: a guard naming the thing it forbids is not a regression.
 
 | deleted | scope searched | files | consumers | verdict |
 |---|---|---|---|---|
-| `apps/web/app/(app)/admin/identity/ui-tokens.ts` | `apps/web (app, components, lib)` | 875 | 0 | gone, zero consumers |
-| `the admin TOKENS.* colour alias map` | `app/(app)/admin/, app/(app)/settings/security, components/` | 320 | 0 | gone, zero consumers |
-| `--text-muted and --text-strong` | `apps/web (app, components, lib)` | 875 | 0 | gone, zero consumers |
+| `apps/web/app/(app)/admin/identity/ui-tokens.ts` | `apps/web (app, components, lib)` | 874 | 0 | gone, zero consumers |
+| `the admin TOKENS.* colour alias map` | `apps/web (app, components, lib)` | 874 | 0 | gone, zero consumers |
+| `apps/web/app/(app)/reviewer-ops/ui-tokens.ts` | `apps/web (app, components, lib)` | 874 | 0 | gone, zero consumers |
+| `the three raw-hex badge palettes that came with it` | `apps/web (app, components, lib)` | 874 | 0 | gone, zero consumers |
+| `--text-muted and --text-strong` | `apps/web (app, components, lib)` | 874 | 0 | gone, zero consumers |
 | `the duplicate --status-* declarations in app/globals.css` | `app/globals.css` | 1 | 0 | gone, zero consumers |
 | `hex fallbacks inside var() at admin call sites` | `app/(app)/admin/` | 77 | 0 | gone, zero consumers |
 | `page-local INK_* and PALETTE aliases under /admin` | `app/(app)/admin/` | 77 | 0 | gone, zero consumers |
 | `the cc-* class family` | `app/(app)/admin/` | 77 | 0 | gone, zero consumers |
-| `admin-v2 files` | `apps/web (app, components, lib)` | 875 | 0 | gone, zero consumers |
+| `admin-v2 files` | `apps/web (app, components, lib)` | 874 | 0 | gone, zero consumers |
 | `hand-rolled status capsules under /admin` | `app/(app)/admin/` | 77 | 0 | gone, zero consumers |
 
 ## Why each one went
 
 - **apps/web/app/(app)/admin/identity/ui-tokens.ts** — the console's parallel visual language — twenty style objects and a twelve-entry colour alias map, consumed by nineteen admin pages and two Security Center pages. Its values were re-pointed at the canonical tokens first, which fixed the navy accent on seventeen surfaces and left the mechanism in place; this removed the mechanism.
 - **the admin TOKENS.* colour alias map** — a second name for every colour, so a surface could be violet through TOKENS and violet through --accent-600 and nobody could tell which one a page was using. Sixty-one uses across the console, all migrated to the canonical tokens before the file was deleted.
+- **apps/web/app/(app)/reviewer-ops/ui-tokens.ts** — the SECOND parallel visual language — a twelve-entry raw-hex palette with a navy accent, three hand-written status palettes and twenty style objects, consumed by five pages outside the console. Its badge palettes went to the canonical status and severity maps, its layout to PageShell/PageSection/Card, its buttons to buttonSurfaceStyle, its inputs to the app-* primitives, and its two date helpers to lib/date — where one of them, a relative formatter that can say "in 3h", had no business living in a styling module at all.
+- **the three raw-hex badge palettes that came with it** — slaBadgePalette, severityPalette and an inline lifecycle palette — forty-one hex literals encoding statuses the product already has one map for. They had drifted from it: IN_REVIEW was PURPLE, which canonical purple is reserved against, and CRITICAL was a darker red than HIGH, a distinction no operator was ever told the meaning of.
 - **--text-muted and --text-strong** — two aliases added while closing 25 undefined tokens. --text-muted resolved to a value that failed WCAG AA against the card surface, so adding them broke contrast on ten files; all sixty consumers were migrated to --silver-ink or --ink-primary by role, and both aliases were deleted rather than re-pointed. This proof then caught the deletion leaking: `admin-system.css` still RE-DECLARED --text-muted, in a comment asserting a :root declaration that no longer existed — a live override of a custom property nothing reads.
 - **the duplicate --status-* declarations in app/globals.css** — globals.css imports lib/design-tokens/tokens.css and then re-declared the same twenty-four --status-* properties beneath it, so the later block won and the token file every component documents as the authority was dead for those names. The two copies also DISAGREED: Badge's pending fallback was #EA580C at 3.20:1 while the value actually rendering was #78350F at 8.15:1.
 - **hex fallbacks inside var() at admin call sites** — a fallback is a second value for the same name, and when the two disagree the fallback is what ships wherever the token is missing — which is how Badge's dead pending colour came to disagree with the live one by 4.95:1 of contrast.
@@ -53,17 +57,15 @@ names it as the reason its own hex ban is scoped rather than blanket.
 they are a brand treatment rather than a status, nothing else declares them, and the
 foundation test asserts they are there.
 
-## Known debt this proof deliberately does not claim
+## Debt this proof used to carry, now closed
 
-**A second `ui-tokens.ts` still exists outside the console.** The deleted file was
-`app/(app)/admin/identity/ui-tokens.ts`. `app/(app)/reviewer-ops/ui-tokens.ts` is a
-separate copy of the same idea, consumed by `governance/policy`,
-`governance/policy/_sections/WorkspaceGovernancePolicySection`,
-`reviewer-ops/escalations` and `reviewer-ops/sla` — six `TOKENS.*` uses in four
-files, none of them under `/admin`.
+**The second `ui-tokens.ts` is gone.** Until Phase 7 §B3 the deleted file was only
+`app/(app)/admin/identity/ui-tokens.ts`, and `app/(app)/reviewer-ops/ui-tokens.ts`
+was a separate copy of the same idea, consumed by five pages outside the console.
+The `TOKENS.*` predicate had to be scoped to /admin because of it, and this
+section recorded that as debt rather than widening a claim nobody had earned.
 
-The first version of the `TOKENS.*` predicate banned the name across all of
-`apps/web` and reported those six as regressions. Widening the deletion to cover
-them would have been a claim about work nobody did; deleting the pattern to make
-the table green would have hidden that the second copy exists. So the predicate is
-scoped to what this phase actually deleted, and the rest is written down here.
+§B3 migrated all five — `governance/policy`, its `WorkspaceGovernancePolicySection`,
+`reviewer-ops/escalations`, `reviewer-ops/sla` and `reviewer-ops/[reviewId]` — onto
+the shared design system and deleted the file. The scope came off the predicate at
+the same time, so the ban now covers all of `apps/web`.

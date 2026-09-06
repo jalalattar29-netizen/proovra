@@ -115,6 +115,28 @@ const STATUS_TO_TONE: Record<string, Tone> = {
   STALLED: "danger",
   REVIEW_REQUIRED: "danger",
 
+  /* PHASE 7 §B3 — the reviewer-operations and SLA lifecycles, which
+     `reviewer-ops/ui-tokens.ts` had been colouring from three hand-written
+     palettes of raw hex beside a navy accent. Adding them here rather than
+     letting them fall through to the default blue is the whole point of
+     routing those pages through this map: a BREACHED SLA rendering as
+     informational would be a worse outcome than the second design system was.
+
+     HEALTHY joins the success family; DUE_SOON and BLOCKED are warnings an
+     operator can still act on; BREACHED is a danger that has already
+     happened. QUEUED and ASSIGNED stay on the default `info` — "this is
+     moving through the pipeline" — and are listed nowhere for that reason.
+     NEEDS_INFORMATION is a warning because the queue is waiting on someone,
+     and REJECTED is a danger, matching the palette it replaces. IN_REVIEW was
+     PURPLE in the old palette; it is a warning here, because canonical purple
+     is reserved for primary actions and selection, never for a status. */
+  HEALTHY: "success",
+  DUE_SOON: "warning",
+  BLOCKED: "warning",
+  NEEDS_INFORMATION: "warning",
+  BREACHED: "danger",
+  REJECTED: "danger",
+
   // neutral / terminal-passive family
   ABANDONED: "neutral",
   ARCHIVED: "neutral",
@@ -152,6 +174,33 @@ export function statusTone(
   status: string,
 ): "verified" | "pending" | "risk" | "neutral" | "info" {
   return TONE_TOKEN[STATUS_TO_TONE[status] ?? "info"];
+}
+
+/**
+ * THE TONE A SEVERITY CARRIES — ONE ANSWER FOR THE WHOLE PRODUCT.
+ *
+ * Severity is a different dimension from status: a status says where a thing
+ * is, a severity says how much it matters, and the same row often carries
+ * both. Three copies of this mapping existed — `/admin/alerts`,
+ * `/admin/audit`, and a raw-hex `severityPalette` in
+ * `reviewer-ops/ui-tokens.ts` — and they had already drifted: the reviewer one
+ * painted CRITICAL a darker red than HIGH, which is a distinction the Badge
+ * palette does not make and which no operator was ever told the meaning of.
+ *
+ * Case-insensitive because the three producers disagree — `/admin/alerts`
+ * emits lower case, the reviewer surfaces emit upper — and an unknown value
+ * falls to `info` rather than to a colour that would assert a severity nobody
+ * measured.
+ */
+export function severityTone(
+  severity?: string | null,
+): "verified" | "pending" | "risk" | "neutral" | "info" {
+  const value = (severity ?? "").trim().toLowerCase();
+  if (value === "critical" || value === "high") return "risk";
+  if (value === "medium" || value === "warning" || value === "moderate") {
+    return "pending";
+  }
+  return "info";
 }
 
 /**

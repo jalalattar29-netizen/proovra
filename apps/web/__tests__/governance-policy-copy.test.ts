@@ -123,9 +123,16 @@ test("/reviewer-ops/sla intro mentions current SLA pressure", () => {
 });
 
 test("/reviewer-ops/sla intro points to /governance/policy for policy administration", () => {
+  /*
+   * Whitespace-insensitive, because the assertion is about the SENTENCE and
+   * the previous pattern was about where the line happened to wrap. Reflowing
+   * the paragraph when this page moved onto `PageHeader` broke it while the
+   * copy was untouched — a test that fails for a line break is a test that
+   * gets edited rather than read. Removing the sentence still fails it.
+   */
   assert.match(
-    SLA_PAGE_SOURCE,
-    /SLA policy is\s+\n?\s*administered at \/governance\/policy/,
+    SLA_PAGE_SOURCE.replace(/\s+/g, " "),
+    /SLA policy is administered at \/governance\/policy/,
     "Intro must redirect policy administration to /governance/policy " +
       "so operators do not look here for the wrong control.",
   );
