@@ -65,6 +65,43 @@ export async function signIn(page, who = "platform-admin@fixture.local") {
 }
 
 /**
+ * A PATTERN ROUTE IS NOT AN ADDRESS.
+ *
+ * `admin-inventory.mjs` emits patterns — `/admin/customers/:id`,
+ * `/admin/platform/runbooks/:slug` — and every sweep built on this file was
+ * navigating to them literally. For five of the six dynamic routes that
+ * happens to work by accident: Next accepts the string ":id" as a dynamic
+ * param, the page renders inside the shell, and the sweep measures something
+ * plausible.
+ *
+ * `/admin/platform/runbooks/:slug` sets `dynamicParams = false`, so an unknown
+ * slug is a ROUTING 404 — it resolves at the root boundary, renders outside
+ * the App Shell, and has no skip link. Measured on this tree: the literal URL
+ * returns 404 while the real one returns 200, and the sweeps duly reported
+ * "SKIP LINK DID NOT REACH MAIN" for the runbook reader and sampled FIVE text
+ * nodes on a page that renders seven and a half thousand characters.
+ *
+ * Both readings were true of the page they landed on and false of the page
+ * they named. The seeded ids below are the same ones
+ * `admin-visual-review.spec.ts` already uses, and they come from
+ * `services/api/scripts/seed-admin-fixture.ts`.
+ */
+export const SEEDED_ROUTE_PARAMS = {
+  "/admin/customers/:id": "0adf0000-0000-4000-8000-0000000000a1",
+  "/admin/workspaces/:id": "0adf0000-0000-4000-8000-0000000000b1",
+  "/admin/users/:id": "0adf0000-0000-4000-8000-000000000002",
+  "/admin/demo-requests/:id": "0adf0000-0000-4000-8000-0000000000e1",
+  "/admin/contact-sales/:id": "0adf0000-0000-4000-8000-0000000000e2",
+  "/admin/platform/runbooks/:slug": "tsa-timestamp-failure",
+};
+
+/** The concrete address a pattern route names, or the route itself. */
+export function concreteRoute(route) {
+  const seeded = SEEDED_ROUTE_PARAMS[route];
+  return seeded ? route.replace(/\/:(id|slug)$/, `/${seeded}`) : route;
+}
+
+/**
  * NAVIGATE AND WAIT FOR THE DATA, NOT JUST FOR THE DOCUMENT.
  *
  * A fixed timeout is a race against the slowest page, and losing it does not
@@ -79,7 +116,10 @@ export async function signIn(page, who = "platform-admin@fixture.local") {
  * falls through to the floor rather than hanging.
  */
 export async function visit(page, route, wait = 2500) {
-  await page.goto(`${WEB}${route}`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+  await page.goto(`${WEB}${concreteRoute(route)}`, {
+    waitUntil: "domcontentloaded",
+    timeout: 60_000,
+  });
   await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
   /**
    * AND WAIT FOR THE PAGE TO EXIST, NOT ONLY FOR TIME TO PASS.

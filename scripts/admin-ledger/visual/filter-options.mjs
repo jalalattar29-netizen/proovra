@@ -92,24 +92,32 @@ async function refusalText(page) {
   }, REFUSAL);
 }
 
+const ROUTESTOTAL = ROUTES.length;
 const findings = [];
+/* A ROUTE THAT NEVER OPENED IS NOT A REFUSED OPTION.
+   A page.goto timeout used to land in `findings` and be counted by the
+   summary line as "1 refused option(s) across 46 routes" — which names the
+   wrong defect and hides the real one, that the route was not measured at
+   all. Kept apart so the count of refusals stays a count of refusals and an
+   unopened route is reported as missing coverage. */
+const unopened = [];
 const rows = [];
 
 const { browser, page } = await open({ width: 1440, height: 900 });
 await signIn(page);
 
 for (const route of ROUTES) {
-  const url = route.replace(/:slug/, "audit-chain-drift").replace(/:id$/, "");
-  // A detail route with a fixture id, the same substitution the other sweeps
-  // use. A route this cannot resolve is reported rather than skipped.
-  const target = route.includes(":id")
-    ? route.replace(":id", "0adf0000-0000-4000-8000-0000000000a1")
-    : url;
+  /* THE ROW THIS ROUTE ACTUALLY HAS, not one id for all five detail routes.
+     This substituted the CUSTOMER id into every `:id` route, so the workspace,
+     user, demo-request and contact-sales readers were each measured on a row
+     that does not exist for them. `concreteRoute` holds the seeded id per
+     route, and `visit` applies it. */
+  const target = route;
 
   try {
     await visit(page, target, 2500);
   } catch (err) {
-    findings.push(`${route}: could not open (${String(err).slice(0, 80)})`);
+    unopened.push(`${route}: could not open (${String(err).slice(0, 80)})`);
     continue;
   }
 
@@ -208,6 +216,8 @@ writeFileSync(
         "Every ENUMERATED filter option on every admin route. A route with " +
         "selects=0 has no option list — its filter, where it has one, is a " +
         "free-text input, which cannot offer a value its endpoint refuses.",
+      routesRequested: ROUTESTOTAL,
+      unopened,
       findings,
       rows,
     },
@@ -224,5 +234,11 @@ if (findings.length) {
 } else {
   console.log(`${exercised} options exercised across ${rows.length} routes — none refused`);
 }
+if (unopened.length) {
+  console.log(`${unopened.length} route(s) NOT MEASURED — the page did not open:`);
+  for (const u of unopened) console.log(`  - ${u}`);
+} else if (rows.length === ROUTESTOTAL) {
+  console.log(`every one of the ${ROUTESTOTAL} requested routes was opened and measured`);
+}
 console.log(`artifact: docs/admin/artifacts/filter-options.json`);
-process.exitCode = findings.length ? 1 : 0;
+process.exitCode = findings.length || unopened.length ? 1 : 0;

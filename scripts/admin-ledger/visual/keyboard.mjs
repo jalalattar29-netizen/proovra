@@ -8,9 +8,10 @@
  * the content, whether Escape closes the drawer, and whether focus RETURNS
  * cannot — those need the keys pressed. So this presses them.
  *
- *   TAB ORDER          walks the first 30 stops from the top of the document
- *                      and reports the first stop inside <main>, so "how many
- *                      presses to reach the page" is a number
+ *   TAB ORDER          walks the WHOLE tab order from the top of the document
+ *                      until it cycles, and reports the first stop inside
+ *                      <main>, so "how many presses to reach the page" is a
+ *                      number and every reachable control is measured
  *   FOCUS VISIBILITY   every stop must paint an outline, a box-shadow ring or
  *                      a border change. A stop with no visible change is
  *                      unreachable in practice for a sighted keyboard user
@@ -23,7 +24,7 @@
  */
 import { writeFileSync, mkdirSync } from "node:fs";
 import { chromium } from "@playwright/test";
-import { WEB, strip, signIn } from "./lib.mjs";
+import { WEB, strip, signIn, concreteRoute } from "./lib.mjs";
 
 const ROUTES = process.argv.slice(2);
 
@@ -38,9 +39,71 @@ const FIRST_STOP = () => {
     : null;
 };
 
+/**
+ * A FOCUS SIGNAL IS A CHANGE, NOT A NON-EMPTY PROPERTY.
+ *
+ * The stop-by-stop probe below asks whether a focused control has an outline
+ * or a box-shadow. A resting shadow answers yes without telling a keyboard
+ * user anything: `.ui-button[data-variant="secondary"]` carries
+ * `0 1px 2px rgba(15,23,42,0.04)` at rest, so it read as "has a ring" while
+ * looking identical focused and unfocused. Only the ghost variant, which
+ * rests at `box-shadow: none`, was honest enough to fail.
+ *
+ * So this reads the indicator properties with the control unfocused, focuses
+ * it, reads them again, and reports the ones that did not move. Programmatic
+ * focus counts as `:focus-visible` here because the walk above has already
+ * made the keyboard the last input modality, which is the same condition a
+ * real keyboard user is in.
+ */
+const FOCUS_DELTA_PROBE = () => {
+  const SEL = [
+    "a[href]",
+    "button:not([disabled])",
+    "input:not([disabled])",
+    "select:not([disabled])",
+    "textarea:not([disabled])",
+    '[tabindex]:not([tabindex="-1"])',
+  ].join(",");
+  const read = (el) => {
+    const cs = getComputedStyle(el);
+    return [
+      cs.outlineStyle, cs.outlineWidth, cs.outlineColor, cs.outlineOffset,
+      cs.boxShadow, cs.borderColor, cs.borderWidth, cs.backgroundColor, cs.color,
+    ].join("|");
+  };
+  const out = [];
+  const seen = new Set();
+  for (const el of Array.from(document.querySelectorAll(SEL))) {
+    if (el.tagName === "NEXTJS-PORTAL") continue;
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) continue;
+    const before = read(el);
+    el.focus();
+    const after = read(el);
+    el.blur();
+    if (before !== after) continue;
+    const key = `${el.tagName}.${(el.className || "").toString().slice(0, 30)}|${(el.textContent || "").trim().slice(0, 26)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      tag: el.tagName,
+      cls: (el.className || "").toString().slice(0, 30),
+      txt: (el.textContent || el.getAttribute("aria-label") || "").trim().slice(0, 26),
+      inMain: (() => { const m = document.querySelector("main"); return m ? m.contains(el) : false; })(),
+    });
+  }
+  return out;
+};
+
 const FOCUS_PROBE = () => {
   const el = document.activeElement;
   if (!el || el === document.body) return null;
+  /* THE DEV SERVER'S OWN ELEMENT IS NOT A CONTROL ON THE PAGE.
+     <nextjs-portal> hosts the dev error overlay and the build indicator. It is
+     focusable, it has zero size, and it does not exist in a production build,
+     so counting it reported "1 zero-size stops" on every route as a finding
+     about the product. Skipped as the tooling it is. */
+  if (el.tagName === "NEXTJS-PORTAL") return { skip: true };
   const cs = getComputedStyle(el);
   const r = el.getBoundingClientRect();
   const main = document.querySelector("main");
@@ -175,7 +238,17 @@ const results = [];
   await signIn(page);
 
   for (const route of ROUTES) {
-    await page.goto(`${WEB}${route}`, { waitUntil: "domcontentloaded", timeout: 45_000 }).catch(() => {});
+    /* The CONCRETE address, not the pattern. `/admin/platform/runbooks/:slug`
+       is a routing 404 — the route sets `dynamicParams = false` — so this
+       sweep was reporting "SKIP LINK DID NOT REACH MAIN" for a not-found page
+       rendered outside the App Shell, which is correct about that page and
+       false about the runbook reader it named. See `concreteRoute`. */
+    await page
+      .goto(`${WEB}${concreteRoute(route)}`, {
+        waitUntil: "domcontentloaded",
+        timeout: 45_000,
+      })
+      .catch(() => {});
     /* WAIT FOR THE PAGE, NOT FOR TIME. This reported /admin/costs as
        "stops=0 · h1=0" — a page with no controls and no heading — on one
        pass. Measured on its own it has one h1 and sixty-seven tab stops,
@@ -197,12 +270,33 @@ const results = [];
       b.focus();
       b.removeAttribute("tabindex");
     });
+    /*
+     * THE WHOLE ORDER, NOT THE FIRST THIRTY STOPS.
+     *
+     * The cap used to be thirty. The console's chrome — skip link, sidebar,
+     * topbar, search, account menu — is twenty-seven of them on every route,
+     * so a thirty-stop walk measured THREE of each page's own controls and
+     * then reported "no keyboard-inaccessible control" for the console. That
+     * sentence was true of the chrome and unsupported about the pages.
+     *
+     * So it walks until the order ENDS: either it comes back round to the
+     * first stop, or focus leaves the document for the browser's own chrome
+     * (the probe returns nothing, which is the normal end of a page's order in
+     * a headless browser). Only hitting the ceiling means the order neither
+     * cycled nor ended, and that is what a focus trap looks like from here.
+     */
     const stops = [];
     let firstMain = null;
-    for (let i = 0; i < 30; i += 1) {
+    let endedBy = "ceiling";
+    let firstKey = null;
+    for (let i = 0; i < 400; i += 1) {
       await page.keyboard.press("Tab");
       const s = await page.evaluate(FOCUS_PROBE);
-      if (!s) break;
+      if (!s) { endedBy = "left-document"; break; }
+      if (s.skip) continue;
+      const key = `${s.tag}.${s.cls}|${s.txt}`;
+      if (i === 0) firstKey = key;
+      else if (key === firstKey) { endedBy = "cycled"; break; }
       stops.push(s);
       if (firstMain === null && s.inMain) firstMain = i + 1;
     }
@@ -253,6 +347,8 @@ const results = [];
       skip = { firstStop: first, landed };
     }
 
+    /* Run the delta probe while the keyboard is still the last modality. */
+    const noDelta = await page.evaluate(FOCUS_DELTA_PROBE).catch(() => []);
     const noFocusSignal = stops.filter((s) => !s.outline && !s.ring && s.sized);
     const unsized = stops.filter((s) => !s.sized);
 
@@ -260,8 +356,16 @@ const results = [];
       route,
       ...stat,
       stops: stops.length,
+      mainStops: stops.filter((s) => s.inMain).length,
+      tabOrderEndedBy: endedBy,
+      unsizedExamples: stops
+        .filter((s) => !s.sized)
+        .slice(0, 4)
+        .map((s) => `${s.tag}.${s.cls} "${s.txt}"`),
       firstMainStop: firstMain,
       noFocusSignal: noFocusSignal.length,
+      noFocusDelta: noDelta.length,
+      noFocusDeltaExamples: noDelta.slice(0, 6).map((s) => `${s.tag}.${s.cls} "${s.txt}"`),
       noFocusExamples: noFocusSignal.slice(0, 4).map((s) => `${s.tag}.${s.cls} "${s.txt}"`),
       unsizedStops: unsized.length,
       skipLink: skip,
@@ -271,6 +375,7 @@ const results = [];
     const flag = [
       stat.error ?? "",
       row.noFocusSignal ? `${row.noFocusSignal} stops with NO focus signal` : "",
+      row.noFocusDelta ? `${row.noFocusDelta} controls UNCHANGED on focus` : "",
       row.unsizedStops ? `${row.unsizedStops} zero-size stops` : "",
       stat.nested?.length ? `${stat.nested.length} NESTED interactive` : "",
       stat.clickableDiv?.length ? `${stat.clickableDiv.length} clickable div` : "",
@@ -282,12 +387,17 @@ const results = [];
         ? `${stat.landmarks.nav - stat.landmarks.labelledNav} unlabelled nav`
         : "",
       skip && !skip.landed.inMain ? "SKIP LINK DID NOT REACH MAIN" : "",
+      /* Not cycling means the walk hit its ceiling, which is what a focus trap
+         looks like from here. Named rather than hidden by the truncation. */
+      endedBy === "ceiling" ? "TAB ORDER NEVER ENDED (focus trap)" : "",
     ].filter(Boolean).join(" · ");
     console.log(
-      `${route.padEnd(46)} stops=${String(row.stops).padStart(2)} main@${String(firstMain ?? "-").padStart(2)} skip=${skip ? (skip.landed.inMain ? "works" : "BROKEN") : "-"} first="${skip?.firstStop?.txt ?? ""}"  ${flag || "ok"}`,
+      `${route.padEnd(46)} stops=${String(row.stops).padStart(3)} inMain=${String(row.mainStops).padStart(3)} main@${String(firstMain ?? "-").padStart(2)} skip=${skip ? (skip.landed.inMain ? "works" : "BROKEN") : "-"} first="${skip?.firstStop?.txt ?? ""}"  ${flag || "ok"}`,
     );
     for (const n of stat.nested ?? []) console.log(`      nested: ${n.outer} > ${n.inner}  "${n.txt}"`);
     for (const e of row.noFocusExamples) console.log(`      no-ring: ${e}`);
+    for (const e of row.unsizedExamples) console.log(`      unsized: ${e}`);
+    for (const e of row.noFocusDeltaExamples) console.log(`      no-delta: ${e}`);
   }
   await ctx.close();
 }
@@ -400,6 +510,7 @@ console.log(
     "",
     `routes                       ${rows.length}`,
     `with no-focus-signal stops   ${n((r) => r.noFocusSignal)}`,
+    `with unchanged-on-focus ctrl ${n((r) => r.noFocusDelta)}`,
     `with nested interactive      ${n((r) => r.nested?.length)}`,
     `with focusable containers    ${n((r) => r.focusableContainers?.length)}   (valid: a scroll region or a row link)`,
     `with clickable divs          ${n((r) => r.clickableDiv?.length)}`,

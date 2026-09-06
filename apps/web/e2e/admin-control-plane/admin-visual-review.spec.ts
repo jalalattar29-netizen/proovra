@@ -52,7 +52,19 @@ import { CONSENT_VERSION } from "../../lib/consent";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "../../../..");
-const WEB = process.env.PROOVRA_WEB_ORIGIN ?? "http://localhost:3311";
+/* ONE NAME FOR THE FIXTURE ORIGIN, AND NO SILENT DEFAULT TO A PORT SOMEONE
+   ELSE IS ON.
+   These three specs read `PROOVRA_WEB_ORIGIN`; the other five and the config
+   read `PROOVRA_FIXTURE_WEB_BASE`. A run that sets only the second one still
+   starts, still signs in and still reports — against whatever happens to be
+   listening on 3311, which on a machine running two fixtures at once is
+   another session's server. That produced four confident failures here that
+   did not exist on the tree under test. Both names are accepted, the config's
+   name first. */
+const WEB =
+  process.env.PROOVRA_FIXTURE_WEB_BASE ??
+  process.env.PROOVRA_WEB_ORIGIN ??
+  "http://localhost:3311";
 const OUT = resolve(REPO, "artifacts/admin-visual-review");
 const SHOTS = resolve(OUT, "screenshots");
 

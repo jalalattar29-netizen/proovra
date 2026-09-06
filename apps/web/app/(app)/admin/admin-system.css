@@ -1889,6 +1889,58 @@ body.is-admin-console .app-sidebar-v2-help {
 }
 
 /* ==========================================================================
+ * 22b. THE SHELL'S TWO SUB-AA LABELS, INSIDE THE CONSOLE
+ *
+ * =============================================================================
+ * WHAT THE SWEEP FOUND, AND WHY IT TOOK A SECOND PROBE TO FIND IT
+ * =============================================================================
+ * The contrast sweep walks `main`. Everything outside it — the topbar, the
+ * rail — is chrome the sweep never samples, and it is on all forty-seven
+ * routes. Measured with the same algorithm rooted outside `main`, four
+ * distinct labels appear on every route and two of them are under AA:
+ *
+ *   .app-header-search-text  "Search or jump to…"
+ *       #94A3B8 on #FBFCFE                                  2.50:1  (needs 4.5)
+ *   .app-sidebar-v2-link     "+ More / Advanced (n)"
+ *       --nav-ink-muted #7A8597, 11px/700, measured in PIXELS because the
+ *       rail's ground is assets/cards/sidebar.png and no CSS reading can
+ *       give a ratio against an image:                       3.36:1  (needs 4.5)
+ *
+ * The other two are white on the violet gradients — 5.70:1, and a
+ * backgroundColor-only walk would have called both of them failures.
+ *
+ * =============================================================================
+ * WHY IT IS SCOPED TO THE CONSOLE, LIKE THE TOUCH FLOOR ABOVE
+ * =============================================================================
+ * Both values live in `app-shell-v2.css` and both are on every internal page,
+ * not only the console — the rail label measures 3.18:1 on /home against the
+ * warmer ground there. Restyling the product shell is that surface's call,
+ * not an admin pass's side effect, so this raises the two labels where THIS
+ * phase is responsible for them and leaves the same measurement standing for
+ * whoever owns the shell.
+ *
+ * Both take the console's EXISTING muted-ink authority — `--silver-ink`,
+ * which section 20 above already substitutes for `--ink-muted` here for the
+ * same AA reason. No new value is introduced, and no colour is written
+ * literally: the console paints nothing it did not name.
+ *   search placeholder  --silver-ink on #FBFCFE                     5.34:1
+ *   rail muted ink      --silver-ink on the rail's measured ground  4.78:1
+ * Both re-measured the same way they were found — the placeholder from the
+ * cascade, the rail label from the screenshotted pixels.
+ * ========================================================================== */
+
+body.is-admin-console .app-header-search-text {
+  color: var(--silver-ink);
+}
+
+body.is-admin-console .app-sidebar-v2 {
+  /* The token, not the selector: the "More / Advanced" toggle carries
+     `color: var(--nav-ink-muted)` in an inline style, so only re-declaring
+     the variable on an ancestor reaches it. */
+  --nav-ink-muted: var(--silver-ink);
+}
+
+/* ==========================================================================
  * 23. OVERLAY — THE DRAWER AND THE FOCUSED DIALOG
  *
  * =============================================================================

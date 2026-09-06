@@ -688,7 +688,7 @@
       "chartsUntitled": 0,
       "emptyCharts": 0,
       "emptyChartsSilent": 0,
-      "tableRows": 39,
+      "tableRows": 40,
       "url": "/admin/operations",
       "findings": []
     },
@@ -1267,7 +1267,7 @@
       "chartsUntitled": 0,
       "emptyCharts": 0,
       "emptyChartsSilent": 0,
-      "tableRows": 2,
+      "tableRows": 3,
       "url": "/admin/workspaces?lifecycle=LIVE&kind=PERSONAL",
       "findings": []
     },

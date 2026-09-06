@@ -18,7 +18,7 @@
  *
  * Usage: node scripts/admin-ledger/visual/composition.mjs <route> [<route>…]
  */
-import { open, signIn, strip, WEB } from "./lib.mjs";
+import { open, signIn, strip, WEB, concreteRoute } from "./lib.mjs";
 
 const routes = process.argv.slice(2);
 if (routes.length === 0) {
@@ -26,16 +26,9 @@ if (routes.length === 0) {
   process.exit(2);
 }
 
-/** The fixture rows the capture harness uses for the dynamic segments. */
-const PARAMS = {
-  "/admin/customers/:id": "0adf0000-0000-4000-8000-0000000000a1",
-  "/admin/workspaces/:id": "0adf0000-0000-4000-8000-0000000000b1",
-  "/admin/users/:id": "0adf0000-0000-4000-8000-000000000002",
-  "/admin/demo-requests/:id": "0adf0000-0000-4000-8000-0000000000e1",
-  "/admin/contact-sales/:id": "0adf0000-0000-4000-8000-0000000000e2",
-  "/admin/platform/runbooks/:slug": "tsa-timestamp-failure",
-};
-const concrete = (r) => (PARAMS[r] ? r.replace(/:(\w+)$/, PARAMS[r]) : r);
+/* The seeded ids live in `lib.mjs` as `SEEDED_ROUTE_PARAMS`. This file held
+   its own copy, which is how a map four sweeps depend on drifts apart. */
+const concrete = concreteRoute;
 
 const { browser, page } = await open({ width: 1440, height: 900 });
 const errors = [];

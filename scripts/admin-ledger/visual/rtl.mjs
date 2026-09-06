@@ -29,7 +29,7 @@
  */
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { chromium } from "@playwright/test";
-import { WEB, strip, signIn } from "./lib.mjs";
+import { WEB, strip, signIn, concreteRoute } from "./lib.mjs";
 
 const routes = readFileSync(process.argv[2], "utf8")
   .split("\n")
@@ -208,7 +208,14 @@ await signIn(page);
 const rows = [];
 let bad = { overflow: 0, direction: 0, physical: 0, notRtl: 0 };
 for (const route of routes) {
-  await page.goto(`${WEB}${route}`, { waitUntil: "domcontentloaded", timeout: 60_000 }).catch(() => {});
+  /* Concrete, for the reason recorded on `concreteRoute`: a pattern route
+     is not an address, and one of them resolves to a 404 outside the shell. */
+  await page
+    .goto(`${WEB}${concreteRoute(route)}`, {
+      waitUntil: "domcontentloaded",
+      timeout: 60_000,
+    })
+    .catch(() => {});
   /*
    * 3.5s, and the reason is a finding in itself.
    *

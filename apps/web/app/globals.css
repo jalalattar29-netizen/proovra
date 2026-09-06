@@ -273,23 +273,33 @@ textarea {
   color: var(--ink-primary, #0f172a);
 }
 
+/* THE RING HAS TO BE AN OUTLINE, BECAUSE A BOX-SHADOW CANNOT WIN HERE.
+   `components/ui/Button.tsx` sets `boxShadow` in its inline style object — a
+   resting shadow per variant — and an inline declaration outranks a class
+   rule. So the box-shadow ring this block used to declare never reached a
+   single button in the product, while the `outline: none` beside it DID: the
+   net effect was to remove the browser's own focus ring and put nothing in
+   its place.
+   Measured on the final Phase 7 tree, before this change: every
+   `.ui-button` reached by Tab computed `box-shadow: none` on the ghost
+   variant and its UNCHANGED resting shadow on the others — 39 stops across 12
+   of the 47 console routes had no focus signal at all, and the rest only
+   looked like they did because a resting shadow is not none.
+   `outline` is not set inline, so it is the property that lands. The value is
+   the canonical PROOVRA focus ring already used by every input, select and
+   textarea below, so a keyboard user sees one indicator, not two. Outline
+   draws outside the box and does not affect layout. */
 .ui-button:focus-visible {
-  outline: none;
-  box-shadow:
-    0 0 0 2px var(--surface-card, #fff),
-    0 0 0 4px var(--cta-coral-ring, rgba(124, 58, 237, 0.32));
+  outline: 2px solid #8b7cf6;
+  outline-offset: 2px;
 }
 
 .ui-button[data-variant="enterprise"]:focus-visible {
-  box-shadow:
-    0 0 0 2px var(--surface-card, #fff),
-    0 0 0 4px rgba(107, 91, 255, 0.32);
+  outline-color: #6b5bff;
 }
 
 .ui-button[data-variant="destructive"]:focus-visible {
-  box-shadow:
-    0 0 0 2px var(--surface-card, #fff),
-    0 0 0 4px rgba(220, 38, 38, 0.3);
+  outline-color: #dc2626;
 }
 
 @media (prefers-reduced-motion: reduce) {

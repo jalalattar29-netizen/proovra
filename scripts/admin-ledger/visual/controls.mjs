@@ -37,7 +37,7 @@
  * Usage: node scripts/admin-ledger/visual/controls.mjs [route…]
  */
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { open, signIn, strip, WEB } from "./lib.mjs";
+import { open, signIn, strip, WEB, concreteRoute } from "./lib.mjs";
 
 const ROUTES = process.argv.slice(2).filter((a) => !a.startsWith("--"));
 const routes = ROUTES.length
@@ -47,18 +47,9 @@ const routes = ROUTES.length
 const OUT = "docs/admin/artifacts/controls";
 mkdirSync(OUT, { recursive: true });
 
-/** The fixture rows the capture harness uses for the dynamic segments. */
-const PARAMS = {
-  "/admin/customers/:id": "0adf0000-0000-4000-8000-0000000000a1",
-  "/admin/workspaces/:id": "0adf0000-0000-4000-8000-0000000000b1",
-  "/admin/users/:id": "0adf0000-0000-4000-8000-000000000002",
-  "/admin/demo-requests/:id": "0adf0000-0000-4000-8000-0000000000e1",
-  "/admin/contact-sales/:id": "0adf0000-0000-4000-8000-0000000000e2",
-  "/admin/platform/runbooks/:slug": "tsa-timestamp-failure",
-};
-
-const concrete = (route) =>
-  PARAMS[route] ? route.replace(/:(\w+)$/, PARAMS[route]) : route;
+/* The seeded ids live in `lib.mjs` as `SEEDED_ROUTE_PARAMS`. This file held
+   its own copy, which is how a map four sweeps depend on drifts apart. */
+const concrete = concreteRoute;
 
 const { browser, page } = await open({ width: 1440, height: 900 });
 await signIn(page);

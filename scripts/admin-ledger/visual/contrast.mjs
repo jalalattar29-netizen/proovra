@@ -29,9 +29,23 @@ const { browser, page } = await open();
 await signIn(page);
 
 let grand = 0;
+/**
+ * A ROUTE THAT YIELDED NOTHING IS NOT A ROUTE THAT PASSED.
+ *
+ * "samples=   0  AA-fail=0" reads as a clean route and means the opposite:
+ * nothing was measured. It happened once here, to /admin/workspaces/:id in a
+ * 47-route run, and that same route measured on its own yields ninety-three
+ * samples — a cold dev-server compile outrunning the settle, not a page with
+ * no text. So a zero is retried with a longer settle and, if it survives all
+ * three attempts, recorded as an UNMEASURED route and failed at the end rather
+ * than counted as green.
+ */
+const unmeasured = [];
 for (const r of routes) {
-  await visit(page, r, 3000);
-  const samples = await page.evaluate(() => {
+  let samples = [];
+  for (let attempt = 1; attempt <= 3 && samples.length === 0; attempt += 1) {
+  await visit(page, r, 3000 * attempt);
+  samples = await page.evaluate(() => {
     const parse = (c) => {
       const n = (c.match(/-?\d+(\.\d+)?/g) ?? []).map(Number);
       if (n.length < 3) return null;
@@ -116,6 +130,8 @@ for (const r of routes) {
     walk(document.querySelector("main") || document.body);
     return out;
   });
+  }
+  if (samples.length === 0) unmeasured.push(r);
 
   const fails = [];
   for (const s of samples) {
@@ -135,4 +151,10 @@ for (const r of routes) {
   }
 }
 console.log(`\nTOTAL AA failures across ${routes.length} routes: ${grand}`);
+console.log(
+  `UNMEASURED routes (zero visible text samples): ${unmeasured.length}${
+    unmeasured.length ? ` — ${unmeasured.join(", ")}` : ""
+  }`,
+);
 await browser.close();
+if (grand > 0 || unmeasured.length > 0) process.exitCode = 1;
