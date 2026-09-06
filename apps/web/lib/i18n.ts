@@ -50,6 +50,45 @@ export function resolveInitialLocale(): { locale: Locale; mode: LocaleMode } {
     }
   }
 
+  /**
+   * THE COOKIE THE SERVER ALREADY RENDERED FROM.
+   *
+   * The server picks `dir` and `lang` from the mirrored COOKIE — it cannot see
+   * localStorage — and this function picked them from localStorage alone. When
+   * the two disagreed, the page arrived correctly in Arabic and then flipped
+   * to English after hydration: the LTR flash this whole section exists to
+   * remove, arriving one frame later than it used to.
+   *
+   * They normally agree, because a language choice writes both. They come
+   * apart when storage is cleared or blocked and the cookie survives — a
+   * private window, a browser configured to refuse site data, a person who
+   * cleared "cached data" but not cookies. In every one of those the cookie is
+   * still an explicit, persisted choice, and honouring it is what the server
+   * already did.
+   *
+   * Read AFTER localStorage, so a live preference still wins, and only for a
+   * supported locale.
+   */
+  if (typeof document !== "undefined") {
+    const jar = document.cookie ?? "";
+    const read = (name: string) =>
+      jar
+        .split(";")
+        .map((c) => c.trim())
+        .find((c) => c.startsWith(`${name}=`))
+        ?.slice(name.length + 1);
+    const cookieMode = read(LOCALE_MODE_COOKIE);
+    const cookieLocale = read(LOCALE_COOKIE);
+    if (
+      cookieMode === "manual" &&
+      cookieLocale &&
+      supportedLocales.includes(cookieLocale as Locale)
+    ) {
+      return { locale: cookieLocale as Locale, mode: "manual" };
+    }
+    if (cookieMode === "auto") return { locale: getDeviceLocale(), mode: "auto" };
+  }
+
   // First visit / no stored preference → ENGLISH. PROOVRA does NOT
   // auto-detect the browser language and never auto-switches away from
   // EN. Any other language is an explicit, persisted user choice.

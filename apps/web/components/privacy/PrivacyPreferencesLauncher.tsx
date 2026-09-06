@@ -5,6 +5,41 @@ import { openCookiePreferences } from "../../lib/consent";
 
 export const PRIVACY_LAUNCHER_TEST_ID = "privacy-preferences-launcher";
 
+/**
+ * THE PRIVACY PREFERENCES LAUNCHER.
+ *
+ * ============================================================================
+ * WHY IT IS 44px NOW
+ * ============================================================================
+ * It was 38×38. That is under every published minimum for an interactive
+ * target — 44×44 (WCAG 2.5.5 AAA / Apple) and 48×48 (Android) — and this is
+ * the one control on the page that a person with a motor impairment, on a
+ * phone, in a hurry, is most likely to be reaching for: it is how they change
+ * what is collected about them. A consent control that is hard to hit is a
+ * consent control that gets abandoned, and an abandoned consent control leaves
+ * the previous answer standing.
+ *
+ * The box grows to 44; the ICON does not. It stays at 20px, because a bigger
+ * shield would make the corner of every page noisier without making the target
+ * any easier to hit — the padding is what the finger needs, not the glyph.
+ *
+ * ============================================================================
+ * WHY IT IS `insetInlineStart` AND NOT `left`
+ * ============================================================================
+ * `left: 16` pins it to the bottom-LEFT in every language. In Arabic the page
+ * reads right-to-left, the reading eye finishes on the left, and a control
+ * anchored there sits where the text ends rather than where the page begins.
+ * The logical property follows the direction; in English it still computes to
+ * `left`.
+ *
+ * ============================================================================
+ * WHY THE PURPLE IS A TOKEN
+ * ============================================================================
+ * Three page-local spellings of the brand accent lived here —
+ * `rgba(124,90,255,…)` twice and `#6B5BFF` on the icon — none of which is the
+ * canonical `--accent-600`. A fourth purple in a product that has one is how a
+ * palette stops being a palette.
+ */
 export default function PrivacyPreferencesLauncher() {
   const [mounted, setMounted] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -20,13 +55,7 @@ export default function PrivacyPreferencesLauncher() {
 
   if (!mounted) return null;
 
-  const borderColor = hovered || focused
-    ? "rgba(124,90,255,0.65)"
-    : "rgba(124,90,255,0.35)";
-  const background = hovered ? "#FFFFFF" : "rgba(255,255,255,0.92)";
-  const focusRing = focused
-    ? "0 0 0 3px rgba(124,90,255,0.35)"
-    : "0 6px 18px rgba(15,23,42,0.10), 0 1px 2px rgba(15,23,42,0.06)";
+  const active = hovered || focused;
 
   return (
     <button
@@ -41,19 +70,25 @@ export default function PrivacyPreferencesLauncher() {
       data-testid={PRIVACY_LAUNCHER_TEST_ID}
       style={{
         position: "fixed",
-        left: 16,
+        insetInlineStart: 16,
         bottom: 16,
-        width: 38,
-        height: 38,
+        width: 44,
+        height: 44,
         padding: 0,
         margin: 0,
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        borderRadius: 10,
-        background,
-        border: `1px solid ${borderColor}`,
-        boxShadow: focusRing,
+        borderRadius: "var(--radius-md, 10px)",
+        background: hovered
+          ? "var(--surface-standard, #FFFFFF)"
+          : "rgba(255,255,255,0.92)",
+        border: `1px solid ${
+          active ? "var(--accent-500, #7C3AED)" : "var(--accent-200, #D9C7FB)"
+        }`,
+        boxShadow: focused
+          ? "var(--focus-ring)"
+          : "0 6px 18px rgba(15,23,42,0.10), 0 1px 2px rgba(15,23,42,0.06)",
         cursor: "pointer",
         zIndex: 2147483000,
         transition:
@@ -67,7 +102,7 @@ export default function PrivacyPreferencesLauncher() {
         width={20}
         height={20}
         fill="none"
-        stroke="#6B5BFF"
+        stroke="var(--accent-600, #6D28D9)"
         strokeWidth={1.7}
         strokeLinecap="round"
         strokeLinejoin="round"

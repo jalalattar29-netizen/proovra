@@ -312,6 +312,16 @@ a.adm-kpi:focus-visible {
   border: 1px solid var(--border-default);
   border-radius: var(--radius-card);
   background: var(--surface-card);
+  /* PHASE 7 §B4 — THE SAME CARD, THE SAME ELEVATION.
+     This class and the `Card` component are both "a card" in this console, and
+     they disagreed: `Card` paints `--shadow-card` and this painted nothing, so
+     the same visual object looked different depending on which primitive the
+     page happened to reach for. Measured, not read — the computed-style probe
+     found two box-shadow values across five pages where the role has one
+     meaning. This takes the component's, because the component is the
+     canonical primitive and the value is already the product's restrained
+     one: 1px at four percent. */
+  box-shadow: var(--shadow-card);
   min-inline-size: 0;
 }
 
