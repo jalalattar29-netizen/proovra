@@ -597,6 +597,22 @@ allowedHeaders: [
   // gate — the challenge must still be started, verified and consumed
   // server-side before the id means anything.
   "x-proovra-step-up-challenge-id",
+  /**
+   * The active workspace the browser is operating in.
+   *
+   * Allow-listing it does not make it trusted: the server revalidates the named
+   * workspace against membership, status, expiry, organization lifecycle and
+   * permission on every request (`authorizeWorkspaceOrFail`), and a workspace
+   * the caller cannot act in is refused rather than substituted. What the
+   * allow-list decides is only whether the BROWSER is permitted to send it —
+   * and without this entry it is not, so the preflight passes, the real request
+   * is blocked, and every call from the product fails with an opaque network
+   * error rather than an answer. Measured in a browser before it was added.
+   */
+  "x-proovra-workspace-id",
+  // Accepted as an alias for older clients and integrations that already send
+  // it. Same revalidation, same refusal.
+  "x-team-id",
 ],
     origin: (origin, cb) => {
       if (!origin) return cb(null, true);

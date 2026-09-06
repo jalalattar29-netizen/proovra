@@ -65,10 +65,10 @@ function OverviewTab({
               }
             />
             <HealthRow
-              label="Pending access review"
+              label="Pending workspace invitations"
               tone={pendingInvites.length > 0 ? "amber" : "green"}
               badge={`${pendingInvites.length} pending`}
-              detail="Invitations still awaiting acceptance."
+              detail="People invited to the workspace who have not accepted yet. They can join this team once they do."
             />
             <HealthRow
               label="Inactive members"
@@ -255,12 +255,10 @@ function humanizePermission(permission: string): string {
     "team.update_settings": "Update team settings",
     "team.archive": "Archive the team",
     "team.transfer_lead": "Transfer team leadership",
-    "team.member.invite": "Invite people to the team",
+    "team.member.invite": "Add workspace members to the team",
     "team.member.remove": "Remove members",
     "team.member.suspend": "Suspend members",
     "team.member.change_role": "Change member roles",
-    "team.invite.revoke": "Revoke pending invites",
-    "team.invite.resend": "Resend invites",
     "team.assignment.create": "Create assignments",
     "team.assignment.reassign": "Reassign work",
     "team.assignment.complete": "Complete assignments",

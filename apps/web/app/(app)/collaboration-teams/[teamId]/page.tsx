@@ -1,7 +1,7 @@
 /**
  * PROOVRA Phase 6 — Team detail page (with tabs).
  *
- * Route: `/collaboration-teams/[teamId]?tab=overview|members|invites|assignments|activity|settings`
+ * Route: `/collaboration-teams/[teamId]?tab=overview|members|assignments|discussion|activity|settings`
  *
  * Single-page detail with query-string-driven tabs (Linear/GitHub
  * pattern). Permission gating is server-enforced; the UI reads
@@ -15,6 +15,9 @@
  * PageShell. No data-fetching, permission, billing, or tab-body
  * behaviour changed — every data-testid / data-* is preserved, including
  * the test-pinned `external-reviewers-link` deep-link to /review/external.
+ *
+ * Discussion arrived here from the retired Collaboration Hub; Invites left
+ * because a Collaboration Team does not invite anyone.
  */
 
 "use client";
@@ -48,8 +51,8 @@ import { SettingsTab } from "./_tabs/SettingsTab";
 // Discussion arrived from the retired Collaboration Hub, which was a second
 // destination for one group. Invites left because a Collaboration Team no
 // longer invites anyone: it is built from people who already hold authority in
-// the workspace, so  is where someone is added and Workspace People is
-// where someone is brought in.
+// the workspace, so the Members tab is where someone is added, and the
+// workspace People surface is where someone is brought in.
 const TABS = [
   "overview",
   "members",
@@ -275,9 +278,9 @@ function TeamDetail() {
         // 260%`, radius, shadow and [content | action] flex row). Only a
         // restrained purple left rail differs. Same implementation pattern as
         // SimpleCaseHeader — light text, light status pills, a glass secondary
-        // action. The header "Settings" button is removed; only Invite people
-        // (primary) + Collaboration hub (secondary) remain (external-reviewers
-        // stays as a gated deep-link where the viewer can manage them).
+        // action. The header "Settings" button is removed; only Add people
+        // (primary) + Discussion (secondary) remain (external-reviewers stays as
+        // a gated deep-link where the viewer can manage them).
         <header
           data-testid="team-detail-header"
           className="ops-banner-card"
@@ -443,14 +446,31 @@ function TeamDetail() {
               hub (secondary glass). Positioned with a right reserve so it
               clears the decorative icon-card artwork, like the Home/Case
               banners. */}
+          {/*
+            THE ACTIONS MUST BE REACHABLE ON A PHONE.
+
+            `.ops-banner-card` is `overflow: hidden`, and this row carried a
+            right margin of up to 210px to clear the card's artwork. At 390px
+            that left a 293px content box holding 591px of buttons: "Add people"
+            fitted, "Collaboration hub" was cut in half, and "External
+            reviewers" sat entirely outside the clip and could not be reached at
+            all — measured, not guessed.
+
+            The margin exists to avoid the artwork, which is a DESKTOP concern;
+            below the wrap point there is no artwork to avoid because the row
+            has already wrapped underneath the title. So the clearance is
+            applied only where it is needed, and the row is allowed to fill the
+            width and wrap everywhere else.
+          */}
           <div
             style={{
               display: "flex",
               alignItems: "center",
               gap: 10,
-              flexShrink: 0,
+              flexShrink: 1,
               flexWrap: "wrap",
-              marginRight: "clamp(72px, 10%, 210px)",
+              minWidth: 0,
+              marginRight: "var(--team-header-action-clearance, 0px)",
             }}
           >
             {canInvite ? (
@@ -466,13 +486,20 @@ function TeamDetail() {
                 <span>Add people</span>
               </button>
             ) : null}
-            <Link
-              href={`/collaboration-teams/${team.id}/collaboration`}
+            {/*
+              The Collaboration Hub was a second destination holding five
+              panels, three of which did nothing. What survived is the
+              discussion, and it is a tab on this page — so the header opens
+              that tab rather than a page which now only redirects back here.
+            */}
+            <button
+              type="button"
+              onClick={() => goTab("discussion")}
               data-testid="collaboration-hub-link"
               className="home-exec-action"
             >
-              Collaboration hub
-            </Link>
+              Discussion
+            </button>
             {canManageExternalReviewers ? (
               <Link
                 href="/review/external"

@@ -140,14 +140,139 @@ export type CollaborationTeamAssignment = {
 
 const BASE = "/v1/collaboration-teams";
 
+export type CollaborationTeamPage = {
+  teams: ReadonlyArray<CollaborationTeamSummary>;
+  nextCursor: string | null;
+  /** Active groups the viewer belongs to, regardless of the current filter. */
+  totalActive: number;
+};
+
+/**
+ * One page of groups.
+ *
+ * `search` goes to the DATABASE. The page used to filter and sort an
+ * already-fetched array, and the array was whatever fitted under a hard
+ * server-side cap of 100 — so on a larger workspace, searching could not find a
+ * group that existed and the truncation was silent.
+ */
 export async function listTeams(opts?: {
   includeArchived?: boolean;
-}): Promise<ReadonlyArray<CollaborationTeamSummary>> {
-  const qs = opts?.includeArchived ? "?includeArchived=true" : "";
-  const res = (await apiFetch(`${BASE}${qs}`)) as {
-    teams: CollaborationTeamSummary[];
+  search?: string | null;
+  limit?: number;
+  cursor?: string | null;
+}): Promise<CollaborationTeamPage> {
+  const qs = new URLSearchParams();
+  if (opts?.includeArchived) qs.set("includeArchived", "true");
+  if (opts?.search?.trim()) qs.set("q", opts.search.trim());
+  if (opts?.limit) qs.set("limit", String(opts.limit));
+  if (opts?.cursor) qs.set("cursor", opts.cursor);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return (await apiFetch(`${BASE}${suffix}`)) as CollaborationTeamPage;
+}
+
+export type CollaborationEntitlement = {
+  workspaceId: string;
+  plan: string;
+  featureIncluded: boolean;
+  mutationsAllowed: boolean;
+  lifecycle: {
+    state: string;
+    reasonCode: string | null;
+    graceEndsAtUtc: string | null;
   };
-  return res.teams;
+  workspaceSeats: {
+    limit: number;
+    used: number;
+    remaining: number;
+    overLimit: boolean;
+    source: string;
+  };
+  collaborationTeams: {
+    limit: number;
+    used: number;
+    remaining: number;
+    overLimit: boolean;
+  };
+  invitations: { pending: number; maxPending: number; maxPer24h: number };
+  exceededDimensions: ReadonlyArray<string>;
+  upgradeHref: string | null;
+};
+
+/**
+ * THE commercial projection. The surface renders these answers; it does not
+ * compute a limit from a plan name or a raw column.
+ */
+export async function getCollaborationEntitlement(): Promise<CollaborationEntitlement> {
+  return (await apiFetch(`${BASE}/entitlement`)) as CollaborationEntitlement;
+}
+
+export type EligibleWorkspaceMember = {
+  userId: string;
+  displayName: string;
+  email: string | null;
+  avatarUrl: string | null;
+  workspaceRole: string;
+};
+
+/** Active workspace members not yet in this group — the directory it is built from. */
+export async function listEligibleMembers(
+  teamId: string,
+  opts?: { search?: string | null; limit?: number; cursor?: string | null },
+): Promise<{
+  members: ReadonlyArray<EligibleWorkspaceMember>;
+  nextCursor: string | null;
+}> {
+  const qs = new URLSearchParams();
+  if (opts?.search?.trim()) qs.set("q", opts.search.trim());
+  if (opts?.limit) qs.set("limit", String(opts.limit));
+  if (opts?.cursor) qs.set("cursor", opts.cursor);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return (await apiFetch(
+    `${BASE}/${encodeURIComponent(teamId)}/eligible-members${suffix}`,
+  )) as {
+    members: EligibleWorkspaceMember[];
+    nextCursor: string | null;
+  };
+}
+
+export type CollaborationTeamMemberPage = {
+  members: ReadonlyArray<{
+    id: string;
+    userId: string;
+    role: CollaborationTeamRole;
+    status: CollaborationTeamMemberStatus;
+    joinedAt: string;
+    suspendedAt: string | null;
+    removedAt: string | null;
+    displayName: string;
+    email: string | null;
+    avatarUrl: string | null;
+  }>;
+  nextCursor: string | null;
+  totalActive: number;
+};
+
+/** One page of a group's membership, searched and filtered by the database. */
+export async function listTeamMembers(
+  teamId: string,
+  opts?: {
+    search?: string | null;
+    status?: string | null;
+    role?: string | null;
+    limit?: number;
+    cursor?: string | null;
+  },
+): Promise<CollaborationTeamMemberPage> {
+  const qs = new URLSearchParams();
+  if (opts?.search?.trim()) qs.set("q", opts.search.trim());
+  if (opts?.status) qs.set("status", opts.status);
+  if (opts?.role) qs.set("role", opts.role);
+  if (opts?.limit) qs.set("limit", String(opts.limit));
+  if (opts?.cursor) qs.set("cursor", opts.cursor);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return (await apiFetch(
+    `${BASE}/${encodeURIComponent(teamId)}/members${suffix}`,
+  )) as CollaborationTeamMemberPage;
 }
 
 export async function createTeam(input: {
@@ -361,4 +486,30 @@ export async function updateAssignment(
       body: JSON.stringify(input),
     },
   );
+}
+
+export type AssignableTarget = {
+  id: string;
+  label: string;
+  sublabel: string | null;
+  status: string;
+};
+
+/**
+ * The records a group may be assigned, from THIS workspace.
+ *
+ * Replaces asking the operator to paste a uuid copied out of another page's
+ * URL. The server offers only what its own write path will accept.
+ */
+export async function listAssignableTargets(
+  teamId: string,
+  targetType: CollaborationTeamAssignmentTarget,
+  opts?: { search?: string | null; limit?: number },
+): Promise<{ targets: ReadonlyArray<AssignableTarget> }> {
+  const qs = new URLSearchParams({ type: targetType });
+  if (opts?.search?.trim()) qs.set("q", opts.search.trim());
+  if (opts?.limit) qs.set("limit", String(opts.limit));
+  return (await apiFetch(
+    `${BASE}/${encodeURIComponent(teamId)}/assignable-targets?${qs.toString()}`,
+  )) as { targets: AssignableTarget[] };
 }

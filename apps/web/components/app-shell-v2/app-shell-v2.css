@@ -2381,3 +2381,22 @@ body.app-mobile-sidebar-open {
   outline: 2px solid var(--accent-500);
   outline-offset: -2px;
 }
+
+/* =====================================================================
+ * TEAM DETAIL HEADER — action clearance is a desktop concern only.
+ *
+ * `.ops-banner-card` clips (`overflow: hidden`) and its artwork sits at
+ * `right center`, so the action row needs clearance to avoid overlapping it.
+ * That clearance was applied at every width, and at 390px it left a 293px
+ * content box holding 591px of buttons: the last two were cut off and one was
+ * entirely outside the clip.
+ *
+ * Below the wrap point the row has already moved under the title and there is
+ * no artwork beside it, so the clearance is zero there and is only introduced
+ * once there is a horizontal arrangement to protect.
+ * =====================================================================*/
+@media (min-width: 900px) {
+  .ops-banner-card {
+    --team-header-action-clearance: clamp(72px, 10%, 210px);
+  }
+}

@@ -45,6 +45,7 @@ import {
   listAssignments,
   listCollaborationTeamMembers,
   listCollaborationTeams,
+  listAssignableTargets,
   listEligibleWorkspaceMembersForTeam,
   listTeamActivity,
   removeMember,
@@ -251,15 +252,16 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
       const ctx = await requireWorkspace(req, reply, "collaboration.thread.read");
       if (!ctx) return;
       try {
-        const includeArchived =
-          (req.query as Record<string, string | undefined>)?.includeArchived ===
-          "true";
-        const teams = await listCollaborationTeams({
+        const q = (req.query as Record<string, string | undefined>) ?? {};
+        const res = await listCollaborationTeams({
           workspaceId: ctx.workspaceId,
           actorUserId: ctx.userId,
-          includeArchived,
+          includeArchived: q.includeArchived === "true",
+          search: q.q ?? null,
+          limit: q.limit ? parseInt(q.limit, 10) : undefined,
+          cursor: q.cursor ?? null,
         });
-        return reply.send({ teams });
+        return reply.send(res);
       } catch (err) {
         return handleServiceError(reply, err, req.id ?? null);
       }
@@ -783,6 +785,48 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
       }
     },
   });
+
+  // ---------------------------------------------------------------------------
+  // GET /v1/collaboration-teams/:teamId/assignable-targets
+  //
+  // What the assignment picker offers. Same scope predicates as the validation
+  // on the write path, so the picker can only ever offer something the write
+  // will accept — and the operator is never asked to paste a uuid.
+  // ---------------------------------------------------------------------------
+  app.get<{ Params: { teamId: string } }>(
+    "/v1/collaboration-teams/:teamId/assignable-targets",
+    {
+      preHandler: requireAuth,
+      handler: async (req, reply) => {
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "collaboration.thread.read",
+          groupPermission: "team.assignment.create",
+        });
+        if (!binding) return;
+        const q = (req.query as Record<string, string | undefined>) ?? {};
+        const parsed = z
+          .enum(["CASE", "EVIDENCE", "REVIEW"])
+          .safeParse(q.type);
+        if (!parsed.success) {
+          return reply
+            .code(400)
+            .send({ error: "invalid_query", message: "type must be CASE, EVIDENCE or REVIEW." });
+        }
+        try {
+          const res = await listAssignableTargets({
+            workspaceId: binding.workspace.workspaceId,
+            targetType: parsed.data,
+            search: q.q ?? null,
+            limit: q.limit ? parseInt(q.limit, 10) : undefined,
+          });
+          return reply.send(res);
+        } catch (err) {
+          return handleServiceError(reply, err, req.id ?? null);
+        }
+      },
+    },
+  );
 
   // ---------------------------------------------------------------------------
   // GET /v1/collaboration-teams/:teamId/eligible-members

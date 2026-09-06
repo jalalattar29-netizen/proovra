@@ -186,8 +186,6 @@ function MembersTab({
                   <th scope="col">Role</th>
                   <th scope="col">Status</th>
                   <th scope="col">Joined</th>
-                  <th scope="col">Last active</th>
-                  <th scope="col">Access source</th>
                   <th scope="col" style={{ textAlign: "right" }}>
                     Actions
                   </th>
@@ -303,8 +301,11 @@ function MemberRow({
   const displayName =
     member.user.displayName ||
     [member.user.firstName, member.user.lastName].filter(Boolean).join(" ") ||
-    member.user.email ||
-    member.userId;
+    // NOT the address, and NOT the uuid. The server withholds the address from
+    // viewers who are not member managers, so falling back to it would render
+    // an empty string for exactly those people; falling back to a uuid renders
+    // something no one can read.
+    "Workspace member";
   const isLastLead = member.role === "LEAD" && activeLeadCount <= 1;
   const [busy, setBusy] = useState(false);
   const { confirm } = useConfirmAction();
@@ -388,15 +389,12 @@ function MemberRow({
             >
               {displayName}
             </div>
-            <div className="app-table__muted">
-              {member.user.email ?? "no email"}
-            </div>
           </div>
         </div>
       </td>
       <td data-label="Email">
         <span className="app-table__muted">
-          {member.user.email ?? "—"}
+          {member.user.email ?? "Not shown"}
         </span>
       </td>
       <td data-label="Role">
@@ -436,12 +434,6 @@ function MemberRow({
         <span className="app-table__muted">
           {formatUserDate(member.joinedAt)}
         </span>
-      </td>
-      <td data-label="Last active">
-        <span className="app-table__muted">—</span>
-      </td>
-      <td data-label="Access source">
-        <span className="app-table__muted">—</span>
       </td>
       <td data-label="">
         <div className="app-table__actions">

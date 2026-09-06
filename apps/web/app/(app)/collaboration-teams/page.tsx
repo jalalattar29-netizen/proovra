@@ -97,6 +97,8 @@ function TeamsOverview() {
     null,
   );
   const [teams, setTeams] = useState<ReadonlyArray<CollaborationTeamSummary>>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [totalActive, setTotalActive] = useState(0);
   const [createOpen, setCreateOpen] = useState(false);
 
   // Client-side control state (no new fetches — filters/sorts operate on the
@@ -127,10 +129,14 @@ function TeamsOverview() {
   // waits for the projection instead of rendering a fabricated capacity.
   const serverLimits = useWorkspaceLimits();
   const planForCapacity: WorkspacePlan | null = useActiveSpace()?.plan ?? null;
-  const ownedTeamCount = useMemo(
-    () => teams.filter((t) => t.status === "ACTIVE").length,
-    [teams],
-  );
+  /**
+   * The workspace's ACTIVE group count, from the server.
+   *
+   * This used to be `teams.filter(...).length` — the length of the page in
+   * hand — so once the list was paginated or filtered it would have reported a
+   * capacity based on what happened to be on screen.
+   */
+  const ownedTeamCount = totalActive;
   // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — this page lists
   // COLLABORATION TEAMS, so it reads the Collaboration Team cap. It used to
   // read `maxOwnedWorkspaces`, which is the cap on how many WORKSPACES the
@@ -153,12 +159,29 @@ function TeamsOverview() {
           }. Upgrade to add more.`
         : null;
 
-  const refresh = async () => {
+  /**
+   * SEARCH IS A FETCH NOW.
+   *
+   * The page used to filter an already-loaded array, and the array was whatever
+   * fitted under a server-side cap of 100 — so on a workspace with more groups
+   * than that, typing a name that existed found nothing and the truncation was
+   * invisible. `search` and the archived filter go to the database; the type
+   * filter and the sort stay local because they operate on the page in hand.
+   */
+  const refresh = async (opts?: { cursor?: string | null; append?: boolean }) => {
     setLoading(true);
     setError(null);
     try {
-      const rows = await listTeams();
-      setTeams(rows);
+      const page = await listTeams({
+        search,
+        includeArchived: statusFilter === "ARCHIVED" || statusFilter === "ALL",
+        cursor: opts?.cursor ?? null,
+      });
+      setNextCursor(page.nextCursor);
+      setTotalActive(page.totalActive);
+      setTeams((prev) =>
+        opts?.append ? [...prev, ...page.teams] : page.teams,
+      );
     } catch (err) {
       /*
        * SAFE FEEDBACK, NOT THE BACKEND SENTENCE.
@@ -177,19 +200,24 @@ function TeamsOverview() {
   };
 
   useEffect(() => {
-    void refresh();
-  }, []);
+    // Debounced: a keystroke is not a request.
+    const handle = setTimeout(() => {
+      void refresh();
+    }, search ? 250 : 0);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, statusFilter]);
 
   // Derived, in-memory view of the fetched teams. Never triggers a fetch.
   const visibleTeams = useMemo(() => {
     const q = search.trim().toLowerCase();
+    // `search` was applied by the database; re-applying it here would only
+    // narrow a page the server already narrowed. Status and type still filter
+    // the page in hand, and the sort orders it.
+    void q;
     const filtered = teams.filter((t) => {
       if (statusFilter !== "ALL" && t.status !== statusFilter) return false;
       if (typeFilter !== "ALL" && t.teamType !== typeFilter) return false;
-      if (q) {
-        const haystack = `${t.name} ${t.description ?? ""}`.toLowerCase();
-        if (!haystack.includes(q)) return false;
-      }
       return true;
     });
     const activityMs = (t: CollaborationTeamSummary) =>
@@ -225,12 +253,11 @@ function TeamsOverview() {
           <TeamsGlyph />
         </span>
         <div className="app-page-header__text">
-          <h1 className="app-page-header__title">Collaboration Teams</h1>
+          <h1 className="app-page-header__title">Teams</h1>
           <p className="app-page-header__subtitle">
-            Coordinate people, assignments, and evidence work together. A Team
-            is a collaboration space — not a workspace or organization. Personal
-            users and organizations can both create Teams; no Organization is
-            required.
+            Working groups inside this workspace. Add people who already have
+            access here, then assign cases and evidence to the group and discuss
+            the work in one place.
           </p>
         </div>
       </div>
@@ -326,7 +353,22 @@ function TeamsOverview() {
               setTypeFilter("ALL");
             }} controlsActive={controlsActive} />
           ) : (
-            <TeamsTable teams={visibleTeams} />
+            <>
+              <TeamsTable teams={visibleTeams} />
+              {nextCursor ? (
+                <div className="app-table-footer">
+                  <button
+                    type="button"
+                    className="app-secondary-action"
+                    disabled={loading}
+                    onClick={() => void refresh({ cursor: nextCursor, append: true })}
+                    data-testid="teams-load-more"
+                  >
+                    {loading ? "Loading…" : "Load more"}
+                  </button>
+                </div>
+              ) : null}
+            </>
           )}
         </>
       )}
@@ -859,11 +901,10 @@ function TeamsEmptyState({
       <span className="app-empty__icon" aria-hidden="true">
         <TeamsGlyph />
       </span>
-      <strong>No collaboration Teams yet</strong>
+      <strong>No teams yet</strong>
       <p>
-        Create a Team to collaborate on cases, evidence, reviews, and
-        assignments. Teams work in both personal and organization workspaces —
-        no Organization is required.
+        A team is worth creating once more than one person is working the same
+        cases: it gives that work one place to be assigned and discussed.
       </p>
       <button
         type="button"
@@ -1073,11 +1114,11 @@ function CreateTeamModal({
       <form onSubmit={onSubmit} className="app-dialog">
         <header className="app-dialog__head">
           <h2 id="create-team-title" className="app-dialog__title">
-            Create a collaboration Team
+            Create a team
           </h2>
           <p className="app-dialog__subtitle">
-            Teams help you coordinate on evidence, cases, and review work. This
-            is a collaboration space, not a workspace or organization.
+            A team groups people who already have access to this workspace, so
+            you can assign work to them and keep the discussion together.
           </p>
         </header>
 
@@ -1129,8 +1170,8 @@ function CreateTeamModal({
               ariaLabel="Team template"
             />
             <span className="app-field-help">
-              Templates set default ordering and emphasis. They never change
-              permissions.
+              A label for what this team works on. It changes nothing about
+              permissions or behaviour — it helps you find the team later.
             </span>
           </label>
 

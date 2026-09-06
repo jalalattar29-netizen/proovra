@@ -452,37 +452,80 @@ export async function createCollaborationTeam(
   return { id: result.id };
 }
 
+export type CollaborationTeamSummaryRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  teamType: CollaborationTeamType;
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
+  archivedAtUtc: Date | null;
+  memberCount: number;
+  pendingInviteCount: number;
+  openAssignmentCount: number;
+  lastActivityAt: Date | null;
+  viewerRole: CollaborationTeamRole | null;
+};
+
+/**
+ * One page of the groups this actor belongs to in this workspace.
+ *
+ * SEARCH AND SORT MOVED TO THE DATABASE. The list page filtered and sorted an
+ * already-fetched array, and the array was whatever fitted under a hard
+ * `take: 100` — so on a workspace with more groups than that, searching could
+ * not find one that existed and the truncation was silent.
+ *
+ * Ordering is `(updatedAt desc, id desc)` and the cursor is the id, so a page
+ * boundary is stable even when two groups share a timestamp.
+ */
 export async function listCollaborationTeams(
-  input: { workspaceId: string; actorUserId: string; includeArchived?: boolean },
+  input: {
+    workspaceId: string;
+    actorUserId: string;
+    includeArchived?: boolean;
+    search?: string | null;
+    limit?: number;
+    cursor?: string | null;
+  },
   client: PrismaClient = defaultPrisma,
-): Promise<
-  Array<{
-    id: string;
-    name: string;
-    description: string | null;
-    teamType: CollaborationTeamType;
-    status: string;
-    createdAt: Date;
-    updatedAt: Date;
-    archivedAtUtc: Date | null;
-    memberCount: number;
-    pendingInviteCount: number;
-    openAssignmentCount: number;
-    lastActivityAt: Date | null;
-    viewerRole: CollaborationTeamRole | null;
-  }>
-> {
-  const teams = await client.collaborationTeam.findMany({
+): Promise<{
+  teams: CollaborationTeamSummaryRow[];
+  nextCursor: string | null;
+  totalActive: number;
+}> {
+  const take = boundedPage(input.limit);
+  const search = (input.search ?? "").trim();
+  const where = {
+    workspaceId: input.workspaceId,
+    ...(input.includeArchived ? {} : { status: "ACTIVE" }),
+    // Only teams where the actor is a member (across all statuses,
+    // so a removed member can still see history if surfaced — but
+    // sidebar will only show ACTIVE).
+    members: { some: { userId: input.actorUserId } },
+    ...(search
+      ? {
+          OR: [
+            { name: { contains: search, mode: "insensitive" as const } },
+            { description: { contains: search, mode: "insensitive" as const } },
+          ],
+        }
+      : {}),
+  } satisfies Prisma.CollaborationTeamWhereInput;
+
+  const totalActive = await client.collaborationTeam.count({
     where: {
       workspaceId: input.workspaceId,
-      ...(input.includeArchived ? {} : { status: "ACTIVE" }),
-      // Only teams where the actor is a member (across all statuses,
-      // so a removed member can still see history if surfaced — but
-      // sidebar will only show ACTIVE).
+      status: "ACTIVE",
       members: { some: { userId: input.actorUserId } },
     },
-    orderBy: { updatedAt: "desc" },
-    take: 100,
+  });
+
+  const teams = await client.collaborationTeam.findMany({
+    where,
+    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+    ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
+    take: take + 1,
     include: {
       _count: {
         select: {
@@ -503,7 +546,11 @@ export async function listCollaborationTeams(
       },
     },
   });
-  return teams.map((t) => ({
+  const page = teams.slice(0, take);
+  return {
+    nextCursor: teams.length > take ? page[page.length - 1]?.id ?? null : null,
+    totalActive,
+    teams: page.map((t) => ({
     id: t.id,
     name: t.name,
     description: t.description,
@@ -520,7 +567,8 @@ export async function listCollaborationTeams(
       t.members[0] && t.members[0].status === "ACTIVE"
         ? (t.members[0].role as CollaborationTeamRole)
         : null,
-  }));
+    })),
+  };
 }
 
 export async function getCollaborationTeamDetail(
@@ -1505,6 +1553,114 @@ async function assertAssignmentTargetInWorkspace(
     select: { id: true },
   });
   if (!found) throw E.notFound("Review");
+}
+
+/**
+ * The records in this workspace that a group may be assigned.
+ *
+ * The console used to ask the operator to PASTE A UUID — "copy it from the
+ * case detail page" — and then rendered what came back as `targetId.slice(0,8)…`
+ * with no link. That is not a workflow anyone can perform twice; it is a text
+ * box that happens to accept an identifier.
+ *
+ * Same scope predicates as the validation on the write path, so the picker can
+ * only ever offer something the write will accept.
+ */
+export async function listAssignableTargets(
+  input: {
+    workspaceId: string;
+    targetType: CollaborationTeamAssignmentTarget;
+    search?: string | null;
+    limit?: number;
+  },
+  client: PrismaClient = defaultPrisma,
+): Promise<{
+  targets: Array<{ id: string; label: string; sublabel: string | null; status: string }>;
+}> {
+  const take = boundedPage(input.limit);
+  const search = (input.search ?? "").trim();
+
+  if (input.targetType === "CASE") {
+    const rows = await client.case.findMany({
+      where: {
+        AND: [
+          await workspaceCaseWhere(input.workspaceId, client),
+          ...(search
+            ? [
+                {
+                  OR: [
+                    { name: { contains: search, mode: "insensitive" as const } },
+                    {
+                      referenceNumber: {
+                        contains: search,
+                        mode: "insensitive" as const,
+                      },
+                    },
+                  ],
+                },
+              ]
+            : []),
+        ],
+      },
+      orderBy: { updatedAt: "desc" },
+      take,
+      select: { id: true, name: true, referenceNumber: true, status: true },
+    });
+    return {
+      targets: rows.map((r) => ({
+        id: r.id,
+        label: r.name,
+        sublabel: r.referenceNumber,
+        status: String(r.status),
+      })),
+    };
+  }
+
+  if (input.targetType === "EVIDENCE") {
+    const rows = await client.evidence.findMany({
+      where: {
+        AND: [
+          await workspaceEvidenceWhere(input.workspaceId, client),
+          { lifecycleState: { not: "DESTROYED" } },
+          ...(search
+            ? [{ title: { contains: search, mode: "insensitive" as const } }]
+            : []),
+        ],
+      },
+      orderBy: { createdAt: "desc" },
+      take,
+      select: { id: true, title: true, status: true },
+    });
+    return {
+      targets: rows.map((r) => ({
+        id: r.id,
+        label: r.title ?? "Untitled evidence record",
+        sublabel: null,
+        status: String(r.status),
+      })),
+    };
+  }
+
+  const rows = await client.evidenceReviewWorkflow.findMany({
+    where: { evidence: await workspaceEvidenceWhere(input.workspaceId, client) },
+    orderBy: { createdAt: "desc" },
+    take,
+    select: {
+      id: true,
+      status: true,
+      evidence: { select: { title: true } },
+    },
+  });
+  return {
+    targets: rows.map((r) => ({
+      id: r.id,
+      label: r.evidence?.title
+        ? `Review — ${r.evidence.title}`
+        : "Review",
+      sublabel: null,
+      status: String(r.status),
+    })),
+  };
 }
 
 // -----------------------------------------------------------------------------

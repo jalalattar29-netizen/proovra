@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useToast } from "../../../../../components/ui";
@@ -9,10 +10,12 @@ import { ApiError } from "../../../../../lib/api";
 import { notifyApiError } from "../../../../../lib/feedback/notify";
 import { formatUserDate, formatUserDateTime } from "../../../../../lib/date";
 import {
+  type AssignableTarget,
   type CollaborationTeamAssignment,
   type CollaborationTeamDetail,
   type CollaborationTeamMember,
   createAssignment,
+  listAssignableTargets,
   listAssignments,
   updateAssignment,
 } from "../../../../../lib/api/collaboration-teams";
@@ -465,13 +468,22 @@ function AssignmentRow({
         ) : null}
       </td>
       <td data-label="Target">
-        <span
-          className="app-table__muted"
-          style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}
-          title={assignment.targetId}
+        {/*
+          A REFERENCE HAS TO BE OPENABLE.
+
+          This rendered the first eight characters of a uuid, in monospace, with
+          no link — so the one question the row exists to answer, "what is this
+          assignment about?", could not be answered from it. The record is in
+          this workspace by construction (the write path proves it), so a link
+          to its canonical page always resolves.
+        */}
+        <Link
+          href={targetHref(assignment.targetType, assignment.targetId)}
+          className="app-table__link"
+          data-testid={`assignment-target-link-${assignment.id}`}
         >
-          {assignment.targetId.slice(0, 8)}…
-        </span>
+          Open {targetLabel(assignment.targetType).toLowerCase()}
+        </Link>
       </td>
       <td data-label="Assignee">
         <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
@@ -576,6 +588,38 @@ function CreateAssignmentModal({
   const [targetType, setTargetType] =
     useState<CollaborationTeamAssignmentTarget>("CASE");
   const [targetId, setTargetId] = useState("");
+  const [targetSearch, setTargetSearch] = useState("");
+  const [targetOptions, setTargetOptions] = useState<
+    ReadonlyArray<AssignableTarget>
+  >([]);
+  const [targetsLoading, setTargetsLoading] = useState(false);
+
+  // Debounced so a keystroke is not a request; the selection is cleared when
+  // the type changes because an id from one kind is meaningless for another.
+  useEffect(() => {
+    let cancelled = false;
+    setTargetsLoading(true);
+    const handle = setTimeout(() => {
+      void listAssignableTargets(team.id, targetType, { search: targetSearch })
+        .then((res) => {
+          if (!cancelled) setTargetOptions(res.targets);
+        })
+        .catch(() => {
+          if (!cancelled) setTargetOptions([]);
+        })
+        .finally(() => {
+          if (!cancelled) setTargetsLoading(false);
+        });
+    }, targetSearch ? 250 : 0);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [team.id, targetType, targetSearch]);
+
+  useEffect(() => {
+    setTargetId("");
+  }, [targetType]);
   const [assigneeUserId, setAssigneeUserId] = useState<string>("");
   const [priority, setPriority] =
     useState<CollaborationTeamAssignmentPriority>("NORMAL");
@@ -685,24 +729,72 @@ function CreateAssignmentModal({
           <div>
             <label
               className="app-field-label"
-              htmlFor="assignment-target-id"
+              htmlFor="assignment-target-search"
             >
-              {targetLabel(targetType)} reference
+              {targetLabel(targetType)}
             </label>
+            {/*
+              A PICKER, NOT A PASTE BOX.
+
+              This asked the operator to copy a uuid out of another page's URL
+              and paste it here, and then rendered the result as the first eight
+              characters of that uuid with no link. The list below is the
+              workspace's own records, searched on the server, and the value
+              submitted is chosen rather than transcribed.
+            */}
             <input
-              id="assignment-target-id"
-              value={targetId}
-              onChange={(e) => setTargetId(e.target.value)}
-              required
-              placeholder={`Search or paste the ${targetLabel(targetType).toLowerCase()} reference`}
-              data-testid="assignment-target-id"
+              id="assignment-target-search"
+              value={targetSearch}
+              onChange={(e) => setTargetSearch(e.target.value)}
+              placeholder={`Search ${targetLabel(targetType).toLowerCase()}s in this workspace`}
+              data-testid="assignment-target-search"
               className="app-form-input"
+              autoComplete="off"
             />
-            <p className="app-field-help">
-              Paste the {targetLabel(targetType).toLowerCase()} reference from its
-              detail page. Copy it from the {targetLabel(targetType).toLowerCase()}
-              's URL or "Copy reference" action.
-            </p>
+            <div
+              role="listbox"
+              aria-label={`${targetLabel(targetType)} results`}
+              data-testid="assignment-target-options"
+              className="app-inner-surface"
+              style={{ maxHeight: 220, overflowY: "auto", marginTop: 8 }}
+            >
+              {targetOptions.length === 0 ? (
+                <p className="app-field-help" style={{ padding: "8px 10px" }}>
+                  {targetsLoading
+                    ? "Searching…"
+                    : `No ${targetLabel(targetType).toLowerCase()}s in this workspace match that.`}
+                </p>
+              ) : (
+                targetOptions.map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    role="option"
+                    aria-selected={targetId === opt.id}
+                    onClick={() => setTargetId(opt.id)}
+                    data-testid={`assignment-target-option-${opt.id}`}
+                    className={
+                      targetId === opt.id
+                        ? "app-listbox-option app-listbox-option--selected"
+                        : "app-listbox-option"
+                    }
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "8px 10px",
+                      minHeight: 44,
+                    }}
+                  >
+                    <span className="app-table__primary">{opt.label}</span>
+                    {opt.sublabel ? (
+                      <span className="app-table__muted"> · {opt.sublabel}</span>
+                    ) : null}
+                    <span className="app-table__muted"> · {opt.status}</span>
+                  </button>
+                ))
+              )}
+            </div>
           </div>
 
           <div data-testid="assignment-assignee">
@@ -786,6 +878,17 @@ function CreateAssignmentModal({
       </form>
     </div>
   );
+}
+
+/** The canonical page for each assignable record kind. */
+function targetHref(
+  targetType: CollaborationTeamAssignment["targetType"],
+  targetId: string,
+): string {
+  if (targetType === "CASE") return `/cases/${targetId}`;
+  if (targetType === "EVIDENCE") return `/evidence/${targetId}`;
+  // A review workflow is presented on its evidence record's review surface.
+  return `/review/queue/${targetId}`;
 }
 
 export { AssignmentsTab };
