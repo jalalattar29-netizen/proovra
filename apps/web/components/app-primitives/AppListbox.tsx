@@ -337,7 +337,8 @@ export function AppListbox<T extends string = string>({
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
-                    strokeWidth="2.4"
+                    /* 2 on a 24 box at 16px renders ~1.33px — one glyph weight. */
+        strokeWidth="2"
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     aria-hidden

@@ -206,7 +206,12 @@ function FilterSearch({
         aria-hidden="true"
         style={{
           position: "absolute",
-          left: 12,
+          /* LOGICAL, NOT LEFT. The magnifier belongs where the text STARTS,
+             and in Arabic that is the right-hand end of the field. `left: 12`
+             pinned it to the same corner in every language, so an RTL search
+             box had its icon sitting on top of the end of what the person
+             typed. */
+          insetInlineStart: 12,
           display: "inline-flex",
           color: "var(--ink-muted, #94a3b8)",
           pointerEvents: "none",
@@ -238,7 +243,12 @@ function FilterSearch({
         style={{
           ...CONTROL_STYLE,
           width: "100%",
-          padding: "0 34px 0 34px",
+          /* Logical padding: the magnifier's inset is logical now, so the
+             room made for it has to be too, or the icon lands on the text in
+             one direction and floats in a gap in the other. */
+          paddingBlock: 0,
+          paddingInlineStart: 34,
+          paddingInlineEnd: 40,
           ...style,
         }}
       />
@@ -249,12 +259,19 @@ function FilterSearch({
           onClick={() => onChange("")}
           style={{
             position: "absolute",
-            right: 8,
+            /* The clear control sits at the END of the field, which mirrors
+               with the direction for the same reason the magnifier does. */
+            insetInlineEnd: 4,
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
-            width: 22,
-            height: 22,
+            /* 36×44, NOT 22×22. The glyph stays small — a large ✕ inside a
+               search field reads as a warning — but the thing a finger has to
+               hit is the BUTTON, and 22px was half the touch floor on the
+               control the console uses most. The field is 44 tall, so the
+               target takes its full height and only needs width. */
+            width: 36,
+            minHeight: 44,
             borderRadius: 999,
             border: "none",
             background: "transparent",

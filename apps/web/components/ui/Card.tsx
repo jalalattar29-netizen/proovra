@@ -150,7 +150,13 @@ export function Card({
             position: "absolute",
             top: 0,
             bottom: 0,
-            left: 0,
+            /* THE RAIL BELONGS ON THE LEADING EDGE, WHICHEVER ONE THAT IS.
+               `left: 0` put it on the left in every language, so in Arabic
+               the accent that is supposed to lead the card sat at the end of
+               it — on the opposite side from the heading it qualifies. Every
+               other accent rail in the product (`.apf-note`, `.rb-quote`)
+               already uses the logical edge; this one did not. */
+            insetInlineStart: 0,
             width: 4,
             background: TONE_SOLID[tone],
           }}
@@ -210,7 +216,11 @@ export function Card({
                 : showDefaultHeader || header
                   ? `12px ${pad} ${pad}`
                   : pad,
-            paddingLeft:
+            /* The room the rail needs is on the SAME edge the rail is on, so
+               it moves with it. Left as `paddingLeft` this made space on the
+               left in Arabic while the rail sat on the right — the content
+               indented away from nothing and butted against the accent. */
+            paddingInlineStart:
               variant === "status" && pad !== "0"
                 ? `calc(${pad} + 4px)`
                 : undefined,

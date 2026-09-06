@@ -186,7 +186,20 @@ export function Sparkline({
         {enough ? (
           <svg
             role="img"
-            aria-label={`${caption} trend`}
+            /**
+             * THE LABEL CARRIES THE READING, NOT JUST THE SUBJECT.
+             *
+             * `"${caption} trend"` names what the picture is ABOUT and says
+             * nothing about what it shows: to a screen reader the shape was a
+             * word, and the only number in reach was the current value beside
+             * it — which is the one figure a trend is not. The label now says
+             * where the series started, where it is now, and over how many
+             * samples, which is the same three facts a sighted reader takes
+             * from the line.
+             */
+            aria-label={`${caption}: ${safeValues[0]?.toLocaleString() ?? "—"} to ${
+              lastValue?.toLocaleString() ?? "—"
+            } over the last ${safeValues.length} samples`}
             width={width}
             height={height}
             viewBox={`0 0 ${width} ${height}`}

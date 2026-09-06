@@ -73,7 +73,8 @@ function DefaultIcon() {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.6"
+      /* 1.25 on a 24 box at 26px renders ~1.35px — one glyph weight. */
+        strokeWidth="1.25"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"

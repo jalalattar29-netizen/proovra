@@ -391,7 +391,10 @@ function CopyGlyph() {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.8"
+      /* 2.2 on a 24 box at 15px renders ~1.35px — the console's one glyph
+         weight. See the note on the icon normalisation: a declared width is
+         not a rendered one, and this glyph was the lightest of the nine. */
+      strokeWidth="2.2"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
