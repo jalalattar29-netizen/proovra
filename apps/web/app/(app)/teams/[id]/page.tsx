@@ -107,6 +107,14 @@ type TeamStats = {
   memberCount: number;
   pendingInviteCount: number;
   caseCount: number;
+  /**
+   * The SERVER's seat projection — the same numbers the invitation gate
+   * enforces. Optional on the wire so a degraded response is representable;
+   * absent means UNKNOWN and is rendered as such, never as a default.
+   */
+  seatLimit?: number;
+  seatUsed?: number;
+  seatAvailable?: number;
 };
 
 type Team = {
@@ -601,13 +609,27 @@ function TeamDetailPageBody() {
     return effectivePlan === "TEAM" ? "ACTIVE" : "INACTIVE";
   }, [team?.billingStatus, effectivePlan]);
 
-  const teamMembersUsed = team?.stats?.memberCount ?? team?.members?.length ?? 0;
-  const teamMembersIncluded =
-    team?.maxMembersPerTeam ?? team?.includedSeats ?? 5;
-  const teamMembersRemaining =
-    teamMembersIncluded > 0
-      ? Math.max(0, teamMembersIncluded - teamMembersUsed)
-      : 0;
+  /**
+   * SEATS COME FROM THE SERVER, NOT FROM RAW COLUMNS.
+   *
+   * This was `team?.maxMembersPerTeam ?? team?.includedSeats ?? 5`.
+   * `maxMembersPerTeam` is not in the response at all, and `includedSeats` is a
+   * raw column that only Enterprise provisioning ever writes — so every
+   * self-service workspace fell through to 0 and this page told a 1,005-member
+   * TEAM workspace "Members: 1005 / 0 · 0 remaining" and "the actual member cap
+   * is 0 per team".
+   *
+   * `stats.seatLimit` / `seatUsed` / `seatAvailable` are the API's own
+   * projection of the canonical seat resolver — the same numbers the invitation
+   * gate enforces. A page that computes its own capacity will always eventually
+   * disagree with the gate; the only fix is to stop computing it.
+   *
+   * `null` means the projection has not arrived. It is rendered as unknown
+   * rather than as a fabricated number.
+   */
+  const teamMembersUsed = team?.stats?.seatUsed ?? team?.stats?.memberCount ?? 0;
+  const teamMembersIncluded = team?.stats?.seatLimit ?? null;
+  const teamMembersRemaining = team?.stats?.seatAvailable ?? null;
 
   const displayMemberName = (member: TeamMember) =>
     member.user?.displayName || member.label || member.user?.email || member.userId;
@@ -1860,9 +1882,16 @@ function TeamDetailPageBody() {
                   <div className="team-card-header">
                     <div className="team-card-title">Invite member</div>
                     <div className="team-card-copy">
-                      Create an invitation before the user joins the workspace. Pending
-                      invites do not count as active members. The actual member cap is{" "}
-                      <strong>{teamMembersIncluded}</strong> per team.
+                      Pending invitations do not use a seat. A seat is claimed
+                      when the invitation is accepted.
+                      {teamMembersIncluded === null ? null : (
+                        <>
+                          {" "}
+                          This workspace has{" "}
+                          <strong>{teamMembersIncluded}</strong> seat
+                          {teamMembersIncluded === 1 ? "" : "s"}.
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -2026,8 +2055,12 @@ function TeamDetailPageBody() {
                       </div>
                       <div>
                         <strong style={{ color: "#7f6450" }}>Members:</strong>{" "}
-                        {teamMembersUsed} / {teamMembersIncluded}
-                        {` · ${teamMembersRemaining} remaining`}
+                        {teamMembersIncluded === null
+                          ? `${teamMembersUsed}`
+                          : `${teamMembersUsed} / ${teamMembersIncluded}`}
+                        {teamMembersRemaining === null
+                          ? ""
+                          : ` · ${teamMembersRemaining} remaining`}
                       </div>
                     </div>
                   </div>

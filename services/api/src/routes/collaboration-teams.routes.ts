@@ -53,6 +53,7 @@ import {
   updateAssignment,
   updateCollaborationTeam,
 } from "../services/collaboration-team/collaboration-team.service.js";
+import { resolveCollaborationEntitlement } from "../services/collaboration-team/collaboration-entitlement.service.js";
 import {
   BillingLimitError,
   assertCanCreateCollaborationTeam,
@@ -752,6 +753,36 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
       },
     },
   );
+
+  // ---------------------------------------------------------------------------
+  // GET /v1/collaboration-teams/entitlement
+  //
+  // THE commercial projection for this surface, and the only place the browser
+  // may learn a limit from.
+  //
+  // The console used to compute capacity itself — `team?.maxMembersPerTeam ??
+  // team?.includedSeats ?? 5` over raw columns the API happened to return —
+  // which is how a 1,005-member workspace on the TEAM plan was told "the actual
+  // member cap is 0 per team" and "Members: 1005 / 0 · 0 remaining".
+  //
+  // Two numbers, deliberately separate, because they answer different
+  // questions: how many PEOPLE may hold access (seats), and how many GROUPS
+  // they may be organised into. Being in several groups does not multiply the
+  // first.
+  // ---------------------------------------------------------------------------
+  app.get("/v1/collaboration-teams/entitlement", {
+    preHandler: requireAuth,
+    handler: async (req, reply) => {
+      const ctx = await requireWorkspace(req, reply, "collaboration.thread.read");
+      if (!ctx) return;
+      try {
+        const projection = await resolveCollaborationEntitlement(ctx.workspaceId);
+        return reply.send(projection);
+      } catch (err) {
+        return handleServiceError(reply, err, req.id ?? null);
+      }
+    },
+  });
 
   // ---------------------------------------------------------------------------
   // GET /v1/collaboration-teams/:teamId/eligible-members

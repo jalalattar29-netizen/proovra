@@ -1356,6 +1356,22 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   // creation is permitted whenever the user has an active workspace.
   // Per-team management permissions are enforced at the backend
   // service layer (LEAD/ADMIN/MEMBER/VIEWER/EXTERNAL).
+  //
+  // WORKSPACE AND COLLABORATION RECONCILIATION — the plan gate.
+  //
+  // This route was ungated, so FREE and PAYG saw "Teams" in the primary
+  // sidebar, opened a page that fetched group data they can never have, and
+  // met the refusal only when they pressed Create. `teamCollaborationIncluded`
+  // is the SERVER's projection of `maxCollaborationTeamsPerWorkspace > 0`, so
+  // the nav entry disappears and a direct URL renders the honest upgrade state
+  // — not a 404, which would tell a paying-adjacent customer their own product
+  // does not exist.
+  //
+  // The gate is on the LIST only. `collaboration_team_detail` stays open on
+  // purpose: a workspace that downgrades keeps its groups, and a deep link into
+  // one has to keep resolving so its owner can read, archive or export it. The
+  // list is where "your plan includes none of these" belongs; the detail page
+  // is where the data someone already has lives.
   {
     id: "workspace.collaboration_teams",
     href: "/collaboration-teams",
@@ -1364,6 +1380,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
       "Collaboration teams — coordinate people, assignments, and evidence work.",
     domain: "PERSONAL_WORKSPACE",
     requiredCapabilities: [],
+    requiredPlanFeature: "teamCollaborationIncluded",
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "DEGRADED",
 

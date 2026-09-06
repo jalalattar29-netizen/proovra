@@ -7,6 +7,7 @@ import {
 } from "./billing/enterprise-contract-limits.js";
 import {
   formatBytesHuman,
+  getPlanCapabilities,
 } from "./plan-catalog.service.js";
 
 const GB = 1024n * 1024n * 1024n;
@@ -178,6 +179,25 @@ function getSuggestedUpgradePlan(
   return null;
 }
 
+/**
+ * The seat ceiling for a workspace.
+ *
+ * WORKSPACE AND COLLABORATION RECONCILIATION — this reads `maxWorkspaceSeats`
+ * from the catalog directly rather than `scope.teamSeats`.
+ *
+ * `scope.teamSeats` is written by `getEffectiveSeatLimit`, which returns 0 for
+ * any non-SHARED billing shape. That was the right instinct under the old model
+ * — a Personal Space with one occupant has no seats to sell — and it is wrong
+ * under the approved one, where PRO seats five people and TEAM ten in exactly
+ * that workspace. Worse, this function then took a `max()` over the catalog and
+ * discarded the 0 anyway, so the projection and the gate disagreed about the
+ * same workspace in the same request.
+ *
+ * There is now ONE rule and `resolveWorkspaceSeatState` states it. This helper
+ * remains only because `getWorkspaceUsage` composes a synchronous scope object;
+ * it reads the SAME catalog field and applies the SAME contract override, so it
+ * cannot answer differently.
+ */
 function getTeamMemberLimit(scope: WorkspaceScope): number {
   if (!scope.teamId) {
     return 0;
@@ -189,7 +209,9 @@ function getTeamMemberLimit(scope: WorkspaceScope): number {
   return resolveEffectiveContractSeats({
     plan: scope.plan,
     contract: scope.contractLimits,
-    persistedSeats: scope.teamSeats || 0,
+    // The catalog seat entitlement for the workspace's own plan. NOT
+    // `scope.teamSeats`, which the shape-based projection may have zeroed.
+    persistedSeats: getPlanCapabilities(scope.plan).maxWorkspaceSeats,
   });
 }
 

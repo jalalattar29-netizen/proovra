@@ -80,14 +80,28 @@ export type BillingWorkspaceScope = {
 
 export type WorkspaceScope = BillingWorkspaceScope;
 
+/**
+ * WORKSPACE AND COLLABORATION RECONCILIATION — the shape no longer zeroes the
+ * seat count.
+ *
+ * This returned 0 for every non-SHARED shape, on the reasoning that "a
+ * single-occupant workspace has no seats to sell". That was true of the old
+ * model and is false of the approved one: PERSONAL now means individually OWNED
+ * AND BILLED, not necessarily solely occupied. A Personal Workspace on PRO
+ * seats five people and on TEAM ten, and they are real seats — invited,
+ * claimed atomically at acceptance, and counted against the plan.
+ *
+ * The zero was also inert. `getTeamMemberLimit` — the enforcement path — took a
+ * `max()` over the catalog and discarded it, so this function's deliberate 0
+ * only ever reached the PROJECTION. One number for the customer and a different
+ * number for the gate is the defect this change removes.
+ *
+ * FREE and PAYG still seat exactly one person, because their catalog entry says
+ * `maxWorkspaceSeats: 1` — a commercial statement, made in the commercial
+ * registry, rather than a shape-derived side effect.
+ */
 export function getEffectiveSeatLimit(scope: BillingWorkspaceScope): number {
   const caps = getPlanCapabilities(scope.plan);
-
-  // A single-occupant workspace has no seats to sell. Reporting a plan's
-  // member cap here gave a Personal Space capacity that can never be filled.
-  if (scope.billingShape !== "SHARED") {
-    return 0;
-  }
 
   /**
    * Effective seat cap for ONE shared workspace:
