@@ -123,7 +123,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | AmbiguousReportRoles                       | 0     |
 | Phase0ChangedPathsFromManualDeclaration    | 0     |
 | UndeclaredPhase0ChangedPaths               | 0     |
-| Phase0ChangedPathClassificationMissing     | 2     |
+| Phase0ChangedPathClassificationMissing     | 0     |
 | ManualPhase0ChangeInventories              | 0     |
 | ProductionRuntimeFilesModifiedByPhase0     | 0     |
 | ProductBehaviorTestsRemoved                | 0     |
@@ -206,8 +206,6 @@ Referenced, never transcribed. Each is measured by its own producer; this report
 - INSTRUMENT: ClassificationConflicts = 1
 - UNCLASSIFIED audit file: scripts/admin-ledger/visual/README.md
 - INDEPENDENT ROUTE/CONSUMER SCANNER: scripts/admin-ledger/visual/states.mjs — Independent route/consumer scanner competing with the AST engine.
-- CHANGED PATH WITH NO CLASSIFICATION: apps/web/next-env.d.ts
-- CHANGED PATH WITH NO CLASSIFICATION: apps/web/tsconfig.json
 
 ### Product closure
 
