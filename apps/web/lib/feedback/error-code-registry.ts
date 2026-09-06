@@ -285,6 +285,22 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
       "hold one. No surface offers this action, so the only caller left is a " +
       "stale client or a direct API call.",
   },
+  COLLABORATION_TEAM_NOTIFICATIONS_RETIRED: {
+    disposition: "internal",
+    why:
+      "A retired second reader answering a legacy client, not a person. Team " +
+      "notifications are read in the Inbox, which reads the same rows and " +
+      "marks the same read state; two surfaces over one column presented as " +
+      "two inboxes with two unread counts.",
+  },
+  COLLABORATION_TEAM_PREFERENCES_RETIRED: {
+    disposition: "internal",
+    why:
+      "A retired third preference store answering a legacy client, not a " +
+      "person. Notification preferences live in Settings; a per-team store " +
+      "with no stated precedence against workspace and organization policy " +
+      "is a store nobody can trust.",
+  },
   COLLABORATION_TEAM_GUESTS_RETIRED: {
     disposition: "internal",
     why:

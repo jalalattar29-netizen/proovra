@@ -2048,3 +2048,58 @@ textarea.app-form-input {
   text-transform: uppercase;
   color: var(--ink-secondary);
 }
+
+/* ---------------------------------------------------------------------------
+   TOUCH TARGETS.
+
+   Every control in this file is sized for a mouse: 36px buttons, 33px ghost
+   actions, 27px danger links. On a pointer device that is right — density is
+   what makes a dense operator surface readable, and a mouse has no trouble
+   with a 27px target.
+
+   On a touch device it is not. The accessibility guideline is 44×44 and the
+   reason is physical: a fingertip is about 9mm across and a thumb is wider, so
+   below that the misses start, and a mis-tap on `.app-danger-link` — the class
+   used for Remove — is the most expensive mis-tap on the surface.
+
+   Scoped to coarse pointers and narrow viewports, exactly as
+   `app-shell-v2.css` already scopes the same rule for the shell's own
+   controls. A 44px floor applied everywhere would loosen every dense desktop
+   toolbar in the product to fix a problem those toolbars do not have.
+
+   HEIGHT ONLY, except where a control is square. These are all comfortably
+   wide — `.app-danger-link` is 70px — so the height is the whole problem, and
+   forcing a min-width would stretch a row of actions for nothing.
+   --------------------------------------------------------------------------- */
+@media (pointer: coarse), (max-width: 900px) {
+  .app-primary-action,
+  .app-secondary-action,
+  .app-ghost-action,
+  .app-danger-link,
+  .app-tab,
+  .app-listbox__trigger {
+    min-height: 44px;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   TECHNICAL IDENTITY IS NOT NATURAL-LANGUAGE TEXT.
+
+   An email address, an id, a hash or a path must read left-to-right whatever
+   the document direction is. Under `dir="rtl"` an ASCII run keeps its internal
+   order, but the BASE direction moves anything the bidi algorithm treats as
+   neutral — trailing punctuation, a separator, a bracketed suffix — so
+   `name@example.com.` renders with the period on the wrong side and an
+   operator comparing two addresses is comparing two different-looking strings.
+
+   `isolate` keeps the run from re-ordering the text around it, which is why it
+   pairs with the direction rather than replacing it.
+
+   Named after what it means rather than how it looks, so a reader adding a new
+   identifier column knows why to reach for it. The admin console already
+   carries the same rule as `.adm-mono`; this is the internal-product half.
+   --------------------------------------------------------------------------- */
+.app-identity {
+  direction: ltr;
+  unicode-bidi: isolate;
+}

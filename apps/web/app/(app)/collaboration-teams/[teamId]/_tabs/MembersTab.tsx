@@ -403,7 +403,8 @@ function MemberRow({
         </div>
       </td>
       <td data-label="Email">
-        <span className="app-table__muted">
+        {/* An address is technical identity: LTR whatever the document direction. */}
+        <span className="app-table__muted app-identity">
           {member.user.email ?? "Not shown"}
         </span>
       </td>
@@ -637,7 +638,7 @@ function AddMemberPanel({
                     {candidate.displayName}
                   </span>
                   {candidate.email ? (
-                    <span className="app-table__muted">{candidate.email}</span>
+                    <span className="app-table__muted app-identity">{candidate.email}</span>
                   ) : null}
                 </span>
                 <AppStatusBadge tone="slate">
