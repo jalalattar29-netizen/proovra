@@ -26,6 +26,8 @@ import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
+import { useSearchParams } from "next/navigation";
+import { useUrlFilterSync } from "../../../../../lib/use-url-filter-sync";
 import {
   useActiveSpaceId,
 } from "../../../../../lib/platform-context";
@@ -240,7 +242,30 @@ function MetricCard(props: {
 
 function AnalyticsPageInner(): JSX.Element {
   const teamId = useActiveSpaceId();
-  const [windowDays, setWindowDays] = useState<AnalyticsWindowOption>(DEFAULT_WINDOW);
+  /**
+   * THE WINDOW IS PART OF THE ADDRESS, BECAUSE IT IS PART OF THE READING.
+   *
+   * This was `useState(DEFAULT_WINDOW)` and nothing else, so a 90-day view
+   * could not be sent to anybody, did not survive a reload, and Back did not
+   * return to the window you were looking at a moment ago. Every figure on
+   * this page is a figure FOR a window — "412 reviews" is meaningless without
+   * it — so a link to this page without the window is a link to a different
+   * number than the one the sender was reading.
+   *
+   * Seeded from the URL and validated against the server's own contract
+   * (`GET /v1/analytics/_window`) further down, so a hand-edited or stale
+   * value is clamped rather than trusted; `useUrlFilterSync` writes it back
+   * in the same tick the read starts, which is what keeps a late `replace`
+   * from cancelling a click out of the page.
+   */
+  const initialWindow = useSearchParams()?.get("window");
+  const [windowDays, setWindowDays] = useState<AnalyticsWindowOption>(() => {
+    const n = Number(initialWindow);
+    return (ANALYTICS_WINDOW_OPTIONS as ReadonlyArray<number>).includes(n)
+      ? (n as AnalyticsWindowOption)
+      : DEFAULT_WINDOW;
+  });
+  useUrlFilterSync("/admin/platform/analytics", { window: windowDays });
   const [state, setState] = useState<LoadState>({ status: "loading" });
   // PHASE 12 — VERTICAL B. The window selector is bounded by the SERVER
   // contract (`GET /v1/analytics/_window`), not by a client constant.

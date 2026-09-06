@@ -332,7 +332,7 @@
 | `/admin/identity/timeline` | 373 | 0c/1t/1s |  |
 | `/admin/operations` | 602 | 2c/2t/2s |  |
 | `/admin/platform-health` | 568 | 3c/0t/4s |  |
-| `/admin/platform/analytics` | 814 | 0c/0t/9s |  |
+| `/admin/platform/analytics` | 839 | 0c/0t/9s |  |
 | `/admin/platform/automation` | 689 | 0c/2t/5s |  |
 | `/admin/platform/exports` | 844 | 0c/4t/0s |  |
 | `/admin/platform/media-graph` | 818 | 0c/0t/5s |  |
