@@ -91,7 +91,7 @@
     "COLUMN_TYPE_DECLARATION": 110,
     "INDEX_DECLARATION": 203,
     "FOREIGN_KEY_DECLARATION": 181,
-    "INDEX_NAME_CONVENTION": 270,
+    "INDEX_NAME_CONVENTION": 271,
     "UNIQUE_DECLARATION": 5,
     "PARTIAL_INDEX_DECLARATION": 2,
     "PARTIAL_UNIQUE_DECLARATION": 3,
@@ -99,7 +99,7 @@
     "EXTENSION_CONDITIONAL_INDEX": 2,
     "ENUM_LABEL_RESIDUAL": 1
   },
-  "totalRegisteredObjects": 880,
+  "totalRegisteredObjects": 881,
   "objects": [
     {
       "table": "access_review_campaigns",
@@ -1938,6 +1938,27 @@
       "mayBeModifiedBy": "a forward migration only. The datamodel must never declare it: an unconditional `@@unique([provider, providerRef])` would reject every CONSUMPTION row, which legitimately carries neither value.",
       "prismaExpressible": false,
       "purpose": "THE durable idempotency guard on credit grants. One provider payment may grant credits exactly once: the webhook and the reconciliation path both write a PURCHASE row keyed to (provider, providerRef), and the database — not an in-memory lock and not a prior read — is what makes the second writer lose. The predicate scopes it to PURCHASE rows because CONSUMPTION rows carry no provider reference and would otherwise all collide on (NULL, NULL) under a total unique index."
+    },
+    {
+      "table": "evidence_credit_ledger_entries",
+      "sign": "*",
+      "object": "Renamed index evidence_credit_ledger_grant_ref_key to evidence_credit_ledger_entries_grant_ref_key",
+      "category": "INDEX_NAME_CONVENTION",
+      "indexName": "evidence_credit_ledger_grant_ref_key",
+      "prismaWouldName": "evidence_credit_ledger_entries_grant_ref_key",
+      "columns": [
+        "grant_ref"
+      ],
+      "predicate": "grant_ref IS NOT NULL",
+      "createdBy": "20280301000000_evidence_credit_admin_grant",
+      "mayBeModifiedBy": "a forward migration only. The applied migration must not be edited.",
+      "safety": "none — a name. No DDL is applied by this registration: the index is untouched, so no data moves, no lock is taken and no constraint semantics change. `prisma migrate diff` renders the whole divergence as a single `ALTER INDEX … RENAME TO`, with no DROP and no CREATE, which is the tool's own statement that the two indexes are the same index under two names.",
+      "prismaExpressible": true,
+      "purpose": "THE retry guard on an ADMIN_GRANT, at the database. `grantRef` is `<targetUserId>:<idempotencyKey>`; the application checks for a prior grant and returns the earlier balance, and this index is what holds when two requests race. The datamodel declares it (`grantRef String? @unique`), so unlike its PURCHASE sibling above this index is Prisma-expressible — only its NAME is the project's rather than Prisma's, which is what makes it an INDEX_NAME_CONVENTION residual and not a PARTIAL_UNIQUE_DECLARATION one.",
+      "whyThisNameIsCanonical": "The migration that adds the column names the index in the local family style, alongside `evidence_credit_ledger_purchase_provider_ref_key` — the other idempotency guard on the same table, created by the same convention. 270 INDEX_NAME_CONVENTION entries record the same decision across the schema: a hand-written migration names its own indexes and the divergence from Prisma's generated name is registered here. Renaming the index to Prisma's convention instead would have been a schema change made to satisfy a diff, against the project's established mechanism for exactly this.",
+      "predicateIsNotAResidual": "`WHERE grant_ref IS NOT NULL` is what a total unique index on a nullable column already does — PostgreSQL treats NULLs as distinct — so the predicate adds no guarantee beyond the declared `@unique` and removes the NULL rows from the index. Prisma reports no predicate difference, which is why this entry is a name convention and carries no PARTIAL_* category. The migration's own comment records why the predicate is not `entry_type = 'ADMIN_GRANT'`: PostgreSQL refuses a newly-added enum value inside the transaction that added it, and only grant rows carry a grant_ref, so the two predicates select the same rows.",
+      "cleanBootEvidence": "PostgreSQL 16.14, empty database, `prisma migrate deploy` over the full chain: index present as `CREATE UNIQUE INDEX evidence_credit_ledger_grant_ref_key ON public.evidence_credit_ledger_entries USING btree (grant_ref) WHERE (grant_ref IS NOT NULL)`; exactly one index on the column; btree, unique, 1 key attribute, opclass text_ops, indoption 0 (ASC/NULLS LAST), no expressions. Guarantee exercised rather than read: a second row with the same grant_ref is refused by this index by name, three NULL grant_ref rows are accepted, and a distinct grant_ref is accepted.",
+      "upgradeEvidence": "A database migrated to 20271227000000_billing_commercial_correctness (the state before the grant column existed), populated with ledger rows, then advanced over the remaining chain: the index arrives with the identical definition, the pre-existing rows are conserved, and `db:raw-schema-verify` reports the same residual set as the clean boot — so a new environment and an upgraded one converge on the same schema."
     },
     {
       "table": "evidence_entities",
