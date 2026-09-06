@@ -12,6 +12,10 @@ import { z } from "zod";
 // the denominator can never measure different populations.
 import {
   projectSearchReadiness,
+  // Imported to PIN this file to the shared eligibility predicate rather than
+  // to a hand-written copy of the lifecycle list — search-readiness-projection
+  // asserts the reference. The counting queries themselves moved into the
+  // health module; the pin stays, deliberately.
   searchIndexableLifecycleSql,
 } from "@proovra/shared";
 // The ONE durable reconciliation-run authority. Readiness reads the run row;
@@ -40,6 +44,7 @@ import { prisma } from "../db.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
 import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
+import { resolveRecipientContactDisclosure } from "../services/privacy/recipient-contact-disclosure.js";
 import {
   createRelationship,
   executeSearch,
@@ -351,9 +356,27 @@ export async function searchRoutes(app: FastifyInstance) {
         });
       }
       const filter: SearchFilterInput = parsed.data;
+      /*
+       * MAY THIS CALLER MATCH ON A RECIPIENT ADDRESS OR NUMBER?
+       *
+       * The same question, through the same authority, that the Evidence
+       * list, the intake-link list and the Reports aggregator already ask.
+       * Global search did not ask it: recipient contact was written into the
+       * free-text body, so every member of the workspace could match on it
+       * and get a count back — the oracle the recipient-contact policy exists
+       * to refuse.
+       *
+       * Resolved per workspace, because the answer is per workspace, and
+       * anything other than REVEALED leaves the contact arms out of the query
+       * entirely rather than filtering results afterwards.
+       */
+      const disclosure = await resolveRecipientContactDisclosure(req, {
+        teamId: filter.teamId,
+      });
       const result = await executeSearch({
         actorUserId: actor.userId,
         isReviewerCapable: actor.isReviewerCapable,
+        matchRecipientContact: disclosure === "REVEALED",
         filter,
         // Phase 24-B — propagate request context so the dedicated
         // audit row carries surface + requestId + hashed ip.
@@ -980,6 +1003,11 @@ export async function searchRoutes(app: FastifyInstance) {
           );
           const result = await runWorkspaceReindexBodyUnderLock({
             teamId: body.teamId,
+            // The caller's `batch` was parsed into `limit` and then never
+            // passed, so an operator asking for a bounded rebuild silently got
+            // the default ceiling instead. Wiring it is not a behaviour change
+            // for anyone who omits it — the service default is unchanged.
+            batch: limit,
             includeCases: true,
             log: {
               info: (o, m) => req.log.info(o as object, m ?? ""),
@@ -995,6 +1023,7 @@ export async function searchRoutes(app: FastifyInstance) {
             reports: result.reports,
             packages: result.packages,
             notes: result.notes,
+            intakeLinks: result.intakeLinks,
           };
 
           const buckets = [
@@ -1003,6 +1032,7 @@ export async function searchRoutes(app: FastifyInstance) {
             result.reports,
             result.packages,
             result.notes,
+            result.intakeLinks,
           ];
           const sum = (pick: (b: (typeof buckets)[number]) => number) =>
             buckets.reduce((n, b) => n + pick(b), 0);

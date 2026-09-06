@@ -128,6 +128,8 @@ export async function internalReindexRoutes(app: FastifyInstance) {
           reportIndexed: result.reports.indexed,
           packageIndexed: result.packages.indexed,
           noteIndexed: result.notes.indexed,
+          intakeLinkIndexed: result.intakeLinks.indexed,
+          intakeLinkOrphans: result.intakeLinks.orphans,
           durationMs: result.durationMs,
         },
       }).catch((err: unknown) => {

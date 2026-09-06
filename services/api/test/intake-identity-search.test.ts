@@ -225,12 +225,37 @@ describe("the surfaces", () => {
     expect(REPORTS).not.toContain("recipientPhone:");
   });
 
-  it("the canonical index carries all four in its match-only body", () => {
+  it("the canonical index carries all four, split by who may match on them", () => {
+    /*
+     * The free-text body holds the two identifiers that are not contact: the
+     * organisation's own Customer ID and the label its own operator wrote.
+     * Anyone who can read the record can match on those.
+     */
     expect(PROJECTION).toContain("intake?.customerId");
     expect(PROJECTION).toContain("intake?.recipientLabel");
-    expect(PROJECTION).toContain("intake?.recipientEmail");
-    expect(PROJECTION).toContain("intake?.recipientPhone");
-    expect(PROJECTION).toContain("intake?.recipientPhoneE164");
+
+    /*
+     * The address and the number are NOT in the body. `searchableText` is one
+     * column and one ILIKE, so anything in it is matchable by every caller the
+     * query lets through — which made the index the one intake surface that
+     * ignored the recipient-contact policy the other three enforce. They live
+     * in the gated haystack, and the query adds that arm only for a caller
+     * whose disclosure allows it.
+     */
+    expect(PROJECTION).toContain("SEARCH_CONTACT_HAYSTACK_KEY");
+    expect(PROJECTION).toContain("buildIntakeContactHaystack");
+    const body = PROJECTION.slice(
+      PROJECTION.indexOf("const bodyParts = ["),
+      PROJECTION.indexOf("const searchableText"),
+    );
+    expect(body).not.toContain("recipientEmail");
+    expect(body).not.toContain("recipientPhone");
+
+    // All three contact forms reach the haystack, so one number written three
+    // ways still resolves to the same row for a caller entitled to ask.
+    expect(PROJECTION).toContain("identity.recipientEmail");
+    expect(PROJECTION).toContain("identity.recipientPhone");
+    expect(PROJECTION).toContain("identity.recipientPhoneE164");
   });
 
   it("the index query normalises a phone needle the same way", () => {

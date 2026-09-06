@@ -194,8 +194,87 @@ export function sanitiseSearchTags(
  *
  * 1 → the original body: title, filenames, extracted text.
  * 2 → adds External Intake identity and the record's own identifiers.
+ * 3 → moves recipient contact OUT of the free-text body and into the gated
+ *     contact haystack, so matching on an address or a number is a decision
+ *     the query makes rather than something every reader gets for free.
  */
-export const SEARCH_PROJECTION_VERSION = 2;
+export const SEARCH_PROJECTION_VERSION = 3;
+
+/**
+ * WHERE RECIPIENT CONTACT LIVES IN A SEARCH DOCUMENT.
+ *
+ * `searchableText` is one column and one `ILIKE`. Anything written into it is
+ * matchable by every caller the query lets through, and the query cannot tell
+ * afterwards which part of the body produced the hit. That is the right shape
+ * for a title, a filename or a Customer ID, and the wrong shape for the
+ * address and number an intake request was delivered to.
+ *
+ * Version 2 put all four intake identifiers into that body. The effect was a
+ * surface that disagreed with every other one: the Evidence list, the intake
+ * link list and the Reports aggregator all withhold the contact ARMS from a
+ * caller without `workflow.intake_recipient_contact.reveal` — because a search
+ * box that answers "is this number in this workspace" is an oracle, and a
+ * count is an answer — while global search matched the same two values for
+ * anyone who could open the page.
+ *
+ * So the contact goes in its own key inside `searchableMetadataJson`, which is
+ * INTERNAL: no route projects it, `toResultRow` does not read it, and the only
+ * queries that touch it are the ones a caller's disclosure has authorised.
+ * Same document, same write path, one more decision at read time.
+ *
+ * Lower-cased at write time so the query can lower-case its needle and get
+ * case-insensitive matching out of a JSON `string_contains`, which — unlike
+ * Prisma's text filters — has no `mode: "insensitive"`.
+ */
+export const SEARCH_CONTACT_HAYSTACK_KEY = "intakeRecipientContactSearch";
+
+/**
+ * The Customer ID, carried on the document so a result row can say WHY it
+ * matched without the caller having to re-query the source.
+ *
+ * It is business metadata rather than contact — the organisation's own
+ * reference for its own customer — so it stays in the free-text body as well,
+ * matchable by anyone who can read the record. This copy exists for
+ * presentation, not for matching.
+ */
+export const SEARCH_CUSTOMER_ID_KEY = "intakeCustomerId";
+
+/** The four intake identifiers, as the index needs them. */
+export type IntakeIdentityFields = {
+  /** The organization's own identifier for its customer. */
+  customerId: string | null;
+  /** The name the operator wrote on the request. */
+  recipientLabel: string | null;
+  /** The address it was delivered to. */
+  recipientEmail: string | null;
+  /** The number as typed. */
+  recipientPhone: string | null;
+  /** The canonical form, so one number written three ways matches. */
+  recipientPhoneE164: string | null;
+};
+
+/**
+ * The gated half of intake identity: the address, the number as typed, and
+ * the number canonicalised. Null when the request carried no contact at all,
+ * so a document for a copy-link request has no such key rather than an empty
+ * one that still confirms the shape.
+ */
+export function buildIntakeContactHaystack(
+  identity: Pick<
+    IntakeIdentityFields,
+    "recipientEmail" | "recipientPhone" | "recipientPhoneE164"
+  > | null | undefined,
+): string | null {
+  if (!identity) return null;
+  const parts = [
+    identity.recipientEmail ?? "",
+    identity.recipientPhone ?? "",
+    identity.recipientPhoneE164 ?? "",
+  ].filter((p) => p.length > 0);
+  if (parts.length === 0) return null;
+  const body = sanitiseSearchBody(parts.join("\n").trim());
+  return body ? body.toLowerCase() : null;
+}
 
 export type SearchDocumentProjection = {
   teamId: string;
@@ -288,11 +367,14 @@ export type EvidenceProjectionInput = {
    * and an older caller that does not supply them indexes exactly what it
    * indexed before.
    *
-   * These go into `searchableText`, which is a MATCH-ONLY body: the search
-   * response projects title, subtitle, summary and states, and never the
-   * indexed text. So the index can answer "which record has this address"
-   * without the answer containing the address — which is the whole reason
-   * searchability and disclosure can be different questions.
+   * They are split by WHO MAY MATCH ON THEM. The Customer ID and the
+   * recipient label go into `searchableText`, which is a MATCH-ONLY body:
+   * the search response projects title, subtitle, summary and states, and
+   * never the indexed text. The address and the number go into the gated
+   * contact haystack instead — see `SEARCH_CONTACT_HAYSTACK_KEY` — because
+   * an unrestricted `ILIKE` over them turns the search box into an
+   * "is this number in this workspace" oracle for callers the rest of the
+   * product does not let ask.
    */
   intakeIdentity?: {
     /** The organization's own identifier for its customer. */
@@ -395,21 +477,19 @@ export function buildEvidenceProjection(
     evidence.displayFileName ?? "",
     evidence.originalFileName ?? "",
     /*
-     * The identifiers an operator actually types when they are looking for
-     * one record among thousands: a customer number off their own file, the
-     * name they addressed the request to, the address it went to, the number
-     * they texted. All four, because they are four different facts and a
-     * record can carry all of them.
+     * The identifiers an operator types when they are looking for one record
+     * among thousands: a customer number off their own file, and the name
+     * they addressed the request to. Neither is a contact detail — a Customer
+     * ID is the organisation's reference for its own customer, and the label
+     * is what the workspace itself wrote on the request — so both are
+     * matchable by anyone who can read the record.
      *
-     * Both phone forms are indexed — as typed and canonical — so "+49 176
-     * 12345678" and "+4917612345678" each find the row without the query
-     * having to guess which one was stored.
+     * The address and the number are NOT here. They are the same two columns
+     * the recipient-contact policy governs everywhere else, and they live in
+     * the gated haystack below so that matching on them stays a decision.
      */
     intake?.customerId ?? "",
     intake?.recipientLabel ?? "",
-    intake?.recipientEmail ?? "",
-    intake?.recipientPhone ?? "",
-    intake?.recipientPhoneE164 ?? "",
     extracted,
   ].filter((s) => s.length > 0);
   const searchableText = sanitiseSearchBody(bodyParts.join("\n").trim());
@@ -436,6 +516,11 @@ export function buildEvidenceProjection(
       publicVerifyState,
       retentionPolicySource: evidence.retentionPolicySource ?? null,
       lifecycleState: lifecycle,
+      // Internal to the document — never projected onto a result row. The
+      // first is matched only for a caller whose disclosure allows it; the
+      // second is read back so a row can say which identifier it matched.
+      [SEARCH_CONTACT_HAYSTACK_KEY]: buildIntakeContactHaystack(intake),
+      [SEARCH_CUSTOMER_ID_KEY]: intake?.customerId ?? null,
     }),
     searchableTags: sanitiseSearchTags([
       evidence.type,
@@ -576,6 +661,149 @@ export function buildWorkflowInstanceProjection(
     claimRef: instance.claimRef ?? null,
     matterRef: instance.matterRef ?? null,
     sourceUpdatedAtUtc: instance.updatedAt,
+    projectionVersion: SEARCH_PROJECTION_VERSION,
+  };
+  return { ok: true, projection };
+}
+
+// -----------------------------------------------------------------------------
+// Intake link projection
+// -----------------------------------------------------------------------------
+
+export type IntakeLinkProjectionInput = {
+  teamId: string;
+  /** Already-fetched source row, narrowed to safe fields. */
+  link: {
+    id: string;
+    teamId: string | null;
+    customerId: string | null;
+    recipientLabel: string | null;
+    recipientEmail: string | null;
+    recipientPhone: string | null;
+    recipientPhoneE164: string | null;
+    workflowTemplateSlug: string | null;
+    intakeMode: string | null;
+    status: string;
+    caseId: string | null;
+    expiresAtUtc: Date | null;
+    revokedAtUtc: Date | null;
+    archivedAtUtc: Date | null;
+    usedCount: number;
+    updatedAt: Date;
+  };
+};
+
+/**
+ * THE REQUEST, AS A THING THAT CAN BE FOUND.
+ *
+ * An intake link is the only record of a request that has been sent and not
+ * yet answered, and it holds the identity an operator searches by. Without a
+ * document of its own that identity reached the index only once evidence came
+ * back, so the moment a search was most likely to be run — "did we ask this
+ * customer yet, and what happened?" — was the moment global search had
+ * nothing.
+ *
+ * WHAT THIS DOCUMENT SAYS OUT LOUD. Title is the operator's own label, or the
+ * Customer ID when there is no label, or a generic name: never an address and
+ * never a number, because the title is projected onto the result row and read
+ * by everyone the workspace lets search.
+ *
+ * WHAT IT DOES NOT SAY. The token, the token hash, the IP allowlist, the
+ * consent text and the template snapshot are all absent. The recipient
+ * address and number are present only in the gated haystack.
+ *
+ * There is no lifecycle exclusion here on purpose: a revoked, expired or
+ * archived request is still a request that was made, and an operator asking
+ * what happened to a customer needs the closed ones most. The state is
+ * carried on the row instead, as `workflowState` and a tag, so the surface
+ * can say so.
+ */
+export function buildIntakeLinkProjection(
+  input: IntakeLinkProjectionInput,
+): ProjectionResult {
+  const { link } = input;
+  if (link.teamId && link.teamId !== input.teamId) {
+    return { ok: false, reason: "team_mismatch", deleteFromIndex: false };
+  }
+
+  const label = sanitiseSearchString(link.recipientLabel, SEARCH_TITLE_MAX_CHARS);
+  const customerId = sanitiseSearchString(link.customerId, SEARCH_TITLE_MAX_CHARS);
+  const title = label ?? customerId ?? `Intake request ${link.id.slice(0, 8)}…`;
+
+  const now = Date.now();
+  const expired =
+    link.expiresAtUtc instanceof Date && link.expiresAtUtc.getTime() <= now;
+  const state = link.revokedAtUtc
+    ? "REVOKED"
+    : expired
+      ? "EXPIRED"
+      : (link.status ?? "ACTIVE");
+
+  const projection: SearchDocumentProjection = {
+    teamId: input.teamId,
+    documentType: "INTAKE_LINK",
+    sourceId: link.id,
+    title,
+    subtitle: sanitiseSearchString(
+      customerId && label ? `Customer ID ${customerId}` : link.workflowTemplateSlug,
+      SEARCH_SUBTITLE_MAX_CHARS,
+    ),
+    summary: sanitiseSearchString(
+      `External intake request · ${state.toLowerCase().replace(/_/g, " ")}`,
+      SEARCH_SUMMARY_MAX_CHARS,
+    ),
+    // Business metadata and the workspace's own label. Not contact.
+    searchableText: sanitiseSearchBody(
+      [link.customerId ?? "", link.recipientLabel ?? ""]
+        .filter((s) => s.length > 0)
+        .join("\n")
+        .trim(),
+    ),
+    searchableMetadata: safeMetadataSnapshot({
+      intakeMode: link.intakeMode,
+      templateSlug: link.workflowTemplateSlug,
+      status: link.status,
+      usedCount: link.usedCount,
+      expiresAtUtc: link.expiresAtUtc?.toISOString() ?? null,
+      [SEARCH_CONTACT_HAYSTACK_KEY]: buildIntakeContactHaystack(link),
+      [SEARCH_CUSTOMER_ID_KEY]: link.customerId ?? null,
+    }),
+    searchableTags: sanitiseSearchTags([
+      "intake_request",
+      link.intakeMode,
+      state,
+      link.archivedAtUtc ? "archived" : null,
+    ]),
+    visibilityScope: null,
+    governanceScope: { status: link.status },
+    reviewState: null,
+    workflowState: state,
+    /*
+     * A request has no export state, and saying "INTERNAL" is not a harmless
+     * default: the result row turns that into an "Export-restricted" badge,
+     * which reads as a restriction somebody imposed on this record. Nobody
+     * did — an intake request is simply not a thing that gets exported. Null
+     * leaves it out of both arms of the export filter, which is the truthful
+     * answer for a record the question does not apply to.
+     */
+    exportState: null,
+    retentionState: null,
+    legalHoldState: null,
+    /*
+     * An intake request is addressed to somebody outside the workspace, which
+     * is exactly what this flag records elsewhere — evidence that arrived
+     * through one is contributor-scoped for the same reason. The row renders
+     * a "contributor-scoped" badge, which is true and useful here.
+     */
+    contributorScoped: true,
+    reviewerRestricted: false,
+    evidenceId: null,
+    workflowInstanceId: null,
+    workflowStepInstanceId: null,
+    caseId: link.caseId ?? null,
+    claimRef: null,
+    matterRef: null,
+    sourceUpdatedAtUtc: link.updatedAt,
     projectionVersion: SEARCH_PROJECTION_VERSION,
   };
   return { ok: true, projection };

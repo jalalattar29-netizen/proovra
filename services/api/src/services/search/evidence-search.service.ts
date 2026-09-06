@@ -51,6 +51,8 @@ import {
   encodeSearchCursor,
   isAllowedSearchBadge,
   parseEvidenceIdNeedle,
+  SEARCH_CONTACT_HAYSTACK_KEY,
+  SEARCH_CUSTOMER_ID_KEY,
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
@@ -90,6 +92,22 @@ export type SearchResult = {
 export type ExecuteSearchInput = {
   actorUserId: string;
   isReviewerCapable: boolean;
+  /**
+   * Whether this caller may MATCH on the recipient address and number an
+   * intake request was delivered to.
+   *
+   * The same answer the Evidence list, the intake-link list and the Reports
+   * aggregator already ask for — `workflow.intake_recipient_contact.reveal`,
+   * resolved per workspace by `resolveRecipientContactDisclosure`. It is
+   * false by default so a caller that forgets to resolve it gets the
+   * restricted behaviour rather than the permissive one.
+   *
+   * Matching is not disclosure: nothing here puts an address or a number into
+   * a response. But a search box that answers "is this number in this
+   * workspace" with a row count is an oracle, and a caller the product will
+   * not show the number to must not be able to ask.
+   */
+  matchRecipientContact?: boolean;
   filter: SearchFilterInput;
   /** Phase 24-B — bounded surface label written to the dedicated audit
    *  log so compliance can answer "who searched where". Defaults to
@@ -266,6 +284,45 @@ export async function executeSearch(
      * a range on it cannot collide with the middle of some other id the way a
      * substring of a text body would.
      */
+    /*
+     * THE RECIPIENT ADDRESS AND NUMBER — for a caller entitled to ask.
+     *
+     * Projection version 3 moved these two values out of `searchableText`
+     * and into the document's internal contact haystack, because
+     * `searchableText` is one column and one `ILIKE`: anything in it is
+     * matchable by every caller the query lets through, which made this the
+     * one intake surface that ignored the recipient-contact policy the other
+     * three enforce.
+     *
+     * So the arm is added HERE, only when the caller's disclosure allows it,
+     * and it is absent otherwise — not filtered afterwards, which would leak
+     * through the result count.
+     *
+     * The haystack is lower-cased at write time and the needle is lower-cased
+     * here: a JSON `string_contains` has no `mode: "insensitive"`, and an
+     * email address that only matched in the case it was stored in is a
+     * correct query answered with "no results".
+     */
+    if (input.matchRecipientContact === true) {
+      const needles = new Set<string>([filter.q.trim().toLowerCase()]);
+      const contactE164 = intakePhoneE164(filter.q);
+      if (contactE164) needles.add(contactE164.toLowerCase());
+      // A partial number off a case file. Four digits is the shared floor,
+      // below which this stops being a search and starts being a filter that
+      // returns everything.
+      const contactDigits = intakePhoneDigits(filter.q);
+      if (contactDigits) needles.add(contactDigits);
+      for (const needle of needles) {
+        if (!needle) continue;
+        where.OR.push({
+          searchableMetadataJson: {
+            path: [SEARCH_CONTACT_HAYSTACK_KEY],
+            string_contains: needle,
+          },
+        });
+      }
+    }
+
     const idNeedle = parseEvidenceIdNeedle(filter.q);
     if (idNeedle) {
       where.OR.push(
@@ -364,7 +421,7 @@ export async function executeSearch(
       filteredByVisibility += 1;
       continue;
     }
-    safeRows.push(toResultRow(row));
+    safeRows.push(toResultRow(row, filter.q ?? null));
   }
 
   if (filteredByGovernance > 0) {
@@ -812,8 +869,69 @@ function sortToOrderBy(
   }
 }
 
+/**
+ * WHY THIS ROW IS HERE.
+ *
+ * A result that matched on a Customer ID looks identical to one that matched
+ * on a filename — same title, same badges — so an operator who searched for
+ * "CUST-849271" and got back "IMG_4471.jpg" has no way to tell whether the
+ * platform understood the question. The reason says which identifier did it.
+ *
+ * The Customer ID is named because it is the organisation's own reference for
+ * its own customer, it is already matchable by every reader of the record, and
+ * echoing back what the operator just typed discloses nothing.
+ *
+ * The address and the number are NOT named, and their values never appear. A
+ * caller reached them only because their disclosure allowed the arm, and even
+ * then the reason is a statement about the FIELD, not the value: the recipient
+ * of an intake request did not agree to be listed in a search result, and
+ * "Matched recipient phone" is everything the operator needs to understand the
+ * hit.
+ */
+function buildIntakeMatchReasons(
+  doc: prismaPkg.EvidenceSearchDocument,
+  q: string | null,
+): string[] {
+  const needle = (q ?? "").trim();
+  if (!needle) return [];
+  const meta = doc.searchableMetadataJson;
+  if (!meta || typeof meta !== "object" || Array.isArray(meta)) return [];
+  const record = meta as Record<string, unknown>;
+  const reasons: string[] = [];
+
+  const customerId = record[SEARCH_CUSTOMER_ID_KEY];
+  if (
+    typeof customerId === "string" &&
+    customerId.length > 0 &&
+    customerId.toLowerCase().includes(needle.toLowerCase())
+  ) {
+    reasons.push(`Customer ID · ${customerId}`);
+  }
+
+  const haystack = record[SEARCH_CONTACT_HAYSTACK_KEY];
+  if (typeof haystack === "string" && haystack.length > 0) {
+    const lines = haystack.split("\n");
+    const email = lines.find((l) => l.includes("@")) ?? null;
+    const lowered = needle.toLowerCase();
+    const e164 = intakePhoneE164(needle);
+    const digits = intakePhoneDigits(needle);
+    if (email && email.includes(lowered)) {
+      reasons.push("Matched recipient email");
+    } else if (
+      haystack.includes(lowered) ||
+      (e164 && haystack.includes(e164.toLowerCase())) ||
+      (digits && haystack.includes(digits))
+    ) {
+      reasons.push("Matched recipient phone");
+    }
+  }
+
+  return reasons;
+}
+
 function toResultRow(
   doc: prismaPkg.EvidenceSearchDocument,
+  q: string | null = null,
 ): SearchResultRow {
   const badges: string[] = [];
   if (doc.workflowInstanceId) badges.push("workflow-linked");
@@ -844,9 +962,12 @@ function toResultRow(
   // Defensive: drop any accidental badge that isn't in the allowed
   // catalog. (Belt-and-braces — we control all writers above.)
   const safeBadges = badges.filter(isAllowedSearchBadge);
+  const intakeReasons = buildIntakeMatchReasons(doc, q);
   return {
     documentId: doc.id,
     documentType: doc.documentType as SearchDocumentType,
+    sourceId: doc.sourceId,
+    ...(intakeReasons.length > 0 ? { matchReasons: intakeReasons } : {}),
     title: doc.title,
     subtitle: doc.subtitle,
     summary: doc.summary,

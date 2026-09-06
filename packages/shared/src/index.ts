@@ -827,7 +827,11 @@ export {
   safeMetadataSnapshot,
   buildEvidenceProjection,
   buildWorkflowInstanceProjection,
+  buildIntakeLinkProjection,
+  buildIntakeContactHaystack,
   isAllowedSearchDocumentType,
+  SEARCH_CONTACT_HAYSTACK_KEY,
+  SEARCH_CUSTOMER_ID_KEY,
   SEARCH_TITLE_MAX_CHARS,
   SEARCH_SUBTITLE_MAX_CHARS,
   SEARCH_SUMMARY_MAX_CHARS,
@@ -839,6 +843,8 @@ export {
   type ProjectionFailureReason,
   type EvidenceProjectionInput,
   type WorkflowInstanceProjectionInput,
+  type IntakeLinkProjectionInput,
+  type IntakeIdentityFields,
 } from "./search-projection.js";
 export * from "./evidence-record-ref.js";
 export * from "./search-readiness.js";

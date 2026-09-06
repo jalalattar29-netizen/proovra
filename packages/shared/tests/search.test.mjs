@@ -46,6 +46,12 @@ test("SEARCH_DOCUMENT_TYPES covers all Phase 24 surfaces", () => {
     "NOTE",
     "PACKAGE",
     "REPORT",
+    // The external intake REQUEST. Added because the identifiers an operator
+    // searches by — the Customer ID their organisation issued, the name they
+    // addressed the request to — belong to the request, and reached the index
+    // only once evidence came back. A request sent and not yet answered was
+    // findable on the Intake Links screen and nowhere else.
+    "INTAKE_LINK",
   ];
   assert.deepEqual([...SEARCH_DOCUMENT_TYPES].sort(), [...expected].sort());
 });

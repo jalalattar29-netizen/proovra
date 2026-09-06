@@ -109,6 +109,18 @@ const TYPE_TONE: Readonly<Record<string, AppTone>> = {
   REPORT: "orange",
   PACKAGE: "indigo",
   NOTE: "slate",
+  /*
+   * A request that was SENT — the outbound half of a record's life, and
+   * neither a primary record nor a report about one.
+   *
+   * `silver` is the catalog's CLOCK, and that is what an intake request is:
+   * an ask with an expiry on it, outstanding until somebody answers. It is
+   * deliberately not `amber` (nothing is wrong with an open request) and not
+   * a second blue (it is not a primary record). Requests that have closed —
+   * revoked, expired, archived — say so in their own state on the row; the
+   * type chip only says what KIND of thing was found.
+   */
+  INTAKE_LINK: "silver",
 };
 
 export function searchTypeTone(documentType: string | null | undefined): AppTone {

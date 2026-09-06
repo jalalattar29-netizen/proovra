@@ -44,6 +44,22 @@ export const SEARCH_DOCUMENT_TYPES = [
   "REPORT",
   "PACKAGE",
   "NOTE",
+  /*
+   * The intake REQUEST itself, not the evidence that came back from it.
+   *
+   * An external intake link carries the two identifiers an operator most often
+   * holds when they go looking: the Customer ID their own organisation issued,
+   * and the name they addressed the request to. Until this entry existed the
+   * only way either of them reached the index was through an EVIDENCE
+   * document, so a request that had been sent but not yet answered was
+   * invisible to global search while the Intake Links screen found it
+   * immediately. Same workspace, same identifier, two answers, and the surface
+   * people reach for first was the one that said "no results".
+   *
+   * Recipient contact is deliberately NOT part of this document's body — see
+   * `buildIntakeLinkProjection`.
+   */
+  "INTAKE_LINK",
   "WORKFLOW",
   "WORKFLOW_STEP",
   "REVIEW_EVENT",
@@ -166,6 +182,16 @@ export type SearchFilterInput = z.infer<typeof SearchFilterSchema>;
 export type SearchResultRow = {
   documentId: string;
   documentType: SearchDocumentType;
+  /**
+   * The id of the row this document describes.
+   *
+   * `/v1/search/suggest` has always returned it; result rows carried only
+   * `evidenceId` / `caseId`, so a document whose source is neither — an
+   * intake request, say — had nothing for the UI to open. It is the same
+   * opaque primary key the surface that owns the record already routes on,
+   * never a token and never a signed URL.
+   */
+  sourceId: string;
   title: string;
   subtitle: string | null;
   summary: string | null;

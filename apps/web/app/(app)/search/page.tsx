@@ -120,6 +120,9 @@ type DocumentType =
   | "REPORT"
   | "PACKAGE"
   | "NOTE"
+  // The external intake REQUEST itself — findable before any evidence has
+  // come back, which is when an operator most often goes looking for it.
+  | "INTAKE_LINK"
   | "WORKFLOW"
   | "WORKFLOW_STEP"
   | "REVIEW_EVENT"
@@ -146,6 +149,8 @@ type SearchMode = "keyword" | "hybrid" | "semantic";
 type ResultRow = {
   documentId: string;
   documentType: DocumentType;
+  /** The id of the row the document describes — what the Open action routes on. */
+  sourceId: string;
   title: string;
   subtitle: string | null;
   summary: string | null;
@@ -349,6 +354,11 @@ const DOCUMENT_TYPES: DocumentType[] = [
   "REPORT",
   "PACKAGE",
   "NOTE",
+  // The request itself. It is a chip rather than a hidden enterprise type
+  // because "which requests did I send this customer" is one of the questions
+  // people actually bring to this box, and until the index carried intake
+  // requests it was the question that returned nothing.
+  "INTAKE_LINK",
 ];
 
 const DOCUMENT_TYPE_LABEL: Record<DocumentType, string> = {
@@ -357,6 +367,7 @@ const DOCUMENT_TYPE_LABEL: Record<DocumentType, string> = {
   REPORT: "Report",
   PACKAGE: "Package",
   NOTE: "Note",
+  INTAKE_LINK: "Intake request",
   // Enterprise types — kept for type safety, never shown as a chip
   // because they are not in the personal DOCUMENT_TYPES list above.
   WORKFLOW: "Workflow",
@@ -2614,6 +2625,12 @@ function getOpenAction(
             label: isInTrash ? "Open in trash" : "Open note",
           }
         : null;
+    // Intake requests have no detail page of their own; the Intake Links
+    // screen IS the detail surface, and `linkId` is the deep link it already
+    // honours (Home uses the same one). Routing there opens the request the
+    // operator just found rather than a list they have to search again.
+    case "INTAKE_LINK":
+      return { href: `/intake-links?linkId=${row.sourceId}`, label: "Open request" };
     default:
       return null;
   }

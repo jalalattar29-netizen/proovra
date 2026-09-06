@@ -37,6 +37,7 @@ import { loadIntakeIdentityForIndex } from "@proovra/shared-runtime";
 import * as prismaPkg from "@prisma/client";
 import {
   buildEvidenceProjection,
+  buildIntakeLinkProjection,
   buildWorkflowInstanceProjection,
   isAllowedSearchDocumentType,
   type SearchDocumentProjection,
@@ -64,6 +65,11 @@ export type IndexEvidenceInput = {
 export type IndexWorkflowInstanceInput = {
   teamId: string;
   workflowInstanceId: string;
+};
+
+export type IndexIntakeLinkInput = {
+  teamId: string;
+  intakeLinkId: string;
 };
 
 export type IndexResult =
@@ -513,6 +519,87 @@ export async function indexWorkflowInstance(
     return { ok: false, reason: result.reason };
   }
   return upsertSearchDocumentProjection(result.projection, client);
+}
+
+// -----------------------------------------------------------------------------
+// External intake link indexer
+//
+// An intake REQUEST is a first-class searchable record, not a shadow of the
+// evidence that may one day answer it. Most requests carry a Customer ID and
+// a recipient label, and until this indexer existed neither reached the index
+// until evidence came back — so a request that had been sent and not yet
+// answered was findable on the Intake Links screen and nowhere else.
+//
+// Best-effort like every other indexer on this path: a failure here bumps a
+// metric and is logged, and never fails the mutation that triggered it.
+// Creating an intake link must not depend on the search index being writable.
+// -----------------------------------------------------------------------------
+
+export async function indexIntakeLink(
+  input: IndexIntakeLinkInput,
+  client: PrismaClient = defaultPrisma,
+): Promise<IndexResult> {
+  let link;
+  try {
+    link = await client.workflowIntakeLink.findFirst({
+      where: { id: input.intakeLinkId, teamId: input.teamId },
+      select: {
+        id: true,
+        teamId: true,
+        customerId: true,
+        recipientLabel: true,
+        recipientEmail: true,
+        recipientPhone: true,
+        recipientPhoneE164: true,
+        workflowTemplateSlug: true,
+        intakeMode: true,
+        status: true,
+        caseId: true,
+        expiresAtUtc: true,
+        revokedAtUtc: true,
+        archivedAtUtc: true,
+        usedCount: true,
+        updatedAt: true,
+      },
+    });
+  } catch {
+    return { ok: false, reason: "intake_link_load_failed" };
+  }
+  if (!link) {
+    // Anti-zombie: the row is gone (or was never in this workspace), so the
+    // document must go too rather than answering for a record that no longer
+    // exists.
+    await tryDeleteByKey(client, input.teamId, "INTAKE_LINK", input.intakeLinkId);
+    return { ok: false, reason: "intake_link_not_found" };
+  }
+
+  const result = buildIntakeLinkProjection({ teamId: input.teamId, link });
+  if (!result.ok) {
+    if (result.deleteFromIndex) {
+      await tryDeleteByKey(
+        client,
+        input.teamId,
+        "INTAKE_LINK",
+        input.intakeLinkId,
+      );
+    }
+    return { ok: false, reason: result.reason };
+  }
+  return upsertSearchDocumentProjection(result.projection, client);
+}
+
+/**
+ * Index an intake link without letting the failure reach the caller.
+ *
+ * The mutation surfaces (create / revoke / archive / unarchive) call this so
+ * a search-index problem can never turn into a failed intake request. The
+ * reconcile sweep repairs anything this drops.
+ */
+export function indexIntakeLinkBestEffort(
+  input: IndexIntakeLinkInput,
+  client: PrismaClient = defaultPrisma,
+): void {
+  void indexIntakeLink(input, client).catch(() => null);
 }
 
 // -----------------------------------------------------------------------------

@@ -41,6 +41,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../db.js";
+import { indexIntakeLinkBestEffort } from "./search/evidence-indexing.service.js";
 import {
   INTAKE_SEARCH_NEEDLE_MAX,
   intakeLinkIdentityArms,
@@ -298,6 +299,19 @@ export async function createWorkflowIntakeLink(
     },
   });
 
+  /*
+   * The request becomes findable the moment it is made.
+   *
+   * Global search reads a denormalized index, so a record that is never
+   * indexed is a record that surface cannot see — and the identifiers an
+   * operator searches by (their own Customer ID, the name on the request)
+   * are carried by the link itself, not by evidence that may never arrive.
+   * Best-effort on purpose: a search index that will not accept a write must
+   * not be able to fail somebody's intake request. The reconcile sweep picks
+   * up whatever this drops.
+   */
+  indexIntakeLinkBestEffort({ teamId: input.teamId, intakeLinkId: link.id }, client);
+
   return { link, rawToken: issued.rawToken };
 }
 
@@ -434,7 +448,7 @@ export async function revokeWorkflowIntakeLink(
     return existing; // idempotent
   }
 
-  return client.workflowIntakeLink.update({
+  const revoked = await client.workflowIntakeLink.update({
     where: { id: input.id },
     data: {
       status: "REVOKED",
@@ -443,6 +457,11 @@ export async function revokeWorkflowIntakeLink(
       revokedReason: input.reason ?? null,
     },
   });
+  // A revoked request is still a request that was made, and the operator
+  // asking what happened to a customer needs the closed ones most — so the
+  // document is refreshed, not removed. The state travels with it.
+  indexIntakeLinkBestEffort({ teamId: input.teamId, intakeLinkId: input.id }, client);
+  return revoked;
 }
 
 // -----------------------------------------------------------------------------
@@ -474,13 +493,15 @@ export async function archiveWorkflowIntakeLink(
   });
   if (!existing) return null;
   if (existing.archivedAtUtc) return existing; // idempotent
-  return client.workflowIntakeLink.update({
+  const archived = await client.workflowIntakeLink.update({
     where: { id: input.id },
     data: {
       archivedAtUtc: new Date(),
       archivedByUserId: input.actorUserId,
     },
   });
+  indexIntakeLinkBestEffort({ teamId: input.teamId, intakeLinkId: input.id }, client);
+  return archived;
 }
 
 export async function unarchiveWorkflowIntakeLink(
@@ -492,13 +513,15 @@ export async function unarchiveWorkflowIntakeLink(
   });
   if (!existing) return null;
   if (!existing.archivedAtUtc) return existing; // idempotent
-  return client.workflowIntakeLink.update({
+  const unarchived = await client.workflowIntakeLink.update({
     where: { id: input.id },
     data: {
       archivedAtUtc: null,
       archivedByUserId: null,
     },
   });
+  indexIntakeLinkBestEffort({ teamId: input.teamId, intakeLinkId: input.id }, client);
+  return unarchived;
 }
 
 // -----------------------------------------------------------------------------

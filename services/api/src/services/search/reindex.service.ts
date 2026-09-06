@@ -42,7 +42,10 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { indexEvidence } from "./evidence-indexing.service.js";
+import {
+  indexEvidence,
+  indexIntakeLink,
+} from "./evidence-indexing.service.js";
 import { indexCase } from "./case-indexing.service.js";
 import {
   SEARCH_PROJECTION_VERSION,
@@ -97,6 +100,15 @@ export type WorkspaceReindexResult = {
   reports: ReindexBucket;
   packages: ReindexBucket;
   notes: ReindexBucket;
+  /**
+   * External intake REQUESTS.
+   *
+   * Their own family rather than a subset of evidence: a request that has
+   * been sent and not answered has no evidence row to be reindexed through,
+   * and it is exactly the record an operator is looking for when they type a
+   * Customer ID into search.
+   */
+  intakeLinks: ReindexBucket;
   durationMs: number;
   dryRun: boolean;
 };
@@ -141,6 +153,7 @@ function emptyResult(teamId: string): WorkspaceReindexResult {
     reports: emptyBucket(),
     packages: emptyBucket(),
     notes: emptyBucket(),
+    intakeLinks: emptyBucket(),
     durationMs: 0,
     dryRun: false,
   };
@@ -175,20 +188,23 @@ export async function runWorkspaceReindex(
           inner.cases.orphans +
           inner.reports.orphans +
           inner.packages.orphans +
-          inner.notes.orphans,
+          inner.notes.orphans +
+          inner.intakeLinks.orphans,
         indexed:
           inner.evidence.indexed +
           inner.cases.indexed +
           inner.reports.indexed +
           inner.packages.indexed +
-          inner.notes.indexed,
+          inner.notes.indexed +
+          inner.intakeLinks.indexed,
         removed: 0,
         failed:
           inner.evidence.failed +
           inner.cases.failed +
           inner.reports.failed +
           inner.packages.failed +
-          inner.notes.failed,
+          inner.notes.failed +
+          inner.intakeLinks.failed,
       };
     },
   });
@@ -253,6 +269,7 @@ async function runWorkspaceReindexUnlocked(
   const reports = emptyBucket();
   const packages = emptyBucket();
   const notes = emptyBucket();
+  const intakeLinks = emptyBucket();
 
   // -------------------------------------------------------------------------
   // Evidence — find INDEXABLE rows for this team that have no
@@ -495,6 +512,66 @@ async function runWorkspaceReindexUnlocked(
         }
       }
     }
+
+    // ---------------------------------------------------------------------
+    // External intake requests.
+    //
+    // ORPHANS **AND** STALE, the same way evidence is swept and for the same
+    // reason: this document type is new, so on the first run after deploy
+    // every existing request in the workspace is an orphan, and a later
+    // change to what the body holds must be able to reach the documents
+    // already written. Both cases are repaired by the same indexer, under
+    // the same lock, inside the same batch limit — orphans first, because a
+    // request search cannot see at all is worse than one it sees
+    // incompletely.
+    //
+    // No lifecycle exclusion: revoked, expired and archived requests stay
+    // indexed. They are the ones an operator asking "what happened with this
+    // customer" needs most, and the row carries the state so the surface can
+    // say which it is.
+    // ---------------------------------------------------------------------
+    const staleOrMissingLinks = await client.$queryRawUnsafe<
+      Array<{ id: string; stale: boolean }>
+    >(
+      `
+      SELECT l.id::text AS id,
+             (esd.id IS NOT NULL) AS stale
+        FROM workflow_intake_links l
+        LEFT JOIN evidence_search_documents esd
+          ON esd.team_id       = l.team_id
+         AND esd.document_type = 'INTAKE_LINK'
+         AND esd.source_id     = l.id
+       WHERE l.team_id = $1::uuid
+         AND (esd.id IS NULL OR esd.projection_version < $2)
+       ORDER BY (esd.id IS NOT NULL) ASC, l.id ASC
+       LIMIT $3`,
+      teamId,
+      SEARCH_PROJECTION_VERSION,
+      limit,
+    );
+    intakeLinks.orphans = staleOrMissingLinks.filter((r) => !r.stale).length;
+    intakeLinks.stale = staleOrMissingLinks.filter((r) => r.stale).length;
+    if (!dryRun) {
+      for (const row of staleOrMissingLinks) {
+        const r = await indexIntakeLink(
+          { teamId, intakeLinkId: row.id },
+          client,
+        );
+        if (r.ok) {
+          intakeLinks.indexed += 1;
+        } else {
+          intakeLinks.failed += 1;
+          log.warn(
+            {
+              teamId,
+              intakeLinkId: row.id,
+              reason: r.reason,
+            },
+            "search.reindex.intake_link.failed",
+          );
+        }
+      }
+    }
   }
 
   const result: WorkspaceReindexResult = {
@@ -504,6 +581,7 @@ async function runWorkspaceReindexUnlocked(
     reports,
     packages,
     notes,
+    intakeLinks,
     durationMs: Date.now() - start,
     dryRun,
   };
@@ -516,6 +594,7 @@ async function runWorkspaceReindexUnlocked(
       reportIndexed: reports.indexed,
       packageIndexed: packages.indexed,
       noteIndexed: notes.indexed,
+      intakeLinkIndexed: intakeLinks.indexed,
       dryRun,
     },
     "search.reindex.complete",
