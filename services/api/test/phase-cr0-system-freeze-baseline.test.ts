@@ -96,6 +96,21 @@ describe("Phase CR0 — every (app) page wraps in <PageRouteGate> OR is document
     // therefore applied; duplicating it here would mean two copies of a
     // 1,300-line page, which is precisely how a canonical route and its
     // compatibility route drift apart.
+    // WORKSPACE AND COLLABORATION ARCHITECTURE RECONCILIATION (2026-09-06) —
+    // the Collaboration Hub was retired and this file is now nothing but a
+    // client-side redirect to the team's Discussion tab, which is where its
+    // one surviving panel lives. It renders no data, calls no API and holds
+    // no state, so there is nothing for a gate to protect; and the page it
+    // forwards to carries `<PageRouteGate routeId="workspace.
+    // collaboration_team_detail">`, so an ineligible viewer is refused there
+    // rather than at a URL they reached from an old bookmark. Gating the
+    // redirect itself would replace a working forward with a denial.
+    {
+      page: "collaboration-teams/[teamId]/collaboration/page.tsx",
+      reason:
+        "retired hub — redirect-only, renders nothing; the destination is gated",
+      revisitPhase: "delete with the route registry entry once no link remains",
+    },
     {
       page: "notifications/page.tsx",
       reason: "re-export of the gated canonical page at inbox/page.tsx",

@@ -47,6 +47,12 @@ vi.mock("../../lib/api", () => ({
     return {};
   },
   readApiToken: () => null,
+  // WORKSPACE AND COLLABORATION RECONCILIATION — the provider writes the
+  // active-workspace request binding through this module the moment an
+  // envelope is applied, so a double that omits it throws mid-ingest and
+  // leaves the provider half-applied. A partial double of a module boundary
+  // is an ambient dependency, not a smaller one.
+  setActiveWorkspaceId: () => {},
 }));
 
 import {

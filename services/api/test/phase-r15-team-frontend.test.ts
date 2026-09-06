@@ -237,10 +237,18 @@ describe("Phase R15 — Stages 4-12: page content", () => {
     expect(overview).not.toMatch(/Switch to Team Workspace/);
   });
 
-  it("overview mentions personal-user + organization-not-required messaging", () => {
-    // Constitutional rule 7 — personal users see Teams; Organization
-    // is optional. Subtitle copy reflects this.
-    expect(overview).toMatch(/no Organization is required/i);
+  it("the Teams landing is workspace-scoped, never Organization-gated", () => {
+    // Constitutional rule 7 — Teams are a core collaboration feature in BOTH
+    // the Personal and the Organization Workspace. The reconciliation replaced
+    // the "no Organization is required" sentence with copy that states the
+    // scope positively, so the contract is now the RULE rather than the
+    // sentence: the page describes groups inside THIS workspace, never asks
+    // for an Organization, and gates nothing on the workspace kind.
+    expect(overview).toMatch(/inside this workspace/i);
+    expect(overview).not.toMatch(/Organization is required/i);
+    expect(overview).not.toMatch(/create an Organization/i);
+    expect(overview).not.toMatch(/workspaceKind === "ORGANIZATION"/);
+    expect(overview).not.toMatch(/isPersonal\s*\?\s*null/);
   });
 
   it("detail page wraps in PageRouteGate with team-detail routeId", () => {
@@ -249,11 +257,18 @@ describe("Phase R15 — Stages 4-12: page content", () => {
     );
   });
 
-  it("detail page renders the 6 tab definitions (overview/members/invites/assignments/activity/settings)", () => {
+  it("detail page renders the 6 tab definitions (overview/members/assignments/discussion/activity/settings)", () => {
+    // WORKSPACE AND COLLABORATION RECONCILIATION — "invites" left the tab set
+    // and "discussion" took its place. People are invited to the WORKSPACE
+    // (one invitation authority, one seat claim) and then ASSIGNED to a group
+    // from the Members tab, so a per-group invitation tab described an
+    // operation that no longer exists. The group's conversation, which used to
+    // live behind a second page, is a tab here instead.
+    //
     // The tab labels are emitted via `data-testid={`tab-${t}`}` where
     // `t` is a value from the TABS array. Assert the array itself.
     expect(detail).toMatch(
-      /const TABS = \[\s*"overview",\s*"members",\s*"invites",\s*"assignments",\s*"activity",\s*"settings",\s*\] as const/,
+      /const TABS = \[\s*"overview",\s*"members",\s*"assignments",\s*"discussion",\s*"activity",\s*"settings",\s*\] as const/,
     );
     // And the wrapping nav uses the bounded testid for the tablist.
     expect(detail).toMatch(/data-testid="team-tabs"/);
@@ -264,15 +279,16 @@ describe("Phase R15 — Stages 4-12: page content", () => {
     for (const t of [
       "overview",
       "members",
-      "invites",
       "assignments",
+      "discussion",
       "activity",
       "settings",
     ]) {
       expect(detail).toMatch(new RegExp(`"${t}"`));
     }
+    // The retired tab is gone from the set, not merely hidden.
+    expect(detail).not.toMatch(/const TABS = \[[\s\S]{0,200}"invites"/);
   });
-
   it("detail page Members tab has role select + suspend + remove actions", () => {
     expect(detail).toMatch(/data-testid="tab-members-content"/);
     expect(detail).toMatch(/member-role-select-/);
@@ -280,25 +296,40 @@ describe("Phase R15 — Stages 4-12: page content", () => {
     expect(detail).toMatch(/member-remove-/);
   });
 
-  // Teams Entitlement Alignment 2026-07-14: SMS + shareable-link
-  // invitation channels and external guests were removed from the product
-  // (never published by Pricing/Billing); invitations are EMAIL-only;
-  // FREE/PAYG include zero Teams. The Invites tab renders exactly ONE
-  // form (email) and swaps the entire invite surface for an upgrade
-  // panel when the resolved plan includes zero Teams.
-  it("detail page Invites tab is EMAIL-only with a plan-locked upgrade state", () => {
-    expect(detail).toMatch(/data-testid="email-invite-form"/);
-    expect(detail).toMatch(/data-testid="email-invite-submit"/);
+  // Teams Entitlement Alignment 2026-07-14 removed the SMS + shareable-link
+  // channels and left EMAIL as the only per-group invitation.
+  //
+  // WORKSPACE AND COLLABORATION ARCHITECTURE RECONCILIATION retired that last
+  // channel too. There is ONE invitation authority — into the WORKSPACE, where
+  // acceptance atomically claims a seat — and a group is filled by ASSIGNING
+  // people who already hold one. A group is not a seat pool: the same person
+  // in five groups is still one seat, so a second invitation system with its
+  // own capacity rules could only ever disagree with the entitlement that is
+  // actually sold.
+  //
+  // So the contract is now the assignment surface: it offers the workspace
+  // directory, not an email field, and it names where a genuinely new person
+  // is invited instead.
+  it("the Members tab assigns EXISTING workspace members and mints no invitation", () => {
+    const members = read(
+      "apps/web/app/(app)/collaboration-teams/[teamId]/_tabs/MembersTab.tsx",
+    );
+    expect(members).toMatch(/data-testid="add-member-panel"/);
+    expect(members).toMatch(/data-testid="add-member-submit"/);
+    // It reads the workspace directory the server filters …
+    expect(members).toMatch(/listEligibleMembers\(/);
+    // … and assigns, rather than inviting.
+    expect(members).toMatch(/addExistingMember\(/);
+    // No per-group invitation surface survives anywhere in the detail tree.
+    expect(detail).not.toMatch(/data-testid="email-invite-form"/);
     expect(detail).not.toMatch(/data-testid="sms-invite-form"/);
     expect(detail).not.toMatch(/data-testid="link-invite-form"/);
-    expect(detail).not.toMatch(/link-invite-copy|link-invite-url/);
-    // Plan lock: zero-Teams plans (FREE/PAYG owning a grandfathered
-    // Team) replace the form with an honest upgrade panel instead of a
-    // fillable form that would 402 (TEAM_INVITES_NOT_INCLUDED).
-    expect(detail).toMatch(/data-testid="invites-plan-locked"/);
-    expect(detail).toMatch(/data-testid="invites-plan-locked-upgrade-cta"/);
-    expect(detail).toMatch(/limits.maxCollaborationTeamsPerWorkspace === 0/);
-    expect(detail).toMatch(/does not include Teams/);
+    expect(members).not.toMatch(/inviteByEmail\(/);
+    // Capacity is still shown honestly, from the server projection, and the
+    // add affordance is disabled at the ceiling rather than offering an
+    // action that is known to refuse.
+    expect(members).toMatch(/data-testid="members-at-capacity-notice"/);
+    expect(members).toMatch(/disabled=\{atCapacity\}/);
   });
 
   // Teams Entitlement Alignment 2026-07-14: SMS + shareable-link

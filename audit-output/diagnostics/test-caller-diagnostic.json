@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "5ed058805558999585e841a2cb95ea5fe6e11219d63af300ee9319dda79d2fa6",
-  "capabilityRouteInventoryHash": "6d87ac9abb8254d5a47f697c823d2ca84dd34c861242f3f4ac58fe8c1f172683",
+  "capabilityRouteInventoryHash": "a680e7d2611ac6ce3466c9c2790c39686af869789b4ff8ee5444a20447d271e9",
   "totals": {
-    "routes": 1127,
+    "routes": 1132,
     "routesWithAnyTestCaller": 39,
     "testOnlyRoutes": 5,
     "testCallSites": 66,
@@ -1009,6 +1009,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "GET /v1/collaboration-teams/:teamId/assignable-targets",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "GET /v1/collaboration-teams/:teamId/assignments",
       "testCallerCount": 0,
       "testOnly": false,
@@ -1021,13 +1027,31 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "GET /v1/collaboration-teams/:teamId/eligible-members",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "GET /v1/collaboration-teams/:teamId/guests",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
     },
     {
+      "routeId": "GET /v1/collaboration-teams/:teamId/members",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "GET /v1/collaboration-teams/:teamId/notification-preferences",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/collaboration-teams/entitlement",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -6541,6 +6565,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/teams/:id/invites/:inviteId/resend",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/teams/:id/reopen",
       "testCallerCount": 0,
       "testOnly": false,
@@ -6859,5 +6889,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "ea2b8980736fb624b3634c4dca88a55d014cf400ed9b545c622930e21c55f45c"
+  "contentHash": "18eb62065c1817900226755c9e46c7ad380188e9920c310494b316fc3a572875"
 }

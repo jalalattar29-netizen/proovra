@@ -47,12 +47,22 @@ const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const PLAN_FEATURES: Record<
   "FREE" | "PAYG" | "PRO" | "TEAM",
-  { intakeIncluded: boolean; reportsIncluded: boolean; verificationPackageIncluded: boolean; casesIncluded: boolean }
+  {
+    intakeIncluded: boolean;
+    reportsIncluded: boolean;
+    verificationPackageIncluded: boolean;
+    casesIncluded: boolean;
+    // WORKSPACE AND COLLABORATION RECONCILIATION — the server projects this
+    // from the catalog as `maxCollaborationTeamsPerWorkspace > 0`. The
+    // fixture was silent about it, which is why the Teams entry appeared on a
+    // plan that includes zero of them.
+    teamCollaborationIncluded: boolean;
+  }
 > = {
-  FREE: { intakeIncluded: false, reportsIncluded: false, verificationPackageIncluded: false, casesIncluded: false },
-  PAYG: { intakeIncluded: true, reportsIncluded: true, verificationPackageIncluded: true, casesIncluded: false },
-  PRO: { intakeIncluded: true, reportsIncluded: true, verificationPackageIncluded: true, casesIncluded: true },
-  TEAM: { intakeIncluded: true, reportsIncluded: true, verificationPackageIncluded: true, casesIncluded: true },
+  FREE: { intakeIncluded: false, reportsIncluded: false, verificationPackageIncluded: false, casesIncluded: false, teamCollaborationIncluded: false },
+  PAYG: { intakeIncluded: true, reportsIncluded: true, verificationPackageIncluded: true, casesIncluded: false, teamCollaborationIncluded: false },
+  PRO: { intakeIncluded: true, reportsIncluded: true, verificationPackageIncluded: true, casesIncluded: true, teamCollaborationIncluded: true },
+  TEAM: { intakeIncluded: true, reportsIncluded: true, verificationPackageIncluded: true, casesIncluded: true, teamCollaborationIncluded: true },
 };
 
 test("fixture mirrors the canonical PLAN_CAPABILITIES catalog", () => {
@@ -73,6 +83,16 @@ test("fixture mirrors the canonical PLAN_CAPABILITIES catalog", () => {
       block,
       new RegExp(`reportsIncluded: ${f.reportsIncluded}`),
       `${plan}.reportsIncluded`,
+    );
+    // The server derives `teamCollaborationIncluded` from the group allowance,
+    // so the fixture is pinned to the number rather than to a second flag.
+    const teams = Number(
+      (block.match(/maxCollaborationTeamsPerWorkspace: (\d+)/) ?? [])[1],
+    );
+    assert.equal(
+      teams > 0,
+      f.teamCollaborationIncluded,
+      `${plan}.teamCollaborationIncluded`,
     );
   }
 });
@@ -177,6 +197,7 @@ function sidebarRouteIds(plan: "FREE" | "PAYG" | "PRO" | "TEAM"): string[] {
         reportsIncluded: PLAN_FEATURES[plan].reportsIncluded,
         verificationPackageIncluded: PLAN_FEATURES[plan].verificationPackageIncluded,
         casesIncluded: PLAN_FEATURES[plan].casesIncluded,
+        teamCollaborationIncluded: PLAN_FEATURES[plan].teamCollaborationIncluded,
         professionalSurfacesIncluded: plan === "PRO" || plan === "TEAM",
       },
       capabilities: {
@@ -241,18 +262,26 @@ test("sidebar matrix — Operations Center for every plan; only intake varies by
     "account.notifications",
     "workspace.capture",
     "workspace.cases",
-    "workspace.collaboration_teams",
     "workspace.evidence",
     "workspace.home",
     "workspace.reports",
     "workspace.search",
   ].sort();
   const WITH_INTAKE = [...BASE, "workspace.intake_links"].sort();
+  // WORKSPACE AND COLLABORATION RECONCILIATION — Teams left the base set.
+  // FREE and PAYG include ZERO collaboration groups, and a primary nav entry
+  // to a surface whose every action refuses is not navigation, it is an
+  // advertisement with a dead end behind it. Direct access still resolves and
+  // answers with an honest locked state rather than a 404.
+  const WITH_COLLABORATION = [
+    ...WITH_INTAKE,
+    "workspace.collaboration_teams",
+  ].sort();
 
   assert.deepEqual(sidebarRouteIds("FREE"), BASE, "FREE");
   assert.deepEqual(sidebarRouteIds("PAYG"), WITH_INTAKE, "PAYG");
-  assert.deepEqual(sidebarRouteIds("PRO"), WITH_INTAKE, "PRO");
-  assert.deepEqual(sidebarRouteIds("TEAM"), WITH_INTAKE, "TEAM");
+  assert.deepEqual(sidebarRouteIds("PRO"), WITH_COLLABORATION, "PRO");
+  assert.deepEqual(sidebarRouteIds("TEAM"), WITH_COLLABORATION, "TEAM");
 });
 
 // ---------------------------------------------------------------------------

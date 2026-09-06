@@ -166,8 +166,11 @@ describe("Phase 10 — /v1/collaboration-teams handlers call the canonical guard
     expect(routes).toMatch(/from\s+["'].*billing-guards(\.js)?["']/);
     expect(routes).toMatch(/assertCanCreateCollaborationTeam/);
     expect(routes).toMatch(/assertCollaborationTeamMemberLimit/);
-    expect(routes).toMatch(/assertCanInviteCollaborationTeamMember/);
     expect(routes).toMatch(/BillingLimitError/);
+    // WORKSPACE AND COLLABORATION RECONCILIATION — the group-invite channel
+    // is retired, so the route layer no longer calls the invite gate. The
+    // gate itself is NOT retired: it still guards the legacy writer, which
+    // is asserted at its own level below.
   });
 
   it("POST /v1/collaboration-teams calls assertCanCreateCollaborationTeam", () => {
@@ -205,8 +208,15 @@ describe("Phase 10 — /v1/collaboration-teams handlers call the canonical guard
   // invitation channels and external guests were removed from the product
   // (never published by Pricing/Billing); invitations are EMAIL-only;
   // FREE/PAYG include zero Teams. The /invites/sms and /invites/link
-  // endpoints are DELETED (email invite + revoke + accept remain).
-  it("registers NO invites/sms or invites/link routes; email-invite handler passes 'EMAIL' to the invite gate", () => {
+  // endpoints were DELETED then; email invite remained.
+  //
+  // WORKSPACE AND COLLABORATION RECONCILIATION — the group-invite channel
+  // itself is now retired. People are invited to the WORKSPACE (one
+  // invitation authority, one seat claim) and then ASSIGNED to a group, so a
+  // second invitation system with its own commercial gate no longer exists.
+  // The route stays registered and answers with a typed retirement rather
+  // than a 404, and it reaches no writer at all.
+  it("registers NO invites/sms or invites/link routes; the email-invite route is a typed retirement that writes nothing", () => {
     expect(routes).not.toContain("invites/sms");
     expect(routes).not.toContain("invites/link");
     const emailSection = routes.split(
@@ -214,10 +224,28 @@ describe("Phase 10 — /v1/collaboration-teams handlers call the canonical guard
     )[1] ?? "";
     expect(
       emailSection,
-      "expected assertCanInviteCollaborationTeamMember(... 'EMAIL' ...) in email-invite handler",
-    ).toMatch(
-      /assertCanInviteCollaborationTeamMember\s*\([\s\S]{0,200}["']EMAIL["']/,
-    );
+      "expected the retired email-invite route to still be registered",
+    ).not.toBe("");
+    const handler = emailSection.slice(0, 2500);
+    expect(handler).toContain("COLLABORATION_TEAM_INVITE_RETIRED");
+    expect(handler).toMatch(/\.code\(410\)/);
+    // It reaches no invite writer and no invite gate — there is nothing left
+    // behind it to gate.
+    expect(handler).not.toMatch(/createEmailInvite\s*\(/);
+    expect(handler).not.toMatch(/assertCanInviteCollaborationTeamMember\s*\(/);
+  });
+
+  // The gate did not become wrong, only unreachable from the route layer. It
+  // still guards the legacy writer, so nobody can reintroduce an ungated
+  // invitation channel by calling the service directly.
+  it("the legacy createEmailInvite writer is still gated by the canonical invite guard", () => {
+    const svc = readFileSync(SERVICE_PATH, "utf8");
+    const body = svc.split("export async function createEmailInvite")[1] ?? "";
+    expect(body).not.toBe("");
+    const gate = body.indexOf("assertCanInviteCollaborationTeamMember(");
+    const write = body.indexOf("collaborationTeamInvite.create(");
+    expect(gate).toBeGreaterThan(-1);
+    expect(write).toBeGreaterThan(gate);
   });
 
   // Teams Entitlement Alignment 2026-07-14: SMS + shareable-link

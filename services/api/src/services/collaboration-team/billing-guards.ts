@@ -154,7 +154,7 @@ function throwBillingError(args: {
 async function resolveCollaborationTeamWorkspacePlan(
   client: PrismaClient,
   teamId: string,
-): Promise<PlanType> {
+): Promise<{ plan: PlanType; workspaceId: string }> {
   const row = await client.collaborationTeam.findUnique({
     where: { id: teamId },
     select: {
@@ -181,7 +181,10 @@ async function resolveCollaborationTeamWorkspacePlan(
         teamId: row.workspace.id,
         requesterUserId: row.workspace.ownerUserId,
       });
-  return ctx.scope.plan;
+  // The caller needs BOTH halves of this lookup: the plan to decide the
+  // entitlement, and the workspace id to count the seats that entitlement
+  // buys. Returning them together keeps it to one read of one row.
+  return { plan: ctx.scope.plan, workspaceId: row.workspace.id };
 }
 
 // =============================================================================
@@ -436,7 +439,10 @@ export async function assertCollaborationTeamMemberLimit(
   // §9.4 corrected — existing-team member limits are a WORKSPACE-subject
   // decision (the parent workspace's own effective plan), never the owner's
   // account plan.
-  const plan = await resolveCollaborationTeamWorkspacePlan(client, teamId);
+  const { plan, workspaceId } = await resolveCollaborationTeamWorkspacePlan(
+    client,
+    teamId,
+  );
   // Commercial contract: a plan with ZERO Teams locks ALL membership
   // growth on grandfathered Teams (adds, every invite channel, and
   // acceptance) — data stays readable, growth requires an upgrade.
@@ -461,13 +467,7 @@ export async function assertCollaborationTeamMemberLimit(
    * operational bound, reconciled to the seat entitlement rather than
    * contradicting it — and the workspace seat count is the real limit.
    */
-  const workspaceSeats = await resolveWorkspaceSeatState(
-    (await client.collaborationTeam.findUniqueOrThrow({
-      where: { id: teamId },
-      select: { workspaceId: true },
-    })).workspaceId,
-    client,
-  );
+  const workspaceSeats = await resolveWorkspaceSeatState(workspaceId, client);
   const maxAcceptedMembers = Math.max(
     0,
     Math.min(
@@ -546,7 +546,7 @@ export async function assertCanInviteCollaborationTeamMember(
   max24hRate: number;
 }> {
   // §9.4 corrected — invite limits are a WORKSPACE-subject decision.
-  const plan = await resolveCollaborationTeamWorkspacePlan(client, teamId);
+  const { plan } = await resolveCollaborationTeamWorkspacePlan(client, teamId);
   const limits = getPlanCapabilities(plan);
 
   // Invitations are EMAIL-ONLY (Teams Entitlement Alignment,
@@ -605,76 +605,23 @@ export async function assertCanInviteCollaborationTeamMember(
 }
 
 // =============================================================================
-// 4. assertCanInviteCollaborationTeamGuest
+// 4. (RETIRED) assertCanInviteCollaborationTeamGuest
 // =============================================================================
-
-/**
- * PHASE 12 POINT 4 PASS C0 — the ONE commercial authority for external
- * guest invitation (`POST /v1/collaboration-teams/:teamId/guests/invite`).
- *
- * Before this guard, `inviteGuest` resolved its own commercial state by
- * reading the raw `Team.billingPlan` COLUMN and passing it to
- * `canPlanOperateSharedWorkspace`. That was a second commercial authority, and it
- * disagreed with the canonical one in three ways that matter in
- * production:
- *
- *   - a PERSONAL workspace's subject is the OWNER'S ENTITLEMENT, never the
- *     `Team.billingPlan` column (the column is meaningless for that kind),
- *     so a paying user's personal-space team was judged on the wrong row;
- *   - an OWNED workspace carrying a legacy `billingPlan = "ENTERPRISE"`
- *     string is NOT enterprise-covered (`LEGACY_AMBIGUOUS_FAIL_CLOSED`),
- *     but the raw column read granted it guests;
- *   - a non-live `billingStatus` (SUSPENDED / CANCELLED organization or
- *     owned workspace) still presented its stale plan string, so a
- *     suspended Organization kept inviting external collaborators.
- *
- * This guard resolves the plan through `resolveCollaborationTeamWorkspacePlan`
- * — the SAME subject-correct path every member-invite channel already uses
- * (`resolveCommercialContext`: PERSONAL → owner entitlement, OWNED → its own
- * persisted commercial state with no owner-plan fallback, ORGANIZATION →
- * the organization contract, all with the live-status rule applied) — and
- * then applies the SAME catalog limits invitations use. Guests were the
- * only invitation channel with no capacity gate at all: a PRO workspace
- * could hold unbounded pending external grants.
- */
-export async function assertCanInviteCollaborationTeamGuest(
-  teamId: string,
-  client: PrismaClient = defaultPrisma,
-): Promise<{
-  plan: PlanType;
-  pendingGuests: number;
-  maxPendingPerTeam: number;
-}> {
-  const plan = await resolveCollaborationTeamWorkspacePlan(client, teamId);
-  const limits = getPlanCapabilities(plan);
-
-  // FREE / PAYG include zero Teams, so they include no external guests
-  // either. PAYG is an operation entitlement, never a workspace plan.
-  assertTeamsFeatureIncluded(plan);
-
-  const pendingGuests = await client.collaborationTeamGuest.count({
-    where: { teamId, status: "PENDING" },
-  });
-
-  if (pendingGuests >= limits.maxPendingInvitesPerTeam) {
-    throwBillingError({
-      code: "TEAM_INVITE_LIMIT_REACHED",
-      message: `This team has reached its pending-invitation limit (${limits.maxPendingInvitesPerTeam}) on plan ${plan}.`,
-      details: {
-        plan,
-        teamId,
-        pendingGuests,
-        maxPendingPerTeam: limits.maxPendingInvitesPerTeam,
-      },
-    });
-  }
-
-  return {
-    plan,
-    pendingGuests,
-    maxPendingPerTeam: limits.maxPendingInvitesPerTeam,
-  };
-}
+//
+// WORKSPACE AND COLLABORATION ARCHITECTURE RECONCILIATION — deleted with the
+// operation it guarded.
+//
+// "Guest invitation" wrote a `CollaborationTeamGuest` row and stopped: no
+// email was ever sent, `acceptedUserId` / `acceptedAtUtc` were written by ZERO
+// code paths, the status never left PENDING, and no read path anywhere
+// consulted the table for access. The guard was therefore a commercial
+// authority over a no-op — it decided who was allowed to be told something
+// untrue. External reviewers are granted access by the external-review
+// authority, where the grant is real, time-bounded and audited.
+//
+// `inviteGuest` now refuses with a typed 410 for every plan and every
+// workspace kind, so there is nothing left to gate. Existing guest rows stay
+// readable and revocable, which is why the model and `listGuests` remain.
 
 // =============================================================================
 // 5. assertSubscriptionActiveOrGraceAllowed

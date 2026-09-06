@@ -228,11 +228,27 @@ describe("Phase R14 — Stage 11: plan limits", () => {
   // Collaboration Team cap EQUALS the Owned Workspace cap, which is the exact
   // conflation that let one published "Up to 2" grant a PRO account two owned
   // workspaces AND two collaboration teams. They are pinned separately here.
+  //
+  // WORKSPACE AND COLLABORATION ARCHITECTURE RECONCILIATION (2026-09-06) —
+  // three numbers moved, by approved product decision, and the table follows
+  // the decision rather than the other way round:
+  //
+  //   * FREE and PAYG seats 0 → 1. Zero seats meant a workspace whose OWNER
+  //     did not occupy a seat, which made "1 of 0 used" the honest reading of
+  //     every free workspace. The owner counts as one seat; a free workspace
+  //     holds exactly its owner and nobody else.
+  //   * TEAM seats 5 → 10, and TEAM members-per-group 5 → 10 with it. The
+  //     group ceiling is reconciled to the seat entitlement instead of
+  //     contradicting it: a group may contain everyone in the workspace, and
+  //     cannot contain anyone else, because assignment refuses a non-member.
+  //     A group is not a second seat pool.
+  //
+  // The `workspaces` column is unchanged and still asserted as an absence.
   const CANONICAL = {
-    FREE: { workspaces: 0, teams: 0, members: 0, seats: 0, pending: 0, rate: 0 },
-    PAYG: { workspaces: 0, teams: 0, members: 0, seats: 0, pending: 0, rate: 0 },
+    FREE: { workspaces: 0, teams: 0, members: 0, seats: 1, pending: 0, rate: 0 },
+    PAYG: { workspaces: 0, teams: 0, members: 0, seats: 1, pending: 0, rate: 0 },
     PRO: { workspaces: 2, teams: 2, members: 5, seats: 5, pending: 10, rate: 50 },
-    TEAM: { workspaces: 5, teams: 5, members: 5, seats: 5, pending: 25, rate: 100 },
+    TEAM: { workspaces: 5, teams: 5, members: 10, seats: 10, pending: 25, rate: 100 },
     ENTERPRISE: {
       workspaces: 1000,
       teams: 1000,
@@ -536,37 +552,74 @@ describe("Phase R14 — Stage 4: API routes", () => {
 });
 
 // =============================================================================
-// Stage 7 — delivery service
+// Stage 7 — invitation delivery
+//
+// WORKSPACE AND COLLABORATION ARCHITECTURE RECONCILIATION (2026-09-06) —
+// `collaboration-team-delivery.service.ts` was DELETED with the second
+// invitation system it served.
+//
+// There is ONE invitation authority now: into the WORKSPACE, where acceptance
+// atomically claims a seat. A group is filled by ASSIGNING people who already
+// hold one, because a group is not a seat pool — the same person in five
+// groups is still one seat, so a second invitation system with its own
+// channels and capacity rules could only ever disagree with the entitlement
+// that is actually sold. Its SMS wrapper had already lost its channel (SMS and
+// shareable-link invitations were removed from the product in 2026-07-14), and
+// when the email route retired, the module had no consumer left and the
+// module-reachability gate required a disposition.
+//
+// The properties this stage protected are asserted on the surviving delivery
+// path: it goes through the canonical email service, it records the outcome,
+// and it never writes the raw token to a log.
 // =============================================================================
 
-describe("Phase R14 — Stage 7: delivery wrappers", () => {
-  const delivery = read(
-    "services/api/src/services/collaboration-team/collaboration-team-delivery.service.ts",
-  );
+describe("Phase R14 — Stage 7: workspace-invitation delivery", () => {
+  const routes = read("services/api/src/routes/teams.routes.ts");
 
-  it("exports sendCollaborationTeamInviteEmail + sendCollaborationTeamInviteSms", () => {
-    expect(delivery).toMatch(/export async function sendCollaborationTeamInviteEmail/);
-    expect(delivery).toMatch(/export async function sendCollaborationTeamInviteSms/);
+  it("the retired per-group delivery service is gone, with no consumer left behind", () => {
+    expect(
+      existsSync(
+        join(
+          repoRoot,
+          "services/api/src/services/collaboration-team/collaboration-team-delivery.service.ts",
+        ),
+      ),
+    ).toBe(false);
+    const collabRoutes = read(
+      "services/api/src/routes/collaboration-teams.routes.ts",
+    );
+    expect(collabRoutes).not.toMatch(/collaboration-team-delivery/);
+    expect(collabRoutes).not.toMatch(/sendCollaborationTeamInviteEmail/);
+    expect(collabRoutes).not.toMatch(/sendCollaborationTeamInviteSms/);
   });
 
-  it("email body uses the canonical Resend wrapper", () => {
-    expect(delivery).toMatch(/sendCustomEmailViaResend/);
-    expect(delivery).toMatch(/renderEmailShell/);
+  it("delivery goes through the canonical email service, never a bespoke sender", () => {
+    expect(routes).toMatch(/async function deliverWorkspaceInvite/);
+    expect(routes).toMatch(/getEmailService\(\)/);
+    expect(routes).toMatch(/sendTeamInvitation\(/);
   });
 
-  it("SMS body uses the canonical communications queue (enqueueOutboundMessage)", () => {
-    expect(delivery).toMatch(/enqueueOutboundMessage/);
-    expect(delivery).toMatch(/renderCollaborationTeamInvitationSmsBody/);
+  it("a delivery failure is REPORTED, not swallowed into a false success", () => {
+    const helper = routes.slice(
+      routes.indexOf("async function deliverWorkspaceInvite"),
+    );
+    const body = helper.slice(0, helper.indexOf("\nfunction buildInviteUrl"));
+    // It returns whether the mail actually went, and the caller records it.
+    expect(body).toMatch(/return false;/);
+    expect(body).toMatch(/return true;/);
+    expect(routes).toMatch(/emailSent/);
   });
 
-  it("records delivery result on every send via recordInviteDeliveryResult", () => {
-    expect(delivery).toMatch(/recordInviteDeliveryResult/);
-  });
-
-  it("never logs the raw token (no `console` of `rawToken`)", () => {
-    // Either no console.log at all, or none referencing rawToken.
-    const consoles = delivery.match(/console\.[a-z]+\([^)]*rawToken/g);
-    expect(consoles).toBeNull();
+  it("never logs the raw token or the address", () => {
+    const helper = routes.slice(
+      routes.indexOf("async function deliverWorkspaceInvite"),
+    );
+    const body = helper.slice(0, helper.indexOf("\nfunction buildInviteUrl"));
+    // The logged context is the error and the workspace — nothing that
+    // identifies the invitee or that could be redeemed.
+    expect(body).toContain("{ err, teamId: input.teamId }");
+    expect(body.match(/log\.[a-z]+\([^)]*rawToken/g)).toBeNull();
+    expect(body.match(/log\.[a-z]+\([^)]*input\.email/g)).toBeNull();
   });
 });
 
@@ -623,9 +676,12 @@ describe("Phase R14 — shared package barrel + module placement", () => {
         "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       ),
     ).toBe(true);
+    // The delivery module was deleted with the second invitation system it
+    // served — see Stage 7 above. Its absence is asserted there; asserting it
+    // here too would only repeat the same fact in a placement test.
     expect(
       exists(
-        "services/api/src/services/collaboration-team/collaboration-team-delivery.service.ts",
+        "services/api/src/services/collaboration-team/collaboration-authorization.ts",
       ),
     ).toBe(true);
   });

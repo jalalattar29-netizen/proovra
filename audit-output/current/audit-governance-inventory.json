@@ -85,8 +85,8 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 324,
-    "AuditFilesUnclassified": 0,
+    "AuditFilesInventoried": 345,
+    "AuditFilesUnclassified": 1,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
     "AuditDependencyCycles": 0,
@@ -96,8 +96,8 @@
     "HistoricalReportsUsedAsAuthority": 0,
     "HistoricalReportsAmbiguousStatus": 0,
     "DuplicateAuditAuthorityClaims": 0,
-    "IndependentRouteInventories": 0,
-    "IndependentConsumerInventories": 0,
+    "IndependentRouteInventories": 1,
+    "IndependentConsumerInventories": 1,
     "CanonicalAuditEntryPoints": 1,
     "CanonicalRouteAuthorities": 1,
     "CanonicalConsumerAuthorities": 1,
@@ -106,7 +106,7 @@
     "CanonicalCurrentReports": 1,
     "LedgerGenerators": 1,
     "GeneratedLedgerRenderings": 2,
-    "ObsoleteAuditScripts": 0,
+    "ObsoleteAuditScripts": 1,
     "RetiredPathsResurrected": 0,
     "DiagnosticsReadAsAuthority": 0,
     "HistoricalDiagnosticCreditedAsAuthority": 0,
@@ -138,7 +138,7 @@
     "ProductionRuntimeFilesModifiedByPhase0": 0,
     "ProductBehaviorTestsRemoved": 0,
     "HistoricalMigrationsModifiedByPhase0": 0,
-    "ProductBehaviorTestsInventoried": 195
+    "ProductBehaviorTestsInventoried": 197
   },
   "reportRoles": {
     "counts": {
@@ -157,31 +157,38 @@
     }
   },
   "byRole": {
-    "PRODUCT_BEHAVIOR_TEST": 195,
+    "PRODUCT_BEHAVIOR_TEST": 197,
     "CONTINUATION_CHECKPOINT": 1,
     "GENERATED_CURRENT_ARTIFACT": 3,
     "LEDGER_VALIDATOR_OR_GENERATOR": 1,
     "GENERATED_LEDGER_RENDERING": 2,
     "CANONICAL_LEDGER_SOURCE": 1,
     "CURRENT_GENERATED_REPORT": 1,
-    "DOMAIN_AUTHORITY": 49,
+    "DOMAIN_AUTHORITY": 66,
     "DIAGNOSTIC_NOT_AUTHORITY": 1,
     "HISTORY_TREE_MARKER": 1,
     "HISTORICAL_REPORT": 23,
     "HISTORICAL_PROOF": 17,
     "DOMAIN_REPORT_TEMPLATE": 1,
+    "UNKNOWN": 1,
+    "OBSOLETE_DUPLICATE": 1,
     "CANONICAL_ENGINE_COMPONENT": 11,
     "CANONICAL_ORCHESTRATOR": 1,
     "DEPRECATED_DELEGATE": 1,
     "AUDIT_ENGINE_TEST": 15
   },
-  "problems": [],
+  "problems": [
+    "UNCLASSIFIED audit file: scripts/admin-ledger/visual/README.md",
+    "INDEPENDENT ROUTE/CONSUMER SCANNER: scripts/admin-ledger/visual/states.mjs — Independent route/consumer scanner competing with the AST engine."
+  ],
   "duplicateClaims": [],
   "multiProducer": [],
   "selfReading": [],
   "gatesReadingHistory": [],
   "cycles": [],
-  "unclassified": [],
+  "unclassified": [
+    "scripts/admin-ledger/visual/README.md"
+  ],
   "producerUnknown": [],
   "packageScripts": [
     {
@@ -273,6 +280,21 @@
       "disposition": "RETAINED"
     },
     {
+      "path": "apps/web/__tests__/admin-colour-authority.test.mjs",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
       "path": "apps/web/__tests__/admin-completion-ledger.test.mjs",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
@@ -281,6 +303,21 @@
       "spawns": [
         "scripts/admin-ledger/generate.mjs"
       ],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "apps/web/__tests__/admin-deletion-proof.test.mjs",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
       "readsArtifacts": [],
       "writesArtifacts": [],
       "declaresArtifacts": [],
@@ -1633,6 +1670,36 @@
       "disposition": "RETAINED"
     },
     {
+      "path": "scripts/admin-ledger/contact-sheets.mjs",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "scripts/admin-ledger/deletion-proof.mjs",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
       "path": "scripts/admin-ledger/evidence.json",
       "role": "DOMAIN_AUTHORITY",
       "reason": "Curated architecture artifact for a single domain, consumed rather than re-derived.",
@@ -1674,6 +1741,303 @@
       "spawns": [
         "apps/web/scripts/admin-inventory.mjs"
       ],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "scripts/admin-ledger/visual-checklist.mjs",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "scripts/admin-ledger/visual/README.md",
+      "role": "UNKNOWN",
+      "reason": "Matched no classification rule.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "scripts/admin-ledger/visual/composition.mjs",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [
+        "scripts/admin-ledger/visual/lib.mjs"
+      ],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "scripts/admin-ledger/visual/contrast.mjs",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [
+        "scripts/admin-ledger/visual/lib.mjs"
+      ],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "scripts/admin-ledger/visual/controls.mjs",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [
+        "scripts/admin-ledger/visual/lib.mjs"
+      ],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "scripts/admin-ledger/visual/filter-options.mjs",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [
+        "scripts/admin-ledger/visual/lib.mjs"
+      ],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "scripts/admin-ledger/visual/keyboard.mjs",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [
+        "scripts/admin-ledger/visual/lib.mjs"
+      ],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "scripts/admin-ledger/visual/lib.mjs",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [],
+      "importedBy": [
+        "scripts/admin-ledger/visual/composition.mjs",
+        "scripts/admin-ledger/visual/contrast.mjs",
+        "scripts/admin-ledger/visual/controls.mjs",
+        "scripts/admin-ledger/visual/filter-options.mjs",
+        "scripts/admin-ledger/visual/keyboard.mjs",
+        "scripts/admin-ledger/visual/non-admin-guard.mjs",
+        "scripts/admin-ledger/visual/overlay.mjs",
+        "scripts/admin-ledger/visual/responsive.mjs",
+        "scripts/admin-ledger/visual/rtl-flash.mjs",
+        "scripts/admin-ledger/visual/rtl.mjs",
+        "scripts/admin-ledger/visual/runbooks.mjs",
+        "scripts/admin-ledger/visual/shots.mjs",
+        "scripts/admin-ledger/visual/tabs.mjs"
+      ],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "scripts/admin-ledger/visual/non-admin-guard.mjs",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [
+        "scripts/admin-ledger/visual/lib.mjs"
+      ],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "scripts/admin-ledger/visual/overlay.mjs",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [
+        "scripts/admin-ledger/visual/lib.mjs"
+      ],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "scripts/admin-ledger/visual/responsive.mjs",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [
+        "scripts/admin-ledger/visual/lib.mjs"
+      ],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "scripts/admin-ledger/visual/rtl-flash.mjs",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [
+        "scripts/admin-ledger/visual/lib.mjs"
+      ],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "scripts/admin-ledger/visual/rtl.mjs",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [
+        "scripts/admin-ledger/visual/lib.mjs"
+      ],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "scripts/admin-ledger/visual/runbooks.mjs",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [
+        "scripts/admin-ledger/visual/lib.mjs"
+      ],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "scripts/admin-ledger/visual/shots.mjs",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [
+        "scripts/admin-ledger/visual/lib.mjs"
+      ],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "scripts/admin-ledger/visual/states.mjs",
+      "role": "OBSOLETE_DUPLICATE",
+      "reason": "Independent route/consumer scanner competing with the AST engine.",
+      "imports": [
+        "apps/web/scripts/admin-complete-lists.mjs"
+      ],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "scripts/admin-ledger/visual/tabs.mjs",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [
+        "scripts/admin-ledger/visual/lib.mjs"
+      ],
+      "importedBy": [],
+      "spawns": [],
       "readsArtifacts": [],
       "writesArtifacts": [],
       "declaresArtifacts": [],
@@ -5469,10 +5833,10 @@
     "canonicalCapabilityMaps": 1,
     "canonicalLedgerSources": 1,
     "canonicalCurrentReports": 1,
-    "independentRegexRouteScanners": 0,
-    "independentTextConsumerScanners": 0,
-    "independentRouteInventories": 0,
-    "independentConsumerInventories": 0,
+    "independentRegexRouteScanners": 1,
+    "independentTextConsumerScanners": 1,
+    "independentRouteInventories": 1,
+    "independentConsumerInventories": 1,
     "duplicateFindingsLedgers": 0,
     "handMaintainedAuditCounts": 0,
     "handMaintainedLedgerTotals": 0,
@@ -5481,12 +5845,12 @@
     "artifactsWithMultipleProducers": 0,
     "auditDependencyCycles": 0,
     "generatorsReadingOwnOutputsAsFacts": 0,
-    "obsoleteAuditScripts": 0,
+    "obsoleteAuditScripts": 1,
     "regenerableTempArtifacts": 0,
     "testsReadingRetiredAuditArtifacts": 0,
     "auditEngineDuplicateTests": 0,
-    "auditFilesUnclassified": 0,
-    "untrackedAuditFilesUnclassified": 0,
+    "auditFilesUnclassified": 1,
+    "untrackedAuditFilesUnclassified": 1,
     "reportRelatedEntries": 26,
     "reportDocuments": 25,
     "currentGeneratedReports": 1,

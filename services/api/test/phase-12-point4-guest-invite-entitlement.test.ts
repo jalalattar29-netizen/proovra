@@ -20,6 +20,11 @@
  * invitation channel uses (`resolveCommercialContext`) and applies the SAME
  * catalog capacity limits.
  *
+ * That entitlement gate has since been retired along with the operation it
+ * guarded — see the describe block below for why, and for the stricter
+ * property that replaced it. The history above is kept because the bypass it
+ * records is the reason this file exists.
+ *
  * Nothing under proof is mocked: the guard, the commercial resolver, the
  * effective-plan policy and the plan catalog all run for real. Only Prisma —
  * a genuine external process boundary — is faked, and the fake RECORDS every
@@ -223,86 +228,143 @@ beforeEach(() => {
   state.pendingGuests = 0;
 });
 
-describe("Phase 12 Point 4 — guest invitation is server-enforced", () => {
-  it("FREE is denied and mutates NOTHING", async () => {
-    state.workspaceKind = "PERSONAL";
-    state.ownerPlan = "FREE";
-    // The whole point: no guest row, no activity row, no transaction at all.
-    await expectDenied("TEAM_INVITES_NOT_INCLUDED");
+/**
+ * WORKSPACE AND COLLABORATION ARCHITECTURE RECONCILIATION — the subject of
+ * this suite was retired, and the reason matters.
+ *
+ * "Guests" never granted anything. The operation wrote a
+ * `CollaborationTeamGuest` row and stopped: no email was ever sent,
+ * `acceptedUserId` / `acceptedAtUtc` were written by ZERO code paths, the
+ * status never left PENDING, and no read path anywhere consulted the table
+ * for access. An operator pressing "Invite guest" was told an external
+ * collaborator had time-bounded access to their evidence, and no access
+ * existed and nobody had been contacted. External review has a real
+ * authority — grants, identity, expiry, audit — and that is where external
+ * reviewers are granted access.
+ *
+ * So the commercial gate this file used to prove was gating a no-op. The
+ * property that replaces it is STRICTER, not weaker: the operation now
+ * refuses for EVERY plan and EVERY workspace kind — including all four
+ * configurations that used to be allowed — with one typed, identical
+ * refusal, and mutates nothing. A refusal that does not depend on the plan
+ * cannot be widened by getting the plan wrong, which is what every case
+ * below used to be about.
+ */
+describe("Workspace/collaboration reconciliation — guest invitation is retired, for everyone", () => {
+  /** The exact commercial configurations the entitlement gate used to decide. */
+  const CONFIGURATIONS: Array<{ name: string; apply: () => void }> = [
+    {
+      name: "FREE personal (was denied)",
+      apply: () => {
+        state.workspaceKind = "PERSONAL";
+        state.ownerPlan = "FREE";
+      },
+    },
+    {
+      name: "PAYG personal (was denied)",
+      apply: () => {
+        state.workspaceKind = "PERSONAL";
+        state.ownerPlan = "PAYG";
+      },
+    },
+    {
+      name: "PRO personal (was ALLOWED)",
+      apply: () => {
+        state.workspaceKind = "PERSONAL";
+        state.ownerPlan = "PRO";
+      },
+    },
+    {
+      name: "TEAM workspace (was ALLOWED)",
+      apply: () => {
+        state.workspaceBillingPlan = "TEAM";
+        state.workspaceBillingStatus = "ACTIVE";
+      },
+    },
+    {
+      name: "ENTERPRISE organization contract (was ALLOWED)",
+      apply: () => {
+        state.workspaceKind = "ORGANIZATION";
+        state.organizationKind = "CUSTOMER";
+        state.workspaceBillingPlan = "ENTERPRISE";
+        state.workspaceBillingStatus = "ACTIVE";
+      },
+    },
+    {
+      name: "SUSPENDED organization carrying an ENTERPRISE string (was denied)",
+      apply: () => {
+        state.workspaceKind = "ORGANIZATION";
+        state.organizationKind = "CUSTOMER";
+        state.workspaceBillingPlan = "ENTERPRISE";
+        state.workspaceBillingStatus = "SUSPENDED";
+      },
+    },
+    {
+      name: "OWNED workspace under an ENTERPRISE owner (was denied)",
+      apply: () => {
+        state.workspaceKind = "OWNED";
+        state.workspaceBillingPlan = "FREE";
+        state.ownerPlan = "ENTERPRISE";
+      },
+    },
+    {
+      name: "OWNED workspace with a legacy ENTERPRISE string (was denied)",
+      apply: () => {
+        state.workspaceKind = "OWNED";
+        state.workspaceBillingPlan = "ENTERPRISE";
+        state.workspaceBillingStatus = "ACTIVE";
+      },
+    },
+  ];
+
+  it.each(CONFIGURATIONS)(
+    "$name → the same typed retirement, and NOTHING is written",
+    async ({ apply }) => {
+      apply();
+      await expect(invite()).rejects.toMatchObject({
+        code: "COLLABORATION_TEAM_GUESTS_RETIRED",
+        httpStatus: 410,
+      });
+      // No guest row, no activity row, no transaction at all.
+      expect(writes).toEqual([]);
+    },
+  );
+
+  it("the refusal is IDENTICAL across every configuration — the plan cannot widen it", async () => {
+    const refusals: string[] = [];
+    for (const config of CONFIGURATIONS) {
+      writes.length = 0;
+      Object.assign(state, {
+        workspaceKind: "OWNED" as const,
+        workspaceBillingPlan: "FREE",
+        workspaceBillingStatus: "ACTIVE",
+        ownerPlan: "FREE",
+        organizationKind: "SYSTEM" as const,
+        organizationStatus: "ACTIVE",
+      });
+      config.apply();
+      const refusal = await invite().then(
+        () => "ALLOWED",
+        (e: { code?: string; httpStatus?: number }) =>
+          `${e.code}:${e.httpStatus}`,
+      );
+      refusals.push(refusal);
+    }
+    expect(new Set(refusals)).toEqual(
+      new Set(["COLLABORATION_TEAM_GUESTS_RETIRED:410"]),
+    );
+  });
+
+  it("capacity is irrelevant now — a workspace with room is refused too", async () => {
+    state.workspaceBillingPlan = "TEAM";
+    state.pendingGuests = 0;
+    await expect(invite()).rejects.toMatchObject({
+      code: "COLLABORATION_TEAM_GUESTS_RETIRED",
+    });
     expect(writes).toEqual([]);
   });
 
-  it("PAYG is denied — it is an operation entitlement, not a workspace plan", async () => {
-    state.workspaceKind = "PERSONAL";
-    state.ownerPlan = "PAYG";
-    await expectDenied("TEAM_INVITES_NOT_INCLUDED");
-    expect(canPlanOperateSharedWorkspace("PAYG")).toBe(false);
-  });
-
-  it("PRO is allowed within its limits", async () => {
-    state.workspaceKind = "PERSONAL";
-    state.ownerPlan = "PRO";
-    await expect(invite()).resolves.toMatchObject({ id: "guest-1" });
-    expect(writes).toContain("guest.create");
-  });
-
-  it("TEAM is allowed within its limits", async () => {
-    state.workspaceBillingPlan = "TEAM";
-    state.workspaceBillingStatus = "ACTIVE";
-    await expect(invite()).resolves.toMatchObject({ id: "guest-1" });
-    expect(writes).toContain("guest.create");
-  });
-
-  it("an allowed plan is still DENIED over its pending-invitation limit", async () => {
-    state.workspaceBillingPlan = "TEAM";
-    // Sit exactly at the catalog cap for this plan.
-    const { getPlanCapabilities } = await import("@proovra/shared-billing");
-    state.pendingGuests =
-      getPlanCapabilities("TEAM").maxPendingInvitesPerTeam;
-    await expectDenied("TEAM_INVITE_LIMIT_REACHED");
-    // One under the cap still passes — the gate is the limit, not a block.
-    state.pendingGuests -= 1;
-    await expect(invite()).resolves.toMatchObject({ id: "guest-1" });
-  });
-
-  it("ENTERPRISE is allowed from the ORGANIZATION contract", async () => {
-    state.workspaceKind = "ORGANIZATION";
-    state.organizationKind = "CUSTOMER";
-    state.workspaceBillingPlan = "ENTERPRISE";
-    state.workspaceBillingStatus = "ACTIVE";
-    await expect(invite()).resolves.toMatchObject({ id: "guest-1" });
-    // Guards the exact regression: the old browser rule was
-    // `plan === "PRO" || plan === "TEAM"`, which locked out ENTERPRISE.
-    expect(canPlanOperateSharedWorkspace("ENTERPRISE")).toBe(true);
-  });
-
-  it("a SUSPENDED organization is denied even though the plan string says ENTERPRISE", async () => {
-    state.workspaceKind = "ORGANIZATION";
-    state.organizationKind = "CUSTOMER";
-    state.workspaceBillingPlan = "ENTERPRISE";
-    // Not a live billing status → no contract coverage, whatever the string.
-    state.workspaceBillingStatus = "SUSPENDED";
-    await expectDenied("TEAM_INVITES_NOT_INCLUDED");
-  });
-
-  it("an OWNED workspace uses its OWN persisted state, never the owner's plan", async () => {
-    state.workspaceKind = "OWNED";
-    state.workspaceBillingPlan = "FREE";
-    // An ENTERPRISE account owning the workspace must not lift it.
-    state.ownerPlan = "ENTERPRISE";
-    await expectDenied("TEAM_INVITES_NOT_INCLUDED");
-  });
-
-  it("an OWNED workspace carrying a legacy ENTERPRISE string is NOT enterprise-covered", async () => {
-    state.workspaceKind = "OWNED";
-    state.workspaceBillingPlan = "ENTERPRISE";
-    state.workspaceBillingStatus = "ACTIVE";
-    // Enterprise coverage requires an ORGANIZATION contract; the ambiguous
-    // legacy row fails closed instead of granting external access.
-    await expectDenied("TEAM_INVITES_NOT_INCLUDED");
-  });
-
-  it("inactive membership is denied before the plan is even consulted", async () => {
+  it("authorization still runs FIRST — an inactive member is denied before anything else", async () => {
     state.workspaceBillingPlan = "TEAM";
     state.memberStatus = "SUSPENDED";
     await expectDenied("team_forbidden");
@@ -313,16 +375,18 @@ describe("Phase 12 Point 4 — guest invitation is server-enforced", () => {
     await expectDenied("team_not_found");
   });
 
-  it("a client-forged capability cannot widen eligibility — the plan comes from persistence", async () => {
-    state.workspaceKind = "PERSONAL";
-    state.ownerPlan = "FREE";
-    // The caller supplies no plan/capability at all; the service resolves it
-    // from persisted state, so there is nothing to forge.
-    await expectDenied("TEAM_INVITES_NOT_INCLUDED");
+  it("existing guest rows stay READABLE — an operator can see and revoke what they believe they granted", async () => {
+    state.workspaceBillingPlan = "TEAM";
+    const { listGuests } = await import(
+      "../src/services/collaboration-team/collaboration-completion.service.js"
+    );
+    await expect(
+      listGuests({ teamId: "ct-1", actorUserId: "user-1" }),
+    ).resolves.toBeDefined();
+    expect(writes).toEqual([]);
   });
 
-  it("the catalog — not a plan-name list — is the authority", () => {
-    // If the catalog changes, enforcement follows automatically.
+  it("the catalog — not a plan-name list — is still the authority for workspace membership", () => {
     expect(canPlanOperateSharedWorkspace("FREE")).toBe(false);
     expect(canPlanOperateSharedWorkspace("PAYG")).toBe(false);
     expect(canPlanOperateSharedWorkspace("PRO")).toBe(true);

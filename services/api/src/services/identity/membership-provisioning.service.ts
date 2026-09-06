@@ -801,23 +801,18 @@ export async function demoteGroupMappedRoleOnArchive(
   return { count: affected.length };
 }
 
-/** Manual (workspace-admin) role change with provenance. */
-export async function updateWorkspaceMembershipRole(
-  tx: TxClient,
-  input: { teamMemberId: string; role: string; actorUserId?: string | null },
-): Promise<void> {
-  await tx.teamMember.update({
-    where: { id: input.teamMemberId },
-    data: { role: input.role as never },
-  });
-  await recordMembershipGrant(tx, {
-    teamMemberId: input.teamMemberId,
-    source: "MANUAL",
-    intent: "ADMIN_ASSIGNMENT",
-    grantedByUserId: input.actorUserId ?? null,
-    grantedRole: input.role,
-  });
-}
+// WORKSPACE AND COLLABORATION RECONCILIATION — // was DELETED, with zero-consumer proof.
+//
+// It was a bare  plus a provenance row, and its only caller
+// was . That route was therefore able to
+// do the three things the rbac engine exists to refuse: act on yourself, grant
+// OWNER, and demote the last administrator. A workspace ADMIN could PATCH their
+// own member row with role OWNER and become owner in one unprivileged call.
+//
+// The route now issues  through this module's command
+// surface, which is the same engine with all three guards and the hash-chained
+// audit. Keeping a second, unguarded writer beside it would only be waiting for
+// the next caller to find it.
 
 /** Manual (org-admin) governance role change with provenance. */
 export async function updateOrganizationMembershipRole(

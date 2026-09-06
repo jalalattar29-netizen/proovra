@@ -64,7 +64,10 @@ describe("Phase 2 — TEAM is not enterprise (plan capabilities)", () => {
     expect(team.verificationPackageIncluded).toBe(true);
     expect(team.allowsSharedWorkspace).toBe(true);
     expect(team.includedSeats).toBe(5);
-    expect(team.maxWorkspaceSeats).toBe(5);
+    // APPROVED CHANGE — TEAM seats 10 people, PRO seats 5. The two tiers used
+    // to carry the same seat number, which meant the £79 tier bought no
+    // additional people over the £19 one.
+    expect(team.maxWorkspaceSeats).toBe(10);
     // ...but never governance/SSO/SCIM.
     expect(team.enterpriseFeatures.ssoScim).toBe(false);
     expect(team.enterpriseFeatures.legalHold).toBe(false);

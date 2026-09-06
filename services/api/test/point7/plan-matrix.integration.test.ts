@@ -826,9 +826,18 @@ describe("POINT 7 — five-plan server matrix (live PostgreSQL 16)", () => {
       expect(getPlanCapabilities("PRO").maxWorkspaceSeats).toBe(
         t.expected.maxWorkspaceSeats,
       );
-      // Fill the workspace to its cap with ACTIVE members and prove the
+      // Fill the workspace to ITS OWN cap with ACTIVE members and prove the
       // canonical seat projection reports it as full.
-      const cap = t.expected.maxWorkspaceSeats;
+      //
+      // WORKSPACE AND COLLABORATION ARCHITECTURE RECONCILIATION (2026-09-06)
+      // — the cap read here used to be the PERSONAL tenant's
+      // (`t.expected.maxWorkspaceSeats`, PRO = 5) while the workspace being
+      // filled and measured is the OWNED one, whose own commercial state is
+      // TEAM. The two numbers happened to be equal, so the conflation was
+      // invisible; TEAM's seats moving to 10 exposed it. The whole point of
+      // this scenario is that an OWNED workspace is judged on its OWN plan,
+      // so the cap comes from the workspace's plan.
+      const cap = getPlanCapabilities("TEAM").maxWorkspaceSeats;
       const current = await prisma.teamMember.count({
         where: { teamId: ws.teamId, status: "ACTIVE" },
       });

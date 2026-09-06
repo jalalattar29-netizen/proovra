@@ -100,12 +100,20 @@ describe("Phase R16 — shared vocabulary", () => {
     }
   });
 
-  it("exports the 3 digest modes (INSTANT/DAILY/MUTED)", () => {
-    expect(COLLABORATION_TEAM_DIGEST_MODES).toEqual([
-      "INSTANT",
-      "DAILY",
-      "MUTED",
-    ]);
+  // WORKSPACE AND COLLABORATION RECONCILIATION — "DAILY" was offered, stored
+  // on the row, and consumed by nothing: no digest job exists anywhere in the
+  // worker and the fan-out only ever branched on MUTED, so a person who chose
+  // it to get fewer emails got exactly as many. The offered set must equal the
+  // implemented set, which is what this pins.
+  it("offers only the digest modes the fan-out actually implements", () => {
+    expect(COLLABORATION_TEAM_DIGEST_MODES).toEqual(["INSTANT", "MUTED"]);
+    const notify = read(
+      "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
+    );
+    // The one non-default mode has a branch that honours it …
+    expect(notify).toContain('digest === "MUTED"');
+    // … and nothing branches on a mode that is no longer offered.
+    expect(codeOnly(notify)).not.toContain('"DAILY"');
   });
 
   it("exports the 4 guest statuses + 3 access-review statuses + 4 decisions", () => {
@@ -363,8 +371,20 @@ describe("Phase R16 — service module", () => {
     expect(svc).toMatch(/p\.mentions !== false/);
   });
 
-  it("guest invites are time-bounded by service (GUEST_MAX_TTL_DAYS)", () => {
-    expect(svc).toMatch(/GUEST_MAX_TTL_DAYS/);
+  // The guest registry never granted access: no email was sent, no read path
+  // consulted it, the status never left PENDING. A TTL on a grant that does
+  // not exist proves nothing, so the contract is the retirement itself — the
+  // operation refuses, and rows already written stay readable so an operator
+  // can see and revoke what they believed they had granted.
+  it("guest invitation is retired at the service, and existing rows stay readable", () => {
+    const body = svc.slice(svc.indexOf("export async function inviteGuest"));
+    const inviteBody = body.slice(
+      0,
+      body.indexOf("export async function listGuests"),
+    );
+    expect(inviteBody).toContain("COLLABORATION_TEAM_GUESTS_RETIRED");
+    expect(inviteBody).not.toContain("collaborationTeamGuest.create(");
+    expect(svc).toContain("export async function listGuests");
   });
 
   it("access review items only decidable by LEAD/ADMIN", () => {
@@ -472,8 +492,18 @@ describe("Phase R16 — API routes", () => {
     expect(routes).toMatch(/workspaceId: args\.workspaceId/);
   });
 
-  it("uses the Phase 3 canonical resolveActiveOperationalWorkspace helper", () => {
-    expect(routes).toMatch(/resolveActiveOperationalWorkspace/);
+  // WORKSPACE AND COLLABORATION RECONCILIATION — the rule is unchanged (ONE
+  // canonical resolution of the workspace an operation runs in, never a
+  // per-route guess) and the helper is now the collaboration binding, which
+  // resolves the workspace, authorizes the permission inside it, and confirms
+  // the group belongs to that workspace — in one place, for every route.
+  it("resolves + authorizes the workspace through the ONE canonical binding", () => {
+    expect(routes).toContain("authorizeCollaborationTeam(");
+    expect(routes).toContain(
+      "collaboration-team/collaboration-authorization.js",
+    );
+    // No route re-derives the workspace from the caller-supplied path param.
+    expect(codeOnly(routes)).not.toContain("workspaceId: req.params.teamId");
   });
 });
 
@@ -518,32 +548,43 @@ describe("Phase R16 — frontend", () => {
     }
   });
 
-  it("collaboration hub renders the required testid hooks", () => {
+  // WORKSPACE AND COLLABORATION RECONCILIATION — the Hub was a second page for
+  // one group, holding five panels. Three of them did nothing: guests granted
+  // no access, access review enforced no decision, and the daily digest had no
+  // consumer. Two duplicated surfaces that already exist — the inbox and
+  // Settings. What remained is the group's conversation, and it now sits
+  // beside the group's members and its work as the Discussion tab. The old URL
+  // redirects rather than 404s, because those links are in people's history.
+  it("the retired hub URL redirects into the team's Discussion tab", () => {
     const hub = read(
       "apps/web/app/(app)/collaboration-teams/[teamId]/collaboration/page.tsx",
     );
-    for (const t of [
-      "collaboration-hub",
-      "comments-panel",
-      "comment-create-form",
-      "comment-submit",
-      "notifications-card",
-      "preferences-card",
-      "guests-card",
-      "access-review-card",
-    ]) {
-      expect(hub, `missing testid ${t}`).toMatch(
+    expect(hub).toContain("router.replace(");
+    expect(hub).toContain("?tab=discussion");
+    expect(hub).toContain('data-testid="collaboration-hub-retired"');
+  });
+
+  it("the discussion the hub carried survives, with its interaction hooks", () => {
+    const discussion = read(
+      "apps/web/app/(app)/collaboration-teams/[teamId]/_tabs/DiscussionTab.tsx",
+    );
+    for (const t of ["comments-panel", "comment-create-form", "comment-submit"]) {
+      expect(discussion, `missing testid ${t}`).toMatch(
         new RegExp(`data-testid="${t}"`),
       );
     }
   });
 
-  it("Team detail page links to the collaboration hub", () => {
+  // The affordance survives; its destination is a tab on the same page rather
+  // than a second page, so the hook id stays and the href becomes a tab switch.
+  it("Team detail page still offers the discussion affordance, now as a tab", () => {
     const detail = read(
       "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx",
     );
     expect(detail).toMatch(/data-testid="collaboration-hub-link"/);
-    expect(detail).toMatch(/\/collaboration-teams\/\$\{team\.id\}\/collaboration/);
+    expect(detail).toContain('goTab("discussion")');
+    // It no longer navigates to the retired second page.
+    expect(codeOnly(detail)).not.toContain("}/collaboration");
   });
 
   it("collaboration hub route is registered (not ORGANIZATION_ONLY)", () => {
@@ -646,44 +687,70 @@ describe("Phase 12 Point 4 — guest invitation is server-enforced", () => {
     "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
   );
 
-  it("the service delegates the plan decision to the canonical invitation guard", () => {
+  // WORKSPACE AND COLLABORATION RECONCILIATION — the gate this pinned guarded
+  // an operation that granted nothing, so the operation went and the gate with
+  // it. What remains is stronger than a correctly-subjected plan decision: the
+  // service makes NO commercial decision here at all, which is the one shape
+  // that cannot be got wrong for any workspace kind.
+  it("the service makes no commercial decision here — it refuses, for everyone", () => {
     const body = SERVICE.slice(SERVICE.indexOf("export async function inviteGuest"));
-    expect(body).toContain("assertCanInviteCollaborationTeamGuest(");
-    // A hardcoded plan list here would be a second commercial authority.
-    expect(codeOnly(body).slice(0, 3000)).not.toMatch(/===\s*"(PRO|TEAM|FREE|ENTERPRISE)"/);
-    // So would resolving commercial state from the raw plan column: the
-    // subject-correct authority lives in billing-guards.
-    expect(codeOnly(body).slice(0, 3000)).not.toMatch(/billingPlan/);
-  });
-
-  it("the enforcement precedes any invitation mutation", () => {
-    const body = SERVICE.slice(SERVICE.indexOf("export async function inviteGuest"));
-    const gate = body.indexOf("assertCanInviteCollaborationTeamGuest(");
-    const write = body.indexOf("$transaction");
-    expect(gate).toBeGreaterThan(-1);
-    expect(write).toBeGreaterThan(-1);
-    expect(gate, "the plan gate must run before the invitation write").toBeLessThan(
-      write,
+    const inviteBody = body.slice(
+      0,
+      body.indexOf("export async function listGuests"),
     );
+    expect(inviteBody).toContain("COLLABORATION_TEAM_GUESTS_RETIRED");
+    // No plan list, no raw plan column, no entitlement call — nothing that
+    // could resolve to "allowed" for anybody.
+    expect(codeOnly(inviteBody)).not.toMatch(/===\s*"(PRO|TEAM|FREE|ENTERPRISE)"/);
+    expect(codeOnly(inviteBody)).not.toContain("billingPlan");
+    expect(codeOnly(inviteBody)).not.toContain("assertCanInvite");
   });
 
-  it("the server projects the eligibility the client renders", () => {
+  // There is no invitation mutation left to precede: authorization still runs
+  // first (a foreign team is concealed, an inactive member is refused), and
+  // then the operation refuses without opening a transaction.
+  it("the refusal reaches no writer at all", () => {
+    const body = SERVICE.slice(SERVICE.indexOf("export async function inviteGuest"));
+    const inviteBody = body.slice(
+      0,
+      body.indexOf("export async function listGuests"),
+    );
+    // Authorization is still the first thing that happens.
+    const authIdx = inviteBody.indexOf("requireMemberRole");
+    const refusalIdx = inviteBody.indexOf("COLLABORATION_TEAM_GUESTS_RETIRED");
+    expect(authIdx).toBeGreaterThan(-1);
+    expect(refusalIdx).toBeGreaterThan(authIdx);
+    // And nothing is written on the way out.
+    expect(inviteBody).not.toContain("$transaction");
+    expect(inviteBody).not.toContain("collaborationTeamGuest.create(");
+  });
+
+  // The projection stays catalog-derived rather than a plan-name list. It has
+  // no consumer while the surface is retired; keeping it derived means that if
+  // external collaboration is ever offered from a workspace surface again, the
+  // eligibility it reads is the catalog's, not a hardcoded tier list.
+  it("the guest eligibility projection is catalog-derived, not a plan-name list", () => {
     const ctx = read(
       "services/api/src/services/platform-context/platform-context.service.ts",
     );
     expect(ctx).toMatch(/canInviteGuests:\s*planCaps\.allowsSharedWorkspace/);
   });
 
-  it("the collaboration surface no longer decides eligibility from a plan name", () => {
+  // The surface that held the browser-side plan decision is retired entirely.
+  // A page that renders nothing but a redirect cannot decide eligibility, and
+  // the discussion that replaced it decides none either.
+  it("no collaboration surface decides eligibility from a plan name", () => {
     const page = read(
       "apps/web/app/(app)/collaboration-teams/[teamId]/collaboration/page.tsx",
     );
-    const gate = page.slice(
-      page.indexOf("function useAccessReviewPlanGate"),
-      page.indexOf("function useAccessReviewPlanGate") + 1400,
+    expect(page).not.toContain("useAccessReviewPlanGate");
+    expect(codeOnly(page)).not.toMatch(/plan\s*===\s*"(PRO|TEAM|FREE|ENTERPRISE)"/);
+
+    const discussion = read(
+      "apps/web/app/(app)/collaboration-teams/[teamId]/_tabs/DiscussionTab.tsx",
     );
-    expect(gate).toContain('usePlanFeature("canInviteGuests")');
-    // The removed decision, in any plan-name form.
-    expect(codeOnly(gate)).not.toMatch(/plan\s*===\s*"(PRO|TEAM|FREE|ENTERPRISE)"/);
+    expect(codeOnly(discussion)).not.toMatch(
+      /plan\s*===\s*"(PRO|TEAM|FREE|ENTERPRISE)"/,
+    );
   });
 });

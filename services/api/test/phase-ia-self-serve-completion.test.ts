@@ -150,7 +150,13 @@ describe("Phase IA-self-serve-completion — ENTERPRISE layout.tsx files added",
     // `/settings/notifications/deliveries` and kept BOTH its SETTINGS_VIEW
     // capability and its ENTERPRISE surface-tier rule, which
     // `attention-arch-phase5-canonical-routes.test.ts` asserts directly.
-    "app/(app)/collaboration",
+    // WORKSPACE AND COLLABORATION ARCHITECTURE RECONCILIATION —
+    // `app/(app)/collaboration` LEFT this list because the directory itself is
+    // gone. It was a second, workspace-level collaboration surface alongside
+    // the per-group one; collaboration is group-scoped, so the surviving
+    // surface is `/collaboration-teams`. There is no page left behind the gate
+    // to render, which the assertion below proves directly — a stronger
+    // guarantee than a layout, and the only correct one for a deleted tree.
     "app/(app)/evidence-lifecycle",
     "app/(app)/exchange",
     "app/(app)/integrations",
@@ -171,6 +177,10 @@ describe("Phase IA-self-serve-completion — ENTERPRISE layout.tsx files added",
     });
   }
 
+
+  it("the retired app/(app)/collaboration tree is GONE, not left ungated", () => {
+    expect(existsSync(webPath("app/(app)/collaboration"))).toBe(false);
+  });
   // Also pin that the shared layout itself still wraps children in
   // SurfaceGate — without this, every re-export is a no-op.
   it("EnterpriseSurfaceLayout wraps children in SurfaceGate", () => {

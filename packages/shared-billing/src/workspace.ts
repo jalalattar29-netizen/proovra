@@ -128,12 +128,21 @@ export function getEffectiveSeatLimit(scope: BillingWorkspaceScope): number {
  * PURCHASE-TARGET rule, not a resolution rule.
  *
  * It answers "may this plan be bought FOR a personal workspace?" — which is
- * how the checkout surface uses it, and why TEAM is the only plan that says no
- * (you buy TEAM for a team, not for yourself). It does NOT answer "may this identity
+ * how the checkout surface uses it. It does NOT answer "may this identity
  * have a Personal Space?": that is `resolvePersonalSpaceEligibility` in
  * services/api (identity mode + the Organization's `noPersonalSpace` policy),
  * and it is deliberately plan-independent — every authenticated user is
  * bootstrapped a Personal Space regardless of plan.
+ *
+ * WORKSPACE AND COLLABORATION ARCHITECTURE RECONCILIATION (2026-09-06) — TEAM
+ * used to be the one plan that answered NO here, on the reading that "you buy
+ * TEAM for a team, not for yourself". That reading was the last place the
+ * platform still treated TEAM as a KIND OF WORKSPACE rather than a price.
+ * Buying TEAM creates no workspace and transforms none; it raises the
+ * entitlement of the Personal Workspace the buyer already has — to 10 seats
+ * and 5 collaboration groups. Refusing the purchase made a plan unbuyable by
+ * exactly the people it is sold to, so every plan now answers yes, and the
+ * field keeps its meaning and its single question.
  *
  * `assertWorkspacePlanCompatible` used to apply the purchase-target rule to
  * the RESOLUTION path, so resolving the personal scope of a TEAM-plan account

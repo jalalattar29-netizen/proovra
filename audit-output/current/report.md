@@ -21,20 +21,20 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | 2c6f7a035f9089863247641707bd4d1f0982772d72d70f70c4e46876ec75855b |
+| engineHash    | 36c0e98126927111f8c14a7ec9d91c6ff91ca3c56a39ebadf3f1a92d1eb634e6 |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
 
 | counter                       | value |
 | ----------------------------- | ----- |
-| registeredRoutes              | 1127  |
+| registeredRoutes              | 1132  |
 | developmentOnlyRoutes         | 1     |
-| productConsumerRoutes         | 898   |
+| productConsumerRoutes         | 902   |
 | machineOnlyConsumerRoutes     | 4     |
-| noConsumerRoutes              | 225   |
+| noConsumerRoutes              | 226   |
 | dispositionedNonProductRoutes | 228   |
-| undisposedRoutes              | 0     |
+| undisposedRoutes              | 1     |
 | authorizationUnresolved       | 0     |
 | publicUnguardedRoutes         | 20    |
 
@@ -46,8 +46,8 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | ---------------------------------------------- | ----- |
 | DynamicUnresolvedRouteRegistrations            | 0     |
 | DynamicUnresolvedConsumers                     | 1     |
-| UnreviewedOriginConsumers                      | 0     |
-| AmbiguousConsumerSites                         | 0     |
+| UnreviewedOriginConsumers                      | 1     |
+| AmbiguousConsumerSites                         | 1     |
 | UnmatchedConsumerCalls                         | 0     |
 | ClassificationConflicts                        | 1     |
 | WrongOriginConsumers                           | 0     |
@@ -75,8 +75,8 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 
 | counter                                    | value |
 | ------------------------------------------ | ----- |
-| AuditFilesInventoried                      | 324   |
-| AuditFilesUnclassified                     | 0     |
+| AuditFilesInventoried                      | 345   |
+| AuditFilesUnclassified                     | 1     |
 | AuditArtifactProducersUnknown              | 0     |
 | AuditArtifactConsumersUnknown              | 0     |
 | AuditDependencyCycles                      | 0     |
@@ -86,8 +86,8 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | HistoricalReportsUsedAsAuthority           | 0     |
 | HistoricalReportsAmbiguousStatus           | 0     |
 | DuplicateAuditAuthorityClaims              | 0     |
-| IndependentRouteInventories                | 0     |
-| IndependentConsumerInventories             | 0     |
+| IndependentRouteInventories                | 1     |
+| IndependentConsumerInventories             | 1     |
 | CanonicalAuditEntryPoints                  | 1     |
 | CanonicalRouteAuthorities                  | 1     |
 | CanonicalConsumerAuthorities               | 1     |
@@ -96,7 +96,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | CanonicalCurrentReports                    | 1     |
 | LedgerGenerators                           | 1     |
 | GeneratedLedgerRenderings                  | 2     |
-| ObsoleteAuditScripts                       | 0     |
+| ObsoleteAuditScripts                       | 1     |
 | RetiredPathsResurrected                    | 0     |
 | DiagnosticsReadAsAuthority                 | 0     |
 | HistoricalDiagnosticCreditedAsAuthority    | 0     |
@@ -128,7 +128,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | ProductionRuntimeFilesModifiedByPhase0     | 0     |
 | ProductBehaviorTestsRemoved                | 0     |
 | HistoricalMigrationsModifiedByPhase0       | 0     |
-| ProductBehaviorTestsInventoried            | 195   |
+| ProductBehaviorTestsInventoried            | 197   |
 
 ### Report roles
 
@@ -201,10 +201,18 @@ Referenced, never transcribed. Each is measured by its own producer; this report
 ### Engine
 
 - INSTRUMENT: DynamicUnresolvedConsumers = 1
+- INSTRUMENT: UnreviewedOriginConsumers = 1
+- INSTRUMENT: AmbiguousConsumerSites = 1
 - INSTRUMENT: ClassificationConflicts = 1
+- UNCLASSIFIED audit file: scripts/admin-ledger/visual/README.md
+- INDEPENDENT ROUTE/CONSUMER SCANNER: scripts/admin-ledger/visual/states.mjs — Independent route/consumer scanner competing with the AST engine.
 
 ### Product closure
 
 - INSTRUMENT: DynamicUnresolvedConsumers = 1
+- INSTRUMENT: UnreviewedOriginConsumers = 1
+- INSTRUMENT: AmbiguousConsumerSites = 1
 - INSTRUMENT: ClassificationConflicts = 1
-- CHECKPOINT: 4 violation(s) — SCALAR_DISAGREES_WITH_FACTS: ProductionRegisteredRoutes: checkpoint says 1125, facts say 1126 | SCALAR_DISAGREES_WITH_FACTS: RegisteredRoutes: checkpoint says 1126, facts say 1127 | SCALAR_DISAGREES_WITH_FACTS: ClassificationConflicts: checkpoint says 0, facts say 1 | SCALAR_DISAGREES_WITH_FACTS: ProductConsumedRoutes: checkpoint says 897, facts say 898
+- UNWIRED EXECUTABLE WRITERS: 2 terminal writers have zero entrypoints (PRESERVED_PLANNED_WRITER + DEAD_UNREACHABLE)
+- CHECKPOINT: 12 violation(s) — SCALAR_DISAGREES_WITH_FACTS: ProductionRegisteredRoutes: checkpoint says 1125, facts say 1131 | SCALAR_DISAGREES_WITH_FACTS: RegisteredRoutes: checkpoint says 1126, facts say 1132 | SCALAR_DISAGREES_WITH_FACTS: UndisposedRoutes: checkpoint says 0, facts say 1 | SCALAR_DISAGREES_WITH_FACTS: ClassificationConflicts: checkpoint says 0, facts say 1 | SCALAR_DISAGREES_WITH_FACTS: TerminalWriters: checkpoint says 1256, facts say 1257
+- ArchitectureBacklog: UndisposedRoutes = 1 — registered routes with no reviewed product disposition (ARCH-BACKLOG-001, NON-BLOCKING, no security or completeness credit)

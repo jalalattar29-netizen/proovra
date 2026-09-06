@@ -276,6 +276,24 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
     disposition: "internal",
     why: "A retired endpoint answering a legacy client, not a person.",
   },
+  COLLABORATION_TEAM_INVITE_RETIRED: {
+    disposition: "internal",
+    why:
+      "A retired endpoint answering a legacy client, not a person. There is " +
+      "ONE invitation authority now — into the WORKSPACE, where acceptance " +
+      "claims a seat — and a group is filled by assigning people who already " +
+      "hold one. No surface offers this action, so the only caller left is a " +
+      "stale client or a direct API call.",
+  },
+  COLLABORATION_TEAM_GUESTS_RETIRED: {
+    disposition: "internal",
+    why:
+      "A retired operation answering a legacy client, not a person. Guest " +
+      "invitation wrote a row and granted nothing — no email was sent and no " +
+      "read path consulted the table — so the surface was removed and " +
+      "external reviewers are granted access by the external-review " +
+      "authority. Existing rows stay readable and revocable.",
+  },
 
   // -- Operator / platform-admin only --------------------------------------
   HEALTH_SNAPSHOT_UNAVAILABLE: {

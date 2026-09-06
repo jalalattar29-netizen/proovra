@@ -172,6 +172,29 @@ test("the registry does not describe codes the API no longer emits", () => {
     );
     known.add(c);
   }
+  /*
+   * THE RETIRED GUEST OPERATION EMITS FROM ITS SERVICE, NOT ITS ROUTE.
+   *
+   * `inviteGuest` refuses with a typed 410 that the central handler answers
+   * verbatim, so the code reaches a caller exactly as a route-emitted one
+   * does. Held to its authority the same way the commercial family above is:
+   * delete the throw and this fails.
+   */
+  const GUEST_RETIREMENT_AUTHORITY =
+    "services/api/src/services/collaboration-team/collaboration-completion.service.ts";
+  {
+    const src = read(GUEST_RETIREMENT_AUTHORITY);
+    const c = "COLLABORATION_TEAM_GUESTS_RETIRED";
+    assert.ok(
+      src.includes('"' + c + '"'),
+      c +
+        " is exempted from the staleness check as a service-emitted code, but " +
+        GUEST_RETIREMENT_AUTHORITY +
+        " no longer emits it. Remove the exemption and the registry entry, " +
+        "or restore the throw.",
+    );
+    known.add(c);
+  }
   // Codes that reach the client from the API's global error handler or from
   // the web client's own normalization rather than from a route file.
   for (const c of [

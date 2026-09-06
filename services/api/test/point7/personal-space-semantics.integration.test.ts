@@ -18,9 +18,18 @@
  * suite pins the two authorities apart BEHAVIOURALLY:
  *
  *   PURCHASE TARGET     the catalog. "May this plan be bought FOR a personal
- *                       workspace?" TEAM: no.
+ *                       workspace?"
  *   SPACE ELIGIBILITY   `resolvePersonalSpaceEligibility` — identity mode plus
  *                       the Organization's `noPersonalSpace`. Plan-independent.
+ *
+ * WORKSPACE AND COLLABORATION ARCHITECTURE RECONCILIATION (2026-09-06) — the
+ * purchase-target answer for TEAM inverted to YES. TEAM is a price, not a
+ * kind of workspace: buying it creates no workspace and transforms none, it
+ * raises the entitlement of the Personal Workspace the buyer already has.
+ * Scenario 4 below now proves that — which is the property that would be
+ * dangerous if it were wrong — instead of proving a refusal that made a plan
+ * unbuyable by the people it is sold to. The SEPARATION of the two
+ * authorities, which is what this suite exists for, is unchanged.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -174,23 +183,77 @@ describe("POINT 7 CORRECTIVE — TEAM / Personal-Space semantics (live PostgreSQ
 
   // 4
   it("p7.sem.team_plan_is_not_a_personal_purchase_target", async () => {
-    // The OTHER authority, still enforced — and now under a name that says
-    // which question it answers.
+    /**
+     * WORKSPACE AND COLLABORATION ARCHITECTURE RECONCILIATION (2026-09-06) —
+     * the ANSWER inverted; the SEPARATION this scenario exists to protect did
+     * not.
+     *
+     * TEAM is a commercial plan, not a domain object. Buying it creates no
+     * workspace and transforms none: it raises the entitlement of the Personal
+     * Workspace the buyer already has. Refusing the purchase on a personal
+     * workspace was the last surviving place where "TEAM is a kind of
+     * workspace" was still encoded — and it made a plan unbuyable by exactly
+     * the people it is sold to.
+     *
+     * So the purchase-target authority still answers only the purchase
+     * question, and it now says yes. What this scenario proves instead is the
+     * thing that would actually be dangerous if it were wrong: that saying yes
+     * created NOTHING.
+     */
     const { assertPlanPurchasableForWorkspaceShape, getPlanCapabilities } =
       await import("@proovra/shared-billing");
-    expect(getPlanCapabilities("TEAM").allowsPersonalWorkspacePurchase).toBe(false);
-    expect(() =>
-      assertPlanPurchasableForWorkspaceShape({
-        billingShape: "SINGLE_OCCUPANT",
-        plan: "TEAM",
-      }),
-    ).toThrow(/personal workspace/i);
-    // And the plans that CAN be bought for a personal workspace still can.
-    for (const plan of ["FREE", "PAYG", "PRO", "ENTERPRISE"] as const) {
+    expect(getPlanCapabilities("TEAM").allowsPersonalWorkspacePurchase).toBe(
+      true,
+    );
+    for (const plan of ["FREE", "PAYG", "PRO", "TEAM", "ENTERPRISE"] as const) {
       expect(() =>
-        assertPlanPurchasableForWorkspaceShape({ billingShape: "SINGLE_OCCUPANT", plan }),
+        assertPlanPurchasableForWorkspaceShape({
+          billingShape: "SINGLE_OCCUPANT",
+          plan,
+        }),
       ).not.toThrow();
     }
+
+    // BEHAVIOURAL: buying TEAM changes the entitlement and nothing else.
+    const t = await seedPersonalTenant(deps, "PRO");
+    const workspacesBefore = await prisma.team.findMany({
+      where: { ownerUserId: t.owner.userId },
+      select: { id: true, workspaceKind: true, isPersonal: true },
+      orderBy: { id: "asc" },
+    });
+    const before = await fingerprintSideEffects(prisma);
+
+    await setAccountPlan(deps, t.owner.userId, "TEAM");
+
+    const workspacesAfter = await prisma.team.findMany({
+      where: { ownerUserId: t.owner.userId },
+      select: { id: true, workspaceKind: true, isPersonal: true },
+      orderBy: { id: "asc" },
+    });
+    // Same workspaces, same kinds — no creation, no transformation.
+    expect(workspacesAfter).toEqual(workspacesBefore);
+    expect(workspacesAfter.every((w) => w.workspaceKind === "PERSONAL")).toBe(
+      true,
+    );
+
+    // The entitlement DID move, and the surface reads the new one.
+    const env = (await context(t.owner.token)).json();
+    expect(env.activeSpace.id).toBe(t.personalTeamId);
+    // The numeric limits are projected under `planFeatures`, from the one
+    // catalog, for the ACTIVE workspace.
+    expect(env.planFeatures.limits.maxCollaborationTeamsPerWorkspace).toBe(
+      getPlanCapabilities("TEAM").maxCollaborationTeamsPerWorkspace,
+    );
+    expect(env.planFeatures.limits.maxWorkspaceSeats).toBe(
+      getPlanCapabilities("TEAM").maxWorkspaceSeats,
+    );
+
+    // Nothing else in the system moved: the only delta is the entitlement.
+    const after = await fingerprintSideEffects(prisma);
+    const delta = fingerprintDelta(before, after);
+    expect(Object.keys(delta).filter((k) => !/entitlement/i.test(k))).toEqual(
+      [],
+    );
     provenScenario("SERVER", "p7.sem.team_plan_is_not_a_personal_purchase_target");
   });
 

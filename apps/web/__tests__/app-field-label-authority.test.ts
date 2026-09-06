@@ -126,7 +126,6 @@ const EXPECTED_CONSUMERS = [
   // asserted below rather than assumed — see the dark-surface test.
   "app/(app)/admin/users/[id]/EvidenceCreditGrant.tsx",
   "app/(app)/collaboration-teams/[teamId]/_tabs/AssignmentsTab.tsx",
-  "app/(app)/collaboration-teams/[teamId]/_tabs/DiscussionTab.tsx",
   "app/(app)/collaboration-teams/[teamId]/_tabs/SettingsTab.tsx",
   "app/(app)/collaboration-teams/page.tsx",
   "app/(app)/intake-links/_components/LinkCreatedDialog.tsx",

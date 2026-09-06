@@ -73,6 +73,22 @@ const MINTERS = new Set([
   "authorizeCurrentWorkspaceOrFail",
   "evaluateAuthorizedWorkspace",
   "evaluateCurrentWorkspace",
+  /**
+   * WORKSPACE AND COLLABORATION ARCHITECTURE RECONCILIATION (2026-09-06).
+   *
+   * `authorizeCollaborationWorkspace` is a MINTER, not a consumer: the only
+   * value it can return is the one the two authority calls above minted, and
+   * it returns it unmodified. It exists because the collaboration surfaces
+   * need one more thing than any other surface — the workspace must also be
+   * LIVE (`Team.closedAtUtc`) — and putting that beside the authorization
+   * call is what stops each of a dozen routes remembering it separately.
+   *
+   * The registration is held to the shape by `collaboration-minter-shape`
+   * below, which fails if the function ever returns anything it did not get
+   * from an authority call. That is the same standard the four names above
+   * meet by living inside the authority module itself.
+   */
+  "authorizeCollaborationWorkspace",
 ]);
 
 /** Assertions, weakest to strongest. */
@@ -477,6 +493,23 @@ const FIXTURES = [
       export async function f(ctx: AuthorizedWorkspaceContext, workspaceId: string) {
         const proven = await requireLiveAuthorizedWorkspaceContext(ctx, { workspaceId });
         return prisma.evidence.create({ data: { teamId: proven.workspaceId } });
+      }
+    `,
+  },
+  {
+    // The collaboration binding's shape: a thin frame that returns ONLY what
+    // an authority call gave it. Registered as a minter on that basis, so the
+    // fixture pins the basis rather than the name.
+    name: "collaboration-minter-shape",
+    mustFlag: false,
+    code: `
+      declare const prisma: any;
+      type AuthorizedWorkspaceContext = { workspaceId: string; workspaceRole: string };
+      declare function authorizeCollaborationWorkspace(a: any, b: any, c: any): Promise<any>;
+      export async function f(req: any, reply: any) {
+        const ctx = await authorizeCollaborationWorkspace(req, reply, "collaboration.thread.read");
+        if (!ctx) return;
+        return prisma.collaborationTeam.findMany({ where: { workspaceId: ctx.workspaceId } });
       }
     `,
   },

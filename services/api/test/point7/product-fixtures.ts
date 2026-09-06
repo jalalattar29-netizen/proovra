@@ -190,6 +190,26 @@ export async function bootstrapPersonalSpace(
     "../../src/services/platform-context/workspace-bootstrap.service.js"
   );
   const personal = await ensurePersonalWorkspace({ userId });
+  /**
+   * POINT THE USER AT IT, THE WAY A REAL SESSION IS POINTED AT IT.
+   *
+   * `ensurePersonalWorkspace` creates the workspace and the owner's
+   * membership; it does NOT write `User.currentWorkspaceId`. In the running
+   * product that pointer is written the first time a client loads
+   * `GET /v1/platform/context`, which every session does before it can
+   * render anything — so a real caller always arrives at a route with EITHER
+   * the active-workspace header or a resolved pointer.
+   *
+   * This fixture went straight from the bootstrap to the route, so its user
+   * had neither, and the canonical authorization chain answered "you have not
+   * told me which workspace this is" — concealed, correctly, as a 404. That
+   * masked the behaviour every scenario here is actually about. Writing the
+   * pointer makes the fixture a session rather than a half-provisioned row.
+   */
+  await deps.prisma.user.update({
+    where: { id: userId },
+    data: { currentWorkspaceId: personal.teamId },
+  });
   const team = await deps.prisma.team.findUniqueOrThrow({
     where: { id: personal.teamId },
     select: { organizationId: true },

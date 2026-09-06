@@ -31,7 +31,6 @@ import {
   authorizeCollaborationTeam,
   authorizeCollaborationWorkspace,
 } from "../services/collaboration-team/collaboration-authorization.js";
-import { prisma } from "../db.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import {
   CollaborationTeamError,

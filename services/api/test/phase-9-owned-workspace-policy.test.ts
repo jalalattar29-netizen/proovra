@@ -164,9 +164,13 @@ describe("Phase 9 §9.4 corrected — Owned Workspace never inherits the owner's
     );
     const member = guards.slice(guards.indexOf("export async function assertCollaborationTeamMemberLimit"), guards.indexOf("export async function assertCanInviteCollaborationTeamMember"));
     const invite = guards.slice(guards.indexOf("export async function assertCanInviteCollaborationTeamMember"), guards.indexOf("assertSubscriptionActiveOrGraceAllowed"));
-    expect(member).toMatch(/resolveCollaborationTeamWorkspacePlan\(client, teamId\)/);
+    // Whitespace-tolerant: the member guard now destructures the workspace id
+    // out of the same call (it needs the workspace to count its seats), so the
+    // call wraps. The assertion is the subject, not the formatting.
+    const WORKSPACE_SUBJECT = /resolveCollaborationTeamWorkspacePlan\(\s*client,\s*teamId,?\s*\)/;
+    expect(member).toMatch(WORKSPACE_SUBJECT);
     expect(member).not.toMatch(/resolveUserPlan\(/);
-    expect(invite).toMatch(/resolveCollaborationTeamWorkspacePlan\(client, teamId\)/);
+    expect(invite).toMatch(WORKSPACE_SUBJECT);
     expect(invite).not.toMatch(/resolveUserPlan\(/);
   });
 });

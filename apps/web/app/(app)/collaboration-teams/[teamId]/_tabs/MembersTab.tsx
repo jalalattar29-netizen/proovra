@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useToast } from "../../../../../components/ui";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
@@ -14,8 +14,11 @@ import { ApiError } from "../../../../../lib/api";
 import { notifyApiError } from "../../../../../lib/feedback/notify";
 import { formatUserDate } from "../../../../../lib/date";
 import {
+  addExistingMember,
   type CollaborationTeamDetail,
   type CollaborationTeamMember,
+  type EligibleWorkspaceMember,
+  listEligibleMembers,
   removeMember,
   updateMember,
 } from "../../../../../lib/api/collaboration-teams";
@@ -28,7 +31,6 @@ import {
   useWorkspaceLimits,
 } from "../../../../../lib/platform-context";
 import type { WorkspacePlan } from "../../../../../lib/platform-context/types";
-import type { TabId } from "../page";
 
 // =============================================================================
 // Members tab
@@ -46,15 +48,14 @@ function MembersTab({
   onRefresh,
   canManage,
   canInvite,
-  onJumpTab,
 }: {
   team: CollaborationTeamDetail;
   onRefresh: () => Promise<void>;
   canManage: boolean;
   canInvite: boolean;
-  onJumpTab: (t: TabId) => void;
 }) {
   const { addToast } = useToast();
+  const [addingMember, setAddingMember] = useState(false);
   const activeLeadCount = team.members.filter(
     (m) => m.role === "LEAD" && m.status === "ACTIVE",
   ).length;
@@ -101,7 +102,7 @@ function MembersTab({
           <button
             type="button"
             className="app-primary-action"
-            onClick={() => onJumpTab("members")}
+            onClick={() => setAddingMember((open) => !open)}
             disabled={atCapacity}
             aria-disabled={atCapacity || undefined}
             title={
@@ -111,11 +112,20 @@ function MembersTab({
             }
             data-testid="members-invite-button"
             data-at-capacity={atCapacity ? "true" : "false"}
+            aria-expanded={addingMember}
           >
-            Invite member
+            Add member
           </button>
         ) : null}
       </div>
+
+      {addingMember && !atCapacity ? (
+        <AddMemberPanel
+          team={team}
+          onRefresh={onRefresh}
+          onClose={() => setAddingMember(false)}
+        />
+      ) : null}
 
       <div className="app-panel__body">
         {atCapacity ? (
@@ -469,6 +479,224 @@ function MemberRow({
         </div>
       </td>
     </tr>
+  );
+}
+
+// =============================================================================
+// Add an existing workspace member to this group
+//
+// WORKSPACE AND COLLABORATION ARCHITECTURE RECONCILIATION — the two operations
+// are separate and only one of them belongs here.
+//
+//   (A) Invite a PERSON INTO THE WORKSPACE — one invitation authority, one
+//       seat claim, done in Teams › Members (workspace settings).
+//   (B) Assign an EXISTING ACTIVE WORKSPACE MEMBER to a group — this panel.
+//
+// A group is not a seat pool: someone already in the workspace consumes
+// nothing by joining a group, and the same person in five groups is still one
+// seat. So this reads the workspace directory (`eligible-members`, which the
+// server filters to ACTIVE workspace members not already in this group) rather
+// than offering an email field that would mint a second invitation.
+// =============================================================================
+function AddMemberPanel({
+  team,
+  onRefresh,
+  onClose,
+}: {
+  team: CollaborationTeamDetail;
+  onRefresh: () => Promise<void>;
+  onClose: () => void;
+}) {
+  const { addToast } = useToast();
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [eligible, setEligible] = useState<
+    ReadonlyArray<EligibleWorkspaceMember>
+  >([]);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [role, setRole] = useState<CollaborationTeamRole>("MEMBER");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    const handle = setTimeout(() => {
+      void listEligibleMembers(team.id, { search, limit: 25 })
+        .then((page) => {
+          if (cancelled) return;
+          setEligible(page.members);
+          setSelectedUserId((current) =>
+            current && page.members.some((m) => m.userId === current)
+              ? current
+              : (page.members[0]?.userId ?? null),
+          );
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          setEligible([]);
+          notifyApiError(addToast, err, {
+            message: "Could not load workspace members.",
+          });
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    }, 200);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [team.id, search, addToast]);
+
+  const submit = async () => {
+    if (!selectedUserId || busy) return;
+    setBusy(true);
+    try {
+      await addExistingMember(team.id, { userId: selectedUserId, role });
+      await onRefresh();
+      addToast("Added to this team.", "success");
+      onClose();
+    } catch (err) {
+      // The server is the authority on capacity and on who may be added; a
+      // refusal is shown exactly as it was given, never guessed at here.
+      notifyApiError(addToast, err, {
+        message: "Could not add this person to the team.",
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div
+      className="app-panel__body"
+      data-testid="add-member-panel"
+      style={{
+        border: "1px solid var(--app-border, rgba(15,23,42,0.10))",
+        borderRadius: 12,
+        marginBottom: "0.9rem",
+        padding: "0.9rem",
+      }}
+    >
+      <p className="app-table__muted" style={{ marginTop: 0 }}>
+        People who already have access to this workspace. To bring someone new
+        into the workspace, invite them in{" "}
+        <Link href="/teams">workspace members</Link> first.
+      </p>
+
+      <input
+        type="search"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search this workspace"
+        aria-label="Search workspace members"
+        data-testid="add-member-search"
+        className="cases-filter-search"
+        style={{ width: "100%", marginBottom: "0.7rem" }}
+      />
+
+      {loading ? (
+        <p className="app-table__muted" data-testid="add-member-loading">
+          Loading…
+        </p>
+      ) : eligible.length === 0 ? (
+        <p className="app-table__muted" data-testid="add-member-empty">
+          {search.trim()
+            ? "Nobody in this workspace matches that."
+            : "Everyone in this workspace is already in this team."}
+        </p>
+      ) : (
+        <ul
+          data-testid="add-member-candidates"
+          style={{ listStyle: "none", margin: 0, padding: 0, maxHeight: 260, overflowY: "auto" }}
+        >
+          {eligible.map((candidate) => (
+            <li key={candidate.userId}>
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "0.45rem 0.2rem",
+                  cursor: "pointer",
+                }}
+              >
+                <input
+                  type="radio"
+                  name="add-member-candidate"
+                  value={candidate.userId}
+                  checked={selectedUserId === candidate.userId}
+                  onChange={() => setSelectedUserId(candidate.userId)}
+                  data-testid={`add-member-candidate-${candidate.userId}`}
+                />
+                <span className="app-avatar" aria-hidden>
+                  {(candidate.displayName[0] ?? "?").toUpperCase()}
+                </span>
+                <span style={{ minWidth: 0 }}>
+                  <span style={{ display: "block" }}>
+                    {candidate.displayName}
+                  </span>
+                  {candidate.email ? (
+                    <span className="app-table__muted">{candidate.email}</span>
+                  ) : null}
+                </span>
+                <AppStatusBadge tone="slate">
+                  {candidate.workspaceRole}
+                </AppStatusBadge>
+              </label>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          marginTop: "0.8rem",
+          flexWrap: "wrap",
+        }}
+      >
+        <span className="app-table__muted">Role in this team</span>
+        <div style={{ minWidth: 148 }}>
+          <AppListbox<CollaborationTeamRole>
+            value={role}
+            options={COLLABORATION_TEAM_ROLES.map((r) => ({
+              value: r,
+              label: r,
+            }))}
+            onChange={setRole}
+            disabled={busy}
+            ariaLabel="Role in this team"
+          />
+        </div>
+        <input
+          type="hidden"
+          data-testid="add-member-role"
+          value={role}
+          readOnly
+        />
+        <button
+          type="button"
+          className="app-primary-action"
+          onClick={() => void submit()}
+          disabled={busy || !selectedUserId}
+          data-testid="add-member-submit"
+        >
+          Add to team
+        </button>
+        <button
+          type="button"
+          className="app-ghost-action"
+          onClick={onClose}
+          disabled={busy}
+          data-testid="add-member-cancel"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
   );
 }
 

@@ -91,7 +91,10 @@ beforeEach(() => {
 
 describe("Row 14 — seat exhaustion is DETERMINISTIC (same state → same denial, zero mutation)", () => {
   it("exhausted seats deny BEFORE any membership mutation, with a stable shape, twice in a row", async () => {
-    H.activeMembers = 5; // TEAM seat limit (5) fully consumed → exhausted
+    // WORKSPACE AND COLLABORATION RECONCILIATION — the approved TEAM
+    // workspace seat entitlement is 10. This row is about determinism, not
+    // about the number, so it tracks the entitlement.
+    H.activeMembers = 10; // TEAM seat limit (10) fully consumed → exhausted
     H.includedSeats = 1;
     const scope = { billingShape: "SHARED", plan: "TEAM", teamId: "ws-1", ownerUserId: "owner-1", organizationId: "org-1", credits: 0, teamSeats: 1, storageBytesOverride: null, activeStorageAddonBytes: 0n, legacyRecordCapOverride: null } as never;
     const first = await assertTeamSeatAvailable(scope).then(
@@ -112,7 +115,7 @@ describe("Row 14 — seat exhaustion is DETERMINISTIC (same state → same denia
     H.includedSeats = 1;
     await expect(
       assertTeamSeatAvailable({ billingShape: "SHARED", plan: "TEAM", teamId: "ws-1", ownerUserId: "owner-1", organizationId: "org-1", credits: 0, teamSeats: 1, storageBytesOverride: null, activeStorageAddonBytes: 0n, legacyRecordCapOverride: null } as never),
-    ).resolves.toMatchObject({ seatLimit: 5 });
+    ).resolves.toMatchObject({ seatLimit: 10 });
   });
 });
 

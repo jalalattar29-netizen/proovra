@@ -74,6 +74,19 @@ export type PlanContractRow = {
  *               recurring workspace plan.
  *   PRO         personal-professional: cases, intake and professional surfaces
  *               on the SAME Personal Workspace — but NOT reviewer operations.
+ *
+ *   WORKSPACE AND COLLABORATION ARCHITECTURE RECONCILIATION (2026-09-06) —
+ *   `maxWorkspaceSeats` moved on three rows, by approved product decision,
+ *   and this independent transcription follows the decision:
+ *
+ *     FREE / PAYG  0 -> 1. Zero seats described a workspace whose OWNER did
+ *                  not occupy one, so "1 of 0 used" was the honest reading of
+ *                  every free workspace. The owner counts as one seat; a free
+ *                  workspace holds exactly its owner.
+ *     TEAM         5 -> 10.
+ *
+ *   Nothing else in this table moved.
+ *
  *   TEAM        the collaboration tier of that same Personal Workspace:
  *               reviewer operations and review queues on top of PRO. A tier,
  *               not a second workspace.
@@ -88,7 +101,7 @@ export const PLAN_CONTRACT: Record<CanonicalPlan, PlanContractRow> = {
     reports: false,
     intake: false,
     reviewerOperations: false,
-    maxWorkspaceSeats: 0,
+    maxWorkspaceSeats: 1,
     lifetimeRecordCap: 3,
     monthlyRecordCap: null,
     creditsPerCompletion: 0,
@@ -100,7 +113,7 @@ export const PLAN_CONTRACT: Record<CanonicalPlan, PlanContractRow> = {
     reports: true,
     intake: true,
     reviewerOperations: false,
-    maxWorkspaceSeats: 0,
+    maxWorkspaceSeats: 1,
     lifetimeRecordCap: null,
     monthlyRecordCap: null,
     creditsPerCompletion: 1,
@@ -124,7 +137,7 @@ export const PLAN_CONTRACT: Record<CanonicalPlan, PlanContractRow> = {
     reports: true,
     intake: true,
     reviewerOperations: true,
-    maxWorkspaceSeats: 5,
+    maxWorkspaceSeats: 10,
     lifetimeRecordCap: null,
     monthlyRecordCap: 500,
     creditsPerCompletion: 0,

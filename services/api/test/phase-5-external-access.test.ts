@@ -135,21 +135,33 @@ describe("Phase 5 §8.4/§8.5 — source contracts", () => {
   });
 
   it("TeamInvite accept: guarded claim + orchestrated grant in ONE transaction", () => {
+    // WORKSPACE AND COLLABORATION RECONCILIATION — the rule is unchanged and
+    // its subject moved. The handler that used to hold this logic is now one
+    // call to `acceptWorkspaceInvitation`, THE workspace invitation lifecycle,
+    // so the contract is read where the code actually lives.
     const routes = read("routes/teams.routes.ts");
     const at = routes.indexOf('"/v1/teams/invites/:token/accept"');
     expect(at).toBeGreaterThan(-1);
-    const handler = routes.slice(at, at + 7000);
-    // The claim is guarded on the un-consumed invite and precedes the
-    // provisioning call inside the same transaction.
-    expect(handler).toMatch(
-      /\$transaction[\s\S]{0,400}teamInvite\.updateMany\(\{\s*\n?\s*where:\s*\{\s*id:\s*invite\.id,\s*acceptedAt:\s*null\s*\}/,
+    expect(routes.slice(at, at + 4000)).toMatch(/acceptWorkspaceInvitation\(/);
+
+    const service = read("services/identity/workspace-invitation.service.ts");
+    // The claim is guarded on the un-consumed invite …
+    expect(service).toMatch(
+      /teamInvite\.updateMany\(\{\s*\n?\s*where:\s*\{\s*id:\s*invite\.id,\s*acceptedAt:\s*null,\s*revokedAt:\s*null\s*\}/,
     );
-    const claimIdx = handler.indexOf("acceptedAt: null");
-    const provisionIdx = handler.indexOf("provisionMembership(tx,");
+    const claimIdx = service.indexOf("acceptedAt: null, revokedAt: null");
+    const provisionIdx = service.indexOf("provisionMembership(");
     expect(claimIdx).toBeGreaterThan(-1);
+    // … the claim precedes the provisioning call …
     expect(provisionIdx).toBeGreaterThan(claimIdx);
+    // … and both sit inside ONE transaction that also holds the seat check,
+    // serialised per workspace so two accepts of DIFFERENT invitations cannot
+    // both take the last remaining seat.
+    expect(service).toMatch(/\$transaction\(/);
+    expect(service).toContain("pg_try_advisory_xact_lock");
+
     // The old post-provisioning unguarded consume is gone.
-    expect(handler).not.toMatch(
+    expect(service).not.toMatch(
       /teamInvite\.update\(\{\s*\n?\s*where:\s*\{\s*id:\s*invite\.id\s*\},\s*\n?\s*data:\s*\{\s*acceptedAt/,
     );
   });

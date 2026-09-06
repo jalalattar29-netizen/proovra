@@ -324,7 +324,12 @@ const TEAM_WORDING_ALLOWLIST = new Set<string>([
   // each tab inherits the same legitimate Collaboration-Teams product wording.
   "app/(app)/collaboration-teams/[teamId]/_tabs/OverviewTab.tsx",
   "app/(app)/collaboration-teams/[teamId]/_tabs/MembersTab.tsx",
-  "app/(app)/collaboration-teams/[teamId]/_tabs/InvitesTab.tsx",
+  // WORKSPACE AND COLLABORATION RECONCILIATION — InvitesTab was removed with
+  // the retired CollaborationTeamInvite product surface (people are invited to
+  // the WORKSPACE, then assigned to a group), and DiscussionTab took its place
+  // as the group-scoped discussion the Hub used to own. Same directory, same
+  // legitimate Collaboration-Teams product wording as its siblings above.
+  "app/(app)/collaboration-teams/[teamId]/_tabs/DiscussionTab.tsx",
   "app/(app)/collaboration-teams/[teamId]/_tabs/AssignmentsTab.tsx",
   "app/(app)/collaboration-teams/[teamId]/_tabs/ActivityTab.tsx",
   "app/(app)/collaboration-teams/[teamId]/_tabs/SettingsTab.tsx",

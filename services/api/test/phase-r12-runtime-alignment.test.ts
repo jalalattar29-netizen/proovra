@@ -494,29 +494,88 @@ describe("Phase R12 — Stage 6: dead PERSONAL_*/ORG_* keys carry @deprecated", 
 // Stage 7 — backend canonical workspace helpers exist
 // =============================================================================
 
-describe("Phase R12 — Stage 7: canonical-workspace-resolver helpers exist", () => {
+// =============================================================================
+// Stage 7 — the canonical workspace binding for collaboration surfaces
+//
+// WORKSPACE AND COLLABORATION ARCHITECTURE RECONCILIATION (2026-09-06) —
+// `services/api/src/services/access/canonical-workspace-resolver.ts` was
+// DELETED, and the three contracts below moved to the module that replaced it.
+//
+// The resolver read an `x-team-id` header the web client never sent and then
+// FELL BACK to the caller's Personal Space, so every collaboration read and
+// write operated on the caller's personal workspace no matter which workspace
+// the product said they were in. An Organization owner saw "0 of 5 teams used"
+// on a workspace holding a team with a thousand members. Its two production
+// consumers were the two collaboration route files; when they moved to the
+// canonical primitive it had none left, and the module-reachability gate
+// required a disposition.
+//
+// The replacement is stricter in exactly the place the old one was loose:
+// there is no fallback at all. A request that cannot prove which workspace it
+// is operating in is a DENIAL, concealed as 404, rather than an invitation to
+// pick a workspace on the caller's behalf. The Personal-First invariant is
+// preserved where it belongs — a personal workspace is a perfectly good
+// candidate when the caller's own pointer names it — but it is REVALIDATED
+// like any other, never assumed.
+// =============================================================================
+
+describe("Phase R12 — Stage 7: the canonical workspace binding", () => {
   const path =
-    "services/api/src/services/access/canonical-workspace-resolver.ts";
+    "services/api/src/services/collaboration-team/collaboration-authorization.ts";
 
-  it("exposes resolveActiveOperationalWorkspace", () => {
-    const body = read(path);
-    expect(body).toMatch(
-      /export async function resolveActiveOperationalWorkspace/,
+  it("the superseded resolver is gone, not merely bypassed", () => {
+    expect(
+      existsSync(
+        join(apiSrc, "services", "access", "canonical-workspace-resolver.ts"),
+      ),
+    ).toBe(false);
+    // And nothing imports it or its entry point any more.
+    const routes = read(
+      "services/api/src/routes/collaboration-teams.routes.ts",
     );
-    // Personal-first invariant is honoured by the resolution order.
-    expect(body).toMatch(/personal-default/);
-    expect(body).toMatch(/isPersonal/);
+    expect(routes).not.toMatch(/canonical-workspace-resolver/);
+    // The name survives only in the comment recording what was replaced and
+    // why; no executable line calls it.
+    const executable = routes
+      .split(/\r?\n/)
+      .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+      .join("\n");
+    expect(executable).not.toMatch(/resolveActiveOperationalWorkspace/);
   });
 
-  it("exposes mapAuthorizationDenial backed by the shared mapper", () => {
+  it("resolves the operational workspace from the request, with NO personal fallback", () => {
     const body = read(path);
-    expect(body).toMatch(/export function mapAuthorizationDenial/);
-    expect(body).toMatch(/authorizationDenialCodeToDenialReason/);
+    expect(body).toMatch(/export async function authorizeCollaborationWorkspace/);
+    // The workspace is NAMED by the request or by the caller's own pointer …
+    expect(body).toMatch(/x-proovra-workspace-id/);
+    expect(body).toMatch(/currentWorkspaceId/);
+    // … and either way it is revalidated by the canonical primitive.
+    expect(body).toMatch(/authorizeWorkspaceOrFail/);
+    expect(body).toMatch(/authorizeCurrentWorkspaceOrFail/);
+    // The regression this replaced: no silent substitution of a personal space.
+    expect(body).toMatch(/NO personal fallback/i);
   });
 
-  it("never imports authorize.ts directly (additive helper, no auth weakening)", () => {
+  it("denials go through the canonical concealing path, not a local mapper", () => {
     const body = read(path);
-    expect(body).not.toMatch(/from\s+["'][^"']*middleware\/authorize/);
+    // A foreign team id and a nonexistent one are indistinguishable.
+    expect(body).toMatch(/not_found/);
+    expect(body).toMatch(/404/);
+  });
+
+  it("layers group authority ON TOP of workspace authority, never instead of it", () => {
+    const body = read(path);
+    const teamGate = body.indexOf("export async function authorizeCollaborationTeam");
+    expect(teamGate).toBeGreaterThan(-1);
+    const scoped = body.slice(teamGate);
+    // Workspace first …
+    const wsIdx = scoped.indexOf("authorizeCollaborationWorkspace(");
+    // … then the group, bound to that same workspace.
+    const bindIdx = scoped.indexOf("team.workspaceId !== workspace.workspaceId");
+    const groupIdx = scoped.indexOf("collaborationTeamRoleHasPermission");
+    expect(wsIdx).toBeGreaterThan(-1);
+    expect(bindIdx).toBeGreaterThan(wsIdx);
+    expect(groupIdx).toBeGreaterThan(wsIdx);
   });
 });
 
@@ -559,22 +618,37 @@ describe("Phase R12 — Phase 3 constitutional non-negotiables", () => {
     expect(TOM_PERSONA_KINDS).not.toContain("GOVERNANCE");
   });
 
-  it("does NOT rename teamId globally — resolver still returns teamId verbatim", () => {
+  it("does NOT rename teamId globally — the column and the param keep their name", () => {
+    // The deleted resolver used to carry this contract. It survives in the
+    // binding that replaced it, and it is the sharper statement of the rule:
+    // `Team.id` IS the workspace id, and `:teamId` on a collaboration route is
+    // a CollaborationTeam id. Both names stay, and the binding says which is
+    // which rather than renaming either.
     const body = read(
-      "services/api/src/services/access/canonical-workspace-resolver.ts",
+      "services/api/src/services/collaboration-team/collaboration-authorization.ts",
     );
-    expect(body).toMatch(/teamId: string/);
-    expect(body).toMatch(/return\s*\{\s*\n?\s*teamId:/);
+    expect(body).toMatch(/teamId/);
+    expect(body).toMatch(/COLLABORATION TEAM id/);
+    // The canonical primitive still exposes the workspace id under its own
+    // name, so a caller never has to guess which of the two it holds.
+    const authorize = read("services/api/src/middleware/authorize.ts");
+    expect(authorize).toMatch(/readonly workspaceId: string/);
   });
 
   it("does NOT mark Team as Organization-required (Personal-First invariant intact)", () => {
-    // Stage 7 resolver explicitly returns the personal team row when
-    // no header is supplied — that codepath is the Personal-First
-    // contract and must not be regressed.
-    const body = read(
-      "services/api/src/services/access/canonical-workspace-resolver.ts",
+    // The canonical workspace kinds still include PERSONAL, and a personal
+    // workspace is authorized by the same path as every other kind — it is a
+    // candidate, revalidated, never a silent fallback.
+    const authorize = read("services/api/src/middleware/authorize.ts");
+    expect(authorize).toMatch(
+      /CanonicalWorkspaceKind = "PERSONAL" \| "OWNED" \| "ORGANIZATION"/,
     );
-    expect(body).toMatch(/Personal-First/);
+    const body = read(
+      "services/api/src/services/collaboration-team/collaboration-authorization.ts",
+    );
+    // Nothing here requires an organization to reach a collaboration team.
+    expect(body).not.toMatch(/organizationId\s*!==?\s*null/);
+    expect(body).not.toMatch(/requiresOrganization/);
   });
 });
 

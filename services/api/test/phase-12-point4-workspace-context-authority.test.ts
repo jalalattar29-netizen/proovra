@@ -1,121 +1,285 @@
 /**
  * PHASE 12 POINT 4 PASS C5 — a named workspace is never silently replaced.
  *
- * `resolveActiveOperationalWorkspace` is the ONE live workspace-context
- * authority for the collaboration surfaces. When a request named a workspace
- * (`x-team-id`, or a `teamId` query/body field) that produced no ACTIVE
- * membership, the resolver used to fall through to the caller's PERSONAL
- * workspace and report success. The operation then ran against the wrong
- * tenant: a guest invitation, a team mutation or a listing meant for
- * workspace X quietly became a Personal-space one.
+ * THE DEFECT THIS LOCKS DOWN, AND WHERE IT NOW LIVES.
  *
- * The rule proven here: a named workspace decides the outcome — ACTIVE
- * membership or nothing. The defaults exist only for a request that named no
- * workspace at all.
+ * `resolveActiveOperationalWorkspace` used to be the live workspace-context
+ * authority for the collaboration surfaces. When a request NAMED a workspace
+ * that produced no ACTIVE membership, it fell through to the caller's PERSONAL
+ * workspace and reported success — so an operation meant for workspace X
+ * quietly became a Personal-space one.
  *
- * Only Prisma is faked; the resolver itself runs for real.
+ * WORKSPACE AND COLLABORATION ARCHITECTURE RECONCILIATION (2026-09-06) —
+ * that resolver was deleted and this contract MOVED with the behaviour it
+ * describes, to `authorizeCollaborationWorkspace`, the one authorization entry
+ * point for every collaboration surface. The rule is unchanged and the
+ * replacement is stricter exactly where the old one was loose: there is no
+ * fallback at all, named or otherwise. Every candidate — a named workspace, or
+ * the caller's own pointer — is revalidated in full by the canonical
+ * primitive, and a request that cannot prove which workspace it is operating
+ * in is a DENIAL rather than an invitation to pick one on the caller's behalf.
+ *
+ * The rule proven here: a named workspace DECIDES the outcome. The pointer is
+ * consulted only for a request that named no workspace at all, and it too is
+ * revalidated.
+ *
+ * Only the canonical authorization primitive and Prisma are faked — both real
+ * module/process boundaries. The binding itself runs for real, and each fake
+ * RECORDS what it was asked, so "which workspace was authorized" is observed
+ * rather than assumed.
  */
 
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { resolveActiveOperationalWorkspace } from "../src/services/access/canonical-workspace-resolver.js";
+const H = vi.hoisted(() => ({
+  /** Every call the binding made into the canonical primitive, in order. */
+  calls: [] as Array<{ fn: string; workspaceId?: string; permission: string }>,
+  /** Workspaces where `authorizeWorkspaceOrFail` succeeds. */
+  authorizedNamed: new Set<string>(),
+  /** The workspace the caller's own pointer resolves to, when authorized. */
+  currentWorkspaceId: null as string | null,
+  /** Workspaces whose `Team.closedAtUtc` is set. */
+  closed: new Set<string>(),
+  /** Workspace ids with no `Team` row at all. */
+  missing: new Set<string>(),
+}));
 
-type MembershipRow = {
-  teamId: string;
-  team?: { isPersonal: boolean };
-} | null;
+vi.mock("../src/middleware/authorize.js", () => ({
+  authorizeWorkspaceOrFail: async (
+    _req: unknown,
+    reply: { code: (c: number) => { send: (b: unknown) => void } },
+    opts: { workspaceId: string; permission: string },
+  ) => {
+    H.calls.push({
+      fn: "authorizeWorkspaceOrFail",
+      workspaceId: opts.workspaceId,
+      permission: opts.permission,
+    });
+    if (!H.authorizedNamed.has(opts.workspaceId)) {
+      reply.code(404).send({ error: { code: "not_found" } });
+      return null;
+    }
+    return { workspaceId: opts.workspaceId, userId: "actor-1" };
+  },
+  authorizeCurrentWorkspaceOrFail: async (
+    _req: unknown,
+    reply: { code: (c: number) => { send: (b: unknown) => void } },
+    opts: { permission: string },
+  ) => {
+    H.calls.push({
+      fn: "authorizeCurrentWorkspaceOrFail",
+      permission: opts.permission,
+    });
+    if (!H.currentWorkspaceId) {
+      reply.code(404).send({ error: { code: "not_found" } });
+      return null;
+    }
+    return { workspaceId: H.currentWorkspaceId, userId: "actor-1" };
+  },
+}));
 
-function makeClient(opts: {
-  /** ACTIVE membership for the NAMED workspace, when any. */
-  named?: MembershipRow;
-  /** The actor's personal workspace, when any. */
-  personal?: MembershipRow;
-  /** Throw on the named-workspace read (DB unavailable). */
-  throwOnNamed?: boolean;
-}) {
-  const calls: string[] = [];
-  const client = {
-    teamMember: {
-      findFirst: async (args: {
-        where: { teamId?: string; team?: { isPersonal?: boolean } };
-      }) => {
-        if (args.where.teamId) {
-          calls.push("named");
-          if (opts.throwOnNamed) throw new Error("db down");
-          return opts.named ?? null;
-        }
-        calls.push("personal");
-        return opts.personal ?? null;
-      },
-      findMany: async () => {
-        calls.push("single");
-        return [];
-      },
+vi.mock("../src/db.js", () => ({
+  prisma: {
+    team: {
+      findUnique: async ({ where }: { where: { id: string } }) =>
+        H.missing.has(where.id)
+          ? null
+          : { closedAtUtc: H.closed.has(where.id) ? new Date() : null },
     },
-  } as never;
-  return { client, calls };
+  },
+}));
+
+const { authorizeCollaborationWorkspace, readNamedWorkspaceId } = await import(
+  "../src/services/collaboration-team/collaboration-authorization.js"
+);
+
+type Reply = {
+  status: number | null;
+  body: unknown;
+  code: (c: number) => { send: (b: unknown) => void };
+};
+
+function makeReply(): Reply {
+  const reply: Reply = {
+    status: null,
+    body: null,
+    code(c: number) {
+      reply.status = c;
+      return {
+        send(b: unknown) {
+          reply.body = b;
+        },
+      };
+    },
+  };
+  return reply;
 }
 
-const req = (teamId?: string) =>
-  ({
-    headers: teamId ? { "x-team-id": teamId } : {},
-    query: {},
-    body: {},
-  }) as never;
+const req = (headers: Record<string, string> = {}, query: unknown = {}) =>
+  ({ headers, query }) as never;
 
-const PERSONAL: MembershipRow = { teamId: "ws-personal", team: { isPersonal: true } };
+beforeEach(() => {
+  H.calls.length = 0;
+  H.authorizedNamed = new Set();
+  H.currentWorkspaceId = null;
+  H.closed = new Set();
+  H.missing = new Set();
+});
 
-describe("Phase 12 Point 4 — a named workspace is decided, never substituted", () => {
-  it("resolves the named workspace when the actor is an ACTIVE member", async () => {
-    const { client } = makeClient({
-      named: { teamId: "ws-team", team: { isPersonal: false } },
-      personal: PERSONAL,
-    });
-    await expect(
-      resolveActiveOperationalWorkspace(req("ws-team"), "user-1", client),
-    ).resolves.toEqual({ teamId: "ws-team", kind: "SHARED", source: "header" });
+describe("PHASE 12 POINT 4 C5 — a named workspace decides the outcome", () => {
+  it("a named workspace the actor CAN act in is the one authorized", async () => {
+    H.authorizedNamed.add("ws-named");
+    H.currentWorkspaceId = "ws-personal";
+    const reply = makeReply();
+    const ctx = await authorizeCollaborationWorkspace(
+      req({ "x-proovra-workspace-id": "ws-named" }),
+      reply as never,
+      "collaboration.thread.read",
+    );
+    expect(ctx?.workspaceId).toBe("ws-named");
+    expect(H.calls).toEqual([
+      {
+        fn: "authorizeWorkspaceOrFail",
+        workspaceId: "ws-named",
+        permission: "collaboration.thread.read",
+      },
+    ]);
   });
 
-  it("DENIES when the named workspace has no ACTIVE membership — no Personal substitute", async () => {
-    const { client, calls } = makeClient({ named: null, personal: PERSONAL });
-    await expect(
-      resolveActiveOperationalWorkspace(req("ws-foreign"), "user-1", client),
-    ).resolves.toBeNull();
-    // And it does not even go looking for something else to use.
-    expect(calls).toEqual(["named"]);
+  it("a named workspace the actor CANNOT act in is REFUSED, never replaced", async () => {
+    // The exact regression: the personal workspace is perfectly usable here,
+    // and must not be substituted for the one the request asked for.
+    H.currentWorkspaceId = "ws-personal";
+    const reply = makeReply();
+    const ctx = await authorizeCollaborationWorkspace(
+      req({ "x-proovra-workspace-id": "ws-foreign" }),
+      reply as never,
+      "collaboration.thread.read",
+    );
+    expect(ctx).toBeNull();
+    expect(reply.status).toBe(404);
+    // The pointer was never consulted — no second chance was taken.
+    expect(H.calls.map((c) => c.fn)).toEqual(["authorizeWorkspaceOrFail"]);
   });
 
-  it("DENIES when the membership read fails — an outage is not a workspace switch", async () => {
-    const { client } = makeClient({ throwOnNamed: true, personal: PERSONAL });
-    await expect(
-      resolveActiveOperationalWorkspace(req("ws-team"), "user-1", client),
-    ).resolves.toBeNull();
+  it("the legacy header names a workspace too, and is held to the same rule", async () => {
+    H.currentWorkspaceId = "ws-personal";
+    const reply = makeReply();
+    const ctx = await authorizeCollaborationWorkspace(
+      req({ "x-team-id": "ws-foreign" }),
+      reply as never,
+      "collaboration.thread.read",
+    );
+    expect(ctx).toBeNull();
+    expect(H.calls[0]).toMatchObject({ workspaceId: "ws-foreign" });
   });
 
-  it("a SUSPENDED membership on the named workspace is a denial", async () => {
-    // The fake answers the ACTIVE-only query, so a suspended member sees the
-    // same "no ACTIVE membership" result — and gets denied, not redirected.
-    const { client } = makeClient({ named: null, personal: PERSONAL });
-    await expect(
-      resolveActiveOperationalWorkspace(req("ws-team"), "user-1", client),
-    ).resolves.toBeNull();
+  it("only a request naming NOTHING falls to the caller's pointer — revalidated", async () => {
+    H.currentWorkspaceId = "ws-personal";
+    const reply = makeReply();
+    const ctx = await authorizeCollaborationWorkspace(
+      req(),
+      reply as never,
+      "collaboration.thread.read",
+    );
+    expect(ctx?.workspaceId).toBe("ws-personal");
+    expect(H.calls.map((c) => c.fn)).toEqual([
+      "authorizeCurrentWorkspaceOrFail",
+    ]);
   });
 
-  it("still defaults to Personal when the request names NO workspace", async () => {
-    const { client } = makeClient({ personal: PERSONAL });
-    await expect(
-      resolveActiveOperationalWorkspace(req(), "user-1", client),
-    ).resolves.toEqual({
-      teamId: "ws-personal",
-      kind: "SINGLE_OCCUPANT",
-      source: "personal-default",
-    });
+  it("no name and no usable pointer is a DENIAL, not a default", async () => {
+    const reply = makeReply();
+    const ctx = await authorizeCollaborationWorkspace(
+      req(),
+      reply as never,
+      "collaboration.thread.read",
+    );
+    expect(ctx).toBeNull();
+    expect(reply.status).toBe(404);
   });
 
-  it("returns null when nothing is named and the actor has no workspace", async () => {
-    const { client } = makeClient({});
-    await expect(
-      resolveActiveOperationalWorkspace(req(), "user-1", client),
-    ).resolves.toBeNull();
+  it("a collaboration-team id can never name a workspace", async () => {
+    // The old resolver accepted a `teamId` field as a workspace id. That is
+    // the confusion this module exists to end: on these routes the word means
+    // the GROUP, not the tenant.
+    expect(readNamedWorkspaceId(req({}, { teamId: "ct-1" }))).toBeNull();
+    expect(readNamedWorkspaceId(req({}, { workspaceId: "ws-1" }))).toBe("ws-1");
+    expect(
+      readNamedWorkspaceId(
+        req({ "x-proovra-workspace-id": "ws-h" }, { workspaceId: "ws-q" }),
+      ),
+    ).toBe("ws-h");
+  });
+
+  it("a CLOSED workspace is refused even when membership still authorizes it", async () => {
+    H.authorizedNamed.add("ws-closed");
+    H.closed.add("ws-closed");
+    const reply = makeReply();
+    const ctx = await authorizeCollaborationWorkspace(
+      req({ "x-proovra-workspace-id": "ws-closed" }),
+      reply as never,
+      "collaboration.thread.read",
+    );
+    expect(ctx).toBeNull();
+    expect(reply.status).toBe(404);
+  });
+
+  it("a workspace row that has vanished is refused, not treated as open", async () => {
+    H.authorizedNamed.add("ws-gone");
+    H.missing.add("ws-gone");
+    const reply = makeReply();
+    const ctx = await authorizeCollaborationWorkspace(
+      req({ "x-proovra-workspace-id": "ws-gone" }),
+      reply as never,
+      "collaboration.thread.read",
+    );
+    expect(ctx).toBeNull();
+    expect(reply.status).toBe(404);
+  });
+
+  it("the permission the caller asked for is the one evaluated — never widened", async () => {
+    H.authorizedNamed.add("ws-1");
+    const reply = makeReply();
+    await authorizeCollaborationWorkspace(
+      req({ "x-proovra-workspace-id": "ws-1" }),
+      reply as never,
+      "collaboration.contributor.access.manage",
+    );
+    expect(H.calls[0].permission).toBe(
+      "collaboration.contributor.access.manage",
+    );
+  });
+
+  it("every refusal is the SAME opaque body — foreign, closed and absent are indistinguishable", async () => {
+    const bodies: unknown[] = [];
+    const setups = [
+      () => {
+        /* foreign: nothing authorized */
+      },
+      () => {
+        H.authorizedNamed.add("ws-x");
+        H.closed.add("ws-x");
+      },
+      () => {
+        H.authorizedNamed.add("ws-x");
+        H.missing.add("ws-x");
+      },
+    ];
+    for (const setup of setups) {
+      H.authorizedNamed = new Set();
+      H.closed = new Set();
+      H.missing = new Set();
+      setup();
+      const reply = makeReply();
+      await authorizeCollaborationWorkspace(
+        req({ "x-proovra-workspace-id": "ws-x" }),
+        reply as never,
+        "collaboration.thread.read",
+      );
+      bodies.push({ status: reply.status, body: reply.body });
+    }
+    expect(bodies[1]).toEqual(bodies[0]);
+    expect(bodies[2]).toEqual(bodies[0]);
   });
 });

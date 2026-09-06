@@ -72,13 +72,19 @@ describe("PLAN_CAPABILITIES", () => {
     expect(t.aiAdvisoryMonthlyOperations).toBe(500);
     expect(t.monthlyPriceCents).toBe(7900);
     expect(t.allowsSharedWorkspace).toBe(true);
-    // AUDIT-001 (2026-08-15): this asserted `teamWorkspaceRequired === true`.
-    // That field was the exact inverse of `allowsPersonalWorkspacePurchase`,
-    // was read by nothing in production, and carried the retired
-    // "Team Workspace" vocabulary. The RULE it pinned — TEAM is bought for a
-    // team, not for yourself — is unchanged, so the assertion is re-pointed at
-    // the field that actually enforces it rather than deleted.
-    expect(t.allowsPersonalWorkspacePurchase).toBe(false);
+    // WORKSPACE AND COLLABORATION RECONCILIATION — this asserted `false`.
+    //
+    // The rule it pinned was "TEAM is bought for a team, not for yourself",
+    // which belonged to the model where TEAM meant a separate shared workspace.
+    // That model is gone: there are two product-facing workspace kinds,
+    // PERSONAL and ORGANIZATION, neither is acquired by self-service checkout,
+    // and FREE → PRO → TEAM are tiers of the one Personal Workspace a person
+    // already has. Checkout has a single subject and it is the person.
+    //
+    // So TEAM is a personal-workspace purchase, and the assertion says so.
+    // Leaving it at `false` would have meant the catalog forbade the only way
+    // TEAM can now be bought.
+    expect(t.allowsPersonalWorkspacePurchase).toBe(true);
   });
 
   it("ENTERPRISE: no record cap, custom AI, all governance features enabled", () => {

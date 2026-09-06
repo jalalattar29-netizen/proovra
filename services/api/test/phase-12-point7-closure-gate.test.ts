@@ -27,7 +27,10 @@ import { dirname, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { PLAN_CAPABILITIES } from "@proovra/shared-billing";
+import {
+  canPlanPurchasePersonalWorkspacePlan,
+  PLAN_CAPABILITIES,
+} from "@proovra/shared-billing";
 
 import { evaluatePoint7Closure } from "./point7/closure-gate.js";
 import { CANONICAL_PLANS } from "./point7/plan-contract.js";
@@ -667,8 +670,28 @@ describe("PHASE 12 POINT 7 — closure gate", () => {
         "the ambiguous field is back — it answered both 'may this plan be bought for a personal workspace' and 'may this identity have one'",
       ).toBe(false);
       expect("allowsPersonalWorkspacePurchase" in caps).toBe(true);
-      // And the purchase rule still says what it said.
-      expect(caps.allowsPersonalWorkspacePurchase).toBe(false);
+      // WORKSPACE AND COLLABORATION ARCHITECTURE RECONCILIATION — the purchase
+      // rule INVERTED, by product decision, and this gate is about the field's
+      // meaning rather than its value.
+      //
+      // TEAM is a commercial plan, not a domain object. Buying it creates no
+      // workspace and transforms none; it raises the entitlement of the
+      // Personal Workspace the buyer already has — to 10 seats and 5
+      // collaboration groups. Refusing the purchase on a personal workspace
+      // was the last place the old "TEAM is a kind of workspace" reading
+      // survived: it made a plan unbuyable by exactly the people it is sold to.
+      //
+      // What this gate exists for is unchanged and asserted above: the single
+      // ambiguous field that answered two different questions stays removed,
+      // and the surviving field still answers only the purchase question.
+      expect(caps.allowsPersonalWorkspacePurchase).toBe(true);
+      // The field is still the ONE authority for the purchase question — the
+      // separation this gate was created to protect. Nothing else in the
+      // catalog answers it, and the exported predicate reads it rather than
+      // re-deriving it from a plan name.
+      expect(canPlanPurchasePersonalWorkspacePlan("TEAM")).toBe(
+        caps.allowsPersonalWorkspacePurchase,
+      );
     });
   });
 

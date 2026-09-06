@@ -353,11 +353,32 @@ describe("workspace, collaboration-team and member limits are independent", () =
     }
   });
 
-  it("preserves the approved accepted-member limit of 5 on PRO and TEAM", () => {
-    expect(getPlanCapabilities("PRO").maxAcceptedMembersPerCollaborationTeam).toBe(5);
-    expect(getPlanCapabilities("TEAM").maxAcceptedMembersPerCollaborationTeam).toBe(5);
+  it("seats the approved population: PRO 5, TEAM 10, and a group may hold all of them", () => {
+    // APPROVED CHANGE. PRO and TEAM used to carry the same seat number, so the
+    // £79 tier bought no additional people over the £19 one.
     expect(getPlanCapabilities("PRO").maxWorkspaceSeats).toBe(5);
-    expect(getPlanCapabilities("TEAM").maxWorkspaceSeats).toBe(5);
+    expect(getPlanCapabilities("TEAM").maxWorkspaceSeats).toBe(10);
+
+    // A Collaboration Team is NOT a second seat pool: its ceiling is how many
+    // authorized people the workspace has, so a group may contain every one of
+    // them. The catalog field survives as the per-group safety ceiling and is
+    // reconciled to the seat entitlement rather than contradicting it — which
+    // is what a value of 5 against 10 seats would do.
+    expect(
+      getPlanCapabilities("PRO").maxAcceptedMembersPerCollaborationTeam,
+    ).toBe(getPlanCapabilities("PRO").maxWorkspaceSeats);
+    expect(
+      getPlanCapabilities("TEAM").maxAcceptedMembersPerCollaborationTeam,
+    ).toBe(getPlanCapabilities("TEAM").maxWorkspaceSeats);
+  });
+
+  it("FREE and PAYG seat exactly one person — the owner", () => {
+    // A commercial statement made in the commercial registry. It used to be 0,
+    // which the seat projection then had to reinterpret, and which said that a
+    // FREE workspace seats nobody at all — including the person who owns it.
+    for (const plan of ["FREE", "PAYG"] as const) {
+      expect(getPlanCapabilities(plan).maxWorkspaceSeats, plan).toBe(1);
+    }
   });
 
   it("FREE and PAYG include no collaboration teams", () => {
@@ -376,6 +397,9 @@ describe("workspace, collaboration-team and member limits are independent", () =
     expect(pro.maxPendingInvitesPerTeam).toBe(10);
     expect(pro.maxAcceptedMembersPerCollaborationTeam).toBe(5);
     expect(pro.maxInvitesPer24h).toBe(50);
+    // The two are still deliberately different numbers; neither is inferable
+    // from the other, which is the point this test exists to hold.
+    expect(pro.maxPendingInvitesPerTeam).not.toBe(pro.maxInvitesPer24h);
   });
 
   it("the deleted collaboration-limits adapter has no exports left", async () => {

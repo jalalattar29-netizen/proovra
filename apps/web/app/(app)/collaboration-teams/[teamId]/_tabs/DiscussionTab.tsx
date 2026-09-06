@@ -36,11 +36,9 @@
  * reach behind the same 404.
  */
 
-import Link from "next/link";
 import type React from "react";
 import { useCallback, useEffect, useState } from "react";
 
-import { AppStatusBadge } from "../../../../../components/app-primitives/AppStatusBadge";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
 import { useToast } from "../../../../../components/ui";
 import { useAccount } from "../../../../../lib/platform-context";
@@ -153,8 +151,14 @@ function DiscussionPanel({
                 placeholder="Write a comment for the team…"
                 data-testid="comment-body-input"
                 className="app-form-input"
+                aria-label="Write a comment for the team"
+                aria-describedby="comment-mention-hint"
               />
-              <p className="app-field-help" data-testid="comment-mention-hint">
+              <p
+                className="app-field-help"
+                id="comment-mention-hint"
+                data-testid="comment-mention-hint"
+              >
                 Mention teammates with{" "}
                 <code style={inlineCode}>@handle</code> to notify them directly.
               </p>

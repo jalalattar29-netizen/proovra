@@ -25,12 +25,9 @@ import { resolveCommercialContext } from "../services/billing/commercial-context
  */
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
-import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
-import {
-  assertTeamSeatAvailable,
-  getWorkspaceUsage,
-} from "../services/workspace-usage.service.js";
+
+import { getWorkspaceUsage } from "../services/workspace-usage.service.js";
 // §9.7 — scope consumed via the resolveCommercialContext envelope (explicit
 // subjects); the scope adapter is no longer imported here.
 import { refreshTeamSeatState } from "../services/billing.service.js";
@@ -38,10 +35,7 @@ import { getPlanCapabilities } from "../services/plan-catalog.service.js";
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-// PHASE 11 — canonical internal URL builder.
 import {
-  absoluteInternalUrl,
-  internalNavPath,
   // PHASE 13 §1.4 (NEW-023) — the canonical membership-status predicate.
   teamMemberStatusGrantsAccess,
 } from "@proovra/shared";
@@ -69,18 +63,19 @@ import { evaluateWorkspaceClosurePreflight } from "../services/identity/account-
 import { purgeWorkspaceAiRecords } from "../services/ai/ai-retention.service.js";
 // PHASE 3 (2026-07-21) — canonical membership orchestrator.
 import {
-  provisionMembership,
   purgeWorkspaceMembershipsForTeamDeletion,
   removeWorkspaceMembershipPhysical,
-} from "../services/identity/membership-provisioning.service.js";
-// THE canonical workspace role-transition authority. Imported under an
-// explicit name because `changeMemberRole` is also the name of the
-// COLLABORATION TEAM role change in a different service, and the two govern
-// different membership tables.
-import {
+  // THE canonical workspace role-transition command, reached THROUGH the
+  // Membership Orchestrator. The rbac engine is deliberately internal to that
+  // module — the program architecture registry locks its import path — so a
+  // route imports the orchestrator's command surface, never the engine.
+  //
+  // Aliased because `changeMemberRole` is also the name of the COLLABORATION
+  // TEAM role change in a different service, and the two govern different
+  // membership tables.
   changeMemberRole as changeWorkspaceMemberRole,
   RbacError,
-} from "../services/identity/rbac.service.js";
+} from "../services/identity/membership-provisioning.service.js";
 import {
   ACTIVE_WORKSPACE_CLOSURE_STATUSES,
   CANCELLABLE_WORKSPACE_CLOSURE_STATUSES,
@@ -170,16 +165,6 @@ async function deliverWorkspaceInvite(input: {
     );
     return false;
   }
-}
-
-function buildInviteUrl(token: string): string {
-  // PHASE 11 — nav path (not a resource-id family), composed via
-  // internalNavPath + absoluteInternalUrl.
-  const base = process.env.WEB_BASE_URL ?? "https://www.proovra.com";
-  return absoluteInternalUrl(
-    base,
-    internalNavPath(`/invite/${encodeURIComponent(token)}`),
-  );
 }
 
 /**

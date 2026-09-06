@@ -252,9 +252,6 @@ function TeamDetail() {
   const activeMemberCountForBadge = team.members.filter(
     (m) => m.status === "ACTIVE",
   ).length;
-  const pendingInviteCount = team.invites.filter(
-    (i) => i.status === "PENDING",
-  ).length;
   const openAssignmentCount = team.assignmentCount;
 
   // Per-tab count badges — only where a real count exists on `team`.
@@ -549,7 +546,6 @@ function TeamDetail() {
             onRefresh={refresh}
             canManage={canManage}
             canInvite={canInvite}
-            onJumpTab={goTab}
           />
         ) : activeTab === "assignments" ? (
           <AssignmentsTab team={team} canAssign={canAssign} />
