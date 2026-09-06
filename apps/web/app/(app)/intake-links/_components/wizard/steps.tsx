@@ -61,6 +61,43 @@ import { MessagePreview, type PreviewChannel } from "./MessagePreview";
 /** Same bound the API enforces, imported so the two cannot drift. */
 const CUSTOMER_ID_MAX = CUSTOMER_ID_MAX_LENGTH;
 
+/**
+ * THESE FIELDS DESCRIBE A THIRD PARTY, NOT THE PERSON FILLING THEM IN.
+ *
+ * The recipient of an intake link is somebody the operator is sending a
+ * request TO. `autocomplete="tel"` and `autocomplete="email"` — which is what
+ * these fields carried — are the WHATWG tokens for the CURRENT USER'S OWN
+ * telephone number and email address. So the form was asking the browser to
+ * offer the operator's own contact details as the recipient's, and the
+ * recipient label carried no token at all, leaving the browser to guess the
+ * field's meaning from its id and its label text.
+ *
+ * This was reported from production as an apparent cross-account leak: an
+ * operator signed into a second account saw a name and phone number from the
+ * first offered before typing anything, including in a private window. A full
+ * audit proved no PROOVRA involvement — no API supplies suggestions, no
+ * browser storage holds recipient data, no application cache survives the
+ * account switch, and no element in the page produces the suggestion. The
+ * values come from the browser's own saved identity, invited in by these
+ * tokens.
+ *
+ * `section-*` puts the three fields in an autofill section of their own, so
+ * they are filled as a group rather than as the page's primary identity
+ * fields. They stay standards-aligned rather than becoming
+ * `autocomplete="off"`: browsers disregard `off` on many fields, and turning
+ * it on everywhere would remove legitimate convenience — an operator sending
+ * to the same recipient twice should still be helped by their own browser.
+ *
+ * WHAT THIS DOES NOT DO. It changes nothing about what is stored, delivered,
+ * searched or disclosed, and masks nothing from an operator entitled to type
+ * it. It changes what the BROWSER is told these fields mean.
+ */
+const RECIPIENT_AUTOFILL = {
+  name: "section-intake-recipient name",
+  email: "section-intake-recipient email",
+  tel: "section-intake-recipient tel",
+} as const;
+
 export const FIELD_IDS = {
   purpose: "ilk-f-purpose",
   recipientLabel: "ilk-f-recipient-label",
@@ -257,8 +294,10 @@ export function StepDelivery({
       >
         <input
           id={FIELD_IDS.recipientLabel}
+          name="intakeRecipientLabel"
           className="app-form-input"
           type="text"
+          autoComplete={RECIPIENT_AUTOFILL.name}
           value={state.recipientLabel}
           maxLength={RECIPIENT_LABEL_MAX}
           onChange={(e) =>
@@ -283,6 +322,7 @@ export function StepDelivery({
       >
         <input
           id={FIELD_IDS.customerId}
+          name="intakeCustomerId"
           className="app-form-input"
           type="text"
           inputMode="text"
@@ -310,9 +350,10 @@ export function StepDelivery({
         >
           <input
             id={FIELD_IDS.recipientEmail}
+            name="intakeRecipientEmail"
             className="app-form-input"
             type="email"
-            autoComplete="email"
+            autoComplete={RECIPIENT_AUTOFILL.email}
             value={state.recipientEmail}
             maxLength={RECIPIENT_EMAIL_MAX}
             aria-invalid={Boolean(errors.recipientEmail)}
@@ -339,10 +380,11 @@ export function StepDelivery({
         >
           <input
             id={FIELD_IDS.recipientPhone}
+            name="intakeRecipientPhone"
             className="app-form-input ilk-ltr"
             type="tel"
             inputMode="tel"
-            autoComplete="tel"
+            autoComplete={RECIPIENT_AUTOFILL.tel}
             placeholder="+14155550123"
             value={state.recipientPhone}
             maxLength={RECIPIENT_PHONE_MAX}
