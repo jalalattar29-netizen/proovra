@@ -29,7 +29,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { PageShell, PageHeader, PageSection } from "../../../../components/ui";
 import { Card } from "../../../../components/ui/Card";
 import { Badge } from "../../../../components/ui/Badge";
-import type { BadgeTone } from "../../../../components/ui/Badge";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { ResultCount } from "../../../../components/ui/ResultCount";
 import { Button, buttonSurfaceStyle } from "../../../../components/ui/Button";
