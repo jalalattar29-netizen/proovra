@@ -35,6 +35,7 @@ import {
 import "../admin-platform.css";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
 import { Badge } from "../../../../../components/ui/Badge";
+import { Button } from "../../../../../components/ui/Button";
 import { statusTone } from "../../../../../components/ui/StatusBadge";
 
 type Counts = Record<string, number>;
@@ -115,6 +116,18 @@ function ReliabilityPageInner() {
   const [sessions, setSessions] = useState<Session[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyEvidenceId, setBusyEvidenceId] = useState<string | null>(null);
+  /**
+   * WHAT THE OPERATOR JUST DID, SAID OUT LOUD.
+   *
+   * Both actions here replaced the row in place from the server's response and
+   * announced nothing. The status capsule changing from ACTIVE to ABANDONED is
+   * the outcome, but it is not confirmation: a row that was already abandoned,
+   * a click that missed, and a successful mutation all leave the same screen.
+   * These are hand-offs — one takes an upload out of the automatic recovery
+   * sweep, the other raises a warning security event against it — and an
+   * operator is entitled to be told the hand-off happened.
+   */
+  const [notice, setNotice] = useState<string | null>(null);
   const { confirm } = useConfirmAction();
 
 useEffect(() => {
@@ -158,6 +171,8 @@ useEffect(() => {
     });
     if (!ok) return;
     setBusyEvidenceId(evidenceId);
+    setNotice(null);
+    setError(null);
     try {
       const res: { session: Session } = await apiFetch(
         `/v1/reliability/upload-sessions/${evidenceId}/mark-abandoned`,
@@ -169,6 +184,9 @@ useEffect(() => {
       );
       setSessions((prev) =>
         prev ? prev.map((s) => (s.evidenceId === evidenceId ? res.session : s)) : prev,
+      );
+      setNotice(
+        `Upload session ${evidenceId.slice(0, 8)}… is marked abandoned. It no longer appears in the automatic recovery sweep.`,
       );
     } catch (err) {
       // Into the page's own error region — an alert() is neither accessible
@@ -192,6 +210,8 @@ useEffect(() => {
     });
     if (!ok) return;
     setBusyEvidenceId(evidenceId);
+    setNotice(null);
+    setError(null);
     try {
       const res: { session: Session } = await apiFetch(
         `/v1/reliability/upload-sessions/${evidenceId}/request-review`,
@@ -204,12 +224,24 @@ useEffect(() => {
       setSessions((prev) =>
         prev ? prev.map((s) => (s.evidenceId === evidenceId ? res.session : s)) : prev,
       );
+      setNotice(
+        `Upload session ${evidenceId.slice(0, 8)}… is marked for review and a warning security event has been recorded against it.`,
+      );
     } catch (err) {
       setError(toSafeUserError(err, { message: "Could not request review." }).message);
     } finally {
       setBusyEvidenceId(null);
     }
   }
+
+  /** The statuses that DO have rows, so the empty view can point at one. */
+  const nonEmptyStatuses = useMemo(
+    () =>
+      summary
+        ? STATUSES.filter((s) => s !== statusFilter && (summary.counts[s] ?? 0) > 0)
+        : [],
+    [summary, statusFilter],
+  );
 
   const headlineCounts = useMemo(() => {
     if (!summary) return null;
@@ -250,6 +282,11 @@ useEffect(() => {
       >
 
       {error ? <div className="apf-note" data-tone="critical">{error}</div> : null}
+      {notice ? (
+        <div className="apf-note" data-tone="done" role="status" data-reliability-notice>
+          {notice}
+        </div>
+      ) : null}
 
       {!teamId ? (
         <p className="apf-muted">Switch to a workspace to view reliability data.</p>
@@ -311,7 +348,53 @@ useEffect(() => {
             {sessions === null ? (
               <p className="apf-muted">Loading…</p>
             ) : sessions.length === 0 ? (
-              <p className="apf-muted">No sessions in this state.</p>
+              /*
+                THE FILTERED-EMPTY STATE, WITH SOMEWHERE TO GO.
+
+                A status is always selected here — there is no unfiltered view
+                — so "Clear filters" would clear nothing. What an operator
+                actually needs is the same thing a Clear button gives them
+                elsewhere: one move back to a view that has rows. The summary
+                already carries a count per status, so the page can name one
+                instead of leaving them to open the dropdown and guess.
+              */
+              <div className="apf-note" data-tone="unknown" data-reliability-filtered-empty>
+                <p style={{ margin: 0 }}>
+                  No upload sessions are in {statusFilter} right now. That is a
+                  measured zero for this status, not a failed read.
+                </p>
+                {nonEmptyStatuses.length > 0 ? (
+                  <>
+                  <p style={{ margin: "6px 0 0" }}>
+                    Sessions do exist in other states:
+                  </p>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: 8,
+                      marginTop: 8,
+                    }}
+                  >
+                    {nonEmptyStatuses.map((s) => (
+                      <Button
+                        key={s}
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setStatusFilter(s)}
+                      >
+                        {s} ({summary.counts[s]})
+                      </Button>
+                    ))}
+                  </div>
+                  </>
+                ) : (
+                  <p style={{ margin: "6px 0 0" }}>
+                    No upload session is in any state in this workspace, so
+                    every status here is empty.
+                  </p>
+                )}
+              </div>
             ) : (
               <ul style={listStyle}>
                 {sessions.map((s) => (

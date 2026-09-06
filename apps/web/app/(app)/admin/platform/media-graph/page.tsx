@@ -491,7 +491,7 @@ useEffect(() => {
       {error ? (
         <p
           className="apf-note"
-          data-tone={error.kind === "error" ? "critical" : "info"}
+          data-tone={error.kind === "error" ? "critical" : "unknown"}
           data-media-graph-metrics-failure={error.kind}
           role={error.kind === "error" ? "alert" : "status"}
         >

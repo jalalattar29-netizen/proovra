@@ -61,6 +61,10 @@
 import { readFileSync, writeFileSync, readdirSync, mkdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
+/* The reviewed, API-proven register of lists that are NOT capped. One
+   authority for that question; see the TRUNCATED reason. */
+import { COMPLETE_LISTS } from "../../../apps/web/scripts/admin-complete-lists.mjs";
+
 const ROUTES = JSON.parse(
   readFileSync("docs/admin/phase7-routes.json", "utf8"),
 ).routes;
@@ -92,13 +96,42 @@ function filesFor(route) {
   }
   if (out.length === 0) return out;
 
-  // Every _sections file under the page's own directory, and its parent's.
+  /**
+   * THE SECTIONS THIS PAGE ACTUALLY IMPORTS.
+   *
+   * This took every `_sections/*.tsx` under the page's directory AND its
+   * parent's, which folds a sibling page's code into this one's shape.
+   * `/admin/identity/timeline` renders a read-only audit list and issues a
+   * single GET; it was credited with fourteen endpoints and eleven mutations
+   * belonging to `/admin/identity`, and then judged on whether IT rendered
+   * their states. Attribution in the other direction is the same error with a
+   * worse outcome: a state one page handles reported as handled on a page
+   * that has nothing of the kind.
+   *
+   * A section belongs to the page that imports it. Composed pages are
+   * unaffected — `/admin/identity` imports all eleven of its own — and a
+   * shared section imported by two pages is correctly counted for both.
+   */
+  const pageSrc = (() => {
+    try {
+      return readFileSync(out[0], "utf8");
+    } catch {
+      return "";
+    }
+  })();
+  const imported = new Set(
+    [...pageSrc.matchAll(/from\s+["'][^"']*_sections\/([A-Za-z0-9_.-]+)["']/g)].map(
+      (m) => m[1].replace(/\.(tsx?|jsx?)$/, ""),
+    ),
+  );
   const pageDir = out[0].slice(0, out[0].lastIndexOf("\\") >= 0 ? out[0].lastIndexOf("\\") : out[0].lastIndexOf("/"));
   for (const base of [pageDir, pageDir.slice(0, Math.max(pageDir.lastIndexOf("/"), pageDir.lastIndexOf("\\")))]) {
     const sections = join(base, "_sections");
     try {
       for (const e of readdirSync(sections, { withFileTypes: true })) {
-        if (e.isFile() && /\.tsx$/.test(e.name)) out.push(join(sections, e.name));
+        if (!e.isFile() || !/\.tsx$/.test(e.name)) continue;
+        if (!imported.has(e.name.replace(/\.tsx$/, ""))) continue;
+        out.push(join(sections, e.name));
       }
     } catch {
       /* no sections */
@@ -243,8 +276,16 @@ const EVIDENCE = {
   ],
   EMPTY: [/state="empty"/, /<EmptyState/, /No .* yet/],
   FILTERED_EMPTY: [
-    /state="filtered"/, /match these filters/, /match the current filters/,
-    /filtered=\{/, /No matches/,
+    /state="filtered"/, /filtered=\{/, /No matches/,
+    /* The console's own marker attribute on the element that renders it —
+       the same kind of evidence as `state="filtered"`, spelled the way the
+       platform pages spell it. */
+    /data-[\w-]*filtered-empty/,
+    /* "No platform user matches the current filters. Adjust the search or
+       filters above." That is the state, written down and rendered — and it
+       failed a pattern that demanded "match" without its s. */
+    /match(?:es)?\s+(?:the\s+)?(?:current\s+)?filters/i,
+    /No \w[\w ]{0,30}(?:match|found)/i,
   ],
   NOT_MEASURED: [
     /state="not-measured"/, /NOT_MEASURED/, /Not measured/, /notMeasuredReason/,
@@ -283,7 +324,24 @@ const EVIDENCE = {
         ),
       ).size >= 2,
   ],
-  TRUNCATED: [/truncated/i, /\bcap\b/, /hasMore/, /nextCursor/, /limit/],
+  /**
+   * TRUNCATED — THE LIST IS CAPPED, AND THE PAGE SAYS SO.
+   *
+   * GATE B. `<ResultCount>` is this console's canonical answer to the whole
+   * question — it renders "12 of 93", "200 shown (capped)", or "another page
+   * available" from `total` / `cap` / `hasMore` — and it was not in this list,
+   * so `/admin/platform/observability` was reported as hiding a cap while
+   * rendering the denominator underneath the two tables it caps.
+   *
+   * `/admin/identity/permission-matrix` says it in words instead: "Showing the
+   * first of 93 — the list scrolls", written because a card headed "93 of 93
+   * permissions" was showing twelve of them behind an invisible scrollbar.
+   */
+  TRUNCATED: [
+    /truncated/i, /\bcap\b/, /hasMore/, /nextCursor/, /limit/,
+    /<ResultCount[\s\S]{0,400}?(?:total|cap|hasMore)=/,
+    /Showing the first/i,
+  ],
   /**
    * STALE — A RESPONSE THAT LANDS AFTER A WORKSPACE SWITCH IS DROPPED.
    *
@@ -403,14 +461,71 @@ const EVIDENCE = {
     /state="unavailable"/, /status:\s*"unavailable"/, /unavailable/i,
     /not available/i, /not configured/i, /not connected/i, /not enabled/i,
     /no [a-z-]+ configured/i, /instrument missing/i,
+    /**
+     * A PAGE BRANCHING ON WHETHER THE CAPABILITY IS THERE.
+     *
+     * The alternatives above are the WORDS this console happens to use, and
+     * two pages handle the state without any of them.
+     * `/admin/customers` renders one cell from `ssoConfigured` and
+     * `scimConfigured` — "SSO + SCIM", "SSO only", "Neither" — and
+     * `/admin/platform/exports` renders four Object Lock modes, one of which
+     * says "Object Lock is intentionally disabled. Exports persist but cannot
+     * be claimed as WORM." Both are the state, handled precisely; neither
+     * says "not configured", and there is no reason they should.
+     *
+     * So: does the page branch on a capability's presence? Either on a flag
+     * (including one renamed in a destructure, which is what customers does),
+     * or on an absence member of a capability's own mode union.
+     */
+    (code) => {
+      const names = new Set(
+        [...code.matchAll(/(\w*(?:Configured|Enabled|Available|Supported))\b\s*[?:]/g)].map(
+          (m) => m[1],
+        ),
+      );
+      for (const m of code.matchAll(
+        /\{[^{}]*?(\w*(?:Configured|Enabled|Available|Supported))\s*:\s*(\w+)/g,
+      )) {
+        if (names.has(m[1])) names.add(m[2]);
+      }
+      for (const n of names) {
+        if (new RegExp("(?:^|[^\\w.])!?" + n + "\\s*(?:\\?|&&|\\|\\||\\))").test(code)) {
+          return true;
+        }
+      }
+      // An absence member of a capability's mode union, branched on.
+      return /===\s*"(?:skipped|disabled|unsupported|claimed-but-unsupported|not-configured|absent|missing)"/.test(
+        code,
+      );
+    },
   ],
   BUSY: [
     /busy/i, /\bmutating\b/, /loading=\{busy/, /disabled=\{.*busy/,
     /"pending"/, /Retrying…|Replaying…|Provisioning…|Probing…/,
   ],
+  /**
+   * DONE — A MUTATION SUCCEEDED, AND THE READER WAS TOLD SO.
+   *
+   * GATE B. The same defect ACTION_FAILED had, in the other direction: the
+   * patterns were page-local variable names (`setSuccess`, `setNotice`,
+   * `setRegenNotice`, `successBox`) collected from whichever pages happened to
+   * be written first. `/admin/identity/permission-matrix` announces through
+   * `setElevationNotice`, `/admin/identity` through `{ ok: true }` row
+   * results, `/admin/platform/media-graph` through `kind: "success"` — three
+   * pages that all handle the state, none of which uses the four names.
+   *
+   * Checked instead, and symmetrically with ACTION_FAILED: a mutating request
+   * whose SUCCESS path announces the outcome, both halves in one window. A
+   * page that mutates and then says nothing — leaving the operator to infer
+   * from a re-read whether anything happened — still fails, which is the
+   * point: on a console where the actions are quarantine, revoke and
+   * break-glass, silence after a destructive click is not a neutral choice.
+   */
   DONE: [
-    /state="done"/, /tone="verified"/, /setSuccess/, /addToast\(/, /successBox/,
-    /setNotice/, /setRegenNotice/,
+    /state="done"/,
+    /tone="verified"/,
+    /method:\s*["'](?:POST|PUT|PATCH|DELETE)["'][\s\S]{0,1800}?(?:ok: true|kind: "success"|state="done"|addToast\([^)]*["']success["']|set\w*Notice\(|setSuccess)/,
+    /(?:set\w*Notice\(|setSuccess|ok: true|kind: "success")[\s\S]{0,1800}?method:\s*["'](?:POST|PUT|PATCH|DELETE)["']/,
   ],
   /**
    * ACTION_FAILED — A MUTATION WAS ATTEMPTED, DID NOT SUCCEED, AND THE READER
@@ -437,8 +552,8 @@ const EVIDENCE = {
     /setMutationFailure/, /setRowResult/, /action failed/i, /rowResult/,
     /setActionResult/,
     // A mutating request, a catch, and a report — within one window.
-    /method:\s*["'](?:POST|PUT|PATCH|DELETE)["'][\s\S]{0,1200}?catch\s*\([\s\S]{0,600}?(?:notifyApiError|toSafeUserError|describeRefusal|SectionError|addToast\([^)]*["']error["'])/,
-    /catch\s*\([\s\S]{0,900}?(?:notifyApiError|toSafeUserError|describeRefusal)[\s\S]{0,1200}?method:\s*["'](?:POST|PUT|PATCH|DELETE)["']/,
+    /method:\s*["'](?:POST|PUT|PATCH|DELETE)["'][\s\S]{0,1800}?catch\s*\([\s\S]{0,600}?(?:notifyApiError|toSafeUserError|classifyFailure|describeRefusal|SectionError|addToast\([^)]*["']error["'])/,
+    /catch\s*\([\s\S]{0,900}?(?:notifyApiError|toSafeUserError|classifyFailure|describeRefusal)[\s\S]{0,1800}?method:\s*["'](?:POST|PUT|PATCH|DELETE)["']/,
   ],
   STEP_UP_REQUIRED: [/StepUpModal/, /useStepUpAction/, /STEP_UP/, /step-up/i],
   BLOCKED: [
@@ -633,9 +748,32 @@ function reasonFor(state, shape) {
     }
 
     case "FILTERED_EMPTY":
-      return hasFilter ? null : "no filter on this page";
-    case "TRUNCATED":
-      return hasTable ? null : "no list read to cap";
+      if (hasFilter) return null;
+      return shape.hasNonFilterSelect
+        ? "the only dropdowns here are form fields and a period control — nothing on this page narrows a list, so there is no filtered set to come back empty"
+        : "no filter on this page";
+    /* --------------------------------------------------------------------
+     * TRUNCATED — AND THE LISTS THAT PROVABLY ARE NOT.
+     *
+     * GATE B. `hasTable ? null : …` made every page with a list owe a cap
+     * disclosure, including pages whose lists are complete. This repository
+     * already decides that question, once, with proof:
+     * `apps/web/scripts/admin-complete-lists.mjs` names the route, the
+     * handler, and why nothing truncates it — and
+     * `admin-count-truth-complete-lists.test.ts` in the API suite fails if a
+     * `take` is ever added to one of those handlers.
+     *
+     * So a registered route is NOT_APPLICABLE, and the reason printed is the
+     * registry's, not one invented here. Everything else still owes it.
+     * ------------------------------------------------------------------ */
+    case "TRUNCATED": {
+      if (!hasTable) return "no list read to cap";
+      const complete = COMPLETE_LISTS.find((c) => c.route === shape.route);
+      if (complete) {
+        return `${complete.endpoint} returns every row — declared in admin-complete-lists.mjs and proven by the API's own count-truth test: ${complete.reason}`;
+      }
+      return null;
+    }
     case "MEASURED_ZERO":
       return hasKpi || hasTable ? null : "no counted figure on this page";
     case "BUSY":
@@ -815,7 +953,25 @@ for (const route of ROUTES) {
        disposition for it. */
     route,
     hasTable: /<DataTable|<table|adm-table/.test(src),
-    hasFilter: /<FilterBar|statusFilter|severityFilter|<select/.test(src),
+    /**
+     * A FILTER NARROWS A LIST. A `<select>` IS NOT AUTOMATICALLY A FILTER.
+     *
+     * GATE B. `<select` was in this test, so any dropdown anywhere made the
+     * page owe a "nothing matches your filters" state.
+     * `/admin/identity/providers` was judged on two `<select>`s that are
+     * FIELDS in its create-a-provider form, and `/admin/platform/analytics`
+     * on its time-window control — a control that chooses which period to
+     * measure, not one that hides rows. Neither page can reach the state.
+     *
+     * The canonical filter surface is `<FilterBar>`; a page that narrows
+     * without one holds the narrowing in a `…Filter` state variable. Those two
+     * are the test.
+     */
+    hasFilter:
+      /<FilterBar/.test(src) ||
+      /const \[\w*[Ff]ilter\w*,\s*set/.test(src),
+    /** A dropdown that is NOT a filter, so the reason can say which it is. */
+    hasNonFilterSelect: /<select/.test(src),
     hasMutation: /method: "(POST|PUT|PATCH|DELETE)"/.test(src),
     hasKpi: /<AdmKpi|<MetricTile|AdminStat|app-metric/.test(src),
     isStatic: /RUNBOOK_INDEX|catalog\.generated|index\.generated/.test(src),
@@ -915,12 +1071,22 @@ for (const route of ROUTES) {
         (m) => m[1],
       );
       if (requestPaths.some((p) => CAP.test(p))) return true;
-      // Named to the reader: the capability word inside a rendered sentence,
-      // i.e. a string literal of more than a couple of words.
-      const prose = [...src.matchAll(/["'`]([^"'`\n]{12,160})["'`]/g)].map(
-        (m) => m[1],
-      );
-      return prose.some((s) => CAP.test(s) && /\s/.test(s));
+      /*
+        GATE B, SECOND CORRECTION. The prose arm — "the capability word inside
+        a rendered sentence" — was still too loose, because a page NAMING a
+        capability is not a page that DEPENDS on one. It matched the row label
+        "Webhook sent" on two detail pages, the section heading "OpenTimestamps
+        anchoring failures" on `/admin/evidence-ops/records`, and the search
+        placeholder "Title, slug, or subsystem (ots, reviewer, s3…)" on the
+        runbook catalog. None of those pages breaks when the capability is
+        absent; they are reporting on records that mention it.
+
+        What remains is a page that reads the capability's OWN endpoint, or
+        that carries a configured/enabled/available flag it must render — the
+        two shapes where a deployment without the capability changes what the
+        page can show.
+      */
+      return /\b\w*(?:Configured|Enabled|Available)\b\s*[?:]/.test(src);
     })(),
   };
 

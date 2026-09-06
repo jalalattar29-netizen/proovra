@@ -276,7 +276,12 @@
   color: var(--ink-secondary);
 }
 
-.apf-note[data-tone="healthy"] {
+/* `healthy` is a state of the SYSTEM; `done` is the outcome of something the
+   operator just did. Same green, because success is success, but the two are
+   not interchangeable and a note that says "this is now marked abandoned" is
+   not a claim that anything is healthy. */
+.apf-note[data-tone="healthy"],
+.apf-note[data-tone="done"] {
   border-inline-start-color: var(--success-standard);
   background: var(--success-subtle-bg);
   color: var(--success-strong);

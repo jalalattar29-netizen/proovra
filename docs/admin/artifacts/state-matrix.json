@@ -28,6 +28,7 @@
         "route": "/admin",
         "hasTable": false,
         "hasFilter": false,
+        "hasNonFilterSelect": false,
         "hasMutation": false,
         "hasKpi": true,
         "isStatic": false,
@@ -38,7 +39,7 @@
         "rereadMechanism": true,
         "readKeys": [],
         "reads": 1,
-        "hasOptionalCapability": true
+        "hasOptionalCapability": false
       },
       "states": {
         "LOADING": {
@@ -101,8 +102,8 @@
           "evidence": "/\"pending\"/"
         },
         "DONE": {
-          "verdict": "HANDLED",
-          "evidence": "/addToast\\(/"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
         },
         "ACTION_FAILED": {
           "verdict": "NOT_APPLICABLE",
@@ -125,6 +126,7 @@
         "route": "/admin/adoption",
         "hasTable": true,
         "hasFilter": false,
+        "hasNonFilterSelect": false,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
@@ -171,7 +173,8 @@
           "reason": "reads a single source: there is no subset of one to be partial"
         },
         "TRUNCATED": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "GET /v1/admin/adoption returns every row — declared in admin-complete-lists.mjs and proven by the API's own count-truth test: One row per KNOWN capability, enumerated from a fixed catalogue rather than queried from a growing table. The list cannot exceed the number of capabilities the product has."
         },
         "STALE": {
           "verdict": "NOT_APPLICABLE",
@@ -198,8 +201,8 @@
           "reason": "read-only page: no mutation to be in flight"
         },
         "DONE": {
-          "verdict": "HANDLED",
-          "evidence": "/addToast\\(/"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
         },
         "ACTION_FAILED": {
           "verdict": "NOT_APPLICABLE",
@@ -222,6 +225,7 @@
         "route": "/admin/alerts",
         "hasTable": false,
         "hasFilter": false,
+        "hasNonFilterSelect": false,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
@@ -296,8 +300,8 @@
           "evidence": "/\"pending\"/"
         },
         "DONE": {
-          "verdict": "HANDLED",
-          "evidence": "/addToast\\(/"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
         },
         "ACTION_FAILED": {
           "verdict": "NOT_APPLICABLE",
@@ -320,6 +324,7 @@
         "route": "/admin/audit",
         "hasTable": true,
         "hasFilter": true,
+        "hasNonFilterSelect": false,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
@@ -361,7 +366,7 @@
         },
         "FILTERED_EMPTY": {
           "verdict": "HANDLED",
-          "evidence": "/match the current filters/"
+          "evidence": "/filtered=\\{/"
         },
         "NOT_MEASURED": {
           "verdict": "NOT_APPLICABLE",
@@ -424,6 +429,7 @@
         "route": "/admin/billing",
         "hasTable": true,
         "hasFilter": false,
+        "hasNonFilterSelect": false,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
@@ -434,7 +440,7 @@
         "rereadMechanism": true,
         "readKeys": [],
         "reads": 1,
-        "hasOptionalCapability": true
+        "hasOptionalCapability": false
       },
       "states": {
         "LOADING": {
@@ -522,6 +528,7 @@
         "route": "/admin/contact-sales",
         "hasTable": true,
         "hasFilter": true,
+        "hasNonFilterSelect": false,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
@@ -595,11 +602,11 @@
         },
         "DONE": {
           "verdict": "HANDLED",
-          "evidence": "/addToast\\(/"
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1800}?(?:ok: true|kind: \"success\"|state=\"done\"|addToast\\([^)]*[\"']success[\"']|set\\w*Notice\\(|setSuccess)/"
         },
         "ACTION_FAILED": {
           "verdict": "HANDLED",
-          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1200}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1800}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|classifyFailure|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
         },
         "STEP_UP_REQUIRED": {
           "verdict": "NOT_APPLICABLE",
@@ -618,6 +625,7 @@
         "route": "/admin/contact-sales/:id",
         "hasTable": false,
         "hasFilter": false,
+        "hasNonFilterSelect": false,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
@@ -630,7 +638,7 @@
           "id"
         ],
         "reads": 1,
-        "hasOptionalCapability": true
+        "hasOptionalCapability": false
       },
       "states": {
         "LOADING": {
@@ -686,18 +694,19 @@
           "reason": "platform-scoped surface: not gated by any workspace's plan"
         },
         "UNAVAILABLE": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "every capability this page fronts is always present in a deployment that has the console"
         },
         "BUSY": {
           "verdict": "UNHANDLED"
         },
         "DONE": {
           "verdict": "HANDLED",
-          "evidence": "/addToast\\(/"
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1800}?(?:ok: true|kind: \"success\"|state=\"done\"|addToast\\([^)]*[\"']success[\"']|set\\w*Notice\\(|setSuccess)/"
         },
         "ACTION_FAILED": {
           "verdict": "HANDLED",
-          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1200}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1800}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|classifyFailure|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
         },
         "STEP_UP_REQUIRED": {
           "verdict": "NOT_APPLICABLE",
@@ -716,6 +725,7 @@
         "route": "/admin/costs",
         "hasTable": true,
         "hasFilter": false,
+        "hasNonFilterSelect": false,
         "hasMutation": false,
         "hasKpi": true,
         "isStatic": false,
@@ -789,8 +799,8 @@
           "reason": "read-only page: no mutation to be in flight"
         },
         "DONE": {
-          "verdict": "HANDLED",
-          "evidence": "/addToast\\(/"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
         },
         "ACTION_FAILED": {
           "verdict": "NOT_APPLICABLE",
@@ -813,6 +823,7 @@
         "route": "/admin/customers",
         "hasTable": true,
         "hasFilter": true,
+        "hasNonFilterSelect": false,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
@@ -823,7 +834,7 @@
         "rereadMechanism": true,
         "readKeys": [],
         "reads": 1,
-        "hasOptionalCapability": false
+        "hasOptionalCapability": true
       },
       "states": {
         "LOADING": {
@@ -848,7 +859,7 @@
         },
         "FILTERED_EMPTY": {
           "verdict": "HANDLED",
-          "evidence": "/match these filters/"
+          "evidence": "/No \\w[\\w ]{0,30}(?:match|found)/i"
         },
         "NOT_MEASURED": {
           "verdict": "NOT_APPLICABLE",
@@ -879,8 +890,8 @@
           "reason": "platform-scoped surface: not gated by any workspace's plan"
         },
         "UNAVAILABLE": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "every capability this page fronts is always present in a deployment that has the console"
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      const names = new Set(\n        [...code.matchAll(/(\\w*(?:Configured|Enabled|Available|Supported))\\b\\s*[?:]/g)].map(\n          (m) => m[1],\n        ),\n      );\n      for (const m of code.matchAll(\n        /\\{[^{}]*?(\\w*(?:Configured|Enabled|Available|Supported))\\s*:\\s*(\\w+)/g,\n      )) {\n        if (names.has(m[1])) names.add(m[2]);\n      }\n      for (const n of names) {\n        if (new RegExp(\"(?:^|[^\\\\w.])!?\" + n + \"\\\\s*(?:\\\\?|&&|\\\\|\\\\||\\\\))\").test(code)) {\n          return true;\n        }\n      }\n      // An absence member of a capability's mode union, branched on.\n      return /===\\s*\"(?:skipped|disabled|unsupported|claimed-but-unsupported|not-configured|absent|missing)\"/.test(\n        code,\n      );\n    }"
         },
         "BUSY": {
           "verdict": "HANDLED",
@@ -911,6 +922,7 @@
         "route": "/admin/customers/:id",
         "hasTable": true,
         "hasFilter": false,
+        "hasNonFilterSelect": false,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
@@ -991,7 +1003,7 @@
         },
         "ACTION_FAILED": {
           "verdict": "HANDLED",
-          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1200}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1800}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|classifyFailure|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
         },
         "STEP_UP_REQUIRED": {
           "verdict": "HANDLED",
@@ -1010,6 +1022,7 @@
         "route": "/admin/dashboard",
         "hasTable": true,
         "hasFilter": false,
+        "hasNonFilterSelect": false,
         "hasMutation": false,
         "hasKpi": true,
         "isStatic": false,
@@ -1086,8 +1099,8 @@
           "evidence": "/\"pending\"/"
         },
         "DONE": {
-          "verdict": "HANDLED",
-          "evidence": "/addToast\\(/"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
         },
         "ACTION_FAILED": {
           "verdict": "NOT_APPLICABLE",
@@ -1110,6 +1123,7 @@
         "route": "/admin/demo-requests",
         "hasTable": false,
         "hasFilter": true,
+        "hasNonFilterSelect": false,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
@@ -1154,7 +1168,7 @@
         },
         "FILTERED_EMPTY": {
           "verdict": "HANDLED",
-          "evidence": "/match the current filters/"
+          "evidence": "/filtered=\\{/"
         },
         "NOT_MEASURED": {
           "verdict": "NOT_APPLICABLE",
@@ -1194,11 +1208,11 @@
         },
         "DONE": {
           "verdict": "HANDLED",
-          "evidence": "/addToast\\(/"
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1800}?(?:ok: true|kind: \"success\"|state=\"done\"|addToast\\([^)]*[\"']success[\"']|set\\w*Notice\\(|setSuccess)/"
         },
         "ACTION_FAILED": {
           "verdict": "HANDLED",
-          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1200}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1800}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|classifyFailure|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
         },
         "STEP_UP_REQUIRED": {
           "verdict": "NOT_APPLICABLE",
@@ -1217,6 +1231,7 @@
         "route": "/admin/demo-requests/:id",
         "hasTable": false,
         "hasFilter": false,
+        "hasNonFilterSelect": false,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
@@ -1229,7 +1244,7 @@
           "id"
         ],
         "reads": 1,
-        "hasOptionalCapability": true
+        "hasOptionalCapability": false
       },
       "states": {
         "LOADING": {
@@ -1284,15 +1299,16 @@
           "reason": "platform-scoped surface: not gated by any workspace's plan"
         },
         "UNAVAILABLE": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "every capability this page fronts is always present in a deployment that has the console"
         },
         "BUSY": {
           "verdict": "HANDLED",
           "evidence": "/\"pending\"/"
         },
         "DONE": {
-          "verdict": "HANDLED",
-          "evidence": "/addToast\\(/"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
         },
         "ACTION_FAILED": {
           "verdict": "NOT_APPLICABLE",
@@ -1315,6 +1331,7 @@
         "route": "/admin/evidence-ops",
         "hasTable": false,
         "hasFilter": false,
+        "hasNonFilterSelect": false,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
@@ -1325,7 +1342,7 @@
         "rereadMechanism": true,
         "readKeys": [],
         "reads": 1,
-        "hasOptionalCapability": true
+        "hasOptionalCapability": false
       },
       "states": {
         "LOADING": {
@@ -1413,6 +1430,7 @@
         "route": "/admin/evidence-ops/records",
         "hasTable": true,
         "hasFilter": true,
+        "hasNonFilterSelect": false,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
@@ -1423,7 +1441,7 @@
         "rereadMechanism": true,
         "readKeys": [],
         "reads": 1,
-        "hasOptionalCapability": true
+        "hasOptionalCapability": false
       },
       "states": {
         "LOADING": {
@@ -1479,15 +1497,16 @@
           "reason": "platform-scoped surface: not gated by any workspace's plan"
         },
         "UNAVAILABLE": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "every capability this page fronts is always present in a deployment that has the console"
         },
         "BUSY": {
           "verdict": "HANDLED",
           "evidence": "/\"pending\"/"
         },
         "DONE": {
-          "verdict": "HANDLED",
-          "evidence": "/addToast\\(/"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
         },
         "ACTION_FAILED": {
           "verdict": "NOT_APPLICABLE",
@@ -1510,6 +1529,7 @@
         "route": "/admin/executive",
         "hasTable": true,
         "hasFilter": false,
+        "hasNonFilterSelect": false,
         "hasMutation": false,
         "hasKpi": true,
         "isStatic": false,
@@ -1520,7 +1540,7 @@
         "rereadMechanism": true,
         "readKeys": [],
         "reads": 1,
-        "hasOptionalCapability": true
+        "hasOptionalCapability": false
       },
       "states": {
         "LOADING": {
@@ -1544,8 +1564,8 @@
           "evidence": "/<EmptyState/"
         },
         "FILTERED_EMPTY": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "no filter on this page"
+          "verdict": "HANDLED",
+          "evidence": "/No \\w[\\w ]{0,30}(?:match|found)/i"
         },
         "NOT_MEASURED": {
           "verdict": "HANDLED",
@@ -1584,8 +1604,8 @@
           "evidence": "/\"pending\"/"
         },
         "DONE": {
-          "verdict": "HANDLED",
-          "evidence": "/addToast\\(/"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
         },
         "ACTION_FAILED": {
           "verdict": "NOT_APPLICABLE",
@@ -1608,6 +1628,7 @@
         "route": "/admin/identity",
         "hasTable": true,
         "hasFilter": true,
+        "hasNonFilterSelect": true,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
@@ -1643,7 +1664,7 @@
           "sessionId"
         ],
         "reads": 15,
-        "hasOptionalCapability": true
+        "hasOptionalCapability": false
       },
       "states": {
         "LOADING": {
@@ -1707,7 +1728,8 @@
           "evidence": "/busy/i"
         },
         "DONE": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/(?:set\\w*Notice\\(|setSuccess|ok: true|kind: \"success\")[\\s\\S]{0,1800}?method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"']/"
         },
         "ACTION_FAILED": {
           "verdict": "HANDLED",
@@ -1725,11 +1747,12 @@
     },
     {
       "route": "/admin/identity/access-reviews",
-      "files": 5,
+      "files": 1,
       "shape": {
         "route": "/admin/identity/access-reviews",
         "hasTable": true,
         "hasFilter": true,
+        "hasNonFilterSelect": false,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
@@ -1737,39 +1760,14 @@
         "requestPaths": [
           "/v1/identity/access-reviews${qs.toString() ",
           "/v1/identity/access-reviews/regenerate",
-          "/v1/identity/access-reviews//decision",
-          "/v1/identity/external-mappings",
-          "/v1/identity/members",
-          "/v1/identity/members//role",
-          "/v1/identity/members//capabilities",
-          "/v1/identity/capabilities",
-          "/v1/identity/members//delegated-admin",
-          "/v1/identity/delegated-admin",
-          "/v1/identity/service-accounts",
-          "/v1/identity/service-accounts//${enabled ",
-          "/v1/identity/service-accounts//hardening",
-          "/v1/identity/contributor-sessions//revoke",
-          "/v1/admin/identity/sessions/reconcile-stale",
-          "/v1/admin/identity/runtime/reconcile"
+          "/v1/identity/access-reviews//decision"
         ],
         "rereadMechanism": true,
         "readKeys": [
-          "statusFilter",
-          "subjectUserId",
-          "provider",
-          "externalSubjectId",
-          "displayName",
-          "run",
-          "onWorkspaceResolved",
-          "onMembersLoaded",
-          "selected",
-          "permissionDraft",
-          "reason",
-          "scopeDraft",
-          "sessionId"
+          "statusFilter"
         ],
-        "reads": 18,
-        "hasOptionalCapability": true
+        "reads": 3,
+        "hasOptionalCapability": false
       },
       "states": {
         "LOADING": {
@@ -1786,7 +1784,7 @@
         },
         "MEASURED_ZERO": {
           "verdict": "HANDLED",
-          "evidence": "/=== 0 \\?/"
+          "evidence": "/\\?\\? 0/"
         },
         "EMPTY": {
           "verdict": "HANDLED",
@@ -1814,7 +1812,7 @@
         },
         "ERROR": {
           "verdict": "HANDLED",
-          "evidence": "/kind: \"error\"/"
+          "evidence": "/classifyFailure/"
         },
         "DENIED": {
           "verdict": "HANDLED",
@@ -1826,7 +1824,7 @@
         },
         "UNAVAILABLE": {
           "verdict": "HANDLED",
-          "evidence": "/unavailable/i"
+          "evidence": "/not available/i"
         },
         "BUSY": {
           "verdict": "HANDLED",
@@ -1842,7 +1840,7 @@
         },
         "STEP_UP_REQUIRED": {
           "verdict": "HANDLED",
-          "evidence": "/useStepUpAction/"
+          "evidence": "/StepUpModal/"
         },
         "BLOCKED": {
           "verdict": "HANDLED",
@@ -1852,11 +1850,12 @@
     },
     {
       "route": "/admin/identity/permission-matrix",
-      "files": 5,
+      "files": 1,
       "shape": {
         "route": "/admin/identity/permission-matrix",
         "hasTable": true,
         "hasFilter": true,
+        "hasNonFilterSelect": true,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
@@ -1864,20 +1863,7 @@
         "requestPaths": [
           "/v1/admin/identity/role-matrix",
           "/v1/admin/identity/permission-matrix",
-          "/v1/admin/identity/elevations",
-          "/v1/identity/external-mappings",
-          "/v1/identity/members",
-          "/v1/identity/members//role",
-          "/v1/identity/members//capabilities",
-          "/v1/identity/capabilities",
-          "/v1/identity/members//delegated-admin",
-          "/v1/identity/delegated-admin",
-          "/v1/identity/service-accounts",
-          "/v1/identity/service-accounts//${enabled ",
-          "/v1/identity/service-accounts//hardening",
-          "/v1/identity/contributor-sessions//revoke",
-          "/v1/admin/identity/sessions/reconcile-stale",
-          "/v1/admin/identity/runtime/reconcile"
+          "/v1/admin/identity/elevations"
         ],
         "rereadMechanism": true,
         "readKeys": [
@@ -1886,21 +1872,10 @@
           "snapshot",
           "elevationPermission",
           "elevationReason",
-          "elevationTtl",
-          "provider",
-          "externalSubjectId",
-          "displayName",
-          "run",
-          "onWorkspaceResolved",
-          "onMembersLoaded",
-          "selected",
-          "permissionDraft",
-          "reason",
-          "scopeDraft",
-          "sessionId"
+          "elevationTtl"
         ],
-        "reads": 18,
-        "hasOptionalCapability": true
+        "reads": 3,
+        "hasOptionalCapability": false
       },
       "states": {
         "LOADING": {
@@ -1936,7 +1911,8 @@
           "evidence": "(src) =>\n      new Set(\n        [...src.matchAll(/catch\\s*\\([\\s\\S]{0,400}?(set[A-Z]\\w*)\\(/g)].map(\n          (m) => m[1],\n        ),\n      ).size >= 2"
         },
         "TRUNCATED": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/Showing the first/i"
         },
         "STALE": {
           "verdict": "HANDLED",
@@ -1963,11 +1939,12 @@
           "evidence": "/busy/i"
         },
         "DONE": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1800}?(?:ok: true|kind: \"success\"|state=\"done\"|addToast\\([^)]*[\"']success[\"']|set\\w*Notice\\(|setSuccess)/"
         },
         "ACTION_FAILED": {
           "verdict": "HANDLED",
-          "evidence": "/setRowResult/"
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1800}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|classifyFailure|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
         },
         "STEP_UP_REQUIRED": {
           "verdict": "HANDLED",
@@ -1981,11 +1958,12 @@
     },
     {
       "route": "/admin/identity/providers",
-      "files": 6,
+      "files": 2,
       "shape": {
         "route": "/admin/identity/providers",
         "hasTable": true,
-        "hasFilter": true,
+        "hasFilter": false,
+        "hasNonFilterSelect": true,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
@@ -1994,39 +1972,14 @@
           "/v1/admin/identity/providers",
           "/v1/admin/identity/providers//transition",
           "/v1/admin/identity/providers//policy",
-          "/v1/auth/sso/readiness",
-          "/v1/identity/external-mappings",
-          "/v1/identity/members",
-          "/v1/identity/members//role",
-          "/v1/identity/members//capabilities",
-          "/v1/identity/capabilities",
-          "/v1/identity/members//delegated-admin",
-          "/v1/identity/delegated-admin",
-          "/v1/identity/service-accounts",
-          "/v1/identity/service-accounts//${enabled ",
-          "/v1/identity/service-accounts//hardening",
-          "/v1/identity/contributor-sessions//revoke",
-          "/v1/admin/identity/sessions/reconcile-stale",
-          "/v1/admin/identity/runtime/reconcile"
+          "/v1/auth/sso/readiness"
         ],
         "rereadMechanism": true,
         "readKeys": [
           "teamId",
-          "createForm",
-          "subjectUserId",
-          "provider",
-          "externalSubjectId",
-          "displayName",
-          "run",
-          "onWorkspaceResolved",
-          "onMembersLoaded",
-          "selected",
-          "permissionDraft",
-          "reason",
-          "scopeDraft",
-          "sessionId"
+          "createForm"
         ],
-        "reads": 19,
+        "reads": 4,
         "hasOptionalCapability": true
       },
       "states": {
@@ -2036,11 +1989,11 @@
         },
         "REFRESHING": {
           "verdict": "HANDLED",
-          "evidence": "/Refresh/"
+          "evidence": "/void load\\(/"
         },
         "VALUE": {
           "verdict": "HANDLED",
-          "evidence": "/<DataTable/"
+          "evidence": "/\\.map\\(/"
         },
         "MEASURED_ZERO": {
           "verdict": "HANDLED",
@@ -2051,8 +2004,8 @@
           "evidence": "/<EmptyState/"
         },
         "FILTERED_EMPTY": {
-          "verdict": "HANDLED",
-          "evidence": "/filtered=\\{/"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "the only dropdowns here are form fields and a period control — nothing on this page narrows a list, so there is no filtered set to come back empty"
         },
         "NOT_MEASURED": {
           "verdict": "NOT_APPLICABLE",
@@ -2096,7 +2049,7 @@
         },
         "ACTION_FAILED": {
           "verdict": "HANDLED",
-          "evidence": "/setRowResult/"
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1800}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|classifyFailure|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
         },
         "STEP_UP_REQUIRED": {
           "verdict": "HANDLED",
@@ -2110,11 +2063,12 @@
     },
     {
       "route": "/admin/identity/runtime",
-      "files": 5,
+      "files": 1,
       "shape": {
         "route": "/admin/identity/runtime",
         "hasTable": true,
         "hasFilter": true,
+        "hasNonFilterSelect": false,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
@@ -2126,20 +2080,7 @@
           "/v1/admin/identity/sessions//release",
           "/v1/admin/identity/sessions//score",
           "/v1/admin/identity/emergency-revoke",
-          "/v1/identity-security/reconcile",
-          "/v1/identity/external-mappings",
-          "/v1/identity/members",
-          "/v1/identity/members//role",
-          "/v1/identity/members//capabilities",
-          "/v1/identity/capabilities",
-          "/v1/identity/members//delegated-admin",
-          "/v1/identity/delegated-admin",
-          "/v1/identity/service-accounts",
-          "/v1/identity/service-accounts//${enabled ",
-          "/v1/identity/service-accounts//hardening",
-          "/v1/identity/contributor-sessions//revoke",
-          "/v1/admin/identity/sessions/reconcile-stale",
-          "/v1/admin/identity/runtime/reconcile"
+          "/v1/identity-security/reconcile"
         ],
         "rereadMechanism": true,
         "readKeys": [
@@ -2150,22 +2091,10 @@
           "sessionsPager",
           "quarantinePager",
           "busy",
-          "emergencyReason",
-          "subjectUserId",
-          "provider",
-          "externalSubjectId",
-          "displayName",
-          "run",
-          "onWorkspaceResolved",
-          "onMembersLoaded",
-          "selected",
-          "permissionDraft",
-          "reason",
-          "scopeDraft",
-          "sessionId"
+          "emergencyReason"
         ],
-        "reads": 22,
-        "hasOptionalCapability": true
+        "reads": 7,
+        "hasOptionalCapability": false
       },
       "states": {
         "LOADING": {
@@ -2173,8 +2102,7 @@
           "evidence": "/loading=\\{/"
         },
         "REFRESHING": {
-          "verdict": "HANDLED",
-          "evidence": "/Refresh/"
+          "verdict": "UNHANDLED"
         },
         "VALUE": {
           "verdict": "HANDLED",
@@ -2182,7 +2110,7 @@
         },
         "MEASURED_ZERO": {
           "verdict": "HANDLED",
-          "evidence": "/=== 0 \\?/"
+          "evidence": "/\\?\\? 0/"
         },
         "EMPTY": {
           "verdict": "HANDLED",
@@ -2190,7 +2118,7 @@
         },
         "FILTERED_EMPTY": {
           "verdict": "HANDLED",
-          "evidence": "/match these filters/"
+          "evidence": "/filtered=\\{/"
         },
         "NOT_MEASURED": {
           "verdict": "NOT_APPLICABLE",
@@ -2234,7 +2162,7 @@
         },
         "ACTION_FAILED": {
           "verdict": "HANDLED",
-          "evidence": "/setRowResult/"
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1800}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|classifyFailure|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
         },
         "STEP_UP_REQUIRED": {
           "verdict": "HANDLED",
@@ -2248,11 +2176,12 @@
     },
     {
       "route": "/admin/identity/scim",
-      "files": 6,
+      "files": 2,
       "shape": {
         "route": "/admin/identity/scim",
         "hasTable": true,
         "hasFilter": true,
+        "hasNonFilterSelect": false,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
@@ -2265,20 +2194,7 @@
           "/v1/scim/reconciliation/execute",
           "/v1/scim/sync-failures",
           "/v1/scim/sync-failures//replay",
-          "/v1/admin/identity/scim/managed-membership",
-          "/v1/identity/external-mappings",
-          "/v1/identity/members",
-          "/v1/identity/members//role",
-          "/v1/identity/members//capabilities",
-          "/v1/identity/capabilities",
-          "/v1/identity/members//delegated-admin",
-          "/v1/identity/delegated-admin",
-          "/v1/identity/service-accounts",
-          "/v1/identity/service-accounts//${enabled ",
-          "/v1/identity/service-accounts//hardening",
-          "/v1/identity/contributor-sessions//revoke",
-          "/v1/admin/identity/sessions/reconcile-stale",
-          "/v1/admin/identity/runtime/reconcile"
+          "/v1/admin/identity/scim/managed-membership"
         ],
         "rereadMechanism": true,
         "readKeys": [
@@ -2289,284 +2205,9 @@
           "selected",
           "scan",
           "eventTypeFilter",
-          "severityFilter",
-          "subjectUserId",
-          "provider",
-          "externalSubjectId",
-          "displayName",
-          "run",
-          "onWorkspaceResolved",
-          "onMembersLoaded",
-          "permissionDraft",
-          "reason",
-          "scopeDraft",
-          "sessionId"
+          "severityFilter"
         ],
-        "reads": 23,
-        "hasOptionalCapability": true
-      },
-      "states": {
-        "LOADING": {
-          "verdict": "HANDLED",
-          "evidence": "/loading=\\{/"
-        },
-        "REFRESHING": {
-          "verdict": "HANDLED",
-          "evidence": "/Refresh/"
-        },
-        "VALUE": {
-          "verdict": "HANDLED",
-          "evidence": "/<DataTable/"
-        },
-        "MEASURED_ZERO": {
-          "verdict": "HANDLED",
-          "evidence": "/=== 0 \\?/"
-        },
-        "EMPTY": {
-          "verdict": "HANDLED",
-          "evidence": "/<EmptyState/"
-        },
-        "FILTERED_EMPTY": {
-          "verdict": "HANDLED",
-          "evidence": "/match these filters/"
-        },
-        "NOT_MEASURED": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "no measured signal on this page: its content is records, not metrics"
-        },
-        "PARTIAL": {
-          "verdict": "HANDLED",
-          "evidence": "(src) =>\n      new Set(\n        [...src.matchAll(/catch\\s*\\([\\s\\S]{0,400}?(set[A-Z]\\w*)\\(/g)].map(\n          (m) => m[1],\n        ),\n      ).size >= 2"
-        },
-        "TRUNCATED": {
-          "verdict": "HANDLED",
-          "evidence": "/truncated/i"
-        },
-        "STALE": {
-          "verdict": "HANDLED",
-          "evidence": "/isStale/"
-        },
-        "ERROR": {
-          "verdict": "HANDLED",
-          "evidence": "/state=\"error\"/"
-        },
-        "DENIED": {
-          "verdict": "HANDLED",
-          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
-        },
-        "PLAN_GATED": {
-          "verdict": "HANDLED",
-          "evidence": "/402/"
-        },
-        "UNAVAILABLE": {
-          "verdict": "HANDLED",
-          "evidence": "/unavailable/i"
-        },
-        "BUSY": {
-          "verdict": "HANDLED",
-          "evidence": "/busy/i"
-        },
-        "DONE": {
-          "verdict": "HANDLED",
-          "evidence": "/state=\"done\"/"
-        },
-        "ACTION_FAILED": {
-          "verdict": "HANDLED",
-          "evidence": "/setRowResult/"
-        },
-        "STEP_UP_REQUIRED": {
-          "verdict": "HANDLED",
-          "evidence": "/StepUpModal/"
-        },
-        "BLOCKED": {
-          "verdict": "HANDLED",
-          "evidence": "/disabled=\\{/"
-        }
-      }
-    },
-    {
-      "route": "/admin/identity/sessions",
-      "files": 10,
-      "shape": {
-        "route": "/admin/identity/sessions",
-        "hasTable": true,
-        "hasFilter": true,
-        "hasMutation": true,
-        "hasKpi": false,
-        "isStatic": false,
-        "workspaceScoped": true,
-        "requestPaths": [
-          "/v1/admin/identity/sessions",
-          "/v1/admin/identity/quarantined-sessions",
-          "/v1/identity-security/session-policy-impact",
-          "/v1/identity/sessions//timeline",
-          "/v1/identity-security/devices",
-          "/v1/identity-security/devices/trust",
-          "/v1/identity-security/devices//revoke",
-          "/v1/identity/members",
-          "/v1/identity-security/risk/user",
-          "/v1/identity/external-mappings",
-          "/v1/identity/members//role",
-          "/v1/identity/members//capabilities",
-          "/v1/identity/capabilities",
-          "/v1/identity/members//delegated-admin",
-          "/v1/identity/delegated-admin",
-          "/v1/identity/service-accounts",
-          "/v1/identity/service-accounts//${enabled ",
-          "/v1/identity/service-accounts//hardening",
-          "/v1/identity/contributor-sessions//revoke",
-          "/v1/admin/identity/sessions/reconcile-stale",
-          "/v1/admin/identity/runtime/reconcile"
-        ],
-        "rereadMechanism": true,
-        "readKeys": [
-          "teamId",
-          "includeRevoked",
-          "includeExpired",
-          "sessionsPager",
-          "quarantinePager",
-          "sessionId",
-          "ttlDays",
-          "subjectUserId",
-          "provider",
-          "externalSubjectId",
-          "displayName",
-          "run",
-          "onWorkspaceResolved",
-          "onMembersLoaded",
-          "selected",
-          "permissionDraft",
-          "reason",
-          "scopeDraft"
-        ],
-        "reads": 23,
-        "hasOptionalCapability": true
-      },
-      "states": {
-        "LOADING": {
-          "verdict": "HANDLED",
-          "evidence": "/<AdmSkeleton/"
-        },
-        "REFRESHING": {
-          "verdict": "HANDLED",
-          "evidence": "/Refresh/"
-        },
-        "VALUE": {
-          "verdict": "HANDLED",
-          "evidence": "/<DataTable/"
-        },
-        "MEASURED_ZERO": {
-          "verdict": "HANDLED",
-          "evidence": "/=== 0 \\?/"
-        },
-        "EMPTY": {
-          "verdict": "HANDLED",
-          "evidence": "/state=\"empty\"/"
-        },
-        "FILTERED_EMPTY": {
-          "verdict": "HANDLED",
-          "evidence": "/match these filters/"
-        },
-        "NOT_MEASURED": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "no measured signal on this page: its content is records, not metrics"
-        },
-        "PARTIAL": {
-          "verdict": "HANDLED",
-          "evidence": "(src) =>\n      new Set(\n        [...src.matchAll(/catch\\s*\\([\\s\\S]{0,400}?(set[A-Z]\\w*)\\(/g)].map(\n          (m) => m[1],\n        ),\n      ).size >= 2"
-        },
-        "TRUNCATED": {
-          "verdict": "HANDLED",
-          "evidence": "/truncated/i"
-        },
-        "STALE": {
-          "verdict": "HANDLED",
-          "evidence": "/isStale/"
-        },
-        "ERROR": {
-          "verdict": "HANDLED",
-          "evidence": "/state=\"error\"/"
-        },
-        "DENIED": {
-          "verdict": "HANDLED",
-          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
-        },
-        "PLAN_GATED": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "none of this page's endpoints applies a plan gate — the three that do in this API (mfa-admin's policy PATCH, every scim-admin route, and governance-lifecycle's retention/legal-hold mutations) are not among its requests, so no 402 can reach it"
-        },
-        "UNAVAILABLE": {
-          "verdict": "HANDLED",
-          "evidence": "/state=\"unavailable\"/"
-        },
-        "BUSY": {
-          "verdict": "HANDLED",
-          "evidence": "/busy/i"
-        },
-        "DONE": {
-          "verdict": "HANDLED",
-          "evidence": "/tone=\"verified\"/"
-        },
-        "ACTION_FAILED": {
-          "verdict": "HANDLED",
-          "evidence": "/setRowResult/"
-        },
-        "STEP_UP_REQUIRED": {
-          "verdict": "HANDLED",
-          "evidence": "/StepUpModal/"
-        },
-        "BLOCKED": {
-          "verdict": "HANDLED",
-          "evidence": "/disabled=\\{/"
-        }
-      }
-    },
-    {
-      "route": "/admin/identity/timeline",
-      "files": 5,
-      "shape": {
-        "route": "/admin/identity/timeline",
-        "hasTable": true,
-        "hasFilter": true,
-        "hasMutation": true,
-        "hasKpi": false,
-        "isStatic": false,
-        "workspaceScoped": true,
-        "requestPaths": [
-          "/v1/admin/identity/timeline",
-          "/v1/identity/external-mappings",
-          "/v1/identity/members",
-          "/v1/identity/members//role",
-          "/v1/identity/members//capabilities",
-          "/v1/identity/capabilities",
-          "/v1/identity/members//delegated-admin",
-          "/v1/identity/delegated-admin",
-          "/v1/identity/service-accounts",
-          "/v1/identity/service-accounts//${enabled ",
-          "/v1/identity/service-accounts//hardening",
-          "/v1/identity/contributor-sessions//revoke",
-          "/v1/admin/identity/sessions/reconcile-stale",
-          "/v1/admin/identity/runtime/reconcile"
-        ],
-        "rereadMechanism": true,
-        "readKeys": [
-          "teamId",
-          "filterIdx",
-          "severityFilter",
-          "subjectUserId",
-          "provider",
-          "externalSubjectId",
-          "displayName",
-          "run",
-          "onWorkspaceResolved",
-          "onMembersLoaded",
-          "selected",
-          "permissionDraft",
-          "reason",
-          "scopeDraft",
-          "sessionId"
-        ],
-        "reads": 16,
+        "reads": 8,
         "hasOptionalCapability": true
       },
       "states": {
@@ -2600,11 +2241,11 @@
         },
         "PARTIAL": {
           "verdict": "HANDLED",
-          "evidence": "/partial/i"
+          "evidence": "(src) =>\n      new Set(\n        [...src.matchAll(/catch\\s*\\([\\s\\S]{0,400}?(set[A-Z]\\w*)\\(/g)].map(\n          (m) => m[1],\n        ),\n      ).size >= 2"
         },
         "TRUNCATED": {
           "verdict": "HANDLED",
-          "evidence": "/hasMore/"
+          "evidence": "/truncated/i"
         },
         "STALE": {
           "verdict": "HANDLED",
@@ -2619,27 +2260,243 @@
           "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
         },
         "PLAN_GATED": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "none of this page's endpoints applies a plan gate — the three that do in this API (mfa-admin's policy PATCH, every scim-admin route, and governance-lifecycle's retention/legal-hold mutations) are not among its requests, so no 402 can reach it"
+          "verdict": "HANDLED",
+          "evidence": "/402/"
         },
         "UNAVAILABLE": {
           "verdict": "HANDLED",
-          "evidence": "/unavailable/i"
+          "evidence": "/not available/i"
         },
         "BUSY": {
           "verdict": "HANDLED",
           "evidence": "/busy/i"
         },
         "DONE": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/state=\"done\"/"
         },
         "ACTION_FAILED": {
           "verdict": "HANDLED",
-          "evidence": "/setRowResult/"
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1800}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|classifyFailure|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
         },
         "STEP_UP_REQUIRED": {
           "verdict": "HANDLED",
-          "evidence": "/useStepUpAction/"
+          "evidence": "/StepUpModal/"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/identity/sessions",
+      "files": 5,
+      "shape": {
+        "route": "/admin/identity/sessions",
+        "hasTable": true,
+        "hasFilter": true,
+        "hasNonFilterSelect": true,
+        "hasMutation": true,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": true,
+        "requestPaths": [
+          "/v1/admin/identity/sessions",
+          "/v1/admin/identity/quarantined-sessions",
+          "/v1/identity-security/session-policy-impact",
+          "/v1/identity-security/devices",
+          "/v1/identity-security/devices/trust",
+          "/v1/identity-security/devices//revoke",
+          "/v1/identity/members",
+          "/v1/identity-security/risk/user"
+        ],
+        "rereadMechanism": true,
+        "readKeys": [
+          "teamId",
+          "includeRevoked",
+          "includeExpired",
+          "sessionsPager",
+          "quarantinePager",
+          "ttlDays"
+        ],
+        "reads": 8,
+        "hasOptionalCapability": false
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/loading=\\{/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/Refresh/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/<DataTable/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "UNHANDLED"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/<EmptyState/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/filtered=\\{/"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "HANDLED",
+          "evidence": "(src) =>\n      new Set(\n        [...src.matchAll(/catch\\s*\\([\\s\\S]{0,400}?(set[A-Z]\\w*)\\(/g)].map(\n          (m) => m[1],\n        ),\n      ).size >= 2"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/\\bcap\\b/"
+        },
+        "STALE": {
+          "verdict": "HANDLED",
+          "evidence": "/isStale/"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/kind: \"error\"/"
+        },
+        "DENIED": {
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
+        },
+        "PLAN_GATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "none of this page's endpoints applies a plan gate — the three that do in this API (mfa-admin's policy PATCH, every scim-admin route, and governance-lifecycle's retention/legal-hold mutations) are not among its requests, so no 402 can reach it"
+        },
+        "UNAVAILABLE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "every capability this page fronts is always present in a deployment that has the console"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/busy/i"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/tone=\"verified\"/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "HANDLED",
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1800}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|classifyFailure|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "HANDLED",
+          "evidence": "/StepUpModal/"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/identity/timeline",
+      "files": 1,
+      "shape": {
+        "route": "/admin/identity/timeline",
+        "hasTable": true,
+        "hasFilter": true,
+        "hasNonFilterSelect": false,
+        "hasMutation": false,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": true,
+        "requestPaths": [
+          "/v1/admin/identity/timeline"
+        ],
+        "rereadMechanism": true,
+        "readKeys": [
+          "teamId",
+          "filterIdx",
+          "severityFilter"
+        ],
+        "reads": 1,
+        "hasOptionalCapability": false
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/loading=\\{/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/Refresh/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/<DataTable/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/\\?\\? 0/"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/<EmptyState/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/filtered=\\{/"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "HANDLED",
+          "evidence": "/partial/i"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/hasMore/"
+        },
+        "STALE": {
+          "verdict": "HANDLED",
+          "evidence": "/stale/i"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/state=\"error\"/"
+        },
+        "DENIED": {
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      if (silentApiFailure(code)) return false;\n      return [\n        /kind: \"denied\"/,\n        /=== \"denied\"/,\n        /state=\"unavailable\"/,\n        /readScimDenial/,\n        /statusCode === 403/,\n        /status === 403/,\n        /permission_denied/,\n        /forbidden/i,\n        /don't have access/,\n        /DenialPanel/,\n        /classifyFailure/,\n        /toSafeUserError/,\n        /notifyApiError/,\n      ].some((p) => p.test(code));\n    }"
+        },
+        "PLAN_GATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "none of this page's endpoints applies a plan gate — the three that do in this API (mfa-admin's policy PATCH, every scim-admin route, and governance-lifecycle's retention/legal-hold mutations) are not among its requests, so no 402 can reach it"
+        },
+        "UNAVAILABLE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "every capability this page fronts is always present in a deployment that has the console"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/\"pending\"/"
+        },
+        "DONE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "ACTION_FAILED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
         },
         "BLOCKED": {
           "verdict": "HANDLED",
@@ -2654,6 +2511,7 @@
         "route": "/admin/operations",
         "hasTable": true,
         "hasFilter": true,
+        "hasNonFilterSelect": false,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
@@ -2734,11 +2592,11 @@
         },
         "DONE": {
           "verdict": "HANDLED",
-          "evidence": "/addToast\\(/"
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1800}?(?:ok: true|kind: \"success\"|state=\"done\"|addToast\\([^)]*[\"']success[\"']|set\\w*Notice\\(|setSuccess)/"
         },
         "ACTION_FAILED": {
           "verdict": "HANDLED",
-          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1200}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1800}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|classifyFailure|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
         },
         "STEP_UP_REQUIRED": {
           "verdict": "NOT_APPLICABLE",
@@ -2757,6 +2615,7 @@
         "route": "/admin/platform-health",
         "hasTable": false,
         "hasFilter": false,
+        "hasNonFilterSelect": false,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
@@ -2767,7 +2626,7 @@
         "rereadMechanism": true,
         "readKeys": [],
         "reads": 1,
-        "hasOptionalCapability": true
+        "hasOptionalCapability": false
       },
       "states": {
         "LOADING": {
@@ -2854,7 +2713,8 @@
       "shape": {
         "route": "/admin/platform/analytics",
         "hasTable": false,
-        "hasFilter": true,
+        "hasFilter": false,
+        "hasNonFilterSelect": true,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
@@ -2873,7 +2733,7 @@
           "windowDays"
         ],
         "reads": 6,
-        "hasOptionalCapability": true
+        "hasOptionalCapability": false
       },
       "states": {
         "LOADING": {
@@ -2897,7 +2757,8 @@
           "reason": "nothing on this page is a list"
         },
         "FILTERED_EMPTY": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "the only dropdowns here are form fields and a period control — nothing on this page narrows a list, so there is no filtered set to come back empty"
         },
         "NOT_MEASURED": {
           "verdict": "NOT_APPLICABLE",
@@ -2960,6 +2821,7 @@
         "route": "/admin/platform/automation",
         "hasTable": true,
         "hasFilter": true,
+        "hasNonFilterSelect": false,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
@@ -3062,6 +2924,7 @@
         "route": "/admin/platform/exports",
         "hasTable": true,
         "hasFilter": false,
+        "hasNonFilterSelect": false,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
@@ -3132,7 +2995,8 @@
           "evidence": "/<AccessGate/"
         },
         "UNAVAILABLE": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      const names = new Set(\n        [...code.matchAll(/(\\w*(?:Configured|Enabled|Available|Supported))\\b\\s*[?:]/g)].map(\n          (m) => m[1],\n        ),\n      );\n      for (const m of code.matchAll(\n        /\\{[^{}]*?(\\w*(?:Configured|Enabled|Available|Supported))\\s*:\\s*(\\w+)/g,\n      )) {\n        if (names.has(m[1])) names.add(m[2]);\n      }\n      for (const n of names) {\n        if (new RegExp(\"(?:^|[^\\\\w.])!?\" + n + \"\\\\s*(?:\\\\?|&&|\\\\|\\\\||\\\\))\").test(code)) {\n          return true;\n        }\n      }\n      // An absence member of a capability's mode union, branched on.\n      return /===\\s*\"(?:skipped|disabled|unsupported|claimed-but-unsupported|not-configured|absent|missing)\"/.test(\n        code,\n      );\n    }"
         },
         "BUSY": {
           "verdict": "HANDLED",
@@ -3144,7 +3008,7 @@
         },
         "ACTION_FAILED": {
           "verdict": "HANDLED",
-          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1200}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1800}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|classifyFailure|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
         },
         "STEP_UP_REQUIRED": {
           "verdict": "NOT_APPLICABLE",
@@ -3163,6 +3027,7 @@
         "route": "/admin/platform/media-graph",
         "hasTable": false,
         "hasFilter": false,
+        "hasNonFilterSelect": false,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
@@ -3239,7 +3104,8 @@
           "evidence": "/\"pending\"/"
         },
         "DONE": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1800}?(?:ok: true|kind: \"success\"|state=\"done\"|addToast\\([^)]*[\"']success[\"']|set\\w*Notice\\(|setSuccess)/"
         },
         "ACTION_FAILED": {
           "verdict": "HANDLED",
@@ -3262,6 +3128,7 @@
         "route": "/admin/platform/observability",
         "hasTable": true,
         "hasFilter": false,
+        "hasNonFilterSelect": false,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
@@ -3275,7 +3142,7 @@
         "rereadMechanism": true,
         "readKeys": [],
         "reads": 4,
-        "hasOptionalCapability": true
+        "hasOptionalCapability": false
       },
       "states": {
         "LOADING": {
@@ -3309,7 +3176,8 @@
           "evidence": "/PARTIAL/"
         },
         "TRUNCATED": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/<ResultCount[\\s\\S]{0,400}?(?:total|cap|hasMore)=/"
         },
         "STALE": {
           "verdict": "HANDLED",
@@ -3360,6 +3228,7 @@
         "route": "/admin/platform/queues",
         "hasTable": true,
         "hasFilter": false,
+        "hasNonFilterSelect": false,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
@@ -3432,8 +3301,8 @@
           "evidence": "/<AccessGate/"
         },
         "UNAVAILABLE": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "every capability this page fronts is always present in a deployment that has the console"
+          "verdict": "HANDLED",
+          "evidence": "(code) => {\n      const names = new Set(\n        [...code.matchAll(/(\\w*(?:Configured|Enabled|Available|Supported))\\b\\s*[?:]/g)].map(\n          (m) => m[1],\n        ),\n      );\n      for (const m of code.matchAll(\n        /\\{[^{}]*?(\\w*(?:Configured|Enabled|Available|Supported))\\s*:\\s*(\\w+)/g,\n      )) {\n        if (names.has(m[1])) names.add(m[2]);\n      }\n      for (const n of names) {\n        if (new RegExp(\"(?:^|[^\\\\w.])!?\" + n + \"\\\\s*(?:\\\\?|&&|\\\\|\\\\||\\\\))\").test(code)) {\n          return true;\n        }\n      }\n      // An absence member of a capability's mode union, branched on.\n      return /===\\s*\"(?:skipped|disabled|unsupported|claimed-but-unsupported|not-configured|absent|missing)\"/.test(\n        code,\n      );\n    }"
         },
         "BUSY": {
           "verdict": "HANDLED",
@@ -3445,7 +3314,7 @@
         },
         "ACTION_FAILED": {
           "verdict": "HANDLED",
-          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1200}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1800}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|classifyFailure|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
         },
         "STEP_UP_REQUIRED": {
           "verdict": "HANDLED",
@@ -3464,6 +3333,7 @@
         "route": "/admin/platform/readiness",
         "hasTable": false,
         "hasFilter": false,
+        "hasNonFilterSelect": false,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
@@ -3562,6 +3432,7 @@
         "route": "/admin/platform/recovery",
         "hasTable": true,
         "hasFilter": false,
+        "hasNonFilterSelect": false,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
@@ -3646,7 +3517,7 @@
         },
         "ACTION_FAILED": {
           "verdict": "HANDLED",
-          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1200}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1800}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|classifyFailure|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
         },
         "STEP_UP_REQUIRED": {
           "verdict": "HANDLED",
@@ -3665,6 +3536,7 @@
         "route": "/admin/platform/reliability",
         "hasTable": false,
         "hasFilter": true,
+        "hasNonFilterSelect": true,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
@@ -3705,7 +3577,8 @@
           "reason": "nothing on this page is a list"
         },
         "FILTERED_EMPTY": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/data-[\\w-]*filtered-empty/"
         },
         "NOT_MEASURED": {
           "verdict": "NOT_APPLICABLE",
@@ -3744,11 +3617,12 @@
           "evidence": "/busy/i"
         },
         "DONE": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1800}?(?:ok: true|kind: \"success\"|state=\"done\"|addToast\\([^)]*[\"']success[\"']|set\\w*Notice\\(|setSuccess)/"
         },
         "ACTION_FAILED": {
           "verdict": "HANDLED",
-          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1200}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1800}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|classifyFailure|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
         },
         "STEP_UP_REQUIRED": {
           "verdict": "NOT_APPLICABLE",
@@ -3767,6 +3641,7 @@
         "route": "/admin/platform/runbooks",
         "hasTable": false,
         "hasFilter": true,
+        "hasNonFilterSelect": false,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": true,
@@ -3775,7 +3650,7 @@
         "rereadMechanism": false,
         "readKeys": [],
         "reads": 0,
-        "hasOptionalCapability": true
+        "hasOptionalCapability": false
       },
       "states": {
         "LOADING": {
@@ -3799,7 +3674,8 @@
           "evidence": "/<EmptyState/"
         },
         "FILTERED_EMPTY": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/No \\w[\\w ]{0,30}(?:match|found)/i"
         },
         "NOT_MEASURED": {
           "verdict": "NOT_APPLICABLE",
@@ -3830,7 +3706,8 @@
           "reason": "platform-scoped surface: not gated by any workspace's plan"
         },
         "UNAVAILABLE": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "every capability this page fronts is always present in a deployment that has the console"
         },
         "BUSY": {
           "verdict": "NOT_APPLICABLE",
@@ -3861,6 +3738,7 @@
         "route": "/admin/platform/runbooks/:slug",
         "hasTable": false,
         "hasFilter": false,
+        "hasNonFilterSelect": false,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": true,
@@ -3957,6 +3835,7 @@
         "route": "/admin/platform/signers",
         "hasTable": true,
         "hasFilter": true,
+        "hasNonFilterSelect": false,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
@@ -4047,7 +3926,7 @@
         },
         "ACTION_FAILED": {
           "verdict": "HANDLED",
-          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1200}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1800}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|classifyFailure|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
         },
         "STEP_UP_REQUIRED": {
           "verdict": "HANDLED",
@@ -4066,6 +3945,7 @@
         "route": "/admin/provisioning",
         "hasTable": true,
         "hasFilter": false,
+        "hasNonFilterSelect": false,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
@@ -4126,7 +4006,8 @@
           "evidence": "(src) =>\n      new Set(\n        [...src.matchAll(/catch\\s*\\([\\s\\S]{0,400}?(set[A-Z]\\w*)\\(/g)].map(\n          (m) => m[1],\n        ),\n      ).size >= 2"
         },
         "TRUNCATED": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/<ResultCount[\\s\\S]{0,400}?(?:total|cap|hasMore)=/"
         },
         "STALE": {
           "verdict": "HANDLED",
@@ -4158,7 +4039,7 @@
         },
         "ACTION_FAILED": {
           "verdict": "HANDLED",
-          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1200}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1800}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|classifyFailure|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
         },
         "STEP_UP_REQUIRED": {
           "verdict": "HANDLED",
@@ -4177,6 +4058,7 @@
         "route": "/admin/search",
         "hasTable": false,
         "hasFilter": true,
+        "hasNonFilterSelect": false,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
@@ -4253,8 +4135,8 @@
           "evidence": "/\"pending\"/"
         },
         "DONE": {
-          "verdict": "HANDLED",
-          "evidence": "/addToast\\(/"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
         },
         "ACTION_FAILED": {
           "verdict": "NOT_APPLICABLE",
@@ -4277,6 +4159,7 @@
         "route": "/admin/security",
         "hasTable": true,
         "hasFilter": true,
+        "hasNonFilterSelect": true,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
@@ -4312,7 +4195,7 @@
           "severity"
         ],
         "reads": 12,
-        "hasOptionalCapability": false
+        "hasOptionalCapability": true
       },
       "states": {
         "LOADING": {
@@ -4381,7 +4264,7 @@
         },
         "ACTION_FAILED": {
           "verdict": "HANDLED",
-          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1200}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1800}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|classifyFailure|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
         },
         "STEP_UP_REQUIRED": {
           "verdict": "HANDLED",
@@ -4400,6 +4283,7 @@
         "route": "/admin/support-access",
         "hasTable": true,
         "hasFilter": true,
+        "hasNonFilterSelect": true,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
@@ -4514,6 +4398,7 @@
         "route": "/admin/timeline",
         "hasTable": true,
         "hasFilter": true,
+        "hasNonFilterSelect": false,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
@@ -4553,7 +4438,7 @@
         },
         "FILTERED_EMPTY": {
           "verdict": "HANDLED",
-          "evidence": "/match the current filters/"
+          "evidence": "/filtered=\\{/"
         },
         "NOT_MEASURED": {
           "verdict": "NOT_APPLICABLE",
@@ -4592,8 +4477,8 @@
           "evidence": "/\"pending\"/"
         },
         "DONE": {
-          "verdict": "HANDLED",
-          "evidence": "/addToast\\(/"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
         },
         "ACTION_FAILED": {
           "verdict": "NOT_APPLICABLE",
@@ -4616,6 +4501,7 @@
         "route": "/admin/users",
         "hasTable": true,
         "hasFilter": true,
+        "hasNonFilterSelect": false,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
@@ -4653,7 +4539,8 @@
           "evidence": "/<EmptyState/"
         },
         "FILTERED_EMPTY": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/match(?:es)?\\s+(?:the\\s+)?(?:current\\s+)?filters/i"
         },
         "NOT_MEASURED": {
           "verdict": "NOT_APPLICABLE",
@@ -4711,31 +4598,30 @@
     },
     {
       "route": "/admin/users/:id",
-      "files": 2,
+      "files": 1,
       "shape": {
         "route": "/admin/users/:id",
         "hasTable": true,
-        "hasFilter": true,
+        "hasFilter": false,
+        "hasNonFilterSelect": false,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": false,
         "requestPaths": [
-          "/v1/admin/users",
-          "/v1/admin/lifecycle-requests"
+          "/v1/admin/users"
         ],
         "rereadMechanism": true,
         "readKeys": [
-          "id",
-          "kind"
+          "id"
         ],
-        "reads": 2,
+        "reads": 1,
         "hasOptionalCapability": false
       },
       "states": {
         "LOADING": {
           "verdict": "HANDLED",
-          "evidence": "/loading=\\{/"
+          "evidence": "/\\bloading\\b\\s*\\?/"
         },
         "REFRESHING": {
           "verdict": "HANDLED",
@@ -4754,19 +4640,19 @@
           "evidence": "/<EmptyState/"
         },
         "FILTERED_EMPTY": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no filter on this page"
         },
         "NOT_MEASURED": {
           "verdict": "HANDLED",
           "evidence": "/Not measured/"
         },
         "PARTIAL": {
-          "verdict": "HANDLED",
-          "evidence": "(src) =>\n      new Set(\n        [...src.matchAll(/catch\\s*\\([\\s\\S]{0,400}?(set[A-Z]\\w*)\\(/g)].map(\n          (m) => m[1],\n        ),\n      ).size >= 2"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "reads a single source: there is no subset of one to be partial"
         },
         "TRUNCATED": {
-          "verdict": "HANDLED",
-          "evidence": "/limit/"
+          "verdict": "UNHANDLED"
         },
         "STALE": {
           "verdict": "NOT_APPLICABLE",
@@ -4817,6 +4703,7 @@
         "route": "/admin/workspaces",
         "hasTable": true,
         "hasFilter": true,
+        "hasNonFilterSelect": false,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
@@ -4851,7 +4738,8 @@
           "evidence": "/<EmptyState/"
         },
         "FILTERED_EMPTY": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/match(?:es)?\\s+(?:the\\s+)?(?:current\\s+)?filters/i"
         },
         "NOT_MEASURED": {
           "verdict": "NOT_APPLICABLE",
@@ -4914,6 +4802,7 @@
         "route": "/admin/workspaces/:id",
         "hasTable": true,
         "hasFilter": false,
+        "hasNonFilterSelect": false,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
@@ -5010,40 +4899,23 @@
   ],
   "gaps": [
     "/admin: NOT_MEASURED",
-    "/admin/adoption: TRUNCATED",
     "/admin/contact-sales: EMPTY",
     "/admin/contact-sales: BUSY",
-    "/admin/contact-sales/:id: UNAVAILABLE",
     "/admin/contact-sales/:id: BUSY",
     "/admin/costs: NOT_MEASURED",
     "/admin/customers/:id: EMPTY",
     "/admin/customers/:id: TRUNCATED",
     "/admin/demo-requests/:id: VALUE",
-    "/admin/demo-requests/:id: UNAVAILABLE",
-    "/admin/evidence-ops/records: UNAVAILABLE",
-    "/admin/identity: DONE",
-    "/admin/identity/permission-matrix: TRUNCATED",
-    "/admin/identity/permission-matrix: DONE",
-    "/admin/identity/timeline: DONE",
+    "/admin/identity/runtime: REFRESHING",
+    "/admin/identity/sessions: MEASURED_ZERO",
     "/admin/operations: PARTIAL",
-    "/admin/platform/analytics: FILTERED_EMPTY",
     "/admin/platform/exports: MEASURED_ZERO",
-    "/admin/platform/exports: UNAVAILABLE",
-    "/admin/platform/media-graph: DONE",
     "/admin/platform/observability: REFRESHING",
     "/admin/platform/observability: EMPTY",
-    "/admin/platform/observability: TRUNCATED",
     "/admin/platform/queues: EMPTY",
     "/admin/platform/recovery: PARTIAL",
-    "/admin/platform/reliability: FILTERED_EMPTY",
-    "/admin/platform/reliability: DONE",
-    "/admin/platform/runbooks: FILTERED_EMPTY",
-    "/admin/platform/runbooks: UNAVAILABLE",
     "/admin/platform/signers: EMPTY",
-    "/admin/provisioning: TRUNCATED",
     "/admin/timeline: MEASURED_ZERO",
-    "/admin/users: FILTERED_EMPTY",
-    "/admin/users/:id: FILTERED_EMPTY",
-    "/admin/workspaces: FILTERED_EMPTY"
+    "/admin/users/:id: TRUNCATED"
   ]
 }

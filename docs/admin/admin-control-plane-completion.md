@@ -323,7 +323,7 @@
 | `/admin/evidence-ops/records` | 626 | 2c/1t/0s |  |
 | `/admin/executive` | 690 | 3c/2t/7s |  |
 | `/admin/identity` | 296 | 13c/3t/7s |  |
-| `/admin/identity/access-reviews` | 557 | 4c/1t/1s |  |
+| `/admin/identity/access-reviews` | 583 | 4c/1t/1s |  |
 | `/admin/identity/permission-matrix` | 785 | 6c/1t/5s |  |
 | `/admin/identity/providers` | 963 | 10c/1t/3s |  |
 | `/admin/identity/runtime` | 1024 | 2c/2t/3s |  |
@@ -340,7 +340,7 @@
 | `/admin/platform/queues` | 811 | 0c/2t/0s |  |
 | `/admin/platform/readiness` | 624 | 8c/0t/6s |  |
 | `/admin/platform/recovery` | 641 | 0c/2t/0s |  |
-| `/admin/platform/reliability` | 432 | 0c/0t/1s |  |
+| `/admin/platform/reliability` | 515 | 0c/0t/1s |  |
 | `/admin/platform/runbooks` | 197 | 1c/0t/0s |  |
 | `/admin/platform/runbooks/:slug` | 233 | 0c/0t/0s |  |
 | `/admin/platform/signers` | 1171 | 0c/3t/0s |  |

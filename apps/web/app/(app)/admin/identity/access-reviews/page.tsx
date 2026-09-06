@@ -34,6 +34,10 @@ import { ResultCount } from "../../../../../components/ui/ResultCount";
 import { useTeamId, useTenantGuard } from "../../../../../lib/platform-context";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
 import {
+  StepUpModal,
+  useStepUpAction,
+} from "../../../../../components/identity-security/StepUpModal";
+import {
   classifyFailure,
   isStepUpCancel,
   type RowResult,
@@ -131,6 +135,7 @@ function reviewStatusTone(status: string): BadgeTone {
 export default function AccessReviewsPage() {
   const teamId = useTeamId();
   const { stamp, isStale } = useTenantGuard();
+  const stepUp = useStepUpAction({ teamId });
   const { confirm } = useConfirmAction();
 
   const [reviews, setReviews] = useState<ReadonlyArray<AccessReview> | null>(
@@ -234,16 +239,35 @@ export default function AccessReviewsPage() {
       setBusyRow(review.id);
       setRowResult(null);
       try {
-        await apiFetch(
-          `/v1/identity/access-reviews/${encodeURIComponent(review.id)}/decision`,
-          {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              decision: option.decision,
-              ...(note.trim() ? { decisionNote: note.trim().slice(0, 2000) } : {}),
-            }),
-          },
+        /*
+          RECORDING A CERTIFICATION IS STEP-UP GATED, AND THIS PAGE HAD NO WAY
+          TO SATISFY IT.
+
+          `POST /v1/identity/access-reviews/:id/decision` calls
+          `requireStepUpForSensitiveAction`. The page already imported
+          `isStepUpCancel` and branched on it below — a guard against a
+          cancellation that could never happen, because nothing here ever
+          raised a challenge. Every decision an operator recorded answered 401
+          and reported as a failure they could do nothing about, on the one
+          control the page exists for.
+        */
+        await stepUp.runStepUpAction(async (headers) =>
+          apiFetch(
+            `/v1/identity/access-reviews/${encodeURIComponent(review.id)}/decision`,
+            {
+              method: "POST",
+              headers: {
+                "content-type": "application/json",
+                ...(headers ?? {}),
+              },
+              body: JSON.stringify({
+                decision: option.decision,
+                ...(note.trim()
+                  ? { decisionNote: note.trim().slice(0, 2000) }
+                  : {}),
+              }),
+            },
+          ),
         );
         if (isStale(captured)) return;
         setRowResult({
@@ -265,7 +289,7 @@ export default function AccessReviewsPage() {
         if (!isStale(captured)) setBusyRow(null);
       }
     },
-    [note, confirm, load, stamp, isStale],
+    [note, confirm, load, stepUp, stamp, isStale],
   );
 
   if (!teamId) {
@@ -551,6 +575,8 @@ export default function AccessReviewsPage() {
         </div>
       </PageSection>
       )}
+
+      <StepUpModal control={stepUp} />
     </PageShell>
   );
 }
