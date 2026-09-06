@@ -119,11 +119,19 @@
    *
    * Setting the document's own size to the size its text uses fixes (1). Using
    * `em` fixes (2) and removes the dependency on one glyph's metrics
-   * altogether: 36em is 504px here and measures ~72 characters, and it tracks
-   * the font size instead of silently unbinding from it. */
+   * altogether, and it tracks the font size instead of silently unbinding
+   * from it.
+   *
+   * THE THIRD CORRECTION IS THE MEASUREMENT ITSELF. 36em was recorded as "~72
+   * characters", derived from the `ch` arithmetic above. Measured in the
+   * browser against a PROSE sample rather than a glyph — laying out real
+   * sentences and dividing the column width by the mean advance — 504px came
+   * out at 78. The estimate and the reading were both about the same column;
+   * only one of them was what a person reads. 34em is 476px and measures 74,
+   * inside the 65–75 band this phase asks for. */
   font-size: 14px;
   line-height: 1.65;
-  max-inline-size: 36em;
+  max-inline-size: 34em;
   color: var(--ink-primary);
 }
 
