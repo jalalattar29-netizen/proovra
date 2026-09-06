@@ -19,7 +19,10 @@
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import type { Permission } from "@proovra/shared";
+import {
+  collaborationTeamRoleHasPermission,
+  type Permission,
+} from "@proovra/shared";
 import { z } from "zod";
 
 import { requireAuth } from "../middleware/auth.js";
@@ -38,10 +41,11 @@ import {
   changeMemberRole,
   createAssignment,
   createCollaborationTeam,
-  createEmailInvite,
   getCollaborationTeamDetail,
   listAssignments,
+  listCollaborationTeamMembers,
   listCollaborationTeams,
+  listEligibleWorkspaceMembersForTeam,
   listTeamActivity,
   removeMember,
   revokeInvite,
@@ -49,11 +53,9 @@ import {
   updateAssignment,
   updateCollaborationTeam,
 } from "../services/collaboration-team/collaboration-team.service.js";
-import { sendCollaborationTeamInviteEmail } from "../services/collaboration-team/collaboration-team-delivery.service.js";
 import {
   BillingLimitError,
   assertCanCreateCollaborationTeam,
-  assertCanInviteCollaborationTeamMember,
   assertCollaborationTeamMemberLimit,
   assertSubscriptionActiveOrGraceAllowed,
 } from "../services/collaboration-team/billing-guards.js";
@@ -201,15 +203,6 @@ const UpdateMemberBody = z.object({
   role: z.enum(["LEAD", "ADMIN", "MEMBER", "VIEWER", "EXTERNAL"]).optional(),
   status: z.enum(["ACTIVE", "SUSPENDED", "REMOVED"]).optional(),
   reason: z.string().max(400).optional().nullable(),
-});
-
-// Invitations are EMAIL-ONLY (Teams Entitlement Alignment, 2026-07-14).
-// The SMS and shareable-link invitation methods were removed product-wide
-// — their endpoints are deleted, not disabled (requests now 404).
-const EmailInviteBody = z.object({
-  email: z.string().email().max(320),
-  role: z.enum(["LEAD", "ADMIN", "MEMBER", "VIEWER", "EXTERNAL"]).optional(),
-  expiresInDays: z.number().int().min(1).max(30).optional(),
 });
 
 const CreateAssignmentBody = z.object({
@@ -603,7 +596,29 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
   );
 
   // ---------------------------------------------------------------------------
-  // POST /v1/collaboration-teams/:teamId/invites/email
+  // POST /v1/collaboration-teams/:teamId/invites/email  — RETIRED
+  //
+  // A Collaboration Team does not invite people. It groups people who already
+  // hold authority in the workspace that contains it.
+  //
+  // This endpoint modelled the opposite: it was shaped like a workspace
+  // invitation — address, token, delivery, expiry, single use — while its own
+  // acceptance path required the recipient to ALREADY be an active member of
+  // the parent workspace. Everything that made it an invitation was therefore
+  // redundant, and every one of its defects lived in that redundant machinery:
+  // no binding to the invited address, a non-atomic claim, no resend, an
+  // unrecoverable delivery failure, and a token in a URL.
+  //
+  // The two real operations are separate and both already exist:
+  //
+  //   1. bring the person into the WORKSPACE — POST /v1/teams/:id/invites
+  //      (or an Organization invitation with workspace assignments, or SCIM);
+  //   2. assign an existing active workspace member to the group —
+  //      POST /v1/collaboration-teams/:teamId/members.
+  //
+  // Outstanding links keep working: the accept path is repaired, bound to the
+  // invited address and atomic. Revocation stays reachable so operators can
+  // clear pending rows. Nothing new is written.
   // ---------------------------------------------------------------------------
   app.post<{ Params: { teamId: string } }>(
     "/v1/collaboration-teams/:teamId/invites/email",
@@ -617,84 +632,29 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           requireActiveTeam: true,
         });
         if (!binding) return;
-        const ctx = {
-          workspaceId: binding.workspace.workspaceId,
+        await auditEvent({
           userId: binding.workspace.userId,
-        };
-        const parsed = EmailInviteBody.safeParse(req.body);
-        if (!parsed.success)
-          return reply
-            .code(400)
-            .send({ error: "invalid_body", message: parsed.error.message });
-        try {
-          // Phase 10 — billing guards (pre-mutation).
-          await assertSubscriptionActiveOrGraceAllowed(ctx.userId);
-          await assertCanInviteCollaborationTeamMember(
-            req.params.teamId,
-            "EMAIL",
-          );
-          await assertCollaborationTeamMemberLimit(req.params.teamId, 1);
-          const invite = await createEmailInvite({
-            teamId: req.params.teamId,
-            actorUserId: ctx.userId,
-            email: parsed.data.email,
-            role: parsed.data.role,
-            expiresInMs: parsed.data.expiresInDays
-              ? parsed.data.expiresInDays * 24 * 60 * 60 * 1000
-              : undefined,
-          });
-          // Deliver the email. The send is awaited so the 201 response
-          // can carry the actual delivery outcome; the invite row also
-          // persists the result for the dashboard (resend / inspect).
-          const teamInfo = await getInviteContext({
-            teamId: req.params.teamId,
-            inviterUserId: ctx.userId,
-          });
-          const delivered = await sendCollaborationTeamInviteEmail({
-            invite,
-            teamId: req.params.teamId,
-            workspaceId: ctx.workspaceId,
-            teamName: teamInfo.teamName,
-            workspaceName: teamInfo.workspaceName,
-            inviterDisplay: teamInfo.inviterDisplay,
-            inviterEmail: teamInfo.inviterEmail,
-            inviterUserId: ctx.userId,
-            email: parsed.data.email,
-          });
-          await auditEvent({
-            userId: ctx.userId,
-            workspaceId: ctx.workspaceId,
-            action: "collaboration_team.invite.email.created",
-            resourceType: "collaboration_team_invite",
-            resourceId: invite.id,
-            outcome: "success",
-            requestId: req.id ?? null,
-            metadata: {
-              teamId: req.params.teamId,
-              channel: "EMAIL",
-              delivery: delivered ? "SENT" : "FAILED",
-            },
-          });
-          // NOTE: the raw token is intentionally NOT returned by the
-          // email route — the token is delivered out-of-band via the
-          // email itself. The dashboard manages the invite by
-          // inviteId (resend / revoke / inspect delivery status).
-          //
-          // PARTIAL SUCCESS: the invite row is created even when the
-          // email could not be delivered — `delivery: "FAILED"` tells
-          // the operator to resend rather than silently pretending the
-          // email went out.
-          return reply.code(201).send({
-            invite: {
-              id: invite.id,
-              channel: invite.channel,
-              expiresAtUtc: invite.expiresAtUtc,
-            },
-            delivery: delivered ? "SENT" : "FAILED",
-          });
-        } catch (err) {
-          return handleServiceError(reply, err, req.id ?? null);
-        }
+          workspaceId: binding.workspace.workspaceId,
+          action: "collaboration_team.invite.email.retired",
+          resourceType: "collaboration_team",
+          resourceId: req.params.teamId,
+          outcome: "blocked",
+          requestId: req.id ?? null,
+        });
+        return reply.code(410).send({
+          code: "COLLABORATION_TEAM_INVITE_RETIRED",
+          error: "COLLABORATION_TEAM_INVITE_RETIRED",
+          message:
+            "Teams are made from people who are already in this workspace. Invite them to the workspace first, then add them to the team.",
+          nextSteps: {
+            inviteToWorkspace: "/v1/teams/{workspaceId}/invites",
+            addExistingMember:
+              "/v1/collaboration-teams/{teamId}/members",
+            eligibleMembers:
+              "/v1/collaboration-teams/{teamId}/eligible-members",
+          },
+          requestId: req.id ?? null,
+        });
       },
     },
   );
@@ -786,6 +746,86 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
             memberId: result.memberId,
             alreadyMember: result.alreadyMember,
           });
+        } catch (err) {
+          return handleServiceError(reply, err, req.id ?? null);
+        }
+      },
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // GET /v1/collaboration-teams/:teamId/eligible-members
+  //
+  // The directory a team is BUILT FROM, and the replacement for inviting by
+  // address from inside a group.
+  //
+  // It answers one question — "which people already authorized in this
+  // workspace are not yet in this team?" — and it answers it on the server,
+  // paginated and searchable, because the alternative is what the members tab
+  // used to do: fetch every member and filter in the browser.
+  // ---------------------------------------------------------------------------
+  app.get<{ Params: { teamId: string } }>(
+    "/v1/collaboration-teams/:teamId/eligible-members",
+    {
+      preHandler: requireAuth,
+      handler: async (req, reply) => {
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "identity.member.read",
+          groupPermission: "team.member.invite",
+        });
+        if (!binding) return;
+        try {
+          const q = (req.query as Record<string, string | undefined>) ?? {};
+          const res = await listEligibleWorkspaceMembersForTeam({
+            workspaceId: binding.workspace.workspaceId,
+            teamId: req.params.teamId,
+            search: q.q ?? null,
+            limit: q.limit ? parseInt(q.limit, 10) : undefined,
+            cursor: q.cursor ?? null,
+          });
+          return reply.send(res);
+        } catch (err) {
+          return handleServiceError(reply, err, req.id ?? null);
+        }
+      },
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // GET /v1/collaboration-teams/:teamId/members
+  //
+  // Paginated, searchable membership. The detail endpoint used to return every
+  // member of a team in one unbounded array — 386 KB at a thousand members,
+  // every address included, with no search anywhere to escape it.
+  // ---------------------------------------------------------------------------
+  app.get<{ Params: { teamId: string } }>(
+    "/v1/collaboration-teams/:teamId/members",
+    {
+      preHandler: requireAuth,
+      handler: async (req, reply) => {
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "collaboration.thread.read",
+        });
+        if (!binding) return;
+        try {
+          const q = (req.query as Record<string, string | undefined>) ?? {};
+          const res = await listCollaborationTeamMembers({
+            teamId: req.params.teamId,
+            viewerCanSeeContact: binding.groupRole
+              ? collaborationTeamRoleHasPermission(
+                  binding.groupRole,
+                  "team.member.invite",
+                )
+              : false,
+            search: q.q ?? null,
+            status: q.status ?? null,
+            role: q.role ?? null,
+            limit: q.limit ? parseInt(q.limit, 10) : undefined,
+            cursor: q.cursor ?? null,
+          });
+          return reply.send(res);
         } catch (err) {
           return handleServiceError(reply, err, req.id ?? null);
         }
@@ -975,44 +1015,3 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
   );
 }
 
-// -----------------------------------------------------------------------------
-// Invite context resolver (helper for delivery wrappers)
-// -----------------------------------------------------------------------------
-
-async function getInviteContext(input: {
-  teamId: string;
-  inviterUserId: string;
-}): Promise<{
-  teamName: string;
-  workspaceName: string;
-  inviterDisplay: string;
-  inviterEmail: string | null;
-}> {
-  const team = await prisma.collaborationTeam.findUnique({
-    where: { id: input.teamId },
-    select: {
-      name: true,
-      workspace: { select: { name: true } },
-    },
-  });
-  const user = await prisma.user.findUnique({
-    where: { id: input.inviterUserId },
-    select: {
-      email: true,
-      displayName: true,
-      firstName: true,
-      lastName: true,
-    },
-  });
-  const displayName =
-    user?.displayName ||
-    [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() ||
-    user?.email ||
-    "A teammate";
-  return {
-    teamName: team?.name ?? "Team",
-    workspaceName: team?.workspace?.name ?? "Workspace",
-    inviterDisplay: displayName,
-    inviterEmail: user?.email ?? null,
-  };
-}

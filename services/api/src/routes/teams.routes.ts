@@ -49,6 +49,17 @@ import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.j
 import { hasRole } from "../services/rbac.js";
 import { getAuthUserId } from "../auth.js";
 import { getEmailService } from "../services/email.service.js";
+// THE canonical workspace invitation lifecycle. Token generation, storage,
+// expiry, revocation, resend and the atomic single-use claim all live there —
+// this route file composes it, it does not reimplement it.
+import {
+  WorkspaceInvitationError,
+  acceptWorkspaceInvitation,
+  createWorkspaceInvitation,
+  projectInvitation,
+  resendWorkspaceInvitation,
+  revokeWorkspaceInvitation,
+} from "../services/identity/workspace-invitation.service.js";
 import { emitTenantAudit, emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
 import { verifyAccountStepUp } from "../services/identity-security/account-step-up.service.js";
@@ -118,6 +129,47 @@ const UpdateTeamBody = z.object({
 
 function normalizeEmail(value: string): string {
   return value.trim().toLowerCase();
+}
+
+/**
+ * Deliver an invitation, and report honestly whether it went.
+ *
+ * The raw token reaches exactly two places: the link inside this email, and the
+ * caller that just minted it. It is not returned to the API caller, not stored
+ * in plaintext, and not logged — the request logger redacts the accept path as
+ * a backstop.
+ *
+ * A delivery failure is not an error the caller should retry blindly: the
+ * invitation exists and is valid, and the operator's next move is to resend it,
+ * which is now its own endpoint with its own token rotation.
+ */
+async function deliverWorkspaceInvite(input: {
+  teamId: string;
+  email: string;
+  rawToken: string;
+  log: { error: (obj: unknown, msg: string) => void };
+}): Promise<boolean> {
+  try {
+    const emailService = getEmailService();
+    if (!emailService.isConfigured()) return false;
+    const team = await prisma.team.findUnique({
+      where: { id: input.teamId },
+      select: { name: true },
+    });
+    await emailService.sendTeamInvitation(
+      input.email,
+      team?.name || "PROOVRA",
+      input.rawToken,
+    );
+    return true;
+  } catch (err) {
+    // Deliberately no token and no address in the log line.
+    input.log.error(
+      { err, teamId: input.teamId },
+      "Failed to deliver workspace invitation email",
+    );
+    return false;
+  }
 }
 
 function buildInviteUrl(token: string): string {
@@ -729,9 +781,11 @@ export async function teamsRoutes(app: FastifyInstance) {
         where: {
           teamId,
           acceptedAt: null,
+          revokedAt: null,
           expiresAt: { gt: new Date() },
         },
         orderBy: { createdAt: "desc" },
+        take: 200,
       });
 
       auditTeamAction(req, {
@@ -743,14 +797,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       });
 
       return reply.code(200).send({
-        invites: invites.map((invite) => ({
-          id: invite.id,
-          email: invite.email,
-          role: invite.role,
-          createdAt: invite.createdAt,
-          expiresAt: invite.expiresAt,
-          inviteUrl: buildInviteUrl(invite.token),
-        })),
+        invites: invites.map((invite) => projectInvitation(invite)),
       });
     }
   );
@@ -1041,34 +1088,32 @@ export async function teamsRoutes(app: FastifyInstance) {
           teamId,
           email,
           acceptedAt: null,
+          revokedAt: null,
           expiresAt: { gt: new Date() },
         },
         orderBy: { createdAt: "desc" },
       });
 
       if (existingPendingInvite) {
-        let emailSent = false;
-
-        try {
-          const emailService = getEmailService();
-          if (emailService.isConfigured()) {
-            const team = await prisma.team.findUnique({
-              where: { id: teamId },
-              select: { name: true },
-            });
-
-            await emailService.sendTeamInvitation(
-              email,
-              team?.name || "PROOVRA",
-              existingPendingInvite.token
-            );
-
-            emailSent = true;
-          }
-        } catch (err) {
-          req.log.error({ err, teamId, email }, "Failed to resend existing invite email");
-        }
-
+        /**
+         * A REPEAT INVITE IS A RESEND, AND A RESEND ROTATES THE TOKEN.
+         *
+         * This used to re-send the SAME stored token and hand the whole invite
+         * row — token included — back in the response. Rotation is the point:
+         * an operator repeats an invitation because the first link did not
+         * arrive or went somewhere it should not have, and leaving the old one
+         * valid fixes the delivery without fixing the exposure.
+         */
+        const resent = await resendWorkspaceInvitation({
+          workspaceId: teamId,
+          inviteId: existingPendingInvite.id,
+        });
+        const emailSent = await deliverWorkspaceInvite({
+          teamId,
+          email,
+          rawToken: resent.rawToken,
+          log: req.log,
+        });
         auditTeamAction(req, {
           userId,
           action: "teams.invite_resend",
@@ -1076,14 +1121,13 @@ export async function teamsRoutes(app: FastifyInstance) {
           resourceId: teamId,
           metadata: {
             email,
-            inviteId: existingPendingInvite.id,
+            inviteId: resent.invite.id,
             emailSent,
+            resendCount: resent.invite.resendCount,
           },
         });
-
         return reply.code(200).send({
-          invite: existingPendingInvite,
-          inviteUrl: buildInviteUrl(existingPendingInvite.token),
+          invite: resent.invite,
           emailSent,
           existing: true,
           message: emailSent
@@ -1148,35 +1192,37 @@ export async function teamsRoutes(app: FastifyInstance) {
         /* entitlement engine error — do not block invite creation */
       }
 
-      const token = randomUUID().replace(/-/g, "");
-      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-
-      const invite = await prisma.teamInvite.create({
-        data: {
-          teamId,
+      let created;
+      try {
+        created = await createWorkspaceInvitation({
+          workspaceId: teamId,
           email,
           role: invitedRole,
-          token,
           invitedByUserId: userId,
-          expiresAt,
-        },
-      });
-
-      let emailSent = false;
-      try {
-        const emailService = getEmailService();
-        if (emailService.isConfigured()) {
-          const team = await prisma.team.findUnique({
-            where: { id: teamId },
-            select: { name: true },
-          });
-
-          await emailService.sendTeamInvitation(email, team?.name || "PROOVRA", token);
-          emailSent = true;
-        }
+        });
       } catch (err) {
-        req.log.error({ err, teamId, email }, "Failed to send invite email");
+        if (err instanceof WorkspaceInvitationError) {
+          auditTeamAction(req, {
+            userId,
+            action: "teams.invite_create",
+            outcome: "blocked",
+            severity: "warning",
+            resourceId: teamId,
+            metadata: { reason: err.code, email },
+          });
+          return reply
+            .code(err.httpStatus)
+            .send({ error: { code: err.code }, message: err.message });
+        }
+        throw err;
       }
+      const invite = created.invite;
+      const emailSent = await deliverWorkspaceInvite({
+        teamId,
+        email,
+        rawToken: created.rawToken,
+        log: req.log,
+      });
 
       await createActivity(teamId, "invite_created", "invite", userId, invite.id, {
         email,
@@ -1205,9 +1251,11 @@ export async function teamsRoutes(app: FastifyInstance) {
         metadata: { email, role: invite.role, plan: scope.plan },
       });
 
+      // No token and no link. The raw value went into the email and nowhere
+      // else; a list or a create response that carries it turns every operator
+      // with API access into a holder of live workspace credentials.
       return reply.code(201).send({
         invite,
-        inviteUrl: buildInviteUrl(token),
         emailSent,
         existing: false,
         message: emailSent
@@ -1239,39 +1287,53 @@ export async function teamsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ message: "Forbidden" });
       }
 
-      const invite = await prisma.teamInvite.findUnique({
-        where: { id: inviteId },
-      });
-
-      if (!invite || invite.teamId !== teamId) {
-        auditTeamAction(req, {
-          userId,
-          action: "teams.invite_delete",
-          outcome: "failure",
-          severity: "warning",
-          resourceId: teamId,
-          metadata: { reason: "invite_not_found", inviteId },
+      /**
+       * REVOKE, DO NOT DELETE.
+       *
+       * This used to `prisma.teamInvite.delete(...)`. On an evidence platform,
+       * "we invited this person to the workspace and then withdrew it" is a
+       * fact about who was offered access, and deleting the row is the one
+       * thing that makes it unanswerable. The invitation now transitions to a
+       * revoked STATE, its token is rotated to an unmatchable value so the
+       * outstanding link stops working immediately, and the record remains.
+       */
+      let revoked;
+      try {
+        revoked = await revokeWorkspaceInvitation({
+          workspaceId: teamId,
+          inviteId,
+          actorUserId: userId,
         });
-        return reply.code(404).send({ message: "Invite not found" });
+      } catch (err) {
+        if (err instanceof WorkspaceInvitationError) {
+          auditTeamAction(req, {
+            userId,
+            action: "teams.invite_revoke",
+            outcome: "failure",
+            severity: "warning",
+            resourceId: teamId,
+            metadata: { reason: err.code, inviteId },
+          });
+          return reply
+            .code(err.httpStatus)
+            .send({ error: { code: err.code }, message: err.message });
+        }
+        throw err;
       }
 
-      await prisma.teamInvite.delete({
-        where: { id: inviteId },
-      });
-
-      await createActivity(teamId, "invite_deleted", "invite", userId, inviteId, {
-        email: invite.email,
+      await createActivity(teamId, "invite_revoked", "invite", userId, inviteId, {
+        email: revoked.email,
       });
 
       auditTeamAction(req, {
         userId,
-        action: "teams.invite_delete",
+        action: "teams.invite_revoke",
         outcome: "success",
         resourceId: teamId,
-        metadata: { inviteId, email: invite.email },
+        metadata: { inviteId, email: revoked.email },
       });
 
-      return reply.code(204).send();
+      return reply.code(200).send({ invite: revoked });
     }
   );
 
@@ -1714,175 +1776,142 @@ export async function teamsRoutes(app: FastifyInstance) {
       const token = z.string().min(8).parse((req.params as { token: string }).token);
       const userId = getAuthUserId(req);
 
-      const invite = await prisma.teamInvite.findUnique({
-        where: { token },
-      });
-
-      if (!invite) {
-        auditTeamAction(req, {
-          userId,
-          action: "teams.invite_accept",
-          outcome: "failure",
-          severity: "warning",
-          metadata: { reason: "invite_not_found" },
+      /**
+       * ONE call, because acceptance is ONE decision.
+       *
+       * This handler was 170 lines that read the invite, checked expiry,
+       * compared the address, resolved the commercial scope, counted seats,
+       * opened a transaction, claimed the row and provisioned — with the seat
+       * count taken BEFORE the transaction, so two accepts of two DIFFERENT
+       * invitations both saw the same last seat and both took it.
+       *
+       * `acceptWorkspaceInvitation` does the same work in the order that makes
+       * it true: advisory lock, then seat check under that lock, then the
+       * guarded claim. Every refusal is a typed code the accept page can render.
+       */
+      try {
+        const result = await acceptWorkspaceInvitation({
+          rawToken: token,
+          actorUserId: userId,
         });
-        return reply.code(404).send({ message: "Invite not found" });
-      }
 
-      if (invite.acceptedAt) {
-        auditTeamAction(req, {
-          userId,
-          action: "teams.invite_accept",
-          outcome: "blocked",
-          severity: "warning",
-          resourceId: invite.teamId,
-          metadata: { reason: "already_accepted", inviteId: invite.id },
-        });
-        return reply.code(400).send({ message: "Invite already accepted" });
-      }
-
-      if (invite.expiresAt.getTime() < Date.now()) {
-        auditTeamAction(req, {
-          userId,
-          action: "teams.invite_accept",
-          outcome: "blocked",
-          severity: "warning",
-          resourceId: invite.teamId,
-          metadata: { reason: "invite_expired", inviteId: invite.id },
-        });
-        return reply.code(400).send({ message: "Invite expired" });
-      }
-
-      const currentUser = await prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          id: true,
-          email: true,
-        },
-      });
-
-      const currentEmail = normalizeEmail(currentUser?.email ?? "");
-      if (!currentEmail || currentEmail !== normalizeEmail(invite.email)) {
-        auditTeamAction(req, {
-          userId,
-          action: "teams.invite_accept",
-          outcome: "blocked",
-          severity: "warning",
-          resourceId: invite.teamId,
-          metadata: { reason: "email_mismatch", inviteId: invite.id },
-        });
-        return reply.code(403).send({
-          message: "You must be signed in with the invited email address",
-        });
-      }
-
-      const existingMembership = await prisma.teamMember.findUnique({
-        where: {
-          teamId_userId: {
-            teamId: invite.teamId,
+        if (!result.alreadyMember) {
+          await refreshTeamSeatState(result.workspaceId);
+          await createActivity(
+            result.workspaceId,
+            "invite_accepted",
+            "member",
             userId,
+            userId,
+            { role: result.role },
+          );
+          fireTeamAnalyticsEvent({
+            eventType: "team_invite_accepted",
+            userId,
+            req,
+            entityId: result.workspaceId,
+            metadata: { role: result.role },
+          });
+        }
+
+        auditTeamAction(req, {
+          userId,
+          action: "teams.invite_accept",
+          outcome: "success",
+          resourceId: result.workspaceId,
+          metadata: {
+            role: result.role,
+            alreadyMember: result.alreadyMember,
           },
-        },
-      });
+        });
 
-      if (!existingMembership) {
-        /**
-         * Important rule:
-         * Acceptance is where the member cap is enforced.
-         * Invite creation itself must not be blocked for a full team.
-         */
-        // §9.7 — explicit WORKSPACE subject (invite-acceptance member cap).
-        const scope = (await resolveCommercialContext({ type: "WORKSPACE", teamId: invite.teamId, requesterUserId: userId })).scope;
-        const scopeCaps = getPlanCapabilities(scope.plan);
-
-        if (!scopeCaps.allowsSharedWorkspace) {
+        return reply.code(200).send({
+          workspaceId: result.workspaceId,
+          role: result.role,
+          alreadyMember: result.alreadyMember,
+        });
+      } catch (err) {
+        if (err instanceof WorkspaceInvitationError) {
           auditTeamAction(req, {
             userId,
             action: "teams.invite_accept",
             outcome: "blocked",
             severity: "warning",
-            resourceId: invite.teamId,
-            metadata: {
-              reason: "team_plan_required",
-              inviteId: invite.id,
-              plan: scope.plan,
-            },
+            metadata: { reason: err.code },
           });
-
-          return reply.code(409).send({
-            message: "This team no longer supports member access",
+          return reply.code(err.httpStatus).send({
+            error: { code: err.code },
+            code: err.code,
+            message: err.message,
+            details: err.details,
           });
         }
-
-        await assertTeamSeatAvailable(scope);
+        throw err;
       }
+    }
+  );
 
-      // PHASE 5 §8.4 (2026-07-22) — guarded atomic claim + grant in ONE
-      // transaction (mirrors the org-invite acceptance reference). The
-      // previous shape read `acceptedAt` up top and only wrote it AFTER
-      // provisioning, so two concurrent accepts both passed the check
-      // and both provisioned. Now the row-locked claim collapses the
-      // race to one winner; the loser sees count 0 and is rejected. A
-      // provisioning failure rolls the claim back (invite stays usable).
-      const accepted = await prisma.$transaction(async (tx) => {
-        const claimed = await tx.teamInvite.updateMany({
-          where: { id: invite.id, acceptedAt: null },
-          data: { acceptedAt: new Date() },
-        });
-        if (claimed.count === 0) return null;
-        // PHASE 3 (2026-07-21) — canonical orchestrator:
-        // WORKSPACE_DIRECT_INVITE. FIXES an invite-driven role overwrite:
-        // accepting an invite as an EXISTING member no longer demotes/
-        // changes the held role (§6.3 — INVITATION-source precedence
-        // keeps the existing role); a NEW member receives the invited
-        // role (never OWNER-tier via an invite).
-        await provisionMembership(tx, {
-          intent: "WORKSPACE_DIRECT_INVITE",
-          source: "INVITATION",
-          userId,
-          workspace: { teamId: invite.teamId, role: invite.role as never },
-          externalRef: `team-invite:${invite.id}`,
-          accessReason: "team invite acceptance",
-        });
-        return tx.teamInvite.findUnique({ where: { id: invite.id } });
-      });
+  // ---------------------------------------------------------------------------
+  // POST /v1/teams/:id/invites/:inviteId/resend
+  //
+  // The workspace invitation had no resend path of its own — the only way to
+  // chase one was to POST the same address again and rely on the duplicate
+  // branch. An operator whose invitation bounced needs to say so directly, and
+  // needs the token to rotate when they do.
+  // ---------------------------------------------------------------------------
+  app.post(
+    "/v1/teams/:id/invites/:inviteId/resend",
+    { preHandler: requireAuthAndLegal },
+    async (req: FastifyRequest, reply) => {
+      const params = req.params as { id: string; inviteId: string };
+      const teamId = z.string().uuid().parse(params.id);
+      const inviteId = z.string().uuid().parse(params.inviteId);
+      const userId = getAuthUserId(req);
 
-      if (!accepted) {
+      const actor = await getActorMembership(teamId, userId);
+      if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
         auditTeamAction(req, {
           userId,
-          action: "teams.invite_accept",
+          action: "teams.invite_resend",
           outcome: "blocked",
           severity: "warning",
-          resourceId: invite.teamId,
-          metadata: { reason: "already_accepted", inviteId: invite.id },
+          resourceId: teamId,
+          metadata: { reason: "forbidden", inviteId },
         });
-        return reply.code(400).send({ message: "Invite already accepted" });
+        return reply.code(403).send({ message: "Forbidden" });
       }
-      const updated = accepted;
 
-      await refreshTeamSeatState(invite.teamId);
-
-      await createActivity(invite.teamId, "invite_accepted", "member", userId, userId, {
-        role: invite.role,
-      });
-
-      auditTeamAction(req, {
-        userId,
-        action: "teams.invite_accept",
-        outcome: "success",
-        resourceId: invite.teamId,
-        metadata: { inviteId: invite.id, role: invite.role },
-      });
-
-      fireTeamAnalyticsEvent({
-        eventType: "team_invite_accepted",
-        userId,
-        req,
-        entityId: invite.teamId,
-        metadata: { inviteId: invite.id, role: invite.role },
-      });
-
-      return reply.code(200).send({ invite: updated });
+      try {
+        const resent = await resendWorkspaceInvitation({
+          workspaceId: teamId,
+          inviteId,
+        });
+        const emailSent = await deliverWorkspaceInvite({
+          teamId,
+          email: resent.invite.email,
+          rawToken: resent.rawToken,
+          log: req.log,
+        });
+        auditTeamAction(req, {
+          userId,
+          action: "teams.invite_resend",
+          outcome: "success",
+          resourceId: teamId,
+          metadata: {
+            inviteId,
+            emailSent,
+            resendCount: resent.invite.resendCount,
+          },
+        });
+        return reply.code(200).send({ invite: resent.invite, emailSent });
+      } catch (err) {
+        if (err instanceof WorkspaceInvitationError) {
+          return reply
+            .code(err.httpStatus)
+            .send({ error: { code: err.code }, message: err.message });
+        }
+        throw err;
+      }
     }
   );
 

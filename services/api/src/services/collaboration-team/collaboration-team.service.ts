@@ -208,6 +208,9 @@ function base32Encode(buf: Buffer): string {
 // Validation helpers
 // =============================================================================
 
+/** How many members the detail payload previews before the paginated list. */
+const DETAIL_MEMBER_PREVIEW = 25;
+
 const NAME_MAX = 120;
 const DESC_MAX = 600;
 
@@ -530,11 +533,22 @@ export async function getCollaborationTeamDetail(
   input: { teamId: string; workspaceId: string; actorUserId: string },
   client: PrismaClient = defaultPrisma,
 ) {
+  /**
+   * THE MEMBER ARRAY IS A FIRST PAGE, NOT THE POPULATION.
+   *
+   * This used to `include` every member with no `take` — 1,001 rows and
+   * 386 KB against a real database, every address in the payload, rendered as
+   * a thousand table rows with a thousand role dropdowns and no search anywhere
+   * to escape it. The full membership now has its own paginated, searchable
+   * endpoint (`GET .../members`); what the detail carries is the first page
+   * plus the counts a header needs.
+   */
   const team = await client.collaborationTeam.findUnique({
     where: { id: input.teamId },
     include: {
       members: {
         orderBy: { joinedAt: "asc" },
+        take: DETAIL_MEMBER_PREVIEW,
         include: {
           user: {
             select: {
@@ -561,10 +575,32 @@ export async function getCollaborationTeamDetail(
     },
   });
   if (!team || team.workspaceId !== input.workspaceId) throw E.notFound("Team");
-  const viewer = team.members.find(
-    (m) => m.userId === input.actorUserId && m.status === "ACTIVE",
+  // The viewer's own membership is proven independently of the page above: on a
+  // large team the first page will not contain them.
+  const viewerRow = await client.collaborationTeamMember.findFirst({
+    where: { teamId: input.teamId, userId: input.actorUserId, status: "ACTIVE" },
+    select: { role: true },
+  });
+  if (!viewerRow) throw E.notFound("Team");
+  const viewer = { role: viewerRow.role };
+  const [activeMemberCount, pendingInviteCount] = await Promise.all([
+    client.collaborationTeamMember.count({
+      where: { teamId: input.teamId, status: "ACTIVE" },
+    }),
+    client.collaborationTeamInvite.count({
+      where: { teamId: input.teamId, status: "PENDING" },
+    }),
+  ]);
+  /**
+   * An address is administrative data. A VIEWER reads the team; an EXTERNAL
+   * collaborator holds `team.read` and is not even staff. Neither is a member
+   * manager, and neither used to be stopped from receiving every teammate's
+   * address in this payload.
+   */
+  const viewerCanSeeContact = collaborationTeamRoleHasPermission(
+    viewer.role as CollaborationTeamRole,
+    "team.member.invite",
   );
-  if (!viewer) throw E.notFound("Team");
   return {
     id: team.id,
     workspaceId: team.workspaceId,
@@ -595,6 +631,9 @@ export async function getCollaborationTeamDetail(
       ),
       canManageAccessReviews: isCollaborationTeamModerator(viewer.role),
     },
+    activeMemberCount,
+    pendingInviteCount,
+    memberPreviewLimit: DETAIL_MEMBER_PREVIEW,
     members: team.members.map((m) => ({
       id: m.id,
       userId: m.userId,
@@ -603,12 +642,19 @@ export async function getCollaborationTeamDetail(
       joinedAt: m.joinedAt,
       suspendedAt: m.suspendedAt,
       removedAt: m.removedAt,
-      user: m.user,
+      user: {
+        id: m.user.id,
+        email: viewerCanSeeContact ? m.user.email : null,
+        displayName: safeDisplayName(m.user),
+        firstName: m.user.firstName,
+        lastName: m.user.lastName,
+        avatarUrl: m.user.avatarUrl,
+      },
     })),
     invites: team.invites.map((inv) => ({
       id: inv.id,
       channel: inv.channel as CollaborationTeamInviteChannel,
-      email: inv.email,
+      email: viewerCanSeeContact ? inv.email : maskEmail(inv.email ?? ""),
       phone: inv.phone,
       role: inv.role as CollaborationTeamRole,
       status: inv.status,
@@ -1402,6 +1448,221 @@ export async function acceptInvite(
 // -----------------------------------------------------------------------------
 // Activity feed
 // -----------------------------------------------------------------------------
+
+// -----------------------------------------------------------------------------
+// Membership directories — the two bounded reads that replace the unbounded one
+// -----------------------------------------------------------------------------
+
+const MEMBER_PAGE_DEFAULT = 25;
+const MEMBER_PAGE_MAX = 100;
+
+function boundedPage(limit: number | undefined): number {
+  if (!Number.isFinite(limit ?? NaN)) return MEMBER_PAGE_DEFAULT;
+  return Math.min(Math.max(Math.trunc(limit as number), 1), MEMBER_PAGE_MAX);
+}
+
+/** Display name that never falls back to an address. */
+function safeDisplayName(user: {
+  displayName: string | null;
+  firstName: string | null;
+  lastName: string | null;
+}): string {
+  const full = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
+  return user.displayName?.trim() || full || "Workspace member";
+}
+
+/**
+ * ACTIVE workspace members who are not yet in this team.
+ *
+ * This is what a team is built from. The old flow asked for an email address
+ * and sent an invitation the recipient could only accept if they were already
+ * in the workspace — so the address was never the thing that granted access,
+ * and asking for it only invited the operator to type one that could not work.
+ */
+export async function listEligibleWorkspaceMembersForTeam(
+  input: {
+    workspaceId: string;
+    teamId: string;
+    search?: string | null;
+    limit?: number;
+    cursor?: string | null;
+  },
+  client: PrismaClient = defaultPrisma,
+): Promise<{
+  members: Array<{
+    userId: string;
+    displayName: string;
+    email: string | null;
+    avatarUrl: string | null;
+    workspaceRole: string;
+  }>;
+  nextCursor: string | null;
+}> {
+  const take = boundedPage(input.limit);
+  const search = (input.search ?? "").trim();
+
+  const alreadyInTeam = await client.collaborationTeamMember.findMany({
+    where: { teamId: input.teamId, status: { in: ["ACTIVE", "SUSPENDED"] } },
+    select: { userId: true },
+  });
+  const excluded = alreadyInTeam.map((m) => m.userId);
+
+  const rows = await client.teamMember.findMany({
+    where: {
+      teamId: input.workspaceId,
+      status: "ACTIVE",
+      ...(excluded.length > 0 ? { userId: { notIn: excluded } } : {}),
+      ...(search
+        ? {
+            user: {
+              OR: [
+                { displayName: { contains: search, mode: "insensitive" } },
+                { firstName: { contains: search, mode: "insensitive" } },
+                { lastName: { contains: search, mode: "insensitive" } },
+                { email: { contains: search, mode: "insensitive" } },
+              ],
+            },
+          }
+        : {}),
+    },
+    orderBy: { id: "asc" },
+    ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
+    take: take + 1,
+    select: {
+      id: true,
+      role: true,
+      user: {
+        select: {
+          id: true,
+          email: true,
+          displayName: true,
+          firstName: true,
+          lastName: true,
+          avatarUrl: true,
+        },
+      },
+    },
+  });
+
+  const page = rows.slice(0, take);
+  return {
+    members: page.map((r) => ({
+      userId: r.user.id,
+      displayName: safeDisplayName(r.user),
+      // The person choosing who to add is a member manager by construction
+      // (`team.member.invite`), and distinguishing two people with the same
+      // name is the whole job of this list.
+      email: r.user.email,
+      avatarUrl: r.user.avatarUrl,
+      workspaceRole: r.role,
+    })),
+    nextCursor: rows.length > take ? page[page.length - 1]?.id ?? null : null,
+  };
+}
+
+/**
+ * One page of a team's membership, filtered and searched by the DATABASE.
+ *
+ * `viewerCanSeeContact` is the privacy boundary: an address is administrative
+ * data, and a VIEWER or an EXTERNAL collaborator holding `team.read` is not an
+ * administrator. The detail endpoint used to hand every member's address to
+ * everyone in the team, including guests.
+ */
+export async function listCollaborationTeamMembers(
+  input: {
+    teamId: string;
+    viewerCanSeeContact: boolean;
+    search?: string | null;
+    status?: string | null;
+    role?: string | null;
+    limit?: number;
+    cursor?: string | null;
+  },
+  client: PrismaClient = defaultPrisma,
+): Promise<{
+  members: Array<{
+    id: string;
+    userId: string;
+    role: CollaborationTeamRole;
+    status: string;
+    joinedAt: Date;
+    suspendedAt: Date | null;
+    removedAt: Date | null;
+    displayName: string;
+    email: string | null;
+    avatarUrl: string | null;
+  }>;
+  nextCursor: string | null;
+  totalActive: number;
+}> {
+  const take = boundedPage(input.limit);
+  const search = (input.search ?? "").trim();
+  const where: Prisma.CollaborationTeamMemberWhereInput = {
+    teamId: input.teamId,
+    ...(input.status ? { status: input.status } : {}),
+    ...(input.role ? { role: input.role } : {}),
+    ...(search
+      ? {
+          user: {
+            OR: [
+              { displayName: { contains: search, mode: "insensitive" } },
+              { firstName: { contains: search, mode: "insensitive" } },
+              { lastName: { contains: search, mode: "insensitive" } },
+              { email: { contains: search, mode: "insensitive" } },
+            ],
+          },
+        }
+      : {}),
+  };
+
+  const [rows, totalActive] = await Promise.all([
+    client.collaborationTeamMember.findMany({
+      where,
+      orderBy: { id: "asc" },
+      ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
+      take: take + 1,
+      select: {
+        id: true,
+        userId: true,
+        role: true,
+        status: true,
+        joinedAt: true,
+        suspendedAt: true,
+        removedAt: true,
+        user: {
+          select: {
+            email: true,
+            displayName: true,
+            firstName: true,
+            lastName: true,
+            avatarUrl: true,
+          },
+        },
+      },
+    }),
+    client.collaborationTeamMember.count({
+      where: { teamId: input.teamId, status: "ACTIVE" },
+    }),
+  ]);
+
+  const page = rows.slice(0, take);
+  return {
+    members: page.map((m) => ({
+      id: m.id,
+      userId: m.userId,
+      role: m.role as CollaborationTeamRole,
+      status: m.status,
+      joinedAt: m.joinedAt,
+      suspendedAt: m.suspendedAt,
+      removedAt: m.removedAt,
+      displayName: safeDisplayName(m.user),
+      email: input.viewerCanSeeContact ? m.user.email : null,
+      avatarUrl: m.user.avatarUrl,
+    })),
+    nextCursor: rows.length > take ? page[page.length - 1]?.id ?? null : null,
+    totalActive,
+  };
+}
 
 export async function listTeamActivity(
   input: {

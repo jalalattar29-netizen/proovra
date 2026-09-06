@@ -122,19 +122,41 @@ export async function authorizeCollaborationWorkspace(
   req: FastifyRequest,
   reply: FastifyReply,
   permission: Permission,
+  client: PrismaClient = defaultPrisma,
 ): Promise<AuthorizedWorkspaceContext | null> {
   const named = readNamedWorkspaceId(req);
-  if (named) {
-    return authorizeWorkspaceOrFail(req, reply, {
-      workspaceId: named,
-      permission,
-      antiEnumeration: true,
-    });
-  }
-  return authorizeCurrentWorkspaceOrFail(req, reply, {
-    permission,
-    antiEnumeration: true,
+  const ctx = named
+    ? await authorizeWorkspaceOrFail(req, reply, {
+        workspaceId: named,
+        permission,
+        antiEnumeration: true,
+      })
+    : await authorizeCurrentWorkspaceOrFail(req, reply, {
+        permission,
+        antiEnumeration: true,
+      });
+  if (!ctx) return null;
+
+  /**
+   * A CLOSED WORKSPACE IS NOT AN OPERATIONAL ONE.
+   *
+   * Closure mass-revokes every membership, so the authorization above already
+   * refuses a closed workspace in practice — that is the primary defence and it
+   * is a good one. This is the second: `Team.closedAtUtc` is THE liveness
+   * authority (ADM-004), a membership row that outlived a closure for any
+   * reason must not become a way back in, and a collaboration surface is
+   * exactly where such a row would go unnoticed, because closure does not
+   * touch a single `collaboration_team*` table.
+   */
+  const workspace = await client.team.findUnique({
+    where: { id: ctx.workspaceId },
+    select: { closedAtUtc: true },
   });
+  if (!workspace || workspace.closedAtUtc !== null) {
+    void reply.code(404).send({ error: { code: "not_found" } });
+    return null;
+  }
+  return ctx;
 }
 
 export type CollaborationTeamBinding = {
@@ -200,6 +222,7 @@ export async function authorizeCollaborationTeam(
     req,
     reply,
     options.permission,
+    client,
   );
   if (!workspace) return null;
 

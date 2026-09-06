@@ -2044,15 +2044,32 @@ model CaseAccess {
   @@map("case_access")
 }
 
+/// THE WORKSPACE INVITATION — the one that actually grants tenancy access.
+///
+/// Converged onto the `OrganizationInvite` shape (Phase 2.7X Stage 6): hashed
+/// at rest, revocable as a STATE rather than by deletion, resendable with a
+/// record, and bound to the address it was sent to at acceptance.
+///
+/// `token` is NULLABLE and legacy: new rows write NULL and only `tokenHash` is
+/// authoritative. Existing rows keep their raw value so a service rollback does
+/// not strand a live link; the destructive cutover is a later migration.
 model TeamInvite {
   id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   teamId          String    @map("team_id") @db.Uuid
   email           String    @db.VarChar(320)
   role            TeamRole
-  token           String    @unique @db.VarChar(128)
+  token           String?   @unique @db.VarChar(128)
+  tokenHash       String    @unique @map("token_hash") @db.VarChar(64)
   invitedByUserId String    @map("invited_by_user_id")
   expiresAt       DateTime  @map("expires_at") @db.Timestamptz(6)
   acceptedAt      DateTime? @map("accepted_at") @db.Timestamptz(6)
+  /// Who consumed it. Audit completeness — the accepted row alone could not say.
+  acceptedByUserId String?  @map("accepted_by_user_id") @db.Uuid
+  /// Revocation is recorded, never expressed by deleting the row.
+  revokedAt       DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokedByUserId String?   @map("revoked_by_user_id") @db.Uuid
+  lastResentAt    DateTime? @map("last_resent_at") @db.Timestamptz(6)
+  resendCount     Int       @default(0) @map("resend_count")
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   team            Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
 

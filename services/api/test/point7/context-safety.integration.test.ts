@@ -13,7 +13,7 @@
  * a browser cannot observe honestly: what the DATABASE says afterwards.
  */
 
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -243,6 +243,10 @@ describe("POINT 7 — context safety (live PostgreSQL 16)", () => {
           email: input.email.toLowerCase(),
           role: "MEMBER",
           token,
+          // `tokenHash` is the authoritative lookup column now; the fixture
+          // hashes the same way the service does so a row it creates is
+          // resolvable by the real accept path.
+          tokenHash: createHash("sha256").update(token).digest("hex"),
           invitedByUserId: input.invitedByUserId,
           expiresAt: input.expiresAt ?? new Date(Date.now() + 86_400_000),
           ...(input.acceptedAt !== undefined

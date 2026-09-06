@@ -38,6 +38,7 @@ import {
 // one integer capped two unrelated tables.
 import { getPlanCapabilities } from "@proovra/shared-billing";
 
+import { resolveWorkspaceSeatState } from "../billing/workspace-seats.service.js";
 import { prisma as defaultPrisma } from "../../db.js";
 import {
   resolveCommercialContext,
@@ -440,13 +441,39 @@ export async function assertCollaborationTeamMemberLimit(
   // growth on grandfathered Teams (adds, every invite channel, and
   // acceptance) — data stays readable, growth requires an upgrade.
   assertTeamsFeatureIncluded(plan);
-  // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the ACCEPTED-MEMBER cap for
-  // a Collaboration Team, no longer the retired `maxMembersPerTeam` that also
-  // governed WORKSPACE seats. Pending invitations are counted separately
-  // below and never against this number.
+
+  /**
+   * A GROUP IS NOT A SEAT POOL.
+   *
+   * This used to read `maxAcceptedMembersPerCollaborationTeam` as an
+   * independent commercial quota, so a workspace with room could still be told
+   * "this team has reached its member limit" — a second billing authority over
+   * a second membership table, charging a shape of usage nobody sells.
+   *
+   * The commercial boundary is the set of distinct ACTIVE WORKSPACE
+   * memberships. Assigning someone who is already in the workspace to a group
+   * consumes nothing, and the same person in five groups is still one seat. So
+   * the effective ceiling on a group is simply how many authorized people the
+   * workspace has: a group may contain every one of them, and cannot contain
+   * anyone else, because `addExistingMember` refuses a non-member.
+   *
+   * The catalog field survives as the SAFETY ceiling for one group — an
+   * operational bound, reconciled to the seat entitlement rather than
+   * contradicting it — and the workspace seat count is the real limit.
+   */
+  const workspaceSeats = await resolveWorkspaceSeatState(
+    (await client.collaborationTeam.findUniqueOrThrow({
+      where: { id: teamId },
+      select: { workspaceId: true },
+    })).workspaceId,
+    client,
+  );
   const maxAcceptedMembers = Math.max(
     0,
-    getPlanCapabilities(plan).maxAcceptedMembersPerCollaborationTeam,
+    Math.min(
+      Math.max(workspaceSeats.limit, workspaceSeats.used),
+      getPlanCapabilities(plan).maxAcceptedMembersPerCollaborationTeam,
+    ),
   );
 
   const currentMemberCount = await client.collaborationTeamMember.count({
@@ -472,7 +499,7 @@ export async function assertCollaborationTeamMemberLimit(
   if (currentMemberCount + safeAdding > maxAcceptedMembers) {
     throwBillingError({
       code: "TEAM_MEMBER_LIMIT_REACHED",
-      message: `This team has reached its member limit (${maxAcceptedMembers}) on plan ${plan}.`,
+      message: `A team can hold everyone in this workspace. This workspace has ${maxAcceptedMembers} seats on plan ${plan}.`,
       details: {
         plan,
         teamId,
