@@ -108,8 +108,21 @@ type Detail = {
     status: string;
     createdAt: string;
   }>;
-  /** The row caps every list on this payload was read under. */
-  caps: {
+  /**
+   * The row caps every list on this payload was read under.
+   *
+   * OPTIONAL, AND THAT IS NOT PEDANTRY. This field is new; an API that has not
+   * been deployed yet does not send it, and during any rolling deploy the old
+   * one is still answering. A page that reads `detail.caps.workspaces` off a
+   * payload without `caps` does not degrade — it throws, and the whole detail
+   * page renders as a crash. Measured: the visual sweep caught exactly that,
+   * "Cannot read properties of undefined (reading 'workspaces')", against a
+   * fixture API from before the field existed.
+   *
+   * Absent means the cap is unknown, which `ResultCount` already handles by
+   * omitting it rather than inventing one.
+   */
+  caps?: {
     workspaces: number;
     organizations: number;
     payments: number;
@@ -587,7 +600,7 @@ export default function AdminPersonDetailPage() {
               */}
               <ResultCount
                 shown={detail.workspaces.length}
-                cap={detail.caps.workspaces}
+                cap={detail.caps?.workspaces}
                 noun="workspace membership"
                 data-testid="admin-person-workspaces-count"
               />
@@ -620,7 +633,7 @@ export default function AdminPersonDetailPage() {
                 </div>
                 <ResultCount
                   shown={detail.organizations.length}
-                  cap={detail.caps.organizations}
+                  cap={detail.caps?.organizations}
                   noun="organization membership"
                   data-testid="admin-person-orgs-count"
                 />
@@ -644,7 +657,7 @@ export default function AdminPersonDetailPage() {
               />
               <ResultCount
                 shown={detail.payments.length}
-                cap={detail.caps.payments}
+                cap={detail.caps?.payments}
                 noun="payment"
                 data-testid="admin-person-payments-count"
               />

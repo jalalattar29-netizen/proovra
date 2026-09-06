@@ -170,8 +170,14 @@ type Detail = {
     statusCounts: Record<string, number>;
   };
   activity: {
-    /** The row cap the two lists below were read under. */
-    cap: number;
+    /**
+     * The row cap the two lists below were read under.
+     *
+     * Optional for the same reason as the person detail's `caps`: the field
+     * is new, an undeployed API does not send it, and a page that reads it
+     * unconditionally crashes instead of degrading.
+     */
+    cap?: number;
     recentEvents: Array<{
       id: string;
       eventType: string;
