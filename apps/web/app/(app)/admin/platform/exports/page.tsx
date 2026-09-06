@@ -180,13 +180,30 @@ function OperationsExportsContent() {
   const [objectLock, setObjectLock] = useState<ObjectLockStatus | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** The object-lock probe fails independently of the export list. */
+  const [lockError, setLockError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(() => {
     if (!teamId) return;
     setLoading(true);
     setError(null);
-    Promise.all([
+    setLockError(null);
+    /*
+      TWO SOURCES, TWO OUTCOMES.
+
+      This was `Promise.all([exports, objectLock])` behind ONE `.catch`, so a
+      failure of either discarded BOTH: when the object-lock probe could not be
+      read — a bucket-configuration question that has nothing to do with the
+      export list — the page threw away an export list that had answered
+      perfectly and rendered a single "Could not load exports." That is the
+      state the sweep calls PARTIAL, and the invariant it protects is that one
+      failed card must not blank unrelated content.
+
+      `allSettled` keeps them independent: each source renders its own result
+      or its own reason, and the page is honest about which half it has.
+    */
+    Promise.allSettled([
       apiFetch(`/v1/operations/exports?teamId=${encodeURIComponent(teamId)}`, {
         method: "GET",
       }),
@@ -195,14 +212,35 @@ function OperationsExportsContent() {
         { method: "GET" },
       ),
     ])
-      .then(([listRes, lockRes]) => {
-        setItems((listRes as { exports: ExportListItem[] }).exports ?? []);
-        setItemsLimit((listRes as { limit?: number }).limit);
-        setObjectLock((lockRes as { status: ObjectLockStatus }).status);
+      .then(([listOutcome, lockOutcome]) => {
+        if (listOutcome.status === "fulfilled") {
+          const listRes = listOutcome.value as {
+            exports?: ExportListItem[];
+            limit?: number;
+          };
+          setItems(listRes.exports ?? []);
+          setItemsLimit(listRes.limit);
+        } else {
+          setError(
+            toSafeUserError(listOutcome.reason, {
+              message: "Could not load exports.",
+            }).message,
+          );
+        }
+
+        if (lockOutcome.status === "fulfilled") {
+          setObjectLock(
+            (lockOutcome.value as { status: ObjectLockStatus }).status,
+          );
+        } else {
+          // The list above is unaffected and stays on screen.
+          setLockError(
+            toSafeUserError(lockOutcome.reason, {
+              message: "Could not read the object-lock posture.",
+            }).message,
+          );
+        }
       })
-      .catch((err: { message?: string }) =>
-        setError(toSafeUserError(err, { message: "Could not load exports." }).message),
-      )
       .finally(() => setLoading(false));
   }, [teamId]);
 
@@ -251,6 +289,16 @@ function OperationsExportsContent() {
     <PageShell width="full" header={pageHeader} data-testid="operations-exports-root">
 
       {error ? <div className="apf-note" data-tone="critical">{error}</div> : null}
+
+      {/* THE LOCK PROBE'S OWN FAILURE, BESIDE THE PANEL IT BELONGS TO — not at
+          the top of the page where it would read as "the exports failed", and
+          not merged into `error`, which is the list's. `warning` rather than
+          `critical`: the export list below is unaffected and complete. */}
+      {lockError ? (
+        <div className="apf-note" data-tone="warning">
+          {lockError} The export list below is unaffected.
+        </div>
+      ) : null}
 
       <ObjectLockPanel status={objectLock} />
 

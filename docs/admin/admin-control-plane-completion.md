@@ -328,13 +328,13 @@
 | `/admin/identity/providers` | 963 | 10c/1t/3s |  |
 | `/admin/identity/runtime` | 895 | 2c/2t/3s |  |
 | `/admin/identity/scim` | 1432 | 9c/4t/0s |  |
-| `/admin/identity/sessions` | 56 | 6c/5t/20s |  |
+| `/admin/identity/sessions` | 56 | 6c/5t/24s |  |
 | `/admin/identity/timeline` | 373 | 0c/1t/1s |  |
 | `/admin/operations` | 602 | 2c/2t/2s |  |
 | `/admin/platform-health` | 568 | 3c/0t/4s |  |
 | `/admin/platform/analytics` | 814 | 0c/0t/9s |  |
-| `/admin/platform/automation` | 641 | 0c/2t/5s |  |
-| `/admin/platform/exports` | 771 | 0c/4t/0s |  |
+| `/admin/platform/automation` | 689 | 0c/2t/5s |  |
+| `/admin/platform/exports` | 819 | 0c/4t/0s |  |
 | `/admin/platform/media-graph` | 752 | 0c/0t/5s |  |
 | `/admin/platform/observability` | 1653 | 0c/2t/0s |  |
 | `/admin/platform/queues` | 811 | 0c/2t/0s |  |
@@ -346,7 +346,7 @@
 | `/admin/platform/signers` | 1171 | 0c/3t/0s |  |
 | `/admin/provisioning` | 775 | 13c/1t/4s |  |
 | `/admin/search` | 410 | 1c/0t/0s |  |
-| `/admin/security` | 108 | 13c/6t/25s |  |
+| `/admin/security` | 108 | 14c/6t/30s |  |
 | `/admin/support-access` | 1017 | 6c/2t/4s |  |
 | `/admin/timeline` | 483 | 0c/1t/1s |  |
 | `/admin/users` | 485 | 2c/2t/1s |  |

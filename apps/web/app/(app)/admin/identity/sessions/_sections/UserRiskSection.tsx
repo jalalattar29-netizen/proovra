@@ -35,6 +35,7 @@ import { formatUserDateTime } from "../../../../../../lib/date";
 import {
   NoWorkspaceSelected,
   SectionDenied,
+  SectionPlanGated,
   SectionError,
   SectionLoading,
   classifyError,
@@ -159,6 +160,17 @@ export function UserRiskSection() {
       </PageSection>
     );
   }
+  if (members.kind === "plan_gated") {
+    return (
+      <PageSection title="Member risk" description={description}>
+        <SectionPlanGated
+            message={members.message}
+            feature={members.feature}
+            upgradeCta={members.upgradeCta}
+          />
+      </PageSection>
+    );
+  }
   if (members.kind === "error") {
     return (
       <PageSection title="Member risk" description={description}>
@@ -236,6 +248,12 @@ export function UserRiskSection() {
         <SectionDenied
           message={snapshot.message}
           hint="Either you lack access-review authority in this workspace, or that member is not part of it. This is a refusal, not a clean risk score."
+        />
+      ) : snapshot.kind === "plan_gated" ? (
+        <SectionPlanGated
+          message={snapshot.message}
+          feature={snapshot.feature}
+          upgradeCta={snapshot.upgradeCta}
         />
       ) : snapshot.kind === "error" ? (
         <SectionError

@@ -31,6 +31,7 @@ import { PageSection } from "../../../../../../components/ui/PageShell";
 import {
   NoWorkspaceSelected,
   SectionDenied,
+  SectionPlanGated,
   SectionError,
   SectionLoading,
   classifyError,
@@ -126,6 +127,17 @@ export function SessionPolicyImpactSection() {
     return (
       <PageSection title="Session policy impact" description={description}>
         <SectionDenied message={state.message} />
+      </PageSection>
+    );
+  }
+  if (state.kind === "plan_gated") {
+    return (
+      <PageSection title="Session policy impact" description={description}>
+        <SectionPlanGated
+            message={state.message}
+            feature={state.feature}
+            upgradeCta={state.upgradeCta}
+          />
       </PageSection>
     );
   }

@@ -53,6 +53,7 @@ import { formatUserDateTime } from "../../../../../lib/date";
 import {
   NoWorkspaceSelected,
   SectionDenied,
+  SectionPlanGated,
   SectionDescription,
   SectionError,
   SectionLoading,
@@ -357,6 +358,17 @@ export function WorkspaceSecurityPostureSection() {
       </PageSection>
     );
   }
+  if (overview.kind === "plan_gated") {
+    return (
+      <PageSection title="Workspace security posture" description={description}>
+        <SectionPlanGated
+            message={overview.message}
+            feature={overview.feature}
+            upgradeCta={overview.upgradeCta}
+          />
+      </PageSection>
+    );
+  }
 
   if (overview.kind === "error") {
     return (
@@ -549,6 +561,12 @@ export function WorkspaceSecurityPostureSection() {
         <SectionLoading label="Reading the workspace security events…" />
       ) : eventsState.kind === "denied" ? (
         <SectionDenied message={eventsState.message} />
+      ) : eventsState.kind === "plan_gated" ? (
+        <SectionPlanGated
+          message={eventsState.message}
+          feature={eventsState.feature}
+          upgradeCta={eventsState.upgradeCta}
+        />
       ) : eventsState.kind === "error" ? (
         <SectionError message={eventsState.message} onRetry={() => void loadEvents()} />
       ) : (

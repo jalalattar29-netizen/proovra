@@ -518,7 +518,8 @@
           "reason": "no measured signal on this page: its content is records, not metrics"
         },
         "PARTIAL": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "(src) =>\n      new Set(\n        [...src.matchAll(/catch\\s*\\([\\s\\S]{0,400}?(set[A-Z]\\w*)\\(/g)].map(\n          (m) => m[1],\n        ),\n      ).size >= 2"
         },
         "TRUNCATED": {
           "verdict": "HANDLED",
@@ -551,7 +552,8 @@
           "evidence": "/addToast\\(/"
         },
         "ACTION_FAILED": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1200}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
         },
         "STEP_UP_REQUIRED": {
           "verdict": "UNHANDLED"
@@ -605,8 +607,8 @@
           "reason": "no measured signal on this page: its content is records, not metrics"
         },
         "PARTIAL": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "reads a single source: there is no subset of one to be partial"
+          "verdict": "HANDLED",
+          "evidence": "(src) =>\n      new Set(\n        [...src.matchAll(/catch\\s*\\([\\s\\S]{0,400}?(set[A-Z]\\w*)\\(/g)].map(\n          (m) => m[1],\n        ),\n      ).size >= 2"
         },
         "TRUNCATED": {
           "verdict": "NOT_APPLICABLE",
@@ -639,7 +641,8 @@
           "evidence": "/addToast\\(/"
         },
         "ACTION_FAILED": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1200}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
         },
         "STEP_UP_REQUIRED": {
           "verdict": "UNHANDLED"
@@ -840,7 +843,7 @@
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
-        "workspaceScoped": false,
+        "workspaceScoped": true,
         "reads": 2,
         "hasOptionalCapability": true
       },
@@ -880,20 +883,17 @@
           "verdict": "UNHANDLED"
         },
         "STALE": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "platform-scoped surface: no active workspace to change under a read in flight"
+          "verdict": "UNHANDLED"
         },
         "ERROR": {
           "verdict": "HANDLED",
           "evidence": "/toSafeUserError/"
         },
         "DENIED": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+          "verdict": "UNHANDLED"
         },
         "PLAN_GATED": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "platform-scoped surface: not gated by any workspace's plan"
+          "verdict": "UNHANDLED"
         },
         "UNAVAILABLE": {
           "verdict": "UNHANDLED"
@@ -907,7 +907,8 @@
           "evidence": "/tone=\"verified\"/"
         },
         "ACTION_FAILED": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1200}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
         },
         "STEP_UP_REQUIRED": {
           "verdict": "HANDLED",
@@ -1053,7 +1054,8 @@
           "reason": "no measured signal on this page: its content is records, not metrics"
         },
         "PARTIAL": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "(src) =>\n      new Set(\n        [...src.matchAll(/catch\\s*\\([\\s\\S]{0,400}?(set[A-Z]\\w*)\\(/g)].map(\n          (m) => m[1],\n        ),\n      ).size >= 2"
         },
         "TRUNCATED": {
           "verdict": "HANDLED",
@@ -1087,7 +1089,8 @@
           "evidence": "/addToast\\(/"
         },
         "ACTION_FAILED": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1200}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
         },
         "STEP_UP_REQUIRED": {
           "verdict": "UNHANDLED"
@@ -1289,7 +1292,7 @@
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
-        "workspaceScoped": false,
+        "workspaceScoped": true,
         "reads": 1,
         "hasOptionalCapability": true
       },
@@ -1331,20 +1334,17 @@
           "evidence": "/limit/"
         },
         "STALE": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "platform-scoped surface: no active workspace to change under a read in flight"
+          "verdict": "UNHANDLED"
         },
         "ERROR": {
           "verdict": "HANDLED",
           "evidence": "/toSafeUserError/"
         },
         "DENIED": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+          "verdict": "UNHANDLED"
         },
         "PLAN_GATED": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "platform-scoped surface: not gated by any workspace's plan"
+          "verdict": "UNHANDLED"
         },
         "UNAVAILABLE": {
           "verdict": "UNHANDLED"
@@ -1506,7 +1506,8 @@
           "reason": "no measured signal on this page: its content is records, not metrics"
         },
         "PARTIAL": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "(src) =>\n      new Set(\n        [...src.matchAll(/catch\\s*\\([\\s\\S]{0,400}?(set[A-Z]\\w*)\\(/g)].map(\n          (m) => m[1],\n        ),\n      ).size >= 2"
         },
         "TRUNCATED": {
           "verdict": "HANDLED",
@@ -1595,7 +1596,8 @@
           "reason": "no measured signal on this page: its content is records, not metrics"
         },
         "PARTIAL": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "(src) =>\n      new Set(\n        [...src.matchAll(/catch\\s*\\([\\s\\S]{0,400}?(set[A-Z]\\w*)\\(/g)].map(\n          (m) => m[1],\n        ),\n      ).size >= 2"
         },
         "TRUNCATED": {
           "verdict": "HANDLED",
@@ -1684,7 +1686,8 @@
           "reason": "no measured signal on this page: its content is records, not metrics"
         },
         "PARTIAL": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "(src) =>\n      new Set(\n        [...src.matchAll(/catch\\s*\\([\\s\\S]{0,400}?(set[A-Z]\\w*)\\(/g)].map(\n          (m) => m[1],\n        ),\n      ).size >= 2"
         },
         "TRUNCATED": {
           "verdict": "HANDLED",
@@ -1772,7 +1775,8 @@
           "reason": "no measured signal on this page: its content is records, not metrics"
         },
         "PARTIAL": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "(src) =>\n      new Set(\n        [...src.matchAll(/catch\\s*\\([\\s\\S]{0,400}?(set[A-Z]\\w*)\\(/g)].map(\n          (m) => m[1],\n        ),\n      ).size >= 2"
         },
         "TRUNCATED": {
           "verdict": "HANDLED",
@@ -1953,7 +1957,8 @@
           "reason": "no measured signal on this page: its content is records, not metrics"
         },
         "PARTIAL": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "(src) =>\n      new Set(\n        [...src.matchAll(/catch\\s*\\([\\s\\S]{0,400}?(set[A-Z]\\w*)\\(/g)].map(\n          (m) => m[1],\n        ),\n      ).size >= 2"
         },
         "TRUNCATED": {
           "verdict": "HANDLED",
@@ -2044,7 +2049,8 @@
           "reason": "no measured signal on this page: its content is records, not metrics"
         },
         "PARTIAL": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "(src) =>\n      new Set(\n        [...src.matchAll(/catch\\s*\\([\\s\\S]{0,400}?(set[A-Z]\\w*)\\(/g)].map(\n          (m) => m[1],\n        ),\n      ).size >= 2"
         },
         "TRUNCATED": {
           "verdict": "HANDLED",
@@ -2189,7 +2195,7 @@
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
-        "workspaceScoped": false,
+        "workspaceScoped": true,
         "reads": 3,
         "hasOptionalCapability": true
       },
@@ -2230,20 +2236,17 @@
           "evidence": "/\\bcap\\b/"
         },
         "STALE": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "platform-scoped surface: no active workspace to change under a read in flight"
+          "verdict": "UNHANDLED"
         },
         "ERROR": {
           "verdict": "HANDLED",
           "evidence": "/toSafeUserError/"
         },
         "DENIED": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+          "verdict": "UNHANDLED"
         },
         "PLAN_GATED": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "platform-scoped surface: not gated by any workspace's plan"
+          "verdict": "UNHANDLED"
         },
         "UNAVAILABLE": {
           "verdict": "UNHANDLED"
@@ -2257,7 +2260,8 @@
           "evidence": "/addToast\\(/"
         },
         "ACTION_FAILED": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1200}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
         },
         "STEP_UP_REQUIRED": {
           "verdict": "UNHANDLED"
@@ -2488,7 +2492,8 @@
           "reason": "no measured signal on this page: its content is records, not metrics"
         },
         "PARTIAL": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/Promise\\.allSettled/"
         },
         "TRUNCATED": {
           "verdict": "HANDLED",
@@ -2575,7 +2580,8 @@
           "reason": "no measured signal on this page: its content is records, not metrics"
         },
         "PARTIAL": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/PARTIAL/"
         },
         "TRUNCATED": {
           "verdict": "HANDLED",
@@ -2607,7 +2613,8 @@
           "evidence": "/tone=\"verified\"/"
         },
         "ACTION_FAILED": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1200}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
         },
         "STEP_UP_REQUIRED": {
           "verdict": "UNHANDLED"
@@ -2711,7 +2718,7 @@
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
-        "workspaceScoped": true,
+        "workspaceScoped": false,
         "reads": 4,
         "hasOptionalCapability": true
       },
@@ -2763,7 +2770,8 @@
           "evidence": "/403/"
         },
         "PLAN_GATED": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: not gated by any workspace's plan"
         },
         "UNAVAILABLE": {
           "verdict": "HANDLED",
@@ -2868,7 +2876,8 @@
           "evidence": "/state=\"done\"/"
         },
         "ACTION_FAILED": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1200}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
         },
         "STEP_UP_REQUIRED": {
           "verdict": "HANDLED",
@@ -3047,7 +3056,8 @@
           "evidence": "/state=\"done\"/"
         },
         "ACTION_FAILED": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1200}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
         },
         "STEP_UP_REQUIRED": {
           "verdict": "HANDLED",
@@ -3132,7 +3142,8 @@
           "verdict": "UNHANDLED"
         },
         "ACTION_FAILED": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1200}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
         },
         "STEP_UP_REQUIRED": {
           "verdict": "UNHANDLED"
@@ -3401,7 +3412,8 @@
           "evidence": "/state=\"done\"/"
         },
         "ACTION_FAILED": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1200}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
         },
         "STEP_UP_REQUIRED": {
           "verdict": "HANDLED",
@@ -3456,7 +3468,8 @@
           "reason": "no measured signal on this page: its content is records, not metrics"
         },
         "PARTIAL": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "(src) =>\n      new Set(\n        [...src.matchAll(/catch\\s*\\([\\s\\S]{0,400}?(set[A-Z]\\w*)\\(/g)].map(\n          (m) => m[1],\n        ),\n      ).size >= 2"
         },
         "TRUNCATED": {
           "verdict": "UNHANDLED"
@@ -3489,7 +3502,8 @@
           "evidence": "/tone=\"verified\"/"
         },
         "ACTION_FAILED": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1200}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
         },
         "STEP_UP_REQUIRED": {
           "verdict": "HANDLED",
@@ -3635,7 +3649,8 @@
           "reason": "no measured signal on this page: its content is records, not metrics"
         },
         "PARTIAL": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "(src) =>\n      new Set(\n        [...src.matchAll(/catch\\s*\\([\\s\\S]{0,400}?(set[A-Z]\\w*)\\(/g)].map(\n          (m) => m[1],\n        ),\n      ).size >= 2"
         },
         "TRUNCATED": {
           "verdict": "HANDLED",
@@ -3654,7 +3669,8 @@
           "evidence": "/kind: \"denied\"/"
         },
         "PLAN_GATED": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/402/"
         },
         "UNAVAILABLE": {
           "verdict": "UNHANDLED"
@@ -3668,7 +3684,8 @@
           "evidence": "/tone=\"verified\"/"
         },
         "ACTION_FAILED": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/method:\\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'][\\s\\S]{0,1200}?catch\\s*\\([\\s\\S]{0,600}?(?:notifyApiError|toSafeUserError|describeRefusal|SectionError|addToast\\([^)]*[\"']error[\"'])/"
         },
         "STEP_UP_REQUIRED": {
           "verdict": "HANDLED",
@@ -3723,7 +3740,8 @@
           "reason": "no measured signal on this page: its content is records, not metrics"
         },
         "PARTIAL": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "(src) =>\n      new Set(\n        [...src.matchAll(/catch\\s*\\([\\s\\S]{0,400}?(set[A-Z]\\w*)\\(/g)].map(\n          (m) => m[1],\n        ),\n      ).size >= 2"
         },
         "TRUNCATED": {
           "verdict": "HANDLED",
@@ -3812,8 +3830,8 @@
           "reason": "no measured signal on this page: its content is records, not metrics"
         },
         "PARTIAL": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "reads a single source: there is no subset of one to be partial"
+          "verdict": "HANDLED",
+          "evidence": "(src) =>\n      new Set(\n        [...src.matchAll(/catch\\s*\\([\\s\\S]{0,400}?(set[A-Z]\\w*)\\(/g)].map(\n          (m) => m[1],\n        ),\n      ).size >= 2"
         },
         "TRUNCATED": {
           "verdict": "HANDLED",
@@ -3903,7 +3921,8 @@
           "reason": "no measured signal on this page: its content is records, not metrics"
         },
         "PARTIAL": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "(src) =>\n      new Set(\n        [...src.matchAll(/catch\\s*\\([\\s\\S]{0,400}?(set[A-Z]\\w*)\\(/g)].map(\n          (m) => m[1],\n        ),\n      ).size >= 2"
         },
         "TRUNCATED": {
           "verdict": "HANDLED",
@@ -3992,7 +4011,8 @@
           "evidence": "/Not measured/"
         },
         "PARTIAL": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "(src) =>\n      new Set(\n        [...src.matchAll(/catch\\s*\\([\\s\\S]{0,400}?(set[A-Z]\\w*)\\(/g)].map(\n          (m) => m[1],\n        ),\n      ).size >= 2"
         },
         "TRUNCATED": {
           "verdict": "HANDLED",
@@ -4049,7 +4069,7 @@
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
-        "workspaceScoped": true,
+        "workspaceScoped": false,
         "reads": 1,
         "hasOptionalCapability": false
       },
@@ -4090,17 +4110,20 @@
           "evidence": "/limit/"
         },
         "STALE": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: no active workspace to change under a read in flight"
         },
         "ERROR": {
           "verdict": "HANDLED",
           "evidence": "/toSafeUserError/"
         },
         "DENIED": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
         },
         "PLAN_GATED": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: not gated by any workspace's plan"
         },
         "UNAVAILABLE": {
           "verdict": "NOT_APPLICABLE",
@@ -4137,7 +4160,7 @@
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
-        "workspaceScoped": true,
+        "workspaceScoped": false,
         "reads": 1,
         "hasOptionalCapability": true
       },
@@ -4179,17 +4202,20 @@
           "evidence": "/limit/"
         },
         "STALE": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: no active workspace to change under a read in flight"
         },
         "ERROR": {
           "verdict": "HANDLED",
           "evidence": "/toSafeUserError/"
         },
         "DENIED": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
         },
         "PLAN_GATED": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: not gated by any workspace's plan"
         },
         "UNAVAILABLE": {
           "verdict": "HANDLED",
@@ -4225,52 +4251,48 @@
     "/admin/audit: PLAN_GATED",
     "/admin/billing: UNAVAILABLE",
     "/admin/contact-sales: EMPTY",
-    "/admin/contact-sales: PARTIAL",
     "/admin/contact-sales: UNAVAILABLE",
     "/admin/contact-sales: BUSY",
-    "/admin/contact-sales: ACTION_FAILED",
     "/admin/contact-sales: STEP_UP_REQUIRED",
     "/admin/contact-sales/:id: UNAVAILABLE",
     "/admin/contact-sales/:id: BUSY",
-    "/admin/contact-sales/:id: ACTION_FAILED",
     "/admin/contact-sales/:id: STEP_UP_REQUIRED",
     "/admin/costs: NOT_MEASURED",
     "/admin/costs: UNAVAILABLE",
     "/admin/customers: UNAVAILABLE",
     "/admin/customers/:id: EMPTY",
     "/admin/customers/:id: TRUNCATED",
+    "/admin/customers/:id: STALE",
+    "/admin/customers/:id: DENIED",
+    "/admin/customers/:id: PLAN_GATED",
     "/admin/customers/:id: UNAVAILABLE",
-    "/admin/customers/:id: ACTION_FAILED",
     "/admin/dashboard: REFRESHING",
-    "/admin/demo-requests: PARTIAL",
     "/admin/demo-requests: UNAVAILABLE",
-    "/admin/demo-requests: ACTION_FAILED",
     "/admin/demo-requests: STEP_UP_REQUIRED",
     "/admin/demo-requests/:id: VALUE",
     "/admin/demo-requests/:id: UNAVAILABLE",
+    "/admin/evidence-ops/records: STALE",
+    "/admin/evidence-ops/records: DENIED",
+    "/admin/evidence-ops/records: PLAN_GATED",
     "/admin/evidence-ops/records: UNAVAILABLE",
-    "/admin/identity: PARTIAL",
     "/admin/identity: PLAN_GATED",
     "/admin/identity: DONE",
-    "/admin/identity/access-reviews: PARTIAL",
     "/admin/identity/access-reviews: DENIED",
     "/admin/identity/access-reviews: PLAN_GATED",
-    "/admin/identity/permission-matrix: PARTIAL",
     "/admin/identity/permission-matrix: DENIED",
     "/admin/identity/permission-matrix: PLAN_GATED",
     "/admin/identity/permission-matrix: DONE",
-    "/admin/identity/providers: PARTIAL",
     "/admin/identity/runtime: DENIED",
     "/admin/identity/runtime: PLAN_GATED",
-    "/admin/identity/scim: PARTIAL",
-    "/admin/identity/sessions: PARTIAL",
     "/admin/identity/sessions: PLAN_GATED",
     "/admin/identity/timeline: DENIED",
     "/admin/identity/timeline: PLAN_GATED",
     "/admin/identity/timeline: DONE",
     "/admin/operations: PARTIAL",
+    "/admin/operations: STALE",
+    "/admin/operations: DENIED",
+    "/admin/operations: PLAN_GATED",
     "/admin/operations: UNAVAILABLE",
-    "/admin/operations: ACTION_FAILED",
     "/admin/operations: STEP_UP_REQUIRED",
     "/admin/platform/analytics: LOADING",
     "/admin/platform/analytics: REFRESHING",
@@ -4279,16 +4301,13 @@
     "/admin/platform/analytics: PLAN_GATED",
     "/admin/platform/analytics: UNAVAILABLE",
     "/admin/platform/automation: LOADING",
-    "/admin/platform/automation: PARTIAL",
     "/admin/platform/automation: STALE",
     "/admin/platform/automation: PLAN_GATED",
     "/admin/platform/automation: UNAVAILABLE",
     "/admin/platform/exports: MEASURED_ZERO",
-    "/admin/platform/exports: PARTIAL",
     "/admin/platform/exports: STALE",
     "/admin/platform/exports: DENIED",
     "/admin/platform/exports: UNAVAILABLE",
-    "/admin/platform/exports: ACTION_FAILED",
     "/admin/platform/exports: STEP_UP_REQUIRED",
     "/admin/platform/media-graph: LOADING",
     "/admin/platform/media-graph: PARTIAL",
@@ -4300,52 +4319,33 @@
     "/admin/platform/media-graph: STEP_UP_REQUIRED",
     "/admin/platform/observability: REFRESHING",
     "/admin/platform/observability: EMPTY",
-    "/admin/platform/observability: PLAN_GATED",
     "/admin/platform/queues: EMPTY",
     "/admin/platform/queues: STALE",
-    "/admin/platform/queues: ACTION_FAILED",
     "/admin/platform/recovery: PARTIAL",
     "/admin/platform/recovery: STALE",
     "/admin/platform/recovery: DENIED",
     "/admin/platform/recovery: UNAVAILABLE",
-    "/admin/platform/recovery: ACTION_FAILED",
     "/admin/platform/reliability: REFRESHING",
     "/admin/platform/reliability: FILTERED_EMPTY",
     "/admin/platform/reliability: STALE",
     "/admin/platform/reliability: DENIED",
     "/admin/platform/reliability: PLAN_GATED",
     "/admin/platform/reliability: DONE",
-    "/admin/platform/reliability: ACTION_FAILED",
     "/admin/platform/reliability: STEP_UP_REQUIRED",
     "/admin/platform/runbooks: FILTERED_EMPTY",
     "/admin/platform/runbooks: UNAVAILABLE",
     "/admin/platform/signers: EMPTY",
     "/admin/platform/signers: STALE",
     "/admin/platform/signers: UNAVAILABLE",
-    "/admin/platform/signers: ACTION_FAILED",
-    "/admin/provisioning: PARTIAL",
     "/admin/provisioning: TRUNCATED",
     "/admin/provisioning: PLAN_GATED",
-    "/admin/provisioning: ACTION_FAILED",
     "/admin/search: REFRESHING",
-    "/admin/security: PARTIAL",
-    "/admin/security: PLAN_GATED",
     "/admin/security: UNAVAILABLE",
-    "/admin/security: ACTION_FAILED",
-    "/admin/support-access: PARTIAL",
     "/admin/support-access: PLAN_GATED",
     "/admin/timeline: MEASURED_ZERO",
     "/admin/users: FILTERED_EMPTY",
-    "/admin/users: PARTIAL",
     "/admin/users: UNAVAILABLE",
     "/admin/users/:id: FILTERED_EMPTY",
-    "/admin/users/:id: PARTIAL",
-    "/admin/workspaces: FILTERED_EMPTY",
-    "/admin/workspaces: STALE",
-    "/admin/workspaces: DENIED",
-    "/admin/workspaces: PLAN_GATED",
-    "/admin/workspaces/:id: STALE",
-    "/admin/workspaces/:id: DENIED",
-    "/admin/workspaces/:id: PLAN_GATED"
+    "/admin/workspaces: FILTERED_EMPTY"
   ]
 }

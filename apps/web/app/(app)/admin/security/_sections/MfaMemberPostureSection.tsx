@@ -50,6 +50,7 @@ import { formatUserDateTime } from "../../../../../lib/date";
 import {
   NoWorkspaceSelected,
   SectionDenied,
+  SectionPlanGated,
   SectionDescription,
   SectionError,
   SectionLoading,
@@ -243,6 +244,17 @@ export function MfaMemberPostureSection() {
       </PageSection>
     );
   }
+  if (members.kind === "plan_gated") {
+    return (
+      <PageSection title="Member MFA lifecycle" description={description}>
+        <SectionPlanGated
+            message={members.message}
+            feature={members.feature}
+            upgradeCta={members.upgradeCta}
+          />
+      </PageSection>
+    );
+  }
   if (members.kind === "error") {
     return (
       <PageSection title="Member MFA lifecycle" description={description}>
@@ -385,6 +397,12 @@ export function MfaMemberPostureSection() {
         <SectionDenied
           message={posture.message}
           hint="Either you are not an owner or admin of this workspace, or that member is not part of it. This is a refusal, not an empty posture."
+        />
+      ) : posture.kind === "plan_gated" ? (
+        <SectionPlanGated
+          message={posture.message}
+          feature={posture.feature}
+          upgradeCta={posture.upgradeCta}
         />
       ) : posture.kind === "error" ? (
         <SectionError

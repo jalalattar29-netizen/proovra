@@ -83,6 +83,20 @@ type LoadState =
       runsTotal: number | null;
       /** The cap the request asked for, echoed back. */
       runsLimit: number | null;
+      /**
+       * THE RUN HISTORY FAILED WHILE THE RULES ANSWERED.
+       *
+       * GATE B — the two reads were awaited with `Promise.all` behind one
+       * catch, so a failure of `/v1/automation/runs` — the one that carries a
+       * status filter, and therefore the one a reader is most likely to make
+       * fail — discarded the RULES as well and rendered the whole page as
+       * "Unable to load automation." The rules are this page's subject; they
+       * had answered.
+       *
+       * Non-null means: the rules are real and complete, the run history is
+       * not, and here is why. `null` is the ordinary case.
+       */
+      runsError: string | null;
     }
   | { status: "auth_error"; code: "auth_required" | "permission_denied" }
   | { status: "unavailable"; message: string };
@@ -129,21 +143,40 @@ function AutomationPageInner(): JSX.Element {
     setState((prev) => (prev.status === "ready" ? prev : { status: "loading" }));
     (async () => {
       try {
-        const [envelope, runsResp] = await Promise.all([
-          apiFetch(
-            `/v1/automation/rules?teamId=${encodeURIComponent(teamId)}`,
-          ) as Promise<RulesEnvelope>,
+        // THE RULES DECIDE THE PAGE; THE RUN HISTORY IS A SECTION OF IT.
+        // Awaited separately so a failure of one is not a failure of both —
+        // see `runsError` on the ready state.
+        const envelope = (await apiFetch(
+          `/v1/automation/rules?teamId=${encodeURIComponent(teamId)}`,
+        )) as RulesEnvelope;
+        if (cancelled) return;
+
+        const runsOutcome = await Promise.allSettled([
           apiFetch(
             `/v1/automation/runs?${runsQuery(teamId, statusFilter)}`,
           ) as Promise<{ runs: AutomationRun[]; total?: number; limit?: number }>,
         ]);
         if (cancelled) return;
+        const runs = runsOutcome[0];
+
         setState({
           status: "ready",
           envelope,
-          runs: runsResp.runs,
-          runsTotal: typeof runsResp.total === "number" ? runsResp.total : null,
-          runsLimit: typeof runsResp.limit === "number" ? runsResp.limit : null,
+          runs: runs.status === "fulfilled" ? runs.value.runs : [],
+          runsTotal:
+            runs.status === "fulfilled" && typeof runs.value.total === "number"
+              ? runs.value.total
+              : null,
+          runsLimit:
+            runs.status === "fulfilled" && typeof runs.value.limit === "number"
+              ? runs.value.limit
+              : null,
+          runsError:
+            runs.status === "fulfilled"
+              ? null
+              : toSafeUserError(runs.reason, {
+                  message: "The run history could not be read.",
+                }).message,
         });
       } catch (err) {
         if (cancelled) return;
@@ -219,7 +252,7 @@ function AutomationPageInner(): JSX.Element {
     );
   }
 
-  const { envelope, runs, runsTotal, runsLimit } = state;
+  const { envelope, runs, runsTotal, runsLimit, runsError } = state;
   const enabledCount = envelope.rules.filter((r) => r.enabled).length;
   const editingRule =
     formMode.kind === "edit"
@@ -493,10 +526,25 @@ function AutomationPageInner(): JSX.Element {
             cap={runsLimit ?? undefined}
             noun="run"
             filtered={statusFilter !== ""}
+            failed={runsError !== null}
             style={{ marginTop: 0 }}
             data-testid="admin-automation-runs-count"
           />
         </header>
+        {/* THE RUN HISTORY'S OWN FAILURE, IN THE RUN HISTORY.
+            An empty list and an unreadable one are different facts, and this
+            section used to be unable to say which it had — because a failure
+            here took the whole page down with it. The rules above are real
+            and complete either way. */}
+        {runsError ? (
+          <div
+            className="apf-note"
+            data-tone="warning"
+            data-automation-runs-error
+          >
+            {runsError} The rules above are unaffected.
+          </div>
+        ) : null}
         {/* Server-side: status goes into the request, so the 50-row cap
             applies to the narrowed set rather than to a mixed window that is
             then filtered in the browser. */}

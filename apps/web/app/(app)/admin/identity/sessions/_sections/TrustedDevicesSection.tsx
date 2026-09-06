@@ -47,6 +47,7 @@ import {
 import {
   NoWorkspaceSelected,
   SectionDenied,
+  SectionPlanGated,
   SectionError,
   SectionLoading,
   classifyError,
@@ -203,6 +204,17 @@ export function TrustedDevicesSection() {
     return (
       <PageSection title="Trusted devices" description={description}>
         <SectionDenied message={state.message} />
+      </PageSection>
+    );
+  }
+  if (state.kind === "plan_gated") {
+    return (
+      <PageSection title="Trusted devices" description={description}>
+        <SectionPlanGated
+            message={state.message}
+            feature={state.feature}
+            upgradeCta={state.upgradeCta}
+          />
       </PageSection>
     );
   }

@@ -37,6 +37,7 @@ import { presentActor } from "../../../../../lib/audit/auditPresentation";
 import {
   NoWorkspaceSelected,
   SectionDenied,
+  SectionPlanGated,
   SectionDescription,
   SectionError,
   SectionLoading,
@@ -221,6 +222,17 @@ export function MfaEventsSection() {
       </PageSection>
     );
   }
+  if (eventsState.kind === "plan_gated") {
+    return (
+      <PageSection title="MFA activity" description={description}>
+        <SectionPlanGated
+            message={eventsState.message}
+            feature={eventsState.feature}
+            upgradeCta={eventsState.upgradeCta}
+          />
+      </PageSection>
+    );
+  }
   if (eventsState.kind === "error") {
     return (
       <PageSection title="MFA activity" description={description}>
@@ -388,6 +400,12 @@ export function MfaEventsSection() {
         <SectionDenied
           message={recoveryState.message}
           hint="The recovery feed is only offered to owners and admins of at least one workspace. This is a refusal, not an empty feed."
+        />
+      ) : recoveryState.kind === "plan_gated" ? (
+        <SectionPlanGated
+          message={recoveryState.message}
+          feature={recoveryState.feature}
+          upgradeCta={recoveryState.upgradeCta}
         />
       ) : recoveryState.kind === "error" ? (
         <SectionError

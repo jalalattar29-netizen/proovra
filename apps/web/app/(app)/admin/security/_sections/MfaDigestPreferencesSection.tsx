@@ -37,6 +37,7 @@ import { PageSection } from "../../../../../components/ui/PageShell";
 import { formatUserDateTime } from "../../../../../lib/date";
 import {
   SectionDenied,
+  SectionPlanGated,
   SectionDescription,
   SectionError,
   SectionLoading,
@@ -187,6 +188,17 @@ export function MfaDigestPreferencesSection() {
           message={state.message}
           hint="The recovery digest is only offered to owners and admins of at least one workspace."
         />
+      </PageSection>
+    );
+  }
+  if (state.kind === "plan_gated") {
+    return (
+      <PageSection title="Recovery digest notifications" description={description}>
+        <SectionPlanGated
+            message={state.message}
+            feature={state.feature}
+            upgradeCta={state.upgradeCta}
+          />
       </PageSection>
     );
   }

@@ -137,7 +137,40 @@ const EVIDENCE = {
   NOT_MEASURED: [
     /state="not-measured"/, /NOT_MEASURED/, /Not measured/, /notMeasuredReason/,
   ],
-  PARTIAL: [/PARTIAL/, /partial/i, /some sources/i, /degraded/i],
+  /**
+   * PARTIAL — SOME SOURCES ANSWERED, AND THE PAGE STILL SHOWS WHAT IT HAS.
+   *
+   * GATE B. The patterns were the words `partial` / `degraded` / `some
+   * sources`, which is a page SAYING the word rather than a page handling the
+   * state. The invariant this protects is structural and B1 states it plainly:
+   * "one failed card does not blank unrelated content."
+   *
+   * A page satisfies that by giving each read its OWN failure container, so
+   * one failing leaves the others rendered. Two shapes do it in this console:
+   *
+   *   • `Promise.allSettled`, whose whole purpose is per-source outcomes;
+   *   • two or more distinct setters called from separate catch blocks —
+   *     which is what a page decomposed into `_sections/*` gets for free,
+   *     each section owning its own `SectionState`.
+   *
+   * NOT a loosened bar. `Promise.all` behind a single `.catch` still fails
+   * this, and that is exactly what it found: `/admin/platform/exports`
+   * discarded an export list that had answered because the object-lock probe
+   * beside it had not, and `/admin/platform/automation` threw away the rules
+   * when the run history failed. Both are fixed; `partial-shared-catch` in the
+   * fixtures keeps the rule honest.
+   */
+  PARTIAL: [
+    /PARTIAL/, /partial/i, /some sources/i, /degraded/i,
+    /Promise\.allSettled/,
+    // Two or more DISTINCT setters written from catch blocks.
+    (src) =>
+      new Set(
+        [...src.matchAll(/catch\s*\([\s\S]{0,400}?(set[A-Z]\w*)\(/g)].map(
+          (m) => m[1],
+        ),
+      ).size >= 2,
+  ],
   TRUNCATED: [/truncated/i, /\bcap\b/, /hasMore/, /nextCursor/, /limit/],
   STALE: [/isStale/, /useTenantGuard/, /stale/i],
   ERROR: [
@@ -168,9 +201,33 @@ const EVIDENCE = {
     /state="done"/, /tone="verified"/, /setSuccess/, /addToast\(/, /successBox/,
     /setNotice/, /setRegenNotice/,
   ],
+  /**
+   * ACTION_FAILED — A MUTATION WAS ATTEMPTED, DID NOT SUCCEED, AND THE READER
+   * WAS TOLD.
+   *
+   * GATE B. The patterns here were `setMutationFailure`, `setRowResult`,
+   * `rowResult` and `setActionResult` — four page-local STATE VARIABLE NAMES
+   * from a handful of pages. That is not a definition of the state, it is one
+   * page's implementation of it, and it reported twelve routes as having no
+   * failed-mutation state while every one of them has one.
+   *
+   * Checked instead: does the file contain a mutating request whose catch
+   * reaches the product's sanctioned error-display path? Both halves, in one
+   * window, because a file that mutates somewhere and reports an unrelated
+   * READ failure elsewhere does not handle this.
+   *
+   * `notifyApiError` / `toSafeUserError` are the ONLY sanctioned display path
+   * in this product — raw `error.message` passthrough is banned app-wide — so
+   * a mutation reporting through them is the canonical handling, not a
+   * loosened bar. A page that mutates and SWALLOWS the failure still fails
+   * this: `mutation-swallowed` in the fixtures proves it.
+   */
   ACTION_FAILED: [
     /setMutationFailure/, /setRowResult/, /action failed/i, /rowResult/,
     /setActionResult/,
+    // A mutating request, a catch, and a report — within one window.
+    /method:\s*["'](?:POST|PUT|PATCH|DELETE)["'][\s\S]{0,1200}?catch\s*\([\s\S]{0,600}?(?:notifyApiError|toSafeUserError|describeRefusal|SectionError|addToast\([^)]*["']error["'])/,
+    /catch\s*\([\s\S]{0,900}?(?:notifyApiError|toSafeUserError|describeRefusal)[\s\S]{0,1200}?method:\s*["'](?:POST|PUT|PATCH|DELETE)["']/,
   ],
   STEP_UP_REQUIRED: [/StepUpModal/, /useStepUpAction/, /STEP_UP/, /step-up/i],
   BLOCKED: [
@@ -294,10 +351,31 @@ for (const route of ROUTES) {
     hasMutation: /method: "(POST|PUT|PATCH|DELETE)"/.test(src),
     hasKpi: /<AdmKpi|<MetricTile|AdminStat|app-metric/.test(src),
     isStatic: /RUNBOOK_INDEX|catalog\.generated|index\.generated/.test(src),
-    /* A page is WORKSPACE-scoped when it reads the active workspace. Those
+    /* A page is WORKSPACE-scoped when it READS the active workspace. Those
        are the ones a plan can gate, an operator can be refused within, and a
-       workspace switch can make stale. The rest are platform surfaces. */
-    workspaceScoped: /useTeamId|useTenantGuard|teamId=\$\{|\?teamId=/.test(src),
+       workspace switch can make stale. The rest are platform surfaces.
+
+       GATE B — THIS TEST USED TO MATCH AN OUTBOUND LINK.
+       It read `/useTeamId|useTenantGuard|teamId=\$\{|\?teamId=/`, and the last
+       two alternatives match
+
+           href={`/admin/operations?teamId=${r.id}`}
+
+       which is a page sending a reader somewhere else. `/admin/workspaces` and
+       `/admin/workspaces/:id` are the PLATFORM's workspace directory and
+       detail — they list every workspace and read no active one — and both
+       were classified workspace-scoped on the strength of that link alone,
+       which then demanded STALE, DENIED and PLAN_GATED states neither page can
+       reach. Six of the 128 gaps were that one regex.
+
+       Reading the active workspace means calling one of the hooks that
+       resolves it, or sending a teamId in a REQUEST. An href is neither. */
+    workspaceScoped:
+      /\b(useTeamId|useTenantGuard|useActiveWorkspaceId|useActiveSpaceId)\b/.test(
+        src,
+      ) ||
+      /(qs|params|search|query)\w*\.set\(\s*["']teamId["']/.test(src) ||
+      /\bbody:\s*JSON\.stringify\(\{[^}]*\bteamId\b/.test(src),
     /* Distinct endpoints read. PARTIAL needs more than one. */
     reads: new Set(
       [...src.matchAll(/apiFetch\(\s*[`"']([^`"'?]+)/g)].map((m) =>
@@ -314,7 +392,18 @@ for (const route of ROUTES) {
 
   const row = { route, files: files.length, shape, states: {} };
   for (const [state, patterns] of Object.entries(EVIDENCE)) {
-    const hit = patterns.find((p) => p.test(src));
+    /*
+      A PATTERN MAY BE A PREDICATE.
+
+      Some states are STRUCTURAL rather than textual — PARTIAL is "each read
+      owns its failure", which is a property of the code's shape and not a
+      word it contains. A regex cannot ask "are there two distinct setters
+      called from separate catch blocks", so an entry may be a function of the
+      source instead. Everything else stays a regex.
+    */
+    const hit = patterns.find((p) =>
+      typeof p === "function" ? p(src) : p.test(src),
+    );
     if (hit) {
       row.states[state] = { verdict: "HANDLED", evidence: String(hit) };
       continue;

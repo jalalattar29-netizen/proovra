@@ -71,6 +71,7 @@ import {
 import {
   NoWorkspaceSelected,
   SectionDenied,
+  SectionPlanGated,
   SectionDescription,
   SectionError,
   SectionLoading,
@@ -353,6 +354,17 @@ export function ActiveSessionsSection() {
           message={sessionsState.message}
           hint="Session governance requires owner or admin access on this workspace. This is a refusal — it does not mean the workspace has no sessions."
         />
+      </PageSection>
+    );
+  }
+  if (sessionsState.kind === "plan_gated") {
+    return (
+      <PageSection title="Active sessions" description={description}>
+        <SectionPlanGated
+            message={sessionsState.message}
+            feature={sessionsState.feature}
+            upgradeCta={sessionsState.upgradeCta}
+          />
       </PageSection>
     );
   }
@@ -740,6 +752,12 @@ export function ActiveSessionsSection() {
         <SectionLoading label="Reading the sessions held for review…" />
       ) : quarantineState.kind === "denied" ? (
         <SectionDenied message={quarantineState.message} />
+      ) : quarantineState.kind === "plan_gated" ? (
+        <SectionPlanGated
+          message={quarantineState.message}
+          feature={quarantineState.feature}
+          upgradeCta={quarantineState.upgradeCta}
+        />
       ) : quarantineState.kind === "error" ? (
         <SectionError
           message={quarantineState.message}

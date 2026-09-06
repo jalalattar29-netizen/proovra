@@ -41,10 +41,12 @@ import {
 import {
   NoWorkspaceSelected,
   SectionDenied,
+  SectionPlanGated,
   SectionDescription,
   SectionError,
   SectionLoading,
   classifyError,
+  planGateMessage,
   sectionInputStyle,
   sectionLabelStyle,
   sectionMuted,
@@ -233,6 +235,25 @@ export function MfaPolicySection() {
         void load("reload");
         return;
       }
+      /*
+        A PLAN GATE IS NOT A FAILED SAVE.
+
+        This route calls `assertTeamAllowsEnterpriseFeature(teamId,
+        "mfaEnforcement")` and answers 402 ENTERPRISE_FEATURE_REQUIRED for a
+        workspace that is not on a plan including it. It is the one gated route
+        in the MFA admin surface — the reads are not gated — and its refusal
+        used to arrive as "We couldn't save the MFA policy", which is the same
+        sentence a dropped connection produces. One is worth retrying and the
+        other never will be, and the operator could not tell which they had.
+
+        The fixture's active workspace is on TEAM, so this is a state a reader
+        reaches by pressing Save, not a hypothetical.
+      */
+      const planGate = planGateMessage(err);
+      if (planGate) {
+        addToast(planGate, "error");
+        return;
+      }
       notifyApiError(addToast, err, {
         message: "We couldn't save the MFA policy.",
       });
@@ -279,6 +300,17 @@ export function MfaPolicySection() {
           message={state.message}
           hint="MFA policy administration requires owner or admin access on an Enterprise organization. This is a refusal, not an unset policy."
         />
+      </PageSection>
+    );
+  }
+  if (state.kind === "plan_gated") {
+    return (
+      <PageSection title="MFA policy" description={description}>
+        <SectionPlanGated
+            message={state.message}
+            feature={state.feature}
+            upgradeCta={state.upgradeCta}
+          />
       </PageSection>
     );
   }
