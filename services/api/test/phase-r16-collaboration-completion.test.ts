@@ -520,13 +520,30 @@ describe("Phase R16 — frontend", () => {
     ).toBe(true);
   });
 
-  it("Phase 7 frontend API client exists with all functions", () => {
+  // CLOSURE (2026-09-06) — the client SHRANK to what still has a consumer.
+  //
+  // Notifications went to the Inbox, which reads the same rows and marks the
+  // same `readAt`; preferences went to Settings, because a third preference
+  // store with no stated precedence is a store nobody can trust; guests went to
+  // External Review, because "guests" granted nothing at all. Each API route
+  // answers a typed 410 naming where it went, so a stale client is told rather
+  // than 404'd — and the client functions that called them are deleted, because
+  // a client function for a retired route is a trap with a nice name.
+  //
+  // What remains is the DISCUSSION client, which the group's Discussion tab
+  // uses. The list below is therefore exhaustive in both directions.
+  it("the completion API client holds the discussion functions, and only those", () => {
     const client = read("apps/web/lib/api/collaboration-completion.ts");
     const required = [
       "listComments",
       "createComment",
       "editComment",
       "deleteComment",
+    ];
+    for (const fn of required) {
+      expect(client).toMatch(new RegExp(`export async function ${fn}\\b`));
+    }
+    const retired = [
       "listNotifications",
       "markNotificationRead",
       "markAllNotificationsRead",
@@ -541,11 +558,23 @@ describe("Phase R16 — frontend", () => {
       "completeAccessReview",
       "listActivityV2",
     ];
-    for (const fn of required) {
-      expect(client).toMatch(
+    for (const fn of retired) {
+      expect(client, `${fn} must be gone`).not.toMatch(
         new RegExp(`export async function ${fn}\\b`),
       );
     }
+    // The routes they called say where they went, rather than 404-ing.
+    const routes = read(
+      "services/api/src/routes/collaboration-completion.routes.ts",
+    );
+    expect(routes).toContain("COLLABORATION_TEAM_NOTIFICATIONS_RETIRED");
+    expect(routes).toContain("COLLABORATION_TEAM_PREFERENCES_RETIRED");
+    // The guest refusal is raised by the SERVICE and mapped by the route,
+    // which is why it is asserted where it is thrown.
+    const completion = read(
+      "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
+    );
+    expect(completion).toContain("COLLABORATION_TEAM_GUESTS_RETIRED");
   });
 
   // WORKSPACE AND COLLABORATION RECONCILIATION — the Hub was a second page for
@@ -725,15 +754,35 @@ describe("Phase 12 Point 4 — guest invitation is server-enforced", () => {
     expect(inviteBody).not.toContain("collaborationTeamGuest.create(");
   });
 
-  // The projection stays catalog-derived rather than a plan-name list. It has
-  // no consumer while the surface is retired; keeping it derived means that if
-  // external collaboration is ever offered from a workspace surface again, the
-  // eligibility it reads is the catalog's, not a hardcoded tier list.
-  it("the guest eligibility projection is catalog-derived, not a plan-name list", () => {
+  // CLOSURE (2026-09-06) — the projection is GONE, and its absence is the
+  // contract now.
+  //
+  // `canInviteGuests` projected eligibility for an operation that granted
+  // nothing. With the operation retired, a client rendering an affordance from
+  // it offers a door with no room behind it, and a client rendering a LOCKED
+  // state from it tells a paying customer they cannot do something nobody can
+  // do. Both are worse than the flag's absence.
+  //
+  // External access has a real commercial gate now — the canonical
+  // `FEATURE_EXTERNAL_PORTAL` entitlement, resolved server-side per workspace
+  // on the route that issues the grant.
+  it("the misleading guest projection is gone, and external access is entitlement-gated", () => {
     const ctx = read(
       "services/api/src/services/platform-context/platform-context.service.ts",
     );
-    expect(ctx).toMatch(/canInviteGuests:\s*planCaps\.allowsSharedWorkspace/);
+    expect(codeOnly(ctx)).not.toContain("canInviteGuests");
+    const web = read("apps/web/lib/platform-context/types.ts");
+    expect(codeOnly(web)).not.toContain("canInviteGuests");
+
+    const externalReview = read(
+      "services/api/src/routes/external-review.routes.ts",
+    );
+    expect(externalReview).toContain("FEATURE_EXTERNAL_PORTAL");
+    expect(externalReview).toContain("assertFeatureEntitlement");
+    // Not a plan-name check pretending to be an entitlement.
+    expect(codeOnly(externalReview)).not.toMatch(
+      /plan\s*===\s*"(PRO|TEAM|FREE|ENTERPRISE)"/,
+    );
   });
 
   // The surface that held the browser-side plan decision is retired entirely.

@@ -77,6 +77,18 @@ vi.mock("../src/db.js", () => {
           : H.pendingInvites,
       create: track("collaborationTeamInvite.create"),
     },
+    // WORKSPACE AND COLLABORATION ARCHITECTURE CLOSURE — the invitation that
+    // grants tenancy. `resolveWorkspaceInvitationAllowance` counts PENDING by
+    // the live-window predicate and the 24-hour rate by `createdAt`, so the
+    // double discriminates the same way the group one above always did. A
+    // double that answered 0 to both would make the rails look absent.
+    teamInvite: {
+      count: async (args: { where?: Record<string, unknown> } = {}) =>
+        args.where && "createdAt" in (args.where as object)
+          ? H.invites24h
+          : H.pendingInvites,
+      create: track("teamInvite.create"),
+    },
     subscription: {
       findFirst: async () => null, // no row → entitlement authoritative
       findMany: async () => [], // §9.5 ambiguity probe — no rows
@@ -109,10 +121,10 @@ vi.mock("../src/db.js", () => {
   return { prisma };
 });
 
+import { resolveWorkspaceInvitationAllowance } from "../src/services/billing/workspace-seats.service.js";
 import {
   assertCanCreateCollaborationTeam,
   assertCollaborationTeamMemberLimit,
-  assertCanInviteCollaborationTeamMember,
   lowestPlanWithTeams,
   BillingLimitError,
 } from "../src/services/collaboration-team/billing-guards.js";
@@ -228,13 +240,23 @@ describe("Grandfathered Teams — data readable, growth locked", () => {
     expect(H.writes).toEqual([]);
   });
 
-  it("email invite on a PAYG-owned existing Team → same lock, zero invite rows", async () => {
+  // WORKSPACE AND COLLABORATION ARCHITECTURE CLOSURE (2026-09-06) — the
+  // invitation rails moved to the WORKSPACE, which is the subject they were
+  // always about: they bound claims on SEATS, and a group holds none. The
+  // per-group gate enforced them once per group, so a workspace with five
+  // groups could hold five times the pending invitations its plan sells —
+  // and the invitation that actually grants tenancy was gated by neither.
+  //
+  // The numbers are unchanged and come from the same catalog. What these
+  // assert is that the surviving authority reports them for the right plan;
+  // the ENFORCEMENT is proven end-to-end against live PostgreSQL in
+  // `wcr-invitation-closure.integration.test.ts`.
+  it("a zero-team plan includes no workspace invitations at all", async () => {
     H.plan = "PAYG";
-    await expectBillingError(
-      () => assertCanInviteCollaborationTeamMember("team-1", "EMAIL"),
-      "TEAM_INVITES_NOT_INCLUDED",
-      402,
-    );
+    const allowance = await resolveWorkspaceInvitationAllowance("ws-1");
+    expect(allowance.plan).toBe("PAYG");
+    expect(allowance.featureIncluded).toBe(false);
+    expect(allowance.maxPending).toBe(0);
     expect(H.writes).toEqual([]);
   });
 
@@ -245,8 +267,8 @@ describe("Grandfathered Teams — data readable, growth locked", () => {
       assertCollaborationTeamMemberLimit("team-1"),
     ).resolves.toMatchObject({ maxAcceptedMembers: 5 });
     await expect(
-      assertCanInviteCollaborationTeamMember("team-1", "EMAIL"),
-    ).resolves.toBeTruthy();
+      resolveWorkspaceInvitationAllowance("ws-1"),
+    ).resolves.toMatchObject({ plan: "PRO", maxPending: 10, maxPer24h: 50 });
   });
 });
 
@@ -265,20 +287,24 @@ describe("Member + invite rails on eligible plans", () => {
     );
   });
 
-  it("pending-invite and 24h rails still fire for eligible plans", async () => {
+  it("the pending and 24h rails are WORKSPACE-scoped and read the catalog", async () => {
     H.plan = "PRO";
     H.pendingInvites = 10;
-    await expectBillingError(
-      () => assertCanInviteCollaborationTeamMember("team-1", "EMAIL"),
-      "TEAM_INVITE_LIMIT_REACHED",
-      429,
+    H.invites24h = 3;
+    const atPendingCeiling = await resolveWorkspaceInvitationAllowance("ws-1");
+    expect(atPendingCeiling.pending).toBe(10);
+    expect(atPendingCeiling.pending).toBeGreaterThanOrEqual(
+      atPendingCeiling.maxPending,
     );
+
     H.pendingInvites = 0;
     H.invites24h = 50;
-    await expectBillingError(
-      () => assertCanInviteCollaborationTeamMember("team-1", "EMAIL"),
-      "TEAM_INVITE_LIMIT_REACHED",
-      429,
+    const atRateCeiling = await resolveWorkspaceInvitationAllowance("ws-1");
+    expect(atRateCeiling.sentLast24h).toBe(50);
+    expect(atRateCeiling.sentLast24h).toBeGreaterThanOrEqual(
+      atRateCeiling.maxPer24h,
     );
+    // Reading an allowance writes nothing.
+    expect(H.writes).toEqual([]);
   });
 });

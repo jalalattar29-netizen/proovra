@@ -176,167 +176,27 @@ export async function deleteComment(
 // Notifications
 // =============================================================================
 
-export async function listNotifications(opts?: {
-  limit?: number;
-  unreadOnly?: boolean;
-}): Promise<NotificationList> {
-  const params: string[] = [];
-  if (opts?.limit) params.push(`limit=${opts.limit}`);
-  if (opts?.unreadOnly) params.push("unread=true");
-  const qs = params.length ? `?${params.join("&")}` : "";
-  return (await apiFetch(
-    `/v1/collaboration-team-notifications${qs}`,
-  )) as NotificationList;
-}
-
-export async function markNotificationRead(
-  notificationId: string,
-): Promise<void> {
-  await apiFetch(
-    `/v1/collaboration-team-notifications/${encodeURIComponent(notificationId)}/read`,
-    { method: "POST" },
-  );
-}
-
-export async function markAllNotificationsRead(): Promise<void> {
-  await apiFetch("/v1/collaboration-team-notifications/read-all", {
-    method: "POST",
-  });
-}
-
-// =============================================================================
-// Preferences
-// =============================================================================
-
-export async function getNotificationPreference(
-  teamId: string,
-): Promise<NotificationPreference> {
-  const res = (await apiFetch(
-    `${BASE}/${encodeURIComponent(teamId)}/notification-preferences`,
-  )) as { preference: NotificationPreference };
-  return res.preference;
-}
-
-export async function updateNotificationPreference(
-  teamId: string,
-  patch: Partial<NotificationPreference>,
-): Promise<void> {
-  await apiFetch(
-    `${BASE}/${encodeURIComponent(teamId)}/notification-preferences`,
-    { method: "PATCH", body: JSON.stringify(patch) },
-  );
-}
-
-// =============================================================================
-// Guests
-// =============================================================================
-
-export async function listGuests(
-  teamId: string,
-): Promise<ReadonlyArray<Guest>> {
-  const res = (await apiFetch(
-    `${BASE}/${encodeURIComponent(teamId)}/guests`,
-  )) as { guests: Guest[] };
-  return res.guests;
-}
-
-export async function inviteGuest(
-  teamId: string,
-  input: {
-    email: string;
-    expiresInDays?: number;
-    scopeNote?: string | null;
-  },
-): Promise<{ id: string }> {
-  const res = (await apiFetch(
-    `${BASE}/${encodeURIComponent(teamId)}/guests/invite`,
-    { method: "POST", body: JSON.stringify(input) },
-  )) as { guest: { id: string } };
-  return res.guest;
-}
-
-export async function revokeGuest(
-  teamId: string,
-  guestId: string,
-): Promise<void> {
-  await apiFetch(
-    `${BASE}/${encodeURIComponent(teamId)}/guests/${encodeURIComponent(guestId)}/revoke`,
-    { method: "PATCH" },
-  );
-}
-
-// =============================================================================
-// Access reviews
-// =============================================================================
-
-export async function listAccessReviews(
-  teamId: string,
-): Promise<ReadonlyArray<AccessReview>> {
-  const res = (await apiFetch(
-    `${BASE}/${encodeURIComponent(teamId)}/access-review`,
-  )) as { reviews: AccessReview[] };
-  return res.reviews;
-}
-
-export async function openAccessReview(
-  teamId: string,
-  input?: { dueAtUtc?: string | null },
-): Promise<{ id: string; itemCount: number }> {
-  const res = (await apiFetch(
-    `${BASE}/${encodeURIComponent(teamId)}/access-review`,
-    { method: "POST", body: JSON.stringify(input ?? {}) },
-  )) as { review: { id: string; itemCount: number } };
-  return res.review;
-}
-
-export async function decideAccessReviewItem(
-  teamId: string,
-  itemId: string,
-  input: {
-    decision: CollaborationTeamAccessReviewDecision;
-    notes?: string | null;
-  },
-): Promise<void> {
-  await apiFetch(
-    `${BASE}/${encodeURIComponent(teamId)}/access-review/items/${encodeURIComponent(itemId)}`,
-    { method: "PATCH", body: JSON.stringify(input) },
-  );
-}
-
-export async function completeAccessReview(
-  teamId: string,
-  reviewId: string,
-): Promise<void> {
-  await apiFetch(
-    `${BASE}/${encodeURIComponent(teamId)}/access-review/${encodeURIComponent(reviewId)}/complete`,
-    { method: "POST" },
-  );
-}
-
-// =============================================================================
-// Activity v2
-// =============================================================================
-
-export async function listActivityV2(
-  teamId: string,
-  opts?: {
-    eventType?: string;
-    actor?: string;
-    since?: string;
-    until?: string;
-    limit?: number;
-    cursor?: string;
-  },
-): Promise<ActivityFeed> {
-  const params: string[] = [];
-  if (opts?.eventType) params.push(`eventType=${encodeURIComponent(opts.eventType)}`);
-  if (opts?.actor) params.push(`actor=${encodeURIComponent(opts.actor)}`);
-  if (opts?.since) params.push(`since=${encodeURIComponent(opts.since)}`);
-  if (opts?.until) params.push(`until=${encodeURIComponent(opts.until)}`);
-  if (opts?.limit) params.push(`limit=${opts.limit}`);
-  if (opts?.cursor) params.push(`cursor=${encodeURIComponent(opts.cursor)}`);
-  const qs = params.length ? `?${params.join("&")}` : "";
-  return (await apiFetch(
-    `${BASE}/${encodeURIComponent(teamId)}/activity/v2${qs}`,
-  )) as ActivityFeed;
-}
+/**
+ * WORKSPACE AND COLLABORATION ARCHITECTURE CLOSURE (2026-09-06) — everything
+ * below this point was DELETED, with the surfaces it called.
+ *
+ *   listNotifications / markNotificationRead / markAllNotificationsRead
+ *     → the INBOX reads the same rows and marks the same `readAt`. Two
+ *       clients over one column presented as two inboxes with two unread
+ *       counts.
+ *   getNotificationPreference / updateNotificationPreference
+ *     → Settings. A third preference store with no stated precedence against
+ *       workspace and organization policy is a store nobody can trust.
+ *   listGuests / inviteGuest / revokeGuest
+ *     → External Review. "Guests" wrote a row and granted nothing: no email
+ *       was sent, no read path consulted the table, the status never left
+ *       PENDING.
+ *   listAccessReviews / openAccessReview / decideAccessReviewItem /
+ *   completeAccessReview / listActivityV2
+ *     → no consumer. The group's access review is reached from its own
+ *       surface, and the Activity tab reads the canonical feed.
+ *
+ * The API routes answer a typed 410 naming where each one went, so a stale
+ * client is told rather than 404'd. What remains here is the DISCUSSION
+ * client, which the group's Discussion tab uses.
+ */

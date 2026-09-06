@@ -72,10 +72,37 @@ describe("Phase 10 — collaboration-team billing-guards exports", () => {
     );
   });
 
-  it("exports assertCanInviteCollaborationTeamMember", () => {
-    expect(src).toMatch(
+  // WORKSPACE AND COLLABORATION ARCHITECTURE CLOSURE (2026-09-06) — the
+  // invitation rails moved to the WORKSPACE, which is the subject they were
+  // always about. The per-group gate enforced `maxPendingInvitesPerTeam` and
+  // `maxInvitesPer24h` once PER GROUP, so a workspace with five groups could
+  // hold five times the pending invitations its plan sells — and the
+  // invitation that actually grants tenancy was gated by neither of them.
+  //
+  // Same numbers, same catalog, right subject. The export must be GONE (a
+  // second answer to one question is the defect) and the successor present.
+  it("the per-group invite gate is gone, and the workspace allowance replaces it", () => {
+    expect(src).not.toMatch(
       /export\s+async\s+function\s+assertCanInviteCollaborationTeamMember\b/,
     );
+    const seatsSrc = readFileSync(
+      resolve(API_ROOT, "src/services/billing/workspace-seats.service.ts"),
+      "utf8",
+    );
+    expect(seatsSrc).toMatch(
+      /export\s+async\s+function\s+resolveWorkspaceInvitationAllowance\b/,
+    );
+    // It reads the SAME two catalog values, so the numbers cannot drift apart.
+    expect(seatsSrc).toContain("maxPendingInvitesPerTeam");
+    expect(seatsSrc).toContain("maxInvitesPer24h");
+    // And the one invitation authority enforces it.
+    const inviteSrc = readFileSync(
+      resolve(API_ROOT, "src/services/identity/workspace-invitation.service.ts"),
+      "utf8",
+    );
+    expect(inviteSrc).toContain("resolveWorkspaceInvitationAllowance(");
+    expect(inviteSrc).toContain("WORKSPACE_INVITE_LIMIT_REACHED");
+    expect(inviteSrc).toContain("WORKSPACE_INVITE_RATE_LIMIT_REACHED");
   });
 
   // Teams Entitlement Alignment 2026-07-14: SMS + shareable-link
@@ -235,19 +262,20 @@ describe("Phase 10 — /v1/collaboration-teams handlers call the canonical guard
     expect(handler).not.toMatch(/assertCanInviteCollaborationTeamMember\s*\(/);
   });
 
-  // The gate did not become wrong, only unreachable from the route layer. It
-  // still guards the legacy writer, so nobody can reintroduce an ungated
-  // invitation channel by calling the service directly.
-  it("the legacy createEmailInvite writer is still gated by the canonical invite guard", () => {
+  // CLOSURE — the writer itself is DELETED, which is stronger than gating it.
+  // Retiring a route stops the traffic; deleting the writer stops the
+  // possibility, so a new `CollaborationTeamInvite` row is not merely
+  // unreached but unwritable.
+  it("the legacy per-group invitation writer is gone, not merely gated", () => {
     const svc = readFileSync(SERVICE_PATH, "utf8");
-    const body = svc.split("export async function createEmailInvite")[1] ?? "";
-    expect(body).not.toBe("");
-    const gate = body.indexOf("assertCanInviteCollaborationTeamMember(");
-    const write = body.indexOf("collaborationTeamInvite.create(");
-    expect(gate).toBeGreaterThan(-1);
-    expect(write).toBeGreaterThan(gate);
+    expect(svc).not.toMatch(/export async function createEmailInvite\b/);
+    expect(svc).not.toContain("collaborationTeamInvite.create(");
+    // The accept and revoke paths deliberately REMAIN: links already sent are
+    // in people's mailboxes, and completing or withdrawing an obligation that
+    // was validly issued is not a new write.
+    expect(svc).toMatch(/export async function acceptInvite\b/);
+    expect(svc).toMatch(/export async function revokeInvite\b/);
   });
-
   // Teams Entitlement Alignment 2026-07-14: SMS + shareable-link
   // invitation channels and external guests were removed from the product
   // (never published by Pricing/Billing); invitations are EMAIL-only;

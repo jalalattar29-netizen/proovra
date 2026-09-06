@@ -46,7 +46,11 @@ import * as prismaPkg from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { provisionMembership } from "./membership-provisioning.service.js";
-import { resolveWorkspaceSeatState } from "../billing/workspace-seats.service.js";
+import {
+  resolveWorkspaceInvitationAllowance,
+  resolveWorkspaceSeatState,
+} from "../billing/workspace-seats.service.js";
+import { organizationLifecycleApplies } from "./workspace-kind.js";
 
 export class WorkspaceInvitationError extends Error {
   readonly code: string;
@@ -173,6 +177,58 @@ export async function createWorkspaceInvitation(
   client: PrismaClient = defaultPrisma,
 ): Promise<CreatedWorkspaceInvitation> {
   const email = normalizeInviteEmail(input.email);
+
+  /**
+   * THE ALLOWANCE GATE.
+   *
+   * Minting an invitation is minting a claim on a seat. The seat check at
+   * ACCEPTANCE bounds how many people can end up in the workspace; it does
+   * nothing about how many outstanding claims and how many emails an operator
+   * may produce, and neither did anything else on this path — the catalog's
+   * two invitation limits were being enforced per COLLABORATION TEAM, which is
+   * both the wrong subject and a multiplier.
+   *
+   * Refusals are typed and carry the numbers, so the surface can say which
+   * ceiling was hit and what the plan allows rather than "something went
+   * wrong".
+   */
+  const allowance = await resolveWorkspaceInvitationAllowance(
+    input.workspaceId,
+    client,
+  );
+  if (!allowance.featureIncluded || allowance.maxPending <= 0) {
+    throw new WorkspaceInvitationError(
+      "WORKSPACE_INVITES_NOT_INCLUDED",
+      "This workspace's plan does not include inviting other people.",
+      402,
+      { plan: allowance.plan },
+    );
+  }
+  if (allowance.pending >= allowance.maxPending) {
+    throw new WorkspaceInvitationError(
+      "WORKSPACE_INVITE_LIMIT_REACHED",
+      `This workspace already has ${allowance.maxPending} invitations waiting to be accepted. Revoke one, or wait for it to be accepted.`,
+      409,
+      {
+        plan: allowance.plan,
+        pending: allowance.pending,
+        maxPending: allowance.maxPending,
+      },
+    );
+  }
+  if (allowance.sentLast24h >= allowance.maxPer24h) {
+    throw new WorkspaceInvitationError(
+      "WORKSPACE_INVITE_RATE_LIMIT_REACHED",
+      `This workspace has sent its ${allowance.maxPer24h} invitations for today. Try again tomorrow.`,
+      429,
+      {
+        plan: allowance.plan,
+        sentLast24h: allowance.sentLast24h,
+        maxPer24h: allowance.maxPer24h,
+      },
+    );
+  }
+
   const { raw, hash } = mintToken();
   const expiresAt = new Date(
     Date.now() + (input.expiresInMs ?? WORKSPACE_INVITE_TTL_MS),
@@ -184,7 +240,6 @@ export async function createWorkspaceInvitation(
         teamId: input.workspaceId,
         email,
         role: input.role,
-        token: null,
         tokenHash: hash,
         invitedByUserId: input.invitedByUserId,
         expiresAt,
@@ -247,7 +302,6 @@ export async function resendWorkspaceInvitation(
     where: { id: existing.id },
     data: {
       tokenHash: hash,
-      token: null,
       expiresAt: new Date(
         Date.now() + (input.expiresInMs ?? WORKSPACE_INVITE_TTL_MS),
       ),
@@ -352,6 +406,49 @@ export async function acceptWorkspaceInvitation(
       "INVITE_EXPIRED",
       "This invitation has expired. Ask for a new one.",
       410,
+    );
+  }
+
+  /**
+   * THE WORKSPACE HAS TO STILL BE ONE.
+   *
+   * Acceptance provisions membership, and the actor is by definition NOT a
+   * member yet — so the canonical authorization chain, which decides workspace
+   * liveness and Organization lifecycle for every OTHER operation, has nothing
+   * to evaluate here. Without this, a pending invitation was a way INTO a
+   * workspace that had been closed (closure mass-revokes every membership and
+   * this would have written a fresh one) or whose Organization had been
+   * suspended (every existing member is refused; the new one would not be).
+   *
+   * The rule is not re-derived: `organizationLifecycleApplies` is the same
+   * predicate the access policy uses to decide when a CUSTOMER Organization's
+   * status governs, so a PERSONAL or OWNED workspace backed by an internal
+   * SYSTEM container is not judged on an organization it does not have.
+   */
+  const workspace = await client.team.findUnique({
+    where: { id: invite.teamId },
+    select: {
+      closedAtUtc: true,
+      workspaceKind: true,
+      organization: { select: { status: true } },
+    },
+  });
+  if (!workspace || workspace.closedAtUtc !== null) {
+    throw new WorkspaceInvitationError(
+      "WORKSPACE_NOT_ACCEPTING_MEMBERS",
+      "This workspace is closed.",
+      409,
+    );
+  }
+  if (
+    organizationLifecycleApplies(workspace.workspaceKind ?? "UNKNOWN") &&
+    workspace.organization?.status !== "ACTIVE"
+  ) {
+    throw new WorkspaceInvitationError(
+      "WORKSPACE_NOT_ACCEPTING_MEMBERS",
+      "This workspace is not currently accepting new members.",
+      409,
+      { organizationStatus: workspace.organization?.status ?? "missing" },
     );
   }
 

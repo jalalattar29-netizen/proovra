@@ -31,7 +31,6 @@ import { getWorkspaceUsage } from "../services/workspace-usage.service.js";
 // §9.7 — scope consumed via the resolveCommercialContext envelope (explicit
 // subjects); the scope adapter is no longer imported here.
 import { refreshTeamSeatState } from "../services/billing.service.js";
-import { getPlanCapabilities } from "../services/plan-catalog.service.js";
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -1063,30 +1062,30 @@ export async function teamsRoutes(app: FastifyInstance) {
       }
 
       /**
-       * Important rule:
-       * Invitation creation must NOT be blocked because the team is full.
-       * Only actual member addition / invite acceptance should enforce the 5-member cap.
+       * THE COMMERCIAL DECISION BELONGS TO THE INVITATION AUTHORITY.
        *
-       * We still require the workspace to support teams at all.
+       * This used to answer the eligibility question here, with a 409 and a
+       * bare message, before the service was reached — and it asked only
+       * whether the plan allows a shared workspace at all. The service now
+       * owns the whole allowance: eligibility (402
+       * WORKSPACE_INVITES_NOT_INCLUDED), the pending ceiling (409
+       * WORKSPACE_INVITE_LIMIT_REACHED) and the daily rate (429
+       * WORKSPACE_INVITE_RATE_LIMIT_REACHED), each carrying the plan and the
+       * numbers so the surface can say which ceiling was hit.
+       *
+       * Keeping a second, coarser copy of the first of those three here would
+       * mean two answers to one question, and the coarse one would win by
+       * running first — which is how a caller ends up being told "not
+       * supported" when the true answer is "you have ten waiting".
+       *
+       * Creation is still NOT blocked by a full workspace: a pending
+       * invitation consumes no seat, and the seat is claimed at acceptance.
+       *
+       * The scope is still resolved, because the audit trail and the
+       * analytics event below record which plan the decision was made under.
        */
       // §9.7 — explicit WORKSPACE subject (existing-workspace capability check).
       const scope = (await resolveCommercialContext({ type: "WORKSPACE", teamId, requesterUserId: userId })).scope;
-      const scopeCaps = getPlanCapabilities(scope.plan);
-
-      if (!scopeCaps.allowsSharedWorkspace) {
-        auditTeamAction(req, {
-          userId,
-          action: "teams.invite_create",
-          outcome: "blocked",
-          severity: "warning",
-          resourceId: teamId,
-          metadata: { reason: "team_plan_required", email, plan: scope.plan },
-        });
-
-        return reply.code(409).send({
-          message: "This team does not currently support member invitations",
-        });
-      }
 
       const existingPendingInvite = await prisma.teamInvite.findFirst({
         where: {

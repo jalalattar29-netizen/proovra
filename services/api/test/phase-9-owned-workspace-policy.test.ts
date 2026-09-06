@@ -162,16 +162,44 @@ describe("Phase 9 §9.4 corrected — Owned Workspace never inherits the owner's
       fileURLToPath(new URL("../src/services/collaboration-team/billing-guards.ts", import.meta.url)),
       "utf8",
     );
-    const member = guards.slice(guards.indexOf("export async function assertCollaborationTeamMemberLimit"), guards.indexOf("export async function assertCanInviteCollaborationTeamMember"));
-    const invite = guards.slice(guards.indexOf("export async function assertCanInviteCollaborationTeamMember"), guards.indexOf("assertSubscriptionActiveOrGraceAllowed"));
-    // Whitespace-tolerant: the member guard now destructures the workspace id
-    // out of the same call (it needs the workspace to count its seats), so the
+    // The GROUP-membership ceiling still lives here, and still asks the
+    // workspace rather than the owner's account.
+    const member = guards.slice(
+      guards.indexOf("export async function assertCollaborationTeamMemberLimit"),
+      guards.indexOf("// 3. (RETIRED) assertCanInviteCollaborationTeamMember"),
+    );
+    // Whitespace-tolerant: the member guard destructures the workspace id out
+    // of the same call (it needs the workspace to count its seats), so the
     // call wraps. The assertion is the subject, not the formatting.
     const WORKSPACE_SUBJECT = /resolveCollaborationTeamWorkspacePlan\(\s*client,\s*teamId,?\s*\)/;
     expect(member).toMatch(WORKSPACE_SUBJECT);
     expect(member).not.toMatch(/resolveUserPlan\(/);
-    expect(invite).toMatch(WORKSPACE_SUBJECT);
-    expect(invite).not.toMatch(/resolveUserPlan\(/);
+
+    /**
+     * WORKSPACE AND COLLABORATION ARCHITECTURE CLOSURE (2026-09-06) — the
+     * INVITE half of this row moved, and the move is the point it was making.
+     *
+     * The invite rails were enforced PER GROUP, so a workspace with five
+     * groups could hold five times the pending invitations its plan sells,
+     * and the invitation that actually grants tenancy was gated by neither of
+     * them. They are now resolved for the WORKSPACE, beside the seat state
+     * they are a claim on — which is a stronger reading of "not the owner
+     * account" than the one this row originally asserted.
+     */
+    const seats = readFileSync(
+      fileURLToPath(
+        new URL("../src/services/billing/workspace-seats.service.ts", import.meta.url),
+      ),
+      "utf8",
+    );
+    const allowance = seats.slice(
+      seats.indexOf("export async function resolveWorkspaceInvitationAllowance"),
+    );
+    expect(allowance).toMatch(/resolveWorkspaceSeatState\(workspaceId, client\)/);
+    expect(allowance).not.toMatch(/resolveUserPlan\(/);
+    // Counted against the WORKSPACE, never a group.
+    expect(allowance).toMatch(/teamId: workspaceId/);
+    expect(allowance).not.toMatch(/collaborationTeamInvite/);
   });
 });
 

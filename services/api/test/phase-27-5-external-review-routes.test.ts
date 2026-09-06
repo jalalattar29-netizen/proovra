@@ -204,10 +204,13 @@ describe("Phase 27.5/28.5 — external-review.routes.ts source contract", () => 
 
   it("issue route returns rawToken EXACTLY ONCE in the 201 response", () => {
     const issueIdx = src.indexOf('app.post(\n    "/v1/external-review/grants"');
-    // Window widened (2500 → 3200) for the Phase 3 step-up gate inserted
-    // between authorizeOrFail and the issue call — the rawToken response
-    // shape is unchanged, just further down the handler body.
-    const issueRoute = src.slice(issueIdx, issueIdx + 3200);
+    // Window widened again (3200 → 4600) for the WORKSPACE AND COLLABORATION
+    // ARCHITECTURE CLOSURE commercial gate inserted between `authorizeOrFail`
+    // and the step-up gate: issuing an external-review grant lets someone
+    // OUTSIDE the workspace read its evidence, and it was permission-gated,
+    // step-up-gated and commercially open. The rawToken response shape is
+    // unchanged, just further down the handler body.
+    const issueRoute = src.slice(issueIdx, issueIdx + 4600);
     expect(issueRoute).toMatch(/rawToken:\s*result\.rawToken/);
     // The route's 201 response shape includes both `grant` + `rawToken`
     // — the operator captures the raw token now (it's never derivable
@@ -215,6 +218,12 @@ describe("Phase 27.5/28.5 — external-review.routes.ts source contract", () => 
     expect(issueRoute).toMatch(
       /reply\.code\(201\)\.send\(\{\s*grant:\s*result\.grant,\s*rawToken:\s*result\.rawToken/,
     );
+    // The gate that widened this window: the canonical entitlement, not a
+    // plan-name check, and BEFORE the mutation.
+    const gateIdx = issueRoute.indexOf("FEATURE_EXTERNAL_PORTAL");
+    const issueIdx2 = issueRoute.indexOf("issueExternalReviewGrant(");
+    expect(gateIdx).toBeGreaterThan(-1);
+    expect(issueIdx2).toBeGreaterThan(gateIdx);
   });
 
   it("revoke route maps service denial codes to the right HTTP status (404 / 409 / 400)", () => {

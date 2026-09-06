@@ -85,7 +85,7 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 345,
+    "AuditFilesInventoried": 347,
     "AuditFilesUnclassified": 1,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
@@ -136,9 +136,9 @@
     "Phase0ChangedPathClassificationMissing": 0,
     "ManualPhase0ChangeInventories": 0,
     "ProductionRuntimeFilesModifiedByPhase0": 0,
-    "ProductBehaviorTestsRemoved": 0,
+    "ProductBehaviorTestsRemoved": 1,
     "HistoricalMigrationsModifiedByPhase0": 0,
-    "ProductBehaviorTestsInventoried": 197
+    "ProductBehaviorTestsInventoried": 199
   },
   "reportRoles": {
     "counts": {
@@ -157,7 +157,7 @@
     }
   },
   "byRole": {
-    "PRODUCT_BEHAVIOR_TEST": 197,
+    "PRODUCT_BEHAVIOR_TEST": 199,
     "CONTINUATION_CHECKPOINT": 1,
     "GENERATED_CURRENT_ARTIFACT": 3,
     "LEDGER_VALIDATOR_OR_GENERATOR": 1,
@@ -179,7 +179,8 @@
   },
   "problems": [
     "UNCLASSIFIED audit file: scripts/admin-ledger/visual/README.md",
-    "INDEPENDENT ROUTE/CONSUMER SCANNER: scripts/admin-ledger/visual/states.mjs — Independent route/consumer scanner competing with the AST engine."
+    "INDEPENDENT ROUTE/CONSUMER SCANNER: scripts/admin-ledger/visual/states.mjs — Independent route/consumer scanner competing with the AST engine.",
+    "PRODUCT BEHAVIOUR TEST DELETED: apps/web/__tests__/render/guest-invite-entitlement.render.test.tsx"
   ],
   "duplicateClaims": [],
   "multiProducer": [],
@@ -5632,6 +5633,36 @@
     },
     {
       "path": "services/api/test/wave3-audit-custody-coverage.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/wcr-invitation-closure.integration.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/wcr-p0-closure.integration.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],

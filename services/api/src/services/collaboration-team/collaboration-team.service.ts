@@ -30,7 +30,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import {
-  absoluteInternalUrl,
   COLLABORATION_TEAM_ASSIGNMENT_PRIORITIES,
   COLLABORATION_TEAM_ASSIGNMENT_STATUSES,
   COLLABORATION_TEAM_ASSIGNMENT_TARGETS,
@@ -39,7 +38,6 @@ import {
   COLLABORATION_TEAM_ROLES,
   COLLABORATION_TEAM_TYPES,
   collaborationTeamRoleHasPermission,
-  internalNavPath,
   type CollaborationTeamActivityEventType,
   type CollaborationTeamAssignmentPriority,
   type CollaborationTeamAssignmentStatus,
@@ -58,7 +56,6 @@ import {
 import { prisma as defaultPrisma } from "../../db.js";
 import {
   assertCanCreateCollaborationTeam,
-  assertCanInviteCollaborationTeamMember,
   assertCollaborationTeamMemberLimit,
   lockAndAssertCollaborationTeamCapacity,
 } from "./billing-guards.js";
@@ -291,14 +288,6 @@ function validateAssignmentStatus(
   return s as CollaborationTeamAssignmentStatus;
 }
 
-const EMAIL_RE =
-  /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
-
-function validateEmail(e: string | null | undefined): string {
-  if (!e || typeof e !== "string" || !EMAIL_RE.test(e))
-    throw E.invalid("A valid email address is required.");
-  return e.toLowerCase();
-}
 
 // =============================================================================
 // Activity emitter
@@ -1107,93 +1096,37 @@ export async function removeMember(
 // Invitations
 // -----------------------------------------------------------------------------
 
-export type CreatedInvite = {
-  id: string;
-  channel: CollaborationTeamInviteChannel;
-  rawToken: string;
-  acceptUrl: string;
-  expiresAtUtc: Date;
-};
-
-const DEFAULT_INVITE_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
-
-function buildAcceptUrl(rawToken: string): string {
-  // PHASE 11 — nav path (not a resource-id family), composed via
-  // internalNavPath + absoluteInternalUrl.
-  const base = process.env.WEB_BASE_URL ?? "https://app.proovra.com";
-  return absoluteInternalUrl(
-    base,
-    internalNavPath(
-      `/collaboration-teams/invites/${encodeURIComponent(rawToken)}/accept`,
-    ),
-  );
-}
-
-export async function createEmailInvite(
-  input: {
-    teamId: string;
-    actorUserId: string;
-    email: string;
-    role?: string;
-    expiresInMs?: number;
-  },
-  client: PrismaClient = defaultPrisma,
-): Promise<CreatedInvite> {
-  const { team, role: actorRole } = await requireMemberWithPermission(
-    client,
-    input.teamId,
-    input.actorUserId,
-    "team.member.invite",
-  );
-  const email = validateEmail(input.email);
-  const role = validateRole(input.role);
-  assertGroupRoleWithinActorAuthority(actorRole, role);
-  // Canonical invite gate (EMAIL is the ONLY invitation channel):
-  //   - TEAM_INVITES_NOT_INCLUDED (402) on zero-team plans,
-  //   - TEAM_INVITE_LIMIT_REACHED (429) on pending-per-team / 24h caps.
-  await assertCanInviteCollaborationTeamMember(input.teamId, "EMAIL", client);
-
-  const { raw, hash } = generateInviteToken();
-  const expiresAtUtc = new Date(
-    Date.now() + (input.expiresInMs ?? DEFAULT_INVITE_TTL_MS),
-  );
-
-  const invite = await client.$transaction(async (tx) => {
-    const created = await tx.collaborationTeamInvite.create({
-      data: {
-        teamId: input.teamId,
-        workspaceId: team.workspaceId,
-        channel: "EMAIL",
-        email,
-        tokenHash: hash,
-        role,
-        status: "PENDING",
-        expiresAtUtc,
-        maxUses: 1,
-        createdByUserId: input.actorUserId,
-      },
-      select: { id: true, expiresAtUtc: true },
-    });
-    await recordActivity(tx, {
-      teamId: input.teamId,
-      workspaceId: team.workspaceId,
-      actorUserId: input.actorUserId,
-      eventType: "MEMBER_INVITED",
-      targetType: "INVITE",
-      targetId: created.id,
-      metadata: { channel: "EMAIL", role, emailMasked: maskEmail(email) },
-    });
-    return created;
-  });
-
-  return {
-    id: invite.id,
-    channel: "EMAIL",
-    rawToken: raw,
-    acceptUrl: buildAcceptUrl(raw),
-    expiresAtUtc: invite.expiresAtUtc,
-  };
-}
+// =============================================================================
+// (RETIRED) createEmailInvite — the per-group invitation writer
+// =============================================================================
+//
+// WORKSPACE AND COLLABORATION ARCHITECTURE CLOSURE (2026-09-06) — DELETED, so
+// that a new `CollaborationTeamInvite` row is not merely unreached but
+// unwritable.
+//
+// There is ONE invitation authority, and it invites into the WORKSPACE, where
+// acceptance atomically claims a seat. A group is filled by ASSIGNING someone
+// who already holds one (`addExistingMember`), which is why a second
+// invitation system with its own token, its own expiry, its own capacity rules
+// and its own accept path could only ever disagree with the entitlement that
+// is actually sold.
+//
+// Its route was retired to a typed 410 in the reconciliation and this function
+// then had no caller. Retiring a route stops the traffic; deleting the writer
+// stops the possibility, which is the difference between a surface being off
+// and an authority being gone.
+//
+// WHAT DELIBERATELY REMAINS, AND FOR HOW LONG:
+//   * `acceptInvite` and `revokeInvite` — links that were already sent are in
+//     people's mailboxes. Completing or withdrawing an obligation that was
+//     validly issued is not a new write, and both paths are bounded by rows
+//     that no longer come into existence, so the set they act on only shrinks.
+//   * The `collaboration_team_invites` table and its history. No migration
+//     drops it: the record that an invitation was sent is a fact about the
+//     workspace, and this closure does not delete history.
+//
+// Both go when no PENDING legacy invitation remains and no accept link can
+// still be in flight — one TTL after the last one was issued.
 
 export async function revokeInvite(
   input: { teamId: string; actorUserId: string; inviteId: string },

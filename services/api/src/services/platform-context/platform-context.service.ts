@@ -643,20 +643,22 @@ export async function buildPlatformContext(
     reviewQueuesIncluded: planCaps.reviewQueuesIncluded,
     teamCollaborationIncluded: planCaps.maxCollaborationTeamsPerWorkspace > 0,
     aiAssistanceMonthlyOperations: planCaps.aiAdvisoryMonthlyOperations,
-    // PHASE 12 POINT 4 PASS C0 — server-projected guest-invitation eligibility.
-    //
-    // The Exchange/collaboration surface previously decided this in the browser
-    // with a hardcoded `plan === "PRO" || plan === "TEAM"`, which (a) made the
-    // client the commercial authority and (b) wrongly excluded ENTERPRISE.
-    // `allowsSharedWorkspace` is the SAME catalog value the server enforces in
-    // collaboration-completion.service#inviteGuest via `canPlanOperateSharedWorkspace`, so
-    // the projection and the enforcement cannot disagree.
-    //
-    // The subject is the ACTIVE workspace's resolved commercial state — for a
-    // PERSONAL workspace that is the user's own entitlement (applied above),
-    // for an ORGANIZATION workspace the org contract carried on the team row.
-    // There is no owner-plan fallback for an OWNED workspace.
-    canInviteGuests: planCaps.allowsSharedWorkspace,
+    /*
+     * WORKSPACE AND COLLABORATION ARCHITECTURE CLOSURE (2026-09-06) —
+     * `canInviteGuests` was REMOVED from the envelope.
+     *
+     * It projected eligibility for an operation that granted nothing: "guest
+     * invitation" wrote a row and stopped — no email was sent, no read path
+     * consulted the table, the status never left PENDING. With the operation
+     * retired, a client rendering an affordance from this flag would be
+     * offering a door with no room behind it, and a client rendering a LOCKED
+     * state from it would be telling a paying customer they cannot do
+     * something nobody can do. Both are worse than the flag's absence.
+     *
+     * External reviewers are granted access by the external-review authority,
+     * whose commercial gate is the `FEATURE_EXTERNAL_PORTAL` entitlement —
+     * resolved server-side, per workspace, not a plan-name flag carried here.
+     */
     /**
      * PHASE 12 — POINT 7 (2026-08-05): the NUMERIC limits, projected.
      *

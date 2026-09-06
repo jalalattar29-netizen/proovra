@@ -1,16 +1,26 @@
 /**
- * PHASE 12 POINT 4 PASS C0 — guest-invitation affordance (render-level).
+ * PHASE 12 POINT 4 PASS C0 — a plan-gated affordance renders the SERVER's
+ * projection (render-level).
  *
- * The API is now the commercial authority for external guest invitation
- * (`assertCanInviteCollaborationTeamGuest`). This file proves the OTHER half:
- * the browser renders the SERVER's projection and never decides eligibility
- * itself.
+ * WORKSPACE AND COLLABORATION ARCHITECTURE CLOSURE (2026-09-06) — RENAMED and
+ * RETARGETED, because its subject was retired and its PROPERTY was not.
+ *
+ * It used to drive `teamCollaborationIncluded`. That flag projected eligibility for an
+ * operation which granted nothing — "guest invitation" wrote a row and
+ * stopped — so the operation, the flag and the client that read it are all
+ * gone. What must not go is the rule the file exists for: the browser renders
+ * the server's projection and never decides eligibility itself.
+ *
+ * It now drives `teamCollaborationIncluded`, which gates a real surface
+ * (Collaboration Teams), is projected from the same catalog by the same
+ * resolver, and has the same shape — false on FREE, true on the paid tiers.
  *
  * What is under proof — the REAL `usePlanFeature` hook inside the REAL
  * PlatformContextProvider, driven through a REAL workspace switch:
  *
- *   * an ENTERPRISE workspace GETS the affordance (the deleted client rule
- *     `plan === "PRO" || plan === "TEAM"` wrongly locked Enterprise out);
+ *   * an ENTERPRISE workspace GETS the affordance (a client-side
+ *     `plan === "PRO" || plan === "TEAM"` rule of the kind this replaced
+ *     wrongly locked Enterprise out);
  *   * FREE — a known `false` — is locked;
  *   * an ABSENT/unknown projection fails CLOSED rather than optimistically
  *     showing an affordance the server would deny;
@@ -98,8 +108,8 @@ function makeEnvelope(
  * known `true` as locked.
  */
 function GuestAffordance() {
-  const canInviteGuests = usePlanFeature("canInviteGuests");
-  const allowed = canInviteGuests === true;
+  const teamCollaborationIncluded = usePlanFeature("teamCollaborationIncluded");
+  const allowed = teamCollaborationIncluded === true;
   return (
     <div data-testid="guests" data-guests-allowed={String(allowed)}>
       <button data-testid="invite-guest" disabled={!allowed}>
@@ -121,7 +131,7 @@ function SwitchControls() {
         onClick={() => {
           apiState.nextEnvelope = makeEnvelope("ws-free", {
             accountPlan: "FREE",
-            planFeatures: { canInviteGuests: false },
+            planFeatures: { teamCollaborationIncluded: false },
           });
           void switchWorkspace("ws-free");
         }}
@@ -154,7 +164,7 @@ describe("Phase 12 Point 4 — the guest affordance renders the server projectio
       makeEnvelope("ws-ent", {
         kind: "ORGANIZATION",
         accountPlan: "ENTERPRISE",
-        planFeatures: { canInviteGuests: true },
+        planFeatures: { teamCollaborationIncluded: true },
       }),
     );
     expect(screen.getByTestId("guests").getAttribute("data-guests-allowed")).toBe(
@@ -168,7 +178,7 @@ describe("Phase 12 Point 4 — the guest affordance renders the server projectio
     renderWith(
       makeEnvelope("ws-free", {
         accountPlan: "FREE",
-        planFeatures: { canInviteGuests: false },
+        planFeatures: { teamCollaborationIncluded: false },
       }),
     );
     expect(screen.getByTestId("guests").getAttribute("data-guests-allowed")).toBe(
@@ -192,7 +202,7 @@ describe("Phase 12 Point 4 — the guest affordance renders the server projectio
       makeEnvelope("ws-ent", {
         kind: "ORGANIZATION",
         accountPlan: "ENTERPRISE",
-        planFeatures: { canInviteGuests: true },
+        planFeatures: { teamCollaborationIncluded: true },
       }),
     );
     expect(inviteButton().disabled).toBe(false);

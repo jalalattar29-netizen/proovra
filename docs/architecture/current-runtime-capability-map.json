@@ -5,19 +5,19 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "350df28cd1b3592fbce302d87d8037fa4ec1ea078f008fcbdfae86936dbafd59",
   "routeInventoryHash": "a680e7d2611ac6ce3466c9c2790c39686af869789b4ff8ee5444a20447d271e9",
-  "consumerInventoryHash": "113753c9ce00fb5f5f2afcdd63fc8fc0704d075940f4f37bd19ec6257ddb3b5b",
+  "consumerInventoryHash": "3634f41fe85f82a901ed4e381c7b395ee4c0a09825bb32e18b40de8eae4c71e1",
   "dispositionsHash": "0e0f44b9277fd14f6421fc16b47bd940a006321dfaae6485be1b926f1e5434dc",
   "totals": {
     "RegisteredRoutes": 1132,
     "ProductionRegisteredRoutes": 1131,
     "DevelopmentOnlyRoutes": 1,
-    "ProductConsumedRoutes": 902,
+    "ProductConsumedRoutes": 889,
     "NonProductDispositionedRoutes": 228,
-    "UndisposedRoutes": 1,
+    "UndisposedRoutes": 14,
     "ConservationIdentityHolds": true,
-    "ProductConsumerRoutes": 902,
+    "ProductConsumerRoutes": 889,
     "MachineOnlyConsumerRoutes": 4,
-    "NoConsumerRoutes": 226,
+    "NoConsumerRoutes": 239,
     "AuthorizationUnresolved": 0,
     "PublicUnguardedRoutes": 20,
     "DynamicUnresolvedRouteRegistrations": 0,
@@ -56,15 +56,15 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 122
     },
-    "TerminalWriters": 1257,
-    "ReachableSensitiveMutations": 1247,
-    "ClassifiedSensitiveMutations": 1247,
+    "TerminalWriters": 1256,
+    "ReachableSensitiveMutations": 1244,
+    "ClassifiedSensitiveMutations": 1244,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 0,
-    "NonRequestWriters": 10,
+    "NonRequestWriters": 12,
     "ModuleScopedAttributionWriters": 0,
-    "DeadUnreachableWriters": 2,
-    "DeadUnreachableWritersPending": 2,
+    "DeadUnreachableWriters": 4,
+    "DeadUnreachableWritersPending": 4,
     "PreservedPlannedWriters": 0,
     "PortAttributedWriters": 2,
     "AuthorizationAfterMutation": 0,
@@ -75,7 +75,7 @@
       "ORGANIZATION": 31,
       "ORGANIZATION_MEMBERSHIP": 29,
       "WORKSPACE": 53,
-      "WORKSPACE_MEMBERSHIP_INVITATION": 63,
+      "WORKSPACE_MEMBERSHIP_INVITATION": 62,
       "CASE": 85,
       "EVIDENCE_CUSTODY_FINALIZATION": 280,
       "LEGAL_HOLD_RETENTION_DELETION": 51,
@@ -96,11 +96,11 @@
       "SEED": 1,
       "INJECTED_PORT_IMPLEMENTATION": 2,
       "PRESERVED_PLANNED_WRITER": 0,
-      "DEAD_UNREACHABLE_WRITER": 2
+      "DEAD_UNREACHABLE_WRITER": 4
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1131,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1128,
       "JOB_ATTRIBUTED_REACHABLE": 106,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 3,
@@ -109,7 +109,7 @@
       "TEST_OR_BUILD_ONLY": 0,
       "PRESERVED_PLANNED_WRITER": 0,
       "PORT_ATTRIBUTED_REACHABLE": 2,
-      "DEAD_UNREACHABLE": 2,
+      "DEAD_UNREACHABLE": 4,
       "UNRESOLVED": 0
     },
     "WriterBucketOverlaps": 0,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 8405,
-      "UNRESOLVED_IDENTIFIER": 1055
+      "METHOD_ON_VALUE": 8402,
+      "UNRESOLVED_IDENTIFIER": 1054
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": false,
@@ -133,8 +133,8 @@
     "PreservationEntriesUnmatched": 0,
     "byMandateDisposition": {
       "DEVELOPMENT_ONLY": 2,
-      "UNDISPOSED": 1,
-      "PRODUCT_CONNECTED": 902,
+      "UNDISPOSED": 14,
+      "PRODUCT_CONNECTED": 889,
       "EXTERNAL_API": 30,
       "MACHINE_OR_CRON": 21,
       "WEBHOOK": 4,
@@ -152,13 +152,13 @@
       "PUBLIC_DATA": 15,
       "GLOBAL_USER_SELF": 57,
       "PLATFORM_GLOBAL": 52,
-      "WORKSPACE_SCOPED": 711,
+      "WORKSPACE_SCOPED": 706,
       "ORGANIZATION_SCOPED": 105,
       "MULTI_TENANT_PLATFORM_ADMIN": 115,
       "TOKEN_SCOPED": 45,
       "PROVIDER_SCOPED": 4,
       "MACHINE_SCOPED": 15,
-      "NO_DATA_ACCESS": 11
+      "NO_DATA_ACCESS": 16
     },
     "TenantUnboundInsertRoutes": 0,
     "OrganizationRoutesMeasured": 200,
@@ -242,10 +242,10 @@
   },
   "totalRoutes": 1132,
   "classificationCounts": {
-    "BACKEND_ONLY_UNWIRED": 1,
+    "BACKEND_ONLY_UNWIRED": 14,
     "COMPATIBILITY_TEMPORARY": 3,
     "INTERNAL_REQUIRED": 226,
-    "TARGET_COMPLETE": 902
+    "TARGET_COMPLETE": 889
   },
   "evidenceLevelCounts": {
     "BEHAVIORALLY_PROVEN": 401,
@@ -2152,10 +2152,10 @@
       "method": "GET",
       "route": "/v1/collaboration-team-notifications",
       "registeringFile": "services/api/src/routes/collaboration-completion.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-completion.ts:187",
+      "productConsumer": null,
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "TARGET_COMPLETE",
+      "classification": "BACKEND_ONLY_UNWIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
@@ -2188,10 +2188,10 @@
       "method": "GET",
       "route": "/v1/collaboration-teams/:teamId/access-review",
       "registeringFile": "services/api/src/routes/collaboration-completion.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-completion.ts:275",
+      "productConsumer": null,
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "TARGET_COMPLETE",
+      "classification": "BACKEND_ONLY_UNWIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
@@ -2212,10 +2212,10 @@
       "method": "GET",
       "route": "/v1/collaboration-teams/:teamId/activity/v2",
       "registeringFile": "services/api/src/routes/collaboration-completion.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-completion.ts:339",
+      "productConsumer": null,
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "TARGET_COMPLETE",
+      "classification": "BACKEND_ONLY_UNWIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
@@ -2272,10 +2272,10 @@
       "method": "GET",
       "route": "/v1/collaboration-teams/:teamId/guests",
       "registeringFile": "services/api/src/routes/collaboration-completion.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-completion.ts:237",
+      "productConsumer": null,
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "TARGET_COMPLETE",
+      "classification": "BACKEND_ONLY_UNWIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
@@ -2296,10 +2296,10 @@
       "method": "GET",
       "route": "/v1/collaboration-teams/:teamId/notification-preferences",
       "registeringFile": "services/api/src/routes/collaboration-completion.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-completion.ts:214",
+      "productConsumer": null,
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "TARGET_COMPLETE",
+      "classification": "BACKEND_ONLY_UNWIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
@@ -6832,10 +6832,10 @@
       "method": "PATCH",
       "route": "/v1/collaboration-teams/:teamId/access-review/items/:itemId",
       "registeringFile": "services/api/src/routes/collaboration-completion.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-completion.ts:300",
+      "productConsumer": null,
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "TARGET_COMPLETE",
+      "classification": "BACKEND_ONLY_UNWIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
@@ -6868,10 +6868,10 @@
       "method": "PATCH",
       "route": "/v1/collaboration-teams/:teamId/guests/:guestId/revoke",
       "registeringFile": "services/api/src/routes/collaboration-completion.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-completion.ts:262",
+      "productConsumer": null,
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "TARGET_COMPLETE",
+      "classification": "BACKEND_ONLY_UNWIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
@@ -6892,10 +6892,10 @@
       "method": "PATCH",
       "route": "/v1/collaboration-teams/:teamId/notification-preferences",
       "registeringFile": "services/api/src/routes/collaboration-completion.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-completion.ts:224",
+      "productConsumer": null,
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "TARGET_COMPLETE",
+      "classification": "BACKEND_ONLY_UNWIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
@@ -8524,10 +8524,10 @@
       "method": "POST",
       "route": "/v1/collaboration-team-notifications/:notificationId/read",
       "registeringFile": "services/api/src/routes/collaboration-completion.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-completion.ts:195",
+      "productConsumer": null,
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "TARGET_COMPLETE",
+      "classification": "BACKEND_ONLY_UNWIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
@@ -8536,10 +8536,10 @@
       "method": "POST",
       "route": "/v1/collaboration-team-notifications/read-all",
       "registeringFile": "services/api/src/routes/collaboration-completion.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-completion.ts:202",
+      "productConsumer": null,
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "TARGET_COMPLETE",
+      "classification": "BACKEND_ONLY_UNWIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
@@ -8560,10 +8560,10 @@
       "method": "POST",
       "route": "/v1/collaboration-teams/:teamId/access-review",
       "registeringFile": "services/api/src/routes/collaboration-completion.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-completion.ts:285",
+      "productConsumer": null,
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "TARGET_COMPLETE",
+      "classification": "BACKEND_ONLY_UNWIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
@@ -8572,10 +8572,10 @@
       "method": "POST",
       "route": "/v1/collaboration-teams/:teamId/access-review/:reviewId/complete",
       "registeringFile": "services/api/src/routes/collaboration-completion.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-completion.ts:310",
+      "productConsumer": null,
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "TARGET_COMPLETE",
+      "classification": "BACKEND_ONLY_UNWIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
@@ -8620,10 +8620,10 @@
       "method": "POST",
       "route": "/v1/collaboration-teams/:teamId/guests/invite",
       "registeringFile": "services/api/src/routes/collaboration-completion.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-completion.ts:251",
+      "productConsumer": null,
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "TARGET_COMPLETE",
+      "classification": "BACKEND_ONLY_UNWIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
@@ -20727,8 +20727,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#case.update@2087",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:2087",
+      "writerId": "services/api/src/routes/teams.routes.ts#case.update@2086",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:2086",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -20760,8 +20760,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#case.update@2154",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:2154",
+      "writerId": "services/api/src/routes/teams.routes.ts#case.update@2153",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:2153",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -20793,8 +20793,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#case.updateMany@1718",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:1718",
+      "writerId": "services/api/src/routes/teams.routes.ts#case.updateMany@1717",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:1717",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -20826,8 +20826,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#case.updateMany@963",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:963",
+      "writerId": "services/api/src/routes/teams.routes.ts#case.updateMany@962",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:962",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -20859,8 +20859,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#caseAccess.delete@2561",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:2561",
+      "writerId": "services/api/src/routes/teams.routes.ts#caseAccess.delete@2560",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:2560",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -20892,8 +20892,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#evidence.updateMany@1710",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:1710",
+      "writerId": "services/api/src/routes/teams.routes.ts#evidence.updateMany@1709",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:1709",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -20925,8 +20925,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#team.delete@979",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:979",
+      "writerId": "services/api/src/routes/teams.routes.ts#team.delete@978",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:978",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -20958,8 +20958,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#team.update@831",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:831",
+      "writerId": "services/api/src/routes/teams.routes.ts#team.update@830",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:830",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -20991,8 +20991,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#teamActivity.create@238",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:238",
+      "writerId": "services/api/src/routes/teams.routes.ts#teamActivity.create@237",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:237",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "createActivity",
       "kind": "DATABASE",
@@ -21030,8 +21030,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#teamActivity.create@2579",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:2579",
+      "writerId": "services/api/src/routes/teams.routes.ts#teamActivity.create@2578",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:2578",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -21063,8 +21063,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#teamInvite.deleteMany@952",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:952",
+      "writerId": "services/api/src/routes/teams.routes.ts#teamInvite.deleteMany@951",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:951",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -21096,8 +21096,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.create@2993",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:2993",
+      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.create@2992",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:2992",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -21129,8 +21129,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.create@3023",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:3023",
+      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.create@3022",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:3022",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -21162,8 +21162,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.updateMany@3062",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:3062",
+      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.updateMany@3061",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:3061",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -27975,28 +27975,25 @@
       "mutationKind": "update",
       "primaryFamily": "WORKSPACE_MEMBERSHIP_INVITATION",
       "insideTransaction": false,
-      "entryRoutes": [
-        "POST /v1/collaboration-team-notifications/:notificationId/read"
-      ],
+      "entryRoutes": [],
       "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/collaboration-completion.routes.ts"
-      ],
+      "entryModules": [],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "RESOURCE_OWNER_COLUMN",
-        "authorizationBeforeMutation": true,
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
         "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
+        "tenantBinding": "NON_REQUEST",
         "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
         "transactionAuthority": "AUTOCOMMIT",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
         "payloadVersionAuthority": "NOT_APPLICABLE",
         "canonicalOrLegacy": "UNREGISTERED"
-      }
+      },
+      "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
     },
     {
       "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamNotification.updateMany@628",
@@ -28008,28 +28005,25 @@
       "mutationKind": "updateMany",
       "primaryFamily": "WORKSPACE_MEMBERSHIP_INVITATION",
       "insideTransaction": false,
-      "entryRoutes": [
-        "POST /v1/collaboration-team-notifications/read-all"
-      ],
+      "entryRoutes": [],
       "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/collaboration-completion.routes.ts"
-      ],
+      "entryModules": [],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "NAMED_AUTHORITY",
-        "authorizationBeforeMutation": true,
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
         "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
+        "tenantBinding": "NON_REQUEST",
         "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
         "transactionAuthority": "AUTOCOMMIT",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
         "payloadVersionAuthority": "NOT_APPLICABLE",
         "canonicalOrLegacy": "UNREGISTERED"
-      }
+      },
+      "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
     },
     {
       "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamNotificationPreference.upsert@728",
@@ -28041,32 +28035,29 @@
       "mutationKind": "upsert",
       "primaryFamily": "WORKSPACE_MEMBERSHIP_INVITATION",
       "insideTransaction": false,
-      "entryRoutes": [
-        "PATCH /v1/collaboration-teams/:teamId/notification-preferences"
-      ],
+      "entryRoutes": [],
       "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/collaboration-completion.routes.ts"
-      ],
+      "entryModules": [],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "NAMED_AUTHORITY",
-        "authorizationBeforeMutation": true,
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
         "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
+        "tenantBinding": "NON_REQUEST",
         "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
         "transactionAuthority": "AUTOCOMMIT",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
         "payloadVersionAuthority": "NOT_APPLICABLE",
         "canonicalOrLegacy": "UNREGISTERED"
-      }
+      },
+      "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.create@421",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:421",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.create@410",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:410",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "createCollaborationTeam",
       "kind": "DATABASE",
@@ -28098,8 +28089,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.update@767",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:767",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.update@756",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:756",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "updateCollaborationTeam",
       "kind": "DATABASE",
@@ -28131,8 +28122,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.update@810",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:810",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.update@799",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:799",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "archiveCollaborationTeam",
       "kind": "DATABASE",
@@ -28164,8 +28155,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamActivity.create@319",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:319",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamActivity.create@308",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:308",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "recordActivity",
       "kind": "DATABASE",
@@ -28206,8 +28197,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.create@1986",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1986",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.create@1919",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1919",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "createAssignment",
       "kind": "DATABASE",
@@ -28239,8 +28230,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.update@2124",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2124",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.update@2057",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2057",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "updateAssignment",
       "kind": "DATABASE",
@@ -28272,38 +28263,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.create@1162",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1162",
-      "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
-      "enclosingDeclaration": "createEmailInvite",
-      "kind": "DATABASE",
-      "target": "collaborationTeamInvite",
-      "mutationKind": "create",
-      "primaryFamily": "WORKSPACE_MEMBERSHIP_INVITATION",
-      "insideTransaction": true,
-      "entryRoutes": [],
-      "entryJobs": [],
-      "entryModules": [],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "INSIDE_TRANSACTION",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      },
-      "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
-    },
-    {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.update@1215",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1215",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.update@1148",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1148",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "revokeInvite",
       "kind": "DATABASE",
@@ -28335,8 +28296,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.update@1238",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1238",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.update@1171",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1171",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "recordInviteDeliveryResult",
       "kind": "DATABASE",
@@ -28365,8 +28326,8 @@
       "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.update@1346",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1346",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.update@1279",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1279",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "acceptInvite",
       "kind": "DATABASE",
@@ -28398,8 +28359,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.updateMany@1424",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1424",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.updateMany@1357",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1357",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "acceptInvite",
       "kind": "DATABASE",
@@ -28431,8 +28392,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@1467",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1467",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@1400",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1400",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "acceptInvite",
       "kind": "DATABASE",
@@ -28464,8 +28425,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@433",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:433",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@422",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:422",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "createCollaborationTeam",
       "kind": "DATABASE",
@@ -28497,8 +28458,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@905",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:905",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@894",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:894",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "addExistingMember",
       "kind": "DATABASE",
@@ -28530,8 +28491,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1043",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1043",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1032",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1032",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "suspendMember",
       "kind": "DATABASE",
@@ -28563,8 +28524,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1091",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1091",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1080",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1080",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "removeMember",
       "kind": "DATABASE",
@@ -28596,8 +28557,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1451",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1451",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1384",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1384",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "acceptInvite",
       "kind": "DATABASE",
@@ -28629,8 +28590,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@882",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:882",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@871",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:871",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "addExistingMember",
       "kind": "DATABASE",
@@ -28662,8 +28623,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@976",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:976",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@965",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:965",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "changeMemberRole",
       "kind": "DATABASE",
@@ -39594,8 +39555,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/workspace-invitation.service.ts#teamInvite.create@182",
-      "terminalLocation": "services/api/src/services/identity/workspace-invitation.service.ts:182",
+      "writerId": "services/api/src/services/identity/workspace-invitation.service.ts#teamInvite.create@238",
+      "terminalLocation": "services/api/src/services/identity/workspace-invitation.service.ts:238",
       "file": "services/api/src/services/identity/workspace-invitation.service.ts",
       "enclosingDeclaration": "createWorkspaceInvitation",
       "kind": "DATABASE",
@@ -39627,8 +39588,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/workspace-invitation.service.ts#teamInvite.update@246",
-      "terminalLocation": "services/api/src/services/identity/workspace-invitation.service.ts:246",
+      "writerId": "services/api/src/services/identity/workspace-invitation.service.ts#teamInvite.update@301",
+      "terminalLocation": "services/api/src/services/identity/workspace-invitation.service.ts:301",
       "file": "services/api/src/services/identity/workspace-invitation.service.ts",
       "enclosingDeclaration": "resendWorkspaceInvitation",
       "kind": "DATABASE",
@@ -39661,8 +39622,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/workspace-invitation.service.ts#teamInvite.update@288",
-      "terminalLocation": "services/api/src/services/identity/workspace-invitation.service.ts:288",
+      "writerId": "services/api/src/services/identity/workspace-invitation.service.ts#teamInvite.update@342",
+      "terminalLocation": "services/api/src/services/identity/workspace-invitation.service.ts:342",
       "file": "services/api/src/services/identity/workspace-invitation.service.ts",
       "enclosingDeclaration": "revokeWorkspaceInvitation",
       "kind": "DATABASE",
@@ -39694,8 +39655,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/workspace-invitation.service.ts#teamInvite.updateMany@433",
-      "terminalLocation": "services/api/src/services/identity/workspace-invitation.service.ts:433",
+      "writerId": "services/api/src/services/identity/workspace-invitation.service.ts#teamInvite.updateMany@530",
+      "terminalLocation": "services/api/src/services/identity/workspace-invitation.service.ts:530",
       "file": "services/api/src/services/identity/workspace-invitation.service.ts",
       "enclosingDeclaration": "run",
       "kind": "DATABASE",
@@ -41599,6 +41560,7 @@
         "POST /v1/coding/schemas",
         "POST /v1/exchange/chain-transfers",
         "POST /v1/exchange/packages",
+        "POST /v1/external-review/grants",
         "POST /v1/external-review/invitations",
         "POST /v1/governance/cross-org-review",
         "POST /v1/governance/delegated-admin",
@@ -41625,6 +41587,7 @@
       "entryJobs": [],
       "entryModules": [
         "MODULE services/api/src/routes/external-portal.routes.ts",
+        "MODULE services/api/src/routes/external-review.routes.ts",
         "MODULE services/api/src/routes/intelligence-platform.routes.ts",
         "MODULE services/api/src/routes/internal-media-intelligence-extract.routes.ts",
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts",
@@ -43558,7 +43521,6 @@
         "GET /v1/cases/:id/siu-profile",
         "GET /v1/coding/schemas",
         "GET /v1/coding/schemas/:id",
-        "GET /v1/collaboration-team-notifications",
         "GET /v1/collaboration-teams",
         "GET /v1/collaboration-teams/:teamId",
         "GET /v1/collaboration-teams/:teamId/access-review",
@@ -43570,7 +43532,6 @@
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
-        "GET /v1/collaboration-teams/:teamId/notification-preferences",
         "GET /v1/collaboration-teams/entitlement",
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
@@ -43842,7 +43803,6 @@
         "PATCH /v1/collaboration-teams/:teamId/comments/:commentId",
         "PATCH /v1/collaboration-teams/:teamId/guests/:guestId/revoke",
         "PATCH /v1/collaboration-teams/:teamId/members/:memberId",
-        "PATCH /v1/collaboration-teams/:teamId/notification-preferences",
         "PATCH /v1/evidence-requests/:id",
         "PATCH /v1/evidence/:id/label",
         "PATCH /v1/evidence/:id/reviewer-workflow",
@@ -43928,7 +43888,6 @@
         "POST /v1/coding/schemas/:id/archive",
         "POST /v1/coding/schemas/:id/publish",
         "POST /v1/coding/schemas/seed-defaults",
-        "POST /v1/collaboration-team-notifications/read-all",
         "POST /v1/collaboration-teams",
         "POST /v1/collaboration-teams/:teamId/access-review",
         "POST /v1/collaboration-teams/:teamId/access-review/:reviewId/complete",
@@ -44451,7 +44410,6 @@
         "GET /v1/cases/:id/siu-profile",
         "GET /v1/coding/schemas",
         "GET /v1/coding/schemas/:id",
-        "GET /v1/collaboration-team-notifications",
         "GET /v1/collaboration-teams",
         "GET /v1/collaboration-teams/:teamId",
         "GET /v1/collaboration-teams/:teamId/access-review",
@@ -44463,7 +44421,6 @@
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
-        "GET /v1/collaboration-teams/:teamId/notification-preferences",
         "GET /v1/collaboration-teams/entitlement",
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
@@ -44735,7 +44692,6 @@
         "PATCH /v1/collaboration-teams/:teamId/comments/:commentId",
         "PATCH /v1/collaboration-teams/:teamId/guests/:guestId/revoke",
         "PATCH /v1/collaboration-teams/:teamId/members/:memberId",
-        "PATCH /v1/collaboration-teams/:teamId/notification-preferences",
         "PATCH /v1/evidence-requests/:id",
         "PATCH /v1/evidence/:id/label",
         "PATCH /v1/evidence/:id/reviewer-workflow",
@@ -44818,7 +44774,6 @@
         "POST /v1/coding/schemas/:id/archive",
         "POST /v1/coding/schemas/:id/publish",
         "POST /v1/coding/schemas/seed-defaults",
-        "POST /v1/collaboration-team-notifications/read-all",
         "POST /v1/collaboration-teams",
         "POST /v1/collaboration-teams/:teamId/access-review",
         "POST /v1/collaboration-teams/:teamId/access-review/:reviewId/complete",
@@ -45341,7 +45296,6 @@
         "GET /v1/cases/:id/siu-profile",
         "GET /v1/coding/schemas",
         "GET /v1/coding/schemas/:id",
-        "GET /v1/collaboration-team-notifications",
         "GET /v1/collaboration-teams",
         "GET /v1/collaboration-teams/:teamId",
         "GET /v1/collaboration-teams/:teamId/access-review",
@@ -45353,7 +45307,6 @@
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
-        "GET /v1/collaboration-teams/:teamId/notification-preferences",
         "GET /v1/collaboration-teams/entitlement",
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
@@ -45625,7 +45578,6 @@
         "PATCH /v1/collaboration-teams/:teamId/comments/:commentId",
         "PATCH /v1/collaboration-teams/:teamId/guests/:guestId/revoke",
         "PATCH /v1/collaboration-teams/:teamId/members/:memberId",
-        "PATCH /v1/collaboration-teams/:teamId/notification-preferences",
         "PATCH /v1/evidence-requests/:id",
         "PATCH /v1/evidence/:id/label",
         "PATCH /v1/evidence/:id/reviewer-workflow",
@@ -45711,7 +45663,6 @@
         "POST /v1/coding/schemas/:id/archive",
         "POST /v1/coding/schemas/:id/publish",
         "POST /v1/coding/schemas/seed-defaults",
-        "POST /v1/collaboration-team-notifications/read-all",
         "POST /v1/collaboration-teams",
         "POST /v1/collaboration-teams/:teamId/access-review",
         "POST /v1/collaboration-teams/:teamId/access-review/:reviewId/complete",
@@ -46234,7 +46185,6 @@
         "GET /v1/cases/:id/siu-profile",
         "GET /v1/coding/schemas",
         "GET /v1/coding/schemas/:id",
-        "GET /v1/collaboration-team-notifications",
         "GET /v1/collaboration-teams",
         "GET /v1/collaboration-teams/:teamId",
         "GET /v1/collaboration-teams/:teamId/access-review",
@@ -46246,7 +46196,6 @@
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
-        "GET /v1/collaboration-teams/:teamId/notification-preferences",
         "GET /v1/collaboration-teams/entitlement",
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
@@ -46518,7 +46467,6 @@
         "PATCH /v1/collaboration-teams/:teamId/comments/:commentId",
         "PATCH /v1/collaboration-teams/:teamId/guests/:guestId/revoke",
         "PATCH /v1/collaboration-teams/:teamId/members/:memberId",
-        "PATCH /v1/collaboration-teams/:teamId/notification-preferences",
         "PATCH /v1/evidence-requests/:id",
         "PATCH /v1/evidence/:id/label",
         "PATCH /v1/evidence/:id/reviewer-workflow",
@@ -46601,7 +46549,6 @@
         "POST /v1/coding/schemas/:id/archive",
         "POST /v1/coding/schemas/:id/publish",
         "POST /v1/coding/schemas/seed-defaults",
-        "POST /v1/collaboration-team-notifications/read-all",
         "POST /v1/collaboration-teams",
         "POST /v1/collaboration-teams/:teamId/access-review",
         "POST /v1/collaboration-teams/:teamId/access-review/:reviewId/complete",
@@ -47124,7 +47071,6 @@
         "GET /v1/cases/:id/siu-profile",
         "GET /v1/coding/schemas",
         "GET /v1/coding/schemas/:id",
-        "GET /v1/collaboration-team-notifications",
         "GET /v1/collaboration-teams",
         "GET /v1/collaboration-teams/:teamId",
         "GET /v1/collaboration-teams/:teamId/access-review",
@@ -47136,7 +47082,6 @@
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
-        "GET /v1/collaboration-teams/:teamId/notification-preferences",
         "GET /v1/collaboration-teams/entitlement",
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
@@ -47408,7 +47353,6 @@
         "PATCH /v1/collaboration-teams/:teamId/comments/:commentId",
         "PATCH /v1/collaboration-teams/:teamId/guests/:guestId/revoke",
         "PATCH /v1/collaboration-teams/:teamId/members/:memberId",
-        "PATCH /v1/collaboration-teams/:teamId/notification-preferences",
         "PATCH /v1/evidence-requests/:id",
         "PATCH /v1/evidence/:id/label",
         "PATCH /v1/evidence/:id/reviewer-workflow",
@@ -47491,7 +47435,6 @@
         "POST /v1/coding/schemas/:id/archive",
         "POST /v1/coding/schemas/:id/publish",
         "POST /v1/coding/schemas/seed-defaults",
-        "POST /v1/collaboration-team-notifications/read-all",
         "POST /v1/collaboration-teams",
         "POST /v1/collaboration-teams/:teamId/access-review",
         "POST /v1/collaboration-teams/:teamId/access-review/:reviewId/complete",
@@ -48014,7 +47957,6 @@
         "GET /v1/cases/:id/siu-profile",
         "GET /v1/coding/schemas",
         "GET /v1/coding/schemas/:id",
-        "GET /v1/collaboration-team-notifications",
         "GET /v1/collaboration-teams",
         "GET /v1/collaboration-teams/:teamId",
         "GET /v1/collaboration-teams/:teamId/access-review",
@@ -48026,7 +47968,6 @@
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
-        "GET /v1/collaboration-teams/:teamId/notification-preferences",
         "GET /v1/collaboration-teams/entitlement",
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
@@ -48298,7 +48239,6 @@
         "PATCH /v1/collaboration-teams/:teamId/comments/:commentId",
         "PATCH /v1/collaboration-teams/:teamId/guests/:guestId/revoke",
         "PATCH /v1/collaboration-teams/:teamId/members/:memberId",
-        "PATCH /v1/collaboration-teams/:teamId/notification-preferences",
         "PATCH /v1/evidence-requests/:id",
         "PATCH /v1/evidence/:id/label",
         "PATCH /v1/evidence/:id/reviewer-workflow",
@@ -48381,7 +48321,6 @@
         "POST /v1/coding/schemas/:id/archive",
         "POST /v1/coding/schemas/:id/publish",
         "POST /v1/coding/schemas/seed-defaults",
-        "POST /v1/collaboration-team-notifications/read-all",
         "POST /v1/collaboration-teams",
         "POST /v1/collaboration-teams/:teamId/access-review",
         "POST /v1/collaboration-teams/:teamId/access-review/:reviewId/complete",
@@ -48904,7 +48843,6 @@
         "GET /v1/cases/:id/siu-profile",
         "GET /v1/coding/schemas",
         "GET /v1/coding/schemas/:id",
-        "GET /v1/collaboration-team-notifications",
         "GET /v1/collaboration-teams",
         "GET /v1/collaboration-teams/:teamId",
         "GET /v1/collaboration-teams/:teamId/access-review",
@@ -48916,7 +48854,6 @@
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
-        "GET /v1/collaboration-teams/:teamId/notification-preferences",
         "GET /v1/collaboration-teams/entitlement",
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
@@ -49188,7 +49125,6 @@
         "PATCH /v1/collaboration-teams/:teamId/comments/:commentId",
         "PATCH /v1/collaboration-teams/:teamId/guests/:guestId/revoke",
         "PATCH /v1/collaboration-teams/:teamId/members/:memberId",
-        "PATCH /v1/collaboration-teams/:teamId/notification-preferences",
         "PATCH /v1/evidence-requests/:id",
         "PATCH /v1/evidence/:id/label",
         "PATCH /v1/evidence/:id/reviewer-workflow",
@@ -49271,7 +49207,6 @@
         "POST /v1/coding/schemas/:id/archive",
         "POST /v1/coding/schemas/:id/publish",
         "POST /v1/coding/schemas/seed-defaults",
-        "POST /v1/collaboration-team-notifications/read-all",
         "POST /v1/collaboration-teams",
         "POST /v1/collaboration-teams/:teamId/access-review",
         "POST /v1/collaboration-teams/:teamId/access-review/:reviewId/complete",
@@ -49794,7 +49729,6 @@
         "GET /v1/cases/:id/siu-profile",
         "GET /v1/coding/schemas",
         "GET /v1/coding/schemas/:id",
-        "GET /v1/collaboration-team-notifications",
         "GET /v1/collaboration-teams",
         "GET /v1/collaboration-teams/:teamId",
         "GET /v1/collaboration-teams/:teamId/access-review",
@@ -49806,7 +49740,6 @@
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
-        "GET /v1/collaboration-teams/:teamId/notification-preferences",
         "GET /v1/collaboration-teams/entitlement",
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
@@ -50078,7 +50011,6 @@
         "PATCH /v1/collaboration-teams/:teamId/comments/:commentId",
         "PATCH /v1/collaboration-teams/:teamId/guests/:guestId/revoke",
         "PATCH /v1/collaboration-teams/:teamId/members/:memberId",
-        "PATCH /v1/collaboration-teams/:teamId/notification-preferences",
         "PATCH /v1/evidence-requests/:id",
         "PATCH /v1/evidence/:id/label",
         "PATCH /v1/evidence/:id/reviewer-workflow",
@@ -50161,7 +50093,6 @@
         "POST /v1/coding/schemas/:id/archive",
         "POST /v1/coding/schemas/:id/publish",
         "POST /v1/coding/schemas/seed-defaults",
-        "POST /v1/collaboration-team-notifications/read-all",
         "POST /v1/collaboration-teams",
         "POST /v1/collaboration-teams/:teamId/access-review",
         "POST /v1/collaboration-teams/:teamId/access-review/:reviewId/complete",
@@ -50684,7 +50615,6 @@
         "GET /v1/cases/:id/siu-profile",
         "GET /v1/coding/schemas",
         "GET /v1/coding/schemas/:id",
-        "GET /v1/collaboration-team-notifications",
         "GET /v1/collaboration-teams",
         "GET /v1/collaboration-teams/:teamId",
         "GET /v1/collaboration-teams/:teamId/access-review",
@@ -50696,7 +50626,6 @@
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
-        "GET /v1/collaboration-teams/:teamId/notification-preferences",
         "GET /v1/collaboration-teams/entitlement",
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
@@ -50968,7 +50897,6 @@
         "PATCH /v1/collaboration-teams/:teamId/comments/:commentId",
         "PATCH /v1/collaboration-teams/:teamId/guests/:guestId/revoke",
         "PATCH /v1/collaboration-teams/:teamId/members/:memberId",
-        "PATCH /v1/collaboration-teams/:teamId/notification-preferences",
         "PATCH /v1/evidence-requests/:id",
         "PATCH /v1/evidence/:id/label",
         "PATCH /v1/evidence/:id/reviewer-workflow",
@@ -51054,7 +50982,6 @@
         "POST /v1/coding/schemas/:id/archive",
         "POST /v1/coding/schemas/:id/publish",
         "POST /v1/coding/schemas/seed-defaults",
-        "POST /v1/collaboration-team-notifications/read-all",
         "POST /v1/collaboration-teams",
         "POST /v1/collaboration-teams/:teamId/access-review",
         "POST /v1/collaboration-teams/:teamId/access-review/:reviewId/complete",
@@ -51577,7 +51504,6 @@
         "GET /v1/cases/:id/siu-profile",
         "GET /v1/coding/schemas",
         "GET /v1/coding/schemas/:id",
-        "GET /v1/collaboration-team-notifications",
         "GET /v1/collaboration-teams",
         "GET /v1/collaboration-teams/:teamId",
         "GET /v1/collaboration-teams/:teamId/access-review",
@@ -51589,7 +51515,6 @@
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
-        "GET /v1/collaboration-teams/:teamId/notification-preferences",
         "GET /v1/collaboration-teams/entitlement",
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
@@ -51861,7 +51786,6 @@
         "PATCH /v1/collaboration-teams/:teamId/comments/:commentId",
         "PATCH /v1/collaboration-teams/:teamId/guests/:guestId/revoke",
         "PATCH /v1/collaboration-teams/:teamId/members/:memberId",
-        "PATCH /v1/collaboration-teams/:teamId/notification-preferences",
         "PATCH /v1/evidence-requests/:id",
         "PATCH /v1/evidence/:id/label",
         "PATCH /v1/evidence/:id/reviewer-workflow",
@@ -51944,7 +51868,6 @@
         "POST /v1/coding/schemas/:id/archive",
         "POST /v1/coding/schemas/:id/publish",
         "POST /v1/coding/schemas/seed-defaults",
-        "POST /v1/collaboration-team-notifications/read-all",
         "POST /v1/collaboration-teams",
         "POST /v1/collaboration-teams/:teamId/access-review",
         "POST /v1/collaboration-teams/:teamId/access-review/:reviewId/complete",
@@ -52981,7 +52904,6 @@
         "GET /v1/cases/:id/siu-profile",
         "GET /v1/coding/schemas",
         "GET /v1/coding/schemas/:id",
-        "GET /v1/collaboration-team-notifications",
         "GET /v1/collaboration-teams",
         "GET /v1/collaboration-teams/:teamId",
         "GET /v1/collaboration-teams/:teamId/access-review",
@@ -52993,7 +52915,6 @@
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
-        "GET /v1/collaboration-teams/:teamId/notification-preferences",
         "GET /v1/collaboration-teams/entitlement",
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
@@ -53265,7 +53186,6 @@
         "PATCH /v1/collaboration-teams/:teamId/comments/:commentId",
         "PATCH /v1/collaboration-teams/:teamId/guests/:guestId/revoke",
         "PATCH /v1/collaboration-teams/:teamId/members/:memberId",
-        "PATCH /v1/collaboration-teams/:teamId/notification-preferences",
         "PATCH /v1/evidence-requests/:id",
         "PATCH /v1/evidence/:id/label",
         "PATCH /v1/evidence/:id/reviewer-workflow",
@@ -53348,7 +53268,6 @@
         "POST /v1/coding/schemas/:id/archive",
         "POST /v1/coding/schemas/:id/publish",
         "POST /v1/coding/schemas/seed-defaults",
-        "POST /v1/collaboration-team-notifications/read-all",
         "POST /v1/collaboration-teams",
         "POST /v1/collaboration-teams/:teamId/access-review",
         "POST /v1/collaboration-teams/:teamId/access-review/:reviewId/complete",
@@ -53871,7 +53790,6 @@
         "GET /v1/cases/:id/siu-profile",
         "GET /v1/coding/schemas",
         "GET /v1/coding/schemas/:id",
-        "GET /v1/collaboration-team-notifications",
         "GET /v1/collaboration-teams",
         "GET /v1/collaboration-teams/:teamId",
         "GET /v1/collaboration-teams/:teamId/access-review",
@@ -53883,7 +53801,6 @@
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
-        "GET /v1/collaboration-teams/:teamId/notification-preferences",
         "GET /v1/collaboration-teams/entitlement",
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
@@ -54155,7 +54072,6 @@
         "PATCH /v1/collaboration-teams/:teamId/comments/:commentId",
         "PATCH /v1/collaboration-teams/:teamId/guests/:guestId/revoke",
         "PATCH /v1/collaboration-teams/:teamId/members/:memberId",
-        "PATCH /v1/collaboration-teams/:teamId/notification-preferences",
         "PATCH /v1/evidence-requests/:id",
         "PATCH /v1/evidence/:id/label",
         "PATCH /v1/evidence/:id/reviewer-workflow",
@@ -54238,7 +54154,6 @@
         "POST /v1/coding/schemas/:id/archive",
         "POST /v1/coding/schemas/:id/publish",
         "POST /v1/coding/schemas/seed-defaults",
-        "POST /v1/collaboration-team-notifications/read-all",
         "POST /v1/collaboration-teams",
         "POST /v1/collaboration-teams/:teamId/access-review",
         "POST /v1/collaboration-teams/:teamId/access-review/:reviewId/complete",
@@ -54761,7 +54676,6 @@
         "GET /v1/cases/:id/siu-profile",
         "GET /v1/coding/schemas",
         "GET /v1/coding/schemas/:id",
-        "GET /v1/collaboration-team-notifications",
         "GET /v1/collaboration-teams",
         "GET /v1/collaboration-teams/:teamId",
         "GET /v1/collaboration-teams/:teamId/access-review",
@@ -54773,7 +54687,6 @@
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
-        "GET /v1/collaboration-teams/:teamId/notification-preferences",
         "GET /v1/collaboration-teams/entitlement",
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
@@ -55045,7 +54958,6 @@
         "PATCH /v1/collaboration-teams/:teamId/comments/:commentId",
         "PATCH /v1/collaboration-teams/:teamId/guests/:guestId/revoke",
         "PATCH /v1/collaboration-teams/:teamId/members/:memberId",
-        "PATCH /v1/collaboration-teams/:teamId/notification-preferences",
         "PATCH /v1/evidence-requests/:id",
         "PATCH /v1/evidence/:id/label",
         "PATCH /v1/evidence/:id/reviewer-workflow",
@@ -55128,7 +55040,6 @@
         "POST /v1/coding/schemas/:id/archive",
         "POST /v1/coding/schemas/:id/publish",
         "POST /v1/coding/schemas/seed-defaults",
-        "POST /v1/collaboration-team-notifications/read-all",
         "POST /v1/collaboration-teams",
         "POST /v1/collaboration-teams/:teamId/access-review",
         "POST /v1/collaboration-teams/:teamId/access-review/:reviewId/complete",
@@ -55651,7 +55562,6 @@
         "GET /v1/cases/:id/siu-profile",
         "GET /v1/coding/schemas",
         "GET /v1/coding/schemas/:id",
-        "GET /v1/collaboration-team-notifications",
         "GET /v1/collaboration-teams",
         "GET /v1/collaboration-teams/:teamId",
         "GET /v1/collaboration-teams/:teamId/access-review",
@@ -55663,7 +55573,6 @@
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
-        "GET /v1/collaboration-teams/:teamId/notification-preferences",
         "GET /v1/collaboration-teams/entitlement",
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
@@ -55935,7 +55844,6 @@
         "PATCH /v1/collaboration-teams/:teamId/comments/:commentId",
         "PATCH /v1/collaboration-teams/:teamId/guests/:guestId/revoke",
         "PATCH /v1/collaboration-teams/:teamId/members/:memberId",
-        "PATCH /v1/collaboration-teams/:teamId/notification-preferences",
         "PATCH /v1/evidence-requests/:id",
         "PATCH /v1/evidence/:id/label",
         "PATCH /v1/evidence/:id/reviewer-workflow",
@@ -56018,7 +55926,6 @@
         "POST /v1/coding/schemas/:id/archive",
         "POST /v1/coding/schemas/:id/publish",
         "POST /v1/coding/schemas/seed-defaults",
-        "POST /v1/collaboration-team-notifications/read-all",
         "POST /v1/collaboration-teams",
         "POST /v1/collaboration-teams/:teamId/access-review",
         "POST /v1/collaboration-teams/:teamId/access-review/:reviewId/complete",
@@ -56541,7 +56448,6 @@
         "GET /v1/cases/:id/siu-profile",
         "GET /v1/coding/schemas",
         "GET /v1/coding/schemas/:id",
-        "GET /v1/collaboration-team-notifications",
         "GET /v1/collaboration-teams",
         "GET /v1/collaboration-teams/:teamId",
         "GET /v1/collaboration-teams/:teamId/access-review",
@@ -56553,7 +56459,6 @@
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
-        "GET /v1/collaboration-teams/:teamId/notification-preferences",
         "GET /v1/collaboration-teams/entitlement",
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
@@ -56825,7 +56730,6 @@
         "PATCH /v1/collaboration-teams/:teamId/comments/:commentId",
         "PATCH /v1/collaboration-teams/:teamId/guests/:guestId/revoke",
         "PATCH /v1/collaboration-teams/:teamId/members/:memberId",
-        "PATCH /v1/collaboration-teams/:teamId/notification-preferences",
         "PATCH /v1/evidence-requests/:id",
         "PATCH /v1/evidence/:id/label",
         "PATCH /v1/evidence/:id/reviewer-workflow",
@@ -56908,7 +56812,6 @@
         "POST /v1/coding/schemas/:id/archive",
         "POST /v1/coding/schemas/:id/publish",
         "POST /v1/coding/schemas/seed-defaults",
-        "POST /v1/collaboration-team-notifications/read-all",
         "POST /v1/collaboration-teams",
         "POST /v1/collaboration-teams/:teamId/access-review",
         "POST /v1/collaboration-teams/:teamId/access-review/:reviewId/complete",
@@ -57431,7 +57334,6 @@
         "GET /v1/cases/:id/siu-profile",
         "GET /v1/coding/schemas",
         "GET /v1/coding/schemas/:id",
-        "GET /v1/collaboration-team-notifications",
         "GET /v1/collaboration-teams",
         "GET /v1/collaboration-teams/:teamId",
         "GET /v1/collaboration-teams/:teamId/access-review",
@@ -57443,7 +57345,6 @@
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
-        "GET /v1/collaboration-teams/:teamId/notification-preferences",
         "GET /v1/collaboration-teams/entitlement",
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
@@ -57715,7 +57616,6 @@
         "PATCH /v1/collaboration-teams/:teamId/comments/:commentId",
         "PATCH /v1/collaboration-teams/:teamId/guests/:guestId/revoke",
         "PATCH /v1/collaboration-teams/:teamId/members/:memberId",
-        "PATCH /v1/collaboration-teams/:teamId/notification-preferences",
         "PATCH /v1/evidence-requests/:id",
         "PATCH /v1/evidence/:id/label",
         "PATCH /v1/evidence/:id/reviewer-workflow",
@@ -57801,7 +57701,6 @@
         "POST /v1/coding/schemas/:id/archive",
         "POST /v1/coding/schemas/:id/publish",
         "POST /v1/coding/schemas/seed-defaults",
-        "POST /v1/collaboration-team-notifications/read-all",
         "POST /v1/collaboration-teams",
         "POST /v1/collaboration-teams/:teamId/access-review",
         "POST /v1/collaboration-teams/:teamId/access-review/:reviewId/complete",
@@ -58324,7 +58223,6 @@
         "GET /v1/cases/:id/siu-profile",
         "GET /v1/coding/schemas",
         "GET /v1/coding/schemas/:id",
-        "GET /v1/collaboration-team-notifications",
         "GET /v1/collaboration-teams",
         "GET /v1/collaboration-teams/:teamId",
         "GET /v1/collaboration-teams/:teamId/access-review",
@@ -58336,7 +58234,6 @@
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
-        "GET /v1/collaboration-teams/:teamId/notification-preferences",
         "GET /v1/collaboration-teams/entitlement",
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
@@ -58608,7 +58505,6 @@
         "PATCH /v1/collaboration-teams/:teamId/comments/:commentId",
         "PATCH /v1/collaboration-teams/:teamId/guests/:guestId/revoke",
         "PATCH /v1/collaboration-teams/:teamId/members/:memberId",
-        "PATCH /v1/collaboration-teams/:teamId/notification-preferences",
         "PATCH /v1/evidence-requests/:id",
         "PATCH /v1/evidence/:id/label",
         "PATCH /v1/evidence/:id/reviewer-workflow",
@@ -58694,7 +58590,6 @@
         "POST /v1/coding/schemas/:id/archive",
         "POST /v1/coding/schemas/:id/publish",
         "POST /v1/coding/schemas/seed-defaults",
-        "POST /v1/collaboration-team-notifications/read-all",
         "POST /v1/collaboration-teams",
         "POST /v1/collaboration-teams/:teamId/access-review",
         "POST /v1/collaboration-teams/:teamId/access-review/:reviewId/complete",
@@ -59217,7 +59112,6 @@
         "GET /v1/cases/:id/siu-profile",
         "GET /v1/coding/schemas",
         "GET /v1/coding/schemas/:id",
-        "GET /v1/collaboration-team-notifications",
         "GET /v1/collaboration-teams",
         "GET /v1/collaboration-teams/:teamId",
         "GET /v1/collaboration-teams/:teamId/access-review",
@@ -59229,7 +59123,6 @@
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
-        "GET /v1/collaboration-teams/:teamId/notification-preferences",
         "GET /v1/collaboration-teams/entitlement",
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
@@ -59501,7 +59394,6 @@
         "PATCH /v1/collaboration-teams/:teamId/comments/:commentId",
         "PATCH /v1/collaboration-teams/:teamId/guests/:guestId/revoke",
         "PATCH /v1/collaboration-teams/:teamId/members/:memberId",
-        "PATCH /v1/collaboration-teams/:teamId/notification-preferences",
         "PATCH /v1/evidence-requests/:id",
         "PATCH /v1/evidence/:id/label",
         "PATCH /v1/evidence/:id/reviewer-workflow",
@@ -59584,7 +59476,6 @@
         "POST /v1/coding/schemas/:id/archive",
         "POST /v1/coding/schemas/:id/publish",
         "POST /v1/coding/schemas/seed-defaults",
-        "POST /v1/collaboration-team-notifications/read-all",
         "POST /v1/collaboration-teams",
         "POST /v1/collaboration-teams/:teamId/access-review",
         "POST /v1/collaboration-teams/:teamId/access-review/:reviewId/complete",
@@ -60107,7 +59998,6 @@
         "GET /v1/cases/:id/siu-profile",
         "GET /v1/coding/schemas",
         "GET /v1/coding/schemas/:id",
-        "GET /v1/collaboration-team-notifications",
         "GET /v1/collaboration-teams",
         "GET /v1/collaboration-teams/:teamId",
         "GET /v1/collaboration-teams/:teamId/access-review",
@@ -60119,7 +60009,6 @@
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
-        "GET /v1/collaboration-teams/:teamId/notification-preferences",
         "GET /v1/collaboration-teams/entitlement",
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
@@ -60391,7 +60280,6 @@
         "PATCH /v1/collaboration-teams/:teamId/comments/:commentId",
         "PATCH /v1/collaboration-teams/:teamId/guests/:guestId/revoke",
         "PATCH /v1/collaboration-teams/:teamId/members/:memberId",
-        "PATCH /v1/collaboration-teams/:teamId/notification-preferences",
         "PATCH /v1/evidence-requests/:id",
         "PATCH /v1/evidence/:id/label",
         "PATCH /v1/evidence/:id/reviewer-workflow",
@@ -60477,7 +60365,6 @@
         "POST /v1/coding/schemas/:id/archive",
         "POST /v1/coding/schemas/:id/publish",
         "POST /v1/coding/schemas/seed-defaults",
-        "POST /v1/collaboration-team-notifications/read-all",
         "POST /v1/collaboration-teams",
         "POST /v1/collaboration-teams/:teamId/access-review",
         "POST /v1/collaboration-teams/:teamId/access-review/:reviewId/complete",
@@ -61000,7 +60887,6 @@
         "GET /v1/cases/:id/siu-profile",
         "GET /v1/coding/schemas",
         "GET /v1/coding/schemas/:id",
-        "GET /v1/collaboration-team-notifications",
         "GET /v1/collaboration-teams",
         "GET /v1/collaboration-teams/:teamId",
         "GET /v1/collaboration-teams/:teamId/access-review",
@@ -61012,7 +60898,6 @@
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
-        "GET /v1/collaboration-teams/:teamId/notification-preferences",
         "GET /v1/collaboration-teams/entitlement",
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
@@ -61284,7 +61169,6 @@
         "PATCH /v1/collaboration-teams/:teamId/comments/:commentId",
         "PATCH /v1/collaboration-teams/:teamId/guests/:guestId/revoke",
         "PATCH /v1/collaboration-teams/:teamId/members/:memberId",
-        "PATCH /v1/collaboration-teams/:teamId/notification-preferences",
         "PATCH /v1/evidence-requests/:id",
         "PATCH /v1/evidence/:id/label",
         "PATCH /v1/evidence/:id/reviewer-workflow",
@@ -61367,7 +61251,6 @@
         "POST /v1/coding/schemas/:id/archive",
         "POST /v1/coding/schemas/:id/publish",
         "POST /v1/coding/schemas/seed-defaults",
-        "POST /v1/collaboration-team-notifications/read-all",
         "POST /v1/collaboration-teams",
         "POST /v1/collaboration-teams/:teamId/access-review",
         "POST /v1/collaboration-teams/:teamId/access-review/:reviewId/complete",
@@ -61890,7 +61773,6 @@
         "GET /v1/cases/:id/siu-profile",
         "GET /v1/coding/schemas",
         "GET /v1/coding/schemas/:id",
-        "GET /v1/collaboration-team-notifications",
         "GET /v1/collaboration-teams",
         "GET /v1/collaboration-teams/:teamId",
         "GET /v1/collaboration-teams/:teamId/access-review",
@@ -61902,7 +61784,6 @@
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
-        "GET /v1/collaboration-teams/:teamId/notification-preferences",
         "GET /v1/collaboration-teams/entitlement",
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
@@ -62174,7 +62055,6 @@
         "PATCH /v1/collaboration-teams/:teamId/comments/:commentId",
         "PATCH /v1/collaboration-teams/:teamId/guests/:guestId/revoke",
         "PATCH /v1/collaboration-teams/:teamId/members/:memberId",
-        "PATCH /v1/collaboration-teams/:teamId/notification-preferences",
         "PATCH /v1/evidence-requests/:id",
         "PATCH /v1/evidence/:id/label",
         "PATCH /v1/evidence/:id/reviewer-workflow",
@@ -62260,7 +62140,6 @@
         "POST /v1/coding/schemas/:id/archive",
         "POST /v1/coding/schemas/:id/publish",
         "POST /v1/coding/schemas/seed-defaults",
-        "POST /v1/collaboration-team-notifications/read-all",
         "POST /v1/collaboration-teams",
         "POST /v1/collaboration-teams/:teamId/access-review",
         "POST /v1/collaboration-teams/:teamId/access-review/:reviewId/complete",
@@ -65033,7 +64912,6 @@
         "GET /v1/cases/:id/team-members",
         "GET /v1/coding/schemas",
         "GET /v1/coding/schemas/:id",
-        "GET /v1/collaboration-team-notifications",
         "GET /v1/collaboration-teams",
         "GET /v1/collaboration-teams/:teamId",
         "GET /v1/collaboration-teams/:teamId/access-review",
@@ -65045,7 +64923,6 @@
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
-        "GET /v1/collaboration-teams/:teamId/notification-preferences",
         "GET /v1/collaboration-teams/entitlement",
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
@@ -65340,7 +65217,6 @@
         "PATCH /v1/collaboration-teams/:teamId/comments/:commentId",
         "PATCH /v1/collaboration-teams/:teamId/guests/:guestId/revoke",
         "PATCH /v1/collaboration-teams/:teamId/members/:memberId",
-        "PATCH /v1/collaboration-teams/:teamId/notification-preferences",
         "PATCH /v1/evidence-requests/:id",
         "PATCH /v1/evidence/:id/label",
         "PATCH /v1/evidence/:id/reviewer-workflow",
@@ -65465,7 +65341,6 @@
         "POST /v1/coding/schemas/:id/publish",
         "POST /v1/coding/schemas/seed-defaults",
         "POST /v1/collaboration-team-invites/:token/accept",
-        "POST /v1/collaboration-team-notifications/read-all",
         "POST /v1/collaboration-teams",
         "POST /v1/collaboration-teams/:teamId/access-review",
         "POST /v1/collaboration-teams/:teamId/access-review/:reviewId/complete",
@@ -70993,7 +70868,6 @@
         "GET /v1/cases/:id/siu-profile",
         "GET /v1/coding/schemas",
         "GET /v1/coding/schemas/:id",
-        "GET /v1/collaboration-team-notifications",
         "GET /v1/collaboration-teams",
         "GET /v1/collaboration-teams/:teamId",
         "GET /v1/collaboration-teams/:teamId/access-review",
@@ -71005,7 +70879,6 @@
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
-        "GET /v1/collaboration-teams/:teamId/notification-preferences",
         "GET /v1/collaboration-teams/entitlement",
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
@@ -71277,7 +71150,6 @@
         "PATCH /v1/collaboration-teams/:teamId/comments/:commentId",
         "PATCH /v1/collaboration-teams/:teamId/guests/:guestId/revoke",
         "PATCH /v1/collaboration-teams/:teamId/members/:memberId",
-        "PATCH /v1/collaboration-teams/:teamId/notification-preferences",
         "PATCH /v1/evidence-requests/:id",
         "PATCH /v1/evidence/:id/label",
         "PATCH /v1/evidence/:id/reviewer-workflow",
@@ -71357,7 +71229,6 @@
         "POST /v1/coding/schemas/:id/archive",
         "POST /v1/coding/schemas/:id/publish",
         "POST /v1/coding/schemas/seed-defaults",
-        "POST /v1/collaboration-team-notifications/read-all",
         "POST /v1/collaboration-teams",
         "POST /v1/collaboration-teams/:teamId/access-review",
         "POST /v1/collaboration-teams/:teamId/access-review/:reviewId/complete",
@@ -79280,7 +79151,7 @@
       "method": "DELETE",
       "path": "/v1/collaboration-teams/:teamId/comments/:commentId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:291",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:259",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -81029,7 +80900,7 @@
       "method": "DELETE",
       "path": "/v1/teams/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:866",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:865",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -81102,7 +80973,7 @@
       "method": "DELETE",
       "path": "/v1/teams/:id/cases/:caseId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2116",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2115",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -81162,7 +81033,7 @@
       "method": "DELETE",
       "path": "/v1/teams/:id/external-grants/:grantId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2508",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2507",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -81214,7 +81085,7 @@
       "method": "DELETE",
       "path": "/v1/teams/:id/invites/:inviteId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1273",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1272",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -81273,7 +81144,7 @@
       "method": "DELETE",
       "path": "/v1/teams/:id/members/:memberId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1569",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1568",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -88629,7 +88500,7 @@
       "method": "GET",
       "path": "/v1/collaboration-team-notifications",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:332",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:327",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -88637,56 +88508,29 @@
       "gates": [
         "AUTHENTICATED"
       ],
-      "productConsumers": [
-        {
-          "file": "apps/web/lib/api/collaboration-completion.ts",
-          "line": 187,
-          "caller": "listNotifications",
-          "class": "WEB",
-          "primitive": "apiFetch",
-          "viaResolution": false
-        }
-      ],
+      "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": "PRODUCT_CONSUMED",
-      "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-completion.ts:187 (listNotifications, WEB)",
-      "dispositionReason": "reached from a product surface",
+      "primaryDisposition": null,
+      "dispositionSource": null,
+      "dispositionEvidence": null,
+      "dispositionReason": null,
       "replacement": null,
-      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "result": "UNDISPOSED",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
       "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
-      "tenantBindingAuthority": "authorizeWorkspaceOrFail + teamMemberStatusGrantsAccess + authorizeCurrentWorkspaceOrFail",
-      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
-      "modelsRead": [
-        "authenticatedSession",
-        "collaborationTeamNotification",
-        "revokedSession",
-        "supportAccessGrant",
-        "team",
-        "teamMember",
-        "user"
-      ],
-      "modelsWritten": [
-        "securityEvent"
-      ],
+      "dataScope": "NO_DATA_ACCESS",
+      "tenantType": "NONE",
+      "tenantBindingAuthority": null,
+      "membershipStatusRequirement": null,
+      "modelsRead": [],
+      "modelsWritten": [],
       "tenantBindingResolved": true,
-      "tenantBindingEvidence": [
-        "services/api/src/middleware/authorize.ts: the canonical workspace authorization evaluator",
-        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/middleware/authorize.ts: the canonical current-workspace evaluator",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
-        "services/api/src/services/collaboration-team/collaboration-completion.service.ts: collaborationTeamNotification.findMany — no tenant or self predicate",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
-        "services/api/src/services/collaboration-team/collaboration-completion.service.ts: collaborationTeamNotification.findMany — no tenant or self predicate"
-      ],
-      "tenantIdSource": "NAMED_AUTHORITY",
-      "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
-      "crossTenantRefusalSemantics": "refuses with 403/404",
+      "tenantBindingEvidence": [],
+      "tenantIdSource": "NONE",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "NONE_OBSERVED",
       "tenantStampingInsertSites": [],
       "tenantUnboundInsertSites": []
     },
@@ -88833,7 +88677,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId/access-review",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:579",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:501",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -88841,23 +88685,14 @@
       "gates": [
         "AUTHENTICATED"
       ],
-      "productConsumers": [
-        {
-          "file": "apps/web/lib/api/collaboration-completion.ts",
-          "line": 275,
-          "caller": "listAccessReviews",
-          "class": "WEB",
-          "primitive": "apiFetch",
-          "viaResolution": false
-        }
-      ],
+      "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": "PRODUCT_CONSUMED",
-      "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-completion.ts:275 (listAccessReviews, WEB)",
-      "dispositionReason": "reached from a product surface",
+      "primaryDisposition": null,
+      "dispositionSource": null,
+      "dispositionEvidence": null,
+      "dispositionReason": null,
       "replacement": null,
-      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "result": "UNDISPOSED",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -88965,7 +88800,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId/activity/v2",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:736",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:658",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -88973,23 +88808,14 @@
       "gates": [
         "AUTHENTICATED"
       ],
-      "productConsumers": [
-        {
-          "file": "apps/web/lib/api/collaboration-completion.ts",
-          "line": 339,
-          "caller": "listActivityV2",
-          "class": "WEB",
-          "primitive": "apiFetch",
-          "viaResolution": false
-        }
-      ],
+      "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": "PRODUCT_CONSUMED",
-      "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-completion.ts:339 (listActivityV2, WEB)",
-      "dispositionReason": "reached from a product surface",
+      "primaryDisposition": null,
+      "dispositionSource": null,
+      "dispositionEvidence": null,
+      "dispositionReason": null,
       "replacement": null,
-      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "result": "UNDISPOSED",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -89167,7 +88993,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId/comments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:169",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:137",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -89300,7 +89126,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId/guests",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:465",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:387",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -89308,23 +89134,14 @@
       "gates": [
         "AUTHENTICATED"
       ],
-      "productConsumers": [
-        {
-          "file": "apps/web/lib/api/collaboration-completion.ts",
-          "line": 237,
-          "caller": "listGuests",
-          "class": "WEB",
-          "primitive": "apiFetch",
-          "viaResolution": false
-        }
-      ],
+      "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": "PRODUCT_CONSUMED",
-      "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-completion.ts:237 (listGuests, WEB)",
-      "dispositionReason": "reached from a product surface",
+      "primaryDisposition": null,
+      "dispositionSource": null,
+      "dispositionEvidence": null,
+      "dispositionReason": null,
       "replacement": null,
-      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "result": "UNDISPOSED",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -89431,7 +89248,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId/notification-preferences",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:393",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:366",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -89439,56 +89256,29 @@
       "gates": [
         "AUTHENTICATED"
       ],
-      "productConsumers": [
-        {
-          "file": "apps/web/lib/api/collaboration-completion.ts",
-          "line": 214,
-          "caller": "getNotificationPreference",
-          "class": "WEB",
-          "primitive": "apiFetch",
-          "viaResolution": false
-        }
-      ],
+      "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": "PRODUCT_CONSUMED",
-      "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-completion.ts:214 (getNotificationPreference, WEB)",
-      "dispositionReason": "reached from a product surface",
+      "primaryDisposition": null,
+      "dispositionSource": null,
+      "dispositionEvidence": null,
+      "dispositionReason": null,
       "replacement": null,
-      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "result": "UNDISPOSED",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
       "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
-      "tenantBindingAuthority": "authorizeWorkspaceOrFail + teamMemberStatusGrantsAccess + authorizeCurrentWorkspaceOrFail",
-      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
-      "modelsRead": [
-        "authenticatedSession",
-        "collaborationTeam",
-        "collaborationTeamMember",
-        "collaborationTeamNotificationPreference",
-        "revokedSession",
-        "supportAccessGrant",
-        "team",
-        "teamMember",
-        "user"
-      ],
-      "modelsWritten": [
-        "securityEvent"
-      ],
+      "dataScope": "NO_DATA_ACCESS",
+      "tenantType": "NONE",
+      "tenantBindingAuthority": null,
+      "membershipStatusRequirement": null,
+      "modelsRead": [],
+      "modelsWritten": [],
       "tenantBindingResolved": true,
-      "tenantBindingEvidence": [
-        "services/api/src/middleware/authorize.ts: the canonical workspace authorization evaluator",
-        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/middleware/authorize.ts: the canonical current-workspace evaluator",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
-      ],
-      "tenantIdSource": "NAMED_AUTHORITY",
-      "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
-      "crossTenantRefusalSemantics": "refuses with 403/404",
+      "tenantBindingEvidence": [],
+      "tenantIdSource": "NONE",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "NONE_OBSERVED",
       "tenantStampingInsertSites": [],
       "tenantUnboundInsertSites": []
     },
@@ -92947,7 +92737,7 @@
       "method": "GET",
       "path": "/v1/external-review/access/:token/context",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:326",
+      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:365",
       "authorizationClass": "PORTAL_TOKEN",
       "authorizationEvidence": [
         "handler body -> handler: reaches the external-review portal grant/session authority (lookupExternalReviewGrantByToken)"
@@ -92994,7 +92784,7 @@
       "method": "GET",
       "path": "/v1/external-review/activity",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:349",
+      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:388",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -93051,7 +92841,7 @@
       "method": "GET",
       "path": "/v1/external-review/grants",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:212",
+      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:251",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -104993,7 +104783,7 @@
       "method": "GET",
       "path": "/v1/platform/rbac/matrix",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2622",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2621",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -110308,7 +110098,7 @@
       "method": "GET",
       "path": "/v1/teams",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:468",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:467",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -110364,7 +110154,7 @@
       "method": "GET",
       "path": "/v1/teams/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:548",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:547",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -110480,7 +110270,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/access-review",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2341",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2340",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -110538,7 +110328,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/activity",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1923",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1922",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -110612,7 +110402,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/cases",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:721",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:720",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -110670,7 +110460,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/closure",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2895",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2894",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -110728,7 +110518,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/external-collaborators",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2206",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2205",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -110776,7 +110566,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/invites",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:765",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:764",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -110833,7 +110623,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/members/:memberId/removal-impact",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1480",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1479",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -113747,7 +113537,7 @@
       "method": "PATCH",
       "path": "/v1/collaboration-teams/:teamId/access-review/items/:itemId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:649",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:571",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -113755,23 +113545,14 @@
       "gates": [
         "AUTHENTICATED"
       ],
-      "productConsumers": [
-        {
-          "file": "apps/web/lib/api/collaboration-completion.ts",
-          "line": 300,
-          "caller": "decideAccessReviewItem",
-          "class": "WEB",
-          "primitive": "apiFetch",
-          "viaResolution": false
-        }
-      ],
+      "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": "PRODUCT_CONSUMED",
-      "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-completion.ts:300 (decideAccessReviewItem, WEB)",
-      "dispositionReason": "reached from a product surface",
+      "primaryDisposition": null,
+      "dispositionSource": null,
+      "dispositionEvidence": null,
+      "dispositionReason": null,
       "replacement": null,
-      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "result": "UNDISPOSED",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -113906,7 +113687,7 @@
       "method": "PATCH",
       "path": "/v1/collaboration-teams/:teamId/comments/:commentId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:248",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:216",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -113977,7 +113758,7 @@
       "method": "PATCH",
       "path": "/v1/collaboration-teams/:teamId/guests/:guestId/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:537",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:459",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -113985,23 +113766,14 @@
       "gates": [
         "AUTHENTICATED"
       ],
-      "productConsumers": [
-        {
-          "file": "apps/web/lib/api/collaboration-completion.ts",
-          "line": 262,
-          "caller": "revokeGuest",
-          "class": "WEB",
-          "primitive": "apiFetch",
-          "viaResolution": false
-        }
-      ],
+      "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": "PRODUCT_CONSUMED",
-      "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-completion.ts:262 (revokeGuest, WEB)",
-      "dispositionReason": "reached from a product surface",
+      "primaryDisposition": null,
+      "dispositionSource": null,
+      "dispositionEvidence": null,
+      "dispositionReason": null,
       "replacement": null,
-      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "result": "UNDISPOSED",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -114135,7 +113907,7 @@
       "method": "PATCH",
       "path": "/v1/collaboration-teams/:teamId/notification-preferences",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:420",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:374",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -114143,56 +113915,29 @@
       "gates": [
         "AUTHENTICATED"
       ],
-      "productConsumers": [
-        {
-          "file": "apps/web/lib/api/collaboration-completion.ts",
-          "line": 224,
-          "caller": "updateNotificationPreference",
-          "class": "WEB",
-          "primitive": "apiFetch",
-          "viaResolution": false
-        }
-      ],
+      "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": "PRODUCT_CONSUMED",
-      "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-completion.ts:224 (updateNotificationPreference, WEB)",
-      "dispositionReason": "reached from a product surface",
+      "primaryDisposition": null,
+      "dispositionSource": null,
+      "dispositionEvidence": null,
+      "dispositionReason": null,
       "replacement": null,
-      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "result": "UNDISPOSED",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
       "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
-      "tenantBindingAuthority": "authorizeWorkspaceOrFail + teamMemberStatusGrantsAccess + authorizeCurrentWorkspaceOrFail",
-      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
-      "modelsRead": [
-        "authenticatedSession",
-        "collaborationTeam",
-        "collaborationTeamMember",
-        "revokedSession",
-        "supportAccessGrant",
-        "team",
-        "teamMember",
-        "user"
-      ],
-      "modelsWritten": [
-        "collaborationTeamNotificationPreference",
-        "securityEvent"
-      ],
+      "dataScope": "NO_DATA_ACCESS",
+      "tenantType": "NONE",
+      "tenantBindingAuthority": null,
+      "membershipStatusRequirement": null,
+      "modelsRead": [],
+      "modelsWritten": [],
       "tenantBindingResolved": true,
-      "tenantBindingEvidence": [
-        "services/api/src/middleware/authorize.ts: the canonical workspace authorization evaluator",
-        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/middleware/authorize.ts: the canonical current-workspace evaluator",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
-      ],
-      "tenantIdSource": "NAMED_AUTHORITY",
-      "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
-      "crossTenantRefusalSemantics": "refuses with 403/404",
+      "tenantBindingEvidence": [],
+      "tenantIdSource": "NONE",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "NONE_OBSERVED",
       "tenantStampingInsertSites": [],
       "tenantUnboundInsertSites": []
     },
@@ -115704,7 +115449,7 @@
       "method": "PATCH",
       "path": "/v1/teams/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:810",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:809",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -115770,7 +115515,7 @@
       "method": "PATCH",
       "path": "/v1/teams/:id/members/:memberId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1345",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1344",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -123491,7 +123236,7 @@
       "method": "POST",
       "path": "/v1/collaboration-team-notifications/:notificationId/read",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:352",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:332",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -123499,48 +123244,29 @@
       "gates": [
         "AUTHENTICATED"
       ],
-      "productConsumers": [
-        {
-          "file": "apps/web/lib/api/collaboration-completion.ts",
-          "line": 195,
-          "caller": "markNotificationRead",
-          "class": "WEB",
-          "primitive": "apiFetch",
-          "viaResolution": false
-        }
-      ],
+      "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": "PRODUCT_CONSUMED",
-      "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-completion.ts:195 (markNotificationRead, WEB)",
-      "dispositionReason": "reached from a product surface",
+      "primaryDisposition": null,
+      "dispositionSource": null,
+      "dispositionEvidence": null,
+      "dispositionReason": null,
       "replacement": null,
-      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "result": "UNDISPOSED",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
       "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
-      "tenantBindingAuthority": "resource-owner-identity",
-      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
-      "modelsRead": [
-        "collaborationTeamNotification"
-      ],
-      "modelsWritten": [
-        "collaborationTeamNotification"
-      ],
+      "dataScope": "NO_DATA_ACCESS",
+      "tenantType": "NONE",
+      "tenantBindingAuthority": null,
+      "membershipStatusRequirement": null,
+      "modelsRead": [],
+      "modelsWritten": [],
       "tenantBindingResolved": true,
-      "tenantBindingEvidence": [
-        "services/api/src/services/collaboration-team/collaboration-completion.service.ts: an owner column is compared against the session-bound actor (`userId === actorUserId`) and the mismatch is refused (services/api/src/services/collaboration-team/collaboration-completion.service.ts)",
-        "services/api/src/services/collaboration-team/collaboration-completion.service.ts: collaborationTeamNotification.findUnique — no tenant or self predicate",
-        "services/api/src/services/collaboration-team/collaboration-completion.service.ts: collaborationTeamNotification.update — no tenant or self predicate",
-        "services/api/src/services/collaboration-team/collaboration-completion.service.ts: collaborationTeamNotification.findUnique — no tenant or self predicate",
-        "services/api/src/services/collaboration-team/collaboration-completion.service.ts: collaborationTeamNotification.update — no tenant or self predicate"
-      ],
-      "tenantIdSource": "RESOURCE_OWNER_COLUMN",
+      "tenantBindingEvidence": [],
+      "tenantIdSource": "NONE",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
-      "crossTenantRefusalSemantics": "refuses with 403/404",
+      "crossTenantRefusalSemantics": "NONE_OBSERVED",
       "tenantStampingInsertSites": [],
       "tenantUnboundInsertSites": []
     },
@@ -123549,7 +123275,7 @@
       "method": "POST",
       "path": "/v1/collaboration-team-notifications/read-all",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:372",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:340",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -123557,54 +123283,29 @@
       "gates": [
         "AUTHENTICATED"
       ],
-      "productConsumers": [
-        {
-          "file": "apps/web/lib/api/collaboration-completion.ts",
-          "line": 202,
-          "caller": "markAllNotificationsRead",
-          "class": "WEB",
-          "primitive": "apiFetch",
-          "viaResolution": false
-        }
-      ],
+      "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": "PRODUCT_CONSUMED",
-      "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-completion.ts:202 (markAllNotificationsRead, WEB)",
-      "dispositionReason": "reached from a product surface",
+      "primaryDisposition": null,
+      "dispositionSource": null,
+      "dispositionEvidence": null,
+      "dispositionReason": null,
       "replacement": null,
-      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "result": "UNDISPOSED",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
       "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
-      "tenantBindingAuthority": "authorizeWorkspaceOrFail + teamMemberStatusGrantsAccess + authorizeCurrentWorkspaceOrFail",
-      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
-      "modelsRead": [
-        "authenticatedSession",
-        "revokedSession",
-        "supportAccessGrant",
-        "team",
-        "teamMember",
-        "user"
-      ],
-      "modelsWritten": [
-        "collaborationTeamNotification",
-        "securityEvent"
-      ],
+      "dataScope": "NO_DATA_ACCESS",
+      "tenantType": "NONE",
+      "tenantBindingAuthority": null,
+      "membershipStatusRequirement": null,
+      "modelsRead": [],
+      "modelsWritten": [],
       "tenantBindingResolved": true,
-      "tenantBindingEvidence": [
-        "services/api/src/middleware/authorize.ts: the canonical workspace authorization evaluator",
-        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/middleware/authorize.ts: the canonical current-workspace evaluator",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
-      ],
-      "tenantIdSource": "NAMED_AUTHORITY",
-      "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
-      "crossTenantRefusalSemantics": "refuses with 403/404",
+      "tenantBindingEvidence": [],
+      "tenantIdSource": "NONE",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "NONE_OBSERVED",
       "tenantStampingInsertSites": [],
       "tenantUnboundInsertSites": []
     },
@@ -123704,7 +123405,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams/:teamId/access-review",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:606",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:528",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -123712,23 +123413,14 @@
       "gates": [
         "AUTHENTICATED"
       ],
-      "productConsumers": [
-        {
-          "file": "apps/web/lib/api/collaboration-completion.ts",
-          "line": 285,
-          "caller": "openAccessReview",
-          "class": "WEB",
-          "primitive": "apiFetch",
-          "viaResolution": false
-        }
-      ],
+      "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": "PRODUCT_CONSUMED",
-      "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-completion.ts:285 (openAccessReview, WEB)",
-      "dispositionReason": "reached from a product surface",
+      "primaryDisposition": null,
+      "dispositionSource": null,
+      "dispositionEvidence": null,
+      "dispositionReason": null,
       "replacement": null,
-      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "result": "UNDISPOSED",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -123780,7 +123472,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams/:teamId/access-review/:reviewId/complete",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:694",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:616",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -123788,23 +123480,14 @@
       "gates": [
         "AUTHENTICATED"
       ],
-      "productConsumers": [
-        {
-          "file": "apps/web/lib/api/collaboration-completion.ts",
-          "line": 310,
-          "caller": "completeAccessReview",
-          "class": "WEB",
-          "primitive": "apiFetch",
-          "viaResolution": false
-        }
-      ],
+      "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": "PRODUCT_CONSUMED",
-      "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-completion.ts:310 (completeAccessReview, WEB)",
-      "dispositionReason": "reached from a product surface",
+      "primaryDisposition": null,
+      "dispositionSource": null,
+      "dispositionEvidence": null,
+      "dispositionReason": null,
       "replacement": null,
-      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "result": "UNDISPOSED",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -124013,7 +123696,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams/:teamId/comments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:200",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:168",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -124093,7 +123776,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams/:teamId/guests/invite",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:492",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:414",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -124101,23 +123784,14 @@
       "gates": [
         "AUTHENTICATED"
       ],
-      "productConsumers": [
-        {
-          "file": "apps/web/lib/api/collaboration-completion.ts",
-          "line": 251,
-          "caller": "inviteGuest",
-          "class": "WEB",
-          "primitive": "apiFetch",
-          "viaResolution": false
-        }
-      ],
+      "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": "PRODUCT_CONSUMED",
-      "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-completion.ts:251 (inviteGuest, WEB)",
-      "dispositionReason": "reached from a product surface",
+      "primaryDisposition": null,
+      "dispositionSource": null,
+      "dispositionEvidence": null,
+      "dispositionReason": null,
       "replacement": null,
-      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "result": "UNDISPOSED",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -129268,7 +128942,7 @@
       "method": "POST",
       "path": "/v1/external-review/access/:token",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:278",
+      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:317",
       "authorizationClass": "PORTAL_TOKEN",
       "authorizationEvidence": [
         "handler body -> handler: reaches the external-review portal grant/session authority (lookupExternalReviewGrantByToken)"
@@ -129315,7 +128989,7 @@
       "method": "POST",
       "path": "/v1/external-review/grants",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:145",
+      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:149",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -129344,6 +129018,7 @@
       "modelsRead": [
         "adminAuditLog",
         "authenticatedSession",
+        "entitlementGrant",
         "mfaFactor",
         "revokedSession",
         "riskSignal",
@@ -129355,6 +129030,7 @@
       ],
       "modelsWritten": [
         "adminAuditLog",
+        "intelligenceActivityEvent",
         "securityEvent",
         "stepUpChallenge"
       ],
@@ -129368,7 +129044,9 @@
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
-      "tenantStampingInsertSites": [],
+      "tenantStampingInsertSites": [
+        "services/api/src/services/intelligence/intelligence-activity.service.ts: intelligenceActivityEvent.create"
+      ],
       "tenantUnboundInsertSites": []
     },
     {
@@ -129376,7 +129054,7 @@
       "method": "POST",
       "path": "/v1/external-review/grants/:id/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:237",
+      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:276",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -150195,7 +149873,7 @@
       "method": "POST",
       "path": "/v1/teams",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:406",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:405",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -150256,7 +149934,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/cases/link",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2024",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2023",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -150318,7 +149996,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/closure",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2927",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2926",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -150387,7 +150065,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/closure/:requestId/cancel",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3050",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3049",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -150445,7 +150123,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/invites",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1001",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1000",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -150524,7 +150202,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/invites/:inviteId/resend",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1867",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1866",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -150574,7 +150252,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/reopen",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3161",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3160",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -150639,7 +150317,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/transfer-ownership",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3108",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3107",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -150706,7 +150384,7 @@
       "method": "POST",
       "path": "/v1/teams/invites/:token/accept",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1777",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1776",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"

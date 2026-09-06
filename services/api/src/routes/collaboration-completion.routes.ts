@@ -9,16 +9,14 @@
  *   - emits an audit event via the canonical `emitTenantAudit` facade.
  */
 
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import type { Permission } from "@proovra/shared";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 
 import { requireAuth } from "../middleware/auth.js";
-import { getAuthUserId } from "../auth.js";
-import {
-  authorizeCollaborationTeam,
-  authorizeCollaborationWorkspace,
-} from "../services/collaboration-team/collaboration-authorization.js";
+// Every surviving route here is GROUP-scoped, so each one binds through the
+// team gate, which resolves and authorizes the containing workspace itself.
+// The workspace-only entry point is no longer needed in this file.
+import { authorizeCollaborationTeam } from "../services/collaboration-team/collaboration-authorization.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { BillingLimitError } from "../services/collaboration-team/billing-guards.js";
 import { CollaborationTeamError } from "../services/collaboration-team/collaboration-team.service.js";
@@ -28,36 +26,14 @@ import {
   decideAccessReviewItem,
   deleteComment,
   editComment,
-  getMyNotificationPreference,
   inviteGuest,
   listAccessReviews,
   listComments,
   listGuests,
-  listMyNotifications,
   listTeamActivityFiltered,
-  markAllNotificationsRead,
-  markNotificationRead,
   openAccessReview,
   revokeGuest,
-  updateMyNotificationPreference,
 } from "../services/collaboration-team/collaboration-completion.service.js";
-
-/**
- * The PROVEN workspace this request operates in.
- *
- * Replaces `requireWorkspaceCtx`, which resolved the caller's Personal Space
- * whenever no workspace was named — which the web client never did. See
- * `collaboration-authorization.ts` for why there is no fallback any more.
- */
-async function requireWorkspace(
-  req: FastifyRequest,
-  reply: FastifyReply,
-  permission: Permission,
-): Promise<{ workspaceId: string; userId: string } | null> {
-  const ctx = await authorizeCollaborationWorkspace(req, reply, permission);
-  if (!ctx) return null;
-  return { workspaceId: ctx.workspaceId, userId: ctx.userId };
-}
 
 function handleError(
   reply: FastifyReply,
@@ -128,14 +104,6 @@ const CreateCommentBody = z.object({
   body: z.string().min(1).max(4000),
 });
 const EditCommentBody = z.object({ body: z.string().min(1).max(4000) });
-
-const PrefBody = z.object({
-  mentions: z.boolean().optional(),
-  assignments: z.boolean().optional(),
-  inviteAccepted: z.boolean().optional(),
-  // DAILY is not offered — nothing consumes it. See COLLABORATION_TEAM_DIGEST_MODES.
-  digest: z.enum(["INSTANT", "MUTED"]).optional(),
-});
 
 const GuestInviteBody = z.object({
   email: z.string().email().max(320),
@@ -329,91 +297,77 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
   // Notifications (per-viewer inbox)
   // ---------------------------------------------------------------------------
 
+  // ---------------------------------------------------------------------------
+  // (RETIRED) Per-group notification list + read-state
+  //
+  // WORKSPACE AND COLLABORATION ARCHITECTURE CLOSURE (2026-09-06) — the INBOX
+  // is the one place a person reads what happened to them.
+  //
+  // These three routes were a second surface over the same rows. The canonical
+  // inbox (`me-inbox.routes.ts`) already reads `CollaborationTeamNotification`
+  // as one of its sources, gated on the caller still belonging to the emitting
+  // workspace, and marks the SAME `readAt` — so "read here or read there"
+  // pointed at one column while presenting as two inboxes with two unread
+  // counts. Retiring the duplicate is the whole point: nothing moved, and the
+  // reader that survives is the one a person actually opens.
+  //
+  // The rows, the emitter and the read-state are untouched. Only the second
+  // door is closed, and it answers with a typed 410 naming the first rather
+  // than a 404, because a stale client deserves to be told where its data went.
+  // ---------------------------------------------------------------------------
+
+  const notificationsRetired = (reply: FastifyReply) =>
+    reply.code(410).send({
+      error: { code: "COLLABORATION_TEAM_NOTIFICATIONS_RETIRED" },
+      message:
+        "Team notifications are in your Inbox. This surface was a second view of the same rows and has been retired.",
+      canonical: "/v1/me/inbox",
+    });
+
   app.get("/v1/collaboration-team-notifications", {
     preHandler: requireAuth,
-    handler: async (req, reply) => {
-      const ctx = await requireWorkspace(req, reply, "collaboration.thread.read");
-      if (!ctx) return;
-      try {
-        const q = (req.query as Record<string, string | undefined>) ?? {};
-        const res = await listMyNotifications({
-          actorUserId: ctx.userId,
-          workspaceId: ctx.workspaceId,
-          limit: q.limit ? parseInt(q.limit, 10) : undefined,
-          onlyUnread: q.unread === "true",
-        });
-        return reply.send(res);
-      } catch (err) {
-        return handleError(reply, err, req.id ?? null);
-      }
-    },
+    handler: async (_req, reply) => notificationsRetired(reply),
   });
 
   app.post<{ Params: { notificationId: string } }>(
     "/v1/collaboration-team-notifications/:notificationId/read",
     {
       preHandler: requireAuth,
-      handler: async (req, reply) => {
-        const userId = await getAuthUserId(req);
-        if (!userId) return reply.code(401).send({ error: "auth_required" });
-        try {
-          await markNotificationRead({
-            actorUserId: userId,
-            notificationId: req.params.notificationId,
-          });
-          return reply.send({ ok: true });
-        } catch (err) {
-          return handleError(reply, err, req.id ?? null);
-        }
-      },
+      handler: async (_req, reply) => notificationsRetired(reply),
     },
   );
 
   app.post("/v1/collaboration-team-notifications/read-all", {
     preHandler: requireAuth,
-    handler: async (req, reply) => {
-      const ctx = await requireWorkspace(req, reply, "collaboration.thread.read");
-      if (!ctx) return;
-      try {
-        await markAllNotificationsRead({
-          actorUserId: ctx.userId,
-          workspaceId: ctx.workspaceId,
-        });
-        return reply.send({ ok: true });
-      } catch (err) {
-        return handleError(reply, err, req.id ?? null);
-      }
-    },
+    handler: async (_req, reply) => notificationsRetired(reply),
   });
 
   // ---------------------------------------------------------------------------
-  // Notification preferences
+  // (RETIRED) Per-group notification preferences
+  //
+  // A third preference store, with no stated precedence against the workspace
+  // and organization notification policy it sat under — so a person could set
+  // "mute" in one place and keep receiving, and no surface could say which
+  // answer won. Notification preferences belong to Settings, where there is
+  // one of them.
+  //
+  // The stored rows are left in place and are still read by the fan-out, so
+  // nobody's existing choice is silently reversed by this retirement.
   // ---------------------------------------------------------------------------
+
+  const preferencesRetired = (reply: FastifyReply) =>
+    reply.code(410).send({
+      error: { code: "COLLABORATION_TEAM_PREFERENCES_RETIRED" },
+      message:
+        "Notification preferences live in Settings. Per-team preferences were a third store with no stated precedence and have been retired.",
+      canonical: "/settings/notifications",
+    });
 
   app.get<{ Params: { teamId: string } }>(
     "/v1/collaboration-teams/:teamId/notification-preferences",
     {
       preHandler: requireAuth,
-      handler: async (req, reply) => {
-        const binding = await authorizeCollaborationTeam(req, reply, {
-          collaborationTeamId: req.params.teamId,
-          permission: "collaboration.thread.read",
-        });
-        if (!binding) return;
-        const ctx = {
-          workspaceId: binding.workspace.workspaceId,
-          userId: binding.workspace.userId,
-        };
-        try {
-          const pref = await getMyNotificationPreference({
-            teamId: req.params.teamId,
-            actorUserId: ctx.userId,
-          });
-          return reply.send({ preference: pref });
-        } catch (err) {
-          return handleError(reply, err, req.id ?? null);
-        }
-      },
+      handler: async (_req, reply) => preferencesRetired(reply),
     },
   );
 
@@ -421,42 +375,10 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
     "/v1/collaboration-teams/:teamId/notification-preferences",
     {
       preHandler: requireAuth,
-      handler: async (req, reply) => {
-        const binding = await authorizeCollaborationTeam(req, reply, {
-          collaborationTeamId: req.params.teamId,
-          permission: "collaboration.thread.read",
-        });
-        if (!binding) return;
-        const ctx = {
-          workspaceId: binding.workspace.workspaceId,
-          userId: binding.workspace.userId,
-        };
-        const parsed = PrefBody.safeParse(req.body);
-        if (!parsed.success)
-          return reply
-            .code(400)
-            .send({ error: "invalid_body", message: parsed.error.message });
-        try {
-          await updateMyNotificationPreference({
-            teamId: req.params.teamId,
-            actorUserId: ctx.userId,
-            ...parsed.data,
-          });
-          await audit({
-            userId: ctx.userId,
-            action: "collaboration_team.notification_preference.updated",
-            resourceType: "collaboration_team_notification_preference",
-            resourceId: req.params.teamId,
-            requestId: req.id ?? null,
-            workspaceId: ctx.workspaceId,
-          });
-          return reply.send({ ok: true });
-        } catch (err) {
-          return handleError(reply, err, req.id ?? null);
-        }
-      },
+      handler: async (_req, reply) => preferencesRetired(reply),
     },
   );
+
 
   // ---------------------------------------------------------------------------
   // Guests

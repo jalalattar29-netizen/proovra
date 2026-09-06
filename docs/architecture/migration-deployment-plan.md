@@ -323,7 +323,7 @@ Minimum evidence before Release D:
 
 ## 6. Release D — Contract/Drop · `CONTRACT_DROP_LATER`
 
-10 migrations. **These files must not be present in the deployment artifact for
+11 migrations. **These files must not be present in the deployment artifact for
 Release A, B or C** — every one of them RAISEs when its readiness is not zero,
 and a raise inside `prisma migrate deploy` leaves a FAILED row that blocks all
 subsequent migrations. Stage them into the artifact only for Release D.
@@ -340,6 +340,7 @@ subsequent migrations. Stage them into the artifact only for Release D.
 | `20271125000000_workspace_kind_authority_contract` | nothing (adds NOT NULL, a CHECK and a partial unique index; drops the expand's helper index) | zero NULL `workspace_kind` + zero PERSONAL under a CUSTOMER Organization + zero ORGANIZATION without one + zero OWNED under one + zero duplicate Personal Spaces. All checks are IN THE MIGRATION and RAISE; two observed refusing in `migration-rehearsal.mjs B-REFUSE`. |
 | `20271128000000_org_membership_lifecycle_contract` | nothing (adds NOT NULL status, the status/timestamp CHECK and the generation check) | zero memberships without a status + zero status/timestamp contradictions + zero rows both suspended and revoked + zero duplicate ACTIVE memberships. All checks are IN THE MIGRATION and RAISE. |
 | `20271131000000_automation_runtime_durability_contract` | the expand migration's own readiness helper index (nothing holding data) | six counts, all IN THE MIGRATION and all RAISE: zero runs without an action idempotency key + zero null/negative fences + zero duplicate (team, rule, source_event_id) groups + zero terminal runs holding a live lease + zero rows both dead-lettered and SUCCEEDED + zero null/negative delivery fences. Then NOT NULLs, the non-negative fence CHECK, the dead-lettered/SUCCEEDED contradiction CHECK, and the partial unique index that collapses a replayed source event onto one run. |
+| `20280502000000_workspace_invite_raw_token_drop` | `team_invites.token` and its unique index `team_invites_token_key` | `SELECT count(*) FROM team_invites WHERE token_hash IS NULL` = 0 **and** the Release-A image (`20280501000000_workspace_invite_lifecycle_hardening`) live everywhere. An image predating Release A writes `token` NOT NULL and reads by `token`; dropping the column under it fails every invitation. The current image never touches it. A stored plaintext invitation token is a live workspace credential in every backup — Release A retained it only so a SERVICE rollback would not strand live invitations. Rehearsed clean-boot and Release A → B upgrade on disposable PostgreSQL 16. |
 
 Adapter removal condition: `docs/architecture/compatibility-adapter-registry.json`
 entries bound to `20271105000000_evidence_case_id_removal` and

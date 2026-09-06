@@ -28,19 +28,6 @@ export type PlatformContextPlanFeatures = {
   /** Collaboration Teams included (maxCollaborationTeamsPerWorkspace > 0). */
   teamCollaborationIncluded: boolean;
   /**
-   * PHASE 12 POINT 4 — guest-invitation eligibility, server-projected from the
-   * SAME catalog value the API enforces (canPlanOperateSharedWorkspace).
-   *
-   * Declared REQUIRED, like its sibling booleans, so it is reachable through
-   * `usePlanFeature` — that hook's key union is built with a `-?` mapped type
-   * whose lookup still yields `boolean | undefined` for an optional property,
-   * which excludes optional keys from the union. The hook already fails closed
-   * at runtime (`typeof value === "boolean" ? value : null`), so an older
-   * envelope that predates the field yields `null` and the caller shows the
-   * locked state rather than an optimistic affordance.
-   */
-  canInviteGuests: boolean;
-  /**
    * Monthly AI-assistance operation allowance (2026-07-17): 0 = AI not
    * included (FREE), n>0 = monthly cap, null = custom (Enterprise).
    * Optional so envelopes emitted before the field existed still parse.

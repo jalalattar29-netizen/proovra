@@ -2058,7 +2058,9 @@ model TeamInvite {
   teamId          String    @map("team_id") @db.Uuid
   email           String    @db.VarChar(320)
   role            TeamRole
-  token           String?   @unique @db.VarChar(128)
+  /// RELEASE B (20280502000000) — the plaintext token column is DROPPED.
+  /// `tokenHash` is the sole lookup authority; the raw value exists only long
+  /// enough to be put in an email and is never persisted.
   tokenHash       String    @unique @map("token_hash") @db.VarChar(64)
   invitedByUserId String    @map("invited_by_user_id")
   expiresAt       DateTime  @map("expires_at") @db.Timestamptz(6)

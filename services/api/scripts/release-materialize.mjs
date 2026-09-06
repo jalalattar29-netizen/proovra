@@ -44,6 +44,19 @@ const PRISMA_REL = "services/api/prisma";
  * from the image — absence is what caused the defect.
  */
 export const PROPOSED_ADDITIONS = {
+  // WORKSPACE AND COLLABORATION RECONCILIATION (2026-09-06) — the workspace
+  // invitation, in two staged halves.
+  //
+  // `team_invites` was the least protected of the invitation tables: the
+  // token was stored in PLAINTEXT and uniquely indexed, the whole row
+  // including the token came back from the create and resend responses, there
+  // was no revocation STATE (revoking meant DELETING the row), and there was
+  // no resend record. `organization_invites` solved all four years earlier;
+  // these bring the workspace table to the same design.
+  "20280501000000_workspace_invite_lifecycle_hardening":
+    "REQUIRED_RELEASE_MIGRATION — BACKFILL, SAFE_TO_APPLY_NOW, and it must be applied BEFORE the image that reads it. Adds token_hash (backfilled from every stored token, then NOT NULL + UNIQUE), makes token nullable, adds revoked_at, revoked_by_user_id, accepted_by_user_id, last_resent_at, resend_count, and one PARTIAL UNIQUE index on (team_id, lower(email)) WHERE not accepted and not revoked — which moves the duplicate-pending check off a read-then-write in the route and into the database. Both backfill statements are conditioned on token_hash IS NULL, so re-running is a no-op. The previous image neither reads nor writes any new column and token still holds its value, so applying early is safe; the new image reads token_hash, so deploying it first would fail every invitation lookup.",
+  "20280502000000_workspace_invite_raw_token_drop":
+    "REQUIRED_LATER_CONTRACT_MIGRATION — CONTRACT_DROP, CONTRACT_DROP_LATER. Self-guarded: RAISEs if any row has a NULL token_hash and would lose its only lookup key. Drops team_invites.token and its unique index. Apply ONLY after the Release-A image above is live everywhere — an image predating it writes token NOT NULL and reads by token. The current image never touches the column; there is not one reader of it left in the repository. A stored plaintext invitation token is a live workspace credential sitting in every backup, and Release A retained it only so a SERVICE rollback would not strand live invitations.",
   // SECURITY CONTAINMENT (2026-09-04) — the persistent signer lifecycle.
   //
   // Retire and revoke previously wrote nothing: the read model recomputes the

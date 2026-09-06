@@ -515,94 +515,22 @@ export async function assertCollaborationTeamMemberLimit(
 }
 
 // =============================================================================
-// 3. assertCanInviteCollaborationTeamMember
+// 3. (RETIRED) assertCanInviteCollaborationTeamMember
 // =============================================================================
-
-/**
- * Canonical invite-gate. Replaces the three inline assertions in
- * `enforceInviteLimits` (collaboration-team.service.ts:904-1095).
- *
- * Channel-specific gates:
- *   - SMS requires `smsInvitesEnabled` (FREE → 402 SMS_INVITE_NOT_INCLUDED).
- *   - LINK requires `linkInvitesEnabled` (FREE → 402 LINK_INVITE_NOT_INCLUDED).
- *
- * Universal gates (apply to every channel):
- *   - pending invites for this team <= `maxPendingInvitesPerTeam`.
- *   - invites in the last 24h <= `maxInvitesPer24h`. (429)
- *
- * Returns the observed counters so callers can include them in
- * activity metadata for audit.
- */
-export async function assertCanInviteCollaborationTeamMember(
-  teamId: string,
-  channel: "EMAIL",
-  client: PrismaClient = defaultPrisma,
-): Promise<{
-  plan: PlanType;
-  channel: "EMAIL";
-  pendingInvites: number;
-  sentLast24h: number;
-  maxPendingPerTeam: number;
-  max24hRate: number;
-}> {
-  // §9.4 corrected — invite limits are a WORKSPACE-subject decision.
-  const { plan } = await resolveCollaborationTeamWorkspacePlan(client, teamId);
-  const limits = getPlanCapabilities(plan);
-
-  // Invitations are EMAIL-ONLY (Teams Entitlement Alignment,
-  // 2026-07-14): SMS invites and shareable invite links were never
-  // published by Pricing/Billing and their code paths are deleted.
-  // A plan with ZERO Teams cannot grow membership at all.
-  assertTeamsFeatureIncluded(plan);
-
-  // -------- pending-per-team gate --------
-  const pendingInvites = await client.collaborationTeamInvite.count({
-    where: { teamId, status: "PENDING" },
-  });
-
-  if (pendingInvites >= limits.maxPendingInvitesPerTeam) {
-    throwBillingError({
-      code: "TEAM_INVITE_LIMIT_REACHED",
-      message: `This team has reached its pending-invite limit (${limits.maxPendingInvitesPerTeam}) on plan ${plan}.`,
-      details: {
-        plan,
-        teamId,
-        channel,
-        pendingInvites,
-        maxPendingPerTeam: limits.maxPendingInvitesPerTeam,
-      },
-    });
-  }
-
-  // -------- 24h rate gate (per team, all channels combined) --------
-  const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const sentLast24h = await client.collaborationTeamInvite.count({
-    where: { teamId, createdAt: { gte: since } },
-  });
-
-  if (sentLast24h >= limits.maxInvitesPer24h) {
-    throwBillingError({
-      code: "TEAM_INVITE_LIMIT_REACHED",
-      message: `This team has issued ${sentLast24h} invites in the last 24h. Plan ${plan} limit: ${limits.maxInvitesPer24h}.`,
-      details: {
-        plan,
-        teamId,
-        channel,
-        sentLast24h,
-        max24hRate: limits.maxInvitesPer24h,
-      },
-    });
-  }
-
-  return {
-    plan,
-    channel,
-    pendingInvites,
-    sentLast24h,
-    maxPendingPerTeam: limits.maxPendingInvitesPerTeam,
-    max24hRate: limits.maxInvitesPer24h,
-  };
-}
+//
+// WORKSPACE AND COLLABORATION ARCHITECTURE CLOSURE (2026-09-06) — deleted with
+// the writer it guarded, and replaced by an authority with the right subject.
+//
+// It enforced the catalog's `maxPendingInvitesPerTeam` and `maxInvitesPer24h`
+// PER COLLABORATION TEAM. That is the wrong subject twice over: a workspace
+// with five groups could hold five times the pending invitations the plan
+// sells, and the invitation that actually grants tenancy — the WORKSPACE one —
+// was gated by neither of them.
+//
+// `resolveWorkspaceInvitationAllowance` (services/billing/workspace-seats)
+// answers the same two questions about the workspace, beside the seat state
+// they are a claim on, and `createWorkspaceInvitation` enforces it. The
+// numbers did not change; the subject did.
 
 // =============================================================================
 // 4. (RETIRED) assertCanInviteCollaborationTeamGuest

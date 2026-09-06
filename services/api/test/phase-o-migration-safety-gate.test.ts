@@ -302,6 +302,32 @@ describe("Phase O — CI gate on post-baseline migrations", () => {
   // Entries here do NOT silence findings — they declare the audit
   // record. New entries require a Phase Final-Closure ledger entry.
   const APPROVED_CRITICAL_BY_MIGRATION: Record<string, ReadonlySet<string>> = {
+    // WORKSPACE AND COLLABORATION RECONCILIATION (2026-09-06) — the workspace
+    // invitation, in two staged halves. Both findings are the intent of the
+    // migration, not an oversight, and each is guarded in the file itself.
+    //
+    // RELEASE A. `SET NOT NULL` on `team_invites.token_hash` runs two
+    // statements after the backfill that populates it — every row with a token
+    // is hashed, and every row without one is given a random unmatchable value
+    // precisely so the constraint is honest rather than inventing a hash some
+    // real token could collide with. The detector looks for a readiness MARKER
+    // in the preceding 400 characters; the readiness here is the backfill
+    // itself, immediately above, which is stronger than a comment saying so.
+    "20280501000000_workspace_invite_lifecycle_hardening": new Set([
+      "SET_NOT_NULL_NO_READINESS",
+    ]),
+    // RELEASE B. The drops ARE the migration: a stored plaintext invitation
+    // token is a live workspace credential sitting in every backup, and
+    // Release A retained the column only so that rolling the SERVICE back
+    // would not strand live invitations. Destructive and deliberately not
+    // re-appliable, behind a DO-block that RAISEs if any row has a NULL
+    // `token_hash` and would lose its only lookup key. Classified
+    // CONTRACT_DROP / CONTRACT_DROP_LATER in the Point-6 inventory, so it is
+    // deferred out of waves A/B and can only ship in the contract wave.
+    "20280502000000_workspace_invite_raw_token_drop": new Set([
+      "ALTER_TABLE_DROP_COLUMN",
+      "DROP_INDEX",
+    ]),
     // Removes the unsupported anchor receipt_id / public_url columns
     // from `evidence_anchors`. PROOVRA relies solely on OpenTimestamps ->
     // Bitcoin anchoring (transaction_id + anchored_at_utc), the verification

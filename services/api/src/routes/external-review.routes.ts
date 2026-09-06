@@ -35,7 +35,11 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
+import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+// THE canonical entitlement engine. External access is gated on the sold
+// package (`FEATURE_EXTERNAL_PORTAL`), never on a plan name read here.
+import { assertFeatureEntitlement } from "../services/packaging/entitlement.service.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 // Phase 3 blocker closure — issuing an external-reviewer grant exposes
 // sensitive evidence to an OUTSIDE reviewer, so it must require a fresh
@@ -159,6 +163,41 @@ export async function externalReviewRoutes(app: FastifyInstance) {
         antiEnumeration: true,
       });
       if (!actor) return;
+
+      /**
+       * THE COMMERCIAL GATE — the open item this closes.
+       *
+       * Issuing an external-review grant lets someone OUTSIDE the workspace
+       * read its evidence. It was permission-gated and step-up-gated and
+       * commercially open: every plan could do it. The only commercial check
+       * in the neighbourhood lived on the retired "guest invitation", which
+       * granted nothing at all, so retiring that honest no-op left the real
+       * capability with no gate and made the absence visible.
+       *
+       * `FEATURE_EXTERNAL_PORTAL` is the canonical entitlement for external
+       * access — the SAME key `external-portal.routes.ts` uses on the
+       * invitation it issues. It is resolved per workspace by the packaging
+       * engine from the sold package, not derived from a plan name here, which
+       * is why this is one authority answering in two places rather than two
+       * authorities answering differently.
+       *
+       * REVOKE IS DELIBERATELY NOT GATED. Withdrawing access someone already
+       * has is a corrective action, and a workspace that has lost the
+       * entitlement — by downgrade, by contract change — must still be able to
+       * shut a door it opened.
+       */
+      const entitled = await assertFeatureEntitlement({
+        prisma,
+        teamId: actor.teamId,
+        key: "FEATURE_EXTERNAL_PORTAL",
+        actorUserId: actor.actorUserId,
+      });
+      if (!entitled.ok) {
+        return reply.code(403).send({
+          denial: "ENTITLEMENT_REQUIRED",
+          entitlement: "FEATURE_EXTERNAL_PORTAL",
+        });
+      }
 
       // STEP-UP: issuing a grant can expose sensitive evidence to an
       // outside reviewer — require a fresh step-up AFTER the permission

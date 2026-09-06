@@ -434,7 +434,11 @@ describe("Phase R14 — Stage 3: service module public surface", () => {
       "changeMemberRole",
       "suspendMember",
       "removeMember",
-      "createEmailInvite",
+      // CLOSURE (2026-09-06) — `createEmailInvite` left this list because the
+      // writer was DELETED: there is ONE invitation authority and it invites
+      // into the WORKSPACE, where acceptance atomically claims a seat.
+      // `revokeInvite` and `acceptInvite` stay for links already in flight;
+      // the set of rows they act on only shrinks.
       "revokeInvite",
       "acceptInvite",
       "listTeamActivity",
@@ -532,22 +536,41 @@ describe("Phase R14 — Stage 4: API routes", () => {
   // token now NEVER crosses the HTTP surface — the service returns it
   // once (rawToken + acceptUrl) solely so the delivery wrapper can
   // embed the accept link in the invite EMAIL.
-  it("raw invite token never crosses the HTTP surface; service returns it once for email delivery only", () => {
-    // The routes file never SERIALISES the raw token — the email-invite
-    // response carries { id, channel, expiresAtUtc } + delivery only.
-    // The single rawToken occurrence is the accept route CONSUMING the
-    // path token (`rawToken: req.params.token`), never a response field.
+  // CLOSURE (2026-09-06) — the property SHARPENED. The group service no longer
+  // MINTS a token at all, because it no longer issues invitations: the writer
+  // is deleted. So "the raw token never crosses the HTTP surface" is now the
+  // weaker half of "this service produces no raw token to cross it", and the
+  // one remaining occurrence in the routes file is the accept path CONSUMING a
+  // token someone was already sent.
+  //
+  // The workspace invitation — the one that does mint — is held to the
+  // original rule at its own level: it returns the raw value exactly once, to
+  // the caller that will put it in an email, and never persists or projects
+  // it. That is asserted here and proven end-to-end against live PostgreSQL in
+  // `wcr-invitation-closure.integration.test.ts`.
+  it("no raw invite token crosses the HTTP surface, and the group service mints none", () => {
     const routeHits = routes.match(/rawToken/g) ?? [];
     expect(routeHits.length).toBe(1);
     expect(routes).toMatch(/rawToken:\s*req\.params\.token/);
-    // The service-level CreatedInvite still carries rawToken + acceptUrl
-    // (out-of-band delivery input), produced exactly once each.
+
     const svc = read(
       "services/api/src/services/collaboration-team/collaboration-team.service.ts",
     );
-    expect(svc).toMatch(/rawToken:\s*raw\b/);
-    expect(svc).toMatch(/acceptUrl:\s*buildAcceptUrl\(raw\)/);
-    expect(svc.match(/rawToken:\s*raw\b/g)?.length).toBe(1);
+    expect(svc).not.toMatch(/rawToken:\s*raw\b/);
+    expect(svc).not.toContain("buildAcceptUrl");
+
+    // THE authority that does mint, held to the same rule.
+    const invite = read(
+      "services/api/src/services/identity/workspace-invitation.service.ts",
+    );
+    expect(invite.match(/rawToken:\s*raw\b/g)?.length).toBe(2);
+    // What it PROJECTS carries no secret: no token, no hash.
+    const projection = invite.slice(
+      invite.indexOf("export function projectInvitation"),
+    );
+    const projectionBody = projection.slice(0, projection.indexOf("\n}"));
+    expect(projectionBody).not.toContain("tokenHash");
+    expect(projectionBody).not.toMatch(/\btoken\b/);
   });
 });
 

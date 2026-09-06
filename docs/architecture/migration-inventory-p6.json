@@ -12,32 +12,32 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 264,
-    "classifiedMigrations": 264,
+    "filesystemMigrations": 265,
+    "classifiedMigrations": 265,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 264,
+    "productionSnapshotUnknown": 265,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 264,
-    "classifiedMigrations": 264,
+    "filesystemMigrations": 265,
+    "classifiedMigrations": 265,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 264,
+    "productionSnapshotUnknown": 265,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
       "EXPAND": 45,
       "BACKFILL": 20,
-      "CONTRACT_DROP": 10,
+      "CONTRACT_DROP": 11,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
       "SAFE_TO_APPLY_NOW": 55,
       "WAIT_FOR_BACKFILL_READINESS": 13,
-      "CONTRACT_DROP_LATER": 10,
+      "CONTRACT_DROP_LATER": 11,
       "WAIT_FOR_RUNTIME_CUTOVER": 1
     },
     "MigrationInventoryUnknown": 0,
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 264
+    "ProductionMigrationStateUnknown": 265
   },
   "gateFailures": [],
   "migrations": [
@@ -20554,7 +20554,7 @@
       "checksumSha256Raw": "0d73e4b5a6cebab5aca585b4ef755a5a61eba733351dce9b643d7f4557bc8f68",
       "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
       "gitTracked": true,
-      "gitIntroductionCommit": "3151a4f244d898181849974a1c43d6e83e7929a5",
+      "gitIntroductionCommit": "66c1276a5953ef84d6b7dd4567ba577881037617",
       "sqlChangedSinceIntroduction": false,
       "classification": "BACKFILL",
       "sqlShape": "BACKFILL",
@@ -20623,8 +20623,78 @@
       "evidence": "WORKSPACE AND COLLABORATION ARCHITECTURE RECONCILIATION (2026-09-06). `team_invites` is the invitation that actually grants WORKSPACE membership, and it was the least protected of the invitation tables: the token was stored in PLAINTEXT and uniquely indexed (a backup was a set of live workspace credentials), the whole row including the token was returned by the create and resend responses, there was no revocation state at all (revoking meant DELETING the row, destroying the record that it was ever sent), and there was no resend record. `organization_invites` solved all four in 20260927000000_p2_7x_stage6_invite_token_hash; this migration is deliberately the SAME shape, statement for statement, so the two invitation tables converge rather than diverging into a second design. ADDITIVE ONLY: adds `token_hash`, `revoked_at`, `revoked_by_user_id`, `accepted_by_user_id`, `last_resent_at`, `resend_count`; makes `token` nullable; adds one unique index on the hash and one PARTIAL unique index on (`team_id`, lower(`email`)) WHERE not accepted and not revoked, which moves the duplicate-pending check off a read-then-write in the route and into the database. No column is dropped and no data is destroyed. CLASSIFIED BACKFILL, NOT EXPAND, because it writes to existing rows: `token_hash` is computed from the token each pending invitation already carries, so in-flight links keep resolving after the read path switches to the hash. Rows holding no token at all cannot be accepted and cannot be hashed, so they receive a random unmatchable value — that keeps the NOT NULL honest without inventing a hash some real token could collide with. Both UPDATEs are conditioned on `token_hash IS NULL`, so the migration is idempotent and re-running it is a no-op. SAFE BEFORE CODE DEPLOYMENT, AND REQUIRED BEFORE IT: a deployment still on the previous image neither reads nor writes any of the new columns (`token` still holds its value and is still readable), while the new image reads `token_hash` and therefore cannot start before this has run. That is why it is SAFE_TO_APPLY_NOW rather than a deferred wave — deferring it would strand the service that depends on it. THE RAW TOKEN IS DELIBERATELY LEFT IN PLACE: clearing and dropping the column is a separate, later CONTRACT_DROP once no deployed service reads it, so a rollback of the service does not strand live invitations. REHEARSED on disposable PostgreSQL 16 in both directions — an empty database (clean boot from zero) and an upgrade over a database carrying pending plaintext-token invitations, which kept resolving afterwards. NOT APPLIED TO PRODUCTION."
     },
     {
-      "name": "email_password_auth",
+      "name": "20280502000000_workspace_invite_raw_token_drop",
       "order": 263,
+      "sqlPresent": true,
+      "byteLength": 2076,
+      "checksumSha256": "e7fe79466fe1900f747fe4f74b40257dd8ed0512b745ea4a26ec75f3137b0c3d",
+      "checksumSha256Raw": "e7fe79466fe1900f747fe4f74b40257dd8ed0512b745ea4a26ec75f3137b0c3d",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": false,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": true,
+      "classification": "CONTRACT_DROP",
+      "sqlShape": "CONTRACT_DROP",
+      "sqlShapeEvidence": "removes 1 persistent object(s): DROP_COLUMN:token",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "team_invites"
+        ],
+        "addedColumns": [],
+        "droppedColumns": [
+          "token"
+        ],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [],
+        "droppedIndexes": [
+          "team_invites_token_key"
+        ],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20260205090000_phase2_invites_claim"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [
+        {
+          "kind": "DROP_COLUMN",
+          "object": "token"
+        }
+      ],
+      "guardBlocks": 1,
+      "guardRaises": 1,
+      "destructiveGuarded": true,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": false,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM team_invites WHERE token_hash IS NULL\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": "NONE — destructive and forward-only. The dropped value is a secret that should not be recoverable; a rollback would have to re-mint every pending invitation, which is what resend already does.",
+      "releaseWave": "CONTRACT_DROP_LATER",
+      "ownerAction": null,
+      "removalCondition": "The Release-A image (20280501000000_workspace_invite_lifecycle_hardening) is live everywhere, AND `SELECT count(*) FROM team_invites WHERE token_hash IS NULL` is 0. The first condition is the ordering one — an image predating Release A writes `token` NOT NULL and reads by `token` — and the second is enforced by the migration's own RAISE guard rather than trusted.",
+      "evidence": "WORKSPACE AND COLLABORATION RECONCILIATION — RELEASE B (2026-09-06). Removes the plaintext workspace-invitation token: DROP INDEX team_invites_token_key, DROP COLUMN team_invites.token, behind a guard that refuses the migration if any row has a NULL token_hash and would therefore lose its only lookup key. WHY IT IS SAFE NOW AND WAS NOT BEFORE: Release A (20280501000000) added token_hash, backfilled it from every stored token, made it NOT NULL and UNIQUE, and made token nullable. From that image onward the API mints invitations with no plaintext at all and resolves acceptance by hash only — there is not one reader of the raw column left in the repository. The column was retained through Release A solely so that rolling the SERVICE back would not strand live invitations; this is the other half of that staged transition. WHY IT IS WORTH DOING: a stored plaintext invitation token is a live workspace credential, and it sits in every backup and every database copy for as long as the column exists. DEPLOYMENT ORDER: apply ONLY after the Release-A image is live everywhere. An image predating Release A writes token NOT NULL and reads by token, so dropping the column under it would fail every invitation. There is no hazard in the other direction: the current image never touches it, which is why this is classified CONTRACT_DROP and deferred out of wave A/B rather than shipped with the code that made it possible. REHEARSED on disposable PostgreSQL 16 in both directions — a clean boot from an empty database, and a Release A -> Release B upgrade over a database holding a Release-A era invitation that carried BOTH the plaintext and the hash. After the upgrade the row is preserved, token_hash is intact and still resolves the original token, and the column and its index are gone. NOT APPLIED TO PRODUCTION."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 264,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

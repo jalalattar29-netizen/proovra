@@ -242,10 +242,10 @@ describe("POINT 7 — context safety (live PostgreSQL 16)", () => {
           teamId: input.teamId,
           email: input.email.toLowerCase(),
           role: "MEMBER",
-          token,
-          // `tokenHash` is the authoritative lookup column now; the fixture
-          // hashes the same way the service does so a row it creates is
-          // resolvable by the real accept path.
+          // RELEASE B — the plaintext column is gone. `tokenHash` is the
+          // sole lookup authority; the fixture hashes the same way the
+          // service does, so a row it creates is resolvable by the real
+          // accept path and the raw value never touches the database.
           tokenHash: createHash("sha256").update(token).digest("hex"),
           invitedByUserId: input.invitedByUserId,
           expiresAt: input.expiresAt ?? new Date(Date.now() + 86_400_000),
