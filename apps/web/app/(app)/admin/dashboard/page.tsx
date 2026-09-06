@@ -2,6 +2,8 @@
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useUrlFilterSync } from "../../../../lib/use-url-filter-sync";
 import { PageShell, PageHeader, PageSection, DataTable } from "../../../../components/ui";
 import { Card } from "../../../../components/ui/Card";
 import { Badge } from "../../../../components/ui/Badge";
@@ -285,7 +287,27 @@ const RECENT_EVENT_ROWS = 25;
 export default function AdminDashboardPage() {
   const { addToast } = useToast();
   const [loading, setLoading] = useState(true);
-  const [dateRange, setDateRange] = useState<DateRangeKey>("7d");
+  /**
+   * THE RANGE IS PART OF THE ADDRESS.
+   *
+   * Same defect the analytics window had, on the other time control in the
+   * console: every figure on this page is a figure FOR a range, and the range
+   * lived in `useState` alone. "Traffic is up" is not a claim anybody can
+   * check without knowing over what, so a link to this dashboard that drops
+   * the range is a link to a different reading than the sender had.
+   *
+   * Seeded from the URL and validated against `DATE_RANGES` — a hand-edited
+   * value falls back to the default rather than being sent to the API — and
+   * written back by `useUrlFilterSync`, which lands in the same tick the read
+   * starts rather than after it.
+   */
+  const initialRange = useSearchParams()?.get("dateRange");
+  const [dateRange, setDateRange] = useState<DateRangeKey>(() =>
+    DATE_RANGES.some((r) => r.key === initialRange)
+      ? (initialRange as DateRangeKey)
+      : "7d",
+  );
+  useUrlFilterSync("/admin/dashboard", { dateRange });
   const [bundle, setBundle] = useState<AdminBundle | null>(null);
 
   useEffect(() => {

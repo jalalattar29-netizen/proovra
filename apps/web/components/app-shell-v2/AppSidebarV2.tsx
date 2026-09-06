@@ -304,8 +304,15 @@ function SidebarLink({
           data-sidebar-degradation-chip
           data-tone="neutral"
           style={{
-            marginLeft: "auto",
-            fontSize: 10,
+            /* Logical, so the chip trails the label in both directions. */
+            marginInlineStart: "auto",
+            /* 11px — the console text floor, which the workspace-scope chip
+               beside it already documents and holds. This was 10px, and the
+               responsive sweep found it as the only sub-floor text in the
+               whole shell: twenty instances at 768px, on a chip whose job is
+               to tell somebody a nav entry needs setup before they click it.
+               A chip nobody can read is a chip that reads as decoration. */
+            fontSize: 11,
             fontWeight: 600,
             letterSpacing: 0.4,
             textTransform: "uppercase",

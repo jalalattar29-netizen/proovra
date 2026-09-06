@@ -124,7 +124,7 @@
       "positionText": false,
       "resultCount": 1,
       "countSentence": true,
-      "capDisclosed": true,
+      "capDisclosed": false,
       "svgs": 0,
       "strokes": {},
       "viewBoxes": 0,
@@ -298,7 +298,7 @@
       "emptyCharts": 0,
       "emptyChartsSilent": 0,
       "tableRows": 25,
-      "url": "/admin/dashboard",
+      "url": "/admin/dashboard?dateRange=7d",
       "findings": []
     },
     {
@@ -402,7 +402,7 @@
       "svgs": 6,
       "strokes": {
         "2": 1,
-        "1.8": 5
+        "2.2": 5
       },
       "viewBoxes": 0,
       "iconNoName": 0,
@@ -688,7 +688,7 @@
       "chartsUntitled": 0,
       "emptyCharts": 0,
       "emptyChartsSilent": 0,
-      "tableRows": 40,
+      "tableRows": 39,
       "url": "/admin/operations",
       "findings": []
     },
@@ -743,7 +743,7 @@
       "emptyCharts": 0,
       "emptyChartsSilent": 0,
       "tableRows": 0,
-      "url": "/admin/platform/analytics",
+      "url": "/admin/platform/analytics?window=7",
       "findings": []
     },
     {
@@ -1227,7 +1227,7 @@
       "pagerButtons": 0,
       "pagerAlwaysEnabled": 0,
       "positionText": false,
-      "resultCount": 0,
+      "resultCount": 1,
       "countSentence": true,
       "capDisclosed": false,
       "svgs": 0,
@@ -1238,7 +1238,7 @@
       "chartsUntitled": 0,
       "emptyCharts": 0,
       "emptyChartsSilent": 0,
-      "tableRows": 4,
+      "tableRows": 3,
       "url": "/admin/users/0adf0000-0000-4000-8000-000000000002",
       "findings": []
     },
@@ -1267,7 +1267,7 @@
       "chartsUntitled": 0,
       "emptyCharts": 0,
       "emptyChartsSilent": 0,
-      "tableRows": 4,
+      "tableRows": 2,
       "url": "/admin/workspaces?lifecycle=LIVE&kind=PERSONAL",
       "findings": []
     },
