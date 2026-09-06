@@ -21,6 +21,7 @@ import {
   mintEmailIdempotencyKey,
   registerEmailApiKeyResolver,
   registerEmailIdempotencySecretResolver,
+  resolveEmailTransportProvider,
   type EmailDeliveryOutcome,
 } from "@proovra/shared-runtime";
 // Phase O1.5E — bounded smtp.email_send span.
@@ -782,7 +783,26 @@ export function getEmailService(): EmailService {
 
   const apiKey = env("RESEND_API_KEY");
 
-  if (!apiKey) {
+  /**
+   * "CONFIGURED" MEANS THERE IS A TRANSPORT, NOT THAT THERE IS A RESEND KEY.
+   *
+   * This asked only whether `RESEND_API_KEY` was set, which made the service
+   * and the transport selector disagree about the same question. A process
+   * that has explicitly declared `EMAIL_TRANSPORT=recording` — the local
+   * recording boundary, which `resolveEmailTransportProvider` refuses anywhere
+   * but a non-production process — HAS an outbound boundary; it is simply not
+   * a vendor. Reporting it as unconfigured silently sent nothing, and callers
+   * that check `isConfigured()` before sending (the workspace invitation among
+   * them) skipped delivery entirely while every other layer behaved as though
+   * an invitation had gone out.
+   *
+   * The transport itself still decides where a message goes. This only stops a
+   * second, cruder answer to "can we send at all" from overriding it.
+   */
+  const transport = resolveEmailTransportProvider();
+  const hasTransport = Boolean(apiKey) || transport === "recording";
+
+  if (!hasTransport) {
     singleton = {
       isConfigured: () => false,
       async sendPasswordResetEmail() {

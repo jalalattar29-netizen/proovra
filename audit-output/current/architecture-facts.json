@@ -271,7 +271,7 @@
       "AmbiguousReportRoles": 0,
       "Phase0ChangedPathsFromManualDeclaration": 0,
       "UndeclaredPhase0ChangedPaths": 0,
-      "Phase0ChangedPathClassificationMissing": 0,
+      "Phase0ChangedPathClassificationMissing": 2,
       "ManualPhase0ChangeInventories": 0,
       "ProductionRuntimeFilesModifiedByPhase0": 0,
       "ProductBehaviorTestsRemoved": 0,
@@ -317,9 +317,9 @@
       "producer": "services/api/test/point5/family-coverage-manifest.ts",
       "producerPresent": true,
       "binding": "RUN_ID",
-      "bindingValue": "00cbce24-22b4-4677-a8dc-ff3fc6e70946",
+      "bindingValue": "a3c957f9-ee44-4a5a-949a-6a706e2015fa",
       "schemaVersion": null,
-      "contentHash": "1a05b07a492ad255991d836b8a11e998e28ddb7d38b89e148b56e47f247e9f1e",
+      "contentHash": "8871c8a955447adf52ff980e1564ae249d136cbc3b4550550b31552ace35fea0",
       "byteLength": 19763,
       "present": true,
       "freshness": "BOUND",
@@ -333,7 +333,7 @@
       "binding": "BUILD_ID",
       "bindingValue": "54222f27fdc008d3150b943dac00ec42dbac092fabc13a81db3a10e81eb9e827",
       "schemaVersion": null,
-      "contentHash": "272e39bb18cb6348df46c17db530c6490e467fa00aebbfbbd84ad39655abdca7",
+      "contentHash": "759988bc726d67aa65459943a9df95bcd356b5998b94fcc9ef2af5f7e22e8583",
       "byteLength": 22838,
       "present": true,
       "freshness": "BOUND",
@@ -539,7 +539,9 @@
     "path": "audit-output/current/audit-governance-inventory.json",
     "problems": [
       "UNCLASSIFIED audit file: scripts/admin-ledger/visual/README.md",
-      "INDEPENDENT ROUTE/CONSUMER SCANNER: scripts/admin-ledger/visual/states.mjs — Independent route/consumer scanner competing with the AST engine."
+      "INDEPENDENT ROUTE/CONSUMER SCANNER: scripts/admin-ledger/visual/states.mjs — Independent route/consumer scanner competing with the AST engine.",
+      "CHANGED PATH WITH NO CLASSIFICATION: apps/web/next-env.d.ts",
+      "CHANGED PATH WITH NO CLASSIFICATION: apps/web/tsconfig.json"
     ]
   },
   "checkpoint": {

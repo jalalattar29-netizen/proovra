@@ -381,6 +381,42 @@ export async function waitForRecordedEmail(input: {
   }
 }
 
+
+/**
+ * Wait until at least `atLeast` acknowledged messages have reached a recipient.
+ *
+ * `waitForRecordedEmail` returns as soon as ONE has landed, which cannot
+ * express "the successor was delivered too" — a rotation produces a second
+ * message, and a test that stops at the first would pass whether or not the
+ * second ever arrived.
+ */
+export async function waitForRecordedEmails(input: {
+  email: string;
+  templateKind?: string;
+  atLeast: number;
+  timeoutMs?: number;
+}): Promise<RecordedEmailEntry[]> {
+  const alias = recipientAlias(input.email);
+  const deadline = Date.now() + (input.timeoutMs ?? 10_000);
+  for (;;) {
+    const acknowledged = readMailbox().filter(
+      (m) =>
+        m.recipientAlias === alias &&
+        m.result === "acknowledged" &&
+        (input.templateKind === undefined || m.templateKind === input.templateKind),
+    );
+    if (acknowledged.length >= input.atLeast) return acknowledged;
+    if (Date.now() > deadline) {
+      throw new Error(
+        `point7: expected at least ${input.atLeast} acknowledged ` +
+          `${input.templateKind ?? "any"} message(s) for that recipient after ` +
+          `${input.timeoutMs ?? 10_000}ms, saw ${acknowledged.length}. ` +
+          "A blocked real-provider attempt is NOT a delivery.",
+      );
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+}
 /** Messages for one recipient, whatever their outcome. */
 export function mailboxFor(email: string, templateKind?: string): RecordedEmailEntry[] {
   const alias = recipientAlias(email);

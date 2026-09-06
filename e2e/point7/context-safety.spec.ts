@@ -28,6 +28,7 @@ import {
   readProductLedger,
   sql,
   waitForRecordedEmail,
+  waitForRecordedEmails,
 } from "./_harness";
 
 // A second OWNED workspace, seeded rather than created through the product.
@@ -369,7 +370,30 @@ test.describe("invitations", () => {
     proven("p7.invite.correct_recipient_accepts");
   });
 
-  test("p7.invite.resend_reuses_the_durable_idempotency_key", async ({ page }) => {
+  test("p7.invite.resend_rotates_and_delivers_the_successor", async ({ page }) => {
+    /**
+     * WORKSPACE AND COLLABORATION ARCHITECTURE RECONCILIATION — this scenario
+     * asserted the opposite of the decided behaviour, and the reason it changed
+     * is the same reason Point 12 §3 fixed it for external review.
+     *
+     * It used to re-send the SAME stored token, so the idempotency key was
+     * identical and the provider collapsed the second message onto the first.
+     * That is the right shape for a genuine duplicate — and the wrong shape
+     * here, because a repeat invitation is a RESEND and a resend ROTATES the
+     * token. An operator repeats an invitation because the first link did not
+     * arrive or went somewhere it should not have; leaving the old one valid
+     * fixes the delivery without fixing the exposure.
+     *
+     * Once the token rotates, collapsing onto the superseded message's key is
+     * the defect, not the guarantee: the recipient would be left holding a
+     * dead link with no successor. §3 found exactly that on the external-review
+     * path and fixed it there.
+     *
+     * So the properties are: the successor IS delivered, under its own key;
+     * the recipient ends up with ONE live invitation, not two competing ones;
+     * and the durable row count is still one, because a resend rotates a row
+     * rather than adding one.
+     */
     const host = await createAccount({ label: "inv-idem-host", plan: "TEAM" });
     const recipient = await createAccount({ label: "inv-idem-to", plan: "FREE" });
     await login(page, host);
@@ -390,10 +414,6 @@ test.describe("invitations", () => {
       templateKind: "team_invitation",
     });
 
-    // Inviting the SAME address to the SAME workspace again re-sends the
-    // existing pending invitation. The idempotency key is derived from the
-    // durable invite token, so the provider sees one message, not two — and
-    // the recipient gets one invitation, not a second competing one.
     const second = await directApiCall(page, {
       method: "POST",
       path: `/v1/teams/${ws}/invites`,
@@ -401,22 +421,29 @@ test.describe("invitations", () => {
     });
     expect(second.status, second.body).toBeLessThan(300);
 
-    const all = mailboxFor(recipient.email, "team_invitation");
-    const aliases = new Set(all.map((m) => m.idempotencyAlias));
-    expect(aliases.size, "a re-send must not mint a new idempotency key").toBe(1);
+    // The successor is DELIVERED — a second acknowledged message, under its
+    // own key. Collapsing here would leave the recipient with a dead link.
+    const acknowledged = await waitForRecordedEmails({
+      email: recipient.email,
+      templateKind: "team_invitation",
+      atLeast: 2,
+    });
+    const aliases = new Set(acknowledged.map((m) => m.idempotencyAlias));
+    expect(
+      aliases.size,
+      "a rotation must not collapse onto the superseded message's key",
+    ).toBe(2);
+    expect(acknowledged[1].providerMessageId).not.toBe(
+      firstMessage.providerMessageId,
+    );
 
-    const acknowledged = all.filter((m) => m.result === "acknowledged");
-    // One STORED acknowledgement: the second send collapses onto the first,
-    // exactly as a provider honouring the key would collapse it.
-    expect(acknowledged.length).toBe(1);
-    expect(acknowledged[0].providerMessageId).toBe(firstMessage.providerMessageId);
-
-    // And exactly one durable invitation exists for that recipient.
+    // ONE durable invitation, not two competing ones: a resend rotates the row
+    // it already has.
     expect(await countRows("team_invites", "team_id = $1 AND email = $2", [
       ws,
       recipient.email.toLowerCase(),
     ])).toBe(1);
-    proven("p7.invite.resend_reuses_the_durable_idempotency_key");
+    proven("p7.invite.resend_rotates_and_delivers_the_successor");
   });
 
   test("p7.invite.revoked_link_still_fails_server_side", async ({ page }) => {

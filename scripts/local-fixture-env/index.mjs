@@ -312,6 +312,31 @@ function buildLocalValues({ webPort, apiPort, databaseUrl, redisUrl }) {
     NEXT_PUBLIC_GOOGLE_REDIRECT_URI: web,
     NEXT_PUBLIC_APPLE_REDIRECT_URI: web,
     SSO_CALLBACK_REDIRECT_URI: web,
+    /**
+     * THE OUTBOUND BOUNDARY IS THE LOCAL RECORDER.
+     *
+     * Naming the recorder is the whole statement: the resolver refuses
+     * `recording` anywhere but a non-production process, so this cannot switch
+     * a vendor on, and with no transport named at all the fixture had no
+     * outbound boundary — an invitation email went nowhere and left no trace,
+     * so a browser journey could not follow the link a real recipient would
+     * receive.
+     *
+     * The files are the ones the Point-7 browser harness reads, so the local
+     * stack can host the E2E suites instead of needing a second one.
+     */
+    EMAIL_TRANSPORT: "recording",
+    MESSAGING_TRANSPORT: "recording",
+    /*
+     * ABSOLUTE, because the reader and the writer have different working
+     * directories. The API child runs with its cwd at `services/api`, and the
+     * browser harness reads the repository root — so a relative path here puts
+     * the mailbox somewhere nobody looks, and the symptom is an invitation
+     * journey that fails with "no acknowledged message" while the email was in
+     * fact recorded perfectly well one directory down.
+     */
+    EMAIL_RECORDER_FILE: recorderFile("recorded-emails.jsonl"),
+    MESSAGING_RECORDER_FILE: recorderFile("recorded-messages.jsonl"),
     EMAIL_FROM: "fixture@localhost",
     EMAIL_FROM_NAME: "PROOVRA Fixture",
     EMAIL_BRAND_NAME: "PROOVRA Fixture",
@@ -408,6 +433,11 @@ export class UnsafeFixtureEnvironmentError extends Error {
  * Throws before returning if the result is unsafe, so a caller cannot spawn
  * with a bad environment even by ignoring the return value.
  */
+/** The repository-root `.p7tmp` mailbox both sides of a browser run share. */
+function recorderFile(name) {
+  return resolve(REPO_ROOT, ".p7tmp", name);
+}
+
 export function buildLocalFixtureEnv(options = {}) {
   const settings = { ...DEFAULTS, ...options };
 

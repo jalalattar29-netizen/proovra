@@ -156,7 +156,7 @@
         "p7.invite.correct_recipient_accepts",
         "p7.invite.mailbox_has_no_cross_tenant_leakage",
         "p7.invite.no_real_provider_attempt_during_the_journey",
-        "p7.invite.resend_reuses_the_durable_idempotency_key",
+        "p7.invite.resend_rotates_and_delivers_the_successor",
         "p7.invite.revoked_link_still_fails_server_side"
       ],
       "runId": "66dfcba3",

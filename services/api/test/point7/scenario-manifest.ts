@@ -449,8 +449,15 @@ export const SCENARIOS: ReadonlyArray<ScenarioSpec> = [
   // local recording provider rather than around it. Before this, the browser
   // invitation journey read the token out of `team_invites`, which passed
   // identically in a run where every provider send was refused at the socket.
-  S("p7.invite.resend_reuses_the_durable_idempotency_key", "CROSS",
-    "Re-inviting the same address reuses the durable idempotency key; the provider stores one message, not two.", BROWSER_ONLY),
+  // WORKSPACE AND COLLABORATION ARCHITECTURE RECONCILIATION (2026-09-06) —
+  // RENAMED with the behaviour. A repeat invitation is a RESEND and a resend
+  // ROTATES the token, because an operator repeats one when the first link did
+  // not arrive or went somewhere it should not have. Once the token rotates,
+  // collapsing onto the superseded message key is the defect rather than the
+  // guarantee — it leaves the recipient holding a dead link with no successor,
+  // which is exactly what §3 found and fixed on the external-review path.
+  S("p7.invite.resend_rotates_and_delivers_the_successor", "CROSS",
+    "A repeat invitation rotates the token and DELIVERS the successor under its own key; the recipient ends with one live invitation, not two competing ones.", BROWSER_ONLY),
   S("p7.invite.revoked_link_still_fails_server_side", "CROSS",
     "A genuinely delivered link is not authority: once the durable invitation is gone, the server refuses it.", BROWSER_ONLY),
   S("p7.invite.mailbox_has_no_cross_tenant_leakage", "CROSS",
