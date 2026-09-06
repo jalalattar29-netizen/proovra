@@ -28,7 +28,7 @@
  */
 
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
 import { useTeamId } from "../../../../../lib/platform-context";
@@ -125,17 +125,39 @@ function OperationsRecoveryContent() {
     useState<RecoveryValidationReport | null>(null);
   const { confirm } = useConfirmAction();
 
+  /**
+   * A RESPONSE THAT LANDS AFTER A WORKSPACE SWITCH BELONGS TO THE OLD ONE.
+   *
+   * GATE B §B1 (STALE). `load` is keyed on `teamId` and re-runs on a switch,
+   * and the in-flight read from the PREVIOUS workspace had nothing to stop it:
+   * its `.then` still called `setOverview`, so whichever request finished last
+   * decided what a recovery-readiness page showed. On a surface whose whole
+   * purpose is to say whether THIS workspace can be restored, attributing one
+   * workspace's readiness to another is the worst answer available.
+   *
+   * `load` is also re-invoked by the two validate mutations, so the generation
+   * lives in a ref that every caller shares rather than in one closure.
+   */
+  const loadGeneration = useRef(0);
+
   const load = useCallback(() => {
     if (!teamId) return;
+    const generation = loadGeneration.current + 1;
+    loadGeneration.current = generation;
+    const isStale = () => loadGeneration.current !== generation;
     setError(null);
     apiFetch(
       `/v1/operations/recovery?teamId=${encodeURIComponent(teamId)}`,
       { method: "GET" },
     )
-      .then((r: ReadinessOverview) => setOverview(r))
-      .catch((err: { message?: string }) =>
-        setError(toSafeUserError(err, { message: "Could not load recovery overview." }).message),
-      );
+      .then((r: ReadinessOverview) => {
+        if (isStale()) return;
+        setOverview(r);
+      })
+      .catch((err: { message?: string }) => {
+        if (isStale()) return;
+        setError(toSafeUserError(err, { message: "Could not load recovery overview." }).message);
+      });
   }, [teamId]);
 
   useEffect(() => {

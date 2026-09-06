@@ -334,12 +334,12 @@
 | `/admin/platform-health` | 568 | 3c/0t/4s |  |
 | `/admin/platform/analytics` | 814 | 0c/0t/9s |  |
 | `/admin/platform/automation` | 689 | 0c/2t/5s |  |
-| `/admin/platform/exports` | 819 | 0c/4t/0s |  |
+| `/admin/platform/exports` | 844 | 0c/4t/0s |  |
 | `/admin/platform/media-graph` | 752 | 0c/0t/5s |  |
 | `/admin/platform/observability` | 1653 | 0c/2t/0s |  |
 | `/admin/platform/queues` | 811 | 0c/2t/0s |  |
 | `/admin/platform/readiness` | 624 | 8c/0t/6s |  |
-| `/admin/platform/recovery` | 619 | 0c/2t/0s |  |
+| `/admin/platform/recovery` | 641 | 0c/2t/0s |  |
 | `/admin/platform/reliability` | 432 | 0c/0t/1s |  |
 | `/admin/platform/runbooks` | 197 | 1c/0t/0s |  |
 | `/admin/platform/runbooks/:slug` | 233 | 0c/0t/0s |  |

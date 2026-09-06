@@ -29,7 +29,7 @@
  */
 
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
 import { ResultCount } from "../../../../../components/ui/ResultCount";
@@ -184,8 +184,28 @@ function OperationsExportsContent() {
   const [lockError, setLockError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  /**
+   * A RESPONSE THAT LANDS AFTER A WORKSPACE SWITCH BELONGS TO THE OLD ONE.
+   *
+   * GATE B §B1 (STALE). `load` is keyed on `teamId` and re-runs when the
+   * operator switches workspace, but the in-flight promise from the PREVIOUS
+   * workspace had nothing to stop it: its `.then` still called `setItems`, so
+   * whichever request finished last won. Switch from a busy workspace to a
+   * quiet one and the quiet one could show the busy one's exports — with no
+   * indication anything was wrong.
+   *
+   * The token is captured when the read starts and compared when it returns.
+   * Sibling pages express this as a `cancelled` flag in the effect's closure;
+   * this page loads through a `useCallback` that a mutation also re-invokes,
+   * so the generation lives in a ref where every caller shares it.
+   */
+  const loadGeneration = useRef(0);
+
   const load = useCallback(() => {
     if (!teamId) return;
+    const generation = loadGeneration.current + 1;
+    loadGeneration.current = generation;
+    const isStale = () => loadGeneration.current !== generation;
     setLoading(true);
     setError(null);
     setLockError(null);
@@ -213,6 +233,8 @@ function OperationsExportsContent() {
       ),
     ])
       .then(([listOutcome, lockOutcome]) => {
+        // The workspace moved on while this was in flight.
+        if (isStale()) return;
         if (listOutcome.status === "fulfilled") {
           const listRes = listOutcome.value as {
             exports?: ExportListItem[];
@@ -241,7 +263,10 @@ function OperationsExportsContent() {
           );
         }
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        // A stale run must not clear the CURRENT run's loading state.
+        if (!isStale()) setLoading(false);
+      });
   }, [teamId]);
 
   useEffect(() => {

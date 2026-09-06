@@ -195,13 +195,19 @@ test("PARTIAL still REFUSES Promise.all behind a single catch", () => {
 // ===========================================================================
 
 const READS_ACTIVE_WORKSPACE = `const teamId = useTeamId();`;
-const SENDS_TEAM_ID = `const qs = new URLSearchParams(); qs.set("teamId", teamId);`;
+const READS_ACTIVE_SPACE = `const teamId = useActiveSpaceId();`;
+/** A teamId the OPERATOR supplied, used as a filter. Not the active one. */
+const FILTERS_BY_TEAM_ID = `
+  const [teamId, setTeamId] = useState(params.get("teamId") ?? "");
+  const qs = new URLSearchParams();
+  if (teamId) qs.set("teamId", teamId);
+`;
 const ONLY_LINKS_WITH_TEAM_ID =
   "<Link href={`/admin/operations?teamId=${encodeURIComponent(r.id)}`}>go</Link>";
 
 test("a page reading the active workspace is workspace-scoped", () => {
   assert.equal(workspaceScoped(READS_ACTIVE_WORKSPACE), true);
-  assert.equal(workspaceScoped(SENDS_TEAM_ID), true);
+  assert.equal(workspaceScoped(READS_ACTIVE_SPACE), true);
 });
 
 test("a page that only LINKS with a teamId is not workspace-scoped", () => {
@@ -210,6 +216,68 @@ test("a page that only LINKS with a teamId is not workspace-scoped", () => {
     false,
     "an outbound href is a page sending a reader elsewhere, not a page " +
       "reading its own active workspace",
+  );
+});
+
+test("a teamId FILTER is not the active workspace", () => {
+  // A page can only learn the active workspace from a hook. A teamId held in
+  // component state, seeded from the URL, is a filter over platform-wide
+  // rows — `/admin/evidence-ops/records` — and a workspace switch cannot
+  // make it stale.
+  assert.equal(
+    workspaceScoped(FILTERS_BY_TEAM_ID),
+    false,
+    "a teamId the operator supplied is a filter, not the active workspace",
+  );
+});
+
+// ===========================================================================
+// STALE
+// ===========================================================================
+
+/** The React idiom: a cancel flag, in an effect keyed on the workspace. */
+const STALE_CANCEL_FLAG = `
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const res = await apiFetch("/v1/thing?teamId=" + teamId);
+      if (cancelled) return;
+      setState({ status: "ready", data: res });
+    })();
+    return () => { cancelled = true; };
+  }, [teamId]);
+`;
+
+/** The stamp/compare idiom. */
+const STALE_TENANT_GUARD = `
+  const { stamp, isStale } = useTenantGuard();
+  const captured = stamp();
+  if (isStale(captured)) return;
+`;
+
+/**
+ * A load keyed on the workspace with NOTHING to stop the previous one. This
+ * must still fail — it is the exact shape found on /admin/platform/exports
+ * and /admin/platform/recovery, where whichever request finished last won.
+ */
+const STALE_UNGUARDED = `
+  const load = useCallback(() => {
+    apiFetch("/v1/operations/recovery?teamId=" + teamId)
+      .then((r) => setOverview(r))
+      .catch((err) => setErrorMessage(safeMessage(err, "could not load")));
+  }, [teamId]);
+`;
+
+test("STALE counts either idiom that drops a late response", () => {
+  assert.equal(handled("STALE", STALE_CANCEL_FLAG), true);
+  assert.equal(handled("STALE", STALE_TENANT_GUARD), true);
+});
+
+test("STALE still REFUSES a workspace-keyed load with no guard", () => {
+  assert.equal(
+    handled("STALE", STALE_UNGUARDED),
+    false,
+    "with nothing to stop the previous request, whichever finishes last wins",
   );
 });
 

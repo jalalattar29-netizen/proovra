@@ -172,7 +172,32 @@ const EVIDENCE = {
       ).size >= 2,
   ],
   TRUNCATED: [/truncated/i, /\bcap\b/, /hasMore/, /nextCursor/, /limit/],
-  STALE: [/isStale/, /useTenantGuard/, /stale/i],
+  /**
+   * STALE — A RESPONSE THAT LANDS AFTER A WORKSPACE SWITCH IS DROPPED.
+   *
+   * GATE B. The patterns knew ONE of the two idioms this codebase uses.
+   * `useTenantGuard` stamps and compares; the React idiom sets a `cancelled`
+   * flag in an effect keyed on the workspace and checks it before writing
+   * state. Both drop the old workspace's answer, and three routes doing the
+   * second — analytics, automation, reliability — were reported as having no
+   * guard at all.
+   *
+   * A generation ref serves the same purpose for a load that a MUTATION also
+   * re-invokes, where an effect closure cannot reach: that is what
+   * `/admin/platform/exports` and `/admin/platform/recovery` now use, and
+   * before this pass they had neither idiom — whichever request finished last
+   * decided what the page showed.
+   *
+   * A load with no guard at all still fails: `stale-unguarded` in the
+   * fixtures.
+   */
+  STALE: [
+    /isStale/, /useTenantGuard/, /stale/i,
+    // The React idiom: a cancel flag set in cleanup and checked before a write.
+    /cancelled\s*=\s*true[\s\S]{0,4000}?if \(cancelled\) return/,
+    /if \(cancelled\) return[\s\S]{0,4000}?cancelled\s*=\s*true/,
+    /(ignore|aborted)\s*=\s*true[\s\S]{0,4000}?if \((ignore|aborted)\)/,
+  ],
   ERROR: [
     /state="error"/, /kind: "error"/, /toSafeUserError/, /classifyError/,
     /classifyFailure/, /Could not load/,
@@ -190,8 +215,26 @@ const EVIDENCE = {
     /402/, /enterprise_feature_required/, /Not included in this plan/,
     /plan does not include/, /<AccessGate/,
   ],
+  /**
+   * UNAVAILABLE — A CAPABILITY THIS DEPLOYMENT MAY SIMPLY NOT HAVE.
+   *
+   * GATE B. `/Unavailable/` was CASE-SENSITIVE, and every page in this console
+   * writes the word in a sentence: `/admin/platform/analytics` renders "Data
+   * source unavailable — value omitted rather than estimated",
+   * `/admin/billing` renders "Not connected", `/admin/security` renders
+   * "not enabled", `/admin/platform/media-graph` distinguishes "instrument
+   * missing" from a zero. Four routes that handle the state precisely, all
+   * reported as gaps because of one capital letter.
+   *
+   * The alternatives below are the words this console actually uses, plus the
+   * `status: "unavailable"` state member that three pages carry in their own
+   * load-state union. Still nothing that a page rendering only data could
+   * match — the fixture test holds that line.
+   */
   UNAVAILABLE: [
-    /state="unavailable"/, /Unavailable/, /not available/i, /not configured/i,
+    /state="unavailable"/, /status:\s*"unavailable"/, /unavailable/i,
+    /not available/i, /not configured/i, /not connected/i, /not enabled/i,
+    /no [a-z-]+ configured/i, /instrument missing/i,
   ],
   BUSY: [
     /busy/i, /\bmutating\b/, /loading=\{busy/, /disabled=\{.*busy/,
@@ -240,6 +283,106 @@ const EVIDENCE = {
  * Returns null when there is no defensible reason, which makes the cell a
  * finding rather than a NOT_APPLICABLE.
  */
+/**
+ * THE API'S OWN PLAN-GATED ENDPOINTS.
+ *
+ * Read from the route files that call the entitlement helper, so this stays
+ * true as gates are added or removed instead of being a list that rots. A
+ * whole FILE counts when it applies the gate in a shared authorizer — as
+ * scim-admin does — which is conservative in the right direction: it raises
+ * the obligation rather than excusing a page.
+ */
+/**
+ * THE REVIEWED SCOPE DECISION for a route, or null.
+ *
+ * `adminScopeDispositions.ts` is the committed record of which admin surfaces
+ * are workspace-scoped and which merely carry a teamId, each entry with the
+ * evidence that settled it. Read here rather than re-decided: two authorities
+ * disagreeing about a route's scope is worse than one.
+ */
+let SCOPE_DISPOSITIONS = null;
+function scopeDisposition(route) {
+  if (!SCOPE_DISPOSITIONS) {
+    SCOPE_DISPOSITIONS = new Map();
+    try {
+      const src = readFileSync(
+        "apps/web/lib/navigation/adminScopeDispositions.ts",
+        "utf8",
+      );
+      for (const m of src.matchAll(
+        /route:\s*"([^"]+)",[\s\S]*?decision:\s*"([A-Z_]+)"/g,
+      )) {
+        SCOPE_DISPOSITIONS.set(m[1], m[2]);
+      }
+    } catch {
+      /* absent: every route simply has no disposition */
+    }
+  }
+  return SCOPE_DISPOSITIONS.get(route) ?? null;
+}
+
+let PLAN_GATED_PATHS = null;
+function planGatedPaths() {
+  if (PLAN_GATED_PATHS) return PLAN_GATED_PATHS;
+  // Relative to the repo root, like every other path in this script.
+  const dir = "services/api/src/routes";
+  const found = new Set();
+  let names = [];
+  try {
+    names = readdirSync(dir).filter((n) => n.endsWith(".routes.ts"));
+  } catch {
+    names = [];
+  }
+  /**
+   * ATTRIBUTED TO THE ROUTE THAT APPLIES IT, NOT TO THE FILE.
+   *
+   * A first attempt counted every path in a file containing a gate, which is
+   * conservative in the wrong way: `mfa-admin.routes.ts` gates exactly ONE of
+   * its twenty handlers, so file-level attribution would demand a plan-gated
+   * screen for eighteen reads that can never answer 402 — an unreachable
+   * state asserted as a requirement.
+   *
+   * Each `app.<verb>("/v1/…")` registration owns the source from its own
+   * declaration to the next one. A gate call inside that span gates that
+   * path. `scim-admin` gates in a shared authorizer above its registrations,
+   * so the span before the first route is attributed to every route in the
+   * file — which is exactly right there, and is why that case is handled
+   * explicitly rather than by luck.
+   */
+  const GATE =
+    /assertTeamAllowsEnterpriseFeature\(|resolveTeamEnterpriseFeatureGate\(|code:\s*["']enterprise_feature_required["']/;
+  for (const name of names) {
+    let src = "";
+    try {
+      src = readFileSync(join(dir, name), "utf8");
+    } catch {
+      continue;
+    }
+    if (!GATE.test(src)) continue;
+
+    const regs = [
+      ...src.matchAll(/app\.(get|post|patch|put|delete)\(\s*\n?\s*["'](\/v1\/[^"']+)["']/g),
+    ].map((m) => ({ index: m.index, path: m[2].replace(/:[A-Za-z0-9_]+/g, "") }));
+    if (regs.length === 0) continue;
+
+    // A gate BEFORE the first registration is a shared authorizer: it applies
+    // to every route the file declares.
+    const preamble = src.slice(0, regs[0].index);
+    if (GATE.test(preamble.replace(/^import[\s\S]*?from[^\n]*\n/gm, ""))) {
+      for (const r of regs) found.add(r.path);
+      continue;
+    }
+
+    for (let i = 0; i < regs.length; i += 1) {
+      const from = regs[i].index;
+      const to = i + 1 < regs.length ? regs[i + 1].index : src.length;
+      if (GATE.test(src.slice(from, to))) found.add(regs[i].path);
+    }
+  }
+  PLAN_GATED_PATHS = [...found];
+  return PLAN_GATED_PATHS;
+}
+
 function reasonFor(state, shape) {
   const {
     hasTable,
@@ -293,18 +436,84 @@ function reasonFor(state, shape) {
      * reaches the page at all. Asserting a page must render a state it
      * cannot reach is how a matrix reaches 47/47 by lowering the bar.
      * ------------------------------------------------------------------- */
-    case "PLAN_GATED":
-      return workspaceScoped
+    /* --------------------------------------------------------------------
+     * PLAN_GATED — ASKED OF THE API, NOT INFERRED FROM THE PAGE.
+     *
+     * GATE B. The rule was "workspace-scoped pages owe this state", which is
+     * a guess about the server dressed as a fact about the page. A 402 can
+     * only arrive from an endpoint that applies a plan gate, and exactly
+     * three route files in this API do:
+     *
+     *   mfa-admin        PATCH /v1/identity/mfa-admin/policy/:teamId
+     *                    (mfaEnforcement) — implemented and proven this pass
+     *   scim-admin       every route, gated in the shared authorizer (ssoScim)
+     *   governance-      the retentionPolicy and legalHold mutations, which
+     *   lifecycle        no /admin page reads
+     *
+     * So a page whose requests touch NONE of those paths cannot reach the
+     * state, and asserting that it must render one is asking for a screen
+     * nobody can ever see. `PLAN_GATED_PATHS` is read out of the API's own
+     * gate call sites at sweep time rather than listed here, so a new gate
+     * creates the obligation automatically and a removed one retires it.
+     * ------------------------------------------------------------------ */
+    case "PLAN_GATED": {
+      if (!workspaceScoped) {
+        return "platform-scoped surface: not gated by any workspace's plan";
+      }
+      const gated = planGatedPaths();
+      const touches = shape.requestPaths.some((p) =>
+        gated.some((g) => p.startsWith(g)),
+      );
+      return touches
         ? null
-        : "platform-scoped surface: not gated by any workspace's plan";
+        : "none of this page's endpoints applies a plan gate — the three that " +
+            "do in this API (mfa-admin's policy PATCH, every scim-admin route, " +
+            "and governance-lifecycle's retention/legal-hold mutations) are not " +
+            "among its requests, so no 402 can reach it";
+    }
     case "DENIED":
       return workspaceScoped
         ? null
         : "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state";
-    case "STALE":
-      return workspaceScoped
-        ? null
-        : "platform-scoped surface: no active workspace to change under a read in flight";
+    /* --------------------------------------------------------------------
+     * STALE — ONLY A SURFACE WHOSE DATA BELONGS TO ONE WORKSPACE CAN GO STALE
+     * UNDER A SWITCH.
+     *
+     * GATE B. Sending a `teamId` is not the same as READING one workspace's
+     * data, and this repository already records which is which:
+     * `apps/web/lib/navigation/adminScopeDispositions.ts` carries a reviewed
+     * decision per route, each with the evidence behind it.
+     *
+     *   PLATFORM_AUDIT_CONTEXT       the rows are platform-wide; the teamId is
+     *                                what an ACTION is recorded against. The
+     *                                queues page's own header says failed jobs
+     *                                "may originate from a different workspace
+     *                                than the one the operator is currently
+     *                                active in". Switching cannot invalidate
+     *                                data that was never scoped.
+     *   PLATFORM_WITH_TENANT_FILTER  platform-wide with a filter the operator
+     *                                sets explicitly, which is not the active
+     *                                workspace.
+     *
+     * Both are NOT_APPLICABLE, and the reason is the disposition's, not one
+     * invented here. Anything else that reads the active workspace owes the
+     * state — and five of them did: analytics, automation, exports, recovery
+     * and reliability all read one workspace and dropped no late response, so
+     * a switch mid-read applied workspace A's answer to workspace B.
+     * ------------------------------------------------------------------ */
+    case "STALE": {
+      if (!workspaceScoped) {
+        return "platform-scoped surface: no active workspace to change under a read in flight";
+      }
+      const d = scopeDisposition(shape.route);
+      if (d === "PLATFORM_AUDIT_CONTEXT") {
+        return "reviewed as PLATFORM_AUDIT_CONTEXT in adminScopeDispositions.ts: the rows are platform-wide and the teamId is only what an action is recorded against, so a workspace switch cannot make this read stale";
+      }
+      if (d === "PLATFORM_WITH_TENANT_FILTER") {
+        return "reviewed as PLATFORM_WITH_TENANT_FILTER in adminScopeDispositions.ts: the read is platform-wide with a filter the operator sets explicitly, which is not the active workspace";
+      }
+      return null;
+    }
     case "UNAVAILABLE":
       return hasOptionalCapability
         ? null
@@ -346,6 +555,9 @@ for (const route of ROUTES) {
   const src = files.map((f) => readFileSync(f, "utf8")).join("\n");
 
   const shape = {
+    /* The route itself, so `reasonFor` can consult the reviewed scope
+       disposition for it. */
+    route,
     hasTable: /<DataTable|<table|adm-table/.test(src),
     hasFilter: /<FilterBar|statusFilter|severityFilter|<select/.test(src),
     hasMutation: /method: "(POST|PUT|PATCH|DELETE)"/.test(src),
@@ -368,14 +580,28 @@ for (const route of ROUTES) {
        which then demanded STALE, DENIED and PLAN_GATED states neither page can
        reach. Six of the 128 gaps were that one regex.
 
-       Reading the active workspace means calling one of the hooks that
-       resolves it, or sending a teamId in a REQUEST. An href is neither. */
+       AND SENDING A teamId IS NOT KNOWING THE ACTIVE ONE.
+       `/admin/evidence-ops/records` holds `useState(params.get("teamId"))` —
+       a workspace the operator typed or arrived with, used as a FILTER over
+       platform-wide records. A page can only learn the ACTIVE workspace from
+       one of the hooks below; a teamId from anywhere else is a filter, a row
+       or a route parameter, and a workspace switch cannot invalidate it.
+
+       So the test is the hooks, and only the hooks. */
     workspaceScoped:
       /\b(useTeamId|useTenantGuard|useActiveWorkspaceId|useActiveSpaceId)\b/.test(
         src,
-      ) ||
-      /(qs|params|search|query)\w*\.set\(\s*["']teamId["']/.test(src) ||
-      /\bbody:\s*JSON\.stringify\(\{[^}]*\bteamId\b/.test(src),
+      ),
+    /* The endpoint PATHS this route requests, for the plan-gate lookup.
+       Parameter placeholders are stripped so a path compares against the
+       API's own registration by prefix. */
+    requestPaths: [
+      ...new Set(
+        [...src.matchAll(/apiFetch\(\s*[`"']([^`"'?]+)/g)].map((m) =>
+          m[1].replace(/\$\{[^}]*\}/g, "").replace(/\/+$/, ""),
+        ),
+      ),
+    ],
     /* Distinct endpoints read. PARTIAL needs more than one. */
     reads: new Set(
       [...src.matchAll(/apiFetch\(\s*[`"']([^`"'?]+)/g)].map((m) =>
@@ -383,11 +609,32 @@ for (const route of ROUTES) {
       ),
     ).size,
     /* A capability that a deployment may simply not have configured — an
-       object-lock bucket, a KMS signer, an OTS anchor, an IdP. */
-    hasOptionalCapability:
-      /object-?lock|objectLock|kms|signer|opentimestamps|\bots\b|sso|scim|idp|provider|transport|webhook/i.test(
-        src,
-      ),
+       object-lock bucket, a KMS signer, an OTS anchor, an IdP.
+
+       GATE B — THIS MATCHED FIELD NAMES. The pattern ran over the whole
+       source, so `webhookSentAt: string | null` made `/admin/contact-sales`
+       front a webhook capability, and a user row's auth `provider` column made
+       `/admin/users` front an identity provider. Neither page has anything a
+       deployment can fail to configure; both were then required to render an
+       UNAVAILABLE state that cannot occur.
+
+       A page FRONTS a capability when the capability is the subject of one of
+       its requests, or when the page names it to the reader in prose. A word
+       inside a camelCase identifier or a type field is neither. */
+    hasOptionalCapability: (() => {
+      const CAP =
+        /object-?lock|\bkms\b|\bsigner|opentimestamps|\bots\b|\bsso\b|\bscim\b|\bidp\b|\bwebhook|\btransport\b|\bextension\b|pgvector/i;
+      const requestPaths = [...src.matchAll(/apiFetch\(\s*[`"']([^`"'?]+)/g)].map(
+        (m) => m[1],
+      );
+      if (requestPaths.some((p) => CAP.test(p))) return true;
+      // Named to the reader: the capability word inside a rendered sentence,
+      // i.e. a string literal of more than a couple of words.
+      const prose = [...src.matchAll(/["'`]([^"'`\n]{12,160})["'`]/g)].map(
+        (m) => m[1],
+      );
+      return prose.some((s) => CAP.test(s) && /\s/.test(s));
+    })(),
   };
 
   const row = { route, files: files.length, shape, states: {} };

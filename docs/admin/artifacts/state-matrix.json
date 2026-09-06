@@ -25,12 +25,16 @@
       "route": "/admin",
       "files": 1,
       "shape": {
+        "route": "/admin",
         "hasTable": false,
         "hasFilter": false,
         "hasMutation": false,
         "hasKpi": true,
         "isStatic": false,
         "workspaceScoped": false,
+        "requestPaths": [
+          "/v1/admin/overview"
+        ],
         "reads": 1,
         "hasOptionalCapability": true
       },
@@ -89,7 +93,7 @@
         },
         "UNAVAILABLE": {
           "verdict": "HANDLED",
-          "evidence": "/Unavailable/"
+          "evidence": "/unavailable/i"
         },
         "BUSY": {
           "verdict": "HANDLED",
@@ -117,12 +121,16 @@
       "route": "/admin/adoption",
       "files": 1,
       "shape": {
+        "route": "/admin/adoption",
         "hasTable": true,
         "hasFilter": false,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": false,
+        "requestPaths": [
+          "/v1/admin/adoption"
+        ],
         "reads": 1,
         "hasOptionalCapability": false
       },
@@ -208,14 +216,18 @@
       "route": "/admin/alerts",
       "files": 1,
       "shape": {
+        "route": "/admin/alerts",
         "hasTable": false,
         "hasFilter": false,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": false,
+        "requestPaths": [
+          "/v1/admin/alerts"
+        ],
         "reads": 1,
-        "hasOptionalCapability": true
+        "hasOptionalCapability": false
       },
       "states": {
         "LOADING": {
@@ -271,7 +283,8 @@
           "reason": "platform-scoped surface: not gated by any workspace's plan"
         },
         "UNAVAILABLE": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "every capability this page fronts is always present in a deployment that has the console"
         },
         "BUSY": {
           "verdict": "HANDLED",
@@ -299,14 +312,20 @@
       "route": "/admin/audit",
       "files": 1,
       "shape": {
+        "route": "/admin/audit",
         "hasTable": true,
         "hasFilter": true,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": true,
+        "requestPaths": [
+          "/v1/admin/audit-log",
+          "/v1/admin/audit-log/export${qs ",
+          "/v1/admin/audit-log/verify"
+        ],
         "reads": 3,
-        "hasOptionalCapability": true
+        "hasOptionalCapability": false
       },
       "states": {
         "LOADING": {
@@ -357,11 +376,12 @@
           "verdict": "UNHANDLED"
         },
         "PLAN_GATED": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "none of this page's endpoints applies a plan gate — the three that do in this API (mfa-admin's policy PATCH, every scim-admin route, and governance-lifecycle's retention/legal-hold mutations) are not among its requests, so no 402 can reach it"
         },
         "UNAVAILABLE": {
           "verdict": "HANDLED",
-          "evidence": "/Unavailable/"
+          "evidence": "/unavailable/i"
         },
         "BUSY": {
           "verdict": "HANDLED",
@@ -389,12 +409,16 @@
       "route": "/admin/billing",
       "files": 1,
       "shape": {
+        "route": "/admin/billing",
         "hasTable": true,
         "hasFilter": false,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": false,
+        "requestPaths": [
+          "/v1/admin/billing/detail"
+        ],
         "reads": 1,
         "hasOptionalCapability": true
       },
@@ -452,7 +476,8 @@
           "reason": "platform-scoped surface: not gated by any workspace's plan"
         },
         "UNAVAILABLE": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/unavailable/i"
         },
         "BUSY": {
           "verdict": "HANDLED",
@@ -480,14 +505,18 @@
       "route": "/admin/contact-sales",
       "files": 1,
       "shape": {
+        "route": "/admin/contact-sales",
         "hasTable": true,
         "hasFilter": true,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": false,
+        "requestPaths": [
+          "/v1/admin/contact-sales"
+        ],
         "reads": 2,
-        "hasOptionalCapability": true
+        "hasOptionalCapability": false
       },
       "states": {
         "LOADING": {
@@ -542,7 +571,8 @@
           "reason": "platform-scoped surface: not gated by any workspace's plan"
         },
         "UNAVAILABLE": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/unavailable/i"
         },
         "BUSY": {
           "verdict": "UNHANDLED"
@@ -568,12 +598,16 @@
       "route": "/admin/contact-sales/:id",
       "files": 1,
       "shape": {
+        "route": "/admin/contact-sales/:id",
         "hasTable": false,
         "hasFilter": false,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": false,
+        "requestPaths": [
+          "/v1/admin/contact-sales"
+        ],
         "reads": 1,
         "hasOptionalCapability": true
       },
@@ -631,7 +665,8 @@
           "reason": "platform-scoped surface: not gated by any workspace's plan"
         },
         "UNAVAILABLE": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/unavailable/i"
         },
         "BUSY": {
           "verdict": "UNHANDLED"
@@ -657,14 +692,18 @@
       "route": "/admin/costs",
       "files": 1,
       "shape": {
+        "route": "/admin/costs",
         "hasTable": true,
         "hasFilter": false,
         "hasMutation": false,
         "hasKpi": true,
         "isStatic": false,
         "workspaceScoped": false,
+        "requestPaths": [
+          "/v1/admin/costs"
+        ],
         "reads": 1,
-        "hasOptionalCapability": true
+        "hasOptionalCapability": false
       },
       "states": {
         "LOADING": {
@@ -719,7 +758,8 @@
           "reason": "platform-scoped surface: not gated by any workspace's plan"
         },
         "UNAVAILABLE": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/not connected/i"
         },
         "BUSY": {
           "verdict": "NOT_APPLICABLE",
@@ -747,14 +787,18 @@
       "route": "/admin/customers",
       "files": 1,
       "shape": {
+        "route": "/admin/customers",
         "hasTable": true,
         "hasFilter": true,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": false,
+        "requestPaths": [
+          "/v1/admin/customers"
+        ],
         "reads": 1,
-        "hasOptionalCapability": true
+        "hasOptionalCapability": false
       },
       "states": {
         "LOADING": {
@@ -810,7 +854,8 @@
           "reason": "platform-scoped surface: not gated by any workspace's plan"
         },
         "UNAVAILABLE": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "every capability this page fronts is always present in a deployment that has the console"
         },
         "BUSY": {
           "verdict": "HANDLED",
@@ -838,12 +883,17 @@
       "route": "/admin/customers/:id",
       "files": 1,
       "shape": {
+        "route": "/admin/customers/:id",
         "hasTable": true,
         "hasFilter": false,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": true,
+        "requestPaths": [
+          "/v1/admin/orgs",
+          "/v1/admin/customers"
+        ],
         "reads": 2,
         "hasOptionalCapability": true
       },
@@ -883,7 +933,8 @@
           "verdict": "UNHANDLED"
         },
         "STALE": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "reviewed as PLATFORM_AUDIT_CONTEXT in adminScopeDispositions.ts: the rows are platform-wide and the teamId is only what an action is recorded against, so a workspace switch cannot make this read stale"
         },
         "ERROR": {
           "verdict": "HANDLED",
@@ -893,10 +944,12 @@
           "verdict": "UNHANDLED"
         },
         "PLAN_GATED": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "none of this page's endpoints applies a plan gate — the three that do in this API (mfa-admin's policy PATCH, every scim-admin route, and governance-lifecycle's retention/legal-hold mutations) are not among its requests, so no 402 can reach it"
         },
         "UNAVAILABLE": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/not connected/i"
         },
         "BUSY": {
           "verdict": "HANDLED",
@@ -924,12 +977,16 @@
       "route": "/admin/dashboard",
       "files": 1,
       "shape": {
+        "route": "/admin/dashboard",
         "hasTable": true,
         "hasFilter": false,
         "hasMutation": false,
         "hasKpi": true,
         "isStatic": false,
         "workspaceScoped": false,
+        "requestPaths": [
+          "/v1/admin/analytics/dashboard"
+        ],
         "reads": 1,
         "hasOptionalCapability": false
       },
@@ -987,7 +1044,7 @@
         },
         "UNAVAILABLE": {
           "verdict": "HANDLED",
-          "evidence": "/not configured/i"
+          "evidence": "/unavailable/i"
         },
         "BUSY": {
           "verdict": "HANDLED",
@@ -1015,14 +1072,21 @@
       "route": "/admin/demo-requests",
       "files": 1,
       "shape": {
+        "route": "/admin/demo-requests",
         "hasTable": false,
         "hasFilter": true,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": false,
+        "requestPaths": [
+          "/v1/admin/demo-requests",
+          "/v1/admin/demo-requests//route",
+          "/v1/admin/demo-requests//follow-up/send",
+          "/v1/admin/demo-requests/follow-up/run"
+        ],
         "reads": 5,
-        "hasOptionalCapability": true
+        "hasOptionalCapability": false
       },
       "states": {
         "LOADING": {
@@ -1078,7 +1142,8 @@
           "reason": "platform-scoped surface: not gated by any workspace's plan"
         },
         "UNAVAILABLE": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "every capability this page fronts is always present in a deployment that has the console"
         },
         "BUSY": {
           "verdict": "HANDLED",
@@ -1105,12 +1170,16 @@
       "route": "/admin/demo-requests/:id",
       "files": 1,
       "shape": {
+        "route": "/admin/demo-requests/:id",
         "hasTable": false,
         "hasFilter": false,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": false,
+        "requestPaths": [
+          "/v1/admin/demo-requests"
+        ],
         "reads": 1,
         "hasOptionalCapability": true
       },
@@ -1195,12 +1264,16 @@
       "route": "/admin/evidence-ops",
       "files": 1,
       "shape": {
+        "route": "/admin/evidence-ops",
         "hasTable": false,
         "hasFilter": false,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": false,
+        "requestPaths": [
+          "/v1/admin/evidence-health"
+        ],
         "reads": 1,
         "hasOptionalCapability": true
       },
@@ -1259,7 +1332,7 @@
         },
         "UNAVAILABLE": {
           "verdict": "HANDLED",
-          "evidence": "/Unavailable/"
+          "evidence": "/unavailable/i"
         },
         "BUSY": {
           "verdict": "NOT_APPLICABLE",
@@ -1287,12 +1360,16 @@
       "route": "/admin/evidence-ops/records",
       "files": 1,
       "shape": {
+        "route": "/admin/evidence-ops/records",
         "hasTable": true,
         "hasFilter": true,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
-        "workspaceScoped": true,
+        "workspaceScoped": false,
+        "requestPaths": [
+          "/v1/admin/evidence-health/records"
+        ],
         "reads": 1,
         "hasOptionalCapability": true
       },
@@ -1334,17 +1411,20 @@
           "evidence": "/limit/"
         },
         "STALE": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: no active workspace to change under a read in flight"
         },
         "ERROR": {
           "verdict": "HANDLED",
           "evidence": "/toSafeUserError/"
         },
         "DENIED": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
         },
         "PLAN_GATED": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: not gated by any workspace's plan"
         },
         "UNAVAILABLE": {
           "verdict": "UNHANDLED"
@@ -1375,12 +1455,16 @@
       "route": "/admin/executive",
       "files": 1,
       "shape": {
+        "route": "/admin/executive",
         "hasTable": true,
         "hasFilter": false,
         "hasMutation": false,
         "hasKpi": true,
         "isStatic": false,
         "workspaceScoped": false,
+        "requestPaths": [
+          "/v1/admin/executive"
+        ],
         "reads": 1,
         "hasOptionalCapability": true
       },
@@ -1467,12 +1551,28 @@
       "route": "/admin/identity",
       "files": 5,
       "shape": {
+        "route": "/admin/identity",
         "hasTable": true,
         "hasFilter": true,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": true,
+        "requestPaths": [
+          "/v1/identity/external-mappings",
+          "/v1/identity/members",
+          "/v1/identity/members//role",
+          "/v1/identity/members//capabilities",
+          "/v1/identity/capabilities",
+          "/v1/identity/members//delegated-admin",
+          "/v1/identity/delegated-admin",
+          "/v1/identity/service-accounts",
+          "/v1/identity/service-accounts//${enabled ",
+          "/v1/identity/service-accounts//hardening",
+          "/v1/identity/contributor-sessions//revoke",
+          "/v1/admin/identity/sessions/reconcile-stale",
+          "/v1/admin/identity/runtime/reconcile"
+        ],
         "reads": 15,
         "hasOptionalCapability": true
       },
@@ -1526,11 +1626,12 @@
           "evidence": "/403/"
         },
         "PLAN_GATED": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "none of this page's endpoints applies a plan gate — the three that do in this API (mfa-admin's policy PATCH, every scim-admin route, and governance-lifecycle's retention/legal-hold mutations) are not among its requests, so no 402 can reach it"
         },
         "UNAVAILABLE": {
           "verdict": "HANDLED",
-          "evidence": "/not available/i"
+          "evidence": "/unavailable/i"
         },
         "BUSY": {
           "verdict": "HANDLED",
@@ -1557,12 +1658,31 @@
       "route": "/admin/identity/access-reviews",
       "files": 5,
       "shape": {
+        "route": "/admin/identity/access-reviews",
         "hasTable": true,
         "hasFilter": true,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": true,
+        "requestPaths": [
+          "/v1/identity/access-reviews${qs.toString() ",
+          "/v1/identity/access-reviews/regenerate",
+          "/v1/identity/access-reviews//decision",
+          "/v1/identity/external-mappings",
+          "/v1/identity/members",
+          "/v1/identity/members//role",
+          "/v1/identity/members//capabilities",
+          "/v1/identity/capabilities",
+          "/v1/identity/members//delegated-admin",
+          "/v1/identity/delegated-admin",
+          "/v1/identity/service-accounts",
+          "/v1/identity/service-accounts//${enabled ",
+          "/v1/identity/service-accounts//hardening",
+          "/v1/identity/contributor-sessions//revoke",
+          "/v1/admin/identity/sessions/reconcile-stale",
+          "/v1/admin/identity/runtime/reconcile"
+        ],
         "reads": 18,
         "hasOptionalCapability": true
       },
@@ -1615,11 +1735,12 @@
           "verdict": "UNHANDLED"
         },
         "PLAN_GATED": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "none of this page's endpoints applies a plan gate — the three that do in this API (mfa-admin's policy PATCH, every scim-admin route, and governance-lifecycle's retention/legal-hold mutations) are not among its requests, so no 402 can reach it"
         },
         "UNAVAILABLE": {
           "verdict": "HANDLED",
-          "evidence": "/not available/i"
+          "evidence": "/unavailable/i"
         },
         "BUSY": {
           "verdict": "HANDLED",
@@ -1647,12 +1768,31 @@
       "route": "/admin/identity/permission-matrix",
       "files": 5,
       "shape": {
+        "route": "/admin/identity/permission-matrix",
         "hasTable": true,
         "hasFilter": true,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": true,
+        "requestPaths": [
+          "/v1/admin/identity/role-matrix",
+          "/v1/admin/identity/permission-matrix",
+          "/v1/admin/identity/elevations",
+          "/v1/identity/external-mappings",
+          "/v1/identity/members",
+          "/v1/identity/members//role",
+          "/v1/identity/members//capabilities",
+          "/v1/identity/capabilities",
+          "/v1/identity/members//delegated-admin",
+          "/v1/identity/delegated-admin",
+          "/v1/identity/service-accounts",
+          "/v1/identity/service-accounts//${enabled ",
+          "/v1/identity/service-accounts//hardening",
+          "/v1/identity/contributor-sessions//revoke",
+          "/v1/admin/identity/sessions/reconcile-stale",
+          "/v1/admin/identity/runtime/reconcile"
+        ],
         "reads": 18,
         "hasOptionalCapability": true
       },
@@ -1705,11 +1845,12 @@
           "verdict": "UNHANDLED"
         },
         "PLAN_GATED": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "none of this page's endpoints applies a plan gate — the three that do in this API (mfa-admin's policy PATCH, every scim-admin route, and governance-lifecycle's retention/legal-hold mutations) are not among its requests, so no 402 can reach it"
         },
         "UNAVAILABLE": {
           "verdict": "HANDLED",
-          "evidence": "/not available/i"
+          "evidence": "/unavailable/i"
         },
         "BUSY": {
           "verdict": "HANDLED",
@@ -1736,12 +1877,32 @@
       "route": "/admin/identity/providers",
       "files": 6,
       "shape": {
+        "route": "/admin/identity/providers",
         "hasTable": true,
         "hasFilter": true,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": true,
+        "requestPaths": [
+          "/v1/admin/identity/providers",
+          "/v1/admin/identity/providers//transition",
+          "/v1/admin/identity/providers//policy",
+          "/v1/auth/sso/readiness",
+          "/v1/identity/external-mappings",
+          "/v1/identity/members",
+          "/v1/identity/members//role",
+          "/v1/identity/members//capabilities",
+          "/v1/identity/capabilities",
+          "/v1/identity/members//delegated-admin",
+          "/v1/identity/delegated-admin",
+          "/v1/identity/service-accounts",
+          "/v1/identity/service-accounts//${enabled ",
+          "/v1/identity/service-accounts//hardening",
+          "/v1/identity/contributor-sessions//revoke",
+          "/v1/admin/identity/sessions/reconcile-stale",
+          "/v1/admin/identity/runtime/reconcile"
+        ],
         "reads": 19,
         "hasOptionalCapability": true
       },
@@ -1800,7 +1961,7 @@
         },
         "UNAVAILABLE": {
           "verdict": "HANDLED",
-          "evidence": "/not available/i"
+          "evidence": "/unavailable/i"
         },
         "BUSY": {
           "verdict": "HANDLED",
@@ -1828,12 +1989,35 @@
       "route": "/admin/identity/runtime",
       "files": 5,
       "shape": {
+        "route": "/admin/identity/runtime",
         "hasTable": true,
         "hasFilter": true,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": true,
+        "requestPaths": [
+          "/v1/admin/identity/sessions",
+          "/v1/admin/identity/quarantined-sessions",
+          "/v1/admin/identity/sessions//quarantine",
+          "/v1/admin/identity/sessions//release",
+          "/v1/admin/identity/sessions//score",
+          "/v1/admin/identity/emergency-revoke",
+          "/v1/identity-security/reconcile",
+          "/v1/identity/external-mappings",
+          "/v1/identity/members",
+          "/v1/identity/members//role",
+          "/v1/identity/members//capabilities",
+          "/v1/identity/capabilities",
+          "/v1/identity/members//delegated-admin",
+          "/v1/identity/delegated-admin",
+          "/v1/identity/service-accounts",
+          "/v1/identity/service-accounts//${enabled ",
+          "/v1/identity/service-accounts//hardening",
+          "/v1/identity/contributor-sessions//revoke",
+          "/v1/admin/identity/sessions/reconcile-stale",
+          "/v1/admin/identity/runtime/reconcile"
+        ],
         "reads": 22,
         "hasOptionalCapability": true
       },
@@ -1886,11 +2070,12 @@
           "verdict": "UNHANDLED"
         },
         "PLAN_GATED": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "none of this page's endpoints applies a plan gate — the three that do in this API (mfa-admin's policy PATCH, every scim-admin route, and governance-lifecycle's retention/legal-hold mutations) are not among its requests, so no 402 can reach it"
         },
         "UNAVAILABLE": {
           "verdict": "HANDLED",
-          "evidence": "/not available/i"
+          "evidence": "/unavailable/i"
         },
         "BUSY": {
           "verdict": "HANDLED",
@@ -1918,12 +2103,36 @@
       "route": "/admin/identity/scim",
       "files": 6,
       "shape": {
+        "route": "/admin/identity/scim",
         "hasTable": true,
         "hasFilter": true,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": true,
+        "requestPaths": [
+          "/v1/admin/identity/scim/tokens",
+          "/v1/admin/identity/scim/tokens//rotate",
+          "/v1/admin/identity/scim/tokens//revoke",
+          "/v1/scim/reconciliation/preview",
+          "/v1/scim/reconciliation/execute",
+          "/v1/scim/sync-failures",
+          "/v1/scim/sync-failures//replay",
+          "/v1/admin/identity/scim/managed-membership",
+          "/v1/identity/external-mappings",
+          "/v1/identity/members",
+          "/v1/identity/members//role",
+          "/v1/identity/members//capabilities",
+          "/v1/identity/capabilities",
+          "/v1/identity/members//delegated-admin",
+          "/v1/identity/delegated-admin",
+          "/v1/identity/service-accounts",
+          "/v1/identity/service-accounts//${enabled ",
+          "/v1/identity/service-accounts//hardening",
+          "/v1/identity/contributor-sessions//revoke",
+          "/v1/admin/identity/sessions/reconcile-stale",
+          "/v1/admin/identity/runtime/reconcile"
+        ],
         "reads": 23,
         "hasOptionalCapability": true
       },
@@ -1982,7 +2191,7 @@
         },
         "UNAVAILABLE": {
           "verdict": "HANDLED",
-          "evidence": "/not available/i"
+          "evidence": "/unavailable/i"
         },
         "BUSY": {
           "verdict": "HANDLED",
@@ -2010,12 +2219,36 @@
       "route": "/admin/identity/sessions",
       "files": 10,
       "shape": {
+        "route": "/admin/identity/sessions",
         "hasTable": true,
         "hasFilter": true,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": true,
+        "requestPaths": [
+          "/v1/admin/identity/sessions",
+          "/v1/admin/identity/quarantined-sessions",
+          "/v1/identity-security/session-policy-impact",
+          "/v1/identity/sessions//timeline",
+          "/v1/identity-security/devices",
+          "/v1/identity-security/devices/trust",
+          "/v1/identity-security/devices//revoke",
+          "/v1/identity/members",
+          "/v1/identity-security/risk/user",
+          "/v1/identity/external-mappings",
+          "/v1/identity/members//role",
+          "/v1/identity/members//capabilities",
+          "/v1/identity/capabilities",
+          "/v1/identity/members//delegated-admin",
+          "/v1/identity/delegated-admin",
+          "/v1/identity/service-accounts",
+          "/v1/identity/service-accounts//${enabled ",
+          "/v1/identity/service-accounts//hardening",
+          "/v1/identity/contributor-sessions//revoke",
+          "/v1/admin/identity/sessions/reconcile-stale",
+          "/v1/admin/identity/runtime/reconcile"
+        ],
         "reads": 23,
         "hasOptionalCapability": true
       },
@@ -2069,7 +2302,8 @@
           "evidence": "/state=\"unavailable\"/"
         },
         "PLAN_GATED": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "none of this page's endpoints applies a plan gate — the three that do in this API (mfa-admin's policy PATCH, every scim-admin route, and governance-lifecycle's retention/legal-hold mutations) are not among its requests, so no 402 can reach it"
         },
         "UNAVAILABLE": {
           "verdict": "HANDLED",
@@ -2101,12 +2335,29 @@
       "route": "/admin/identity/timeline",
       "files": 5,
       "shape": {
+        "route": "/admin/identity/timeline",
         "hasTable": true,
         "hasFilter": true,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": true,
+        "requestPaths": [
+          "/v1/admin/identity/timeline",
+          "/v1/identity/external-mappings",
+          "/v1/identity/members",
+          "/v1/identity/members//role",
+          "/v1/identity/members//capabilities",
+          "/v1/identity/capabilities",
+          "/v1/identity/members//delegated-admin",
+          "/v1/identity/delegated-admin",
+          "/v1/identity/service-accounts",
+          "/v1/identity/service-accounts//${enabled ",
+          "/v1/identity/service-accounts//hardening",
+          "/v1/identity/contributor-sessions//revoke",
+          "/v1/admin/identity/sessions/reconcile-stale",
+          "/v1/admin/identity/runtime/reconcile"
+        ],
         "reads": 16,
         "hasOptionalCapability": true
       },
@@ -2159,11 +2410,12 @@
           "verdict": "UNHANDLED"
         },
         "PLAN_GATED": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "none of this page's endpoints applies a plan gate — the three that do in this API (mfa-admin's policy PATCH, every scim-admin route, and governance-lifecycle's retention/legal-hold mutations) are not among its requests, so no 402 can reach it"
         },
         "UNAVAILABLE": {
           "verdict": "HANDLED",
-          "evidence": "/not available/i"
+          "evidence": "/unavailable/i"
         },
         "BUSY": {
           "verdict": "HANDLED",
@@ -2190,14 +2442,19 @@
       "route": "/admin/operations",
       "files": 2,
       "shape": {
+        "route": "/admin/operations",
         "hasTable": true,
         "hasFilter": true,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
-        "workspaceScoped": true,
+        "workspaceScoped": false,
+        "requestPaths": [
+          "/v1/admin/incidents",
+          "/v1/admin/security-events"
+        ],
         "reads": 3,
-        "hasOptionalCapability": true
+        "hasOptionalCapability": false
       },
       "states": {
         "LOADING": {
@@ -2236,20 +2493,24 @@
           "evidence": "/\\bcap\\b/"
         },
         "STALE": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: no active workspace to change under a read in flight"
         },
         "ERROR": {
           "verdict": "HANDLED",
           "evidence": "/toSafeUserError/"
         },
         "DENIED": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
         },
         "PLAN_GATED": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: not gated by any workspace's plan"
         },
         "UNAVAILABLE": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "every capability this page fronts is always present in a deployment that has the console"
         },
         "BUSY": {
           "verdict": "HANDLED",
@@ -2276,12 +2537,16 @@
       "route": "/admin/platform-health",
       "files": 1,
       "shape": {
+        "route": "/admin/platform-health",
         "hasTable": false,
         "hasFilter": false,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": false,
+        "requestPaths": [
+          "/v1/admin/platform-health"
+        ],
         "reads": 1,
         "hasOptionalCapability": true
       },
@@ -2340,7 +2605,7 @@
         },
         "UNAVAILABLE": {
           "verdict": "HANDLED",
-          "evidence": "/Unavailable/"
+          "evidence": "/unavailable/i"
         },
         "BUSY": {
           "verdict": "HANDLED",
@@ -2368,12 +2633,21 @@
       "route": "/admin/platform/analytics",
       "files": 1,
       "shape": {
+        "route": "/admin/platform/analytics",
         "hasTable": false,
         "hasFilter": true,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": true,
+        "requestPaths": [
+          "/v1/analytics/_window",
+          "/v1/analytics/operations",
+          "/v1/analytics/reviewer",
+          "/v1/analytics/governance",
+          "/v1/analytics/automation",
+          "/v1/analytics/artifacts"
+        ],
         "reads": 6,
         "hasOptionalCapability": true
       },
@@ -2412,7 +2686,8 @@
           "reason": "no list read to cap"
         },
         "STALE": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/cancelled\\s*=\\s*true[\\s\\S]{0,4000}?if \\(cancelled\\) return/"
         },
         "ERROR": {
           "verdict": "HANDLED",
@@ -2423,10 +2698,12 @@
           "evidence": "/403/"
         },
         "PLAN_GATED": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "none of this page's endpoints applies a plan gate — the three that do in this API (mfa-admin's policy PATCH, every scim-admin route, and governance-lifecycle's retention/legal-hold mutations) are not among its requests, so no 402 can reach it"
         },
         "UNAVAILABLE": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/status:\\s*\"unavailable\"/"
         },
         "BUSY": {
           "verdict": "NOT_APPLICABLE",
@@ -2454,14 +2731,19 @@
       "route": "/admin/platform/automation",
       "files": 1,
       "shape": {
+        "route": "/admin/platform/automation",
         "hasTable": true,
         "hasFilter": true,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": true,
+        "requestPaths": [
+          "/v1/automation/rules",
+          "/v1/automation/runs"
+        ],
         "reads": 2,
-        "hasOptionalCapability": true
+        "hasOptionalCapability": false
       },
       "states": {
         "LOADING": {
@@ -2500,7 +2782,8 @@
           "evidence": "/truncated/i"
         },
         "STALE": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/if \\(cancelled\\) return[\\s\\S]{0,4000}?cancelled\\s*=\\s*true/"
         },
         "ERROR": {
           "verdict": "HANDLED",
@@ -2511,10 +2794,12 @@
           "evidence": "/403/"
         },
         "PLAN_GATED": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "none of this page's endpoints applies a plan gate — the three that do in this API (mfa-admin's policy PATCH, every scim-admin route, and governance-lifecycle's retention/legal-hold mutations) are not among its requests, so no 402 can reach it"
         },
         "UNAVAILABLE": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/status:\\s*\"unavailable\"/"
         },
         "BUSY": {
           "verdict": "NOT_APPLICABLE",
@@ -2542,12 +2827,18 @@
       "route": "/admin/platform/exports",
       "files": 1,
       "shape": {
+        "route": "/admin/platform/exports",
         "hasTable": true,
         "hasFilter": false,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": true,
+        "requestPaths": [
+          "/v1/operations/exports",
+          "/v1/operations/exports/object-lock",
+          "/v1/operations/exports//verify"
+        ],
         "reads": 4,
         "hasOptionalCapability": true
       },
@@ -2588,7 +2879,8 @@
           "evidence": "/\\bcap\\b/"
         },
         "STALE": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/isStale/"
         },
         "ERROR": {
           "verdict": "HANDLED",
@@ -2606,7 +2898,7 @@
         },
         "BUSY": {
           "verdict": "HANDLED",
-          "evidence": "/\"pending\"/"
+          "evidence": "/busy/i"
         },
         "DONE": {
           "verdict": "HANDLED",
@@ -2629,14 +2921,20 @@
       "route": "/admin/platform/media-graph",
       "files": 1,
       "shape": {
+        "route": "/admin/platform/media-graph",
         "hasTable": false,
         "hasFilter": false,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": true,
+        "requestPaths": [
+          "/v1/admin/platform/metrics",
+          "/v1/ops/media-intelligence/runs//retry",
+          "/v1/ops/media-intelligence/dlq/replay"
+        ],
         "reads": 3,
-        "hasOptionalCapability": true
+        "hasOptionalCapability": false
       },
       "states": {
         "LOADING": {
@@ -2674,7 +2972,8 @@
           "reason": "no list read to cap"
         },
         "STALE": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "reviewed as PLATFORM_AUDIT_CONTEXT in adminScopeDispositions.ts: the rows are platform-wide and the teamId is only what an action is recorded against, so a workspace switch cannot make this read stale"
         },
         "ERROR": {
           "verdict": "HANDLED",
@@ -2684,10 +2983,12 @@
           "verdict": "UNHANDLED"
         },
         "PLAN_GATED": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "none of this page's endpoints applies a plan gate — the three that do in this API (mfa-admin's policy PATCH, every scim-admin route, and governance-lifecycle's retention/legal-hold mutations) are not among its requests, so no 402 can reach it"
         },
         "UNAVAILABLE": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/unavailable/i"
         },
         "BUSY": {
           "verdict": "HANDLED",
@@ -2713,12 +3014,19 @@
       "route": "/admin/platform/observability",
       "files": 1,
       "shape": {
+        "route": "/admin/platform/observability",
         "hasTable": true,
         "hasFilter": false,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": false,
+        "requestPaths": [
+          "/v1/admin/platform/metrics",
+          "/v1/admin/platform/alerts",
+          "/v1/admin/platform/readiness",
+          "/v1/admin/platform/health-snapshot"
+        ],
         "reads": 4,
         "hasOptionalCapability": true
       },
@@ -2775,7 +3083,7 @@
         },
         "UNAVAILABLE": {
           "verdict": "HANDLED",
-          "evidence": "/Unavailable/"
+          "evidence": "/unavailable/i"
         },
         "BUSY": {
           "verdict": "NOT_APPLICABLE",
@@ -2803,12 +3111,21 @@
       "route": "/admin/platform/queues",
       "files": 1,
       "shape": {
+        "route": "/admin/platform/queues",
         "hasTable": true,
         "hasFilter": false,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": true,
+        "requestPaths": [
+          "/v1/operations/queues",
+          "/v1/operations/queues/workers",
+          "/v1/operations/queues/replay-safety",
+          "/v1/operations/queues//failed",
+          "/v1/operations/queues//jobs//replay",
+          "/v1/operations/queues//jobs"
+        ],
         "reads": 6,
         "hasOptionalCapability": false
       },
@@ -2849,7 +3166,8 @@
           "evidence": "/\\bcap\\b/"
         },
         "STALE": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "reviewed as PLATFORM_AUDIT_CONTEXT in adminScopeDispositions.ts: the rows are platform-wide and the teamId is only what an action is recorded against, so a workspace switch cannot make this read stale"
         },
         "ERROR": {
           "verdict": "HANDLED",
@@ -2864,8 +3182,8 @@
           "evidence": "/<AccessGate/"
         },
         "UNAVAILABLE": {
-          "verdict": "NOT_APPLICABLE",
-          "reason": "every capability this page fronts is always present in a deployment that has the console"
+          "verdict": "HANDLED",
+          "evidence": "/unavailable/i"
         },
         "BUSY": {
           "verdict": "HANDLED",
@@ -2893,12 +3211,16 @@
       "route": "/admin/platform/readiness",
       "files": 1,
       "shape": {
+        "route": "/admin/platform/readiness",
         "hasTable": false,
         "hasFilter": false,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": false,
+        "requestPaths": [
+          "/v1/operations/readiness"
+        ],
         "reads": 1,
         "hasOptionalCapability": true
       },
@@ -2957,7 +3279,7 @@
         },
         "UNAVAILABLE": {
           "verdict": "HANDLED",
-          "evidence": "/not configured/i"
+          "evidence": "/unavailable/i"
         },
         "BUSY": {
           "verdict": "HANDLED",
@@ -2985,14 +3307,21 @@
       "route": "/admin/platform/recovery",
       "files": 1,
       "shape": {
+        "route": "/admin/platform/recovery",
         "hasTable": true,
         "hasFilter": false,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": true,
+        "requestPaths": [
+          "/v1/operations/recovery",
+          "/v1/operations/recovery/validate-backup",
+          "/v1/operations/recovery/validate-restore",
+          "/v1/operations/recovery/reports"
+        ],
         "reads": 4,
-        "hasOptionalCapability": true
+        "hasOptionalCapability": false
       },
       "states": {
         "LOADING": {
@@ -3031,7 +3360,8 @@
           "evidence": "/\\bcap\\b/"
         },
         "STALE": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/isStale/"
         },
         "ERROR": {
           "verdict": "HANDLED",
@@ -3045,7 +3375,8 @@
           "evidence": "/<AccessGate/"
         },
         "UNAVAILABLE": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "every capability this page fronts is always present in a deployment that has the console"
         },
         "BUSY": {
           "verdict": "HANDLED",
@@ -3073,12 +3404,19 @@
       "route": "/admin/platform/reliability",
       "files": 1,
       "shape": {
+        "route": "/admin/platform/reliability",
         "hasTable": false,
         "hasFilter": true,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": true,
+        "requestPaths": [
+          "/v1/reliability/summary",
+          "/v1/reliability/upload-sessions",
+          "/v1/reliability/upload-sessions//mark-abandoned",
+          "/v1/reliability/upload-sessions//request-review"
+        ],
         "reads": 4,
         "hasOptionalCapability": false
       },
@@ -3118,7 +3456,8 @@
           "evidence": "/limit/"
         },
         "STALE": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/if \\(cancelled\\) return[\\s\\S]{0,4000}?cancelled\\s*=\\s*true/"
         },
         "ERROR": {
           "verdict": "HANDLED",
@@ -3128,7 +3467,8 @@
           "verdict": "UNHANDLED"
         },
         "PLAN_GATED": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "none of this page's endpoints applies a plan gate — the three that do in this API (mfa-admin's policy PATCH, every scim-admin route, and governance-lifecycle's retention/legal-hold mutations) are not among its requests, so no 402 can reach it"
         },
         "UNAVAILABLE": {
           "verdict": "NOT_APPLICABLE",
@@ -3158,12 +3498,14 @@
       "route": "/admin/platform/runbooks",
       "files": 1,
       "shape": {
+        "route": "/admin/platform/runbooks",
         "hasTable": false,
         "hasFilter": true,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": true,
         "workspaceScoped": false,
+        "requestPaths": [],
         "reads": 0,
         "hasOptionalCapability": true
       },
@@ -3248,12 +3590,14 @@
       "route": "/admin/platform/runbooks/:slug",
       "files": 1,
       "shape": {
+        "route": "/admin/platform/runbooks/:slug",
         "hasTable": false,
         "hasFilter": false,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": true,
         "workspaceScoped": false,
+        "requestPaths": [],
         "reads": 0,
         "hasOptionalCapability": false
       },
@@ -3340,12 +3684,22 @@
       "route": "/admin/platform/signers",
       "files": 1,
       "shape": {
+        "route": "/admin/platform/signers",
         "hasTable": true,
         "hasFilter": true,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": true,
+        "requestPaths": [
+          "/v1/operations/signers",
+          "/v1/operations/custody-attestations",
+          "/v1/operations/custody-attestations//verify",
+          "/v1/operations/custody-attestations/backfill",
+          "/v1/operations/signers//audit",
+          "/v1/operations/signers//health",
+          "/v1/operations/signers//preview"
+        ],
         "reads": 9,
         "hasOptionalCapability": true
       },
@@ -3386,7 +3740,8 @@
           "evidence": "/\\bcap\\b/"
         },
         "STALE": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "reviewed as PLATFORM_AUDIT_CONTEXT in adminScopeDispositions.ts: the rows are platform-wide and the teamId is only what an action is recorded against, so a workspace switch cannot make this read stale"
         },
         "ERROR": {
           "verdict": "HANDLED",
@@ -3401,7 +3756,8 @@
           "evidence": "/<AccessGate/"
         },
         "UNAVAILABLE": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/unavailable/i"
         },
         "BUSY": {
           "verdict": "HANDLED",
@@ -3429,12 +3785,19 @@
       "route": "/admin/provisioning",
       "files": 2,
       "shape": {
+        "route": "/admin/provisioning",
         "hasTable": true,
         "hasFilter": false,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": true,
+        "requestPaths": [
+          "/v1/admin/enterprise/provision",
+          "/v1/admin/orgs//plan",
+          "/v1/orgs//invites",
+          "/v1/orgs//invites//resend"
+        ],
         "reads": 5,
         "hasOptionalCapability": false
       },
@@ -3487,7 +3850,8 @@
           "evidence": "/kind: \"denied\"/"
         },
         "PLAN_GATED": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "none of this page's endpoints applies a plan gate — the three that do in this API (mfa-admin's policy PATCH, every scim-admin route, and governance-lifecycle's retention/legal-hold mutations) are not among its requests, so no 402 can reach it"
         },
         "UNAVAILABLE": {
           "verdict": "HANDLED",
@@ -3519,12 +3883,16 @@
       "route": "/admin/search",
       "files": 1,
       "shape": {
+        "route": "/admin/search",
         "hasTable": false,
         "hasFilter": true,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": false,
+        "requestPaths": [
+          "/v1/admin/search"
+        ],
         "reads": 1,
         "hasOptionalCapability": false
       },
@@ -3610,14 +3978,29 @@
       "route": "/admin/security",
       "files": 8,
       "shape": {
+        "route": "/admin/security",
         "hasTable": true,
         "hasFilter": true,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": true,
+        "requestPaths": [
+          "/v1/identity/mfa-admin/digest-preferences",
+          "/v1/identity/mfa-admin/digest-preferences/preview",
+          "/v1/identity/mfa-admin/digest-preferences/preview/send-test",
+          "/v1/identity/mfa-admin/events",
+          "/v1/identity/mfa-admin/recovery-events",
+          "/v1/identity/members",
+          "/v1/identity/mfa-admin/posture",
+          "/v1/identity/mfa-admin/policy",
+          "/v1/identity/mfa/challenge/verify",
+          "/v1/security/summary",
+          "/v1/security/scans",
+          "/v1/security/events"
+        ],
         "reads": 12,
-        "hasOptionalCapability": true
+        "hasOptionalCapability": false
       },
       "states": {
         "LOADING": {
@@ -3673,7 +4056,8 @@
           "evidence": "/402/"
         },
         "UNAVAILABLE": {
-          "verdict": "UNHANDLED"
+          "verdict": "HANDLED",
+          "evidence": "/unavailable/i"
         },
         "BUSY": {
           "verdict": "HANDLED",
@@ -3701,12 +4085,22 @@
       "route": "/admin/support-access",
       "files": 1,
       "shape": {
+        "route": "/admin/support-access",
         "hasTable": true,
         "hasFilter": true,
         "hasMutation": true,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": true,
+        "requestPaths": [
+          "/v1/support-access/grants${qs ",
+          "/v1/break-glass/grants${qs ",
+          "/v1/support-access/enter",
+          "/v1/support-access/revoke",
+          "/v1/support-access/start",
+          "/v1/break-glass/activate",
+          "/v1/break-glass/revoke"
+        ],
         "reads": 7,
         "hasOptionalCapability": false
       },
@@ -3760,7 +4154,8 @@
           "evidence": "/kind: \"denied\"/"
         },
         "PLAN_GATED": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "none of this page's endpoints applies a plan gate — the three that do in this API (mfa-admin's policy PATCH, every scim-admin route, and governance-lifecycle's retention/legal-hold mutations) are not among its requests, so no 402 can reach it"
         },
         "UNAVAILABLE": {
           "verdict": "NOT_APPLICABLE",
@@ -3792,12 +4187,16 @@
       "route": "/admin/timeline",
       "files": 1,
       "shape": {
+        "route": "/admin/timeline",
         "hasTable": true,
         "hasFilter": true,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": false,
+        "requestPaths": [
+          "/v1/admin/timeline"
+        ],
         "reads": 1,
         "hasOptionalCapability": false
       },
@@ -3883,14 +4282,19 @@
       "route": "/admin/users",
       "files": 2,
       "shape": {
+        "route": "/admin/users",
         "hasTable": true,
         "hasFilter": true,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": false,
+        "requestPaths": [
+          "/v1/admin/users",
+          "/v1/admin/lifecycle-requests"
+        ],
         "reads": 2,
-        "hasOptionalCapability": true
+        "hasOptionalCapability": false
       },
       "states": {
         "LOADING": {
@@ -3945,7 +4349,8 @@
           "reason": "platform-scoped surface: not gated by any workspace's plan"
         },
         "UNAVAILABLE": {
-          "verdict": "UNHANDLED"
+          "verdict": "NOT_APPLICABLE",
+          "reason": "every capability this page fronts is always present in a deployment that has the console"
         },
         "BUSY": {
           "verdict": "HANDLED",
@@ -3973,14 +4378,19 @@
       "route": "/admin/users/:id",
       "files": 2,
       "shape": {
+        "route": "/admin/users/:id",
         "hasTable": true,
         "hasFilter": true,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": false,
+        "requestPaths": [
+          "/v1/admin/users",
+          "/v1/admin/lifecycle-requests"
+        ],
         "reads": 2,
-        "hasOptionalCapability": true
+        "hasOptionalCapability": false
       },
       "states": {
         "LOADING": {
@@ -4036,7 +4446,7 @@
         },
         "UNAVAILABLE": {
           "verdict": "HANDLED",
-          "evidence": "/Unavailable/"
+          "evidence": "/unavailable/i"
         },
         "BUSY": {
           "verdict": "HANDLED",
@@ -4064,12 +4474,16 @@
       "route": "/admin/workspaces",
       "files": 1,
       "shape": {
+        "route": "/admin/workspaces",
         "hasTable": true,
         "hasFilter": true,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": false,
+        "requestPaths": [
+          "/v1/admin/workspaces"
+        ],
         "reads": 1,
         "hasOptionalCapability": false
       },
@@ -4155,14 +4569,18 @@
       "route": "/admin/workspaces/:id",
       "files": 1,
       "shape": {
+        "route": "/admin/workspaces/:id",
         "hasTable": true,
         "hasFilter": false,
         "hasMutation": false,
         "hasKpi": false,
         "isStatic": false,
         "workspaceScoped": false,
+        "requestPaths": [
+          "/v1/admin/workspaces"
+        ],
         "reads": 1,
-        "hasOptionalCapability": true
+        "hasOptionalCapability": false
       },
       "states": {
         "LOADING": {
@@ -4219,7 +4637,7 @@
         },
         "UNAVAILABLE": {
           "verdict": "HANDLED",
-          "evidence": "/Unavailable/"
+          "evidence": "/unavailable/i"
         },
         "BUSY": {
           "verdict": "HANDLED",
@@ -4246,105 +4664,60 @@
   ],
   "gaps": [
     "/admin/adoption: TRUNCATED",
-    "/admin/alerts: UNAVAILABLE",
     "/admin/audit: DENIED",
-    "/admin/audit: PLAN_GATED",
-    "/admin/billing: UNAVAILABLE",
     "/admin/contact-sales: EMPTY",
-    "/admin/contact-sales: UNAVAILABLE",
     "/admin/contact-sales: BUSY",
     "/admin/contact-sales: STEP_UP_REQUIRED",
-    "/admin/contact-sales/:id: UNAVAILABLE",
     "/admin/contact-sales/:id: BUSY",
     "/admin/contact-sales/:id: STEP_UP_REQUIRED",
     "/admin/costs: NOT_MEASURED",
-    "/admin/costs: UNAVAILABLE",
-    "/admin/customers: UNAVAILABLE",
     "/admin/customers/:id: EMPTY",
     "/admin/customers/:id: TRUNCATED",
-    "/admin/customers/:id: STALE",
     "/admin/customers/:id: DENIED",
-    "/admin/customers/:id: PLAN_GATED",
-    "/admin/customers/:id: UNAVAILABLE",
     "/admin/dashboard: REFRESHING",
-    "/admin/demo-requests: UNAVAILABLE",
     "/admin/demo-requests: STEP_UP_REQUIRED",
     "/admin/demo-requests/:id: VALUE",
     "/admin/demo-requests/:id: UNAVAILABLE",
-    "/admin/evidence-ops/records: STALE",
-    "/admin/evidence-ops/records: DENIED",
-    "/admin/evidence-ops/records: PLAN_GATED",
     "/admin/evidence-ops/records: UNAVAILABLE",
-    "/admin/identity: PLAN_GATED",
     "/admin/identity: DONE",
     "/admin/identity/access-reviews: DENIED",
-    "/admin/identity/access-reviews: PLAN_GATED",
     "/admin/identity/permission-matrix: DENIED",
-    "/admin/identity/permission-matrix: PLAN_GATED",
     "/admin/identity/permission-matrix: DONE",
     "/admin/identity/runtime: DENIED",
-    "/admin/identity/runtime: PLAN_GATED",
-    "/admin/identity/sessions: PLAN_GATED",
     "/admin/identity/timeline: DENIED",
-    "/admin/identity/timeline: PLAN_GATED",
     "/admin/identity/timeline: DONE",
     "/admin/operations: PARTIAL",
-    "/admin/operations: STALE",
-    "/admin/operations: DENIED",
-    "/admin/operations: PLAN_GATED",
-    "/admin/operations: UNAVAILABLE",
     "/admin/operations: STEP_UP_REQUIRED",
     "/admin/platform/analytics: LOADING",
     "/admin/platform/analytics: REFRESHING",
     "/admin/platform/analytics: FILTERED_EMPTY",
-    "/admin/platform/analytics: STALE",
-    "/admin/platform/analytics: PLAN_GATED",
-    "/admin/platform/analytics: UNAVAILABLE",
     "/admin/platform/automation: LOADING",
-    "/admin/platform/automation: STALE",
-    "/admin/platform/automation: PLAN_GATED",
-    "/admin/platform/automation: UNAVAILABLE",
     "/admin/platform/exports: MEASURED_ZERO",
-    "/admin/platform/exports: STALE",
     "/admin/platform/exports: DENIED",
     "/admin/platform/exports: UNAVAILABLE",
     "/admin/platform/exports: STEP_UP_REQUIRED",
     "/admin/platform/media-graph: LOADING",
     "/admin/platform/media-graph: PARTIAL",
-    "/admin/platform/media-graph: STALE",
     "/admin/platform/media-graph: DENIED",
-    "/admin/platform/media-graph: PLAN_GATED",
-    "/admin/platform/media-graph: UNAVAILABLE",
     "/admin/platform/media-graph: DONE",
     "/admin/platform/media-graph: STEP_UP_REQUIRED",
     "/admin/platform/observability: REFRESHING",
     "/admin/platform/observability: EMPTY",
     "/admin/platform/queues: EMPTY",
-    "/admin/platform/queues: STALE",
     "/admin/platform/recovery: PARTIAL",
-    "/admin/platform/recovery: STALE",
     "/admin/platform/recovery: DENIED",
-    "/admin/platform/recovery: UNAVAILABLE",
     "/admin/platform/reliability: REFRESHING",
     "/admin/platform/reliability: FILTERED_EMPTY",
-    "/admin/platform/reliability: STALE",
     "/admin/platform/reliability: DENIED",
-    "/admin/platform/reliability: PLAN_GATED",
     "/admin/platform/reliability: DONE",
     "/admin/platform/reliability: STEP_UP_REQUIRED",
     "/admin/platform/runbooks: FILTERED_EMPTY",
     "/admin/platform/runbooks: UNAVAILABLE",
     "/admin/platform/signers: EMPTY",
-    "/admin/platform/signers: STALE",
-    "/admin/platform/signers: UNAVAILABLE",
     "/admin/provisioning: TRUNCATED",
-    "/admin/provisioning: PLAN_GATED",
     "/admin/search: REFRESHING",
-    "/admin/security: UNAVAILABLE",
-    "/admin/support-access: PLAN_GATED",
     "/admin/timeline: MEASURED_ZERO",
     "/admin/users: FILTERED_EMPTY",
-    "/admin/users: UNAVAILABLE",
     "/admin/users/:id: FILTERED_EMPTY",
     "/admin/workspaces: FILTERED_EMPTY"
   ]
