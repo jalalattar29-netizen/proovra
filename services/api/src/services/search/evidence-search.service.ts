@@ -272,19 +272,6 @@ export async function executeSearch(
     }
 
     /*
-     * THE RECORD'S OWN IDENTIFIER.
-     *
-     * Neither the UUID nor the short reference Operations prints was matched
-     * here at all — the body holds titles, filenames, intake identity and
-     * extracted text, and never the id. So a person reading "record 76b5d6ac"
-     * off an incident could not find the record it names.
-     *
-     * Matched against `sourceId` rather than by putting the id into the
-     * indexed text: the column is the primary identifier, it is indexed, and
-     * a range on it cannot collide with the middle of some other id the way a
-     * substring of a text body would.
-     */
-    /*
      * THE RECIPIENT ADDRESS AND NUMBER — for a caller entitled to ask.
      *
      * Projection version 3 moved these two values out of `searchableText`
@@ -304,16 +291,8 @@ export async function executeSearch(
      * correct query answered with "no results".
      */
     if (input.matchRecipientContact === true) {
-      const needles = new Set<string>([filter.q.trim().toLowerCase()]);
-      const contactE164 = intakePhoneE164(filter.q);
-      if (contactE164) needles.add(contactE164.toLowerCase());
-      // A partial number off a case file. Four digits is the shared floor,
-      // below which this stops being a search and starts being a filter that
-      // returns everything.
-      const contactDigits = intakePhoneDigits(filter.q);
-      if (contactDigits) needles.add(contactDigits);
+      const needles = buildContactNeedles(filter.q);
       for (const needle of needles) {
-        if (!needle) continue;
         where.OR.push({
           searchableMetadataJson: {
             path: [SEARCH_CONTACT_HAYSTACK_KEY],
@@ -323,6 +302,19 @@ export async function executeSearch(
       }
     }
 
+    /*
+     * THE RECORD'S OWN IDENTIFIER.
+     *
+     * Neither the UUID nor the short reference Operations prints was matched
+     * here at all — the body holds titles, filenames, intake identity and
+     * extracted text, and never the id. So a person reading "record 76b5d6ac"
+     * off an incident could not find the record it names.
+     *
+     * Matched against `sourceId` rather than by putting the id into the
+     * indexed text: the column is the primary identifier, it is indexed, and
+     * a range on it cannot collide with the middle of some other id the way a
+     * substring of a text body would.
+     */
     const idNeedle = parseEvidenceIdNeedle(filter.q);
     if (idNeedle) {
       where.OR.push(
@@ -421,7 +413,9 @@ export async function executeSearch(
       filteredByVisibility += 1;
       continue;
     }
-    safeRows.push(toResultRow(row, filter.q ?? null));
+    safeRows.push(
+      toResultRow(row, filter.q ?? null, input.matchRecipientContact === true),
+    );
   }
 
   if (filteredByGovernance > 0) {
@@ -785,6 +779,49 @@ function cosineSimilarity(a: Float32Array, b: Float32Array): number {
   return denom === 0 ? 0 : dot / denom;
 }
 
+/**
+ * THE FORMS OF A NEEDLE THAT MAY BE LOOKED FOR IN THE CONTACT HAYSTACK.
+ *
+ * One function because the query and the result row's reason must agree about
+ * what a contact match IS. They did not: the query matched on a form the
+ * reason then re-derived slightly differently, so a row could carry
+ * "Matched recipient phone" for a query that matched something else.
+ *
+ * THE DIGIT GUARD IS THE POINT OF THIS FUNCTION.
+ *
+ * `intakePhoneDigits` strips everything that is not a digit, so
+ * "CUST-SEARCH-9174" yields "9174" — the Customer ID's own trailing digits,
+ * which then matched any recipient number containing them anywhere. A live
+ * gate caught it: a Customer-ID query returned a record whose indexed body
+ * did not contain that Customer ID at all, and told the operator it had
+ * "Matched recipient phone".
+ *
+ * So the digits form is added ONLY when normalisation actually changed
+ * something — when the digits are not already sitting in what the operator
+ * typed. That is exactly the guard the `searchableText` digits arm has always
+ * carried, and it costs nothing: a bare partial number like "9061823" is
+ * already covered by the needle as typed, and "+49 174 906 1823" still
+ * reaches "491749061823" because those digits are NOT contiguous in the
+ * needle.
+ */
+function buildContactNeedles(q: string): string[] {
+  const typed = q.trim().toLowerCase();
+  const needles = new Set<string>();
+  if (typed) needles.add(typed);
+
+  const e164 = intakePhoneE164(q);
+  if (e164) needles.add(e164.toLowerCase());
+
+  // A partial number off a case file. Four digits is the shared floor, below
+  // which this stops being a search and starts being a filter that returns
+  // everything — and the guard above it is what keeps a query that merely
+  // CONTAINS digits from being read as a phone number.
+  const digits = intakePhoneDigits(q);
+  if (digits && !q.includes(digits)) needles.add(digits);
+
+  return [...needles];
+}
+
 function buildMatchReasonsForRow(
   row: SearchResultRow,
   semantic: number | null,
@@ -891,6 +928,7 @@ function sortToOrderBy(
 function buildIntakeMatchReasons(
   doc: prismaPkg.EvidenceSearchDocument,
   q: string | null,
+  matchRecipientContact: boolean,
 ): string[] {
   const needle = (q ?? "").trim();
   if (!needle) return [];
@@ -908,20 +946,26 @@ function buildIntakeMatchReasons(
     reasons.push(`Customer ID · ${customerId}`);
   }
 
+  /*
+   * A CONTACT REASON ONLY WHERE A CONTACT MATCH WAS POSSIBLE.
+   *
+   * A caller whose disclosure withheld the contact arm did not match on the
+   * address or the number, so telling them a row did is both untrue and a
+   * statement about a value they may not query. The row reached them through
+   * some other arm; that is what the reason should say.
+   */
+  if (!matchRecipientContact) return reasons;
+
   const haystack = record[SEARCH_CONTACT_HAYSTACK_KEY];
   if (typeof haystack === "string" && haystack.length > 0) {
     const lines = haystack.split("\n");
     const email = lines.find((l) => l.includes("@")) ?? null;
-    const lowered = needle.toLowerCase();
-    const e164 = intakePhoneE164(needle);
-    const digits = intakePhoneDigits(needle);
-    if (email && email.includes(lowered)) {
+    // The SAME forms the query looked for. Re-deriving them here is how the
+    // reason came to claim a phone match on a Customer-ID query.
+    const forms = buildContactNeedles(needle);
+    if (email && forms.some((f) => email.includes(f))) {
       reasons.push("Matched recipient email");
-    } else if (
-      haystack.includes(lowered) ||
-      (e164 && haystack.includes(e164.toLowerCase())) ||
-      (digits && haystack.includes(digits))
-    ) {
+    } else if (forms.some((f) => haystack.includes(f))) {
       reasons.push("Matched recipient phone");
     }
   }
@@ -932,6 +976,7 @@ function buildIntakeMatchReasons(
 function toResultRow(
   doc: prismaPkg.EvidenceSearchDocument,
   q: string | null = null,
+  matchRecipientContact = false,
 ): SearchResultRow {
   const badges: string[] = [];
   if (doc.workflowInstanceId) badges.push("workflow-linked");
@@ -962,7 +1007,7 @@ function toResultRow(
   // Defensive: drop any accidental badge that isn't in the allowed
   // catalog. (Belt-and-braces — we control all writers above.)
   const safeBadges = badges.filter(isAllowedSearchBadge);
-  const intakeReasons = buildIntakeMatchReasons(doc, q);
+  const intakeReasons = buildIntakeMatchReasons(doc, q, matchRecipientContact);
   return {
     documentId: doc.id,
     documentType: doc.documentType as SearchDocumentType,

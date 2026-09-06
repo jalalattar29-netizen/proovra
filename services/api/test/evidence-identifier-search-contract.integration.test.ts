@@ -38,9 +38,39 @@
  * holds a deliberately similar Customer ID and a phone number sharing the same
  * final digits, and every identifier from the first workspace is asked for
  * from the second.
+ *
+ * WHAT THE SUITE CAUGHT LATER
+ * ---------------------------------------------------------------------------
+ *   4. A QUERY WAS READ AS A PHONE NUMBER BECAUSE IT CONTAINED DIGITS. When
+ *      the recipient contact moved into the document's gated metadata
+ *      haystack, the arm that looks for a PARTIAL number lost the guard its
+ *      `searchableText` twin has always had. "CUST-SEARCH-9174" strips to
+ *      "9174", which sits inside "+491749061823", so a Customer-ID query
+ *      matched a record whose own body held no Customer ID — and told the
+ *      operator it had "Matched recipient phone". This file failed on it,
+ *      which is what a contract suite is for.
+ *
+ * WHAT CHANGED UNDERNEATH IT
+ * ---------------------------------------------------------------------------
+ * The intake REQUEST is now a first-class search document, so `/v1/search`
+ * returns more than one kind of thing and identity can be reachable through a
+ * current request document while the Evidence document it produced is still
+ * stale. Two consequences for this file:
+ *
+ *   - Assertions about WHICH document matched are made by result TYPE. A flat
+ *     list of ids can no longer distinguish "the stale Evidence document
+ *     answered" from "the request answered", and the difference is the whole
+ *     point of the stale-document tests.
+ *
+ *   - "Stale" now means stale in BOTH places identity lives. Rewriting only
+ *     the free-text body left the Customer ID and the number sitting in the
+ *     document's metadata, so the fixture claimed a staleness it had not
+ *     produced. The rewind strips both, and a test asserts it did.
  */
 
 import {
+  SEARCH_CONTACT_HAYSTACK_KEY,
+  SEARCH_CUSTOMER_ID_KEY,
   SEARCH_PROJECTION_VERSION,
   evidenceRecordRef,
 } from "@proovra/shared";
@@ -67,17 +97,45 @@ describe("EVIDENCE IDENTIFIER SEARCH — contract (live PostgreSQL 16)", () => {
   let newEvidenceId: string;
   /** Document deliberately written the way the previous builder wrote one. */
   let oldEvidenceId: string;
+  /**
+   * The same pre-identity staleness, but its intake REQUEST is indexed.
+   *
+   * This is the case the architecture changed: the request is now a first-class
+   * document carrying the Customer ID, so the identifier is reachable even
+   * while the Evidence document that came from it is still stale.
+   */
+  let linkedStaleEvidenceId: string;
+  let linkedStaleLinkId: string;
 
   // Workspace B — deliberately similar, and must never leak.
   let teamB: string;
   let ownerB: string;
   let tokenB: string;
 
-  const CUSTOMER_ID = "CUST-SEARCH-9174";
+  /*
+   * RUN-UNIQUE, because 104 suites share one database in the gate.
+   *
+   * The letters carry the uniqueness and the digits carry the meaning: every
+   * probe below is a `contains`, so a fixed identifier is one suite away from
+   * matching another suite's rows and turning this file's isolation
+   * assertions into coincidences.
+   */
+  const RUN = Math.random().toString(36).slice(2, 8).replace(/\d/g, "x");
+
+  /*
+   * THE CUSTOMER ID'S DIGITS DELIBERATELY OCCUR INSIDE THE PHONE NUMBER.
+   *
+   * "9174" is both the tail of the Customer ID and the operator prefix of the
+   * number. That is not decoration: a live gate caught global search treating
+   * the digits of ANY query as a partial phone number, so a Customer-ID query
+   * matched a record through its recipient's number and reported "Matched
+   * recipient phone". The overlap is what makes that regression visible.
+   */
+  const CUSTOMER_ID = `CUST-SEARCH-9174-${RUN}`;
   const PHONE_TYPED = "+49 174 906 1823";
   const PHONE_E164 = "+491749061823";
   /** Same final digits as A's number, different subscriber. */
-  const B_CUSTOMER_ID = "CUST-SEARCH-9175";
+  const B_CUSTOMER_ID = `CUST-SEARCH-9175-${RUN}`;
   const B_PHONE_E164 = "+491759061823";
 
   const seedIntakeRecord = async (opts: {
@@ -128,7 +186,57 @@ describe("EVIDENCE IDENTIFIER SEARCH — contract (live PostgreSQL 16)", () => {
         expiresAtUtc: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       } as never,
     });
-    return evidence.id;
+    return { evidenceId: evidence.id, linkId: link.id };
+  };
+
+  /**
+   * Rewind a document to what a builder that predated intake identity wrote.
+   *
+   * BOTH HALVES, because identity now lives in two places. Rewriting only
+   * `searchableText` used to be enough; since the contact moved into the
+   * document's gated metadata haystack, a document with a stripped body still
+   * carried the Customer ID and the number in its metadata — so the fixture
+   * claimed a staleness it had not produced, and the suite stopped testing the
+   * thing it says it tests.
+   */
+  const rewindToPreIdentity = async (teamId: string, evidenceId: string) => {
+    const doc = await prisma.evidenceSearchDocument.findFirstOrThrow({
+      where: { teamId, documentType: "EVIDENCE", sourceId: evidenceId },
+      select: { id: true, searchableMetadataJson: true },
+    });
+    const meta = { ...(doc.searchableMetadataJson as Record<string, unknown>) };
+    delete meta[SEARCH_CUSTOMER_ID_KEY];
+    delete meta[SEARCH_CONTACT_HAYSTACK_KEY];
+    await prisma.evidenceSearchDocument.update({
+      where: { id: doc.id },
+      data: {
+        searchableText: "old-body.png",
+        searchableMetadataJson: meta as never,
+        projectionVersion: 1,
+      },
+    });
+  };
+
+  /** What a document actually holds — asserted, never assumed. */
+  const documentState = async (teamId: string, documentType: string, sourceId: string) => {
+    const doc = await prisma.evidenceSearchDocument.findFirst({
+      where: { teamId, documentType, sourceId },
+      select: {
+        projectionVersion: true,
+        searchableText: true,
+        searchableMetadataJson: true,
+        indexedAtUtc: true,
+      },
+    });
+    if (!doc) return null;
+    const meta = (doc.searchableMetadataJson ?? {}) as Record<string, unknown>;
+    return {
+      projectionVersion: doc.projectionVersion,
+      searchableText: doc.searchableText ?? "",
+      customerId: meta[SEARCH_CUSTOMER_ID_KEY] ?? null,
+      contactHaystack: meta[SEARCH_CONTACT_HAYSTACK_KEY] ?? null,
+      indexedAtUtc: doc.indexedAtUtc,
+    };
   };
 
   const globalSearch = async (token: string, teamId: string, q: string) => {
@@ -137,17 +245,55 @@ describe("EVIDENCE IDENTIFIER SEARCH — contract (live PostgreSQL 16)", () => {
       url: `/v1/search?teamId=${teamId}&q=${encodeURIComponent(q)}`,
       headers: { authorization: `Bearer ${token}` },
     });
-    if (res.statusCode !== 200) return { status: res.statusCode, ids: [] as string[] };
+    if (res.statusCode !== 200) {
+      return {
+        status: res.statusCode,
+        rows: [] as Array<{
+          type: string;
+          sourceId: string;
+          evidenceId: string | null;
+          reasons: string[];
+        }>,
+        ids: [] as string[],
+        evidenceIds: [] as string[],
+        intakeLinkIds: [] as string[],
+      };
+    }
     // The envelope is `{ rows, nextBeforeUtc }` — reading `results` returned
     // an empty array for every probe, which made the isolation assertions pass
     // without asking anything.
     const body = JSON.parse(res.body) as {
-      rows?: Array<{ evidenceId?: string | null; sourceId?: string }>;
+      rows?: Array<{
+        documentType?: string;
+        sourceId?: string;
+        evidenceId?: string | null;
+        matchReasons?: string[];
+      }>;
     };
-    const rows = body.rows ?? [];
+    const rows = (body.rows ?? []).map((r) => ({
+      type: r.documentType ?? "?",
+      sourceId: r.sourceId ?? "",
+      evidenceId: r.evidenceId ?? null,
+      reasons: r.matchReasons ?? [],
+    }));
+    /*
+     * TYPED, because `/v1/search` no longer returns one kind of thing.
+     *
+     * An intake REQUEST is now its own document type beside the Evidence it
+     * may one day carry, so a flat list of ids cannot answer "did the stale
+     * EVIDENCE document match" — the id could have arrived on an INTAKE_LINK
+     * row instead. `ids` stays for the identifier probes, which are about
+     * whether a record is reachable at all; anything asserting WHICH document
+     * matched uses the typed accessors.
+     */
+    const of = (type: string) =>
+      rows.filter((r) => r.type === type).map((r) => r.sourceId);
     return {
       status: 200,
-      ids: rows.map((r) => r.evidenceId ?? r.sourceId ?? "").filter(Boolean),
+      rows,
+      ids: rows.map((r) => r.evidenceId ?? r.sourceId).filter(Boolean),
+      evidenceIds: of("EVIDENCE"),
+      intakeLinkIds: of("INTAKE_LINK"),
     };
   };
 
@@ -209,24 +355,20 @@ describe("EVIDENCE IDENTIFIER SEARCH — contract (live PostgreSQL 16)", () => {
     });
     teamB = wsB.teamId;
 
-    newEvidenceId = await seedIntakeRecord({
-      teamId: teamA,
-      ownerUserId: ownerA,
-      organizationId: wsA.organizationId,
-      customerId: CUSTOMER_ID,
-      phoneE164: PHONE_E164,
-      phoneTyped: PHONE_TYPED,
-      label: "Contributor A",
-    });
-    oldEvidenceId = await seedIntakeRecord({
-      teamId: teamA,
-      ownerUserId: ownerA,
-      organizationId: wsA.organizationId,
-      customerId: CUSTOMER_ID,
-      phoneE164: PHONE_E164,
-      phoneTyped: PHONE_TYPED,
-      label: "Contributor A",
-    });
+    const seedA = (label: string) =>
+      seedIntakeRecord({
+        teamId: teamA,
+        ownerUserId: ownerA,
+        organizationId: wsA.organizationId,
+        customerId: CUSTOMER_ID,
+        phoneE164: PHONE_E164,
+        phoneTyped: PHONE_TYPED,
+        label,
+      });
+    ({ evidenceId: newEvidenceId } = await seedA("Contributor A"));
+    ({ evidenceId: oldEvidenceId } = await seedA("Contributor A"));
+    ({ evidenceId: linkedStaleEvidenceId, linkId: linkedStaleLinkId } =
+      await seedA("Contributor A"));
 
     // Workspace B — similar enough that a missing tenant predicate shows up.
     await seedIntakeRecord({
@@ -245,6 +387,7 @@ describe("EVIDENCE IDENTIFIER SEARCH — contract (live PostgreSQL 16)", () => {
     for (const [teamId, id] of [
       [teamA, newEvidenceId],
       [teamA, oldEvidenceId],
+      [teamA, linkedStaleEvidenceId],
     ] as const) {
       const r = await indexEvidence({ teamId, evidenceId: id });
       expect(r.ok, `indexing ${id} failed`).toBe(true);
@@ -257,16 +400,32 @@ describe("EVIDENCE IDENTIFIER SEARCH — contract (live PostgreSQL 16)", () => {
     await indexEvidence({ teamId: teamB, evidenceId: bEvidence.id });
 
     /*
-     * THE OLD RECORD. Rewritten to what the PREVIOUS builder produced: a body
+     * THE OLD RECORDS. Rewritten to what the PREVIOUS builder produced: a body
      * with no intake identity, stamped with the version that produced it.
      * This is the production state — not a hypothetical, and not something the
      * fixture would ever reach on its own, which is exactly why the previous
      * closure could not see it.
      */
-    await prisma.evidenceSearchDocument.updateMany({
-      where: { teamId: teamA, documentType: "EVIDENCE", sourceId: oldEvidenceId },
-      data: { searchableText: "old-body.png", projectionVersion: 1 },
+    await rewindToPreIdentity(teamA, oldEvidenceId);
+    await rewindToPreIdentity(teamA, linkedStaleEvidenceId);
+
+    /*
+     * ...and ONE of them gets a current intake-request document.
+     *
+     * Written through the canonical indexer, because the fixture creates its
+     * links with Prisma directly and so never fires the mutation hook the
+     * product uses. Two stale Evidence documents that differ only in whether
+     * their REQUEST is indexed is what separates "identity is unreachable"
+     * from "identity is reachable through the other document".
+     */
+    const { indexIntakeLink } = await import(
+      "../src/services/search/evidence-indexing.service.js"
+    );
+    const linked = await indexIntakeLink({
+      teamId: teamA,
+      intakeLinkId: linkedStaleLinkId,
     });
+    expect(linked.ok, "the intake request was not indexed").toBe(true);
   });
 
   afterAll(async () => {
@@ -337,16 +496,105 @@ describe("EVIDENCE IDENTIFIER SEARCH — contract (live PostgreSQL 16)", () => {
     }
   });
 
-  it("a stale document CANNOT be found by identity, because its body predates them", async () => {
-    // The honest half. Customer ID and phone live in the indexed body, so no
-    // query change can reach a document written before they were indexed —
-    // only rewriting the document can. This is the production data defect,
-    // reproduced.
+  it("the stale documents really are stale — in BOTH places identity lives", async () => {
+    /*
+     * §5. The cases below are only worth anything if the fixture produced the
+     * state it claims, and it stopped producing it once identity moved into
+     * the document's metadata: a body stripped of the Customer ID still
+     * carried it beside the contact haystack. Asserted here, before any query
+     * runs, so a future move of identity to a third place fails loudly instead
+     * of quietly turning the next three tests into tautologies.
+     */
+    for (const id of [oldEvidenceId, linkedStaleEvidenceId]) {
+      const state = await documentState(teamA, "EVIDENCE", id);
+      expect(state, `no EVIDENCE document for ${id}`).not.toBeNull();
+      expect(state!.projectionVersion).toBeLessThan(SEARCH_PROJECTION_VERSION);
+      expect(state!.searchableText).not.toContain(CUSTOMER_ID);
+      expect(state!.searchableText).not.toContain("9061823");
+      expect(state!.customerId, "metadata still carries the Customer ID").toBeNull();
+      expect(state!.contactHaystack, "metadata still carries the number").toBeNull();
+    }
+    // And the record indexed by the current builder is genuinely current.
+    const current = await documentState(teamA, "EVIDENCE", newEvidenceId);
+    expect(current!.projectionVersion).toBe(SEARCH_PROJECTION_VERSION);
+    expect(current!.searchableText).toContain(CUSTOMER_ID);
+  });
+
+  it("CASE C — stale Evidence and no intake request document: identity finds neither", async () => {
+    /*
+     * The original invariant, and still the point of this file: A STALE INDEX
+     * BODY MUST NOT LIE. Customer ID and phone live in the document, so no
+     * query change can reach a document written before they were indexed —
+     * only rewriting the document can, and nothing else may pretend otherwise.
+     *
+     * Asserted by TYPE. `/v1/search` returns intake requests beside Evidence
+     * now, so "the id is absent from a flat list" no longer proves the stale
+     * EVIDENCE document failed to match — the id could have arrived on a
+     * request row.
+     */
     const r = await globalSearch(tokenA, teamA, CUSTOMER_ID);
-    expect(r.ids).not.toContain(oldEvidenceId);
-    expect(r.ids, "the current record must still be found").toContain(
+    expect(r.evidenceIds, "the stale EVIDENCE document answered for identity")
+      .not.toContain(oldEvidenceId);
+    expect(r.evidenceIds, "the current record must still be found").toContain(
       newEvidenceId,
     );
+  });
+
+  it("CASE A — stale Evidence but a current intake request: the REQUEST answers", async () => {
+    /*
+     * What the first-class request document is for. The Evidence document is
+     * as blind as the one above, but the request it came from carries the
+     * Customer ID, so the operator's question is answered — by the request,
+     * which is the honest thing to show them, and not by an Evidence row whose
+     * own body knows nothing about that identifier.
+     */
+    const r = await globalSearch(tokenA, teamA, CUSTOMER_ID);
+    expect(r.intakeLinkIds, "the intake request did not answer").toContain(
+      linkedStaleLinkId,
+    );
+    expect(
+      r.evidenceIds,
+      "a stale EVIDENCE document was returned on the request's behalf",
+    ).not.toContain(linkedStaleEvidenceId);
+
+    // The request row says WHY, and says it about the Customer ID.
+    const row = r.rows.find((x) => x.sourceId === linkedStaleLinkId);
+    expect(row!.reasons.join(" ")).toContain(CUSTOMER_ID);
+    expect(row!.evidenceId, "a request row is not an Evidence row").toBeNull();
+  });
+
+  it("a Customer ID is not read as a partial phone number", async () => {
+    /*
+     * THE REGRESSION THIS FILE CAUGHT.
+     *
+     * "CUST-SEARCH-9174-…" strips to the digits "9174", which sit inside
+     * "+491749061823". Global search added those digits as a contact-haystack
+     * probe with no guard, so a Customer-ID query matched every record whose
+     * recipient's number happened to contain them — including one whose own
+     * body held no Customer ID at all — and the row then claimed "Matched
+     * recipient phone".
+     *
+     * The digits form belongs in the query only when normalisation changed
+     * something. Both halves are asserted: no phantom row, and no phantom
+     * reason on the rows that legitimately matched.
+     */
+    const r = await globalSearch(tokenA, teamA, CUSTOMER_ID);
+    expect(r.evidenceIds).not.toContain(oldEvidenceId);
+    for (const row of r.rows) {
+      expect(
+        row.reasons,
+        `row ${row.type} ${row.sourceId} claimed a phone match for a Customer ID query`,
+      ).not.toContain("Matched recipient phone");
+    }
+
+    // …and the capability the guard must NOT cost: a real partial number, and
+    // a number written with separators, both still reach the record.
+    for (const q of ["9061823", PHONE_TYPED, PHONE_E164.replace("+", "00")]) {
+      const p = await globalSearch(tokenA, teamA, q);
+      expect(p.evidenceIds, `"${q}" stopped finding the record`).toContain(
+        newEvidenceId,
+      );
+    }
   });
 
   it("the Evidence list finds the stale record anyway — it reads live rows", async () => {
@@ -356,7 +604,7 @@ describe("EVIDENCE IDENTIFIER SEARCH — contract (live PostgreSQL 16)", () => {
     expect(r.ids).toContain(oldEvidenceId);
   });
 
-  it("the reindex repairs the stale document, and then identity finds it", async () => {
+  it("CASE B — the reindex repairs the stale document, and then identity finds it", async () => {
     const { runWorkspaceReindex } = await import(
       "../src/services/search/reindex.service.js"
     );
@@ -378,9 +626,46 @@ describe("EVIDENCE IDENTIFIER SEARCH — contract (live PostgreSQL 16)", () => {
     expect(after.searchableText).toContain(CUSTOMER_ID);
 
     const r = await globalSearch(tokenA, teamA, CUSTOMER_ID);
-    expect(r.ids, "identity still does not find the repaired record").toContain(
-      oldEvidenceId,
+    expect(
+      r.evidenceIds,
+      "identity still does not find the repaired record",
+    ).toContain(oldEvidenceId);
+
+    /*
+     * §8 — no duplicate or ambiguous rows.
+     *
+     * A repaired Evidence document and the intake request it came from are two
+     * different objects with two different destinations, and both may
+     * legitimately answer the same Customer ID. What must not happen is the
+     * same object twice, or two rows an operator cannot tell apart.
+     */
+    const keys = r.rows.map((x) => `${x.type}:${x.sourceId}`);
+    expect(new Set(keys).size, "duplicate rows for one object").toBe(keys.length);
+    for (const row of r.rows) {
+      expect(["EVIDENCE", "INTAKE_LINK"]).toContain(row.type);
+    }
+  });
+
+  it("CASE B — the same reconciliation indexes the intake requests too", async () => {
+    // The sweep that repairs a stale Evidence document is also the one that
+    // fills in requests that were never indexed — the pre-existing records the
+    // first-class type has to reach, since no mutation hook will ever fire for
+    // them again.
+    const { runWorkspaceReindex } = await import(
+      "../src/services/search/reindex.service.js"
     );
+    const result = await runWorkspaceReindex({ teamId: teamA, includeCases: true });
+    expect(result.intakeLinks.indexed).toBeGreaterThan(0);
+
+    const r = await globalSearch(tokenA, teamA, CUSTOMER_ID);
+    // All three requests, and all three records.
+    expect(r.intakeLinkIds).toContain(linkedStaleLinkId);
+    expect(r.evidenceIds).toEqual(
+      expect.arrayContaining([newEvidenceId, oldEvidenceId, linkedStaleEvidenceId]),
+    );
+    // Still one row per object.
+    const keys = r.rows.map((x) => `${x.type}:${x.sourceId}`);
+    expect(new Set(keys).size).toBe(keys.length);
   });
 
   it("a second reindex does nothing — the repair is idempotent", async () => {

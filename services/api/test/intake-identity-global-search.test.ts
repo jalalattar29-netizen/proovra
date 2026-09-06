@@ -253,15 +253,48 @@ describe("matching on contact is a decision, not a default", () => {
     expect(ROUTE).toContain('matchRecipientContact: disclosure === "REVEALED"');
   });
 
+  it("a query is only read as a phone number when normalisation changed it", () => {
+    /*
+     * A live gate caught this: `intakePhoneDigits` strips non-digits, so
+     * "CUST-SEARCH-9174" yields "9174" — the Customer ID's own tail — and an
+     * unguarded digits arm matched every record whose recipient number
+     * contained those four digits anywhere. A Customer-ID query returned a
+     * record whose body held no Customer ID, labelled "Matched recipient
+     * phone".
+     *
+     * The guard is the same one the `searchableText` digits arm has always
+     * carried: add the digits form ONLY when it is not already sitting in what
+     * the operator typed. It costs no capability — a bare partial number is
+     * covered by the needle as typed, and a spaced number still normalises,
+     * because its digits are not contiguous in the needle.
+     */
+    expect(QUERY).toContain("if (digits && !q.includes(digits)) needles.add(digits);");
+    // ONE builder, used by the query AND by the reason — they disagreed, which
+    // is how a row came to claim a phone match the query never made.
+    expect(QUERY).toContain("function buildContactNeedles(");
+    const uses = QUERY.match(/buildContactNeedles\(/g) ?? [];
+    expect(uses.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("a contact reason is only offered to a caller who could match on contact", () => {
+    // Telling a restricted caller that a row matched a recipient's number is
+    // both untrue — their query had no contact arm — and a statement about a
+    // value they may not ask for.
+    expect(QUERY).toContain("if (!matchRecipientContact) return reasons;");
+    expect(QUERY).toContain("input.matchRecipientContact === true),");
+  });
+
   it("one number written three ways still reaches the haystack", () => {
-    const gate = QUERY.slice(
-      QUERY.indexOf("if (input.matchRecipientContact === true) {"),
-      QUERY.indexOf("const idNeedle = parseEvidenceIdNeedle"),
+    // The needle as typed, the canonical form, and the digits of a partial —
+    // built in ONE place so the query and the result row's reason cannot
+    // disagree about what a contact match is.
+    const builder = QUERY.slice(
+      QUERY.indexOf("function buildContactNeedles(q: string): string[] {"),
+      QUERY.indexOf("function buildMatchReasonsForRow("),
     );
-    // The needle as typed, the canonical form, and the digits of a partial.
-    expect(gate).toContain("intakePhoneE164(filter.q)");
-    expect(gate).toContain("intakePhoneDigits(filter.q)");
-    expect(gate).toContain("toLowerCase()");
+    expect(builder).toContain("q.trim().toLowerCase()");
+    expect(builder).toContain("intakePhoneE164(q)");
+    expect(builder).toContain("intakePhoneDigits(q)");
   });
 
   it("the type-ahead never reaches the haystack at all", () => {
