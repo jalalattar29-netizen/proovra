@@ -21,20 +21,20 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | 7468cac5c4b74be638fcd2dd6fb32915cbbea453472840d3487fe1976312e1ac |
+| engineHash    | d2c90fbec61ac95d66b507c2356ab46cd7ac3df41ff3728b353a3256ba758b9d |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
 
 | counter                       | value |
 | ----------------------------- | ----- |
-| registeredRoutes              | 1132  |
+| registeredRoutes              | 1133  |
 | developmentOnlyRoutes         | 1     |
 | productConsumerRoutes         | 889   |
 | machineOnlyConsumerRoutes     | 4     |
-| noConsumerRoutes              | 239   |
+| noConsumerRoutes              | 240   |
 | dispositionedNonProductRoutes | 228   |
-| undisposedRoutes              | 14    |
+| undisposedRoutes              | 15    |
 | authorizationUnresolved       | 0     |
 | publicUnguardedRoutes         | 20    |
 
@@ -75,7 +75,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 
 | counter                                    | value |
 | ------------------------------------------ | ----- |
-| AuditFilesInventoried                      | 347   |
+| AuditFilesInventoried                      | 348   |
 | AuditFilesUnclassified                     | 1     |
 | AuditArtifactProducersUnknown              | 0     |
 | AuditArtifactConsumersUnknown              | 0     |
@@ -126,9 +126,9 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | Phase0ChangedPathClassificationMissing     | 0     |
 | ManualPhase0ChangeInventories              | 0     |
 | ProductionRuntimeFilesModifiedByPhase0     | 0     |
-| ProductBehaviorTestsRemoved                | 1     |
+| ProductBehaviorTestsRemoved                | 0     |
 | HistoricalMigrationsModifiedByPhase0       | 0     |
-| ProductBehaviorTestsInventoried            | 199   |
+| ProductBehaviorTestsInventoried            | 200   |
 
 ### Report roles
 
@@ -206,7 +206,6 @@ Referenced, never transcribed. Each is measured by its own producer; this report
 - INSTRUMENT: ClassificationConflicts = 1
 - UNCLASSIFIED audit file: scripts/admin-ledger/visual/README.md
 - INDEPENDENT ROUTE/CONSUMER SCANNER: scripts/admin-ledger/visual/states.mjs — Independent route/consumer scanner competing with the AST engine.
-- PRODUCT BEHAVIOUR TEST DELETED: apps/web/__tests__/render/guest-invite-entitlement.render.test.tsx
 
 ### Product closure
 
@@ -215,5 +214,5 @@ Referenced, never transcribed. Each is measured by its own producer; this report
 - INSTRUMENT: AmbiguousConsumerSites = 1
 - INSTRUMENT: ClassificationConflicts = 1
 - UNWIRED EXECUTABLE WRITERS: 4 terminal writers have zero entrypoints (PRESERVED_PLANNED_WRITER + DEAD_UNREACHABLE)
-- CHECKPOINT: 11 violation(s) — SCALAR_DISAGREES_WITH_FACTS: ProductionRegisteredRoutes: checkpoint says 1125, facts say 1131 | SCALAR_DISAGREES_WITH_FACTS: RegisteredRoutes: checkpoint says 1126, facts say 1132 | SCALAR_DISAGREES_WITH_FACTS: UndisposedRoutes: checkpoint says 0, facts say 14 | SCALAR_DISAGREES_WITH_FACTS: ClassificationConflicts: checkpoint says 0, facts say 1 | SCALAR_DISAGREES_WITH_FACTS: ROUTE_ATTRIBUTED_REACHABLE: checkpoint says 1132, facts say 1128
-- ArchitectureBacklog: UndisposedRoutes = 14 — registered routes with no reviewed product disposition (ARCH-BACKLOG-001, NON-BLOCKING, no security or completeness credit)
+- CHECKPOINT: 11 violation(s) — SCALAR_DISAGREES_WITH_FACTS: ProductionRegisteredRoutes: checkpoint says 1125, facts say 1132 | SCALAR_DISAGREES_WITH_FACTS: RegisteredRoutes: checkpoint says 1126, facts say 1133 | SCALAR_DISAGREES_WITH_FACTS: UndisposedRoutes: checkpoint says 0, facts say 15 | SCALAR_DISAGREES_WITH_FACTS: ClassificationConflicts: checkpoint says 0, facts say 1 | SCALAR_DISAGREES_WITH_FACTS: ROUTE_ATTRIBUTED_REACHABLE: checkpoint says 1132, facts say 1128
+- ArchitectureBacklog: UndisposedRoutes = 15 — registered routes with no reviewed product disposition (ARCH-BACKLOG-001, NON-BLOCKING, no security or completeness credit)

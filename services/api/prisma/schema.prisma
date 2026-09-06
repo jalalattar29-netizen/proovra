@@ -1900,6 +1900,9 @@ model TeamMember {
   @@index([userId])
   @@index([teamId, status])
   @@index([accessExpiresAtUtc])
+  /// Keyset page for Workspace People (20280503000000). Matches the
+  /// endpoint ORDER BY exactly, so a large workspace is walked, not sorted.
+  @@index([teamId, createdAt, id])
   @@map("team_members")
 }
 
@@ -13403,6 +13406,9 @@ model CollaborationTeamAssignment {
   @@index([workspaceId, status])
   @@index([targetType, targetId])
   @@index([assigneeUserId, status])
+  /// Keyset page for a group's assignments (20280503000000). Newest-first
+  /// with `id` breaking ties — the pair the cursor walks.
+  @@index([teamId, createdAt(sort: Desc), id(sort: Desc)])
   @@map("collaboration_team_assignments")
 }
 

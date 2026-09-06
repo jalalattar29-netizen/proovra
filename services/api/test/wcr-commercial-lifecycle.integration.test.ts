@@ -271,7 +271,6 @@ describe("WCR closure — TEAM as a commercial plan (live PostgreSQL 16)", () =>
   describe("PRO → TEAM", () => {
     it("writes the PERSONAL entitlement, creates nothing, and raises exactly two limits", async () => {
       const t = await seedPersonalTenant(deps, "PRO");
-      const before = await shapeOf(t.owner.userId);
       const beforeCaps = await capabilitiesOf(t.owner.userId);
       expect(beforeCaps.maxWorkspaceSeats).toBe(5);
       expect(beforeCaps.maxCollaborationTeamsPerWorkspace).toBe(2);

@@ -436,15 +436,44 @@ export async function listActivity(
   };
 }
 
+/**
+ * One PAGE of a group's assignments.
+ *
+ * The server used to truncate at two hundred with nothing in the response to
+ * say so, and this returned a bare array that could not have carried the fact
+ * anyway. It now returns the page, the cursor for the next one and the true
+ * total, so a surface can say "showing 50 of 380" instead of quietly showing
+ * an incomplete list as if it were complete.
+ */
 export async function listAssignments(
   teamId: string,
-  opts?: { status?: CollaborationTeamAssignmentStatus | null },
-): Promise<ReadonlyArray<CollaborationTeamAssignment>> {
-  const qs = opts?.status ? `?status=${encodeURIComponent(opts.status)}` : "";
+  opts?: {
+    status?: CollaborationTeamAssignmentStatus | null;
+    limit?: number;
+    cursor?: string | null;
+  },
+): Promise<{
+  assignments: ReadonlyArray<CollaborationTeamAssignment>;
+  nextCursor: string | null;
+  total: number;
+}> {
+  const qs = new URLSearchParams();
+  if (opts?.status) qs.set("status", opts.status);
+  if (opts?.limit) qs.set("limit", String(opts.limit));
+  if (opts?.cursor) qs.set("cursor", opts.cursor);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
   const res = (await apiFetch(
-    `${BASE}/${encodeURIComponent(teamId)}/assignments${qs}`,
-  )) as { assignments: CollaborationTeamAssignment[] };
-  return res.assignments;
+    `${BASE}/${encodeURIComponent(teamId)}/assignments${suffix}`,
+  )) as {
+    assignments: CollaborationTeamAssignment[];
+    nextCursor: string | null;
+    total: number;
+  };
+  return {
+    assignments: res.assignments,
+    nextCursor: res.nextCursor ?? null,
+    total: res.total ?? res.assignments.length,
+  };
 }
 
 export async function createAssignment(

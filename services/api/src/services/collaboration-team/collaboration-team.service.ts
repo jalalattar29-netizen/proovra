@@ -2072,8 +2072,29 @@ export async function updateAssignment(
   });
 }
 
+/**
+ * One page of a group's assignments.
+ *
+ * This returned `take: 200` with no cursor, which is a truncation rather than
+ * a page: the two hundred and first assignment was simply invisible, with
+ * nothing in the response to say so. Keyset pagination on a STABLE order
+ * (`createdAt`, then `id` to break ties) makes the rest reachable and makes
+ * "there is more" a fact the client is told rather than one it has to guess.
+ *
+ * The ordering changed with it. Sorting by status and priority first is a
+ * presentation preference, and it is not stable enough to page on — two rows
+ * with the same status and priority have no defined order between requests, so
+ * a cursor over them can repeat or skip. The surface sorts what it displays;
+ * the page boundary is the database's.
+ */
 export async function listAssignments(
-  input: { teamId: string; actorUserId: string; status?: string | null },
+  input: {
+    teamId: string;
+    actorUserId: string;
+    status?: string | null;
+    limit?: number;
+    cursor?: string | null;
+  },
   client: PrismaClient = defaultPrisma,
 ) {
   await requireMemberWithPermission(
@@ -2082,15 +2103,20 @@ export async function listAssignments(
     input.actorUserId,
     "team.read",
   );
-  const rows = await client.collaborationTeamAssignment.findMany({
-    where: {
-      teamId: input.teamId,
-      ...(input.status ? { status: validateAssignmentStatus(input.status) } : {}),
-    },
-    orderBy: [{ status: "asc" }, { priority: "desc" }, { createdAt: "desc" }],
-    take: 200,
+  const where = {
+    teamId: input.teamId,
+    ...(input.status ? { status: validateAssignmentStatus(input.status) } : {}),
+  };
+  const take = Math.min(Math.max(input.limit ?? 50, 1), 200);
+  const found = await client.collaborationTeamAssignment.findMany({
+    where,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: take + 1,
+    ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
   });
-  return rows.map((a) => ({
+  const rows = found.slice(0, take);
+  const nextCursor = found.length > take ? rows[rows.length - 1].id : null;
+  const items = rows.map((a) => ({
     id: a.id,
     targetType: a.targetType as CollaborationTeamAssignmentTarget,
     targetId: a.targetId,
@@ -2104,6 +2130,11 @@ export async function listAssignments(
     updatedAt: a.updatedAt,
     completedAtUtc: a.completedAtUtc,
   }));
+  return {
+    items,
+    nextCursor,
+    total: await client.collaborationTeamAssignment.count({ where }),
+  };
 }
 
 // =============================================================================

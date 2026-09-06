@@ -149,6 +149,8 @@ function AssignmentsTab({
   const [statusFilter, setStatusFilter] =
     useState<CollaborationTeamAssignmentStatus | null>(null);
   const [creating, setCreating] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
 
   // Client-side-only filters over already-fetched rows (no new fetch).
   const [query, setQuery] = useState("");
@@ -160,9 +162,15 @@ function AssignmentsTab({
   const refresh = useCallback(async (isStale?: () => boolean) => {
     setLoading(true);
     try {
-      const rows = await listAssignments(team.id, { status: statusFilter });
+      // ONE PAGE, and the surface says which one. The server used to truncate
+      // at two hundred with nothing to say so; a list that is silently
+      // incomplete is worse than a short one, because it reads as the whole
+      // set. `total` below is what makes "showing N of M" honest.
+      const page = await listAssignments(team.id, { status: statusFilter });
       if (isStale?.()) return;
-      setItems(rows);
+      setItems(page.assignments);
+      setTotal(page.total);
+      setHasMore(page.nextCursor !== null);
     } catch (err) {
       if (isStale?.()) return;
       if (err instanceof ApiError) {
@@ -363,6 +371,20 @@ function AssignmentsTab({
         </div>
       ) : (
         <div className="app-table-surface">
+          {/*
+            SAY WHAT IS SHOWN. The list is one page, and the filters above it
+            are applied in the browser over that page — so without this the
+            surface would look like a complete, filtered list when it is a
+            filtered view of a page. Naming both numbers is the difference.
+          */}
+          <p
+            className="app-table__muted"
+            data-testid="assignments-page-summary"
+            style={{ margin: "0 0 0.5rem" }}
+          >
+            Showing {visibleItems.length} of {total}
+            {hasMore ? " — refine the filters to narrow this list" : ""}
+          </p>
           <table className="app-table" data-responsive>
             <thead>
               <tr>

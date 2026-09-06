@@ -109,6 +109,16 @@ async function recordActivity(
 }
 
 // =============================================================================
+/**
+ * The most people one `@team` can notify in a single comment.
+ *
+ * A group cannot hold more people than its workspace has seats, and the
+ * largest seat entitlement the commercial model sells is 500 — so this is a
+ * ceiling on a pathological case rather than a product limit anyone reaches.
+ * It exists so the fan-out has a bound that does not depend on the data.
+ */
+const MAX_BROADCAST_MENTION_RECIPIENTS = 500;
+
 // User directory enrichment (Stage 2)
 // =============================================================================
 
@@ -214,18 +224,68 @@ export async function createComment(
 
   const handles = parseCollaborationTeamMentionHandles(sanitised.body);
 
-  // Resolve user mentions to userIds (active team members only — never
-  // notify outside the team).
-  const activeMembers = await client.collaborationTeamMember.findMany({
-    where: { teamId: input.teamId, status: "ACTIVE" },
-    select: {
-      userId: true,
-      role: true,
-      user: {
-        select: { email: true, displayName: true, firstName: true, lastName: true },
-      },
-    },
-  });
+  /**
+   * Resolve user mentions to userIds — active group members only, so a mention
+   * can never notify outside the group.
+   *
+   * BOUNDED BY WHAT WAS TYPED, not by how many people are in the group. This
+   * loaded EVERY active member and their user row on every comment, including
+   * the overwhelming majority that mention nobody at all: a five-hundred-person
+   * workspace paid for five hundred rows to post "looks right to me".
+   *
+   * A comment with no handles now reads nothing, and a comment with handles
+   * reads only rows that could match one of them. The handle forms are the two
+   * the map below builds — the email local part, and the display name with
+   * spaces as dots — so the filter is expressed in those terms and the map is
+   * still the thing that decides, which keeps the matching rules in one place.
+   */
+  const activeMembers = handles.length
+    ? await client.collaborationTeamMember.findMany({
+        where: {
+          teamId: input.teamId,
+          status: "ACTIVE",
+          user: {
+            OR: handles.flatMap((handle) => [
+              { email: { startsWith: `${handle}@`, mode: "insensitive" as const } },
+              {
+                displayName: {
+                  equals: handle.replace(/./g, " "),
+                  mode: "insensitive" as const,
+                },
+              },
+            ]),
+          },
+        },
+        select: {
+          userId: true,
+          role: true,
+          user: {
+            select: { email: true, displayName: true, firstName: true, lastName: true },
+          },
+        },
+        // A handle resolves to one person; this is the ceiling that keeps a
+        // pathological comment from becoming an unbounded read.
+        take: Math.min(handles.length * 4, 200),
+      })
+    : [];
+  /**
+   * `@team` and `@lead` genuinely address a set rather than a person, so they
+   * need the membership — but only the ids and roles, only when one of them was
+   * actually typed, and only up to the largest membership the commercial model
+   * permits. Keeping this separate from the named-handle read above is what
+   * lets the ordinary case cost nothing.
+   */
+  const broadcastHandles = handles.some((h) =>
+    isSpecialCollaborationTeamMention(h),
+  );
+  const broadcastMembers = broadcastHandles
+    ? await client.collaborationTeamMember.findMany({
+        where: { teamId: input.teamId, status: "ACTIVE" },
+        select: { userId: true, role: true },
+        take: MAX_BROADCAST_MENTION_RECIPIENTS,
+      })
+    : [];
+
   const memberByHandle = new Map<string, { userId: string; role: string }>();
   for (const m of activeMembers) {
     const emailLocal = m.user.email?.split("@")[0]?.toLowerCase();
@@ -300,11 +360,11 @@ export async function createComment(
         recipientIds.add(u.mentionedUserId);
     }
     if (hasTeamMention) {
-      for (const m of activeMembers)
+      for (const m of broadcastMembers)
         if (m.userId !== input.actorUserId) recipientIds.add(m.userId);
     }
     if (hasLeadMention) {
-      for (const m of activeMembers)
+      for (const m of broadcastMembers)
         if (m.role === "LEAD" && m.userId !== input.actorUserId)
           recipientIds.add(m.userId);
     }

@@ -961,14 +961,19 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           userId: binding.workspace.userId,
         };
         try {
-          const status =
-            (req.query as Record<string, string | undefined>)?.status ?? null;
-          const items = await listAssignments({
+          const q = (req.query ?? {}) as Record<string, string | undefined>;
+          const page = await listAssignments({
             teamId: req.params.teamId,
             actorUserId: ctx.userId,
-            status,
+            status: q.status ?? null,
+            limit: q.limit ? Number.parseInt(q.limit, 10) : undefined,
+            cursor: q.cursor ?? null,
           });
-          return reply.send({ assignments: items });
+          return reply.send({
+            assignments: page.items,
+            nextCursor: page.nextCursor,
+            total: page.total,
+          });
         } catch (err) {
           return handleServiceError(reply, err, req.id ?? null);
         }

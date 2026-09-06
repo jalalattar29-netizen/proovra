@@ -181,7 +181,8 @@ describe("WCR closure — custody, privacy, audit (live PostgreSQL 16)", () => {
     it("the assignable-target list is the workspace's own records, and only those", async () => {
       const a = h.fixtures.teamA;
       const b = h.fixtures.teamB;
-      const group = await newGroup(a.teamId, a.ownerUserId);
+      // The picker is WORKSPACE-scoped, not group-scoped: a group has no
+      // records of its own to offer.
       const page = await svc.listAssignableTargets({
         workspaceId: a.teamId,
         targetType: "EVIDENCE",

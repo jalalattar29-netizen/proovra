@@ -90,6 +90,9 @@ import {
   workspaceEvidenceWhere,
 } from "@proovra/shared-runtime";
 
+const WORKSPACE_MEMBER_PAGE_SIZE = 50;
+const WORKSPACE_MEMBER_PAGE_MAX = 200;
+
 const CreateTeamBody = z.object({
   name: z.string().min(1).max(120),
 });
@@ -551,10 +554,29 @@ export async function teamsRoutes(app: FastifyInstance) {
       const teamId = z.string().uuid().parse((req.params as { id: string }).id);
       const userId = getAuthUserId(req);
 
+      /**
+       * A WORKSPACE DETAIL READ IS NOT A MEMBER EXPORT.
+       *
+       * This was `include: { members: true }` — every membership row of every
+       * size of workspace, on every load of the page, followed by a user
+       * lookup over all of them. An Enterprise workspace with a thousand
+       * people therefore answered its own detail request with a thousand
+       * memberships and a thousand users, and the browser rendered a list it
+       * could not usefully show.
+       *
+       * The detail now carries a BOUNDED first page plus the true total, and
+       * `GET /v1/teams/:id/members` is the paginated, searchable authority for
+       * the rest. `memberCount` below stays the real count, taken from the
+       * database rather than from the length of whatever was loaded — which is
+       * the bug this shape would otherwise introduce.
+       */
       const team = await prisma.team.findUnique({
         where: { id: teamId },
         include: {
-          members: true,
+          members: {
+            orderBy: [{ role: "asc" }, { createdAt: "asc" }],
+            take: WORKSPACE_MEMBER_PAGE_SIZE,
+          },
         },
       });
 
@@ -570,7 +592,13 @@ export async function teamsRoutes(app: FastifyInstance) {
         return reply.code(404).send({ message: "Team not found" });
       }
 
-      const actorMembership = team.members.find((m) => m.userId === userId);
+      // The actor may not be on the first page, so their membership is read
+      // directly rather than searched for in a bounded list — a page-shaped
+      // authorization check would refuse the thousandth member their own
+      // workspace.
+      const actorMembership = await prisma.teamMember.findFirst({
+        where: { teamId, userId },
+      });
       if (!actorMembership) {
         auditTeamAction(req, {
           userId,
@@ -613,6 +641,10 @@ export async function teamsRoutes(app: FastifyInstance) {
           acceptedAt: null,
           expiresAt: { gt: now },
         },
+      });
+
+      const workspaceMemberTotal = await prisma.teamMember.count({
+        where: { teamId },
       });
 
       const caseCount = await prisma.case.count({
@@ -682,7 +714,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         // point on every direct API call.
         canManageWorkspace: actorMembership.role === prismaPkg.TeamRole.OWNER,
         stats: {
-          memberCount: team.members.length,
+          memberCount: workspaceMemberTotal,
           pendingInviteCount,
           caseCount,
           seatLimit: effectiveSeatLimit,
@@ -695,6 +727,14 @@ export async function teamsRoutes(app: FastifyInstance) {
           storageLimitLabel: workspaceUsage.storageLimitLabel,
           storageRemainingLabel: workspaceUsage.storageRemainingLabel,
           storageUsageRatio: workspaceUsage.storageUsageRatio,
+        },
+        // A BOUNDED first page. `memberPage` says so out loud, so a client
+        // cannot mistake it for the whole set the way the old shape invited.
+        memberPage: {
+          total: workspaceMemberTotal,
+          returned: team.members.length,
+          hasMore: workspaceMemberTotal > team.members.length,
+          endpoint: `/v1/teams/${teamId}/members`,
         },
         members: team.members.map((member) => {
           const user = usersById.get(member.userId);
@@ -715,6 +755,94 @@ export async function teamsRoutes(app: FastifyInstance) {
         }),
       });
     }
+  );
+
+  // ---------------------------------------------------------------------------
+  // GET /v1/teams/:id/members — WORKSPACE PEOPLE, paginated and searched by the
+  // database.
+  //
+  // The detail read above carries a bounded first page. This is where the rest
+  // of a large workspace's people come from: keyset pagination on a stable
+  // order, a search the DATABASE applies, and a status filter — so a thousand
+  // -person workspace is read a page at a time rather than in one response
+  // nobody can render.
+  //
+  // Searching in the browser over a fully-loaded list is the shape this
+  // replaces. It cannot work: the list has to be complete for the search to be
+  // right, and completeness is the thing that does not scale.
+  // ---------------------------------------------------------------------------
+  app.get(
+    "/v1/teams/:id/members",
+    { preHandler: requireAuthAndLegal },
+    async (req: FastifyRequest, reply) => {
+      const teamId = z.string().uuid().parse((req.params as { id: string }).id);
+      const userId = getAuthUserId(req);
+
+      const actor = await getActorMembership(teamId, userId);
+      if (!actor) return reply.code(404).send({ message: "Team not found" });
+
+      const q = (req.query ?? {}) as Record<string, string | undefined>;
+      const search = (q.q ?? "").trim();
+      const limit = Math.min(
+        Math.max(Number.parseInt(q.limit ?? "", 10) || WORKSPACE_MEMBER_PAGE_SIZE, 1),
+        WORKSPACE_MEMBER_PAGE_MAX,
+      );
+      const status = q.status?.trim().toUpperCase();
+
+      // The search is over the USER, so it is expressed as a relation filter
+      // and executed by PostgreSQL — not by loading people and filtering them
+      // here, which is the same unbounded read wearing a different hat.
+      const where: prismaPkg.Prisma.TeamMemberWhereInput = {
+        teamId,
+        ...(status && status !== "ALL"
+          ? { status: status as prismaPkg.TeamMemberStatus }
+          : {}),
+        ...(search
+          ? {
+              user: {
+                OR: [
+                  { displayName: { contains: search, mode: "insensitive" } },
+                  { email: { contains: search, mode: "insensitive" } },
+                ],
+              },
+            }
+          : {}),
+      };
+
+      const rows = await prisma.teamMember.findMany({
+        where,
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        take: limit + 1,
+        ...(q.cursor ? { cursor: { id: q.cursor }, skip: 1 } : {}),
+        include: {
+          user: { select: { id: true, email: true, displayName: true } },
+        },
+      });
+
+      const page = rows.slice(0, limit);
+      const nextCursor = rows.length > limit ? page[page.length - 1].id : null;
+
+      return reply.code(200).send({
+        members: page.map((member) => ({
+          id: member.id,
+          userId: member.userId,
+          role: member.role,
+          status: member.status,
+          createdAt: member.createdAt,
+          label:
+            member.user?.displayName || member.user?.email || member.userId,
+          user: member.user
+            ? {
+                id: member.user.id,
+                email: member.user.email ?? undefined,
+                displayName: member.user.displayName ?? undefined,
+              }
+            : undefined,
+        })),
+        nextCursor,
+        total: await prisma.teamMember.count({ where }),
+      });
+    },
   );
 
   app.get(
