@@ -39,7 +39,13 @@ import {
 import { getPlanCapabilities } from "@proovra/shared-billing";
 
 import { resolveWorkspaceSeatState } from "../billing/workspace-seats.service.js";
+import {
+  resolveEffectiveCollaborationMemberLimit,
+  resolveEffectiveCollaborationTeamLimit,
+  resolveEnterpriseContractLimits,
+} from "../billing/enterprise-contract-limits.js";
 import { prisma as defaultPrisma } from "../../db.js";
+import { effectiveGroupMemberWhere } from "./effective-membership.js";
 import {
   resolveCommercialContext,
   COMMERCIAL_GRACE_PERIOD_DAYS,
@@ -354,9 +360,18 @@ export async function assertCanCreateCollaborationTeam(
       });
   const plan = ctx.scope.plan;
 
+  // WCR-07 — CONTRACT FIRST. `resolveEffectiveCollaborationTeamLimit` returns
+  // the contracted number when an ACTIVE Enterprise contract states one and the
+  // catalog default otherwise, so an Enterprise workspace stops being governed
+  // by a flat 1000 that nobody agreed to. The contract PROJECTION is not read
+  // directly: `resolveEnterpriseContractLimits` is the one place that fails
+  // closed on DRAFT / SUSPENDED / TERMINATED status.
   const maxCollaborationTeamsPerWorkspace = Math.max(
     0,
-    getPlanCapabilities(plan).maxCollaborationTeamsPerWorkspace,
+    resolveEffectiveCollaborationTeamLimit({
+      plan,
+      contract: resolveEnterpriseContractLimits(ctx.enterpriseContract),
+    }),
   );
 
   const workspaceTeamCount = await client.collaborationTeam.count({
@@ -466,18 +481,41 @@ export async function assertCollaborationTeamMemberLimit(
    * The catalog field survives as the SAFETY ceiling for one group — an
    * operational bound, reconciled to the seat entitlement rather than
    * contradicting it — and the workspace seat count is the real limit.
+   *
+   * WCR-07 — that safety ceiling is now CONTRACT-FIRST too. It was the flat
+   * catalog 500 on every Enterprise workspace, and because the reconciliation
+   * below takes a `min()`, an organization contracted for 800 seats could put
+   * only 500 of them in one group: a self-serve placeholder capping a signed
+   * agreement. The `min()` itself stays — a group still cannot exceed the
+   * people the workspace actually has — but both sides of it now come from the
+   * contract when there is one.
    */
   const workspaceSeats = await resolveWorkspaceSeatState(workspaceId, client);
   const maxAcceptedMembers = Math.max(
     0,
     Math.min(
       Math.max(workspaceSeats.limit, workspaceSeats.used),
-      getPlanCapabilities(plan).maxAcceptedMembersPerCollaborationTeam,
+      resolveEffectiveCollaborationMemberLimit({
+        plan,
+        // The seat resolver already resolved the commercial context and already
+        // failed closed on contract status. Reading its result is what keeps
+        // this ONE resolution rather than a second one that could disagree.
+        contract: workspaceSeats.contractLimits,
+      }),
     ),
   );
 
+  /**
+   * WCR-11 — count EFFECTIVE members, not rows.
+   *
+   * A group row survives the end of the workspace membership behind it, so
+   * this counted people who can no longer enter the workspace at all and
+   * refused a legitimate addition on their behalf: a group could be "full" of
+   * leavers. One definition, imported rather than restated — see
+   * `effectiveGroupMemberWhere`.
+   */
   const currentMemberCount = await client.collaborationTeamMember.count({
-    where: { teamId, status: "ACTIVE" },
+    where: { teamId, ...effectiveGroupMemberWhere(workspaceId) },
   });
 
   const seatRemaining = Math.max(0, maxAcceptedMembers - currentMemberCount);
@@ -557,44 +595,69 @@ export async function assertCollaborationTeamMemberLimit(
 
 /**
  * Universal pre-mutation gate for all write endpoints on
- * /v1/collaboration-teams*. Allows:
- *
- *   - ACTIVE
- *   - TRIALING
- *   - PAST_DUE within `SUBSCRIPTION_GRACE_PERIOD_DAYS` of
- *     `currentPeriodEnd` (the legacy seat-state behaviour).
- *
- * Blocks:
- *
- *   - CANCELED / CANCELLED
- *   - UNPAID
- *   - INCOMPLETE_EXPIRED
- *   - PAST_DUE past the grace window.
- *
- * Users on the FREE entitlement (no subscription row) are still
- * allowed because FREE itself is a valid plan; the gate only blocks
+ * /v1/collaboration-teams*. Allows ACTIVE, TRIALING, and PAST_DUE inside the
+ * canonical grace window. Blocks CANCELLED, UNPAID, INCOMPLETE_EXPIRED and
+ * PAST_DUE past grace. FREE is a valid plan and is allowed; the gate blocks
  * paid plans whose payment has lapsed.
  *
- * Mirrors the legacy `activateTeamPlan`/`cancelTeamPlan` status flow
- * (services/api/src/services/billing.service.ts) + `refreshTeamSeatState`.
+ * =============================================================================
+ * WCR-04 (2026-09-07) — THE SUBJECT IS THE WORKSPACE, NOT THE ACTOR
+ * =============================================================================
+ * This took a `userId` and resolved `{ ownerUserId: userId }`, which with no
+ * `teamId` resolves the ACTOR'S OWN PERSONAL SPACE. Six collaboration
+ * mutations therefore asked "is this person's personal subscription in good
+ * standing?" before letting them act inside a workspace that is not theirs.
+ *
+ * Two things were wrong with that, in opposite directions:
+ *
+ *   - an invited ADMIN of a fully-paid TEAM workspace, whose own personal
+ *     subscription had lapsed, was refused work in a workspace that had paid
+ *     for it;
+ *   - `resolveCollaborationEntitlement` reports `mutationsAllowed` from the
+ *     WORKSPACE lifecycle, so the projection the browser renders and the gate
+ *     the server enforces answered differently about the same request.
+ *
+ * Every other guard in this module already resolves the workspace subject
+ * (`resolveCollaborationTeamWorkspacePlan`, `assertCanCreateCollaborationTeam`).
+ * This one now does too, through the same discriminated envelope: a PERSONAL
+ * workspace resolves its owner's entitlement, anything else resolves the
+ * workspace aggregate. The actor's own plan is never consulted for an
+ * operation inside a workspace.
  */
 export async function assertSubscriptionActiveOrGraceAllowed(
-  userId: string,
+  input: { workspaceId: string },
+  client: PrismaClient = defaultPrisma,
 ): Promise<{
   plan: PlanType;
   status: SubscriptionStatus;
   inGracePeriod: boolean;
 }> {
   // PHASE 9 STEP 5 (2026-07-22) — THIN ADAPTER (zero independent decision).
-  // The subscription-active + grace DECISION now lives in the ONE canonical
-  // lifecycle policy (`resolveCommercialContext` → `lifecycle`, which itself
-  // hosts the relocated corroboration + single bounded-grace rule). This
-  // function no longer reads `Subscription.status` and no longer computes an
-  // independent grace window; it only maps the canonical verdict to the
-  // collaboration-team error contract. The production stale-row 402 invariant
-  // is preserved by the resolver (see commercial-context.service
-  // `resolvePaidLifecycle` + `production-subscription-gate-stale-row.test`).
-  const ctx = await resolveCommercialContext({ ownerUserId: userId });
+  // The subscription-active + grace DECISION lives in the ONE canonical
+  // lifecycle policy (`resolveCommercialContext` → `lifecycle`). This function
+  // computes no grace window of its own; it maps the canonical verdict to the
+  // collaboration-team error contract.
+  const workspace = await client.team.findUnique({
+    where: { id: input.workspaceId },
+    select: { id: true, ownerUserId: true, isPersonal: true },
+  });
+  if (!workspace) {
+    throwBillingError({
+      code: "SUBSCRIPTION_INACTIVE",
+      message: "Workspace not found.",
+      details: { workspaceId: input.workspaceId },
+    });
+  }
+  const ctx = workspace.isPersonal
+    ? await resolveCommercialContext({
+        type: "PERSONAL_ACCOUNT",
+        userId: workspace.ownerUserId,
+      })
+    : await resolveCommercialContext({
+        type: "WORKSPACE",
+        teamId: workspace.id,
+        requesterUserId: workspace.ownerUserId,
+      });
   const life = ctx.lifecycle;
   const status = (life.providerStatus ??
     (life.state === "CANCELLED" ? "CANCELLED" : "ACTIVE")) as SubscriptionStatus;

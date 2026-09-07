@@ -52,6 +52,8 @@ export type PlatformContextPlanFeatures = {
   intakeIncluded: boolean;
   casesIncluded: boolean;
   reviewerOperationsIncluded: boolean;
+  /** WCR-10 — packaging-engine FEATURE_EXTERNAL_PORTAL, projected per workspace. */
+  externalReviewIncluded: boolean;
   /** PHASE 12B Track 1A — PROFESSIONAL surface tier included (catalog-derived). */
   professionalSurfacesIncluded: boolean;
   reviewQueuesIncluded: boolean;

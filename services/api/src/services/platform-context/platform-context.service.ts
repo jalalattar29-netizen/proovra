@@ -31,6 +31,7 @@ import { prisma } from "../../db.js";
 import { isPlatformAdmin as resolveIsPlatformAdmin } from "../platform-admin.service.js";
 import { resolveCapabilities, resolvePersona } from "./capability-registry.js";
 import { getPlanCapabilities } from "../plan-catalog.service.js";
+import { resolveEntitlement } from "../packaging/entitlement.service.js";
 import { deriveOperationalEligibility } from "./operational-eligibility.js";
 // ATTENTION ARCHITECTURE (2026-08-22) — the canonical answer to "is this an Enterprise
 // customer?", replacing a `billingPlan === "ENTERPRISE"` string comparison.
@@ -631,6 +632,26 @@ export async function buildPlatformContext(
   // PHASE 4B — `planCaps` is now resolved once, above, before capability
   // resolution needs it. This block projects that same object.
   // -------------------------------------------------------------------------
+  /**
+   * WCR-10 — resolved through the canonical entitlement reader, never
+   * re-derived. `resolveEntitlement` returns the conservative default when no
+   * grant row exists and swallows a missing-table error the same way, so a
+   * workspace mid-migration renders the link as unavailable rather than
+   * promising it.
+   */
+  let externalReviewEntitled = false;
+  if (workspace.id) {
+    try {
+      const projection = await resolveEntitlement({
+        teamId: workspace.id,
+        key: "FEATURE_EXTERNAL_PORTAL",
+      });
+      externalReviewEntitled = projection.value === true;
+    } catch {
+      externalReviewEntitled = false;
+    }
+  }
+
   const planFeatures = {
     reportsIncluded: planCaps.reportsIncluded,
     verificationPackageIncluded: planCaps.verificationPackageIncluded,
@@ -642,6 +663,25 @@ export async function buildPlatformContext(
     professionalSurfacesIncluded: planCaps.professionalSurfacesIncluded,
     reviewQueuesIncluded: planCaps.reviewQueuesIncluded,
     teamCollaborationIncluded: planCaps.maxCollaborationTeamsPerWorkspace > 0,
+    /**
+     * WCR-10 (2026-09-07) — EXTERNAL REVIEW, PROJECTED FROM ITS OWN AUTHORITY.
+     *
+     * Note the provenance, which is deliberately NOT `planCaps`: External
+     * Review is gated by `FEATURE_EXTERNAL_PORTAL` in the packaging engine, and
+     * `external-review.routes` + `external-portal.routes` both enforce it. This
+     * field is the SAME resolver's answer, projected so the console can stop
+     * promising the capability to workspaces that will be refused it.
+     *
+     * The collaboration detail page rendered its "External reviewers" link on
+     * `useCan("REVIEWER_OPS_VIEW")` — a ROLE capability. Role and entitlement
+     * are different questions, so an operator with the role followed a link
+     * into a console whose first mutation answers 403 ENTITLEMENT_REQUIRED.
+     *
+     * It is RENDERING INPUT ONLY. The routes remain the enforcement point, and
+     * this is resolved per workspace rather than derived from a plan name here
+     * — there is no plan-name branch anywhere in this projection.
+     */
+    externalReviewIncluded: externalReviewEntitled,
     aiAssistanceMonthlyOperations: planCaps.aiAdvisoryMonthlyOperations,
     /*
      * WORKSPACE AND COLLABORATION ARCHITECTURE CLOSURE (2026-09-06) —

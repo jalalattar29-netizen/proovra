@@ -54,6 +54,7 @@ import {
 } from "@proovra/shared-runtime";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { effectiveGroupMemberWhere } from "./effective-membership.js";
 import {
   assertCanCreateCollaborationTeam,
   assertCollaborationTeamMemberLimit,
@@ -115,6 +116,7 @@ export function assertGroupRoleWithinActorAuthority(
     );
   }
 }
+
 
 const E = {
   notFound: (what: string) =>
@@ -476,22 +478,54 @@ export async function listCollaborationTeams(
     search?: string | null;
     limit?: number;
     cursor?: string | null;
+    /**
+     * WCR-6A — PARTICIPATION or GOVERNANCE.
+     *
+     * `PARTICIPATING` (the default) answers "which groups am I in?" and is the
+     * right view for everyone doing the work. `ALL` answers "what groups exist
+     * in this workspace?" and is an ADMINISTRATIVE question — the caller must
+     * have proven `identity.member.role.change` before asking it, which is
+     * OWNER/ADMIN only.
+     *
+     * The two are separate parameters rather than one widened query because
+     * the alternative on offer was to make every OWNER a member of every
+     * group, and group membership carries Discussion and Assignment
+     * participation with it. Seeing a group is not being in it.
+     */
+    scope?: "PARTICIPATING" | "ALL";
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<{
   teams: CollaborationTeamSummaryRow[];
   nextCursor: string | null;
+  /**
+   * ACTIVE groups matching the requested SCOPE — the viewer's memberships
+   * under PARTICIPATING, the whole workspace under ALL.
+   *
+   * NOT a capacity number. Capacity is `collaborationTeams.used` on the
+   * entitlement projection, which is always workspace-wide. This counted the
+   * viewer's memberships and was read as capacity, so a member of one of a
+   * workspace's two groups saw "1 of 2" and an enabled Create button.
+   */
   totalActive: number;
+  /** ACTIVE groups in the WORKSPACE, whoever is in them. Always authoritative. */
+  workspaceTotalActive: number;
+  scope: "PARTICIPATING" | "ALL";
 }> {
   const take = boundedPage(input.limit);
   const search = (input.search ?? "").trim();
+  const scope = input.scope === "ALL" ? "ALL" : "PARTICIPATING";
+  const participationFilter =
+    scope === "ALL"
+      ? {}
+      : // Membership across all statuses, so a removed member can still see
+        // history if a surface chooses to show it; `viewerRole` below is null
+        // unless the membership is ACTIVE.
+        { members: { some: { userId: input.actorUserId } } };
   const where = {
     workspaceId: input.workspaceId,
     ...(input.includeArchived ? {} : { status: "ACTIVE" }),
-    // Only teams where the actor is a member (across all statuses,
-    // so a removed member can still see history if surfaced — but
-    // sidebar will only show ACTIVE).
-    members: { some: { userId: input.actorUserId } },
+    ...participationFilter,
     ...(search
       ? {
           OR: [
@@ -502,13 +536,18 @@ export async function listCollaborationTeams(
       : {}),
   } satisfies Prisma.CollaborationTeamWhereInput;
 
-  const totalActive = await client.collaborationTeam.count({
-    where: {
-      workspaceId: input.workspaceId,
-      status: "ACTIVE",
-      members: { some: { userId: input.actorUserId } },
-    },
-  });
+  const [totalActive, workspaceTotalActive] = await Promise.all([
+    client.collaborationTeam.count({
+      where: {
+        workspaceId: input.workspaceId,
+        status: "ACTIVE",
+        ...participationFilter,
+      },
+    }),
+    client.collaborationTeam.count({
+      where: { workspaceId: input.workspaceId, status: "ACTIVE" },
+    }),
+  ]);
 
   const teams = await client.collaborationTeam.findMany({
     where,
@@ -518,7 +557,8 @@ export async function listCollaborationTeams(
     include: {
       _count: {
         select: {
-          members: { where: { status: "ACTIVE" } },
+          // WCR-11 — effective members only (see `effectiveGroupMemberWhere`).
+          members: { where: effectiveGroupMemberWhere(input.workspaceId) },
           invites: { where: { status: "PENDING" } },
           assignments: { where: { status: { in: ["OPEN", "IN_PROGRESS"] } } },
         },
@@ -539,6 +579,8 @@ export async function listCollaborationTeams(
   return {
     nextCursor: teams.length > take ? page[page.length - 1]?.id ?? null : null,
     totalActive,
+    workspaceTotalActive,
+    scope,
     teams: page.map((t) => ({
     id: t.id,
     name: t.name,
@@ -589,6 +631,9 @@ export async function getCollaborationTeamDetail(
     where: { id: input.teamId },
     include: {
       members: {
+        // WCR-11 — the preview shows EFFECTIVE members, so the first page and
+        // the count beside it are counting the same population.
+        where: effectiveGroupMemberWhere(input.workspaceId),
         orderBy: { joinedAt: "asc" },
         take: DETAIL_MEMBER_PREVIEW,
         include: {
@@ -627,7 +672,8 @@ export async function getCollaborationTeamDetail(
   const viewer = { role: viewerRow.role };
   const [activeMemberCount, pendingInviteCount] = await Promise.all([
     client.collaborationTeamMember.count({
-      where: { teamId: input.teamId, status: "ACTIVE" },
+      // WCR-11 — effective members only.
+      where: { teamId: input.teamId, ...effectiveGroupMemberWhere(input.workspaceId) },
     }),
     client.collaborationTeamInvite.count({
       where: { teamId: input.teamId, status: "PENDING" },
@@ -697,7 +743,12 @@ export async function getCollaborationTeamDetail(
       id: inv.id,
       channel: inv.channel as CollaborationTeamInviteChannel,
       email: viewerCanSeeContact ? inv.email : maskEmail(inv.email ?? ""),
-      phone: inv.phone,
+      // WCR-17 — the address was masked for a non-manager and the phone number
+      // beside it was not, which makes the masking decorative: the same person
+      // is identified either way. The population is finite and shrinking (no
+      // SMS invitation can be created any more) but the historical rows are
+      // still read by every VIEWER and EXTERNAL member of the group.
+      phone: viewerCanSeeContact ? inv.phone : maskPhone(inv.phone),
       role: inv.role as CollaborationTeamRole,
       status: inv.status,
       expiresAtUtc: inv.expiresAtUtc,
@@ -805,6 +856,70 @@ export async function archiveCollaborationTeam(
       workspaceId: team.workspaceId,
       actorUserId: input.actorUserId,
       eventType: "TEAM_ARCHIVED",
+    });
+  });
+}
+
+/**
+ * WCR-13 (2026-09-07) — REOPEN A GROUP.
+ *
+ * Archiving was one-way. There was no service function, no route and no client
+ * call to undo it, and every mutation route passes `requireActiveTeam: true`,
+ * so an archived group was frozen for ever — while the confirmation dialog told
+ * the operator members would lose access *"until the team is unarchived"*.
+ *
+ * Two ways to close that: delete the promise, or keep it. Keeping it is the
+ * right call on an evidence platform. Archiving is the ONLY way a workspace at
+ * its group ceiling can free a slot, so making it irreversible turns a routine
+ * tidy-up into a permanent loss of a group's assignments, discussion and
+ * activity — and an operator who archived the wrong group had no recourse.
+ *
+ * REOPENING RE-CHECKS CAPACITY, and that is the whole subtlety. Archived groups
+ * do not count against `maxCollaborationTeamsPerWorkspace` (correctly — the cap
+ * is on ACTIVE groups). So a PRO workspace can archive one of its two groups,
+ * create a third, and then try to reopen the first. Without a check that is a
+ * way to hold three active groups on a plan that sells two. The guard runs
+ * inside the same transaction and under the same per-workspace advisory lock as
+ * creation, because reopening and creating compete for exactly the same slot.
+ */
+export async function unarchiveCollaborationTeam(
+  input: { teamId: string; actorUserId: string },
+  client: PrismaClient = defaultPrisma,
+): Promise<void> {
+  const { team } = await requireMemberWithPermission(
+    client,
+    input.teamId,
+    input.actorUserId,
+    // Reopening is the inverse of archiving and carries the same authority.
+    "team.archive",
+  );
+  if (team.status === "ACTIVE") return;
+
+  // Resolved OUTSIDE the transaction, once, so the in-transaction re-check
+  // compares against the same numbers rather than resolving a second answer.
+  const cap = await assertCanCreateCollaborationTeam(
+    { workspaceId: team.workspaceId, actorUserId: input.actorUserId },
+    client,
+  );
+
+  await client.$transaction(async (tx) => {
+    await lockAndAssertCollaborationTeamCapacity(tx, {
+      workspaceId: team.workspaceId,
+      plan: cap.plan,
+      maxCollaborationTeamsPerWorkspace: cap.maxCollaborationTeamsPerWorkspace,
+    });
+    await tx.collaborationTeam.update({
+      where: { id: input.teamId },
+      data: { status: "ACTIVE", archivedAtUtc: null },
+    });
+    await recordActivity(tx, {
+      teamId: input.teamId,
+      workspaceId: team.workspaceId,
+      actorUserId: input.actorUserId,
+      // `TEAM_REOPENED` already existed in the event vocabulary with no
+      // producer — the feed was ready for this operation before the operation
+      // was. Reusing it rather than minting a second name for one fact.
+      eventType: "TEAM_REOPENED",
     });
   });
 }
@@ -1042,6 +1157,77 @@ export async function suspendMember(
       workspaceId: team.workspaceId,
       actorUserId: input.actorUserId,
       eventType: "MEMBER_SUSPENDED",
+      targetType: "USER",
+      targetId: member.userId,
+    });
+  });
+}
+
+/**
+ * WCR-15 (2026-09-07) — THE WAY BACK FROM SUSPENDED.
+ *
+ * `suspendMember` existed and nothing undid it. The route's schema accepted
+ * `status: "ACTIVE"`, no branch handled it, and the response was `{ ok: true }`
+ * — so the product could suspend a group member permanently and report the
+ * reinstatement as successful.
+ *
+ * Reinstating is a MEMBERSHIP-STATUS change and carries the same authority as
+ * suspending (`team.member.suspend`), not the role-change authority: putting
+ * someone back is not a promotion, and requiring LEAD for it would leave an
+ * ADMIN able to suspend people they cannot restore.
+ *
+ * REMOVED is deliberately NOT reinstatable here. A removal is a decision to end
+ * the assignment, and the way back is to add the person again through
+ * `addExistingMember` — which re-checks that they are still an ACTIVE member of
+ * the workspace. Quietly flipping a REMOVED row to ACTIVE would skip that
+ * check and could re-admit somebody who has since left the workspace entirely.
+ */
+export async function reinstateMember(
+  input: { teamId: string; actorUserId: string; memberId: string },
+  client: PrismaClient = defaultPrisma,
+): Promise<void> {
+  const { team } = await requireMemberWithPermission(
+    client,
+    input.teamId,
+    input.actorUserId,
+    "team.member.suspend",
+  );
+  const member = await client.collaborationTeamMember.findUnique({
+    where: { id: input.memberId },
+    select: { id: true, userId: true, status: true, teamId: true },
+  });
+  if (!member || member.teamId !== input.teamId) throw E.notFound("Member");
+  if (member.status === "ACTIVE") return;
+  if (member.status === "REMOVED") {
+    throw E.conflict(
+      "This person was removed from the team. Add them again from the workspace directory.",
+    );
+  }
+
+  // The workspace membership must still be live. A group row can outlive the
+  // access behind it (see `effectiveGroupMemberWhere`), so un-suspending
+  // without this check would restore a group seat to somebody who can no
+  // longer enter the workspace at all.
+  const workspaceMembership = await client.teamMember.findFirst({
+    where: { teamId: team.workspaceId, userId: member.userId, status: "ACTIVE" },
+    select: { id: true },
+  });
+  if (!workspaceMembership) {
+    throw E.invalid(
+      "This person is no longer an active member of the parent workspace.",
+    );
+  }
+
+  await client.$transaction(async (tx) => {
+    await tx.collaborationTeamMember.update({
+      where: { id: input.memberId },
+      data: { status: "ACTIVE", suspendedAt: null, statusReason: null },
+    });
+    await recordActivity(tx, {
+      teamId: input.teamId,
+      workspaceId: team.workspaceId,
+      actorUserId: input.actorUserId,
+      eventType: "MEMBER_REINSTATED",
       targetType: "USER",
       targetId: member.userId,
     });
@@ -1335,7 +1521,28 @@ export async function acceptInvite(
   // TEAM_INVITES_NOT_INCLUDED with details.
   await assertCollaborationTeamMemberLimit(invite.teamId, 1, client);
 
-  const role = validateRole(invite.role);
+  /**
+   * WCR-23 (2026-09-07) — A LEGACY ROW MAY NOT MINT AUTHORITY.
+   *
+   * The stored `role` was written straight onto the new membership. That was
+   * safe once `assertGroupRoleWithinActorAuthority` guarded every writer — but
+   * the writer this table's rows came from, `createEmailInvite`, was DELETED
+   * *after* those rows existed and it enforced no ceiling. Any PENDING
+   * invitation minted by a group ADMIN before the ceiling landed still carries
+   * whatever role it was given, including LEAD, and this path would grant it.
+   *
+   * A compatibility path exists to honour obligations that were validly
+   * issued. An escalation was not validly issued. LEAD is clamped to the
+   * default rather than refused outright, because refusing would strand a
+   * person who was legitimately invited to a group and merely handed the wrong
+   * role by a bug — they join, and a real LEAD can promote them deliberately.
+   *
+   * The population is finite and shrinks to nothing: no writer can create
+   * another of these rows.
+   */
+  const invitedRole = validateRole(invite.role);
+  const role: CollaborationTeamRole =
+    invitedRole === "LEAD" ? "MEMBER" : invitedRole;
   const result = await client.$transaction(async (tx) => {
     /**
      * GUARDED CLAIM FIRST — the write that decides the race.
@@ -1648,29 +1855,47 @@ export async function listEligibleWorkspaceMembersForTeam(
   const take = boundedPage(input.limit);
   const search = (input.search ?? "").trim();
 
-  const alreadyInTeam = await client.collaborationTeamMember.findMany({
-    where: { teamId: input.teamId, status: { in: ["ACTIVE", "SUSPENDED"] } },
-    select: { userId: true },
-  });
-  const excluded = alreadyInTeam.map((m) => m.userId);
-
+  /**
+   * WCR-21 (2026-09-07) — THE EXCLUSION IS A JOIN, NOT AN ARRAY.
+   *
+   * This loaded EVERY member of the group with an unbounded `findMany` and
+   * shipped their ids back to PostgreSQL as a `notIn` array. Bounded at 500 by
+   * the catalog today, so it was not hurting anyone — but it was the one
+   * unbounded read left on a paginated path, and it grows with any Enterprise
+   * contract that raises the per-group ceiling, which WCR-07 just made
+   * possible.
+   *
+   * Expressed as a relation filter, the exclusion never leaves the database:
+   * one query, no array, and it cannot get slower as a group grows. It also
+   * fixes a subtler thing — the array was a SNAPSHOT taken microseconds before
+   * the page query, so somebody added to the group in between could still be
+   * offered as eligible.
+   */
   const rows = await client.teamMember.findMany({
     where: {
       teamId: input.workspaceId,
       status: "ACTIVE",
-      ...(excluded.length > 0 ? { userId: { notIn: excluded } } : {}),
-      ...(search
-        ? {
-            user: {
+      // ONE `user` clause. A second one would silently REPLACE this key rather
+      // than combine with it, which would re-offer people already in the group
+      // the moment somebody typed in the search box.
+      user: {
+        collaborationTeamMemberships: {
+          none: {
+            teamId: input.teamId,
+            status: { in: ["ACTIVE", "SUSPENDED"] },
+          },
+        },
+        ...(search
+          ? {
               OR: [
-                { displayName: { contains: search, mode: "insensitive" } },
-                { firstName: { contains: search, mode: "insensitive" } },
-                { lastName: { contains: search, mode: "insensitive" } },
-                { email: { contains: search, mode: "insensitive" } },
+                { displayName: { contains: search, mode: "insensitive" as const } },
+                { firstName: { contains: search, mode: "insensitive" as const } },
+                { lastName: { contains: search, mode: "insensitive" as const } },
+                { email: { contains: search, mode: "insensitive" as const } },
               ],
-            },
-          }
-        : {}),
+            }
+          : {}),
+      },
     },
     orderBy: { id: "asc" },
     ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
@@ -1718,6 +1943,8 @@ export async function listEligibleWorkspaceMembersForTeam(
 export async function listCollaborationTeamMembers(
   input: {
     teamId: string;
+    /** Required — the proven workspace, for the effective-membership join. */
+    workspaceId: string;
     viewerCanSeeContact: boolean;
     search?: string | null;
     status?: string | null;
@@ -1744,18 +1971,41 @@ export async function listCollaborationTeamMembers(
 }> {
   const take = boundedPage(input.limit);
   const search = (input.search ?? "").trim();
+  /**
+   * WCR-11 — with no explicit `status` filter the caller means "the people who
+   * are effectively in this group", which excludes anyone whose workspace
+   * membership has ended. An EXPLICIT status filter is a deliberate request for
+   * history (a roster of who was suspended, say) and is honoured as asked.
+   */
+  const effective = effectiveGroupMemberWhere(input.workspaceId);
   const where: Prisma.CollaborationTeamMemberWhereInput = {
     teamId: input.teamId,
-    ...(input.status ? { status: input.status } : {}),
+    ...(input.status ? { status: input.status } : effective),
     ...(input.role ? { role: input.role } : {}),
     ...(search
       ? {
           user: {
-            OR: [
-              { displayName: { contains: search, mode: "insensitive" } },
-              { firstName: { contains: search, mode: "insensitive" } },
-              { lastName: { contains: search, mode: "insensitive" } },
-              { email: { contains: search, mode: "insensitive" } },
+            // `AND` because the effective-membership predicate above also
+            // constrains `user`; a bare second `user` key would silently
+            // replace it and re-admit departed members through the search box.
+            AND: [
+              {
+                OR: [
+                  { displayName: { contains: search, mode: "insensitive" } },
+                  { firstName: { contains: search, mode: "insensitive" } },
+                  { lastName: { contains: search, mode: "insensitive" } },
+                  { email: { contains: search, mode: "insensitive" } },
+                ],
+              },
+              ...(input.status
+                ? []
+                : [
+                    {
+                      teamMembers: {
+                        some: { teamId: input.workspaceId, status: "ACTIVE" as const },
+                      },
+                    },
+                  ]),
             ],
           },
         }
@@ -1788,7 +2038,9 @@ export async function listCollaborationTeamMembers(
       },
     }),
     client.collaborationTeamMember.count({
-      where: { teamId: input.teamId, status: "ACTIVE" },
+      // WCR-11 — the total beside a page is the EFFECTIVE population, never
+      // the raw row count, so "showing 25 of 40" cannot include leavers.
+      where: { teamId: input.teamId, ...effective },
     }),
   ]);
 
@@ -1827,9 +2079,25 @@ export async function listTeamActivity(
     "team.activity.read",
   );
   const limit = Math.min(Math.max(input.limit ?? 50, 1), 200);
+  /**
+   * WCR-14 (2026-09-07) — A STABLE ORDER, BECAUSE THE CURSOR NEEDS ONE.
+   *
+   * This ordered by `createdAt` alone and paged on `id`. Two rows sharing a
+   * timestamp have no defined order between requests, so the boundary between
+   * page N and page N+1 could move: rows repeat, rows vanish. It is not a rare
+   * race — `recordActivity` runs inside the mutation's transaction and several
+   * events are frequently written in one, so ties are the normal case, not the
+   * edge case.
+   *
+   * `listAssignments` was given `(createdAt desc, id desc)` and a matching
+   * index in the same pass that paginated it; activity was paginated and got
+   * neither. Both halves land here: the tiebreak, and the index that lets
+   * PostgreSQL walk this rather than sort the partition on every page
+   * (`20280511000000_collaboration_activity_keyset_index`).
+   */
   const rows = await client.collaborationTeamActivity.findMany({
     where: { teamId: input.teamId },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: limit + 1,
     ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
   });
@@ -2153,4 +2421,19 @@ function maskEmail(email: string): string {
   const head = email[0];
   const tail = email.slice(idx);
   return `${head}***${tail}`;
+}
+
+/**
+ * WCR-17 — the phone equivalent of `maskEmail`.
+ *
+ * Keeps the last two digits, which is enough for the person who sent the
+ * invitation to recognise which one a row refers to, and not enough for anyone
+ * else to contact them. `null` stays `null`: an absent number is not a secret
+ * and rendering "***" for it would invent a value.
+ */
+function maskPhone(phone: string | null): string | null {
+  if (!phone) return null;
+  const trimmed = phone.trim();
+  if (trimmed.length <= 2) return "***";
+  return `***${trimmed.slice(-2)}`;
 }

@@ -26,6 +26,7 @@ import {
 import { z } from "zod";
 
 import { requireAuth } from "../middleware/auth.js";
+import { contextHasCapability } from "../middleware/authorize.js";
 import { getAuthUserId } from "../auth.js";
 import {
   authorizeCollaborationTeam,
@@ -47,9 +48,11 @@ import {
   listAssignableTargets,
   listEligibleWorkspaceMembersForTeam,
   listTeamActivity,
+  reinstateMember,
   removeMember,
   revokeInvite,
   suspendMember,
+  unarchiveCollaborationTeam,
   updateAssignment,
   updateCollaborationTeam,
 } from "../services/collaboration-team/collaboration-team.service.js";
@@ -116,10 +119,60 @@ async function requireWorkspace(
   req: FastifyRequest,
   reply: FastifyReply,
   permission: Permission,
-): Promise<{ workspaceId: string; userId: string } | null> {
+): Promise<{
+  workspaceId: string;
+  userId: string;
+  /**
+   * WCR-6A — does this actor administer the workspace, as opposed to merely
+   * participating in it?
+   *
+   * `identity.member.role.change` is held by OWNER and ADMIN and by nobody
+   * else (REVIEWER, CONTRIBUTOR and VIEWER do not carry it). It is the
+   * canonical statement of "you decide who is in this workspace and what they
+   * may do", which is exactly the authority that should also be able to see
+   * how those people are grouped. No new permission was minted for this: a
+   * governance capability invented for one surface is a second authority by
+   * another name.
+   *
+   * It grants VISIBILITY only. It is never read as group membership, never
+   * confers Discussion or Assignment participation, and never widens Evidence
+   * access — those remain gated by their own checks.
+   */
+  canGovernWorkspace: boolean;
+} | null> {
   const ctx = await authorizeCollaborationWorkspace(req, reply, permission);
   if (!ctx) return null;
-  return { workspaceId: ctx.workspaceId, userId: ctx.userId };
+  return {
+    workspaceId: ctx.workspaceId,
+    userId: ctx.userId,
+    canGovernWorkspace: contextHasCapability(ctx, "identity.member.role.change"),
+  };
+}
+
+/**
+ * WCR-19 — the mutation variant: refuse, and record that the refusal happened.
+ *
+ * Kept separate from `handleServiceError` rather than adding an optional
+ * argument to it, because "did this refusal get audited?" is then answerable by
+ * reading the call site instead of by reading whether a fourth parameter was
+ * passed. Reads keep the plain helper: a denied read is already covered by the
+ * authorization layer's own emission, and duplicating it here would double-count.
+ */
+async function handleMutationError(
+  reply: FastifyReply,
+  err: unknown,
+  requestId: string | null,
+  audit: {
+    userId: string;
+    workspaceId: string;
+    action: string;
+    resourceType: string;
+    resourceId: string | null;
+    metadata?: Record<string, unknown>;
+  },
+): Promise<void> {
+  await auditDenial({ ...audit, err, requestId });
+  handleServiceError(reply, err, requestId);
 }
 
 function handleServiceError(
@@ -173,6 +226,65 @@ async function auditEvent(args: {
   });
 }
 
+/**
+ * WCR-19 (2026-09-07) — A REFUSAL IS AN AUDITABLE FACT.
+ *
+ * `auditEvent` has always accepted `blocked` and `failure`, and exactly one
+ * caller used either: the retired email-invite endpoint. Every other refusal on
+ * this surface — a plan ceiling, a lapsed subscription, a group-role denial,
+ * an anti-enumeration 404 against another tenant's group id — left no tenant
+ * audit record at all.
+ *
+ * That is the wrong way round for an evidence platform. Successes are visible
+ * in the data they produce; a refused attempt leaves nothing behind unless it
+ * is written down, and repeated refusals are precisely the pattern an operator
+ * needs to see. The anti-enumeration design assumes someone may be walking
+ * ids — and then said nothing when they did.
+ *
+ * `denied` versus `error` follows the canonical vocabulary: a decision the
+ * platform MADE (capacity, plan, permission, lifecycle) is `denied`; an
+ * unexpected fault is `error`. Both distinguish themselves from `success`, so
+ * no false success is ever emitted.
+ *
+ * Audit emission never blocks the response: the refusal the caller receives is
+ * decided before this runs and is not conditional on it.
+ */
+async function auditDenial(args: {
+  userId: string;
+  workspaceId: string;
+  action: string;
+  resourceType: string;
+  resourceId: string | null;
+  err: unknown;
+  requestId: string | null;
+  metadata?: Record<string, unknown>;
+}): Promise<void> {
+  const decided =
+    args.err instanceof BillingLimitError ||
+    args.err instanceof CollaborationTeamError;
+  const code =
+    args.err instanceof BillingLimitError
+      ? args.err.code
+      : args.err instanceof CollaborationTeamError
+        ? args.err.code
+        : "internal_error";
+  try {
+    await emitTenantAudit({
+      action: args.action,
+      outcome: decided ? "denied" : "error",
+      sourceApp: "API",
+      actorUserId: args.userId,
+      workspaceId: args.workspaceId,
+      resourceType: args.resourceType,
+      resourceId: args.resourceId,
+      correlationId: args.requestId,
+      metadata: { ...(args.metadata ?? {}), reason: code },
+    });
+  } catch {
+    /* an audit failure must not convert a clean refusal into a 500 */
+  }
+}
+
 // -----------------------------------------------------------------------------
 // Request schemas
 // -----------------------------------------------------------------------------
@@ -200,6 +312,21 @@ const AddMemberBody = z.object({
     .optional(),
 });
 
+/**
+ * WCR-15 (2026-09-07) — THE SCHEMA NOW DESCRIBES WHAT THE HANDLER DOES.
+ *
+ * `status` accepted `ACTIVE | SUSPENDED | REMOVED` and the handler implemented
+ * exactly one of them. `SUSPENDED` suspended; `ACTIVE` and `REMOVED` fell
+ * through every branch and returned `{ ok: true }` with no write, no activity
+ * row and no audit. A client was told a removal had succeeded when nothing had
+ * happened — the worst possible answer, because it is indistinguishable from
+ * the true one.
+ *
+ * Both gaps are now closed rather than hidden: `REMOVED` routes to the
+ * canonical `removeMember` (which protects the last LEAD), and `ACTIVE` routes
+ * to reinstatement, which had no path at all — a suspended member could be
+ * suspended and never un-suspended through this API.
+ */
 const UpdateMemberBody = z.object({
   role: z.enum(["LEAD", "ADMIN", "MEMBER", "VIEWER", "EXTERNAL"]).optional(),
   status: z.enum(["ACTIVE", "SUSPENDED", "REMOVED"]).optional(),
@@ -252,6 +379,19 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
       if (!ctx) return;
       try {
         const q = (req.query as Record<string, string | undefined>) ?? {};
+        /**
+         * WCR-6A — the scope is REQUESTED by the client and GRANTED by the
+         * server. `?scope=all` is honoured only for an actor who holds the
+         * workspace governance capability; for anyone else it silently
+         * degrades to their participation view rather than refusing, because
+         * a shared link to the governance view should show a non-admin the
+         * groups they are in, not an error.
+         *
+         * `scopeGranted` on the response says which one they actually got, so
+         * the surface labels the list truthfully instead of assuming.
+         */
+        const scope =
+          q.scope === "all" && ctx.canGovernWorkspace ? "ALL" : "PARTICIPATING";
         const res = await listCollaborationTeams({
           workspaceId: ctx.workspaceId,
           actorUserId: ctx.userId,
@@ -259,8 +399,12 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           search: q.q ?? null,
           limit: q.limit ? parseInt(q.limit, 10) : undefined,
           cursor: q.cursor ?? null,
+          scope,
         });
-        return reply.send(res);
+        return reply.send({
+          ...res,
+          canGovernWorkspace: ctx.canGovernWorkspace,
+        });
       } catch (err) {
         return handleServiceError(reply, err, req.id ?? null);
       }
@@ -282,7 +426,7 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           .send({ error: "invalid_body", message: parsed.error.message });
       try {
         // Phase 10 — billing guards (pre-mutation).
-        await assertSubscriptionActiveOrGraceAllowed(ctx.userId);
+        await assertSubscriptionActiveOrGraceAllowed({ workspaceId: ctx.workspaceId });
         await assertCanCreateCollaborationTeam({
           workspaceId: ctx.workspaceId,
           actorUserId: ctx.userId,
@@ -336,7 +480,13 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           });
           return reply.send({ team: detail });
         } catch (err) {
-          return handleServiceError(reply, err, req.id ?? null);
+          return handleMutationError(reply, err, req.id ?? null, {
+            userId: ctx.userId,
+            workspaceId: ctx.workspaceId,
+            action: "collaboration_team.created",
+            resourceType: "collaboration_team",
+            resourceId: null,
+          });
         }
       },
     },
@@ -368,7 +518,7 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
             .send({ error: "invalid_body", message: parsed.error.message });
         try {
           // Phase 10 — billing write-gate (no quota for plain updates).
-          await assertSubscriptionActiveOrGraceAllowed(ctx.userId);
+          await assertSubscriptionActiveOrGraceAllowed({ workspaceId: ctx.workspaceId });
           await updateCollaborationTeam({
             teamId: req.params.teamId,
             actorUserId: ctx.userId,
@@ -387,7 +537,13 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           });
           return reply.send({ ok: true });
         } catch (err) {
-          return handleServiceError(reply, err, req.id ?? null);
+          return handleMutationError(reply, err, req.id ?? null, {
+            userId: ctx.userId,
+            workspaceId: ctx.workspaceId,
+            action: "collaboration_team.updated",
+            resourceType: "collaboration_team",
+            resourceId: req.params.teamId,
+          });
         }
       },
     },
@@ -428,6 +584,78 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           });
           return reply.send({ ok: true });
         } catch (err) {
+          return handleMutationError(reply, err, req.id ?? null, {
+            userId: ctx.userId,
+            workspaceId: ctx.workspaceId,
+            action: "collaboration_team.archived",
+            resourceType: "collaboration_team",
+            resourceId: req.params.teamId,
+          });
+        }
+      },
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // POST /v1/collaboration-teams/:teamId/unarchive  — reopen
+  //
+  // WCR-13 — the inverse of the route above, which did not exist while the
+  // archive confirmation told operators members would lose access "until the
+  // team is unarchived".
+  //
+  // `requireActiveTeam` is deliberately FALSE and this is the only mutation on
+  // the surface where that is true: the whole point is to act on an archived
+  // group. Everything else about it is the archive route's authority —
+  // `team.archive` at group level, `collaboration.thread.create` at workspace
+  // level — because reopening is the same decision taken the other way.
+  //
+  // Capacity is re-checked inside the service, under the creation lock: an
+  // archived group frees a slot, so reopening one competes with creating one.
+  // ---------------------------------------------------------------------------
+  app.post<{ Params: { teamId: string } }>(
+    "/v1/collaboration-teams/:teamId/unarchive",
+    {
+      preHandler: requireAuth,
+      handler: async (req, reply) => {
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "collaboration.thread.create",
+          groupPermission: "team.archive",
+          requireActiveTeam: false,
+        });
+        if (!binding) return;
+        const ctx = {
+          workspaceId: binding.workspace.workspaceId,
+          userId: binding.workspace.userId,
+        };
+        try {
+          await assertSubscriptionActiveOrGraceAllowed({
+            workspaceId: ctx.workspaceId,
+          });
+          await unarchiveCollaborationTeam({
+            teamId: req.params.teamId,
+            actorUserId: ctx.userId,
+          });
+          await auditEvent({
+            userId: ctx.userId,
+            workspaceId: ctx.workspaceId,
+            action: "collaboration_team.unarchived",
+            resourceType: "collaboration_team",
+            resourceId: req.params.teamId,
+            outcome: "success",
+            requestId: req.id ?? null,
+          });
+          return reply.send({ ok: true });
+        } catch (err) {
+          await auditDenial({
+            userId: ctx.userId,
+            workspaceId: ctx.workspaceId,
+            action: "collaboration_team.unarchived",
+            resourceType: "collaboration_team",
+            resourceId: req.params.teamId,
+            err,
+            requestId: req.id ?? null,
+          });
           return handleServiceError(reply, err, req.id ?? null);
         }
       },
@@ -460,7 +688,7 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
             .send({ error: "invalid_body", message: parsed.error.message });
         try {
           // Phase 10 — billing guards (pre-mutation).
-          await assertSubscriptionActiveOrGraceAllowed(ctx.userId);
+          await assertSubscriptionActiveOrGraceAllowed({ workspaceId: ctx.workspaceId });
           await assertCollaborationTeamMemberLimit(req.params.teamId, 1);
           const { id } = await addExistingMember({
             teamId: req.params.teamId,
@@ -480,7 +708,13 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           });
           return reply.code(201).send({ member: { id } });
         } catch (err) {
-          return handleServiceError(reply, err, req.id ?? null);
+          return handleMutationError(reply, err, req.id ?? null, {
+            userId: ctx.userId,
+            workspaceId: ctx.workspaceId,
+            action: "collaboration_team.member.added",
+            resourceType: "collaboration_team_member",
+            resourceId: null,
+          });
         }
       },
     },
@@ -511,7 +745,7 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
             .send({ error: "invalid_body", message: parsed.error.message });
         try {
           // Phase 10 — billing write-gate (no quota for role/status changes).
-          await assertSubscriptionActiveOrGraceAllowed(ctx.userId);
+          await assertSubscriptionActiveOrGraceAllowed({ workspaceId: ctx.workspaceId });
           if (parsed.data.role) {
             await changeMemberRole({
               teamId: req.params.teamId,
@@ -547,9 +781,54 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
               requestId: req.id ?? null,
             });
           }
+          // WCR-15 — `REMOVED` used to fall through to `{ ok: true }` having
+          // done nothing. It routes to the canonical writer, which is the same
+          // one `DELETE .../members/:memberId` calls, so last-LEAD protection
+          // and the activity row apply identically whichever door is used.
+          if (parsed.data.status === "REMOVED") {
+            await removeMember({
+              teamId: req.params.teamId,
+              actorUserId: ctx.userId,
+              memberId: req.params.memberId,
+            });
+            await auditEvent({
+              userId: ctx.userId,
+              workspaceId: ctx.workspaceId,
+              action: "collaboration_team.member.removed",
+              resourceType: "collaboration_team_member",
+              resourceId: req.params.memberId,
+              outcome: "success",
+              requestId: req.id ?? null,
+            });
+          }
+          // WCR-15 — reinstatement. There was no path back from SUSPENDED
+          // through this API at all: a member could be suspended and never
+          // un-suspended, and `ACTIVE` silently reported success.
+          if (parsed.data.status === "ACTIVE") {
+            await reinstateMember({
+              teamId: req.params.teamId,
+              actorUserId: ctx.userId,
+              memberId: req.params.memberId,
+            });
+            await auditEvent({
+              userId: ctx.userId,
+              workspaceId: ctx.workspaceId,
+              action: "collaboration_team.member.reinstated",
+              resourceType: "collaboration_team_member",
+              resourceId: req.params.memberId,
+              outcome: "success",
+              requestId: req.id ?? null,
+            });
+          }
           return reply.send({ ok: true });
         } catch (err) {
-          return handleServiceError(reply, err, req.id ?? null);
+          return handleMutationError(reply, err, req.id ?? null, {
+            userId: ctx.userId,
+            workspaceId: ctx.workspaceId,
+            action: "collaboration_team.member.role_changed",
+            resourceType: "collaboration_team_member",
+            resourceId: req.params.memberId,
+          });
         }
       },
     },
@@ -591,7 +870,13 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           });
           return reply.send({ ok: true });
         } catch (err) {
-          return handleServiceError(reply, err, req.id ?? null);
+          return handleMutationError(reply, err, req.id ?? null, {
+            userId: ctx.userId,
+            workspaceId: ctx.workspaceId,
+            action: "collaboration_team.member.removed",
+            resourceType: "collaboration_team_member",
+            resourceId: req.params.memberId,
+          });
         }
       },
     },
@@ -697,7 +982,13 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           });
           return reply.send({ ok: true });
         } catch (err) {
-          return handleServiceError(reply, err, req.id ?? null);
+          return handleMutationError(reply, err, req.id ?? null, {
+            userId: ctx.userId,
+            workspaceId: ctx.workspaceId,
+            action: "collaboration_team.invite.revoked",
+            resourceType: "collaboration_team_invite",
+            resourceId: req.params.inviteId,
+          });
         }
       },
     },
@@ -706,11 +997,28 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
   // ---------------------------------------------------------------------------
   // POST /v1/collaboration-team-invites/:token/accept
   // ---------------------------------------------------------------------------
-  app.post<{ Params: { token: string } }>(
-    "/v1/collaboration-team-invites/:token/accept",
+  /**
+   * WCR-20 (2026-09-07) — THE TOKEN MOVES OUT OF THE URL.
+   *
+   * `POST /v1/collaboration-team-invites/:token/accept` put a live credential
+   * in a request path, where it reaches access logs, proxy logs, APM traces and
+   * `Referer` headers. The retired-invite note a few hundred lines above lists
+   * "a token in a URL" among the defects that justified retiring the writer;
+   * the accept path kept doing it.
+   *
+   * The body form is canonical now. The PATH form is RETAINED, because links
+   * are already in people's mailboxes and an obligation that was validly issued
+   * has to stay completable — but it forwards to the same handler rather than
+   * carrying its own logic, and it is the shape that disappears when no PENDING
+   * legacy invitation can still be in flight.
+   */
+  const acceptInviteHandler = async (
+    req: FastifyRequest,
+    reply: FastifyReply,
+    rawToken: string,
+  ) => {
     {
-      preHandler: requireAuth,
-      handler: async (req, reply) => {
+      {
         const userId = await getAuthUserId(req);
         if (!userId)
           return reply.code(401).send({ error: "auth_required" });
@@ -727,7 +1035,7 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           //     TEAM_INVITES_NOT_INCLUDED) + details via
           //     handleServiceError → handleBillingError.
           const result = await acceptInvite({
-            rawToken: req.params.token,
+            rawToken,
             actorUserId: userId,
           });
           await auditEvent({
@@ -751,6 +1059,48 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
         } catch (err) {
           return handleServiceError(reply, err, req.id ?? null);
         }
+      }
+    }
+  };
+
+  /**
+   * CANONICAL — the token travels in the body, where it is not logged by any
+   * intermediary and does not leak through `Referer`.
+   */
+  app.post<{ Body: { token?: unknown } }>(
+    "/v1/collaboration-team-invites/accept",
+    {
+      preHandler: requireAuth,
+      handler: async (req, reply) => {
+        const parsed = z
+          .object({ token: z.string().min(8).max(512) })
+          .safeParse(req.body);
+        if (!parsed.success) {
+          return reply
+            .code(400)
+            .send({ error: "invalid_body", message: "A token is required." });
+        }
+        return acceptInviteHandler(req, reply, parsed.data.token);
+      },
+    },
+  );
+
+  /**
+   * LEGACY COMPATIBILITY — links already in mailboxes.
+   *
+   * Retained deliberately and bounded: no writer can create another
+   * `CollaborationTeamInvite`, so the set of tokens that can arrive here only
+   * shrinks. `Referrer-Policy: no-referrer` is set on the response so the token
+   * in this path cannot travel onward from a browser that followed the link.
+   */
+  app.post<{ Params: { token: string } }>(
+    "/v1/collaboration-team-invites/:token/accept",
+    {
+      preHandler: requireAuth,
+      handler: async (req, reply) => {
+        void reply.header("Referrer-Policy", "no-referrer");
+        void reply.header("Cache-Control", "no-store");
+        return acceptInviteHandler(req, reply, req.params.token);
       },
     },
   );
@@ -777,7 +1127,10 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
       const ctx = await requireWorkspace(req, reply, "collaboration.thread.read");
       if (!ctx) return;
       try {
-        const projection = await resolveCollaborationEntitlement(ctx.workspaceId);
+        const projection = await resolveCollaborationEntitlement(
+          ctx.workspaceId,
+          { canViewAllTeams: ctx.canGovernWorkspace },
+        );
         return reply.send(projection);
       } catch (err) {
         return handleServiceError(reply, err, req.id ?? null);
@@ -887,6 +1240,7 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           const q = (req.query as Record<string, string | undefined>) ?? {};
           const res = await listCollaborationTeamMembers({
             teamId: req.params.teamId,
+            workspaceId: binding.workspace.workspaceId,
             viewerCanSeeContact: binding.groupRole
               ? collaborationTeamRoleHasPermission(
                   binding.groupRole,
@@ -1007,7 +1361,7 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
             .send({ error: "invalid_body", message: parsed.error.message });
         try {
           // Phase 10 — billing write-gate.
-          await assertSubscriptionActiveOrGraceAllowed(ctx.userId);
+          await assertSubscriptionActiveOrGraceAllowed({ workspaceId: ctx.workspaceId });
           const result = await createAssignment({
             teamId: req.params.teamId,
             actorUserId: ctx.userId,
@@ -1034,7 +1388,13 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           });
           return reply.code(201).send({ assignment: { id: result.id } });
         } catch (err) {
-          return handleServiceError(reply, err, req.id ?? null);
+          return handleMutationError(reply, err, req.id ?? null, {
+            userId: ctx.userId,
+            workspaceId: ctx.workspaceId,
+            action: "collaboration_team.assignment.created",
+            resourceType: "collaboration_team_assignment",
+            resourceId: null,
+          });
         }
       },
     },
@@ -1065,7 +1425,7 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
             .send({ error: "invalid_body", message: parsed.error.message });
         try {
           // Phase 10 — billing write-gate.
-          await assertSubscriptionActiveOrGraceAllowed(ctx.userId);
+          await assertSubscriptionActiveOrGraceAllowed({ workspaceId: ctx.workspaceId });
           await updateAssignment({
             teamId: req.params.teamId,
             actorUserId: ctx.userId,
@@ -1087,7 +1447,13 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           });
           return reply.send({ ok: true });
         } catch (err) {
-          return handleServiceError(reply, err, req.id ?? null);
+          return handleMutationError(reply, err, req.id ?? null, {
+            userId: ctx.userId,
+            workspaceId: ctx.workspaceId,
+            action: "collaboration_team.assignment.updated",
+            resourceType: "collaboration_team_assignment",
+            resourceId: req.params.assignmentId,
+          });
         }
       },
     },
