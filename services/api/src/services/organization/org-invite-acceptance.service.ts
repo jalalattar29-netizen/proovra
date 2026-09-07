@@ -43,6 +43,15 @@ export type OrgInviteAcceptOutcome =
   | { kind: "expired" }
   | { kind: "email_mismatch" }
   | { kind: "org_unavailable" }
+  /**
+   * The workspace-seat lock could not be taken within the bounded retry.
+   *
+   * Deliberately NOT a seat refusal: the workspace may have room, and the
+   * invitation is untouched and still acceptable. Telling somebody they were
+   * turned away for capacity when the truth is "too many people accepted at
+   * once, try again" is the kind of wrong answer an operator acts on.
+   */
+  | { kind: "seat_contention" }
   | {
       kind: "ok";
       organizationId: string;
@@ -60,6 +69,37 @@ export async function acceptOrganizationInvite(input: {
 }): Promise<OrgInviteAcceptOutcome> {
   const { tokenHash, userId } = input;
 
+  /**
+   * Bounded, jittered retry around the seat lock below. The jitter matters:
+   * without it a burst of contenders re-collides on the same schedule and
+   * simply re-forms the queue. Same shape, same numbers as the workspace
+   * invitation path.
+   */
+  for (let attempt = 0; attempt < SEAT_LOCK_ATTEMPTS; attempt += 1) {
+    const outcome = await runAcceptance(tokenHash, userId);
+    if (outcome !== SEAT_LOCK_CONTENDED) return outcome;
+    await new Promise((resolve) =>
+      setTimeout(resolve, 40 + Math.floor(Math.random() * 120)),
+    );
+  }
+  /**
+   * Sustained contention on one workspace is not a race any more, and saying
+   * so is more useful than a generic error. It is deliberately NOT a seat
+   * refusal: the workspace may have room, and the invitation is untouched and
+   * still acceptable, so the caller should retry rather than be told they were
+   * turned away.
+   */
+  return { kind: "seat_contention" as const };
+}
+
+/** The lock could not be taken; the caller rolls back and retries. */
+const SEAT_LOCK_CONTENDED = Symbol("seat_lock_contended");
+const SEAT_LOCK_ATTEMPTS = 25;
+
+async function runAcceptance(
+  tokenHash: string,
+  userId: string,
+): Promise<OrgInviteAcceptOutcome | typeof SEAT_LOCK_CONTENDED> {
   return prisma.$transaction(async (tx) => {
     const caller = await tx.user.findUnique({
       where: { id: userId },
@@ -181,6 +221,58 @@ export async function acceptOrganizationInvite(input: {
       return { kind: "org_unavailable" as const };
     }
 
+    /**
+     * SERIALISE THE SEAT BOUNDARY — BEFORE ANYTHING IS WRITTEN.
+     *
+     * `grantWorkspaceMembership` reads the canonical seat state and then
+     * writes. Between the read and the write another acceptance can do the
+     * same, so eight people accepting into a workspace with two free seats
+     * could all observe `used < limit` and all be seated. Enforcement that
+     * holds under one caller and fails under eight is not enforcement.
+     *
+     * `acceptWorkspaceInvitation` already solved this for the OTHER acceptance
+     * path, and this is the same mechanism rather than a second one:
+     * `pg_try_advisory_xact_lock` on `workspace-seat:<id>` — the SAME key, so
+     * the two acceptance paths serialise against EACH OTHER and not merely
+     * against themselves.
+     *
+     * TRY, not wait. A blocking `pg_advisory_xact_lock` holds its pooled
+     * connection for the whole wait, so contenders occupy connections doing
+     * nothing and the pool empties — measured and documented on that path.
+     *
+     * SORTED, because an acceptance can carry several workspace assignments.
+     * Two acceptances taking the same pair of locks in opposite orders is a
+     * deadlock; one global order makes that impossible with no coordination.
+     *
+     * POSITION IS THE WHOLE POINT, and getting it wrong is what the
+     * concurrency proof caught: returning a value from a Prisma `$transaction`
+     * callback COMMITS — only throwing rolls back. With the lock taken after
+     * the claim, a contender that lost the lock committed its claim and its
+     * organization membership on the way out, and its retry then found its own
+     * invitation already accepted and took the idempotent-replay path. Seven
+     * of eight silently became replays and one seat was filled where two were
+     * free: no over-allocation, but no correct allocation either.
+     *
+     * Taken HERE, before the claim and before every grant, a lost lock leaves
+     * a transaction that has only READ. Committing that is a no-op, and the
+     * retry re-runs the claim cleanly.
+     */
+    const parsedForLock = parseWorkspaceAssignments(invite.workspaceAssignments);
+    if (!parsedForLock.ok) {
+      // Malformed stored payload — fail closed BEFORE writing anything,
+      // rather than after a claim that would have to be undone.
+      throw new Error("invalid_workspace_assignments");
+    }
+    const seatLockIds = Array.from(
+      new Set(parsedForLock.assignments.map((a) => a.teamId)),
+    ).sort();
+    for (const lockWorkspaceId of seatLockIds) {
+      const [{ locked }] = await tx.$queryRaw<Array<{ locked: boolean }>>`
+        SELECT pg_try_advisory_xact_lock(hashtext(${`workspace-seat:${lockWorkspaceId}`})) AS locked
+      `;
+      if (!locked) return SEAT_LOCK_CONTENDED;
+    }
+
     // §8 concurrency — guarded claim BEFORE any grant. The row lock
     // serializes concurrent transactions; exactly one observes count 1.
     const claimed = await tx.organizationInvite.updateMany({
@@ -206,14 +298,10 @@ export async function acceptOrganizationInvite(input: {
       role: invite.role,
     });
 
-    const parsedAssignments = parseWorkspaceAssignments(
-      invite.workspaceAssignments,
-    );
-    if (!parsedAssignments.ok) {
-      // Malformed stored payload — fail closed rather than granting a
-      // narrower/wider set than the inviter intended.
-      throw new Error("invalid_workspace_assignments");
-    }
+    // Parsed once, above, so the seat locks could be taken before any write.
+    // Re-parsing here would be a second reading of one stored payload.
+    const parsedAssignments = parsedForLock;
+
     const assignedWorkspaceIds: string[] = [];
     /**
      * A REFUSED ASSIGNMENT IS A FACT SOMEBODY HAS TO BE ABLE TO SEE.

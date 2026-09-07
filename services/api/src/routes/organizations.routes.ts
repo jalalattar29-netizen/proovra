@@ -1068,6 +1068,26 @@ export async function organizationsRoutes(app: FastifyInstance) {
           .code(410)
           .send({ message: "This organization is not accepting members." });
       }
+      /**
+       * SEAT CONTENTION IS RETRYABLE, AND SAYS SO.
+       *
+       * Workspace seats are allocated under an advisory lock shared with the
+       * workspace-invitation path, so simultaneous acceptances serialise
+       * rather than over-allocating. When the bounded retry cannot take that
+       * lock, the invitation is UNTOUCHED and still acceptable.
+       *
+       * 409 with an explicit code, not 500 and not a seat refusal: the
+       * workspace may well have room, and telling somebody they were turned
+       * away for capacity when the truth is "too many people accepted at
+       * once" is a wrong answer they would act on.
+       */
+      if (result.kind === "seat_contention") {
+        return reply.code(409).send({
+          error: { code: "WORKSPACE_SEAT_CONTENTION" },
+          message:
+            "Too many people are joining this workspace at once. Your invitation is still valid — try again in a moment.",
+        });
+      }
 
       // PHASE 10 §2.2 — GOVERNANCE-ONLY SUCCESS. Membership acceptance is
       // durable + idempotent (grants written exactly once by the orchestrator

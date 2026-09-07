@@ -41,6 +41,26 @@ function makeTx() {
     {},
     {
       get(_t, model: string) {
+        /**
+         * The seat lock, granted.
+         *
+         * Acceptance now takes `pg_try_advisory_xact_lock` on
+         * `workspace-seat:<id>` BEFORE it claims the invitation, so that
+         * concurrent acceptances cannot each observe a free seat and all take
+         * it. This file pins the CLAIM ordering and the replay path against a
+         * proxy double, and a proxy cannot exhibit a PostgreSQL advisory lock
+         * — the lock's real behaviour is proven in
+         * `org-invite-seat-concurrency.integration.test.ts`, against a real
+         * database, where eight simultaneous acceptances fill exactly the two
+         * free seats.
+         *
+         * Granting it here keeps this suite testing what it is about. It is a
+         * `$transaction`-level method rather than a model, so it is answered
+         * before the model proxy below.
+         */
+        if (model === "$queryRaw") {
+          return async () => [{ locked: true }];
+        }
         return new Proxy(
           {},
           {
