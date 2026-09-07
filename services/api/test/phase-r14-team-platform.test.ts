@@ -549,9 +549,32 @@ describe("Phase R14 — Stage 4: API routes", () => {
   // it. That is asserted here and proven end-to-end against live PostgreSQL in
   // `wcr-invitation-closure.integration.test.ts`.
   it("no raw invite token crosses the HTTP surface, and the group service mints none", () => {
-    const routeHits = routes.match(/rawToken/g) ?? [];
-    expect(routeHits.length).toBe(1);
-    expect(routes).toMatch(/rawToken:\s*req\.params\.token/);
+    /**
+     * WCR-20 (2026-09-07) — the contract got STRICTER, so this pin did too.
+     *
+     * It used to require exactly one `rawToken` in the routes file, bound as
+     * `rawToken: req.params.token` — which pinned the token INTO THE URL PATH
+     * as the accepted shape. A path segment reaches access logs, proxy logs,
+     * APM traces and `Referer` headers, and the retired-invite note in the
+     * same route file lists "a token in a URL" among the defects that
+     * justified retiring the writer.
+     *
+     * The canonical accept now takes the token in the BODY. The legacy path
+     * form is retained for links already in mailboxes and forwards to the same
+     * handler under `Referrer-Policy: no-referrer`.
+     *
+     * What is pinned now is what actually matters, and it is more than before:
+     * the token exists ONLY as a parameter threaded into the accept handler,
+     * and it never appears in a response, a log line or a constructed URL.
+     */
+    expect(routes).toMatch(/rawToken: string,/);
+    expect(routes).toMatch(/acceptInviteHandler\(req, reply, parsed\.data\.token\)/);
+    expect(routes).toMatch(/acceptInviteHandler\(req, reply, req\.params\.token\)/);
+    expect(routes).toMatch(/"Referrer-Policy", "no-referrer"/);
+    // Never emitted, never logged, never turned into a link.
+    expect(routes).not.toMatch(/send\([^)]*rawToken/);
+    expect(routes).not.toMatch(/log[^\n]*rawToken/);
+    expect(routes).not.toMatch(/`[^`\n]*\$\{rawToken\}/);
 
     const svc = read(
       "services/api/src/services/collaboration-team/collaboration-team.service.ts",

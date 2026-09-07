@@ -768,10 +768,10 @@ describe("Trust residue — packaging entitlement grant", () => {
       method: "POST",
       url: "/v1/packaging/entitlements/grant",
       headers: json,
-      payload: { key: "QUOTA_USERS", kind: "QUOTA", value: 25, productLine: "ENTERPRISE" },
+      payload: { key: "QUOTA_AI_OPERATIONS_PER_MONTH", kind: "QUOTA", value: 25, productLine: "ENTERPRISE" },
     });
     expect(res.statusCode).toBe(201);
-    expect(H.writes).toEqual(["upsertEntitlementGrant:QUOTA:QUOTA_USERS:25"]);
+    expect(H.writes).toEqual(["upsertEntitlementGrant:QUOTA:QUOTA_AI_OPERATIONS_PER_MONTH:25"]);
   });
 
   it("ORG_ADMIN is required — a lesser tier grants NOTHING", async () => {

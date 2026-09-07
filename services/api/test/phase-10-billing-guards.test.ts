@@ -284,13 +284,21 @@ describe("Phase 10 — /v1/collaboration-teams handlers call the canonical guard
   // success short-circuit, before the membership write) — the route
   // handler delegates and translates BillingLimitError.
   it("accept: route delegates to acceptInvite; service acceptInvite calls assertCollaborationTeamMemberLimit", () => {
-    const acceptSection = routes.split(
-      '"/v1/collaboration-team-invites/:token/accept"',
-    )[1] ?? "";
+    // WCR-20 (2026-09-07) — both accept routes (the canonical body form and
+    // the retained legacy path form) forward to ONE handler, which is where
+    // the service call lives. Pinning the shared handler is stricter than
+    // pinning one route: it proves neither door can grow logic of its own.
+    const acceptSection = routes.split("const acceptInviteHandler")[1] ?? "";
     expect(
       acceptSection,
-      "expected the accept route to delegate to the service acceptInvite",
+      "expected the accept handler to delegate to the service acceptInvite",
     ).toMatch(/acceptInvite\s*\(/);
+    expect(routes).toMatch(
+      /acceptInviteHandler\(req, reply, parsed\.data\.token\)/,
+    );
+    expect(routes).toMatch(
+      /acceptInviteHandler\(req, reply, req\.params\.token\)/,
+    );
     const svc = readFileSync(SERVICE_PATH, "utf8");
     const svcAccept =
       svc.split("export async function acceptInvite")[1] ?? "";

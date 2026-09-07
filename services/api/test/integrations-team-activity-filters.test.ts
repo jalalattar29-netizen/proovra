@@ -63,7 +63,12 @@ describe("Phase 2 — /v1/teams/:id/activity filter wiring (source contract)", (
     const end = routes.indexOf("app.post(", start);
     const handler = routes.slice(start, end > -1 ? end : start + 4000);
     expect(handler).toContain("preHandler: requireAuthAndLegal");
-    expect(handler).toContain("getActorMembership(teamId, userId)");
+    // WCR-03 (2026-09-07) — `getActorMembership` now threads the REQUEST so it
+    // can run the canonical evaluator (identity → workspace → kind →
+    // membership → status → access expiry → organization lifecycle →
+    // permission → support guard) instead of comparing a status field. The
+    // scope check this pins is stronger than it was; only its arity moved.
+    expect(handler).toContain("getActorMembership(req, teamId, userId)");
     expect(handler).toMatch(/return reply\.code\(403\)\.send\(\{\s*message:\s*['"]Forbidden['"]/);
   });
 
