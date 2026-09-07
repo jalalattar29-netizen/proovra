@@ -446,6 +446,21 @@ jobs:
           openssl pkcs12 -export -out "$dir/pdf-signing.p12" \
             -inkey "$dir/pdf-key.pem" -in "$dir/pdf-cert.pem" \
             -passout pass:ci-only-ephemeral
+          # READABLE BY THE CONTAINER, WHICH DOES NOT RUN AS ROOT.
+          #
+          # Both images do `adduser -S app` and `USER app`, and a bind mount
+          # carries the POSIX mode of the host file through unchanged.
+          # `openssl genpkey` writes 0600 owned by the runner user, so `app`
+          # could not read the key and the first signature failed:
+          #
+          #   POST /v1/evidence/:id/complete returned 500, expected 200
+          #
+          # Invisible on a Windows bind mount, which ignores POSIX modes — and
+          # that is exactly why the local rehearsal of this step passed while
+          # the runner did not. These files live for the length of one job in
+          # RUNNER_TEMP and sign nothing anyone will ever verify.
+          chmod 0755 "$dir"
+          chmod 0644 "$dir"/*
           echo "SIGNING_KEY_DIR=$dir" >> "$GITHUB_ENV"
           ls -l "$dir"
 
