@@ -246,6 +246,36 @@ export const AUTHORIZATION_EXCEPTIONS: ReadonlyArray<AuthorizationException> = [
     tenantBinding: "teamId + subject userId",
     revocation: "n/a (subject-existence check)",
   },
+  // ---- WCR-03 (2026-09-07). Narrowing `CANONICAL_RE` to stop accepting a
+  //      bare status comparison as proof of canonicality surfaced these two.
+  //      Neither is an actor gate: both resolve WHAT ROLE an already-authorized
+  //      actor contributes to a downstream decision. They were passing the
+  //      static test on the strength of their (correct) ACTIVE-status check
+  //      alone, which is exactly the signal that stopped being sufficient. ----
+  {
+    id: "DESTRUCTIVE_ACTION_ROLE_INPUT",
+    file: "destructive-action-gate.service.ts",
+    domain: "sensitive-action step-up decision",
+    category: "NON_ACTOR_MEMBERSHIP_CHECK",
+    mechanism:
+      "Reads the actor's ACTIVE membership role as an INPUT to 'does this destructive action require step-up?'. A SUSPENDED/REVOKED member resolves role-less and is treated exactly as a non-member, so the gate fails closed. The actor is authorized upstream by governance-lifecycle.routes / governance.routes, both canonical.",
+    reason:
+      "Decides the STRENGTH of a challenge, not whether the actor may act. Making it a second actor gate would duplicate the route's decision.",
+    tenantBinding: "evidence.teamId + actorUserId",
+    revocation: "n/a (role input; revocation handled at the canonical gate)",
+  },
+  {
+    id: "REDACTION_ROLE_RESOLVER",
+    file: "redaction-rbac.service.ts",
+    domain: "redaction role derivation",
+    category: "NON_ACTOR_MEMBERSHIP_CHECK",
+    mechanism:
+      "Maps an ACTIVE workspace membership role onto the redaction role set; a non-member or non-ACTIVE member resolves to the EMPTY set and the higher-level gate refuses with NOT_PERMITTED. The actor is authorized upstream by the canonical redaction routes.",
+    reason:
+      "Derives a capability set for an already-authorized actor. It cannot grant access on its own — an empty set is a refusal.",
+    tenantBinding: "teamId + userId",
+    revocation: "n/a (derived set; revocation handled at the canonical gate)",
+  },
   {
     id: "SESSION_TIMEOUT_ROLE_READ",
     file: "session-timeout-policy.service.ts",

@@ -34,10 +34,7 @@ import { refreshTeamSeatState } from "../services/billing.service.js";
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-import {
-  // PHASE 13 §1.4 (NEW-023) — the canonical membership-status predicate.
-  teamMemberStatusGrantsAccess,
-} from "@proovra/shared";
+import { evaluateAuthorizedWorkspace } from "../middleware/authorize.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { hasRole } from "../services/rbac.js";
 import { getAuthUserId } from "../auth.js";
@@ -197,17 +194,79 @@ async function deliverWorkspaceInvite(input: {
  * `teamMemberStatusGrantsAccess` — the canonical predicate the rest of the
  * system uses — rather than re-encoding which statuses count.
  */
-async function getActorMembership(teamId: string, userId: string) {
-  const member = await prisma.teamMember.findUnique({
-    where: {
-      teamId_userId: {
-        teamId,
-        userId,
-      },
-    },
+/**
+ * WCR-03 (2026-09-07) — THE CANONICAL EVALUATOR, NOT A STATUS COMPARISON.
+ *
+ * =============================================================================
+ * WHAT THIS FILE USED TO DO
+ * =============================================================================
+ * `getActorMembership` read one `TeamMember` row and asked
+ * `teamMemberStatusGrantsAccess(member.status)`. That is ONE of the seven
+ * questions the canonical primitive asks, and this file is the surface that
+ * GRANTS TENANCY: workspace members, invitations, role changes, ownership
+ * transfer, case links, settings and workspace deletion. It was gated more
+ * weakly than `/v1/collaboration-teams`, which grants nothing.
+ *
+ * Concretely, three things went unchecked across all 3,300 lines — the strings
+ * `accessExpires`, `organizationLifecycle` and `closedAtUtc` did not appear in
+ * the file at all:
+ *
+ *   * ACCESS EXPIRY. `accessExpiresAtUtc` is enforced at read time by
+ *     `access-policy.service` and by `authorize.ts`, and by no sweep job — no
+ *     job flips the status when the clock passes. A time-bounded ADMIN
+ *     therefore kept full workspace administration here for ever.
+ *   * ORGANIZATION LIFECYCLE. A SUSPENDED CUSTOMER organization had every
+ *     collaboration operation refused and every workspace-administration
+ *     operation allowed, including minting invitations.
+ *   * The support-access guard.
+ *
+ * It passed the Phase-1 static gate because `CANONICAL_RE` in
+ * `phase-1-authorization-closure.test.ts` accepts `teamMemberStatusGrantsAccess`
+ * as proof of canonicality. The regex cleared the file; the primitive never saw
+ * it. That regex is narrowed in the same change as this one.
+ *
+ * =============================================================================
+ * WHAT IT DOES NOW
+ * =============================================================================
+ * Every call goes through `evaluateAuthorizedWorkspace`, which is the same
+ * decision `authorizeOrFail` makes: identity → workspace existence → workspace
+ * kind → EXPLICIT membership → membership status → access expiry →
+ * Organization lifecycle → canonical permission → support-access guard, with
+ * one audit emission and fail-closed on any error.
+ *
+ * The NON-SENDING variant is used deliberately. Every one of the ~25 call
+ * sites already treats a falsy result as "refuse", and each already writes its
+ * own audit line and its own response shape — several of them anti-enumerating
+ * to 404 rather than 403. Returning null preserves all of that verbatim; a
+ * reply-sending primitive here would have double-sent on every denial.
+ *
+ * `permission` is the WORKSPACE-LEVEL FLOOR. It is deliberately the weakest
+ * capability every caller of this helper needs — reading the workspace at all.
+ * The role ceilings the call sites apply on top (`hasRole(actor.role, ADMIN)`)
+ * are a SECOND check over proven authority, which is the correct composition:
+ * canonical authorization first, role ceiling second. It is not, and must
+ * never again become, the only check.
+ */
+async function getActorMembership(
+  req: FastifyRequest,
+  teamId: string,
+  userId: string,
+) {
+  const outcome = await evaluateAuthorizedWorkspace(req, {
+    workspaceId: teamId,
+    permission: "identity.member.read",
+    antiEnumeration: true,
   });
-  if (!member || !teamMemberStatusGrantsAccess(member.status)) return null;
-  return member;
+  if (!outcome.allowed) return null;
+
+  // The canonical decision is made. This read supplies the ROW the call sites
+  // need for their role ceilings and for `member.id` — it is not a second
+  // authorization decision, and the `userId` argument is retained so the
+  // lookup is explicit rather than implied by request state.
+  const member = await prisma.teamMember.findUnique({
+    where: { teamId_userId: { teamId, userId } },
+  });
+  return member ?? null;
 }
 
 async function getTeamMemberByMemberId(teamId: string, memberId: string) {
@@ -592,13 +651,17 @@ export async function teamsRoutes(app: FastifyInstance) {
         return reply.code(404).send({ message: "Team not found" });
       }
 
-      // The actor may not be on the first page, so their membership is read
+      // The actor may not be on the first page, so their authority is proven
       // directly rather than searched for in a bounded list — a page-shaped
       // authorization check would refuse the thousandth member their own
       // workspace.
-      const actorMembership = await prisma.teamMember.findFirst({
-        where: { teamId, userId },
-      });
+      //
+      // WCR-03 — this was a bare `findFirst({ teamId, userId })` with no
+      // status test at all, which made the DETAIL read the weakest gate in the
+      // file: a REVOKED member could still read the workspace, its seat state
+      // and its member page. It now goes through the same canonical evaluator
+      // as every other route here.
+      const actorMembership = await getActorMembership(req, teamId, userId);
       if (!actorMembership) {
         auditTeamAction(req, {
           userId,
@@ -778,8 +841,28 @@ export async function teamsRoutes(app: FastifyInstance) {
       const teamId = z.string().uuid().parse((req.params as { id: string }).id);
       const userId = getAuthUserId(req);
 
-      const actor = await getActorMembership(teamId, userId);
+      const actor = await getActorMembership(req, teamId, userId);
       if (!actor) return reply.code(404).send({ message: "Team not found" });
+
+      /**
+       * WCR-16 (2026-09-07) — LEAST PRIVILEGE, APPLIED TO THE LARGER CONTAINER.
+       *
+       * This returned every member's address to any member, and built `label`
+       * by falling back to the address, so masking one without the other would
+       * have achieved nothing. Meanwhile the COLLABORATION surface — which
+       * holds fewer people — had already been tightened to release an address
+       * only to someone holding `team.member.invite`.
+       *
+       * The stricter rule was applied to the smaller container and not to the
+       * bigger one. A VIEWER on a thousand-person Enterprise workspace could
+       * enumerate every colleague's address from a list endpoint.
+       *
+       * `identity.member.invite` is the workspace-level equivalent of the
+       * predicate the group surface uses: the people who bring others into the
+       * workspace are the people who need to see how to reach them. It is
+       * OWNER/ADMIN only.
+       */
+      const canSeeContact = hasRole(actor.role, prismaPkg.TeamRole.ADMIN);
 
       const q = (req.query ?? {}) as Record<string, string | undefined>;
       const search = (q.q ?? "").trim();
@@ -829,12 +912,18 @@ export async function teamsRoutes(app: FastifyInstance) {
           role: member.role,
           status: member.status,
           createdAt: member.createdAt,
+          // A label must never fall back to an address: doing so releases the
+          // contact detail through the display field after the contact field
+          // has been withheld. "Workspace member" is the same honest fallback
+          // `safeDisplayName` uses on the collaboration surface.
           label:
-            member.user?.displayName || member.user?.email || member.userId,
+            member.user?.displayName ||
+            (canSeeContact ? member.user?.email : null) ||
+            "Workspace member",
           user: member.user
             ? {
                 id: member.user.id,
-                email: member.user.email ?? undefined,
+                email: canSeeContact ? member.user.email ?? undefined : undefined,
                 displayName: member.user.displayName ?? undefined,
               }
             : undefined,
@@ -852,7 +941,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       const teamId = z.string().uuid().parse((req.params as { id: string }).id);
       const userId = getAuthUserId(req);
 
-      const actor = await getActorMembership(teamId, userId);
+      const actor = await getActorMembership(req, teamId, userId);
       if (!actor) {
         auditTeamAction(req, {
           userId,
@@ -896,7 +985,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       const teamId = z.string().uuid().parse((req.params as { id: string }).id);
       const userId = getAuthUserId(req);
 
-      const actor = await getActorMembership(teamId, userId);
+      const actor = await getActorMembership(req, teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
         auditTeamAction(req, {
           userId,
@@ -942,7 +1031,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       const body = UpdateTeamBody.parse(req.body);
       const userId = getAuthUserId(req);
 
-      const actor = await getActorMembership(teamId, userId);
+      const actor = await getActorMembership(req, teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
         auditTeamAction(req, {
           userId,
@@ -997,7 +1086,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       const teamId = z.string().uuid().parse((req.params as { id: string }).id);
       const userId = getAuthUserId(req);
 
-      const actor = await getActorMembership(teamId, userId);
+      const actor = await getActorMembership(req, teamId, userId);
       if (!actor || actor.role !== prismaPkg.TeamRole.OWNER) {
         auditTeamAction(req, {
           userId,
@@ -1134,7 +1223,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       const userId = getAuthUserId(req);
       const email = normalizeEmail(body.email);
 
-      const actor = await getActorMembership(teamId, userId);
+      const actor = await getActorMembership(req, teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
         auditTeamAction(req, {
           userId,
@@ -1215,13 +1304,37 @@ export async function teamsRoutes(app: FastifyInstance) {
       // §9.7 — explicit WORKSPACE subject (existing-workspace capability check).
       const scope = (await resolveCommercialContext({ type: "WORKSPACE", teamId, requesterUserId: userId })).scope;
 
+      /**
+       * WCR-18 (2026-09-07) — AN EXPIRED INVITATION MUST NOT WEDGE AN ADDRESS.
+       *
+       * This required `expiresAt > now`, so an EXPIRED row fell straight past
+       * the resend branch into creation — where the partial unique index
+       * `team_invites_pending_email_uniq` (which excludes accepted and revoked
+       * rows, but NOT expired ones) raised P2002 and the service answered
+       * "There is already a pending invitation for that address. Resend or
+       * revoke it instead."
+       *
+       * Every part of that was a dead end. The invitation was not pending; the
+       * UI's resend path was never reached, because the route had already
+       * decided there was nothing to resend; and revoking first works but
+       * nothing said so. Re-inviting somebody whose link simply lapsed was
+       * impossible through the product.
+       *
+       * The expiry filter is dropped here rather than changed in the index.
+       * Widening the index to exclude expired rows would let a workspace
+       * accumulate unlimited expired invitations for one address, each a real
+       * row with a real audit trail. Adopting the existing row is better on
+       * both counts: `resendWorkspaceInvitation` ROTATES the token and extends
+       * the window, so the lapsed link dies as the new one is issued, and the
+       * resend counter records that the address was chased — which is exactly
+       * what happened.
+       */
       const existingPendingInvite = await prisma.teamInvite.findFirst({
         where: {
           teamId,
           email,
           acceptedAt: null,
           revokedAt: null,
-          expiresAt: { gt: new Date() },
         },
         orderBy: { createdAt: "desc" },
       });
@@ -1299,30 +1412,51 @@ export async function teamsRoutes(app: FastifyInstance) {
         }
       }
 
-      // 4B-I1: QUOTA_USERS — gate before invite commit.
-      // Denial: 403 { denial: "QUOTA_EXCEEDED", entitlement: "QUOTA_USERS" }.
-      // recordEntitlementUsage is fire-and-forget. Engine errors are swallowed.
-      try {
-        const { assertQuotaEntitlement, recordEntitlementUsage } = await import(
-          "../services/packaging/entitlement.service.js"
-        );
-        const qUsers = await assertQuotaEntitlement({
-          prisma,
-          teamId,
-          key: "QUOTA_USERS",
-          requested: 1,
-          actorUserId: userId,
-        });
-        if (!qUsers.ok) {
-          return reply.code(403).send({
-            denial: "QUOTA_EXCEEDED",
-            entitlement: "QUOTA_USERS",
-          });
-        }
-        recordEntitlementUsage({ prisma, teamId, key: "QUOTA_USERS", amount: 1 }).catch(() => null);
-      } catch {
-        /* entitlement engine error — do not block invite creation */
-      }
+      /**
+       * WCR-01 (2026-09-07) — THE SECOND SEAT AUTHORITY IS GONE.
+       *
+       * A `QUOTA_USERS` gate stood here, ahead of the canonical invitation
+       * authority, and it decided the same commercial question with a
+       * different number. Its subject was the packaging engine's ProductLine
+       * package; no purchase path writes one, so every self-serve workspace
+       * resolved the unprovisioned default of THREE — and the counter it
+       * compared against was `EntitlementUsage` for the current CALENDAR
+       * MONTH, incremented per invitation and never decremented on revoke,
+       * decline or expiry.
+       *
+       * So a TEAM workspace that had bought ten seats could invite three
+       * people in a month and then received `403 QUOTA_EXCEEDED` — a denial
+       * shape no surface maps, naming an entitlement no customer was ever
+       * sold. It ran FIRST, so it won.
+       *
+       * The 2026-08-27 pass removed `QUOTA_EVIDENCE_COUNT` and
+       * `QUOTA_STORAGE_BYTES` from that engine for exactly this reason and
+       * recorded the rule: the packaging engine keeps only the FEATURE and
+       * non-commercial LIMIT entitlements it is actually the authority for.
+       * `QUOTA_USERS` was the same defect and survived the sweep. It is now
+       * deleted from the key vocabulary as well as from this call site, so it
+       * cannot be re-granted or re-read.
+       *
+       * The four questions it blurred stay separate and each keeps its one
+       * authority, all of them reached through `createWorkspaceInvitation`
+       * below:
+       *
+       *   seat capacity      — `resolveWorkspaceSeatState` (claimed at ACCEPT,
+       *                        under a per-workspace advisory lock);
+       *   pending ceiling    — `resolveWorkspaceInvitationAllowance.maxPending`;
+       *   invitation velocity— `resolveWorkspaceInvitationAllowance.maxPer24h`,
+       *                        an abuse rail, deliberately NOT a commercial
+       *                        promise;
+       *   group ceiling      — decided by `assertCanCreateCollaborationTeam`
+       *                        in the collaboration billing guards, over a
+       *                        different container entirely. This file must
+       *                        not so much as name that field: the guard is
+       *                        the only place it is read, and
+       *                        `billing-commercial-correctness` pins that.
+       *
+       * Creation is still not blocked by a full workspace: a pending
+       * invitation consumes no seat, and the seat is claimed at acceptance.
+       */
 
       let created;
       try {
@@ -1406,7 +1540,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       const inviteId = z.string().uuid().parse(params.inviteId);
       const userId = getAuthUserId(req);
 
-      const actor = await getActorMembership(teamId, userId);
+      const actor = await getActorMembership(req, teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
         auditTeamAction(req, {
           userId,
@@ -1479,7 +1613,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       const body = UpdateMemberBody.parse(req.body);
       const userId = getAuthUserId(req);
 
-      const actor = await getActorMembership(teamId, userId);
+      const actor = await getActorMembership(req, teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
         auditTeamAction(req, {
           userId,
@@ -1613,7 +1747,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       const memberId = z.string().uuid().parse(params.memberId);
       const userId = getAuthUserId(req);
 
-      const actor = await getActorMembership(teamId, userId);
+      const actor = await getActorMembership(req, teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
         return reply.code(403).send({ message: "Forbidden" });
       }
@@ -1716,7 +1850,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         ? parsedBody.data?.transferToUserId ?? null
         : null;
 
-      const actor = await getActorMembership(teamId, userId);
+      const actor = await getActorMembership(req, teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
         auditTeamAction(req, {
           userId,
@@ -2000,7 +2134,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       const inviteId = z.string().uuid().parse(params.inviteId);
       const userId = getAuthUserId(req);
 
-      const actor = await getActorMembership(teamId, userId);
+      const actor = await getActorMembership(req, teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
         auditTeamAction(req, {
           userId,
@@ -2054,7 +2188,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       const teamId = z.string().uuid().parse((req.params as { id: string }).id);
       const userId = getAuthUserId(req);
 
-      const actor = await getActorMembership(teamId, userId);
+      const actor = await getActorMembership(req, teamId, userId);
       if (!actor) {
         auditTeamAction(req, {
           userId,
@@ -2127,7 +2261,13 @@ export async function teamsRoutes(app: FastifyInstance) {
           actor: actorUser
             ? {
                 id: actorUser.id,
-                email: actorUser.email,
+                // WCR-16 — the activity feed released every actor's address to
+                // any member. A feed exists to say WHO did WHAT; the display
+                // name says who. An address is administrative data and follows
+                // the same rule as the member list above.
+                email: hasRole(actor.role, prismaPkg.TeamRole.ADMIN)
+                  ? actorUser.email
+                  : undefined,
                 displayName: actorUser.displayName,
               }
             : null,
@@ -2158,7 +2298,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       const { caseId } = LinkCaseBody.parse(req.body);
       const userId = getAuthUserId(req);
 
-      const actor = await getActorMembership(teamId, userId);
+      const actor = await getActorMembership(req, teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.MEMBER)) {
         auditTeamAction(req, {
           userId,
@@ -2249,7 +2389,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       const caseId = z.string().uuid().parse(params.caseId);
       const userId = getAuthUserId(req);
 
-      const actor = await getActorMembership(teamId, userId);
+      const actor = await getActorMembership(req, teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
         auditTeamAction(req, {
           userId,
@@ -2337,7 +2477,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       const teamId = z.string().uuid().parse((req.params as { id: string }).id);
       const userId = getAuthUserId(req);
 
-      const actor = await getActorMembership(teamId, userId);
+      const actor = await getActorMembership(req, teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
         return reply.code(403).send({ message: "Forbidden" });
       }
@@ -2472,7 +2612,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       const teamId = z.string().uuid().parse((req.params as { id: string }).id);
       const userId = getAuthUserId(req);
 
-      const actor = await getActorMembership(teamId, userId);
+      const actor = await getActorMembership(req, teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
         return reply.code(403).send({ message: "Forbidden" });
       }
@@ -2643,7 +2783,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         .parse((req.params as { grantId: string }).grantId);
       const userId = getAuthUserId(req);
 
-      const actor = await getActorMembership(teamId, userId);
+      const actor = await getActorMembership(req, teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
         return reply.code(403).send({ message: "Forbidden" });
       }

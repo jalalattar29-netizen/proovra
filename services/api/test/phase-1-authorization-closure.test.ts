@@ -34,9 +34,30 @@ import {
 const API_SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 
 const GATE_RE = /teamMember\.(findUnique|findFirst)\b/;
-// A file is CANONICAL if it composes the primitive OR checks ACTIVE status.
+/**
+ * WCR-03 (2026-09-07) — `teamMemberStatusGrantsAccess` NO LONGER COUNTS.
+ *
+ * It was in this alternation, and that is how `teams.routes.ts` — workspace
+ * members, invitations, role changes, ownership transfer, workspace deletion —
+ * cleared this gate for months while checking membership status and nothing
+ * else. Access expiry, Organization lifecycle and the support guard went
+ * unevaluated on the surface that grants tenancy, and `PENDING` was empty, and
+ * the ledger asserted zero. The regex passed the file; the primitive never saw
+ * it.
+ *
+ * A status comparison is ONE of the seven questions the canonical primitive
+ * asks. Accepting it as proof of canonicality means this test can only detect
+ * the gates nobody bothered to write a status check into — which is not the
+ * class of defect it exists to catch.
+ *
+ * The bare `status: "ACTIVE"` forms stay, deliberately. Those appear in
+ * FILTERS on list and count queries (`where: { status: "ACTIVE" }`), which are
+ * not authorization gates at all and are only here because the file also
+ * happens to contain a `findUnique`. What is gone is the helper whose whole
+ * job was to answer an authorization question, incompletely.
+ */
 const CANONICAL_RE =
-  /authorizeOrFail|requireAuthorize|evaluateMemberAccess|requireOpsActor|requireReviewerActor|resolveMemberContext|status:\s*"ACTIVE"|status\s*!==\s*"ACTIVE"|status\s*===\s*"ACTIVE"|TeamMemberStatus\.ACTIVE|teamMemberStatusGrantsAccess|access-policy/;
+  /authorizeOrFail|requireAuthorize|evaluateMemberAccess|evaluateAuthorizedWorkspace|authorizeWorkspaceOrFail|authorizeCurrentWorkspaceOrFail|requireOpsActor|requireReviewerActor|resolveMemberContext|status:\s*"ACTIVE"|status\s*!==\s*"ACTIVE"|status\s*===\s*"ACTIVE"|TeamMemberStatus\.ACTIVE|access-policy/;
 
 function walk(dir: string): string[] {
   const out: string[] = [];
