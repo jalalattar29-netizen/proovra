@@ -1095,33 +1095,21 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       const ctx = await requireReviewerActor(req, reply, body.teamId);
       if (!ctx) return;
       if (!requireReviewerCapable(ctx, reply)) return;
-      // 4B-I1: QUOTA_REVIEWER_SEATS — gate before reviewer assignment.
-      // Denial: 403 { denial: "QUOTA_EXCEEDED", entitlement: "QUOTA_REVIEWER_SEATS" }.
-      // recordEntitlementUsage is fire-and-forget. Engine errors are swallowed.
-      try {
-        const { assertQuotaEntitlement, recordEntitlementUsage } = await import(
-          "../services/packaging/entitlement.service.js"
-        );
-        const qSeats = await assertQuotaEntitlement({
-          teamId: body.teamId,
-          key: "QUOTA_REVIEWER_SEATS",
-          requested: 1,
-          actorUserId: getAuthUserId(req),
-        });
-        if (!qSeats.ok) {
-          return reply.code(403).send({
-            denial: "QUOTA_EXCEEDED",
-            entitlement: "QUOTA_REVIEWER_SEATS",
-          });
-        }
-        recordEntitlementUsage({
-          teamId: body.teamId,
-          key: "QUOTA_REVIEWER_SEATS",
-          amount: 1,
-        }).catch(() => null);
-      } catch {
-        /* entitlement engine error — do not block reviewer assignment */
-      }
+      /**
+       * WCR-01 (2026-09-07) — `QUOTA_REVIEWER_SEATS` removed, same defect as
+       * `QUOTA_USERS` on the workspace-invitation path.
+       *
+       * It counted ASSIGNMENTS against a number named SEATS, in a calendar
+       * month, and its unprovisioned default was ONE — and no purchase path
+       * writes a packaging grant, so that default was what every workspace
+       * got. A workspace whose plan includes reviewer operations could
+       * therefore assign one reviewer per month and then be refused with
+       * `403 QUOTA_EXCEEDED` naming an entitlement it was never sold.
+       *
+       * Reviewer capability has one authority —
+       * `PlanCapabilities.reviewerOperationsIncluded` — and it is already
+       * enforced two lines above by `requireReviewerCapable(ctx, reply)`.
+       */
       try {
         const result = await assignReviewerToWorkflow(ctx, {
           workflowId,

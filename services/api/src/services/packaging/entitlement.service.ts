@@ -78,6 +78,31 @@ type EntitlementValue = boolean | number;
 // Existing `entitlement_grants` rows carrying the removed keys are left in
 // place — no historical entitlement record is rewritten — and are simply never
 // read again.
+//
+// WCR-01 (2026-09-07) — THE SWEEP ABOVE WAS INCOMPLETE. Three more keys
+// carried the same defect and are removed on the same reasoning:
+//
+//   QUOTA_USERS          gated `POST /v1/teams/:id/invites` ahead of the
+//                        canonical seat authority. Unprovisioned default 3,
+//                        counted per CALENDAR MONTH and never decremented, so
+//                        a TEAM workspace that bought ten seats could invite
+//                        three people a month. Workspace membership capacity
+//                        has one authority: `resolveWorkspaceSeatState`.
+//
+//   QUOTA_REVIEWER_SEATS gated reviewer assignment the same way. Unprovisioned
+//                        default 1 per calendar month, counting ASSIGNMENTS
+//                        against a number named SEATS — so a workspace whose
+//                        plan includes reviewer operations could make one
+//                        assignment a month. Reviewer capability has one
+//                        authority: `PlanCapabilities.reviewerOperationsIncluded`,
+//                        already enforced by `requireReviewerCapable`.
+//
+//   QUOTA_WORKSPACES     had no enforcement site at all. Dead on arrival, and
+//                        the final model sells no additional workspaces, so
+//                        there is nothing for it to come back to answer.
+//
+// A quota whose default refuses what the plan sells is not a safety net; it is
+// a second commercial authority that wins by running first.
 export const DEFAULT_ENTITLEMENTS: Record<
   EntitlementKey,
   { kind: EntitlementKind; value: EntitlementValue }
@@ -98,9 +123,6 @@ export const DEFAULT_ENTITLEMENTS: Record<
   FEATURE_DELEGATED_ADMIN: { kind: "FEATURE", value: false },
   FEATURE_DEPARTMENT_ISOLATION: { kind: "FEATURE", value: false },
   FEATURE_CROSS_ORG_REVIEW: { kind: "FEATURE", value: false },
-  QUOTA_USERS: { kind: "QUOTA", value: 3 },
-  QUOTA_WORKSPACES: { kind: "QUOTA", value: 1 },
-  QUOTA_REVIEWER_SEATS: { kind: "QUOTA", value: 1 },
   QUOTA_AI_OPERATIONS_PER_MONTH: { kind: "QUOTA", value: 25 },
   QUOTA_API_REQUESTS_PER_DAY: { kind: "QUOTA", value: 500 },
   QUOTA_WEBHOOK_DELIVERIES_PER_DAY: { kind: "QUOTA", value: 0 },
@@ -123,9 +145,6 @@ export const PLAN_LINE_ENTITLEMENTS: Record<
     FEATURE_REVIEWER_WORKSPACE: true,
     FEATURE_TRUST_CENTER: true,
     FEATURE_REDACTION: true,
-    QUOTA_USERS: 10,
-    QUOTA_WORKSPACES: 3,
-    QUOTA_REVIEWER_SEATS: 5,
     QUOTA_AI_OPERATIONS_PER_MONTH: 500,
     QUOTA_API_REQUESTS_PER_DAY: 10_000,
     QUOTA_EXPORT_PACKAGES_PER_MONTH: 25,
@@ -144,9 +163,6 @@ export const PLAN_LINE_ENTITLEMENTS: Record<
     FEATURE_LEGAL_HOLD: true,
     FEATURE_ARCHIVE_TIERS: true,
     FEATURE_LIFECYCLE_DASHBOARD: true,
-    QUOTA_USERS: 50,
-    QUOTA_WORKSPACES: 25,
-    QUOTA_REVIEWER_SEATS: 25,
     QUOTA_AI_OPERATIONS_PER_MONTH: 5_000,
     QUOTA_API_REQUESTS_PER_DAY: 100_000,
     QUOTA_WEBHOOK_DELIVERIES_PER_DAY: 10_000,
@@ -173,9 +189,6 @@ export const PLAN_LINE_ENTITLEMENTS: Record<
     FEATURE_DELEGATED_ADMIN: true,
     FEATURE_DEPARTMENT_ISOLATION: true,
     FEATURE_CROSS_ORG_REVIEW: true,
-    QUOTA_USERS: 1_000,
-    QUOTA_WORKSPACES: 500,
-    QUOTA_REVIEWER_SEATS: 500,
     QUOTA_AI_OPERATIONS_PER_MONTH: 100_000,
     QUOTA_API_REQUESTS_PER_DAY: 5_000_000,
     QUOTA_WEBHOOK_DELIVERIES_PER_DAY: 1_000_000,

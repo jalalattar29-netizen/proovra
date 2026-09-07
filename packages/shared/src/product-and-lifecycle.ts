@@ -45,9 +45,22 @@ export const ENTITLEMENT_KEYS = [
   'FEATURE_DELEGATED_ADMIN',
   'FEATURE_DEPARTMENT_ISOLATION',
   'FEATURE_CROSS_ORG_REVIEW',
-  'QUOTA_USERS',
-  'QUOTA_WORKSPACES',
-  'QUOTA_REVIEWER_SEATS',
+  // WCR-01 (2026-09-07) — `QUOTA_USERS`, `QUOTA_WORKSPACES` and
+  // `QUOTA_REVIEWER_SEATS` are REMOVED from the vocabulary, following
+  // `QUOTA_EVIDENCE_COUNT` / `QUOTA_STORAGE_BYTES` out for the same reason:
+  // each was a second commercial authority over a quantity the plan catalog
+  // already owns, keyed on ProductLine rather than on the purchased plan,
+  // with an unprovisioned default that refused what the plan sells.
+  //
+  // Deleting the KEYS (not just the call sites) is the point: a key that
+  // still exists can be granted by `POST /v1/packaging/entitlements/grant`
+  // and read back by a future gate, which is how the first sweep left a live
+  // authority behind. Historical `entitlement_grants` rows carrying these
+  // keys are untouched and simply never read again.
+  //
+  // Canonical replacements: workspace seats → `resolveWorkspaceSeatState`;
+  // additional workspaces → not sold; reviewer operations →
+  // `PlanCapabilities.reviewerOperationsIncluded`.
   'QUOTA_AI_OPERATIONS_PER_MONTH',
   'QUOTA_API_REQUESTS_PER_DAY',
   'QUOTA_WEBHOOK_DELIVERIES_PER_DAY',
