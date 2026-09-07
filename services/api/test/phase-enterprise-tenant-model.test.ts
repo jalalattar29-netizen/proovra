@@ -455,7 +455,26 @@ describe("ENTERPRISE TENANT MODEL — /teams page", () => {
     // The rest of the Actions block is unchanged and still asserted below, so
     // this test still proves the section renders rather than vanishing.
     expect(WEB_TEAMS_HOME).not.toMatch(/CreateWorkspaceCard/);
-    expect(WEB_TEAMS_HOME).toMatch(/data-workspace-action="join_organization"/);
+    /**
+     * "Join an organization" is GONE, by the same rule that removed the create
+     * control above: a control for a capability the product does not have is
+     * worse than a missing one.
+     *
+     * It linked `/teams?action=join`. `/teams` 308s to `/collaboration-teams`,
+     * and `action=join` has ZERO consumers anywhere in the web app — the
+     * landing page that once read it was deleted in Phase 2B. So it dropped
+     * the operator on a list with a query nothing reads, having promised to
+     * enrol them somewhere. There is no self-serve join: somebody joins an
+     * organization by accepting an invitation an org admin issued.
+     *
+     * The Actions block is still asserted to render, via the surviving
+     * organizations link, so this test still proves the section exists.
+     */
+    // Asserted on the CONTROL, not on a substring: the deletion is explained
+    // in a comment at the site, and a guard that greps prose would report the
+    // explanation as the offence.
+    expect(WEB_TEAMS_HOME).not.toMatch(/data-workspace-action="join_organization"/);
+    expect(WEB_TEAMS_HOME).toMatch(/data-workspace-action="view_all_organizations"/);
   });
 
   it("renders the duplicate-personal diagnostic when surfaces are flagged", () => {

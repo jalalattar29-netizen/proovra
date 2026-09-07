@@ -267,6 +267,17 @@ const TEAM_WORDING_ALLOWLIST = new Set<string>([
   "app/(app)/admin/page.tsx",
   "app/(app)/operations/quotas/page.tsx",
   "components/ui-legacy.tsx",
+  /**
+   * Team responsibility panel on Case and Evidence detail.
+   *
+   * "Team" is the CORRECT customer-facing word here and "Workspace" would be
+   * actively wrong: the panel names the COLLABORATION TEAM responsible for a
+   * record — the constitutional product term this allowlist already exempts
+   * elsewhere — and saying "Workspace responsibility" would claim the tenant
+   * is responsible, which means nothing. "Team-level" likewise distinguishes
+   * work held by the group from work held by a named person.
+   */
+  "components/collaboration/TeamResponsibilityPanel.tsx",
   // Team-detail page — explicitly named per backend Team model.
   "app/(app)/teams/[id]/page.tsx",
   "app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx",

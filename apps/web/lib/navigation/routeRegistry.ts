@@ -1910,6 +1910,31 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
       "The people in this workspace — members, pending invitations, roles and seats.",
     domain: "ACCOUNT",
     requiredCapabilities: ["TEAM_VIEW"],
+    /**
+     * NAV-GATED ON THE PLANS THAT SELL A SECOND SEAT.
+     *
+     * FREE and PAYG have `maxWorkspaceSeats: 1`, so Workspace People for them
+     * is a page listing one person beside an invite control that answers
+     * `402 WORKSPACE_INVITES_NOT_INCLUDED`. A primary nav entry to a surface
+     * whose main action refuses is not navigation — it is an advertisement
+     * with a dead end behind it, which is the exact reasoning that took Teams
+     * out of the FREE/PAYG sidebar.
+     *
+     * `teamCollaborationIncluded` is a SERVER projection that already exists;
+     * no new commercial authority is introduced for this gate. Its subject is
+     * strictly "does this plan include collaboration groups", which is NOT the
+     * same question as "does this plan sell a second seat" — and that is worth
+     * naming rather than glossing. Across every plan in the current catalog
+     * the two coincide exactly (FREE 0/1, PAYG 0/1, PRO 2/5, TEAM 5/10,
+     * ENTERPRISE 1000/500), so it is a correct gate today and a proxy, not a
+     * definition. If a plan is ever sold with seats but no groups, this needs
+     * its own projection off `maxWorkspaceSeats` rather than a wider reading
+     * of this one.
+     *
+     * The gate is on the NAV only. Direct access is decided by the `/people`
+     * surface-tier rule, which mirrors its destination `/teams/[id]`.
+     */
+    navPlanFeature: "teamCollaborationIncluded",
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
 

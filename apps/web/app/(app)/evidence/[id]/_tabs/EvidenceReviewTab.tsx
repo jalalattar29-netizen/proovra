@@ -56,6 +56,9 @@ import { ReviewerWorkflowCard } from "../components/ReviewerWorkflowCard";
 import { EvidenceReviewActionsPanel } from "../components/EvidenceReviewActionsPanel";
 import { ReviewerAuditTrailSection } from "../components/ReviewerAuditTrailSection";
 import { EvidenceCopilotPanel } from "../../../../../components/ai-copilot/EvidenceCopilotPanel";
+// The READ of the one group-responsibility authority, shared with both Case
+// detail branches so all three surfaces say the same thing.
+import { TeamResponsibilityPanel } from "../../../../../components/collaboration/TeamResponsibilityPanel";
 
 /** Section head: an uppercase label at the logical start, actions at the end. */
 function ReviewSectionHead({
@@ -555,6 +558,26 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           )}
         </div>
       </section>
+
+      {/*
+        WHICH TEAM IS ON THIS RECORD.
+
+        A Collaboration Team could be made responsible for this evidence record
+        since the assignment model shipped, and no evidence surface could say
+        so — nothing outside the collaboration module read that table. This is
+        a READ of the same authority the group's Work tab lists.
+
+        It lives on Review because that is where the operational question
+        belongs: responsibility sits beside review state, not beside hashes.
+        And it lives in this TAB rather than in `page.tsx` because the page is
+        an orchestrator under a byte guard that exists to keep it one — adding
+        a panel there is what the guard is for.
+
+        It changes nothing about the record. Custody, integrity, verification,
+        lifecycle and access are untouched, and a group being responsible for a
+        record grants nobody the right to open it.
+      */}
+      <TeamResponsibilityPanel targetType="EVIDENCE" targetId={evidence.id} />
     </>
   );
 }

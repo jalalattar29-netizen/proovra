@@ -273,9 +273,17 @@ test("sidebar matrix — Operations Center for every plan; only intake varies by
   // to a surface whose every action refuses is not navigation, it is an
   // advertisement with a dead end behind it. Direct access still resolves and
   // answers with an honest locked state rather than a 404.
+  // Workspace People joined the sidebar on the plans that sell a second seat.
+  // `/teams/[id]` — workspace members, workspace invitations, seats, roles —
+  // had NO nav entry at all after Phase 2B deleted its index, so a PRO
+  // workspace sold five seats with no in-product way to fill seats 2..5.
+  //
+  // It is absent from FREE and PAYG for the same reason Teams is: those plans
+  // seat exactly one person, so the surface's main action would refuse.
   const WITH_COLLABORATION = [
     ...WITH_INTAKE,
     "workspace.collaboration_teams",
+    "workspace.people",
   ].sort();
 
   assert.deepEqual(sidebarRouteIds("FREE"), BASE, "FREE");

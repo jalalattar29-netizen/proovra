@@ -317,6 +317,32 @@ describe("Phase R16 — service module", () => {
   const svc = read(
     "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
   );
+  /**
+   * `emitTeamNotifications` MOVED to a leaf module, and the guarantees below
+   * moved with it rather than being relaxed.
+   *
+   * It was defined in the completion service, which imports FROM
+   * `collaboration-team.service.ts` — so the assignment writers that most
+   * needed to notify somebody were the ones that structurally could not reach
+   * it, which is why nine of the ten declared notification types had no
+   * producer. A leaf module both services can import gives it one definition
+   * and no cycle.
+   *
+   * The completion service still RE-EXPORTS it, so its module surface is
+   * unchanged for every caller; the assertions simply read the file that now
+   * holds the implementation.
+   */
+  const fanout = read(
+    "services/api/src/services/collaboration-team/team-notifications.ts",
+  );
+
+  it("the notification fan-out has exactly one definition, re-exported by this module", () => {
+    expect(fanout).toMatch(/export async function emitTeamNotifications\b/);
+    // One definition: the completion service must NOT redeclare it.
+    expect(svc).not.toMatch(/export async function emitTeamNotifications\b/);
+    // …and must still expose it, so no caller had to move.
+    expect(svc).toMatch(/export\s*\{\s*emitTeamNotifications\s*\}/);
+  });
 
   it("exports the canonical Phase 7 service functions", () => {
     const required = [
@@ -326,7 +352,20 @@ describe("Phase R16 — service module", () => {
       "editComment",
       "deleteComment",
       "listMyNotifications",
-      "emitTeamNotifications",
+      // THREE SYMBOLS LEFT THIS LIST, FOR TWO DIFFERENT REASONS.
+      //
+      // `markNotificationRead` and `markAllNotificationsRead` were DELETED by
+      // the 2026-09-07 commercial/mutation closure: their routes had been
+      // retired to a typed 410, the inbox marks the same `readAt` column, and
+      // a writer nothing can reach is not a writer worth keeping.
+      //
+      // `emitTeamNotifications` was MOVED, not deleted — to
+      // `team-notifications.ts`, a leaf module, so the assignment writers in
+      // `collaboration-team.service.ts` could reach it without an import
+      // cycle. This module still re-exports it, so its surface is unchanged
+      // for every caller; the test above pins the stronger fact (exactly ONE
+      // definition, still re-exported) than an `export async function` grep
+      // against this file could.
       "getMyNotificationPreference",
       "inviteGuest",
       "listGuests",
@@ -386,7 +425,10 @@ describe("Phase R16 — service module", () => {
     );
     expect(svc).toMatch(/m\.userId\s*!==\s*input\.actorUserId/);
     // The shared `emitTeamNotifications` helper filters args.actorUserId.
-    expect(svc).toMatch(/id\s*!==\s*args\.actorUserId/);
+    // Asserted against the module that now HOLDS it — the guarantee is
+    // unchanged, and filtering there rather than at each call site is what
+    // keeps it from being forgotten at the next one.
+    expect(fanout).toMatch(/id\s*!==\s*args\.actorUserId/);
   });
 
   it("preferences gate fanout — MUTED + mentions: false suppress notifications", () => {

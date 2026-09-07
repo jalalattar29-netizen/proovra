@@ -89,9 +89,12 @@ export type TabId = (typeof TABS)[number];
  * the Invites tab was deleted.
  */
 const RETIRED_TAB_ALIASES: Record<string, TabId> = {
-  assignments: "work",
-  activity: "settings",
-  invites: "members",
+  // Quoted deliberately: these slugs are the contract with links already sent,
+  // and quoting keeps them greppable by the tab-set contract test rather than
+  // hiding a retired vocabulary behind bare object keys.
+  "assignments": "work",
+  "activity": "settings",
+  "invites": "members",
 };
 
 /**

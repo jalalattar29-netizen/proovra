@@ -8,9 +8,47 @@
  * accept-handler wiring.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+
+/**
+ * THE SEAT AUTHORITY IS STUBBED HERE, AND THAT IS THE POINT OF THE STUB.
+ *
+ * `grantWorkspaceMembership` now consults `resolveWorkspaceSeatState` before
+ * it seats anybody — it is the second of the two paths that create a workspace
+ * member (the other is `acceptWorkspaceInvitation`, which has always claimed a
+ * seat under an advisory lock) and it previously consulted no commercial
+ * authority at all.
+ *
+ * That resolver reaches the whole commercial stack: plan resolution, the
+ * enterprise contract and its status, the persisted seat count. These tests
+ * are UNIT tests of the assignment rules — does the team belong to the org, is
+ * it a personal space, what shape does the upsert take — driven by a
+ * hand-rolled `fakeTx` proxy. Letting the real resolver run against that proxy
+ * would not test seats; it would test how a Proxy behaves when the billing
+ * layer asks it for a column, which is how a half-built double ends up
+ * reaching a real socket.
+ *
+ * So the seat answer is stubbed to "room available" for the rules under test,
+ * and the seat rule itself is asserted separately below with the stub told to
+ * say the workspace is full.
+ */
+const seatState = vi.hoisted(() => ({
+  current: {
+    plan: "TEAM",
+    used: 3,
+    limit: 10,
+    remaining: 7,
+    featureIncluded: true,
+    overLimit: false,
+    source: "PLAN_CATALOG",
+    contractLimits: {},
+  },
+}));
+vi.mock("../src/services/billing/workspace-seats.service.js", () => ({
+  resolveWorkspaceSeatState: async () => seatState.current,
+}));
 
 import {
   grantOrganizationMembership,
@@ -170,6 +208,64 @@ describe("P2 — grantWorkspaceMembership (explicit, validated, fail-closed)", (
     // Update path (existing row) re-activates WITHOUT touching role.
     expect(args.update.status).toBe("ACTIVE");
     expect("role" in args.update).toBe(false);
+  });
+
+  /**
+   * THE SEAT GATE — the second path that seats a person now asks the same
+   * authority the first one does.
+   *
+   * `acceptWorkspaceInvitation` claims a seat under an advisory lock and
+   * refuses at capacity. This function — organization-invite acceptance, SSO
+   * JIT and SCIM — consulted no commercial authority whatsoever, so an admin
+   * could seat a hundred people into a ten-seat workspace by attaching
+   * workspace assignments to invitations.
+   */
+  it("refuses when the workspace has no free seat", async () => {
+    const previous = seatState.current;
+    seatState.current = { ...previous, used: 10, limit: 10, remaining: 0 };
+    try {
+      const { tx, calls } = fakeTx({
+        "team.findUnique": () => ({ organizationId: ORG_ID, isPersonal: false }),
+      });
+      const res = await grantWorkspaceMembership(tx, {
+        organizationId: ORG_ID,
+        userId: USER_ID,
+        assignment: { teamId: TEAM_ID, role: "MEMBER" },
+        accessReason: "test",
+      });
+      expect(res).toEqual({ ok: false, reason: "workspace_seat_limit_reached" });
+      // Refused BEFORE the write, not rolled back after it.
+      expect(calls.some((c) => c.op === "teamMember.upsert")).toBe(false);
+    } finally {
+      seatState.current = previous;
+    }
+  });
+
+  /**
+   * An ALREADY-ACTIVE member re-provisioning consumes no seat — `used` counts
+   * ACTIVE members, so they are already in it. Refusing here would lock
+   * existing members out of their own workspace the moment it filled up, on
+   * every repeat SSO login and every idempotent replay.
+   */
+  it("does not refuse an already-active member when the workspace is full", async () => {
+    const previous = seatState.current;
+    seatState.current = { ...previous, used: 10, limit: 10, remaining: 0 };
+    try {
+      const { tx, calls } = fakeTx({
+        "team.findUnique": () => ({ organizationId: ORG_ID, isPersonal: false }),
+        "teamMember.findUnique": () => ({ status: "ACTIVE" }),
+      });
+      const res = await grantWorkspaceMembership(tx, {
+        organizationId: ORG_ID,
+        userId: USER_ID,
+        assignment: { teamId: TEAM_ID, role: "MEMBER" },
+        accessReason: "test",
+      });
+      expect(res).toEqual({ ok: true });
+      expect(calls.some((c) => c.op === "teamMember.upsert")).toBe(true);
+    } finally {
+      seatState.current = previous;
+    }
   });
 });
 

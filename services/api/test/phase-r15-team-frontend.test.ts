@@ -279,7 +279,7 @@ describe("Phase R15 — Stages 4-12: page content", () => {
     );
   });
 
-  it("detail page renders the 6 tab definitions (overview/members/assignments/discussion/activity/settings)", () => {
+  it("detail page renders the 5 tab definitions (overview/work/members/discussion/settings)", () => {
     // WORKSPACE AND COLLABORATION RECONCILIATION — "invites" left the tab set
     // and "discussion" took its place. People are invited to the WORKSPACE
     // (one invitation authority, one seat claim) and then ASSIGNED to a group
@@ -287,10 +287,32 @@ describe("Phase R15 — Stages 4-12: page content", () => {
     // operation that no longer exists. The group's conversation, which used to
     // live behind a second page, is a tab here instead.
     //
+    // OPERATIONAL REBUILD — six tabs became five.
+    //
+    // "assignments" became "work": the tab is the group's operational surface
+    // — what it is responsible for, who is carrying it, what is late — and
+    // "Work" is what an operator calls that. The old name described the row
+    // type rather than the job.
+    //
+    // "activity" stopped being a tab. Its event vocabulary is almost entirely
+    // membership and settings administration, which is audited occasionally
+    // rather than worked daily, and giving it equal billing with Work and
+    // Members implied otherwise. It renders inside Settings now. NOTHING was
+    // deleted — every activity row is still written and still read.
+    //
     // The tab labels are emitted via `data-testid={`tab-${t}`}` where
     // `t` is a value from the TABS array. Assert the array itself.
     expect(detail).toMatch(
-      /const TABS = \[\s*"overview",\s*"members",\s*"assignments",\s*"discussion",\s*"activity",\s*"settings",\s*\] as const/,
+      /const TABS = \[\s*"overview",\s*"work",\s*"members",\s*"discussion",\s*"settings",\s*\] as const/,
+    );
+    // Retired slugs must keep resolving: they are in people's history and in
+    // links they sent each other, and a silent fallback to Overview is how
+    // `?tab=invites` went unnoticed for months after that tab was deleted.
+    expect(detail).toMatch(
+      /RETIRED_TAB_ALIASES[\s\S]{0,400}"?assignments"?:\s*"work"/,
+    );
+    expect(detail).toMatch(
+      /RETIRED_TAB_ALIASES[\s\S]{0,400}"?activity"?:\s*"settings"/,
     );
     // And the wrapping nav uses the bounded testid for the tablist.
     expect(detail).toMatch(/data-testid="team-tabs"/);
@@ -300,11 +322,14 @@ describe("Phase R15 — Stages 4-12: page content", () => {
     // page-level switch on activeTab).
     for (const t of [
       "overview",
+      "work",
       "members",
-      "assignments",
       "discussion",
-      "activity",
       "settings",
+      // The retired slugs still appear as literals — in RETIRED_TAB_ALIASES,
+      // which is what keeps an old link resolving.
+      "assignments",
+      "activity",
     ]) {
       expect(detail).toMatch(new RegExp(`"${t}"`));
     }

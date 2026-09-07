@@ -94,9 +94,6 @@ import { EvidenceReviewTab } from "./_tabs/EvidenceReviewTab";
 import { EvidenceArtifactsTab } from "./_tabs/EvidenceArtifactsTab";
 import { EvidenceDiscussionTab } from "./_tabs/EvidenceDiscussionTab";
 import { EvidenceTechnicalAppendixTab } from "./_tabs/EvidenceTechnicalAppendixTab";
-// The READ of the one group-responsibility authority, shared with both Case
-// detail branches so all three surfaces say the same thing.
-import { TeamResponsibilityPanel } from "../../../../components/collaboration/TeamResponsibilityPanel";
 
 const DETAIL_TABS: Array<{ id: EvidenceDetailTab; label: string; icon: LucideIcon }> = [
   { id: "overview", label: "Overview", icon: LayoutGrid },
@@ -1440,26 +1437,7 @@ function EvidenceDetailPageInner() {
             {activeTab === "overview" ? <EvidenceOverviewTab ctx={ctx} /> : null}
             {activeTab === "integrity" ? <EvidenceIntegrityTab ctx={ctx} /> : null}
             {activeTab === "custody" ? <EvidenceCustodyTab ctx={ctx} /> : null}
-            {activeTab === "review" ? (
-              <>
-                <EvidenceReviewTab ctx={ctx} />
-                {/*
-                  WHICH TEAM IS ON THIS RECORD.
-
-                  Placed on Review rather than Overview because that is where
-                  the operational question lives: an evidence record's
-                  responsibility matters next to its review state, not next to
-                  its hashes. It is a READ of the one group-responsibility
-                  authority — the same rows the group's Work tab lists.
-
-                  It changes nothing about this record. Custody, integrity,
-                  verification, lifecycle and access are untouched and remain
-                  with their own authorities; a group being responsible for a
-                  record grants nobody the right to open it.
-                */}
-                <TeamResponsibilityPanel targetType="EVIDENCE" targetId={evidenceId} />
-              </>
-            ) : null}
+            {activeTab === "review" ? <EvidenceReviewTab ctx={ctx} /> : null}
             {activeTab === "artifacts" ? <EvidenceArtifactsTab ctx={ctx} /> : null}
             {activeTab === "discussion" ? <EvidenceDiscussionTab ctx={ctx} /> : null}
             {activeTab === "technical" ? (

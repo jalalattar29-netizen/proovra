@@ -95,6 +95,34 @@ vi.mock("../src/services/enterprise-provisioning.service.js", () => ({
   completeEnterpriseProvisioningOnOwnerAccept: async () => null,
 }));
 
+/**
+ * THE SEAT AUTHORITY, STUBBED — because this file tests the ACCEPT HANDLER.
+ *
+ * `grantWorkspaceMembership` now consults `resolveWorkspaceSeatState` before
+ * it seats anyone: organization-invite acceptance was the second of the two
+ * paths that create a workspace member and it consulted no commercial
+ * authority at all, so an admin could seat a hundred people into a ten-seat
+ * workspace by attaching workspace assignments to invitations.
+ *
+ * That resolver reaches plan resolution, the enterprise contract and a storage
+ * aggregate. What THIS file pins is the accept handler's claim-before-grant
+ * ordering and its exactly-once writes, against a `makeTx` double — so the
+ * seat answer is stubbed to "room available" and the seat rule itself is
+ * asserted where it lives, in `p2-invitation-coherence`.
+ */
+vi.mock("../src/services/billing/workspace-seats.service.js", () => ({
+  resolveWorkspaceSeatState: async () => ({
+    plan: "TEAM",
+    used: 1,
+    limit: 10,
+    remaining: 9,
+    featureIncluded: true,
+    overLimit: false,
+    source: "PLAN_CATALOG",
+    contractLimits: {},
+  }),
+}));
+
 import { acceptOrganizationInvite } from "../src/services/organization/org-invite-acceptance.service.js";
 
 const FRESH_INVITE = {
