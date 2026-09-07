@@ -424,8 +424,43 @@ jobs:
           fi
           exit $rc
 
+      # Captured, tailed and ANNOTATED, like every other step in this file.
+      #
+      # This step was `run: docker compose … up -d` and nothing else, so when it
+      # failed the build said "Process completed with exit code 1" and no more.
+      # `up -d` swallows what it was doing: it creates volumes and networks,
+      # waits on four `depends_on` health conditions, and starts two built
+      # images — and any one of those can be the cause. The "Logs on failure"
+      # step below does dump `compose logs`, but a step LOG needs a token to
+      # read, and annotations do not; that asymmetry is exactly why the test
+      # steps above annotate their tails.
+      #
+      # It matters here more than anywhere else in the file. This is the last
+      # step before the smoke test, it had not run to completion in over a
+      # fortnight of red builds (every one of them failing earlier, at the audit
+      # engine gate), and the first commit to reach it therefore hit a failure
+      # nobody had ever seen output for. `docker compose ps` and `df -h` go in
+      # too, because a stack that will not come up after three monorepo image
+      # builds is as likely to be out of disk as misconfigured.
       - name: Start full stack
-        run: docker compose -f infra/docker/docker-compose.full.yml up -d
+        run: |
+          set +e
+          df -h / | tail -1
+          docker compose -f infra/docker/docker-compose.full.yml up -d 2>&1 | tee /tmp/compose-up.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          if [ "$rc" != "0" ]; then
+            echo "=================== compose ps ==================="
+            docker compose -f infra/docker/docker-compose.full.yml ps -a
+            echo "=================== disk ========================="
+            df -h /
+            echo "::error::full-stack start exited $rc — tail follows"
+            tail -n 40 /tmp/compose-up.log | while IFS= read -r line; do echo "::error::compose-up: $line"; done
+            docker compose -f infra/docker/docker-compose.full.yml ps -a \
+              | while IFS= read -r line; do echo "::error::compose-ps: $line"; done
+            df -h / | tail -1 | while IFS= read -r line; do echo "::error::disk: $line"; done
+          fi
+          exit $rc
 
       - name: Wait for health
         run: |
@@ -462,6 +497,15 @@ jobs:
           curl -sS -f -o /tmp/report.pdf "$url"
           curl -sS -f "$base/public/verify/$id" > /tmp/verify.json
 
+      # The compose logs, AND enough of them in annotations to diagnose without
+      # a token. `docker compose logs` alone writes to the step log, which is
+      # exactly the surface a red build cannot be read from.
       - name: Logs on failure
         if: failure()
-        run: docker compose -f infra/docker/docker-compose.full.yml logs
+        run: |
+          set +e
+          docker compose -f infra/docker/docker-compose.full.yml ps -a
+          docker compose -f infra/docker/docker-compose.full.yml logs --no-color --tail=200 > /tmp/compose-logs.txt 2>&1
+          cat /tmp/compose-logs.txt
+          tail -n 60 /tmp/compose-logs.txt | while IFS= read -r line; do echo "::error::compose-logs: $line"; done
+          exit 0
