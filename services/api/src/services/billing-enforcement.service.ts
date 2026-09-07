@@ -740,6 +740,14 @@ export type AiOperationAllowance = {
   cap: number | null;
   consumed: number;
   tenantId: string | null;
+  /**
+   * The commercial scope the decision was made against, so a caller that
+   * goes on to spend the operation records it through the EXISTING
+   * `recordWorkspaceAiOperation` rather than needing a second writer for the
+   * same counter. One counter, one writer — the rule this whole change
+   * exists to enforce applies to its own implementation.
+   */
+  scope: WorkspaceScope | null;
 };
 
 /**
@@ -785,12 +793,20 @@ async function decideAiOperationAllowance(
       cap,
       consumed: 0,
       tenantId: null,
+      scope,
     };
   }
 
   // ENTERPRISE / contract-managed — no monthly cap.
   if (cap === null) {
-    return { allowed: true, denial: null, cap, consumed: 0, tenantId: null };
+    return {
+      allowed: true,
+      denial: null,
+      cap,
+      consumed: 0,
+      tenantId: null,
+      scope,
+    };
   }
 
   if (cap <= 0) {
@@ -809,6 +825,7 @@ async function decideAiOperationAllowance(
       cap,
       consumed: 0,
       tenantId: null,
+      scope,
     };
   }
 
@@ -817,7 +834,14 @@ async function decideAiOperationAllowance(
     // Personal team has not been bootstrapped; the cap cannot be counted
     // durably, so allow and let the in-memory abuse limits hold. New users
     // hit this at most once, before `ensurePersonalWorkspace` runs.
-    return { allowed: true, denial: null, cap, consumed: 0, tenantId: null };
+    return {
+      allowed: true,
+      denial: null,
+      cap,
+      consumed: 0,
+      tenantId: null,
+      scope,
+    };
   }
 
   const usage = await prisma.entitlementUsage.findUnique({
@@ -839,9 +863,10 @@ async function decideAiOperationAllowance(
       cap,
       consumed,
       tenantId,
+      scope,
     };
   }
-  return { allowed: true, denial: null, cap, consumed, tenantId };
+  return { allowed: true, denial: null, cap, consumed, tenantId, scope };
 }
 
 const AI_DENIAL_RESPONSES: Record<
@@ -885,6 +910,7 @@ export async function evaluateWorkspaceAiOperation(input: {
       cap: 0,
       consumed: 0,
       tenantId: null,
+      scope: null,
     };
   }
   return decideAiOperationAllowance(scope);
@@ -943,37 +969,6 @@ export async function recordWorkspaceAiOperation(
     update: {
       consumed: { increment: 1n },
     },
-  });
-}
-
-/**
- * The WORKSPACE-SUBJECT counterpart of `recordWorkspaceAiOperation`, for
- * callers that hold a workspace id and no request scope.
- *
- * It increments the SAME key, in the SAME period, on the same row as every
- * other AI operation, which is the whole point: the provider orchestrator used
- * to increment the packaging engine's private counter, so a workspace's month
- * was split across two tallies that never saw each other.
- */
-export async function recordWorkspaceAiOperationForWorkspace(input: {
-  teamId: string;
-}): Promise<void> {
-  const periodStartUtc = startOfCurrentMonthUtc();
-  await prisma.entitlementUsage.upsert({
-    where: {
-      teamId_key_periodStartUtc: {
-        teamId: input.teamId,
-        key: AI_USAGE_KEY,
-        periodStartUtc,
-      },
-    },
-    create: {
-      teamId: input.teamId,
-      key: AI_USAGE_KEY,
-      periodStartUtc,
-      consumed: 1n,
-    },
-    update: { consumed: { increment: 1n } },
   });
 }
 

@@ -57,7 +57,7 @@ import { resolveWorkspaceAiPolicy } from "../ai/workspace-ai-policy.service.js";
 // all, which is what makes the retirement structural rather than a comment.
 import {
   evaluateWorkspaceAiOperation,
-  recordWorkspaceAiOperationForWorkspace,
+  recordWorkspaceAiOperation,
 } from "../billing-enforcement.service.js";
 
 // ---------------------------------------------------------------------------
@@ -527,9 +527,9 @@ export async function runProviderOperation(
   // counter, so a workspace's AI usage was split across two tallies and
   // neither was the month's real total. Fire-and-forget: a failed count must
   // never fail an operation the customer has already been given.
-  void recordWorkspaceAiOperationForWorkspace({
-    teamId: input.teamId,
-  }).catch(() => undefined);
+  if (aiAllowance.scope) {
+    void recordWorkspaceAiOperation(aiAllowance.scope).catch(() => undefined);
+  }
   return {
     ok: true,
     decision: gate.decision,

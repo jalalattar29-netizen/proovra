@@ -161,7 +161,11 @@ describe("AI operations — one monthly commercial allowance", () => {
     );
     const code = codeOnly(src);
     expect(code).toContain("evaluateWorkspaceAiOperation(");
-    expect(code).toContain("recordWorkspaceAiOperationForWorkspace(");
+    // ONE writer for the AI counter. The orchestrator records through the
+    // same function the AI routes use, carrying the scope the allowance was
+    // decided against — a second writer for one counter is the defect this
+    // file exists to prevent, and it applies to this change too.
+    expect(code).toContain("recordWorkspaceAiOperation(aiAllowance.scope)");
     // The packaging engine is not merely unused here — it is not imported, so
     // it cannot be called.
     expect(src).not.toContain("packaging/entitlement.service.js");

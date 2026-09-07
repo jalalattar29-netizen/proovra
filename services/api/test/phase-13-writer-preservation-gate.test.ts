@@ -343,18 +343,55 @@ describe("phase 13 §4 — writer disposition manifest", () => {
   it("5. the original twenty-three declarations are all still answered", () => {
     // The v1 manifest answered exactly these. An entry may change disposition;
     // it may not quietly stop being answered.
-    assert.equal(manifest.entries.length, 23);
-    const sites = new Set(manifest.entries.map((e) => e.site));
-    for (const required of [
-      "packages/shared-runtime/src/media-intelligence/run-tracker.service.ts#dismissRun",
-      "services/api/src/services/ai/ai-retention.service.ts#purgeWorkspaceAiRecords",
-      "services/api/src/services/security/mfa-recovery-request.service.ts#markRecoveryCompleted",
-      "services/api/src/services/security/mfa-recovery-request.service.ts#expireStaleRecoveryRequests",
-      "services/api/src/services/access-control/session-inventory.service.ts#touchAuthenticatedSession",
-      "services/api/src/services/identity/contributor-governance.service.ts#touchContributorSessionLastSeen",
-      "services/api/src/services/identity/rbac.service.ts#touchMemberLastSeen",
-    ]) {
-      assert.ok(sites.has(required), `${required} is no longer answered by the manifest`);
+    //
+    // PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — this asserted
+    // `entries.length === 23`, which is a PROXY for the sentence above and a
+    // bad one in both directions: it passes if an original entry is swapped for
+    // an unrelated one, and it fails when a later pass answers a NEW writer,
+    // which is the manifest doing its job. The rule is now stated directly —
+    // every original site is still present, no site is answered twice, and the
+    // manifest may only grow.
+    const ORIGINAL_23 = [
+    "packages/shared-runtime/src/media-intelligence/run-tracker.service.ts#dismissRun",
+    "services/api/src/services/collaboration-team/collaboration-completion.service.ts#emitTeamNotifications",
+    "services/api/src/services/exchange/signed-delivery.service.ts#emitTransferVerificationEvent",
+    "services/api/src/queue/mi-embed-queue.ts#enqueueEmbedChunks",
+    "services/api/src/services/intelligence/semantic.service.ts#indexEvidenceText",
+    "services/api/src/services/security/mfa-recovery-request.service.ts#expireStaleRecoveryRequests",
+    "services/api/src/services/security/mfa-recovery-request.service.ts#markRecoveryCompleted",
+    "services/api/src/services/automation/automation-delivery-runtime.service.ts#finaliseDeadLetteredUnknown",
+    "services/api/src/services/reviewer-ops/reminder-engine.service.ts#markReminderDelivered",
+    "services/api/src/services/reviewer-ops/reminder-engine.service.ts#markReminderFailed",
+    "services/api/src/services/enterprise-provisioning.service.ts#provisionEnterpriseCustomer",
+    "services/api/src/services/ai/ai-retention.service.ts#purgeWorkspaceAiRecords",
+    "services/api/src/services/redaction/redaction-derivative.service.ts#quarantineDerivative",
+    "services/api/src/services/identity/membership-provisioning.service.ts#reactivateWorkspaceMembership",
+    "services/api/src/services/identity/membership-provisioning.service.ts#revokeWorkspaceMembershipSource",
+    "services/api/src/services/uploads/upload-session.service.ts#reapStaleUploadSessions",
+    "services/api/src/services/reviewer-ops/review-decision.service.ts#reconcileWorkflowProjection",
+    "packages/shared-runtime/src/org-health-projection.ts#refreshOrgHealthProjection",
+    "services/api/src/services/platform-audit-log.service.ts#repairAdminAuditChainVersions",
+    "services/api/src/services/security/mfa.service.ts#sweepExpiredPendingChallenges",
+    "services/api/src/services/access-control/session-inventory.service.ts#touchAuthenticatedSession",
+    "services/api/src/services/identity/contributor-governance.service.ts#touchContributorSessionLastSeen",
+    "services/api/src/services/identity/rbac.service.ts#touchMemberLastSeen",
+    ];
+    const sites = manifest.entries.map((e) => e.site);
+    assert.equal(
+      new Set(sites).size,
+      sites.length,
+      "a writer must be answered exactly once",
+    );
+    assert.ok(
+      sites.length >= ORIGINAL_23.length,
+      `the manifest may not shrink: ${sites.length} entries`,
+    );
+    const present = new Set(sites);
+    for (const required of ORIGINAL_23) {
+      assert.ok(
+        present.has(required),
+        `${required} is no longer answered by the manifest`,
+      );
     }
   });
 

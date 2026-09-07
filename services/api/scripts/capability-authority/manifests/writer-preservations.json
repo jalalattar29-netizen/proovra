@@ -317,6 +317,17 @@
       "alsoFixed": "Throttled twice over. The caller only proceeds when the session heartbeat itself decided to write, inheriting its sample window; and the write's own WHERE requires lastSeenAtUtc to be null or older than the window, so two concurrent requests inside one window produce at most one write regardless of what either caller believed. Suspended and revoked memberships are excluded — a revoked row must not look like it was used after revocation.",
       "proof": "services/api/test/phase-13-writer-disposition-runtime.integration.test.ts",
       "reviewedAtUtc": "2026-08-17"
+    },
+    {
+      "site": "services/api/src/services/packaging/entitlement.service.ts#recordEntitlementUsage",
+      "disposition": "DEAD_REMOVED",
+      "capability": "upserted metered consumption into entitlement_usage for the ProductLine packaging engine",
+      "classification": "DEAD_CODE",
+      "evidence": "Its one production caller was the AI-operation quota in media-intelligence.service.ts, and QUOTA_AI_OPERATIONS_PER_MONTH was retired on 2026-09-07 as a duplicate commercial authority (the canonical monthly AI allowance is PlanCapabilities.aiAdvisoryMonthlyOperations, counted on ai_advisory_operations by recordWorkspaceAiOperation). That left the writer with zero entrypoints. The three QUOTA gates that survive in the engine never called it: two of them (INTEGRATION_WEBHOOK_ENDPOINTS_MAX, LEGAL_HOLD_MAX_ACTIVE) compare against a live row count rather than a meter, and the third (QUOTA_EXPORT_PACKAGES_PER_MONTH) is a monthly meter that has never had a writer at all — a pre-existing gap this removal makes visible rather than causes.",
+      "removedFrom": "services/api/src/services/packaging/entitlement.service.ts",
+      "retainedAuthority": "services/api/src/services/billing-enforcement.service.ts#recordWorkspaceAiOperation",
+      "backlogRecordedIn": "docs/architecture/program-ledger.md",
+      "reviewedAtUtc": "2026-09-07"
     }
   ]
 }

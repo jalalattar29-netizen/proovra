@@ -36,7 +36,6 @@ import {
   resolveEntitlement,
   assertFeatureEntitlement,
   assertQuotaEntitlement,
-  recordEntitlementUsage,
   upsertEntitlementGrant,
   listEntitlements,
   applyProductLine,
@@ -465,7 +464,6 @@ describe("3. Service module surface — typeof checks", () => {
     expect(typeof resolveEntitlement).toBe("function");
     expect(typeof assertFeatureEntitlement).toBe("function");
     expect(typeof assertQuotaEntitlement).toBe("function");
-    expect(typeof recordEntitlementUsage).toBe("function");
     expect(typeof upsertEntitlementGrant).toBe("function");
     expect(typeof listEntitlements).toBe("function");
     expect(typeof applyProductLine).toBe("function");

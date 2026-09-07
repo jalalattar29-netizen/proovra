@@ -928,7 +928,7 @@ describe("15. C7 — dashboard violations tile with per-code counts", () => {
 // 16. I1+I9 — quota gates in routes (source-grep)
 // ===========================================================================
 
-describe("16. I1+I9 — assertQuotaEntitlement and recordEntitlementUsage in routes", () => {
+describe("16. I1+I9 — assertQuotaEntitlement in routes", () => {
   it("evidence.routes.ts references assertQuotaEntitlement or assertFeatureEntitlement", () => {
     const src = readSrc("routes/evidence.routes.ts");
     const hasGate =
@@ -946,12 +946,25 @@ describe("16. I1+I9 — assertQuotaEntitlement and recordEntitlementUsage in rou
     expect(hasGate).toBe(true);
   });
 
-  it("entitlement.service.ts exports assertQuotaEntitlement + recordEntitlementUsage", async () => {
+  /*
+   * PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — `recordEntitlementUsage`
+   * is REMOVED, and the pin now guards the removal.
+   *
+   * Its only production caller was the AI-operation quota, retired as a
+   * duplicate commercial authority, which left it with zero entrypoints. This
+   * programme does not keep unreachable writers — PRESERVED_PLANNED_WRITER is
+   * a rejected disposition — so it is gone, recorded in
+   * `writer-preservations.json` as DEAD_REMOVED with its backlog line.
+   */
+  it("entitlement.service.ts exports assertQuotaEntitlement, and no metering writer", async () => {
     const mod = await import(
       "../src/services/packaging/entitlement.service.js"
     );
     expect(typeof mod.assertQuotaEntitlement).toBe("function");
-    expect(typeof mod.recordEntitlementUsage).toBe("function");
+    expect(
+      (mod as Record<string, unknown>).recordEntitlementUsage,
+      "an unreachable writer must not come back",
+    ).toBeUndefined();
   });
 });
 

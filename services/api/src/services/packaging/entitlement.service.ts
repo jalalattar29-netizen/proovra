@@ -11,8 +11,6 @@
  *   * `assertQuotaEntitlement` enforces QUOTA-kind entitlements by
  *     computing current-period consumption from `entitlement_usage`
  *     and comparing against the granted limit.
- *   * `recordEntitlementUsage` upserts metered consumption for the
- *     current period.
  *   * `upsertEntitlementGrant` writes a single grant row and emits an
  *     ENTITLEMENT_GRANTED lifecycle event.
  *   * `applyProductLine` materialises every entitlement in a product
@@ -435,43 +433,26 @@ export async function assertQuotaEntitlement(input: {
 }
 
 // ===========================================================================
-// recordEntitlementUsage
+// recordEntitlementUsage — REMOVED (2026-09-07)
 // ===========================================================================
-
-export async function recordEntitlementUsage(input: {
-  prisma?: PrismaClient;
-  teamId: string;
-  key: EntitlementKey;
-  amount: number;
-  periodStartUtc?: Date;
-}): Promise<void> {
-  const prisma = input.prisma ?? defaultPrisma;
-  const period = classifyPeriod(input.key);
-  const start = input.periodStartUtc ?? periodStart(period);
-  const amount = BigInt(Math.max(0, Math.floor(input.amount)));
-  try {
-    await prisma.entitlementUsage.upsert({
-      where: {
-        teamId_key_periodStartUtc: {
-          teamId: input.teamId,
-          key: input.key,
-          periodStartUtc: start,
-        },
-      },
-      create: {
-        teamId: input.teamId,
-        key: input.key,
-        periodStartUtc: start,
-        consumed: amount,
-      },
-      update: {
-        consumed: { increment: amount },
-      },
-    });
-  } catch {
-    /* swallow — metering must never block ops */
-  }
-}
+//
+// It upserted metered consumption into `entitlement_usage`, and its ONE
+// production caller was the AI-operation quota in `media-intelligence`. That
+// quota is retired as a duplicate commercial authority, so the writer had
+// zero entrypoints — and this repository does not keep unreachable writers:
+// `PRESERVED_PLANNED_WRITER` is a REJECTED disposition (see
+// `scripts/capability-authority/manifests/writer-preservations.json`).
+//
+// WHAT THIS EXPOSES, AND DELIBERATELY DOES NOT FIX. Three QUOTA gates remain
+// live — `QUOTA_EXPORT_PACKAGES_PER_MONTH`, `INTEGRATION_WEBHOOK_ENDPOINTS_MAX`
+// and `LEGAL_HOLD_MAX_ACTIVE` via `assertQuotaEntitlement` — and NONE of them
+// ever recorded consumption, before this change or after it. They read a
+// counter nothing wrote, so they could not trip. Removing the unused writer
+// does not cause that; it stops the mechanism looking wired. Two of the three
+// are LIMIT-shaped (a live count, not a meter) and are unaffected; the
+// monthly export-package meter is a real gap, recorded as a backlog line
+// rather than closed here, because wiring a new meter is product work and
+// not this change.
 
 // ===========================================================================
 // upsertEntitlementGrant

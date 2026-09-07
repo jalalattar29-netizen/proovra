@@ -3630,3 +3630,24 @@ Rewriting audit rows to make a verifier pass must not be a capability the runnin
 system carries. The remedy for a reported break is unchanged and deliberately not
 automated — `verifyAdminAuditChain`, reachable at `GET /v1/admin/audit-log/verify`
 behind `requirePlatformAdmin`, names the row where the chain stops.
+
+## PACKAGING QUOTA METERING — `recordEntitlementUsage` removed 2026-09-07
+
+`recordEntitlementUsage` was the only writer of `entitlement_usage` for the
+ProductLine packaging engine, and its only production caller was the
+AI-operation quota retired in the platform commercial authority closure. It
+was removed rather than kept unreachable, per this programme's rule that
+`PRESERVED_PLANNED_WRITER` is not a final state.
+
+OPEN, NOT CLOSED BY THAT CHANGE: `QUOTA_EXPORT_PACKAGES_PER_MONTH` is a
+monthly METER enforced by `assertQuotaEntitlement`, and nothing has ever
+recorded consumption against it — not before the removal and not after. It
+therefore cannot trip. `INTEGRATION_WEBHOOK_ENDPOINTS_MAX` and
+`LEGAL_HOLD_MAX_ACTIVE` are unaffected: both compare against a LIVE COUNT of
+existing rows rather than a period meter.
+
+Contract when the export meter is wired: it needs ONE writer at the point the
+package is produced, on the same key the gate reads, and the gate and the
+writer must agree on the period. Do not reintroduce a general-purpose
+metering helper for a single meter — a shared writer with one caller is how
+the previous one came to look wired while metering nothing.
