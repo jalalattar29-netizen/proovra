@@ -421,6 +421,34 @@ jobs:
 
       - name: Build Web
         run: pnpm --filter proovra-web build
+      # THE STACK'S SIGNING MATERIAL, MINTED PER RUN.
+      #
+      # Point 8 stopped `services/api/Dockerfile` from copying
+      # `services/api/keys`, because that shipped the repository's committed
+      # dev fixture — a real Ed25519 private key, public in Git — inside the
+      # production image. `assertNotCommittedFixture` then refuses that key by
+      # public-key fingerprint even if it is mounted back in. So the image
+      # ships no signer, on purpose, and this job supplies one that exists for
+      # the length of one run and signs nothing anybody will ever verify.
+      - name: Mint the full stack's ephemeral signing material
+        run: |
+          set -euo pipefail
+          dir="${RUNNER_TEMP}/proovra-signing"
+          mkdir -p "$dir"
+          openssl genpkey -algorithm ed25519 -out "$dir/signer-private.pem"
+          openssl pkey -in "$dir/signer-private.pem" -pubout -out "$dir/signer-public.pem"
+          # The PDF artifact signer wants a PKCS#12. Self-signed and
+          # two-day-lived: the report gate proves the signing PATH works, not
+          # that a CI certificate is trustworthy.
+          openssl req -x509 -newkey rsa:2048 -nodes -days 2 \
+            -subj "/CN=PROOVRA CI full-stack smoke" \
+            -keyout "$dir/pdf-key.pem" -out "$dir/pdf-cert.pem"
+          openssl pkcs12 -export -out "$dir/pdf-signing.p12" \
+            -inkey "$dir/pdf-key.pem" -in "$dir/pdf-cert.pem" \
+            -passout pass:ci-only-ephemeral
+          echo "SIGNING_KEY_DIR=$dir" >> "$GITHUB_ENV"
+          ls -l "$dir"
+
 
       # Build split from start, so a build failure is READABLE. `up -d`
       # swallows its build output: this step failed twice with nothing but
@@ -462,34 +490,6 @@ jobs:
       # nobody had ever seen output for. `docker compose ps` and `df -h` go in
       # too, because a stack that will not come up after three monorepo image
       # builds is as likely to be out of disk as misconfigured.
-      # THE STACK'S SIGNING MATERIAL, MINTED PER RUN.
-      #
-      # Point 8 stopped `services/api/Dockerfile` from copying
-      # `services/api/keys`, because that shipped the repository's committed
-      # dev fixture — a real Ed25519 private key, public in Git — inside the
-      # production image. `assertNotCommittedFixture` then refuses that key by
-      # public-key fingerprint even if it is mounted back in. So the image
-      # ships no signer, on purpose, and this job supplies one that exists for
-      # the length of one run and signs nothing anybody will ever verify.
-      - name: Mint the full stack's ephemeral signing material
-        run: |
-          set -euo pipefail
-          dir="${RUNNER_TEMP}/proovra-signing"
-          mkdir -p "$dir"
-          openssl genpkey -algorithm ed25519 -out "$dir/signer-private.pem"
-          openssl pkey -in "$dir/signer-private.pem" -pubout -out "$dir/signer-public.pem"
-          # The PDF artifact signer wants a PKCS#12. Self-signed and
-          # two-day-lived: the report gate proves the signing PATH works, not
-          # that a CI certificate is trustworthy.
-          openssl req -x509 -newkey rsa:2048 -nodes -days 2 \
-            -subj "/CN=PROOVRA CI full-stack smoke" \
-            -keyout "$dir/pdf-key.pem" -out "$dir/pdf-cert.pem"
-          openssl pkcs12 -export -out "$dir/pdf-signing.p12" \
-            -inkey "$dir/pdf-key.pem" -in "$dir/pdf-cert.pem" \
-            -passout pass:ci-only-ephemeral
-          echo "SIGNING_KEY_DIR=$dir" >> "$GITHUB_ENV"
-          ls -l "$dir"
-
       # STARTED IN TWO HALVES, BECAUSE THE DATABASE HAS TO BE MIGRATED IN
       # BETWEEN.
       #

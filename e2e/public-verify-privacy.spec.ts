@@ -196,20 +196,28 @@ test.describe("public verify privacy @critical", () => {
     }
   });
 
-  test("guest auth has its own rate limit", async ({ request }) => {
-    // 5/min/IP by default. Drive 10 calls back-to-back, at least one
-    // must be 429 with Retry-After.
-    let saw429 = false;
-    let retryAfter: string | null = null;
-    for (let i = 0; i < 10; i++) {
-      const res = await request.post(`${API_BASE}/v1/auth/guest`, { data: {} });
-      if (res.status() === 429) {
-        saw429 = true;
-        retryAfter = res.headers()["retry-after"] ?? null;
-        break;
-      }
-    }
-    expect(saw429, "guest auth should rate-limit after 5/min").toBe(true);
-    expect(retryAfter).not.toBeNull();
+  /**
+   * WHAT THIS TEST CAN HONESTLY SAY NOW.
+   *
+   * It used to drive ten `POST /v1/auth/guest` calls and require a 429 with
+   * Retry-After. That route is GONE — the product replaced anonymous capture
+   * with email/password accounts — so the assertion was passing judgement on
+   * a surface that no longer exists, and every call returned 404.
+   *
+   * Rewritten to the fact that replaced it, rather than deleted: an
+   * anonymous-capture door that was removed on purpose must stay removed, and
+   * nothing else in this repository says so.
+   *
+   * The per-IP rate-limit contract itself is not lost — the two cases above
+   * prove it on `public/verify`, which is the surface that is actually
+   * exposed to unauthenticated traffic.
+   */
+  test("anonymous capture has no door: POST /v1/auth/guest is gone", async ({
+    request,
+  }) => {
+    const res = await request.post(`${API_BASE}/v1/auth/guest`, { data: {} });
+    expect(res.status()).toBe(404);
+    const body = (await res.json()) as { error?: { code?: string } };
+    expect(body.error?.code).toBe("NOT_FOUND");
   });
 });
