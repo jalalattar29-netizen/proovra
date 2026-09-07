@@ -153,6 +153,47 @@ describe("Phase 20 — collectStartupViolations", () => {
     ).toBe(true);
   });
 
+  /**
+   * The defect this pins: the API booted clean and then rejected every
+   * authenticated request.
+   *
+   * `requireAuth`'s token-revocation check hashes the presented token on every
+   * request through `resolveSecret`, which refuses a fallback in production —
+   * and this secret was required only when `IDENTITY_SECURITY_ENABLED` was
+   * true, which is not the condition under which it is read. Measured on the
+   * full stack with the flag off: login 200, `GET /v1/users/me` 401,
+   * `auth.revocation_check_failed`.
+   */
+  it("requires IDENTITY_SECURITY_HASH_SECRET in production even with the feature OFF", () => {
+    process.env = {
+      ...ORIGINAL,
+      NODE_ENV: "production",
+      IDENTITY_SECURITY_ENABLED: "false",
+      IDENTITY_SECURITY_HASH_SECRET: "",
+    };
+    const v = collectStartupViolations().find(
+      (x) => x.envName === "IDENTITY_SECURITY_HASH_SECRET",
+    );
+    expect(v).toBeDefined();
+    // Not `feature_enabled_secret_missing`: no feature has to be enabled for
+    // the auth path to need it.
+    expect(v?.reason).toBe("required_missing");
+  });
+
+  it("is satisfied in production by the secret alone, feature flag untouched", () => {
+    process.env = {
+      ...ORIGINAL,
+      NODE_ENV: "production",
+      IDENTITY_SECURITY_ENABLED: "false",
+      IDENTITY_SECURITY_HASH_SECRET: "a-real-identity-hash-secret-value",
+    };
+    expect(
+      collectStartupViolations().some(
+        (x) => x.envName === "IDENTITY_SECURITY_HASH_SECRET",
+      ),
+    ).toBe(false);
+  });
+
   it("reports API_KEY_SECRET only when INTEGRATIONS_ENABLED=true", () => {
     process.env = {
       ...ORIGINAL,

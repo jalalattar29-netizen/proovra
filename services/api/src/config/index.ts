@@ -258,7 +258,40 @@ export function collectStartupViolations(): StartupConfigViolation[] {
       });
     }
   }
-  if (envBool("IDENTITY_SECURITY_ENABLED")) {
+  /**
+   * IDENTITY_SECURITY_HASH_SECRET IS NOT OPTIONAL IN PRODUCTION, WHATEVER THE
+   * FEATURE FLAG SAYS.
+   *
+   * It was required only when `IDENTITY_SECURITY_ENABLED` was true, and that
+   * is not where it is actually read. `requireAuth`'s token-revocation check
+   * hashes the presented token on EVERY authenticated request, through
+   * `resolveSecret`, which refuses a fallback in production. Outside
+   * production the fallback is deterministic, so nothing in dev or test can
+   * see this.
+   *
+   * Measured against the full stack, with the flag off and the secret unset:
+   *
+   *   boot            healthy, no violations reported
+   *   POST login      200, returns a token
+   *   GET /users/me   401 UNAUTHORIZED
+   *   log             auth.revocation_check_failed
+   *                   Required secret "IDENTITY_SECURITY_HASH_SECRET" is not
+   *                   set. Refusing to use a fallback in production.
+   *
+   * A configuration that cannot serve one authenticated request must not pass
+   * boot validation. Reported as `required_missing` rather than
+   * `feature_enabled_secret_missing`, because no feature has to be enabled for
+   * it to be required.
+   */
+  if (
+    PROD() &&
+    (process.env.IDENTITY_SECURITY_HASH_SECRET ?? "").trim().length === 0
+  ) {
+    out.push({
+      envName: "IDENTITY_SECURITY_HASH_SECRET",
+      reason: "required_missing",
+    });
+  } else if (envBool("IDENTITY_SECURITY_ENABLED")) {
     if ((process.env.IDENTITY_SECURITY_HASH_SECRET ?? "").trim().length === 0) {
       out.push({
         envName: "IDENTITY_SECURITY_HASH_SECRET",
