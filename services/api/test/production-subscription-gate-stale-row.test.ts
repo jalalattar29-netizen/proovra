@@ -100,7 +100,26 @@ describe("Phase 9 STEP 5 — billing-guards is a thin adapter (no competing engi
   }
   const ADAPTER = extractAdapter(BILLING_GUARDS);
   it("delegates to resolveCommercialContext and reads its lifecycle", () => {
-    expect(ADAPTER).toMatch(/resolveCommercialContext\(\{\s*ownerUserId:\s*userId\s*\}\)/);
+    /**
+     * WCR-04 (2026-09-07) — the DELEGATION is unchanged; the SUBJECT is fixed.
+     *
+     * This pinned `resolveCommercialContext({ ownerUserId: userId })`, which
+     * with no `teamId` resolves the ACTOR'S OWN PERSONAL SPACE. Six
+     * collaboration mutations therefore asked whether the actor's personal
+     * subscription was in good standing before letting them act inside a
+     * workspace that is not theirs — so an invited ADMIN of a fully-paid TEAM
+     * workspace was refused because of their own lapsed personal plan, while
+     * the entitlement projection beside it reported the WORKSPACE lifecycle
+     * and said they could.
+     *
+     * The adapter now resolves the workspace subject through the same
+     * discriminated envelope every other guard in the module uses. The pin
+     * follows: it asserts the subject is declared, and asserts the actor-plan
+     * shape has not come back.
+     */
+    expect(ADAPTER).toMatch(/type:\s*"WORKSPACE"/);
+    expect(ADAPTER).toMatch(/type:\s*"PERSONAL_ACCOUNT"/);
+    expect(ADAPTER).not.toMatch(/resolveCommercialContext\(\{\s*ownerUserId:\s*userId\s*\}\)/);
     expect(ADAPTER).toMatch(/ctx\.lifecycle/);
   });
   it("contains NO independent subscription query or grace calculation", () => {

@@ -21,20 +21,20 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | d2c90fbec61ac95d66b507c2356ab46cd7ac3df41ff3728b353a3256ba758b9d |
+| engineHash    | 1315d1eef6fd4a092caede2f3ef8d00844b6c9120103eda2558fd071b9167ece |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
 
 | counter                       | value |
 | ----------------------------- | ----- |
-| registeredRoutes              | 1133  |
+| registeredRoutes              | 1135  |
 | developmentOnlyRoutes         | 1     |
 | productConsumerRoutes         | 889   |
 | machineOnlyConsumerRoutes     | 4     |
-| noConsumerRoutes              | 240   |
+| noConsumerRoutes              | 242   |
 | dispositionedNonProductRoutes | 228   |
-| undisposedRoutes              | 15    |
+| undisposedRoutes              | 17    |
 | authorizationUnresolved       | 0     |
 | publicUnguardedRoutes         | 20    |
 
@@ -214,5 +214,5 @@ Referenced, never transcribed. Each is measured by its own producer; this report
 - INSTRUMENT: AmbiguousConsumerSites = 1
 - INSTRUMENT: ClassificationConflicts = 1
 - UNWIRED EXECUTABLE WRITERS: 4 terminal writers have zero entrypoints (PRESERVED_PLANNED_WRITER + DEAD_UNREACHABLE)
-- CHECKPOINT: 11 violation(s) — SCALAR_DISAGREES_WITH_FACTS: ProductionRegisteredRoutes: checkpoint says 1125, facts say 1132 | SCALAR_DISAGREES_WITH_FACTS: RegisteredRoutes: checkpoint says 1126, facts say 1133 | SCALAR_DISAGREES_WITH_FACTS: UndisposedRoutes: checkpoint says 0, facts say 15 | SCALAR_DISAGREES_WITH_FACTS: ClassificationConflicts: checkpoint says 0, facts say 1 | SCALAR_DISAGREES_WITH_FACTS: ROUTE_ATTRIBUTED_REACHABLE: checkpoint says 1132, facts say 1128
-- ArchitectureBacklog: UndisposedRoutes = 15 — registered routes with no reviewed product disposition (ARCH-BACKLOG-001, NON-BLOCKING, no security or completeness credit)
+- CHECKPOINT: 12 violation(s) — SCALAR_DISAGREES_WITH_FACTS: ProductionRegisteredRoutes: checkpoint says 1125, facts say 1134 | SCALAR_DISAGREES_WITH_FACTS: RegisteredRoutes: checkpoint says 1126, facts say 1135 | SCALAR_DISAGREES_WITH_FACTS: UndisposedRoutes: checkpoint says 0, facts say 17 | SCALAR_DISAGREES_WITH_FACTS: ClassificationConflicts: checkpoint says 0, facts say 1 | SCALAR_DISAGREES_WITH_FACTS: TerminalWriters: checkpoint says 1256, facts say 1258
+- ArchitectureBacklog: UndisposedRoutes = 17 — registered routes with no reviewed product disposition (ARCH-BACKLOG-001, NON-BLOCKING, no security or completeness credit)

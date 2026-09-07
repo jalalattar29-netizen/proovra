@@ -2,7 +2,7 @@
   "$comment": "PHASE 12 POINT 7 — machine-written record of which product-behaviour scenarios actually EXECUTED, at which layer. Written by the integration and browser runners, read by services/api/test/phase-12-point7-closure-gate.test.ts. Each record carries the SHA-256 of its own suite, the run id, and a digest of the production authority it ran against; the gate re-derives all three. Do not hand-edit.",
   "suites": {
     "services/api/test/point7/plan-matrix.integration.test.ts": {
-      "sha256": "4db9bdb0cdd2aee8307726408e6bd5e61e8ddafc8a1f5e74db782bca87371a21",
+      "sha256": "2242b4aaea9376b5b068bd2cbb1139dd998a6a557d00fc3e66b7bb2d9f3bb4c7",
       "layer": "SERVER",
       "scenarios": [
         "p7.enterprise.contract_expired.no_deletion",
@@ -36,10 +36,10 @@
         "p7.team.direct_api.ui_locked_action_denied",
         "p7.team.removal.preserves_history"
       ],
-      "runId": "66dfcba3",
-      "buildId": "54222f27fdc008d3150b943dac00ec42dbac092fabc13a81db3a10e81eb9e827",
-      "binding": "fa9c887d21b63499798fb7cedbb7a6fd17f34097d462c4c1bbfbe7df289e3cef",
-      "recordedAtUtc": "2026-09-05T06:38:36.246Z",
+      "runId": "d3541fa6",
+      "buildId": "015977e91dd41dc7db7525edff84945d95754eef83f73124f580c2e60f781bfa",
+      "binding": "27dd05adb6ac6100ea2a6a974c2bb5212d4ce74eeea8fccc613fdbf99cbb58d4",
+      "recordedAtUtc": "2026-09-07T01:52:36.466Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -52,7 +52,7 @@
       }
     },
     "services/api/test/point7/context-safety.integration.test.ts": {
-      "sha256": "3f69094bb3b019a41c304ecf6490983a5e3e5d3d209c405fdb5e43f3050367b5",
+      "sha256": "cef3e63ee6a072f623d994f982551efca31482b22e673c3aef0f713df166cd6d",
       "layer": "SERVER",
       "scenarios": [
         "p7.ctx.restore.foreign_tenant_stored_id",
@@ -70,10 +70,10 @@
         "p7.overlimit.reducing_usage_restores_operation",
         "p7.xtenant.foreign_ids_concealed_without_side_effects"
       ],
-      "runId": "66dfcba3",
-      "buildId": "54222f27fdc008d3150b943dac00ec42dbac092fabc13a81db3a10e81eb9e827",
-      "binding": "fa9c887d21b63499798fb7cedbb7a6fd17f34097d462c4c1bbfbe7df289e3cef",
-      "recordedAtUtc": "2026-09-05T06:41:05.733Z",
+      "runId": "d3541fa6",
+      "buildId": "015977e91dd41dc7db7525edff84945d95754eef83f73124f580c2e60f781bfa",
+      "binding": "27dd05adb6ac6100ea2a6a974c2bb5212d4ce74eeea8fccc613fdbf99cbb58d4",
+      "recordedAtUtc": "2026-09-07T01:55:04.759Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -103,10 +103,10 @@
         "p7.obs.transport.staging_never_uses_production_project",
         "p7.obs.unexpected_failure_still_captured"
       ],
-      "runId": "66dfcba3",
-      "buildId": "54222f27fdc008d3150b943dac00ec42dbac092fabc13a81db3a10e81eb9e827",
-      "binding": "fa9c887d21b63499798fb7cedbb7a6fd17f34097d462c4c1bbfbe7df289e3cef",
-      "recordedAtUtc": "2026-09-05T06:41:35.595Z",
+      "runId": "d3541fa6",
+      "buildId": "015977e91dd41dc7db7525edff84945d95754eef83f73124f580c2e60f781bfa",
+      "binding": "27dd05adb6ac6100ea2a6a974c2bb5212d4ce74eeea8fccc613fdbf99cbb58d4",
+      "recordedAtUtc": "2026-09-07T01:55:16.521Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -119,7 +119,7 @@
       }
     },
     "services/api/test/point7/personal-space-semantics.integration.test.ts": {
-      "sha256": "3a6eaed8326fcac041b5d878820b78f51a0f269ccbaba57a419e409323f7dafa",
+      "sha256": "bd63c7e8979df41456c41dad0a52aa698762e700a6d1c2370a39321237c4c79e",
       "layer": "SERVER",
       "scenarios": [
         "p7.sem.enterprise_no_personal_space_false_is_normal",
@@ -129,10 +129,10 @@
         "p7.sem.team_plan_is_not_a_personal_purchase_target",
         "p7.sem.team_user_keeps_personal_space"
       ],
-      "runId": "66dfcba3",
-      "buildId": "54222f27fdc008d3150b943dac00ec42dbac092fabc13a81db3a10e81eb9e827",
-      "binding": "fa9c887d21b63499798fb7cedbb7a6fd17f34097d462c4c1bbfbe7df289e3cef",
-      "recordedAtUtc": "2026-09-05T06:43:05.898Z",
+      "runId": "8480b0d1",
+      "buildId": "015977e91dd41dc7db7525edff84945d95754eef83f73124f580c2e60f781bfa",
+      "binding": "27dd05adb6ac6100ea2a6a974c2bb5212d4ce74eeea8fccc613fdbf99cbb58d4",
+      "recordedAtUtc": "2026-09-07T01:37:54.129Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {

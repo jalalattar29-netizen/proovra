@@ -2100,7 +2100,15 @@ model TeamInvite {
   /// `createWorkspaceInvitation` omits the column entirely (it is nullable
   /// after Release A), and `release:b-readiness` fails if that stops being
   /// true. The field disappears in the same commit that promotes Release B.
-  token           String?
+  ///
+  /// DECLARED EXACTLY as Release A leaves it — `varchar(128)` and still
+  /// carrying `team_invites_token_key`, because Release B is the migration
+  /// that drops both and it is held. A first pass wrote a bare `String?`,
+  /// which reads as `text` with no unique index, and `prisma migrate diff`
+  /// against a clean boot named the difference immediately. That is the whole
+  /// reason to declare the column at all: an approximate declaration produces
+  /// a permanent drift report, which is worse than the omission it replaced.
+  token           String?   @unique @db.VarChar(128)
   invitedByUserId String    @map("invited_by_user_id")
   expiresAt       DateTime  @map("expires_at") @db.Timestamptz(6)
   acceptedAt      DateTime? @map("accepted_at") @db.Timestamptz(6)

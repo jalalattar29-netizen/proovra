@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "5ed058805558999585e841a2cb95ea5fe6e11219d63af300ee9319dda79d2fa6",
-  "capabilityRouteInventoryHash": "4026e733fd226a5e9b653eb29c54d70da21ffc436daeb2e977c613d38ed974bc",
+  "capabilityRouteInventoryHash": "3f3a9b09fce676260260e9da13e6af5b017a7adc0467622019564e7c669cb508",
   "totals": {
-    "routes": 1133,
+    "routes": 1135,
     "routesWithAnyTestCaller": 39,
     "testOnlyRoutes": 5,
     "testCallSites": 66,
@@ -4213,6 +4213,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/collaboration-team-invites/accept",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/collaboration-team-notifications/:notificationId/read",
       "testCallerCount": 0,
       "testOnly": false,
@@ -4280,6 +4286,12 @@
     },
     {
       "routeId": "POST /v1/collaboration-teams/:teamId/members",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/collaboration-teams/:teamId/unarchive",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -6895,5 +6907,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "d895fdca581911c287ba17a34c14611826ec46434323e9eaee2f7281af4033af"
+  "contentHash": "9e12b9f97897486fa4a6dd634741b809e3aa020d9c30d1c9a6d8ac58d284bd1c"
 }
