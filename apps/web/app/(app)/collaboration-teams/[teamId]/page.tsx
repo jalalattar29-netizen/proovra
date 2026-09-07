@@ -174,10 +174,16 @@ function TeamDetail() {
    *
    * This gated the "External reviewers" link on `REVIEWER_OPS_VIEW` alone — a
    * ROLE capability. Issuing an external-review grant is additionally gated by
-   * the `FEATURE_EXTERNAL_PORTAL` ENTITLEMENT, which is a different question
-   * with a different answer, and defaults to false. So an operator holding the
-   * role followed a link into a console whose first mutation answers
-   * `403 ENTITLEMENT_REQUIRED`.
+   * a COMMERCIAL entitlement, which is a different question with a different
+   * answer. So an operator holding the role followed a link into a console
+   * whose first mutation answers `403 ENTITLEMENT_REQUIRED`.
+   *
+   * PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — the entitlement was
+   * the packaging engine's `FEATURE_EXTERNAL_PORTAL`, which defaulted to false
+   * and which no purchase path granted, so this link was correctly hidden from
+   * everyone. It now reads `externalReviewIncluded`, the projection of the
+   * plan the workspace actually bought, so PRO and above see it and are not
+   * refused when they follow it.
    *
    * A surface must not promise a capability the gate will refuse.
    * `externalReviewIncluded` is the SAME resolver's answer, projected per

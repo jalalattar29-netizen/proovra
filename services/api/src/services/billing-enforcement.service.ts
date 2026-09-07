@@ -22,6 +22,7 @@ import { resolveCommercialContext } from "./billing/commercial-context.service.j
 import {
   resolveEffectiveContractAiCap,
   resolveEffectiveContractEvidenceCap,
+  resolveEffectiveExternalReviewIncluded,
 } from "./billing/enterprise-contract-limits.js";
 import {
   assertWorkspaceStorageAvailable,
@@ -728,79 +729,189 @@ async function resolveAiUsageTenantId(
   return personalTeam?.id ?? null;
 }
 
+export type AiOperationDenial =
+  | "COMMERCIAL_LIFECYCLE_RESTRICTED"
+  | "AI_NOT_INCLUDED"
+  | "AI_MONTHLY_LIMIT_REACHED";
+
+export type AiOperationAllowance = {
+  allowed: boolean;
+  denial: AiOperationDenial | null;
+  cap: number | null;
+  consumed: number;
+  tenantId: string | null;
+};
+
 /**
- * Throws AI_MONTHLY_LIMIT_REACHED (429) when the active plan's monthly
- * AI advisory cap has been reached. Counts persistent usage out of
- * EntitlementUsage so the cap survives process restarts.
+ * PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — THE decision function
+ * for "may this workspace spend one AI operation right now?".
  *
- * `aiAdvisoryMonthlyOperations`:
- *   - 0   = AI disabled at this tier (FREE)
- *   - n>0 = monthly cap
- *   - null = custom / no cap (ENTERPRISE)
+ * Everything that gates an AI operation resolves it here, so the platform has
+ * one monthly commercial allowance, counted once, on one key. Before this,
+ * two engines answered the same question against two counters:
+ *
+ *   this file      cap from `resolveEffectiveContractAiCap` (contract →
+ *                  `PLAN_CAPABILITIES.aiAdvisoryMonthlyOperations`: FREE 10,
+ *                  PAYG 50, PRO 100, TEAM 500, ENTERPRISE uncapped), counted
+ *                  on `ai_advisory_operations`;
+ *
+ *   the packaging  cap from `QUOTA_AI_OPERATIONS_PER_MONTH` — keyed on
+ *   engine         ProductLine, not on the purchased plan, defaulting to 25
+ *                  for any workspace with no grant row, and no purchase path
+ *                  ever wrote a grant row. Counted on its own key, so neither
+ *                  counter could see the other.
+ *
+ * A TEAM workspace sold 500 operations was refused at 25 by whichever engine
+ * ran first, and both counters were wrong about the total.
+ *
+ * IT RETURNS A DECISION RATHER THAN THROWING because the two call shapes
+ * differ and must not diverge: the AI routes need an exception carrying a
+ * status code, the provider orchestrator needs a BLOCK-shaped result it can
+ * record as a refusal. Same answer, two renderings.
  */
-export async function assertWorkspaceAllowsAiOperation(
+async function decideAiOperationAllowance(
   scope: WorkspaceScope,
-): Promise<void> {
-  // §9.5 — bounded-lifecycle gate (fail closed when grace expired/cancelled/ambiguous).
-  assertCommercialLifecycleAllowsPaidMutation(scope);
-  // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the AI cap is resolved
-  // contract-first; reading the catalog into a local here would have left two
-  // candidate answers in one function.
+): Promise<AiOperationAllowance> {
   const cap = resolveEffectiveContractAiCap({
     plan: scope.plan,
     contract: scope.contractLimits,
   });
 
-  if (cap === null) return; // ENTERPRISE / custom — no monthly cap.
+  const life = scope.commercialLifecycle;
+  if (life && !life.mutationsAllowed) {
+    return {
+      allowed: false,
+      denial: "COMMERCIAL_LIFECYCLE_RESTRICTED",
+      cap,
+      consumed: 0,
+      tenantId: null,
+    };
+  }
+
+  // ENTERPRISE / contract-managed — no monthly cap.
+  if (cap === null) {
+    return { allowed: true, denial: null, cap, consumed: 0, tenantId: null };
+  }
+
   if (cap <= 0) {
     /*
      * NOT INCLUDED — a different thing from EXHAUSTED, and it used to carry
      * the exhausted code.
      *
-     * The message here has always said "not included in the current plan"
-     * while the code said AI_MONTHLY_LIMIT_REACHED, and the UI keys on the
-     * code. So a FREE account's very first AI message — before any usage
-     * existed at all — was answered with "you have reached your AI usage
-     * limit". The status was already 402 (the canonical "not included"), which
-     * is how the two states were telling different stories in one response.
+     * The message used to say "not included in the current plan" while the
+     * code said AI_MONTHLY_LIMIT_REACHED, and the UI keys on the code. So a
+     * plan without AI answered its very first message — before any usage
+     * existed at all — with "you have reached your AI usage limit".
      */
-    const err: Error & { statusCode?: number; code?: string } = new Error(
-      "AI assistance is not included in the current plan",
-    );
-    err.statusCode = 402;
-    err.code = "AI_NOT_INCLUDED";
-    throw err;
+    return {
+      allowed: false,
+      denial: "AI_NOT_INCLUDED",
+      cap,
+      consumed: 0,
+      tenantId: null,
+    };
   }
 
   const tenantId = await resolveAiUsageTenantId(scope);
   if (!tenantId) {
-    // Personal team hasn't been bootstrapped; allow with daily abuse
-    // limits handled by AiCostGuard. New users hit this path at most
-    // once before `ensurePersonalWorkspace` creates the team row.
-    return;
+    // Personal team has not been bootstrapped; the cap cannot be counted
+    // durably, so allow and let the in-memory abuse limits hold. New users
+    // hit this at most once, before `ensurePersonalWorkspace` runs.
+    return { allowed: true, denial: null, cap, consumed: 0, tenantId: null };
   }
 
-  const periodStartUtc = startOfCurrentMonthUtc();
   const usage = await prisma.entitlementUsage.findUnique({
     where: {
       teamId_key_periodStartUtc: {
         teamId: tenantId,
         key: AI_USAGE_KEY,
-        periodStartUtc,
+        periodStartUtc: startOfCurrentMonthUtc(),
       },
     },
     select: { consumed: true },
   });
-
   const consumed = Number(usage?.consumed ?? 0n);
+
   if (consumed >= cap) {
-    const err: Error & { statusCode?: number; code?: string } = new Error(
-      "Monthly AI advisory limit reached for current plan",
-    );
-    err.statusCode = 429;
-    err.code = "AI_MONTHLY_LIMIT_REACHED";
-    throw err;
+    return {
+      allowed: false,
+      denial: "AI_MONTHLY_LIMIT_REACHED",
+      cap,
+      consumed,
+      tenantId,
+    };
   }
+  return { allowed: true, denial: null, cap, consumed, tenantId };
+}
+
+const AI_DENIAL_RESPONSES: Record<
+  AiOperationDenial,
+  { statusCode: number; message: string }
+> = {
+  COMMERCIAL_LIFECYCLE_RESTRICTED: {
+    statusCode: 402,
+    message:
+      "The workspace's subscription is not in a state that allows new paid operations.",
+  },
+  AI_NOT_INCLUDED: {
+    statusCode: 402,
+    message: "AI assistance is not included in the current plan",
+  },
+  AI_MONTHLY_LIMIT_REACHED: {
+    statusCode: 429,
+    message: "Monthly AI advisory limit reached for current plan",
+  },
+};
+
+/**
+ * THE WORKSPACE-SUBJECT entry point: "may THIS WORKSPACE spend an AI
+ * operation?", answered without an actor.
+ *
+ * Added so the provider orchestrator (`runProviderOperation`) — which knows a
+ * workspace and a provider but has no request context — asks the same question
+ * as the AI routes instead of consulting the packaging engine. The subject is
+ * the workspace whose evidence is being processed, resolved through the
+ * canonical envelope: a member's own personal plan never governs another
+ * workspace's allowance.
+ */
+export async function evaluateWorkspaceAiOperation(input: {
+  teamId: string;
+}): Promise<AiOperationAllowance> {
+  const scope = await resolveWorkspaceCommercialScope(input.teamId);
+  if (!scope) {
+    return {
+      allowed: false,
+      denial: "AI_NOT_INCLUDED",
+      cap: 0,
+      consumed: 0,
+      tenantId: null,
+    };
+  }
+  return decideAiOperationAllowance(scope);
+}
+
+/**
+ * Throws when the workspace may not spend an AI operation:
+ *   402 AI_NOT_INCLUDED                   — the plan does not include AI
+ *   402 COMMERCIAL_LIFECYCLE_RESTRICTED   — subscription state forbids it
+ *   429 AI_MONTHLY_LIMIT_REACHED          — the monthly allowance is spent
+ *
+ * Counts persistent usage out of EntitlementUsage so the cap survives process
+ * restarts. The decision itself is `decideAiOperationAllowance`; this is only
+ * its exception rendering.
+ */
+export async function assertWorkspaceAllowsAiOperation(
+  scope: WorkspaceScope,
+): Promise<void> {
+  const outcome = await decideAiOperationAllowance(scope);
+  if (outcome.allowed || !outcome.denial) return;
+  const shape = AI_DENIAL_RESPONSES[outcome.denial];
+  const err: Error & { statusCode?: number; code?: string } = new Error(
+    shape.message,
+  );
+  err.statusCode = shape.statusCode;
+  err.code = outcome.denial;
+  throw err;
 }
 
 /**
@@ -832,6 +943,37 @@ export async function recordWorkspaceAiOperation(
     update: {
       consumed: { increment: 1n },
     },
+  });
+}
+
+/**
+ * The WORKSPACE-SUBJECT counterpart of `recordWorkspaceAiOperation`, for
+ * callers that hold a workspace id and no request scope.
+ *
+ * It increments the SAME key, in the SAME period, on the same row as every
+ * other AI operation, which is the whole point: the provider orchestrator used
+ * to increment the packaging engine's private counter, so a workspace's month
+ * was split across two tallies that never saw each other.
+ */
+export async function recordWorkspaceAiOperationForWorkspace(input: {
+  teamId: string;
+}): Promise<void> {
+  const periodStartUtc = startOfCurrentMonthUtc();
+  await prisma.entitlementUsage.upsert({
+    where: {
+      teamId_key_periodStartUtc: {
+        teamId: input.teamId,
+        key: AI_USAGE_KEY,
+        periodStartUtc,
+      },
+    },
+    create: {
+      teamId: input.teamId,
+      key: AI_USAGE_KEY,
+      periodStartUtc,
+      consumed: 1n,
+    },
+    update: { consumed: { increment: 1n } },
   });
 }
 
@@ -937,4 +1079,91 @@ export async function assertTeamAllowsEnterpriseFeature(
     err.code = "ENTERPRISE_FEATURE_REQUIRED";
     throw err;
   }
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Workspace-subject commercial capability readers
+// ────────────────────────────────────────────────────────────────────
+
+/**
+ * PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — resolve the commercial
+ * scope of a WORKSPACE, with no actor.
+ *
+ * §3 of the commercial model: the subject of a workspace-scoped commercial
+ * question is the workspace, never the person asking. A FREE member acting as
+ * an admin inside a TEAM workspace must get the TEAM answer, and a PRO member
+ * inside an Enterprise organization must get the Enterprise answer. Routes
+ * that resolved the capability from the requester's own subscription were
+ * asking a question about the wrong subject.
+ *
+ * Returns null when the workspace does not exist, which every caller must read
+ * as "not included" — fail closed.
+ */
+async function resolveWorkspaceCommercialScope(
+  teamId: string,
+): Promise<WorkspaceScope | null> {
+  const workspace = await prisma.team.findUnique({
+    where: { id: teamId },
+    select: { id: true, ownerUserId: true },
+  });
+  if (!workspace) return null;
+  const ctx = await resolveCommercialContext({
+    type: "WORKSPACE",
+    teamId: workspace.id,
+    requesterUserId: workspace.ownerUserId,
+  });
+  return {
+    ...ctx.scope,
+    commercialLimits: ctx.limits,
+    commercialLifecycle: {
+      state: ctx.lifecycle.state,
+      paidActive: ctx.lifecycle.paidActive,
+      mutationsAllowed: ctx.lifecycle.mutationsAllowed,
+      graceEndsAtUtc: ctx.lifecycle.graceEndsAtUtc,
+    },
+  };
+}
+
+/**
+ * THE answer to "does this workspace commercially include External Review?".
+ *
+ * Both enforcement sites and the console projection call THIS function, so the
+ * console cannot offer a control the route will refuse. It replaces
+ * `FEATURE_EXTERNAL_PORTAL` in the ProductLine packaging engine, whose answer
+ * came from a grants table no purchase path ever wrote to — External Review
+ * was sold on PRO and above and granted to nobody.
+ *
+ * Commercial eligibility ONLY. Whether this actor may issue or revoke a grant
+ * is RBAC plus step-up, and whether the resource is in scope is the
+ * authorization chain; both stay exactly where they are. A plan gate is not a
+ * permission and does not become one by being correct.
+ */
+export async function workspaceIncludesExternalReview(
+  teamId: string,
+): Promise<boolean> {
+  const scope = await resolveWorkspaceCommercialScope(teamId);
+  if (!scope) return false;
+  return resolveEffectiveExternalReviewIncluded({
+    plan: scope.plan,
+    contract: scope.contractLimits,
+  });
+}
+
+/**
+ * THE answer to "does this workspace commercially include reviewer
+ * operations?" — `PlanCapabilities.reviewerOperationsIncluded`, the same field
+ * `reviewer-ops.routes.ts` already enforces through the actor context and the
+ * same one `platform-context` projects.
+ *
+ * It replaces `FEATURE_REVIEWER_WORKSPACE`, which defaulted to TRUE and so
+ * granted the reviewer workspace to every plan including FREE while the
+ * catalog reserved it for TEAM and above — the same duplicate-authority defect
+ * as the others, failing open instead of closed.
+ */
+export async function workspaceIncludesReviewerOperations(
+  teamId: string,
+): Promise<boolean> {
+  const scope = await resolveWorkspaceCommercialScope(teamId);
+  if (!scope) return false;
+  return getPlanCapabilities(scope.plan).reviewerOperationsIncluded;
 }

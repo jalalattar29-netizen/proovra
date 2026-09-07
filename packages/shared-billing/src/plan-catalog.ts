@@ -95,6 +95,29 @@ export type PlanCapabilities = {
   reviewQueuesIncluded: boolean;
 
   /**
+   * PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — does this plan
+   * include EXTERNAL REVIEW: controlled, bounded, time-limited access for
+   * someone OUTSIDE the workspace to review named evidence, without that
+   * person becoming a Workspace member or a Collaboration Team member?
+   *
+   * Approved commercial decision, in plan order:
+   *   FREE / PAYG        not included
+   *   PRO / TEAM         included
+   *   ENTERPRISE         included
+   *
+   * THIS IS THE ONLY AUTHORITY. It replaces `FEATURE_EXTERNAL_PORTAL` in the
+   * ProductLine packaging engine, which resolved the same question from a
+   * grants table whose only writer was a manual operator route — so the
+   * capability defaulted to false for every workspace that ever bought a
+   * plan, and no purchase path could turn it on. Pricing sold it; nothing
+   * granted it.
+   *
+   * Read it through `resolveEffectiveExternalReviewIncluded` so the
+   * Enterprise-contract question is asked in exactly one place.
+   */
+  externalReviewIncluded: boolean;
+
+  /**
    * Lifetime cap on evidence records. `null` = no lifetime cap (the
    * monthly cap may still apply). The enforcement guard checks this
    * via a non-deleted Evidence count on the workspace.
@@ -294,6 +317,7 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     reviewerOperationsIncluded: false,
     professionalSurfacesIncluded: false,
     reviewQueuesIncluded: false,
+    externalReviewIncluded: false,
     maxEvidenceRecords: 3,
     maxEvidenceRecordsPerMonth: null,
     paygCreditsRequiredPerCompletion: 0,
@@ -359,6 +383,7 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     reviewerOperationsIncluded: false,
     professionalSurfacesIncluded: false,
     reviewQueuesIncluded: false,
+    externalReviewIncluded: false,
     maxEvidenceRecords: null,
     maxEvidenceRecordsPerMonth: null,
     paygCreditsRequiredPerCompletion: 1,
@@ -388,6 +413,7 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     reviewerOperationsIncluded: false,
     professionalSurfacesIncluded: true,
     reviewQueuesIncluded: false,
+    externalReviewIncluded: true,
     maxEvidenceRecords: 100,
     maxEvidenceRecordsPerMonth: null,
     paygCreditsRequiredPerCompletion: 0,
@@ -417,6 +443,7 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     reviewerOperationsIncluded: true,
     professionalSurfacesIncluded: true,
     reviewQueuesIncluded: true,
+    externalReviewIncluded: true,
     maxEvidenceRecords: null,
     maxEvidenceRecordsPerMonth: 500,
     paygCreditsRequiredPerCompletion: 0,
@@ -446,6 +473,7 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     reviewerOperationsIncluded: true,
     professionalSurfacesIncluded: true,
     reviewQueuesIncluded: true,
+    externalReviewIncluded: true,
     maxEvidenceRecords: null,
     maxEvidenceRecordsPerMonth: null,
     paygCreditsRequiredPerCompletion: 0,

@@ -51,11 +51,14 @@ import { recordProviderUsage } from "./provider-usage.service.js";
 import { emitLifecycleEvent } from "./intelligence-activity.service.js";
 import { evaluateIntelligencePolicy } from "../governance/policy-evaluation.service.js";
 import { resolveWorkspaceAiPolicy } from "../ai/workspace-ai-policy.service.js";
+// PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — the AI commercial
+// allowance is resolved by THE canonical billing authority, not by the
+// ProductLine packaging engine. This module no longer imports that engine at
+// all, which is what makes the retirement structural rather than a comment.
 import {
-  assertFeatureEntitlement,
-  assertQuotaEntitlement,
-  recordEntitlementUsage,
-} from "../packaging/entitlement.service.js";
+  evaluateWorkspaceAiOperation,
+  recordWorkspaceAiOperationForWorkspace,
+} from "../billing-enforcement.service.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -267,64 +270,66 @@ export async function runProviderOperation(
     return { ok: false, decision: "BLOCK" as const, reason };
   }
 
-  // Phase 4B — entitlement perimeter. Enforced BEFORE the budget engine
-  // because budget is a spend-decider; entitlements are the product-line
-  // gate. Wrapped in try/catch so engine failure NEVER replaces existing
-  // budget logic (advisory). When the perimeter denies, we record the
-  // refusal as a budget BLOCK-shaped outcome so downstream UI behaves
-  // identically to a budget block (single failure code path).
-  try {
-    const featureOk = await assertFeatureEntitlement({
+  /*
+   * PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — THE canonical AI
+   * commercial gate, replacing this orchestrator's two packaging checks.
+   *
+   * What was here, and why it was wrong
+   * ---------------------------------------------------------------------
+   * `FEATURE_INTELLIGENCE` and `QUOTA_AI_OPERATIONS_PER_MONTH` were resolved
+   * by the ProductLine packaging engine, which reads `entitlement_grants` and
+   * falls back to hard-coded defaults. Its only writer is an operator-only
+   * ProductLine route, so for every workspace that simply BOUGHT a plan both
+   * answers were the unprovisioned defaults: the feature `false`, the quota
+   * `25`. That made OCR and transcription commercially unreachable on every
+   * self-serve plan, and capped a TEAM workspace sold 500 AI operations at 25
+   * on the paths where the feature had been granted by hand.
+   *
+   * Neither key ever consulted the purchased plan, and each kept its own
+   * usage counter — so the platform metered AI twice and agreed with itself
+   * nowhere.
+   *
+   * What replaces it
+   * ---------------------------------------------------------------------
+   * ONE question, asked of ONE authority: `evaluateWorkspaceAiOperation`,
+   * which resolves the WORKSPACE commercial subject through the canonical
+   * envelope and applies contract-then-catalog precedence. `cap <= 0` is the
+   * canonical statement of "this plan does not include AI", so the feature
+   * boolean has no separate question left to answer.
+   *
+   * NOT REPLACED, AND DELIBERATELY LEFT ABOVE THIS: `evaluateWorkspaceAiPolicy`
+   * (the workspace's own AI opt-out), `decideBudgetGate` (spend), and the
+   * provider rate limits. A commercial allowance, a customer policy, a cost
+   * ceiling and an abuse limit are four different questions; collapsing any of
+   * them into this one is how the duplicate authority appeared in the first
+   * place.
+   */
+  const aiAllowance = await evaluateWorkspaceAiOperation({
+    teamId: input.teamId,
+  });
+  if (!aiAllowance.allowed) {
+    const reason =
+      aiAllowance.denial === "AI_NOT_INCLUDED"
+        ? "entitlement_required:AI_NOT_INCLUDED"
+        : aiAllowance.denial === "COMMERCIAL_LIFECYCLE_RESTRICTED"
+          ? "entitlement_required:COMMERCIAL_LIFECYCLE_RESTRICTED"
+          : "quota_exceeded:AI_MONTHLY_LIMIT_REACHED";
+    await recordProviderUsage({
       prisma,
       teamId: input.teamId,
-      key: "FEATURE_INTELLIGENCE",
-    });
-    if (!featureOk.ok) {
-      const reason = "entitlement_required:FEATURE_INTELLIGENCE";
-      await recordProviderUsage({
-        prisma,
-        teamId: input.teamId,
-        provider: input.provider,
-        operation: input.operation,
-        unit: "CALL",
-        units: 0,
-        estimatedCostUsdMicros: 0,
-        decision: "BLOCK",
-        evidenceId: input.evidenceId,
-        caseId: input.caseId ?? null,
-        projectId: input.projectId ?? null,
-        initiatedByUserId: input.initiatedByUserId ?? null,
-        failureReason: reason,
-      }).catch(() => {});
-      return { ok: false, decision: "BLOCK" as const, reason };
-    }
-    const quotaOk = await assertQuotaEntitlement({
-      prisma,
-      teamId: input.teamId,
-      key: "QUOTA_AI_OPERATIONS_PER_MONTH",
-      requested: 1,
-    });
-    if (!quotaOk.ok) {
-      const reason = "quota_exceeded:QUOTA_AI_OPERATIONS_PER_MONTH";
-      await recordProviderUsage({
-        prisma,
-        teamId: input.teamId,
-        provider: input.provider,
-        operation: input.operation,
-        unit: "CALL",
-        units: 0,
-        estimatedCostUsdMicros: 0,
-        decision: "BLOCK",
-        evidenceId: input.evidenceId,
-        caseId: input.caseId ?? null,
-        projectId: input.projectId ?? null,
-        initiatedByUserId: input.initiatedByUserId ?? null,
-        failureReason: reason,
-      }).catch(() => {});
-      return { ok: false, decision: "BLOCK" as const, reason };
-    }
-  } catch {
-    // Entitlement gate engine error is advisory — fall through to budget.
+      provider: input.provider,
+      operation: input.operation,
+      unit: "CALL",
+      units: 0,
+      estimatedCostUsdMicros: 0,
+      decision: "BLOCK",
+      evidenceId: input.evidenceId,
+      caseId: input.caseId ?? null,
+      projectId: input.projectId ?? null,
+      initiatedByUserId: input.initiatedByUserId ?? null,
+      failureReason: reason,
+    }).catch(() => {});
+    return { ok: false, decision: "BLOCK" as const, reason };
   }
 
   // Best-effort cost estimate before the call — based on the adapter's
@@ -515,12 +520,15 @@ export async function runProviderOperation(
       reason: `count=${ingest.insertedRecords}`,
     });
   }
-  // Phase 4B — fire-and-forget quota usage recording on successful op.
-  void recordEntitlementUsage({
-    prisma,
+  // PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — record the spend on
+  // THE canonical monthly counter (`ai_advisory_operations`), the same one the
+  // gate above reads and the same one the AI routes increment. It used to
+  // increment the packaging engine's private `QUOTA_AI_OPERATIONS_PER_MONTH`
+  // counter, so a workspace's AI usage was split across two tallies and
+  // neither was the month's real total. Fire-and-forget: a failed count must
+  // never fail an operation the customer has already been given.
+  void recordWorkspaceAiOperationForWorkspace({
     teamId: input.teamId,
-    key: "QUOTA_AI_OPERATIONS_PER_MONTH",
-    amount: 1,
   }).catch(() => undefined);
   return {
     ok: true,

@@ -51,7 +51,7 @@ import {
   evaluateAuthorizedWorkspace,
   evaluateCurrentWorkspace,
 } from "../middleware/authorize.js";
-import { assertFeatureEntitlement } from "../services/packaging/entitlement.service.js";
+import { workspaceIncludesReviewerOperations } from "../services/billing-enforcement.service.js";
 
 import {
   archiveSchema,
@@ -357,11 +357,18 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await resolveTeam(req, reply);
       if (!ctx) return reply;
-      // I6 — FEATURE_REVIEWER_WORKSPACE gate (minimal coverage, one rep mutation).
-      try {
-        const feOk = await assertFeatureEntitlement({ prisma, teamId: ctx.teamId, key: "FEATURE_REVIEWER_WORKSPACE", actorUserId: ctx.userId });
-        if (!feOk.ok) return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "FEATURE_REVIEWER_WORKSPACE" });
-      } catch { /* engine failure must not break route */ }
+      // PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — reviewer
+      // operations are included by `PlanCapabilities.reviewerOperationsIncluded`
+      // (TEAM and above), the same field `reviewer-ops.routes.ts` enforces and
+      // `platform-context` projects.
+      //
+      // It used to be `FEATURE_REVIEWER_WORKSPACE` in the packaging engine,
+      // whose unprovisioned default was TRUE — so this gate admitted every
+      // plan including FREE while the catalog reserved the capability for TEAM.
+      // Two authorities over one question, and this was the one failing OPEN.
+      if (!(await workspaceIncludesReviewerOperations(ctx.teamId))) {
+        return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "REVIEWER_OPERATIONS" });
+      }
       if (!requireCap(ctx, "review.schema.author")) return denyNoPermission(reply);
       const body = CreateSchemaBody.parse(req.body);
       const res = await createSchema({

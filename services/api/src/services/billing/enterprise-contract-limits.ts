@@ -248,3 +248,37 @@ export function resolveEffectiveContractAiCap(input: {
   }
   return getPlanCapabilities(input.plan).aiAdvisoryMonthlyOperations;
 }
+
+/**
+ * PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — the effective
+ * EXTERNAL REVIEW inclusion for a workspace.
+ *
+ * THE ONE PLACE this question is answered. Both enforcement sites
+ * (`external-review.routes.ts`, `external-portal.routes.ts`) and the console
+ * projection (`platform-context.service.ts`) call it, so the routes cannot
+ * refuse a capability the console has just promised.
+ *
+ * WHY IT TAKES A CONTRACT IT CURRENTLY IGNORES: the four resolvers above all
+ * answer "contract first, catalog otherwise", and this one keeps the shape so
+ * an Enterprise restriction lands here rather than being invented at a call
+ * site. It does not read one today because `EnterpriseContract` carries no
+ * feature-restriction dimension, and inventing a column to express a
+ * restriction no contract has asked for would be inventing commercial policy.
+ * ENTERPRISE therefore resolves to the catalog answer: included.
+ *
+ * NOTE THE ASYMMETRY WITH ITS SIBLINGS, WHICH IS DELIBERATE. A non-ACTIVE
+ * contract yields `NO_CONTRACT_LIMITS`, and the fail-closed rule for the
+ * numeric limits is "fall back to the catalog baseline". The same rule here
+ * would fall back to the plan's own catalog row — which for an ENTERPRISE plan
+ * still says included. That is correct and is NOT a privilege escalation:
+ * whether a subscription in a bad lifecycle state may act at all is
+ * `assertCommercialLifecycleAllowsPaidMutation`'s question, asked upstream,
+ * and answering it a second time here would be a second authority over
+ * lifecycle.
+ */
+export function resolveEffectiveExternalReviewIncluded(input: {
+  plan: Parameters<typeof getPlanCapabilities>[0];
+  contract: EnterpriseContractLimits | null | undefined;
+}): boolean {
+  return getPlanCapabilities(input.plan).externalReviewIncluded;
+}

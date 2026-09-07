@@ -194,8 +194,9 @@ export async function decideBudgetGate(
   input: ScopedBudgetGateInput,
   prismaClient: PrismaClient = defaultPrisma,
 ): Promise<ProviderBudgetGateResult> {
-  // NOTE: Entitlement gates (FEATURE_INTELLIGENCE / QUOTA_AI_OPERATIONS_PER_MONTH)
-  // are enforced one layer up in `runIntelligenceCall` (media-intelligence.service.ts)
+  // NOTE: the AI commercial allowance is enforced one layer up in
+  // `runProviderOperation` (media-intelligence.service.ts) by the canonical
+  // `evaluateWorkspaceAiOperation`
   // so the budget engine remains a pure spend-decider. Mixing entitlement
   // logic into the budget engine breaks scoped-budget tests that legitimately
   // stub only the budget tables.

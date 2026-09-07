@@ -25,8 +25,10 @@ export type PlatformContextPlanFeatures = {
   casesIncluded: boolean;
   reviewerOperationsIncluded: boolean;
   /**
-   * WCR-10 — External Review, projected from ITS OWN authority (the packaging
-   * engine's `FEATURE_EXTERNAL_PORTAL`), not from the plan catalog.
+   * External Review, projected from the server's canonical commercial
+   * authority (`PlanCapabilities.externalReviewIncluded`: PRO and above).
+   * The browser consumes the projection and never re-derives it from a plan
+   * name.
    *
    * REQUIRED, not optional, and deliberately so: `PlanFeatureBooleanKey` maps
    * over this type and an optional property indexes as `boolean | undefined`,

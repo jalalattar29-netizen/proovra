@@ -49,7 +49,7 @@ import {
 // capability gate.
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 import { externalPortalCapabilitiesForRole } from "@proovra/shared";
-import { assertFeatureEntitlement } from "../services/packaging/entitlement.service.js";
+import { workspaceIncludesExternalReview } from "../services/billing-enforcement.service.js";
 
 import {
   emitPortalSessionRevoked,
@@ -465,11 +465,20 @@ export async function externalPortalRoutes(app: FastifyInstance) {
       });
       if (!ctx) return reply;
       if (!isAdministrativeTier(ctx, ctx.workspaceId)) return denyNoPermission(reply);
-      // I6 — FEATURE_EXTERNAL_PORTAL gate (minimal coverage, one rep mutation).
-      try {
-        const feOk = await assertFeatureEntitlement({ prisma, teamId: ctx.workspaceId, key: "FEATURE_EXTERNAL_PORTAL", actorUserId: ctx.userId });
-        if (!feOk.ok) return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "FEATURE_EXTERNAL_PORTAL" });
-      } catch { /* engine failure must not break route */ }
+      // PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — the External
+      // Review commercial gate, from THE canonical authority (the workspace's
+      // purchased plan) rather than the ProductLine packaging engine, whose
+      // grant no purchase path ever wrote. Same question, same answer, same
+      // function as `external-review.routes.ts` and the console projection.
+      //
+      // NOT wrapped in a swallowing try/catch any more: the old engine call was,
+      // so a resolution failure silently ADMITTED the mutation. A commercial
+      // gate that fails open is not a gate. The resolver itself fails closed on
+      // a missing workspace, and a genuine infrastructure failure now surfaces
+      // as a 500 rather than as a free capability.
+      if (!(await workspaceIncludesExternalReview(ctx.workspaceId))) {
+        return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "EXTERNAL_REVIEW" });
+      }
       const body = IssueInvitationBody.parse(req.body);
       // STEP-UP: issuing an invitation grants an outside reviewer access
       // to sensitive evidence — require a fresh step-up AFTER the RBAC

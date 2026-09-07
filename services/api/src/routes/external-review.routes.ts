@@ -35,11 +35,12 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
-import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-// THE canonical entitlement engine. External access is gated on the sold
-// package (`FEATURE_EXTERNAL_PORTAL`), never on a plan name read here.
-import { assertFeatureEntitlement } from "../services/packaging/entitlement.service.js";
+// PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — THE canonical
+// commercial authority for External Review. It resolves the WORKSPACE's
+// purchased plan (contract-first for Enterprise), never a plan name read
+// here and never the requester's own subscription.
+import { workspaceIncludesExternalReview } from "../services/billing-enforcement.service.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 // Phase 3 blocker closure — issuing an external-reviewer grant exposes
 // sensitive evidence to an OUTSIDE reviewer, so it must require a fresh
@@ -174,28 +175,28 @@ export async function externalReviewRoutes(app: FastifyInstance) {
        * granted nothing at all, so retiring that honest no-op left the real
        * capability with no gate and made the absence visible.
        *
-       * `FEATURE_EXTERNAL_PORTAL` is the canonical entitlement for external
-       * access — the SAME key `external-portal.routes.ts` uses on the
-       * invitation it issues. It is resolved per workspace by the packaging
-       * engine from the sold package, not derived from a plan name here, which
-       * is why this is one authority answering in two places rather than two
-       * authorities answering differently.
+       * `workspaceIncludesExternalReview` is the canonical commercial
+       * authority — the SAME function `external-portal.routes.ts` calls on the
+       * invitation it issues, and the same one `platform-context` projects to
+       * the console, so the console cannot offer a control this route refuses.
+       *
+       * It used to be `FEATURE_EXTERNAL_PORTAL` in the ProductLine packaging
+       * engine, which read a grants table whose only writer is an operator-only
+       * route. That defaulted to false for every workspace that had simply
+       * BOUGHT a plan: Pricing sold External Review on PRO and above, and no
+       * purchase path could turn it on. The gate was not too strict — it was
+       * answering from the wrong authority.
        *
        * REVOKE IS DELIBERATELY NOT GATED. Withdrawing access someone already
        * has is a corrective action, and a workspace that has lost the
        * entitlement — by downgrade, by contract change — must still be able to
        * shut a door it opened.
        */
-      const entitled = await assertFeatureEntitlement({
-        prisma,
-        teamId: actor.teamId,
-        key: "FEATURE_EXTERNAL_PORTAL",
-        actorUserId: actor.actorUserId,
-      });
-      if (!entitled.ok) {
+      const entitled = await workspaceIncludesExternalReview(actor.teamId);
+      if (!entitled) {
         return reply.code(403).send({
           denial: "ENTITLEMENT_REQUIRED",
-          entitlement: "FEATURE_EXTERNAL_PORTAL",
+          entitlement: "EXTERNAL_REVIEW",
         });
       }
 

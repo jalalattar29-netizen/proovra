@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { AI_CHAT_LIMITS, type AiChatAbuseReason } from "@proovra/shared";
+import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { trustedClientIpKey } from "../middleware/client-ip.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
@@ -269,6 +270,56 @@ async function withAiTimeout<T>(
   }
 }
 
+/**
+ * PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) §10 — THE AI COMMERCIAL
+ * SUBJECT IS THE ACTIVE WORKSPACE, NEVER THE ACTOR'S PERSONAL PLAN.
+ *
+ * All three AI routes resolved `{ type: "PERSONAL_ACCOUNT", userId }`, so the
+ * allowance, the usage counter AND the workspace AI policy were all taken from
+ * the caller's own personal subscription whatever workspace they were working
+ * in. Two consequences, both wrong in the same direction:
+ *
+ *   - a FREE member of a TEAM workspace spent TEAM work against their personal
+ *     ten-a-month allowance and was refused inside a workspace that had bought
+ *     five hundred;
+ *   - the usage landed on their personal Team row, so the workspace that was
+ *     actually billed for the work could not see it in its own usage.
+ *
+ * This mirrors the rule the Workspace/Collaboration reconciliation established
+ * for every other paid dimension: the commercial subject is the workspace the
+ * work happens in, resolved through the canonical envelope.
+ *
+ * MEMBERSHIP IS RE-PROVEN HERE. `users.currentWorkspaceId` is a pointer
+ * written by the switch route, and a pointer is not an entitlement — reading a
+ * plan off it unchecked would let a stale or hand-set pointer borrow another
+ * workspace's allowance. An unusable pointer falls back to the personal
+ * account, which is the pre-existing behaviour and the conservative one.
+ */
+async function resolveAiCommercialScope(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { currentWorkspaceId: true },
+  });
+  const workspaceId = user?.currentWorkspaceId ?? null;
+  if (workspaceId) {
+    const membership = await prisma.teamMember.findUnique({
+      where: { teamId_userId: { teamId: workspaceId, userId } },
+      select: { status: true },
+    });
+    if (membership?.status === "ACTIVE") {
+      return (
+        await resolveCommercialContext({
+          type: "WORKSPACE",
+          teamId: workspaceId,
+          requesterUserId: userId,
+        })
+      ).scope;
+    }
+  }
+  return (await resolveCommercialContext({ type: "PERSONAL_ACCOUNT", userId }))
+    .scope;
+}
+
 export async function aiRoutes(app: FastifyInstance) {
   /*
    * WHAT THE ASSISTANT CAN DO, ASKED BEFORE ANYTHING IS TYPED.
@@ -293,7 +344,7 @@ export async function aiRoutes(app: FastifyInstance) {
     { preHandler: [requireAuthAndLegal] },
     async (req) => {
       const userId = getAuthUserId(req);
-      const aiScope = (await resolveCommercialContext({ type: "PERSONAL_ACCOUNT", userId })).scope;
+      const aiScope = await resolveAiCommercialScope(userId);
       const policy = await evaluateWorkspaceAiPolicy({
         teamId: aiScope.teamId,
         feature: "SUPPORT_CHAT",
@@ -395,7 +446,7 @@ export async function aiRoutes(app: FastifyInstance) {
       // Pricing-hardening: plan-aware monthly AI cap. Throws
       // AI_MONTHLY_LIMIT_REACHED (429) when over cap. ENTERPRISE skips.
       // §9.7 — explicit PERSONAL_ACCOUNT subject via the canonical envelope.
-      const aiScope = (await resolveCommercialContext({ type: "PERSONAL_ACCOUNT", userId })).scope;
+      const aiScope = await resolveAiCommercialScope(userId);
       try {
         await assertWorkspaceAllowsAiOperation(aiScope);
       } catch (err) {
@@ -617,7 +668,7 @@ export async function aiRoutes(app: FastifyInstance) {
 
       // Pricing-hardening: plan-aware monthly AI cap.
       // §9.7 — explicit PERSONAL_ACCOUNT subject via the canonical envelope.
-      const aiScope = (await resolveCommercialContext({ type: "PERSONAL_ACCOUNT", userId })).scope;
+      const aiScope = await resolveAiCommercialScope(userId);
       try {
         await assertWorkspaceAllowsAiOperation(aiScope);
       } catch (err) {

@@ -31,7 +31,7 @@ import { prisma } from "../../db.js";
 import { isPlatformAdmin as resolveIsPlatformAdmin } from "../platform-admin.service.js";
 import { resolveCapabilities, resolvePersona } from "./capability-registry.js";
 import { getPlanCapabilities } from "../plan-catalog.service.js";
-import { resolveEntitlement } from "../packaging/entitlement.service.js";
+import { workspaceIncludesExternalReview } from "../billing-enforcement.service.js";
 import { deriveOperationalEligibility } from "./operational-eligibility.js";
 // ATTENTION ARCHITECTURE (2026-08-22) — the canonical answer to "is this an Enterprise
 // customer?", replacing a `billingPlan === "ENTERPRISE"` string comparison.
@@ -633,20 +633,23 @@ export async function buildPlatformContext(
   // resolution needs it. This block projects that same object.
   // -------------------------------------------------------------------------
   /**
-   * WCR-10 — resolved through the canonical entitlement reader, never
-   * re-derived. `resolveEntitlement` returns the conservative default when no
-   * grant row exists and swallows a missing-table error the same way, so a
-   * workspace mid-migration renders the link as unavailable rather than
-   * promising it.
+   * PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — projected from THE
+   * canonical commercial authority, the same one both enforcement routes call.
+   *
+   * WCR-10 resolved this through the ProductLine packaging engine's
+   * `FEATURE_EXTERNAL_PORTAL`, which was faithful to the routes at the time
+   * and wrong with them: no purchase path wrote that grant, so the console
+   * correctly reported a capability every paying customer had bought and none
+   * could use. Pointing both at the plan fixes the answer in one move.
+   *
+   * Still RENDERING INPUT ONLY — the routes remain the enforcement point.
    */
   let externalReviewEntitled = false;
   if (workspace.id) {
     try {
-      const projection = await resolveEntitlement({
-        teamId: workspace.id,
-        key: "FEATURE_EXTERNAL_PORTAL",
-      });
-      externalReviewEntitled = projection.value === true;
+      externalReviewEntitled = await workspaceIncludesExternalReview(
+        workspace.id,
+      );
     } catch {
       externalReviewEntitled = false;
     }
@@ -666,11 +669,12 @@ export async function buildPlatformContext(
     /**
      * WCR-10 (2026-09-07) — EXTERNAL REVIEW, PROJECTED FROM ITS OWN AUTHORITY.
      *
-     * Note the provenance, which is deliberately NOT `planCaps`: External
-     * Review is gated by `FEATURE_EXTERNAL_PORTAL` in the packaging engine, and
-     * `external-review.routes` + `external-portal.routes` both enforce it. This
-     * field is the SAME resolver's answer, projected so the console can stop
-     * promising the capability to workspaces that will be refused it.
+     * External Review is included by PRO and above
+     * (`PlanCapabilities.externalReviewIncluded`, read through
+     * `workspaceIncludesExternalReview` so the Enterprise-contract question is
+     * asked in one place). `external-review.routes` and
+     * `external-portal.routes` enforce it with the SAME function, so this
+     * field cannot promise what those routes will refuse.
      *
      * The collaboration detail page rendered its "External reviewers" link on
      * `useCan("REVIEWER_OPS_VIEW")` — a ROLE capability. Role and entitlement
@@ -696,8 +700,8 @@ export async function buildPlatformContext(
      * something nobody can do. Both are worse than the flag's absence.
      *
      * External reviewers are granted access by the external-review authority,
-     * whose commercial gate is the `FEATURE_EXTERNAL_PORTAL` entitlement —
-     * resolved server-side, per workspace, not a plan-name flag carried here.
+     * whose commercial gate is `workspaceIncludesExternalReview` — resolved
+     * server-side, per workspace, not a plan-name flag carried here.
      */
     /**
      * PHASE 12 — POINT 7 (2026-08-05): the NUMERIC limits, projected.
