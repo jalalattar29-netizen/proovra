@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 133
     },
-    "TerminalWriters": 1253,
-    "ReachableSensitiveMutations": 1245,
-    "ClassifiedSensitiveMutations": 1245,
+    "TerminalWriters": 1254,
+    "ReachableSensitiveMutations": 1246,
+    "ClassifiedSensitiveMutations": 1246,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 0,
     "NonRequestWriters": 8,
@@ -80,7 +80,7 @@
       "EVIDENCE_CUSTODY_FINALIZATION": 280,
       "LEGAL_HOLD_RETENTION_DELETION": 51,
       "EXTERNAL_REVIEW_INTAKE_SHARE": 78,
-      "BILLING_SUBSCRIPTION_SEAT": 61,
+      "BILLING_SUBSCRIPTION_SEAT": 62,
       "SSO_OIDC_SCIM_PROVISIONING": 45,
       "AUTOMATION_QUEUE_WEBHOOK": 104,
       "REPORT_EXPORT_REDACTION": 49,
@@ -100,7 +100,7 @@
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1129,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1130,
       "JOB_ATTRIBUTED_REACHABLE": 106,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 3,
@@ -33754,8 +33754,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/exchange/evidence-exchange.service.ts#evidenceExchangePackage.create@93",
-      "terminalLocation": "services/api/src/services/exchange/evidence-exchange.service.ts:93",
+      "writerId": "services/api/src/services/exchange/evidence-exchange.service.ts#evidenceExchangePackage.create@96",
+      "terminalLocation": "services/api/src/services/exchange/evidence-exchange.service.ts:96",
       "file": "services/api/src/services/exchange/evidence-exchange.service.ts",
       "enclosingDeclaration": "createExchangePackage",
       "kind": "DATABASE",
@@ -33787,41 +33787,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/exchange/evidence-exchange.service.ts#evidenceExchangePackage.update@158",
-      "terminalLocation": "services/api/src/services/exchange/evidence-exchange.service.ts:158",
-      "file": "services/api/src/services/exchange/evidence-exchange.service.ts",
-      "enclosingDeclaration": "markPackageReady",
-      "kind": "DATABASE",
-      "target": "evidenceExchangePackage",
-      "mutationKind": "update",
-      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "POST /v1/exchange/packages/:id/ready"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/services/exchange/evidence-exchange.service.ts#evidenceExchangePackage.update@208",
-      "terminalLocation": "services/api/src/services/exchange/evidence-exchange.service.ts:208",
+      "writerId": "services/api/src/services/exchange/evidence-exchange.service.ts#evidenceExchangePackage.update@247",
+      "terminalLocation": "services/api/src/services/exchange/evidence-exchange.service.ts:247",
       "file": "services/api/src/services/exchange/evidence-exchange.service.ts",
       "enclosingDeclaration": "generateSignedUrl",
       "kind": "DATABASE",
@@ -33854,8 +33821,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/exchange/evidence-exchange.service.ts#evidenceExchangePackage.update@263",
-      "terminalLocation": "services/api/src/services/exchange/evidence-exchange.service.ts:263",
+      "writerId": "services/api/src/services/exchange/evidence-exchange.service.ts#evidenceExchangePackage.update@302",
+      "terminalLocation": "services/api/src/services/exchange/evidence-exchange.service.ts:302",
       "file": "services/api/src/services/exchange/evidence-exchange.service.ts",
       "enclosingDeclaration": "recordPackageDelivery",
       "kind": "DATABASE",
@@ -33887,8 +33854,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/exchange/evidence-exchange.service.ts#evidenceExchangePackage.update@437",
-      "terminalLocation": "services/api/src/services/exchange/evidence-exchange.service.ts:437",
+      "writerId": "services/api/src/services/exchange/evidence-exchange.service.ts#evidenceExchangePackage.update@476",
+      "terminalLocation": "services/api/src/services/exchange/evidence-exchange.service.ts:476",
       "file": "services/api/src/services/exchange/evidence-exchange.service.ts",
       "enclosingDeclaration": "revokePackage",
       "kind": "DATABASE",
@@ -33920,8 +33887,41 @@
       }
     },
     {
-      "writerId": "services/api/src/services/exchange/evidence-exchange.service.ts#evidenceExchangePackageDelivery.create@251",
-      "terminalLocation": "services/api/src/services/exchange/evidence-exchange.service.ts:251",
+      "writerId": "services/api/src/services/exchange/evidence-exchange.service.ts#evidenceExchangePackage.updateMany@172",
+      "terminalLocation": "services/api/src/services/exchange/evidence-exchange.service.ts:172",
+      "file": "services/api/src/services/exchange/evidence-exchange.service.ts",
+      "enclosingDeclaration": "markPackageReady",
+      "kind": "DATABASE",
+      "target": "evidenceExchangePackage",
+      "mutationKind": "updateMany",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/exchange/packages/:id/ready"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/exchange/evidence-exchange.service.ts#evidenceExchangePackageDelivery.create@290",
+      "terminalLocation": "services/api/src/services/exchange/evidence-exchange.service.ts:290",
       "file": "services/api/src/services/exchange/evidence-exchange.service.ts",
       "enclosingDeclaration": "recordPackageDelivery",
       "kind": "DATABASE",
@@ -33953,8 +33953,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/exchange/evidence-exchange.service.ts#evidenceExchangePackageDelivery.update@395",
-      "terminalLocation": "services/api/src/services/exchange/evidence-exchange.service.ts:395",
+      "writerId": "services/api/src/services/exchange/evidence-exchange.service.ts#evidenceExchangePackageDelivery.update@434",
+      "terminalLocation": "services/api/src/services/exchange/evidence-exchange.service.ts:434",
       "file": "services/api/src/services/exchange/evidence-exchange.service.ts",
       "enclosingDeclaration": "recordPackageDownload",
       "kind": "DATABASE",
@@ -64781,8 +64781,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/packaging/entitlement.service.ts#entitlementGrant.upsert@479",
-      "terminalLocation": "services/api/src/services/packaging/entitlement.service.ts:479",
+      "writerId": "services/api/src/services/packaging/entitlement.service.ts#entitlementGrant.upsert@536",
+      "terminalLocation": "services/api/src/services/packaging/entitlement.service.ts:536",
       "file": "services/api/src/services/packaging/entitlement.service.ts",
       "enclosingDeclaration": "upsertEntitlementGrant",
       "kind": "DATABASE",
@@ -64793,6 +64793,39 @@
       "entryRoutes": [
         "POST /v1/packaging/entitlements/apply-product-line",
         "POST /v1/packaging/entitlements/grant"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/packaging/entitlement.service.ts#entitlementUsage.upsert@493",
+      "terminalLocation": "services/api/src/services/packaging/entitlement.service.ts:493",
+      "file": "services/api/src/services/packaging/entitlement.service.ts",
+      "enclosingDeclaration": "recordExportPackageUsage",
+      "kind": "DATABASE",
+      "target": "entitlementUsage",
+      "mutationKind": "upsert",
+      "primaryFamily": "BILLING_SUBSCRIPTION_SEAT",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/exchange/packages/:id/ready"
       ],
       "entryJobs": [],
       "entryModules": [
