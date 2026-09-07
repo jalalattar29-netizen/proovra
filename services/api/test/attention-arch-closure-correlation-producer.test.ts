@@ -169,7 +169,20 @@ describe("Closure §27 — a positive correlator DOES correlate", () => {
       "services/api/src/services/operations/evidence-integrity-correlation.ts",
     );
     expect(CORRELATION).not.toMatch(/parentFingerprint.*teamId/);
-    expect(WRITER).toMatch(/teamId_fingerprint/);
+    // TWO LEGITIMATE SPELLINGS OF ONE PROPERTY.
+    //
+    // This used to require the literal `teamId_fingerprint`, which was the
+    // composite key of a per-condition `findUnique`. That read is gone: it
+    // was one round-trip per condition on a path that writes thousands, and
+    // the pass now reads them together with
+    // `findMany({ where: { teamId, fingerprint: { in: … } } })`.
+    //
+    // The property the case exists to defend is unchanged and still asserted —
+    // the writer identifies a condition by workspace AND fingerprint, never by
+    // fingerprint alone. An unscoped read matches neither alternative.
+    expect(WRITER).toMatch(
+      /teamId_fingerprint|operationalIncident\.findMany\(\{[\s\S]{0,80}?teamId,[\s\S]{0,120}?fingerprint:/,
+    );
   });
 });
 

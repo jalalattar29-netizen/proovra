@@ -252,6 +252,53 @@ export type SyncResult = {
 const SCAN_BOUND = 2000;
 
 /**
+ * The two facts a writer needs about a condition that may already exist.
+ *
+ * Read for the whole pass at once — see the note at the call site. `null`
+ * means the condition has never been recorded, which is the ordinary case on
+ * a healthy workspace and the reason the previous per-condition read was
+ * usually a round-trip that found nothing.
+ */
+type ExistingCondition = {
+  status: (typeof prismaPkg.IncidentStatus)[keyof typeof prismaPkg.IncidentStatus];
+  firstSeenAtUtc: Date;
+};
+
+/**
+ * Every already-recorded condition among `fingerprints`, keyed by fingerprint.
+ *
+ * Chunked because the fingerprint list is as long as the scan bound allows and
+ * a single `IN` of that size is a parameter-count problem rather than a
+ * property of the product — the same reason the suite that crosses this bound
+ * seeds in chunks.
+ */
+async function loadExistingConditions(
+  client: PrismaClient,
+  teamId: string,
+  fingerprints: readonly string[],
+): Promise<Map<string, ExistingCondition>> {
+  const out = new Map<string, ExistingCondition>();
+  if (fingerprints.length === 0) return out;
+  const CHUNK = 500;
+  for (let i = 0; i < fingerprints.length; i += CHUNK) {
+    const rows = await client.operationalIncident.findMany({
+      where: {
+        teamId,
+        fingerprint: { in: fingerprints.slice(i, i + CHUNK) as string[] },
+      },
+      select: { fingerprint: true, status: true, firstSeenAtUtc: true },
+    });
+    for (const row of rows) {
+      out.set(row.fingerprint, {
+        status: row.status,
+        firstSeenAtUtc: row.firstSeenAtUtc,
+      });
+    }
+  }
+  return out;
+}
+
+/**
  * Open, re-observe and resolve every Evidence integrity condition in one
  * workspace.
  *
@@ -330,6 +377,42 @@ export async function syncEvidenceIntegrityConditions(
     ),
   );
 
+  // ONE READ FOR THE WHOLE PASS, NOT ONE PER CONDITION.
+  //
+  // Both writers below need the same two facts about a condition that may
+  // already exist: whether it is SUPPRESSED, and when it was FIRST seen — so
+  // age escalation measures how long the problem has existed rather than how
+  // long since the last scan. Each used to fetch them with its own
+  // `findUnique`, which made this pass O(conditions) round-trips ON TOP of
+  // the writes it actually has to make.
+  //
+  // Measured at the bound this file exists to cross — 2,000 records, one
+  // condition each — that was ~2,000 extra sequential queries, and the
+  // bounded-scan case took 36s against a 60s budget on a fast machine. It
+  // passed locally and timed out on the CI runner, which is the same fact
+  // reported twice.
+  //
+  // This is not weaker than the read it replaces. A fingerprint appears at
+  // most once per pass (distinct rows × distinct classes), so nothing this
+  // loop writes can invalidate what it read; and the atomic decision still
+  // belongs to `recordIncident`, which is the transition authority and
+  // remains the only thing that writes.
+  const wantedFingerprints: string[] = [];
+  for (const row of failing) {
+    for (const integrityClass of INTEGRITY_CLASSES) {
+      if (!isCurrentlyFailing(row, integrityClass)) continue;
+      wantedFingerprints.push(
+        integrityConditionFingerprint(integrityClass, row.id),
+      );
+    }
+    if (isOtsPendingAged(row, now)) {
+      wantedFingerprints.push(otsPendingAgedFingerprint(row.id));
+    }
+  }
+  const existingByFingerprint = await inSourceStage("SCAN", () =>
+    loadExistingConditions(client, input.teamId, wantedFingerprints),
+  );
+
   for (const row of failing) {
     for (const integrityClass of INTEGRITY_CLASSES) {
       if (!isCurrentlyFailing(row, integrityClass)) continue;
@@ -344,6 +427,10 @@ export async function syncEvidenceIntegrityConditions(
             teamId: input.teamId,
             underLegalHold: heldEvidenceIds.has(row.id),
             now,
+            existing:
+              existingByFingerprint.get(
+                integrityConditionFingerprint(integrityClass, row.id),
+              ) ?? null,
           },
           client,
         ),
@@ -377,6 +464,9 @@ export async function syncEvidenceIntegrityConditions(
             teamId: input.teamId,
             underLegalHold: heldEvidenceIds.has(row.id),
             now,
+            existing:
+              existingByFingerprint.get(otsPendingAgedFingerprint(row.id)) ??
+              null,
           },
           client,
         ),
@@ -420,21 +510,18 @@ async function recordIntegrityCondition(
     teamId: string;
     underLegalHold: boolean;
     now: Date;
+    /** Read for the whole pass by `loadExistingConditions`. */
+    existing: ExistingCondition | null;
   },
   client: PrismaClient,
 ): Promise<RecordOutcome> {
-  const { evidence, integrityClass, teamId, now } = args;
+  const { evidence, integrityClass, teamId, now, existing } = args;
   const fingerprint = integrityConditionFingerprint(
     integrityClass,
     evidence.id,
   );
 
-  const existing = await client.operationalIncident.findUnique({
-    where: {
-      teamId_fingerprint: { teamId, fingerprint } as never,
-    },
-    select: { id: true, status: true, firstSeenAtUtc: true },
-  });
+
 
   // SUPPRESSION IS NO LONGER DECIDED HERE.
   //
@@ -571,19 +658,18 @@ async function recordOtsPendingAgedCondition(
     teamId: string;
     underLegalHold: boolean;
     now: Date;
+    /** Read for the whole pass by `loadExistingConditions`. */
+    existing: ExistingCondition | null;
   },
   client: PrismaClient,
 ): Promise<RecordOutcome> {
-  const { evidence, teamId } = args;
+  const { evidence, teamId, existing } = args;
   const fingerprint = otsPendingAgedFingerprint(evidence.id);
   const policy = readOtsOperationsAgingPolicy();
   const posture = otsPendingOperationalPosture(evidence, args.now, policy);
   const ageHours = otsPendingAgeHours(evidence, args.now);
 
-  const existing = await client.operationalIncident.findUnique({
-    where: { teamId_fingerprint: { teamId, fingerprint } as never },
-    select: { id: true, status: true },
-  });
+
   const wasSuppressed =
     existing?.status === prismaPkg.IncidentStatus.SUPPRESSED;
 

@@ -99,6 +99,37 @@ describe("Operations at Enterprise scale (live PostgreSQL 16)", () => {
     await harness?.cleanup?.();
   });
 
+  /*
+   * WHY THESE TWO CASES CARRY THEIR OWN BUDGET.
+   *
+   * The project's per-test cap is 60s, which is the right cap for a suite of
+   * ordinary cases. These two are not ordinary: they are the ones that cross
+   * the scan bound, and crossing it is the whole point of the file.
+   *
+   * Measured, on a warm local PostgreSQL 16 over loopback, with statement
+   * logging on and counted from the server's own log:
+   *
+   *   6,003 conditions written  (2,000 records x 3 integrity classes)
+   *   ~66,000 statements in the pass, ~11 per condition:
+   *       24,078  SELECT operational_incidents
+   *       12,006  SELECT workspace_governance_policies
+   *       12,006  SELECT operational_incident_sla_cycles
+   *        6,003  INSERT operational_incidents
+   *        6,003  INSERT operational_incident_sla_cycles
+   *        6,003  INSERT operational_incident_events
+   *
+   * That is the product's real per-condition write cost, not a defect in the
+   * test: every one of those statements is a governance record an Enterprise
+   * workspace actually gets. The bounded-scan case ran 36.2s before the N+1
+   * read was removed from `evidence-integrity-conditions.service.ts` and
+   * 32.0s after — inside 60s locally, over it on a CI runner, which is one
+   * fact reported as two.
+   *
+   * So this is NOT a cap raised in place of a fix. The fix that could be made
+   * without redesigning the incident writer was made and measured; what
+   * remains is inherent, and 180s gives it the same ~5x headroom over its
+   * measured cost that 60s gives an ordinary case.
+   */
   it("the per-record scan is BOUNDED, says so, and blocks the all-clear", async () => {
     await prisma.governanceReconciliationRun.deleteMany({
       where: { kind: "WORKSPACE_OPERATIONS", teamId: ws.teamId },
@@ -123,7 +154,7 @@ describe("Operations at Enterprise scale (live PostgreSQL 16)", () => {
 
     // A workspace whose scan hit its bound may never be described as clear.
     expect(run.sources.truncatedSources.length).toBeGreaterThan(0);
-  });
+  }, 180_000);
 
   it("opens one condition per record up to the bound, and never one unbounded row for all of them", async () => {
     const perRecord = await prisma.operationalIncident.count({
@@ -187,7 +218,7 @@ describe("Operations at Enterprise scale (live PostgreSQL 16)", () => {
       where: scope.workspaceIncidentWhere(ws.teamId),
     });
     expect(after).toBe(before);
-  });
+  }, 180_000);
 
   it("concurrent writers of the SAME condition converge on one row", async () => {
     const fingerprint = `ent:scale:concurrent:${ws.teamId}`;
