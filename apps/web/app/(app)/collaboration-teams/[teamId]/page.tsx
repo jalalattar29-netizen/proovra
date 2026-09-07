@@ -35,7 +35,7 @@ import {
   getTeam,
 } from "../../../../lib/api/collaboration-teams";
 import { collaborationTeamRoleHasPermission } from "@proovra/shared";
-import { useCan } from "../../../../lib/platform-context";
+import { useCan, usePlanFeature, usePlatformContext } from "../../../../lib/platform-context";
 import { useBillingSummary } from "../../../../lib/api/billing-summary";
 import { PlanLimitBadge } from "../../../../components/billing/PlanLimitBadge";
 import { OverviewTab } from "./_tabs/OverviewTab";
@@ -84,6 +84,8 @@ function TeamDetail() {
       : "overview";
   }, [search]);
 
+  // WCR-09 — the tenant this page is bound to; every loader below depends on it.
+  const { activeWorkspaceId } = usePlatformContext();
   const [team, setTeam] = useState<CollaborationTeamDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<{ message: string; requestId?: string } | null>(
@@ -107,7 +109,21 @@ function TeamDetail() {
     } finally {
       if (!isStale?.()) setLoading(false);
     }
-  }, [teamId]);
+    /**
+     * WCR-09 (2026-09-07) — KEYED ON THE WORKSPACE AS WELL AS THE GROUP.
+     *
+     * This depended on `teamId` alone. Switching workspace re-ingested the
+     * envelope and changed the request header, but the effect did not re-run —
+     * so the PREVIOUS tenant's group detail stayed on screen under the new
+     * tenant's header, and the next mutation carried the new workspace id and
+     * met a 404 the operator could not explain.
+     *
+     * No cross-tenant data was ever served: `authorizeCollaborationTeam`
+     * refuses a group that does not belong to the proven workspace. What was
+     * wrong was the display, which on an evidence platform is its own kind of
+     * failure.
+     */
+  }, [teamId, activeWorkspaceId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -116,6 +132,14 @@ function TeamDetail() {
       cancelled = true;
     };
   }, [refresh]);
+
+  /**
+   * Drop the previous tenant's group IMMEDIATELY on a switch, rather than
+   * leaving it painted for the duration of a network round trip.
+   */
+  useEffect(() => {
+    setTeam(null);
+  }, [activeWorkspaceId]);
 
   // PROOVRA Phase 10 — header billing summary hook MUST be called at the
   // top level of the component, before any early return / loading / error
@@ -141,7 +165,24 @@ function TeamDetail() {
   // personal team never sees a link that would only redirect. The
   // capability check MUST be a top-level hook call (Rules of Hooks),
   // so it lives here with the other pre-return hooks.
-  const canManageExternalReviewers = useCan("REVIEWER_OPS_VIEW");
+  /**
+   * WCR-10 (2026-09-07) — CAPABILITY *AND* ENTITLEMENT.
+   *
+   * This gated the "External reviewers" link on `REVIEWER_OPS_VIEW` alone — a
+   * ROLE capability. Issuing an external-review grant is additionally gated by
+   * the `FEATURE_EXTERNAL_PORTAL` ENTITLEMENT, which is a different question
+   * with a different answer, and defaults to false. So an operator holding the
+   * role followed a link into a console whose first mutation answers
+   * `403 ENTITLEMENT_REQUIRED`.
+   *
+   * A surface must not promise a capability the gate will refuse.
+   * `externalReviewIncluded` is the SAME resolver's answer, projected per
+   * workspace by the platform context. `null` means UNKNOWN and the link stays
+   * hidden — fail closed, rather than promising on a degraded envelope.
+   */
+  const externalReviewIncluded = usePlanFeature("externalReviewIncluded");
+  const canManageExternalReviewers =
+    useCan("REVIEWER_OPS_VIEW") && externalReviewIncluded === true;
 
   if (loading && !team) {
     return (
@@ -249,9 +290,19 @@ function TeamDetail() {
   // top of the component (before early returns) per the React Rules of
   // Hooks. Only `activeMemberCountForBadge` (a plain derived value that
   // depends on `team`) is computed here.
-  const activeMemberCountForBadge = team.members.filter(
-    (m) => m.status === "ACTIVE",
-  ).length;
+  /**
+   * WCR-08 (2026-09-07) — THE SERVER'S COUNT, NOT THE PREVIEW'S LENGTH.
+   *
+   * `team.members` is a BOUNDED PREVIEW of at most `memberPreviewLimit` rows.
+   * Filtering it and calling the result "how many members are there" makes the
+   * header under-report on every group larger than the preview, and the same
+   * derivation drove the Members tab's capacity check — so "Add member" stayed
+   * enabled past the real ceiling until the server refused it.
+   *
+   * A bounded preview is never an authoritative population. `activeMemberCount`
+   * is the population, and the server has always sent it.
+   */
+  const activeMemberCountForBadge = team.activeMemberCount;
   const openAssignmentCount = team.assignmentCount;
 
   // Per-tab count badges — only where a real count exists on `team`.

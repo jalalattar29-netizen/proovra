@@ -48,10 +48,12 @@ import {
 import { formatUserDate } from "../../../lib/date";
 import {
   createTeam,
+  getCollaborationEntitlement,
   listTeams,
+  type CollaborationEntitlement,
   type CollaborationTeamSummary,
 } from "../../../lib/api/collaboration-teams";
-import { useActiveSpace, useWorkspaceLimits } from "../../../lib/platform-context";
+import { useActiveSpace, usePlatformContext } from "../../../lib/platform-context";
 import type { WorkspacePlan } from "../../../lib/platform-context/types";
 import {
   COLLABORATION_TEAM_TYPES,
@@ -98,8 +100,36 @@ function TeamsOverview() {
   );
   const [teams, setTeams] = useState<ReadonlyArray<CollaborationTeamSummary>>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [totalActive, setTotalActive] = useState(0);
   const [createOpen, setCreateOpen] = useState(false);
+  /**
+   * WCR-06 — THE commercial projection, and the only place this page learns a
+   * limit or an affordance from.
+   *
+   * It read `useWorkspaceLimits()`, which projects raw `PLAN_CAPABILITIES`
+   * integers with no contract, no seat state, no lifecycle and no restriction
+   * reason — so an Enterprise workspace was told it may have 1000 groups
+   * whatever its contract said. `/v1/collaboration-teams/entitlement` had been
+   * built for exactly this and had zero consumers.
+   *
+   * `null` means UNKNOWN (loading or degraded). The page renders no capacity
+   * claim at all in that state rather than substituting a number.
+   */
+  const [entitlement, setEntitlement] = useState<CollaborationEntitlement | null>(
+    null,
+  );
+  /**
+   * WCR-6A — participation view vs workspace governance view.
+   *
+   * The list answers "which groups am I in?", which is right for doing the
+   * work and wrong for governing it: a workspace OWNER could not enumerate the
+   * groups in their own tenant. The server grants `ALL` only to an actor
+   * holding the workspace governance capability and degrades silently
+   * otherwise, so this is a request, not a claim.
+   */
+  const [scope, setScope] = useState<"PARTICIPATING" | "ALL">("PARTICIPATING");
+  const [canGovern, setCanGovern] = useState(false);
+  const [grantedScope, setGrantedScope] =
+    useState<"PARTICIPATING" | "ALL">("PARTICIPATING");
 
   // Client-side control state (no new fetches — filters/sorts operate on the
   // already-fetched `teams` array).
@@ -108,56 +138,57 @@ function TeamsOverview() {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("ALL");
   const [sortKey, setSortKey] = useState<SortKey>("ACTIVITY_DESC");
 
-  // Plan capacity is sourced from the canonical platform-context envelope
-  // (no fabricated counts): `account.accountPlan` is the billing-bearing
-  // identity for owned teams. `null` means the envelope has not loaded.
-  //
-  // Phase 12 Point 4 (Pass E) — the `personalSpace.plan` back-compat
-  // fallback for "envelopes that don't surface `account` yet" was removed;
-  // the API projects the Account section unconditionally.
-  //
-  // The owned-team count is the number of non-archived rows the API
-  // already returned from GET /v1/collaboration-teams (via `listTeams`);
-  // we do NOT recount or invent any number.
-  // PHASE 12 — POINT 7 (2026-08-05): the cap is READ from the server
-  // projection for the ACTIVE workspace, not computed from a plan name here.
-  //
-  // `getCollaborationTeamPlanLimits(account.accountPlan)` was a client-side
-  // limit authority keyed on the account rather than on the workspace the
-  // teams belong to. The count below is still the API's — we do not recount
-  // or invent any number — and `null` limits still mean UNKNOWN, so the page
-  // waits for the projection instead of rendering a fabricated capacity.
-  const serverLimits = useWorkspaceLimits();
-  const planForCapacity: WorkspacePlan | null = useActiveSpace()?.plan ?? null;
   /**
-   * The workspace's ACTIVE group count, from the server.
+   * WCR-05 / WCR-06 — EVERY NUMBER AND EVERY AFFORDANCE BELOW IS THE SERVER'S.
    *
-   * This used to be `teams.filter(...).length` — the length of the page in
-   * hand — so once the list was paginated or filtered it would have reported a
-   * capacity based on what happened to be on screen.
+   * The page previously derived all of this itself, from two wrong inputs:
+   *
+   *   * the CAP came from `useWorkspaceLimits()`, a projection of raw catalog
+   *     integers with no contract, no lifecycle and no restriction reason, so
+   *     an Enterprise workspace was told it may have 1000 groups regardless of
+   *     what its contract actually said;
+   *   * the USAGE came from `totalActive`, which counts the groups the VIEWER
+   *     belongs to. On a PRO workspace holding both of its two groups, a member
+   *     of one saw "1 of 2", got an enabled Create button, and met a 409.
+   *
+   * `canCreateCollaborationTeam` is computed server-side by the same predicate
+   * `assertCanCreateCollaborationTeam` enforces, so the button and the route
+   * cannot disagree. `null` still means UNKNOWN and the page shows no capacity
+   * claim at all rather than a fabricated one.
    */
-  const ownedTeamCount = totalActive;
-  // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — this page lists
-  // COLLABORATION TEAMS, so it reads the Collaboration Team cap. It used to
-  // read `maxOwnedWorkspaces`, which is the cap on how many WORKSPACES the
-  // account may create — a different container counted from a different table.
-  const maxTeams = serverLimits?.maxCollaborationTeamsPerWorkspace ?? 0;
-  const planContextReady = serverLimits !== null;
-  // Entitlement Alignment (2026-07-14): FREE/PAYG include ZERO Teams.
-  // When the resolved plan grants no Teams at all the page renders a
-  // plan-locked landing (no Create button, honest copy, upgrade CTA);
-  // grandfathered Teams are still listed with a restriction notice.
-  const planLocked = planContextReady && maxTeams === 0;
-  const atCapacity = planContextReady && !planLocked && ownedTeamCount >= maxTeams;
+  const planForCapacity: WorkspacePlan | null = useActiveSpace()?.plan ?? null;
+  // WCR-09 — the tenant this page is bound to. Every loader below depends on
+  // it, so a workspace switch re-issues the fetch instead of leaving the
+  // previous tenant painted.
+  const { activeWorkspaceId } = usePlatformContext();
+  const planContextReady = entitlement !== null;
+  const ownedTeamCount = entitlement?.collaborationTeams.used ?? 0;
+  const maxTeams = entitlement?.collaborationTeams.limit ?? 0;
+  const planLocked = planContextReady && !entitlement!.featureIncluded;
+  const atCapacity =
+    planContextReady && !planLocked && !entitlement!.canCreateCollaborationTeam;
+  /**
+   * WCR-12 — a restriction is not a lock.
+   *
+   * A workspace that has been downgraded, or whose payment has lapsed, keeps
+   * its existing groups and keeps them READABLE. What it loses is growth. The
+   * two states render differently and must not be collapsed: "your plan does
+   * not include this" and "you already have as many as your plan sells" send a
+   * customer to different places.
+   */
+  const restricted =
+    planContextReady && !entitlement!.mutationsAllowed;
   const createDisabledReason: string | null = !planContextReady
     ? null
     : planLocked
       ? PLAN_LOCKED_COPY
-      : atCapacity
-        ? `Your ${planForCapacity} plan allows up to ${maxTeams} active Team${
-            maxTeams === 1 ? "" : "s"
-          }. Upgrade to add more.`
-        : null;
+      : restricted
+        ? "This workspace's billing needs attention before new Teams can be created."
+        : atCapacity
+          ? `Your ${planForCapacity} plan allows up to ${maxTeams} active Team${
+              maxTeams === 1 ? "" : "s"
+            }. Upgrade to add more.`
+          : null;
 
   /**
    * SEARCH IS A FETCH NOW.
@@ -168,21 +199,38 @@ function TeamsOverview() {
    * invisible. `search` and the archived filter go to the database; the type
    * filter and the sort stay local because they operate on the page in hand.
    */
-  const refresh = async (opts?: { cursor?: string | null; append?: boolean }) => {
+  const refresh = useCallback(
+    async (
+      opts?: { cursor?: string | null; append?: boolean; isStale?: () => boolean },
+    ) => {
     setLoading(true);
     setError(null);
     try {
-      const page = await listTeams({
-        search,
-        includeArchived: statusFilter === "ARCHIVED" || statusFilter === "ALL",
-        cursor: opts?.cursor ?? null,
-      });
+      const [page, projection] = await Promise.all([
+        listTeams({
+          search,
+          includeArchived: statusFilter === "ARCHIVED" || statusFilter === "ALL",
+          cursor: opts?.cursor ?? null,
+          scope,
+        }),
+        // The projection is workspace-wide and does not change between pages,
+        // so it is only fetched for a fresh load, not for "load more".
+        opts?.append
+          ? Promise.resolve(null)
+          : getCollaborationEntitlement().catch(() => null),
+      ]);
+      // WCR-09 — a response for the PREVIOUS workspace must never paint under
+      // the newly selected one. Checked after every await, not just the first.
+      if (opts?.isStale?.()) return;
       setNextCursor(page.nextCursor);
-      setTotalActive(page.totalActive);
+      setCanGovern(page.canGovernWorkspace);
+      setGrantedScope(page.scope);
+      if (projection) setEntitlement(projection);
       setTeams((prev) =>
         opts?.append ? [...prev, ...page.teams] : page.teams,
       );
     } catch (err) {
+      if (opts?.isStale?.()) return;
       /*
        * SAFE FEEDBACK, NOT THE BACKEND SENTENCE.
        *
@@ -195,18 +243,46 @@ function TeamsOverview() {
       const safe = toSafeUserError(err, { message: "Couldn't load Teams. Try again." });
       setError({ message: safe.message, requestId: safe.supportReference });
     } finally {
-      setLoading(false);
+      if (!opts?.isStale?.()) setLoading(false);
     }
-  };
+    },
+    // WCR-09 — KEYED ON THE ACTIVE WORKSPACE.
+    //
+    // The effect below depended on [search, statusFilter] only, so switching
+    // workspace re-ingested the envelope, changed the request header, and left
+    // the PREVIOUS tenant's groups on screen until something else happened to
+    // re-fetch. No cross-tenant data was ever served — the server refuses —
+    // but the display was another tenant's, which on an evidence platform is a
+    // trust failure whether or not a byte leaked.
+    [search, statusFilter, scope, activeWorkspaceId],
+  );
 
   useEffect(() => {
+    let cancelled = false;
     // Debounced: a keystroke is not a request.
     const handle = setTimeout(() => {
-      void refresh();
+      void refresh({ isStale: () => cancelled });
     }, search ? 250 : 0);
-    return () => clearTimeout(handle);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, statusFilter]);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [refresh, search]);
+
+  /**
+   * WCR-09 — clear the previous tenant's rows IMMEDIATELY on a switch.
+   *
+   * Waiting for the new fetch to resolve would leave workspace A's group names
+   * under workspace B's header for the duration of a network round trip. An
+   * empty list with a loading state is honest; the wrong tenant's list is not.
+   */
+  useEffect(() => {
+    setTeams([]);
+    setEntitlement(null);
+    setNextCursor(null);
+    setScope("PARTICIPATING");
+    setCanGovern(false);
+  }, [activeWorkspaceId]);
 
   // Derived, in-memory view of the fetched teams. Never triggers a fetch.
   const visibleTeams = useMemo(() => {
@@ -336,6 +412,59 @@ function TeamsOverview() {
       ) : (
         <>
           {planLocked ? <PlanRestrictedNotice /> : null}
+          {/*
+            * WCR-6A — PARTICIPATION AND GOVERNANCE ARE DIFFERENT QUESTIONS.
+            *
+            * The list answers "which Teams am I in?", which is right for doing
+            * the work and wrong for governing it: a workspace OWNER could not
+            * enumerate the Teams in their own tenant, and no other surface
+            * could either.
+            *
+            * The switch appears ONLY for an actor the SERVER says holds the
+            * workspace governance capability (`canGovernWorkspace`), and asking
+            * for the workspace-wide view grants no participation: seeing a Team
+            * is not being in it, so Discussion and Assignments stay closed
+            * unless the viewer is actually a member.
+            */}
+          {canGovern ? (
+            <div
+              className="cases-segments"
+              role="group"
+              aria-label="Which Teams to show"
+              data-testid="teams-scope-switch"
+              style={{ marginBottom: "0.75rem" }}
+            >
+              <button
+                type="button"
+                aria-pressed={scope === "PARTICIPATING"}
+                data-active={scope === "PARTICIPATING" ? "true" : "false"}
+                onClick={() => setScope("PARTICIPATING")}
+              >
+                Teams I&rsquo;m in
+              </button>
+              <button
+                type="button"
+                aria-pressed={scope === "ALL"}
+                data-active={scope === "ALL" ? "true" : "false"}
+                onClick={() => setScope("ALL")}
+                data-testid="teams-scope-all"
+              >
+                All Teams in this workspace
+                {entitlement ? ` (${entitlement.governance.allTeamsCount})` : ""}
+              </button>
+            </div>
+          ) : null}
+          {grantedScope === "ALL" ? (
+            <p
+              className="app-panel__hint"
+              data-testid="teams-governance-notice"
+              style={{ margin: "0 0 0.75rem", fontSize: "0.85rem" }}
+            >
+              Showing every Team in this workspace. You can see them because you
+              administer this workspace; you are not a member of the ones
+              without a role below, and opening one does not join it.
+            </p>
+          ) : null}
           <TeamsToolbar
             search={search}
             onSearch={setSearch}

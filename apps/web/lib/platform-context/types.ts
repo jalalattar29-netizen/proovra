@@ -24,6 +24,19 @@ export type PlatformContextPlanFeatures = {
   professionalSurfacesIncluded?: boolean;
   casesIncluded: boolean;
   reviewerOperationsIncluded: boolean;
+  /**
+   * WCR-10 — External Review, projected from ITS OWN authority (the packaging
+   * engine's `FEATURE_EXTERNAL_PORTAL`), not from the plan catalog.
+   *
+   * REQUIRED, not optional, and deliberately so: `PlanFeatureBooleanKey` maps
+   * over this type and an optional property indexes as `boolean | undefined`,
+   * which does not extend `boolean` — so an optional flag is silently excluded
+   * from the union and `usePlanFeature("externalReviewIncluded")` would not
+   * compile. The server projects it on every envelope, and `usePlanFeature`
+   * already returns `null` for a value that is not a boolean, which is how an
+   * older envelope reads as UNKNOWN at runtime.
+   */
+  externalReviewIncluded: boolean;
   reviewQueuesIncluded: boolean;
   /** Collaboration Teams included (maxCollaborationTeamsPerWorkspace > 0). */
   teamCollaborationIncluded: boolean;

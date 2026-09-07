@@ -253,6 +253,36 @@ export function resolveRouteAccess(
       };
     }
   }
+  /**
+   * WCR-12 (2026-09-07) — hide it from navigation, but let a direct visit load.
+   *
+   * `requiredPlanFeature` below refuses the LOAD as well, which is correct for
+   * a surface whose data does not exist without the entitlement. It is wrong
+   * for one whose data outlives it: a workspace that downgrades keeps its
+   * Collaboration Teams, and refusing the page removed the only way to
+   * enumerate them — while the page's own plan-locked landing, written for
+   * exactly this state, became unreachable code.
+   *
+   * `canSeeNav: false` is the part that mattered and it is preserved: FREE and
+   * PAYG do not see a feature they do not have. What changes is that arriving
+   * by URL or bookmark renders the surface, which then says which state it is
+   * in and what to do about it. Every mutation is refused by the backend
+   * regardless, so this is a navigation decision, not an authorization one.
+   */
+  if (!isPlatformAdmin && route.navPlanFeature) {
+    const navValue = input.planFeatures?.[route.navPlanFeature];
+    if (navValue !== true) {
+      return {
+        canLoad: true,
+        canSeeNav: false,
+        accessState: "NEEDS_UPGRADE",
+        reason:
+          "This feature isn't included in the current plan. Existing data stays readable; upgrading restores it.",
+        primaryAction: { label: "View plans", href: "/billing" },
+        secondaryAction: { label: "Back to home", href: "/home" },
+      };
+    }
+  }
   if (!isPlatformAdmin && route.requiredPlanFeature) {
     const featureValue = input.planFeatures?.[route.requiredPlanFeature];
     if (featureValue !== true) {

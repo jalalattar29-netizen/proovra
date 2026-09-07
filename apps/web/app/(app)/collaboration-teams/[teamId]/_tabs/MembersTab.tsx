@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { useToast } from "../../../../../components/ui";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
@@ -15,6 +15,10 @@ import { notifyApiError } from "../../../../../lib/feedback/notify";
 import { formatUserDate } from "../../../../../lib/date";
 import {
   addExistingMember,
+  getCollaborationEntitlement,
+  listTeamMembers,
+  type CollaborationTeamMemberPage,
+  type CollaborationEntitlement,
   type CollaborationTeamDetail,
   type CollaborationTeamMember,
   type EligibleWorkspaceMember,
@@ -26,11 +30,38 @@ import {
   COLLABORATION_TEAM_ROLES,
   type CollaborationTeamRole,
 } from "@proovra/shared";
-import {
-  useActiveSpace,
-  useWorkspaceLimits,
-} from "../../../../../lib/platform-context";
+import { useActiveSpace } from "../../../../../lib/platform-context";
 import type { WorkspacePlan } from "../../../../../lib/platform-context/types";
+
+/**
+ * WCR-08 — the paged endpoint returns a FLAT row (displayName/email at the top
+ * level); the detail preview nests a `user` object. One adapter, here, so the
+ * row component has one shape to render and neither wire format leaks into it.
+ *
+ * `email` is `null` for a viewer without `team.member.invite` — the server
+ * withholds it, and this must not invent one.
+ */
+function toDetailMembers(
+  rows: CollaborationTeamMemberPage["members"],
+): CollaborationTeamMember[] {
+  return rows.map((m) => ({
+    id: m.id,
+    userId: m.userId,
+    role: m.role,
+    status: m.status,
+    joinedAt: m.joinedAt,
+    suspendedAt: m.suspendedAt,
+    removedAt: m.removedAt,
+    user: {
+      id: m.userId,
+      email: m.email,
+      displayName: m.displayName,
+      firstName: null,
+      lastName: null,
+      avatarUrl: m.avatarUrl,
+    },
+  }));
+}
 
 // =============================================================================
 // Members tab
@@ -72,18 +103,112 @@ function MembersTab({
   //
   // `null` means UNKNOWN (envelope loading, degraded, or older than the
   // projection): no badge, no "at capacity" claim, no fabricated number.
-  const limits = useWorkspaceLimits();
+  /**
+   * WCR-06 / WCR-08 — the capacity answer comes from THE projection.
+   *
+   * `useWorkspaceLimits()` projects raw catalog integers with no contract, no
+   * seat state and no lifecycle, so on an Enterprise workspace it reported the
+   * flat catalog placeholder rather than the contracted ceiling. The
+   * entitlement endpoint reconciles all of that — including the rule that a
+   * group can hold everyone in the workspace and nobody else — and it is what
+   * the server enforces on.
+   */
+  const [entitlement, setEntitlement] = useState<CollaborationEntitlement | null>(
+    null,
+  );
+  /**
+   * WCR-08 — THE ROSTER IS PAGED, SEARCHED AND FILTERED BY THE DATABASE.
+   *
+   * The tab rendered `team.members` — the detail payload's bounded preview —
+   * with no pagination, no search and no "load more". Members past the preview
+   * limit were simply unreachable, and the paginated endpoint built for this
+   * (`GET /v1/collaboration-teams/:id/members`) had no consumer at all.
+   *
+   * The preview is still used as the FIRST PAINT so the tab is not empty while
+   * the first page loads; every subsequent state comes from the server.
+   */
+  const [roster, setRoster] = useState<ReadonlyArray<CollaborationTeamMember> | null>(
+    null,
+  );
+  const [rosterCursor, setRosterCursor] = useState<string | null>(null);
+  const [rosterSearch, setRosterSearch] = useState("");
+  const [rosterLoading, setRosterLoading] = useState(false);
+
+  const loadRoster = useCallback(
+    async (opts?: { cursor?: string | null; append?: boolean }) => {
+      setRosterLoading(true);
+      try {
+        const page = await listTeamMembers(team.id, {
+          search: rosterSearch,
+          cursor: opts?.cursor ?? null,
+        });
+        setRosterCursor(page.nextCursor);
+        setRoster((prev) =>
+          opts?.append && prev
+            ? [...prev, ...toDetailMembers(page.members)]
+            : toDetailMembers(page.members),
+        );
+      } catch (err) {
+        notifyApiError(addToast, err, {
+          message: "Could not load this team's members.",
+        });
+      } finally {
+        setRosterLoading(false);
+      }
+    },
+    [team.id, rosterSearch, addToast],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    const handle = setTimeout(() => {
+      if (!cancelled) void loadRoster();
+    }, rosterSearch ? 250 : 0);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [loadRoster, rosterSearch]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getCollaborationEntitlement()
+      .then((e) => {
+        if (!cancelled) setEntitlement(e);
+      })
+      .catch(() => {
+        // UNKNOWN, not zero. The badge is hidden rather than fabricated.
+        if (!cancelled) setEntitlement(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [team.id]);
   // Presentation only: the plan NAME shown in the badge copy. It comes from
   // the ACTIVE space (the workspace the team belongs to), which is the same
   // subject the limits above were resolved for — not from the account.
   const planLabel: WorkspacePlan | null = useActiveSpace()?.plan ?? null;
-  const activeMemberCount = team.members.filter(
-    (m) => m.status === "ACTIVE",
-  ).length;
-  const maxMembersPerTeam = limits?.maxAcceptedMembersPerCollaborationTeam ?? 0;
+  /**
+   * WCR-08 — THE POPULATION, NOT THE PREVIEW.
+   *
+   * This filtered `team.members`, which is a bounded preview of at most
+   * `memberPreviewLimit` rows. Above that limit the tab title under-reported,
+   * the capacity badge under-reported, and `atCapacity` stayed false past the
+   * real ceiling — so "Add member" remained enabled until the server refused
+   * it with a 409. The server has always sent the real count.
+   */
+  /**
+   * The rows on screen: the server's page once it has arrived, and the detail
+   * payload's preview until then. The preview is a first PAINT, never a
+   * population — every count and every capacity decision on this tab reads
+   * `activeMemberCount` or the entitlement projection instead.
+   */
+  const visibleMembers = roster ?? team.members;
+  const activeMemberCount = team.activeMemberCount;
+  const maxMembersPerTeam = entitlement?.collaborationTeamMembers.limit ?? 0;
   const atCapacity =
-    limits !== null && activeMemberCount >= maxMembersPerTeam;
-  const capacityKnown = limits !== null && maxMembersPerTeam > 0;
+    entitlement !== null && activeMemberCount >= maxMembersPerTeam;
+  const capacityKnown = entitlement !== null && maxMembersPerTeam > 0;
   return (
     <section data-testid="tab-members-content" className="app-panel">
       <div className="app-panel__head" style={{ flexWrap: "wrap" }}>
@@ -161,7 +286,30 @@ function MembersTab({
           </div>
         ) : null}
 
-        {team.members.length === 0 ? (
+        {/*
+          * WCR-08 — server search over the whole membership.
+          *
+          * Filtering the loaded page in the browser cannot be right: the list
+          * has to be complete for a search to be, and completeness is exactly
+          * what does not scale.
+          */}
+        {(team.activeMemberCount ?? 0) > (team.memberPreviewLimit ?? 25) ? (
+          <div className="cases-search-field" style={{ marginBottom: "0.9rem" }}>
+            <label className="app-visually-hidden" htmlFor="members-search">
+              Search this team&rsquo;s members
+            </label>
+            <input
+              id="members-search"
+              type="search"
+              value={rosterSearch}
+              onChange={(e) => setRosterSearch(e.target.value)}
+              placeholder="Search members by name or email"
+              data-testid="members-search"
+            />
+          </div>
+        ) : null}
+
+        {visibleMembers.length === 0 ? (
           <div className="app-empty">
             <span className="app-empty__icon" aria-hidden>
               <svg
@@ -202,7 +350,7 @@ function MembersTab({
                 </tr>
               </thead>
               <tbody>
-                {team.members.map((m) => (
+                {visibleMembers.map((m) => (
                   <MemberRow
                     key={m.id}
                     member={m}
@@ -218,6 +366,21 @@ function MembersTab({
                 ))}
               </tbody>
             </table>
+            {rosterCursor ? (
+              <div className="app-table-footer">
+                <button
+                  type="button"
+                  className="app-secondary-action"
+                  disabled={rosterLoading}
+                  data-testid="members-load-more"
+                  onClick={() =>
+                    void loadRoster({ cursor: rosterCursor, append: true })
+                  }
+                >
+                  {rosterLoading ? "Loading…" : "Load more members"}
+                </button>
+              </div>
+            ) : null}
           </div>
         )}
       </div>

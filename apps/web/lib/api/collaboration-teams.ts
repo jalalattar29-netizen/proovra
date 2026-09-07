@@ -104,6 +104,23 @@ export type CollaborationTeamDetail = {
     canManageGuests: boolean;
     canManageAccessReviews: boolean;
   };
+  /**
+   * WCR-08 (2026-09-07) — THE AUTHORITATIVE COUNTS, WHICH THE SERVER HAS
+   * ALWAYS SENT AND THIS TYPE NEVER DECLARED.
+   *
+   * `members` below is a BOUNDED PREVIEW of at most `memberPreviewLimit`
+   * rows. The console computed "how many members are there?" and "is this
+   * group at capacity?" by filtering that array — so above the preview limit
+   * the header under-reported, the tab title under-reported, and `atCapacity`
+   * stayed false past the real ceiling, leaving "Add member" enabled until the
+   * server refused it.
+   *
+   * A bounded preview is never an authoritative population. These two fields
+   * are the population; `members` is the first page of it.
+   */
+  activeMemberCount: number;
+  pendingInviteCount: number;
+  memberPreviewLimit: number;
   members: ReadonlyArray<CollaborationTeamMember>;
   invites: ReadonlyArray<CollaborationTeamInvite>;
   assignmentCount: number;
@@ -143,8 +160,22 @@ const BASE = "/v1/collaboration-teams";
 export type CollaborationTeamPage = {
   teams: ReadonlyArray<CollaborationTeamSummary>;
   nextCursor: string | null;
-  /** Active groups the viewer belongs to, regardless of the current filter. */
+  /**
+   * Active groups matching the requested SCOPE, regardless of the current
+   * filter. Under `PARTICIPATING` that is the viewer's own memberships.
+   *
+   * WCR-05 — NOT a capacity number, and it was read as one. Capacity comes
+   * from `collaborationTeams.used` on the entitlement projection, which is
+   * always workspace-wide; a member of one of a workspace's two groups was
+   * shown "1 of 2" and given an enabled Create button that met a 409.
+   */
   totalActive: number;
+  /** Every ACTIVE group in the WORKSPACE, whoever is in them. */
+  workspaceTotalActive: number;
+  /** Which scope the server actually GRANTED, which may be narrower than asked. */
+  scope: "PARTICIPATING" | "ALL";
+  /** Whether this actor may ask for the workspace-wide directory at all. */
+  canGovernWorkspace: boolean;
 };
 
 /**
@@ -160,8 +191,17 @@ export async function listTeams(opts?: {
   search?: string | null;
   limit?: number;
   cursor?: string | null;
+  /**
+   * WCR-6A — ask for the workspace-wide directory instead of your own groups.
+   *
+   * The server GRANTS this only to an actor holding the workspace governance
+   * capability and silently degrades to the participation view otherwise, so
+   * a client may always ask. `scope` on the response says which one came back.
+   */
+  scope?: "PARTICIPATING" | "ALL";
 }): Promise<CollaborationTeamPage> {
   const qs = new URLSearchParams();
+  if (opts?.scope === "ALL") qs.set("scope", "all");
   if (opts?.includeArchived) qs.set("includeArchived", "true");
   if (opts?.search?.trim()) qs.set("q", opts.search.trim());
   if (opts?.limit) qs.set("limit", String(opts.limit));
@@ -172,6 +212,7 @@ export async function listTeams(opts?: {
 
 export type CollaborationEntitlement = {
   workspaceId: string;
+  workspaceKind: string;
   plan: string;
   featureIncluded: boolean;
   mutationsAllowed: boolean;
@@ -189,11 +230,22 @@ export type CollaborationEntitlement = {
   };
   collaborationTeams: {
     limit: number;
+    /** ACTIVE groups in the WORKSPACE — never the viewer's own memberships. */
     used: number;
     remaining: number;
     overLimit: boolean;
+    source: string;
   };
+  collaborationTeamMembers: { limit: number; source: string };
   invitations: { pending: number; maxPending: number; maxPer24h: number };
+  /**
+   * Server-decided affordances. The console renders these; it does not derive
+   * them from a plan name, a loaded page length or a raw column.
+   */
+  canCreateCollaborationTeam: boolean;
+  canInviteWorkspaceMember: boolean;
+  canAssignExistingMember: boolean;
+  governance: { canViewAllTeams: boolean; allTeamsCount: number };
   exceededDimensions: ReadonlyArray<string>;
   upgradeHref: string | null;
 };
@@ -316,6 +368,19 @@ export async function archiveTeam(teamId: string): Promise<void> {
   });
 }
 
+/**
+ * WCR-13 — reopen an archived group.
+ *
+ * Archiving was one-way while the confirmation dialog promised it was not.
+ * Capacity is re-checked server-side: an archived group frees a plan slot, so
+ * reopening competes with creating.
+ */
+export async function unarchiveTeam(teamId: string): Promise<void> {
+  await apiFetch(`${BASE}/${encodeURIComponent(teamId)}/unarchive`, {
+    method: "POST",
+  });
+}
+
 export async function addExistingMember(
   teamId: string,
   input: { userId: string; role?: CollaborationTeamRole },
@@ -358,25 +423,15 @@ export async function removeMember(
   );
 }
 
-export async function inviteByEmail(
-  teamId: string,
-  input: {
-    email: string;
-    role?: CollaborationTeamRole;
-    expiresInDays?: number;
-  },
-): Promise<{ id: string; channel: "EMAIL"; expiresAtUtc: string }> {
-  const res = (await apiFetch(
-    `${BASE}/${encodeURIComponent(teamId)}/invites/email`,
-    {
-      method: "POST",
-      body: JSON.stringify(input),
-    },
-  )) as {
-    invite: { id: string; channel: "EMAIL"; expiresAtUtc: string };
-  };
-  return res.invite;
-}
+// WCR-24 (2026-09-07) — `inviteByEmail` DELETED.
+//
+// It posted to `/invites/email`, which has answered a typed 410 since the
+// per-group invitation writer was removed: a group is built from people who
+// already hold workspace access, so it has nothing to invite. The function had
+// no caller, and keeping a client for a retired endpoint is how one comes back.
+//
+// The two real operations are `POST /v1/teams/:id/invites` (bring the person
+// into the WORKSPACE) and `addExistingMember` (assign them to the group).
 
 export async function revokeInvite(
   teamId: string,

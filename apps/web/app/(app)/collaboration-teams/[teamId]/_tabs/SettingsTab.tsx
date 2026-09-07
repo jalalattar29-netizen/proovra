@@ -12,6 +12,7 @@ import { notifyApiError } from "../../../../../lib/feedback/notify";
 import {
   type CollaborationTeamDetail,
   archiveTeam,
+  unarchiveTeam,
   updateTeam,
 } from "../../../../../lib/api/collaboration-teams";
 import {
@@ -93,7 +94,7 @@ function SettingsTab({
     const ok = await confirm({
       title: `Archive "${team.name}"?`,
       description:
-        "Members will lose access to active work until the team is unarchived. Activity history is preserved.",
+        "The team is hidden from the overview and drops out of active work routing. Assignments, discussion and activity history are preserved, and the team can be reopened from this page — reopening re-checks your plan's Team allowance, because an archived team does not occupy one.",
       confirmLabel: "Archive team",
       tone: "danger",
       requireConfirmText: team.name,
@@ -109,6 +110,36 @@ function SettingsTab({
         notifyApiError(addToast, err);
       } else {
         addToast("Couldn't archive team.", "error");
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /**
+   * WCR-13 (2026-09-07) — the operation the dialog above always promised.
+   *
+   * Archiving was one-way: no service function, no route, no client call, and
+   * every mutation route refusing an archived group. The confirmation said
+   * members would lose access *"until the team is unarchived"*, which was not
+   * true of anything the product could do.
+   *
+   * Reopening RE-CHECKS CAPACITY server-side, and the copy says so, because an
+   * archived group does not occupy a plan slot: a workspace can archive one,
+   * create another, and then find the first cannot come back. That refusal is
+   * a real 409 with the plan and the ceiling in it, not a surprise.
+   */
+  const onUnarchive = async () => {
+    setBusy(true);
+    try {
+      await unarchiveTeam(team.id);
+      addToast("Team reopened.", "success");
+      await onChange();
+    } catch (err) {
+      if (err instanceof ApiError) {
+        notifyApiError(addToast, err);
+      } else {
+        addToast("Couldn't reopen team.", "error");
       }
     } finally {
       setBusy(false);
@@ -273,19 +304,32 @@ function SettingsTab({
                     color: "#5F6878",
                   }}
                 >
-                  Hides the team from the overview and removes it from active
-                  work routing. Activity history is preserved.
+                  {isArchived
+                    ? "This team is archived: it is hidden from the overview and out of active work routing, and its assignments, discussion and activity are preserved. Reopening re-checks your plan's Team allowance, because an archived team does not occupy one."
+                    : "Hides the team from the overview and removes it from active work routing. Assignments, discussion and activity history are preserved, and you can reopen it from here."}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => void onArchive()}
-                disabled={!canArchive || busy || isArchived}
-                className="app-danger-action"
-                data-testid="settings-archive"
-              >
-                {isArchived ? "Already archived" : "Archive team"}
-              </button>
+              {isArchived ? (
+                <button
+                  type="button"
+                  onClick={() => void onUnarchive()}
+                  disabled={!canArchive || busy}
+                  className="app-secondary-action"
+                  data-testid="settings-unarchive"
+                >
+                  {busy ? "Reopening…" : "Reopen team"}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void onArchive()}
+                  disabled={!canArchive || busy}
+                  className="app-danger-action"
+                  data-testid="settings-archive"
+                >
+                  Archive team
+                </button>
+              )}
             </div>
           </div>
         </div>

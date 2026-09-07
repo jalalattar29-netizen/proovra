@@ -122,6 +122,27 @@ export type RouteDefinition = {
    * the client never derives it from a plan name.
    */
   requiredPlanFeature?: PlanFeatureGateKey;
+  /**
+   * WCR-12 (2026-09-07) — NAV-ONLY plan gate.
+   *
+   * `requiredPlanFeature` gates BOTH the nav entry and the page load, which is
+   * right for a surface whose data does not exist without the entitlement, and
+   * wrong for one whose data OUTLIVES it. A workspace that downgrades keeps its
+   * Collaboration Teams — with their assignments, discussion and activity — and
+   * gating the page hid the only list that could reach them.
+   *
+   * This key hides the route from navigation on exactly the same condition,
+   * and lets a direct visit LOAD. The page is then responsible for saying which
+   * of the three states it is in (plan-locked, restricted, at-capacity) and
+   * offering the right next action, and the backend refuses every mutation
+   * independently — which is what makes rendering the read safe rather than a
+   * frontend-only gate.
+   *
+   * Use it ONLY where retained data must stay readable after an entitlement
+   * ends. Where the surface would be empty and meaningless without the
+   * entitlement, `requiredPlanFeature` is still the right key.
+   */
+  navPlanFeature?: PlanFeatureGateKey;
 };
 
 /**
@@ -1372,6 +1393,27 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   // one has to keep resolving so its owner can read, archive or export it. The
   // list is where "your plan includes none of these" belongs; the detail page
   // is where the data someone already has lives.
+  // WCR-12 (2026-09-07) — THE PLAN GATE HID THE DATA IT WAS MEANT TO RESTRICT.
+  //
+  // `requiredPlanFeature` resolves to `canLoad: false`, and `PageRouteGate`
+  // renders children only when `canLoad`. So the page's own plan-locked
+  // landing — the honest copy, the restriction notice, the upgrade CTA, and
+  // the LIST of groups a downgraded workspace still owns — could never render.
+  // The generic "not included in the current plan" panel rendered instead, and
+  // the comment above claiming "grandfathered Teams are still listed with a
+  // restriction notice" described code that was unreachable.
+  //
+  // The effect on a real customer: a workspace that downgrades from PRO keeps
+  // its groups, their assignments, their discussion and their activity, and
+  // loses the only way to enumerate them. Deep links to individual groups
+  // still resolved; nothing could list them.
+  //
+  // The gate stays on the NAV (`sidebarEligible` + the resolver's `canSeeNav`,
+  // which is what stopped FREE seeing a feature it does not have), and comes
+  // off the PAGE. The page already distinguishes the three states honestly:
+  // plan-locked, restricted, and at-capacity, each with the right sentence and
+  // the right next action — and the backend refuses every mutation
+  // independently, which is what makes rendering the read safe.
   {
     id: "workspace.collaboration_teams",
     href: "/collaboration-teams",
@@ -1380,7 +1422,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
       "Collaboration teams — coordinate people, assignments, and evidence work.",
     domain: "PERSONAL_WORKSPACE",
     requiredCapabilities: [],
-    requiredPlanFeature: "teamCollaborationIncluded",
+    navPlanFeature: "teamCollaborationIncluded",
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "DEGRADED",
 

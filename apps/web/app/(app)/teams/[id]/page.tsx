@@ -70,7 +70,6 @@ type TeamInvite = {
   createdAt?: string;
   expiresAt?: string;
   acceptedAt?: string | null;
-  inviteUrl?: string;
 };
 
 type TeamCase = {
@@ -721,7 +720,6 @@ function TeamDetailPageBody() {
             copy[existingIndex] = {
               ...copy[existingIndex],
               ...data.invite,
-              inviteUrl: data.inviteUrl ?? copy[existingIndex].inviteUrl,
             };
             return copy;
           }
@@ -729,7 +727,6 @@ function TeamDetailPageBody() {
           return [
             {
               ...data.invite,
-              inviteUrl: data.inviteUrl,
             },
             ...prev,
           ];
@@ -753,12 +750,31 @@ function TeamDetailPageBody() {
     member: TeamMember,
     nextRole: (typeof MANAGEABLE_ROLE_OPTIONS)[number]
   ) => {
-    if (!teamId || !canManageTeam || !member.userId) return;
+    /**
+     * WCR-02 (2026-09-07) — THE ROUTE WANTS THE MEMBERSHIP ID.
+     *
+     * This sent `member.userId` to `/v1/teams/:id/members/:memberId`, and the
+     * route resolves `:memberId` against `TeamMember.id`. Both are uuids, so
+     * zod accepted it, the lookup matched nothing, and EVERY role change
+     * returned 404 "Member not found".
+     *
+     * Workspace role administration was therefore non-functional in the
+     * product, and `changeWorkspaceMemberRole` — the canonical authority wired
+     * in specifically to close the ADMIN→OWNER escalation — had no working
+     * caller. `MemberRemovalDialog` documents this exact trap in a comment
+     * ("Passing `userId` here would return 404") and uses the right field;
+     * this handler did not.
+     *
+     * `member.id` is optional on the type because the projection predates the
+     * field, so a row without one is refused here rather than being sent to a
+     * URL that would 404 anyway.
+     */
+    if (!teamId || !canManageTeam || !member.id) return;
 
     setRoleSavingKey(member.userId);
 
     try {
-      const data = await apiFetch(`/v1/teams/${teamId}/members/${member.userId}`, {
+      const data = await apiFetch(`/v1/teams/${teamId}/members/${member.id}`, {
         method: "PATCH",
         body: JSON.stringify({ role: nextRole }),
       });
@@ -1023,20 +1039,19 @@ function TeamDetailPageBody() {
     }
   };
 
-  const copyInviteLink = async (invite: TeamInvite) => {
-    const url = invite.inviteUrl;
-    if (!url) {
-      addToast("Invite link not available", "info");
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(url);
-      addToast("Invite link copied", "success");
-    } catch {
-      addToast("Failed to copy invite link", "error");
-    }
-  };
+  /*
+   * WCR-24 (2026-09-07) — `copyInviteLink` and the "Copy link" button DELETED.
+   *
+   * The API stopped returning `inviteUrl` when the invitation token became
+   * hash-only: the raw token exists just long enough to be put in an email and
+   * is never persisted or projected, because a create response carrying it
+   * turns every operator with API access into a holder of live workspace
+   * credentials. The field has been `undefined` on every response since, so the
+   * button's own `invite.inviteUrl ?` guard meant it never rendered.
+   *
+   * Dead either way — but dead code that reads like a feature is how a feature
+   * gets "restored" by putting the token back in the response.
+   */
 
   const outerCardStyle = useMemo(
     () =>
@@ -2357,17 +2372,6 @@ function TeamDetailPageBody() {
                           </div>
 
                           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                            {invite.inviteUrl ? (
-                              <Button
-                                variant="secondary"
-                                onClick={() => copyInviteLink(invite)}
-                                className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
-                                style={secondaryButtonStyle}
-                              >
-                                Copy link
-                              </Button>
-                            ) : null}
-
                             <Button
                               variant="secondary"
                               onClick={() => handleDeleteInvite(invite.id)}
