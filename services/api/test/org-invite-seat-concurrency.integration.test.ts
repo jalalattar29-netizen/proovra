@@ -51,6 +51,7 @@ function hash(token: string): string {
 describe("organization invite — concurrent acceptance cannot exceed the seat limit", () => {
   let database: IntegrationDatabase | undefined;
   let prisma: PrismaClient | undefined;
+  let ownPool: import("pg").Pool | undefined;
   let acceptOrganizationInvite:
     | typeof import("../src/services/organization/org-invite-acceptance.service.js")["acceptOrganizationInvite"]
     | undefined;
@@ -76,9 +77,11 @@ describe("organization invite — concurrent acceptance cannot exceed the seat l
     const { PrismaClient: Client } = await import("@prisma/client");
     const { PrismaPg } = await import("@prisma/adapter-pg");
     const { Pool } = await import("pg");
-    prisma = new Client({
-      adapter: new PrismaPg(new Pool({ connectionString: database.url })),
-    });
+    // KEPT, because the adapter does not own it — see `afterAll`. A pool
+    // constructed inline here is unreachable at teardown, and an unreachable
+    // pool is one that is still holding connections when the database goes.
+    ownPool = new Pool({ connectionString: database.url });
+    prisma = new Client({ adapter: new PrismaPg(ownPool) });
 
     ({ acceptOrganizationInvite } = await import(
       "../src/services/organization/org-invite-acceptance.service.js"
@@ -173,8 +176,39 @@ describe("organization invite — concurrent acceptance cannot exceed the seat l
     }
   }, 180_000);
 
+  /**
+   * END THE POOL THIS SUITE OWNS, BEFORE THE DATABASE IT POINTS AT STOPS.
+   *
+   * `database.release()` stops the Postgres container, terminating every
+   * backend. A pool still holding connections reports that as
+   *
+   *     error: terminating connection due to administrator command  (57P01)
+   *
+   * on a `pg` client whose 'error' event nobody is listening to — an UNCAUGHT
+   * exception. Vitest counts it and exits NON-ZERO, so the Clean-DB run
+   * reported "110 files, 1752 tests, all passed" and still failed. That is the
+   * worst kind of gate: it manufactures a red on a green run, and would hide a
+   * real one just as easily.
+   *
+   * `prisma.$disconnect()` alone does not do it. With a driver adapter the
+   * Pool belongs to whoever CONSTRUCTED it, and Prisma will not end a pool it
+   * was handed — the trap `src/db.ts` documents. This suite constructs one, so
+   * this suite ends it.
+   *
+   * WHAT IS DELIBERATELY *NOT* DONE HERE: `closeDatabasePool()`, which closes
+   * the MODULE-LEVEL client from `src/db.ts`. That client is a per-WORKER
+   * singleton shared with every other suite in the same process, and its pool
+   * cannot be reused once ended. Calling it here took the Clean-DB run from one
+   * uncaught error to a worse failure — `billing-reconciliation` lost its
+   * database mid-run and skipped 45 tests. Cleaning up a process-global on the
+   * way out of one suite is not cleanup; it is a side effect on the next one.
+   *
+   * Only reachable in testcontainers mode: CI sets `TEST_DATABASE_URL` and
+   * `release()` is a no-op there, which is why a green CI job never showed it.
+   */
   afterAll(async () => {
-    await prisma?.$disconnect();
+    await prisma?.$disconnect().catch(() => undefined);
+    await ownPool?.end().catch(() => undefined);
     await database?.release();
   });
 
