@@ -42,6 +42,9 @@ describe(
         const { provisionMembership } = await import(
           "../src/services/identity/membership-provisioning.service.js"
         );
+        const { resolveWorkspaceSeatState } = await import(
+          "../src/services/billing/workspace-seats.service.js"
+        );
         const { prisma } = await import("../src/db.js");
 
         const teamId = harness.fixtures.teamA.teamId;
@@ -49,6 +52,43 @@ describe(
           where: { id: teamId },
           select: { organizationId: true },
         });
+
+        /**
+         * COMMERCIAL CAPACITY IS A PRECONDITION HERE, NOT THE SUBJECT.
+         *
+         * This proof is about a UNIQUE CONSTRAINT race. `teamA` ships as a
+         * FREE workspace with four ACTIVE members against a one-seat catalog
+         * limit, so `grantWorkspaceMembership`'s seat gate refused BOTH
+         * "concurrent" grants before either reached the upsert: the race the
+         * file exists to exercise never happened, and the failure surfaced as
+         * `expected [] to have a length of 1` — a message that says nothing
+         * about seats.
+         *
+         * The workspace is given room explicitly. That is the honest fixture
+         * for this proof: the gate is correct and is tested where it belongs
+         * (`org-invite-seat-concurrency`), and a capacity refusal here is
+         * noise that hides the property under test.
+         */
+        await prisma.team.update({
+          where: { id: teamId },
+          data: { billingPlan: "TEAM", billingStatus: "ACTIVE" },
+        });
+
+        /**
+         * ASSERTED, NOT ASSUMED.
+         *
+         * Without this the test can pass for the wrong reason the moment the
+         * fixture's commercial defaults move again — which is exactly how it
+         * came to be broken. If the seat state cannot admit one more member,
+         * fail HERE, naming seats, rather than three assertions later on an
+         * empty array.
+         */
+        const seats = await resolveWorkspaceSeatState(teamId, prisma);
+        expect(
+          seats.remaining,
+          `the race cannot be exercised without a free seat (plan=${seats.plan} used=${seats.used} limit=${seats.limit})`,
+        ).toBeGreaterThanOrEqual(1);
+
         // A subject that is NOT yet a member of teamA — the personal-space user.
         const subjectUserId = harness.fixtures.personal.userId;
 
@@ -69,9 +109,31 @@ describe(
           );
 
         const settled = await Promise.allSettled([grant(), grant()]);
-        // At least one attempt must succeed — a race that loses BOTH writers
-        // would be a silent allocation failure, not a safe outcome.
-        expect(settled.some((r) => r.status === "fulfilled")).toBe(true);
+
+        /**
+         * A FULFILLED PROMISE IS NOT A GRANT.
+         *
+         * This guard existed to catch "a race that loses BOTH writers", and it
+         * could not: `provisionMembership` reports a refused assignment in its
+         * RETURN VALUE — deliberately, so that an over-limit assignment is
+         * dropped while the rest of an acceptance still commits — rather than
+         * by rejecting. Both grants were refused for want of a seat, both
+         * promises fulfilled, and the guard passed.
+         *
+         * So assert on what the orchestrator SAYS it did, and print the
+         * refusal reason when it says nothing was granted.
+         */
+        const results = settled.flatMap((r) =>
+          r.status === "fulfilled" ? [r.value] : [],
+        );
+        expect(
+          results.length,
+          "both concurrent grants rejected — neither writer survived the race",
+        ).toBeGreaterThan(0);
+        expect(
+          results.some((v) => v.workspaceGrants === 1),
+          `no workspace grant landed: ${JSON.stringify(results)}`,
+        ).toBe(true);
 
         // The DB-level guarantee: the unique constraint admits exactly one row.
         const memberRows = await prisma.teamMember.findMany({
