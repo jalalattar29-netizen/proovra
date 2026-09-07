@@ -66,6 +66,8 @@ function databaseWith(present: {
   scopeIndex?: boolean;
   metricSnapshotColumn?: boolean;
   workspaceClosedAtColumn?: boolean;
+  inviteTokenHashColumn?: boolean;
+  inviteRevokedAtColumn?: boolean;
 }) {
   return async (sql: string): Promise<boolean> => {
     if (sql.includes("WORKSPACE_OPERATIONS")) return present.reconciliationEnumValue === true;
@@ -86,6 +88,19 @@ function databaseWith(present: {
     if (sql.includes("column_name = 'closed_at_utc'")) {
       return present.workspaceClosedAtColumn === true;
     }
+    // WORKSPACE INVITATION LIFECYCLE (Release A, 20280501000000). `token_hash`
+    // is the sole lookup authority for accepting an invitation; `revoked_at` is
+    // named in the WHERE of every pending-invitation reader. A database without
+    // them fails those reads outright rather than degrading — which is exactly
+    // how the absence surfaced in production: a Prisma error naming no column,
+    // raised inside a live request, because nothing declared the requirement
+    // here for the preflight to check.
+    if (sql.includes("table_name = 'team_invites'") && sql.includes("token_hash")) {
+      return present.inviteTokenHashColumn === true;
+    }
+    if (sql.includes("table_name = 'team_invites'") && sql.includes("revoked_at")) {
+      return present.inviteRevokedAtColumn === true;
+    }
     throw new Error(`unrecognised probe:\n${sql}`);
   };
 }
@@ -97,6 +112,8 @@ const FULLY_MIGRATED = {
   scopeIndex: true,
   metricSnapshotColumn: true,
   workspaceClosedAtColumn: true,
+  inviteTokenHashColumn: true,
+  inviteRevokedAtColumn: true,
 };
 
 describe("runtime schema requirements", () => {
@@ -142,19 +159,54 @@ describe("runtime schema requirements", () => {
     );
   });
 
+  it("everything else migrated but the invite lifecycle absent is REFUSED", async () => {
+    /*
+     * THE PRODUCTION FAILURE THIS CLOSES.
+     *
+     * Release A (20280501000000) shipped code that names `token_hash` and
+     * `revoked_at` and no declaration that the database must have them, so the
+     * preflight reported healthy against the previous schema — the one answer
+     * this module must never give — and the absence surfaced instead as
+     *
+     *     Invalid `prisma.teamInvite.findMany()` invocation
+     *     The column `(not available)` does not exist in the current database
+     *
+     * inside a live request. A driver error that names no column is exactly the
+     * diagnosis this file replaces with "apply 20280501000000".
+     */
+    const { checkRuntimeSchemaRequirements, describeRuntimeSchemaFailure } = await load();
+    const result = await checkRuntimeSchemaRequirements(
+      databaseWith({
+        ...FULLY_MIGRATED,
+        inviteTokenHashColumn: false,
+        inviteRevokedAtColumn: false,
+      }),
+    );
+    expect(result.ok, "a database without Release A must not be reported healthy").toBe(
+      false,
+    );
+    expect(result.missing.map((m) => m.id)).toEqual(
+      expect.arrayContaining(["team_invites.token_hash", "team_invites.revoked_at"]),
+    );
+    const reason = describeRuntimeSchemaFailure(result);
+    expect(reason).toContain('column public."team_invites"."token_hash" must exist');
+    expect(reason).toContain('column public."team_invites"."revoked_at" must exist');
+    // NAMES THE MIGRATION — the whole point is that the operator does not have
+    // to work out which one they skipped.
+    expect(reason).toContain("20280501000000_workspace_invite_lifecycle_hardening");
+  });
+
   it("the scope column present but the required ENUM VALUE absent is REFUSED", async () => {
     // The mirror image: 20271223000000 applied, 20271222000000 not. Nothing
     // about the incident readers is wrong; scheduled Operations discovery
     // cannot claim its run.
     const { checkRuntimeSchemaRequirements, describeRuntimeSchemaFailure } = await load();
+    // Spread from FULLY_MIGRATED rather than re-listing the others: the claim
+    // is "this ONE thing is missing", and a hand-written list makes that claim
+    // false the moment a requirement is added — reporting the new requirement
+    // as a failure of this scenario instead of exercising it.
     const result = await checkRuntimeSchemaRequirements(
-      databaseWith({
-        incidentScopeType: true,
-        scopeColumn: true,
-        scopeIndex: true,
-        metricSnapshotColumn: true,
-        workspaceClosedAtColumn: true,
-      }),
+      databaseWith({ ...FULLY_MIGRATED, reconciliationEnumValue: false }),
     );
     expect(result.ok).toBe(false);
     expect(result.missing.map((m) => m.id)).toEqual([

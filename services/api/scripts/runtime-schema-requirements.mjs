@@ -94,6 +94,45 @@ export const RUNTIME_SCHEMA_REQUIREMENTS = Object.freeze([
       "THE workspace-liveness authority. Every Platform Admin population query filters on it through liveWorkspaceWhere()/workspaceLifecycleWhere(), executeWorkspaceClosure writes it inside the closure transaction and reopenClosedWorkspace clears it. Without the column the console cannot distinguish a closed workspace from a live one — the exact defect the column exists to remove — and every one of those readers fails on the first request rather than degrading",
     suppliedBy: "20271230000000_workspace_lifecycle_authority",
   },
+  /**
+   * WORKSPACE INVITATION LIFECYCLE (Release A, `20280501000000`).
+   *
+   * These were the columns this module exists for and did not cover. The
+   * release shipped code that names them and no declaration that the database
+   * must have them, so `db:preflight` reported healthy against the previous
+   * schema — the one answer the header above says it must never give — and the
+   * absence surfaced instead as
+   *
+   *     Invalid `prisma.teamInvite.findMany()` invocation
+   *     The column `(not available)` does not exist in the current database
+   *
+   * inside a live request, with a Sentry transaction label that pointed at a
+   * neighbouring route because the client issues four workspace reads at once.
+   * A driver error naming no column is exactly the diagnosis this file replaces
+   * with "apply 20280501000000".
+   *
+   * Both are declared because they fail differently and both are load-bearing:
+   * `token_hash` is the sole lookup authority for accepting an invitation, and
+   * `revoked_at` is named in the WHERE of every pending-invitation reader, so
+   * without it the seat allowance, the collaboration entitlement projection and
+   * the workspace invitation list all fail rather than degrade.
+   */
+  {
+    id: "team_invites.token_hash",
+    kind: "column",
+    detail: 'column public."team_invites"."token_hash" must exist',
+    requiredBy:
+      "THE invitation lookup authority. acceptWorkspaceInvitation resolves a link by hashing the raw token and matching this column, and createWorkspaceInvitation/resendWorkspaceInvitation are the only writers of it. Without the column no workspace invitation can be issued or accepted at all",
+    suppliedBy: "20280501000000_workspace_invite_lifecycle_hardening",
+  },
+  {
+    id: "team_invites.revoked_at",
+    kind: "column",
+    detail: 'column public."team_invites"."revoked_at" must exist',
+    requiredBy:
+      "revocation is a STATE, not a deletion. Every pending-invitation reader filters on it — the workspace invitation list, resolveWorkspaceInvitationAllowance (the seat gate) and the collaboration entitlement projection — so its absence fails those reads outright instead of degrading, and a revoked invitation would otherwise be indistinguishable from a live one",
+    suppliedBy: "20280501000000_workspace_invite_lifecycle_hardening",
+  },
 ]);
 
 /**
@@ -140,6 +179,20 @@ const PROBES = Object.freeze({
      WHERE table_schema = 'public'
        AND table_name = 'operational_incidents'
        AND column_name = 'metric_snapshot'
+     LIMIT 1`,
+  "team_invites.token_hash": `
+    SELECT 1
+      FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = 'team_invites'
+       AND column_name = 'token_hash'
+     LIMIT 1`,
+  "team_invites.revoked_at": `
+    SELECT 1
+      FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = 'team_invites'
+       AND column_name = 'revoked_at'
      LIMIT 1`,
 });
 

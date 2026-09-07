@@ -998,6 +998,22 @@ export async function teamsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ message: "Forbidden" });
       }
 
+      /**
+       * SELECT WHAT THE PROJECTION NEEDS — AND NOTHING ELSE.
+       *
+       * This had no `select`, so Prisma asked for every scalar on the model:
+       * `token_hash`, and the retired raw `token` alongside it. The schema
+       * states of that column that NOTHING READS IT — the whole justification
+       * for keeping it through the Release-A rollback window — and an
+       * unselected `findMany` reading up to 200 rows made that untrue. Live
+       * workspace credentials were being lifted out of the table on every
+       * listing, for a response that projects neither of them.
+       *
+       * The nine fields below are exactly `projectInvitation`'s input. The two
+       * sibling readers of this table (the workspace-admin roster and the
+       * platform-admin detail) already select explicitly; this one was the
+       * outlier.
+       */
       const invites = await prisma.teamInvite.findMany({
         where: {
           teamId,
@@ -1007,6 +1023,17 @@ export async function teamsRoutes(app: FastifyInstance) {
         },
         orderBy: { createdAt: "desc" },
         take: 200,
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          createdAt: true,
+          expiresAt: true,
+          acceptedAt: true,
+          revokedAt: true,
+          lastResentAt: true,
+          resendCount: true,
+        },
       });
 
       auditTeamAction(req, {
