@@ -277,8 +277,48 @@ describe("1. Shared closure contracts — bounded enums", () => {
     expect(PRODUCT_LINES).toContain("ENTERPRISE");
   });
 
-  it("ENTITLEMENT_KEYS has >= 27 entries", () => {
-    expect(ENTITLEMENT_KEYS.length).toBeGreaterThanOrEqual(27);
+  /**
+   * WCR-01 (2026-09-07) — a FLOOR cannot express a deliberate removal.
+   *
+   * This asserted `length >= 27`, which detects an accidental deletion and
+   * nothing else — and the vocabulary has now been deliberately reduced twice.
+   * The 2026-08-27 pass removed `QUOTA_EVIDENCE_COUNT` and
+   * `QUOTA_STORAGE_BYTES`; this one removes `QUOTA_USERS`,
+   * `QUOTA_WORKSPACES` and `QUOTA_REVIEWER_SEATS`. Each was a second
+   * commercial authority over a quantity the plan catalog already owns, keyed
+   * on ProductLine rather than on the purchased plan, with an unprovisioned
+   * default that refused what the plan sells.
+   *
+   * Lowering the floor to 24 would restore the test and teach nothing. What
+   * the repository actually needs pinned is that the five retired keys STAY
+   * retired — a key that exists can be granted through
+   * `POST /v1/packaging/entitlements/grant` and read by a future gate, which
+   * is how the first sweep left a live authority behind — and that the
+   * vocabulary is still a bounded set rather than an open one.
+   */
+  it("ENTITLEMENT_KEYS is bounded, and every retired key stays retired", () => {
+    const RETIRED = [
+      "QUOTA_EVIDENCE_COUNT",
+      "QUOTA_STORAGE_BYTES",
+      "QUOTA_USERS",
+      "QUOTA_WORKSPACES",
+      "QUOTA_REVIEWER_SEATS",
+    ];
+    for (const key of RETIRED) {
+      expect(
+        ENTITLEMENT_KEYS as ReadonlyArray<string>,
+        `${key} was retired as a duplicate commercial authority and must not return`,
+      ).not.toContain(key);
+    }
+    // Still a closed vocabulary: every key is FEATURE / QUOTA / LIMIT shaped,
+    // and there are no duplicates.
+    expect(new Set(ENTITLEMENT_KEYS).size).toBe(ENTITLEMENT_KEYS.length);
+    for (const key of ENTITLEMENT_KEYS) {
+      expect(key, `${key} must belong to a known entitlement family`).toMatch(
+        /^(FEATURE_|QUOTA_|RETENTION_|LEGAL_HOLD_|INTEGRATION_)/,
+      );
+    }
+    expect(ENTITLEMENT_KEYS.length).toBe(24);
   });
 
   it("EXCHANGE_PACKAGE_KINDS has exactly 9 entries", () => {

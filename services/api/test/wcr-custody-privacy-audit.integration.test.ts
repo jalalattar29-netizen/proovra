@@ -473,9 +473,27 @@ describe("WCR closure — custody, privacy, audit (live PostgreSQL 16)", () => {
       let denied = null as Awaited<
         ReturnType<typeof prisma.adminAuditLog.findFirst>
       >;
+      /**
+       * SCOPED TO THE WORKSPACE IT IS ASSERTING ABOUT.
+       *
+       * This took the globally newest `teams.invite_create` denial and then
+       * asserted its `workspaceId` — which only holds while nothing else in
+       * the run produces one. That is an ordering assumption, not a property
+       * of the code: any other suite refusing an invitation wins the race and
+       * this fails with two unrelated uuids.
+       *
+       * The invariant is "the refusal for THIS workspace is recorded", so the
+       * query says that. Scoping strengthens it — a denial written against the
+       * wrong workspace now fails as "not found" instead of accidentally
+       * satisfying the search.
+       */
       for (let i = 0; i < 40 && !denied; i += 1) {
         denied = await prisma.adminAuditLog.findFirst({
-          where: { action: "teams.invite_create", outcome: "denied" },
+          where: {
+            action: "teams.invite_create",
+            outcome: "denied",
+            workspaceId: a.teamId,
+          },
           orderBy: { createdAt: "desc" },
         });
         if (!denied) await new Promise((r) => setTimeout(r, 50));
