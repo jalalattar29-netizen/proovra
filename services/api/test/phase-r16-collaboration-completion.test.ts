@@ -404,8 +404,24 @@ describe("Phase R16 — service module", () => {
         new RegExp(`export async function ${gone}\\b`),
       );
     }
-    // The rows, the emitter and the surviving read path are untouched.
-    expect(svc).toMatch(/export async function emitTeamNotifications\b/);
+    /*
+     * The rows, the emitter and the surviving read path are untouched — and
+     * the emitter's survival is asserted where it now LIVES.
+     *
+     * `emitTeamNotifications` was MOVED to `team-notifications.ts`, a leaf
+     * module, so the assignment writers in `collaboration-team.service.ts`
+     * could reach it: that file imports FROM this one, so an emitter defined
+     * here was structurally unreachable from the surface that most needed to
+     * tell somebody something — which is why nine of the ten declared
+     * notification types had no producer.
+     *
+     * That is the opposite of a retirement, and this test's own point is that
+     * the emitter did NOT go with the three deleted writers. Both halves are
+     * pinned: it is defined exactly once, in the leaf module, and this module
+     * still re-exports it so its surface is unchanged for every caller.
+     */
+    expect(fanout).toMatch(/export async function emitTeamNotifications\b/);
+    expect(svc).toMatch(/export\s*\{\s*emitTeamNotifications\s*\}/);
     expect(svc).toMatch(/export async function listMyNotifications\b/);
   });
 

@@ -37,8 +37,8 @@ tree nobody is still editing.
 
 ```
 ROUTES / TENANCY
-ProductionRegisteredRoutes                  1134
-RegisteredRoutes                            1135
+ProductionRegisteredRoutes                  1137
+RegisteredRoutes                            1138
 TenantBindingUnresolved                        0
 TenantUnboundInsertRoutes                      0
 OrganizationAuthorizationUnresolved            0
@@ -74,7 +74,7 @@ UnprocessedQueueFamilies                       0
 MutationClosurePass                         true
 
 PRODUCT (route disposition, from the generated map)
-ProductConsumedRoutes                        889
+ProductConsumedRoutes                        892
 NonProductDispositionedRoutes                245
 MissingProductUiReleaseRequired                0
 ConservationIdentityHolds                   true
