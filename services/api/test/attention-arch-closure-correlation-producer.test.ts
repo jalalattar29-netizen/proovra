@@ -169,19 +169,44 @@ describe("Closure §27 — a positive correlator DOES correlate", () => {
       "services/api/src/services/operations/evidence-integrity-correlation.ts",
     );
     expect(CORRELATION).not.toMatch(/parentFingerprint.*teamId/);
-    // TWO LEGITIMATE SPELLINGS OF ONE PROPERTY.
+
+    // TWO LEGITIMATE SPELLINGS OF ONE PROPERTY, ASSERTED AGAINST THE FUNCTION
+    // THAT HOLDS IT.
     //
-    // This used to require the literal `teamId_fingerprint`, which was the
-    // composite key of a per-condition `findUnique`. That read is gone: it
-    // was one round-trip per condition on a path that writes thousands, and
-    // the pass now reads them together with
+    // This used to require the literal `teamId_fingerprint`, the composite key
+    // of a per-condition `findUnique`. That read is gone: it was one
+    // round-trip per condition on a path that writes thousands, and the pass
+    // now reads them together with
     // `findMany({ where: { teamId, fingerprint: { in: … } } })`.
     //
-    // The property the case exists to defend is unchanged and still asserted —
-    // the writer identifies a condition by workspace AND fingerprint, never by
-    // fingerprint alone. An unscoped read matches neither alternative.
-    expect(WRITER).toMatch(
-      /teamId_fingerprint|operationalIncident\.findMany\(\{[\s\S]{0,80}?teamId,[\s\S]{0,120}?fingerprint:/,
+    // The first attempt at this matched the WHOLE FILE, and that was a hole
+    // rather than a widening. With the composite key no longer present
+    // anywhere, the alternation rested entirely on its second arm — and that
+    // arm matched TWICE: once on the existence read it defends, and once,
+    // incidentally, on the unrelated pending-aged scan, where
+    // `teamId: args.teamId,` supplies the `teamId,` and a `fingerprint:` key
+    // follows within the character budget. Measured: unscope the existence
+    // read and the file-wide pattern still passed.
+    //
+    // So the subject of the assertion is the FUNCTION, sliced by name. Both
+    // anchors are checked, because a rename that silently produced an empty or
+    // shifted slice would hand back a passing match from elsewhere in the
+    // file — which is the same failure in a new costume.
+    const from = WRITER.indexOf("async function loadExistingConditions");
+    const to = WRITER.indexOf(
+      "export async function syncEvidenceIntegrityConditions",
+    );
+    expect(from, "existence-read anchor not found — was it renamed?").
+      toBeGreaterThan(-1);
+    expect(to, "writer-entry anchor not found — was it renamed?").
+      toBeGreaterThan(from);
+    const EXISTENCE_READ = WRITER.slice(from, to);
+
+    // Measured against this slice: the real text passes; the same text with
+    // `teamId` removed from the `where` fails; and the same text replaced by a
+    // fingerprint-only `findUnique` fails.
+    expect(EXISTENCE_READ).toMatch(
+      /teamId_fingerprint|where:\s*\{[\s\S]{0,40}?\bteamId,[\s\S]{0,120}?fingerprint:/,
     );
   });
 });
