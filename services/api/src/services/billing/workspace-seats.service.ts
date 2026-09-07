@@ -60,8 +60,10 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { getPlanCapabilities } from "@proovra/shared-billing";
 import { resolveCommercialContext } from "./commercial-context.service.js";
 import {
+  NO_CONTRACT_LIMITS,
   resolveEffectiveContractSeats,
   resolveEnterpriseContractLimits,
+  type EnterpriseContractLimits,
 } from "./enterprise-contract-limits.js";
 
 export type WorkspaceSeatState = {
@@ -76,6 +78,19 @@ export type WorkspaceSeatState = {
   /** True when usage already exceeds the ceiling — a downgrade, not a bug. */
   overLimit: boolean;
   source: "PLAN_CATALOG" | "ENTERPRISE_CONTRACT";
+  /**
+   * WCR-07 — the status-checked contract limits this resolution was computed
+   * from, carried out so callers that need ANOTHER contract dimension
+   * (collaboration group count, per-group membership) do not re-resolve the
+   * commercial context to get at it.
+   *
+   * Re-resolving is not merely wasteful: it is how two callers end up asking
+   * the same question a few milliseconds apart and acting on two answers. The
+   * seat resolver has already failed closed on DRAFT / SUSPENDED / TERMINATED
+   * here, so a caller reading this field inherits that decision instead of
+   * repeating it.
+   */
+  contractLimits: EnterpriseContractLimits;
 };
 
 /**
@@ -103,6 +118,7 @@ export async function resolveWorkspaceSeatState(
       featureIncluded: false,
       overLimit: false,
       source: "PLAN_CATALOG",
+      contractLimits: NO_CONTRACT_LIMITS,
     };
   }
 
@@ -147,6 +163,7 @@ export async function resolveWorkspaceSeatState(
     featureIncluded: limit > 1,
     overLimit: used > limit,
     source: contractSeats !== null ? "ENTERPRISE_CONTRACT" : "PLAN_CATALOG",
+    contractLimits,
   };
 }
 

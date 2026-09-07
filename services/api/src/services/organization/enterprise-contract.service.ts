@@ -46,6 +46,17 @@ export type EnterpriseContractProjection = {
    */
   evidenceRecordsPerMonth: number | null;
   aiOperationsPerMonth: number | null;
+  /**
+   * WCR-07 (2026-09-07) — CONTRACTED COLLABORATION CAPACITY.
+   *
+   * Seats and storage resolved from the contract; collaboration did not, so
+   * an Enterprise group ceiling came from a flat catalog constant that could
+   * sit BELOW the contracted seat count. `null` means the contract is silent
+   * and the catalog default governs — the same meaning the two allowances
+   * above carry, deliberately, so there is one convention to learn.
+   */
+  collaborationTeamsMax: number | null;
+  collaborationTeamMembersMax: number | null;
   region: string | null;
   planVersion: string | null;
   billingCustomerRef: string | null;
@@ -70,7 +81,11 @@ export type EnterpriseContractProjection = {
  */
 function normalizeContractAllowance(
   value: number | null | undefined,
-  field: "evidenceRecordsPerMonth" | "aiOperationsPerMonth",
+  field:
+    | "evidenceRecordsPerMonth"
+    | "aiOperationsPerMonth"
+    | "collaborationTeamsMax"
+    | "collaborationTeamMembersMax",
 ): number | null {
   if (value === null || value === undefined) return null;
   if (!Number.isInteger(value) || value <= 0) {
@@ -118,6 +133,8 @@ export async function resolveEnterpriseContract(
           storageGb: row.storageGb,
           evidenceRecordsPerMonth: row.evidenceRecordsPerMonth,
           aiOperationsPerMonth: row.aiOperationsPerMonth,
+          collaborationTeamsMax: row.collaborationTeamsMax,
+          collaborationTeamMembersMax: row.collaborationTeamMembersMax,
           region: row.region,
           planVersion: row.planVersion,
           billingCustomerRef: row.billingCustomerRef,
@@ -165,6 +182,9 @@ export async function resolveEnterpriseContract(
     // the catalog default governs, honestly labelled.
     evidenceRecordsPerMonth: null,
     aiOperationsPerMonth: null,
+    // Nor is there any org signal for contracted collaboration capacity.
+    collaborationTeamsMax: null,
+    collaborationTeamMembersMax: null,
     region: null,
     planVersion: null,
     billingCustomerRef: null,
@@ -196,6 +216,10 @@ export async function upsertEnterpriseContract(
      */
     evidenceRecordsPerMonth?: number | null;
     aiOperationsPerMonth?: number | null;
+    /** WCR-07 — contracted collaboration capacity. Same omit/null/value
+     *  semantics as the two allowances above. */
+    collaborationTeamsMax?: number | null;
+    collaborationTeamMembersMax?: number | null;
     contractOwnerUserId?: string | null;
     effectiveAtUtc?: Date | null;
     region?: string | null;
@@ -226,6 +250,22 @@ export async function upsertEnterpriseContract(
               ),
             }
           : {}),
+        ...(input.collaborationTeamsMax !== undefined
+          ? {
+              collaborationTeamsMax: normalizeContractAllowance(
+                input.collaborationTeamsMax,
+                "collaborationTeamsMax",
+              ),
+            }
+          : {}),
+        ...(input.collaborationTeamMembersMax !== undefined
+          ? {
+              collaborationTeamMembersMax: normalizeContractAllowance(
+                input.collaborationTeamMembersMax,
+                "collaborationTeamMembersMax",
+              ),
+            }
+          : {}),
         ...(input.contractOwnerUserId !== undefined
           ? { contractOwnerUserId: input.contractOwnerUserId }
           : {}),
@@ -245,6 +285,14 @@ export async function upsertEnterpriseContract(
         aiOperationsPerMonth: normalizeContractAllowance(
           input.aiOperationsPerMonth ?? null,
           "aiOperationsPerMonth",
+        ),
+        collaborationTeamsMax: normalizeContractAllowance(
+          input.collaborationTeamsMax ?? null,
+          "collaborationTeamsMax",
+        ),
+        collaborationTeamMembersMax: normalizeContractAllowance(
+          input.collaborationTeamMembersMax ?? null,
+          "collaborationTeamMembersMax",
         ),
         contractOwnerUserId: input.contractOwnerUserId ?? null,
         effectiveAtUtc: input.effectiveAtUtc ?? new Date(),

@@ -48,6 +48,15 @@ export type EnterpriseContractLimits = {
   /** Contracted AI operations per calendar month, or null. */
   aiOperationsPerMonth: number | null;
   /**
+   * WCR-07 — contracted collaboration capacity, or null when the contract is
+   * silent. Two dimensions, kept apart for the same reason seats and groups
+   * are kept apart everywhere else: one counts GROUPS in a workspace, the
+   * other counts PEOPLE inside one group, and multiplying them was never the
+   * commercial model.
+   */
+  collaborationTeams: number | null;
+  collaborationTeamMembers: number | null;
+  /**
    * True when this projection came from the legacy fallback rather than a real
    * contract row. Surfaces are required to say "Contract-managed — contact
    * your account manager" instead of publishing a number derived from a guess.
@@ -69,6 +78,8 @@ export const NO_CONTRACT_LIMITS: EnterpriseContractLimits = {
   seats: null,
   evidenceRecordsPerMonth: null,
   aiOperationsPerMonth: null,
+  collaborationTeams: null,
+  collaborationTeamMembers: null,
   legacyDerived: false,
 };
 
@@ -111,6 +122,8 @@ export function resolveEnterpriseContractLimits(
     // contracted allowance could not reach enforcement at all.
     evidenceRecordsPerMonth: positiveOrNull(contract.evidenceRecordsPerMonth),
     aiOperationsPerMonth: positiveOrNull(contract.aiOperationsPerMonth),
+    collaborationTeams: positiveOrNull(contract.collaborationTeamsMax),
+    collaborationTeamMembers: positiveOrNull(contract.collaborationTeamMembersMax),
     legacyDerived: contract.legacyDerived,
   };
 }
@@ -144,6 +157,63 @@ export function resolveEffectiveContractSeats(input: {
   }
   const caps = getPlanCapabilities(input.plan);
   return Math.max(0, caps.maxWorkspaceSeats, caps.includedSeats, input.persistedSeats);
+}
+
+/**
+ * WCR-07 — the effective ceiling on ACTIVE Collaboration Teams in one
+ * workspace.
+ *
+ * The catalog's ENTERPRISE row carries 1000, which is a placeholder standing in
+ * for "a lot", not a term anybody signed. Where the contract states a number it
+ * wins outright — above OR below the placeholder — for the same reason the
+ * storage resolver does not take a `max()`: a contract is the purchased right,
+ * and reconciling it against a placeholder either sells capacity nobody agreed
+ * to or withholds capacity somebody paid for.
+ *
+ * Silence still means the catalog default, so an existing Enterprise contract
+ * that says nothing about collaboration behaves exactly as it did before the
+ * column existed.
+ */
+export function resolveEffectiveCollaborationTeamLimit(input: {
+  plan: Parameters<typeof getPlanCapabilities>[0];
+  contract: EnterpriseContractLimits | null | undefined;
+}): number {
+  if (
+    input.contract?.contractGovernsCapability &&
+    input.contract?.collaborationTeams !== null &&
+    input.contract?.collaborationTeams !== undefined
+  ) {
+    return input.contract.collaborationTeams;
+  }
+  return getPlanCapabilities(input.plan).maxCollaborationTeamsPerWorkspace;
+}
+
+/**
+ * WCR-07 — the effective SAFETY ceiling on ACTIVE members inside ONE group.
+ *
+ * This is not a seat pool and never was: the commercial boundary is the set of
+ * distinct ACTIVE workspace memberships, and a person in five groups is one
+ * seat. What this bounds is how large a single group may grow, and the caller
+ * (`assertCollaborationTeamMemberLimit`) still reconciles the answer down to
+ * the workspace's actual seat entitlement, so a group can never be told it may
+ * hold more people than the workspace has.
+ *
+ * Before this existed the reconciliation ran against a flat catalog 500, which
+ * meant an organization contracted for 800 seats could put only 500 of them in
+ * a group — a self-serve placeholder capping a signed agreement.
+ */
+export function resolveEffectiveCollaborationMemberLimit(input: {
+  plan: Parameters<typeof getPlanCapabilities>[0];
+  contract: EnterpriseContractLimits | null | undefined;
+}): number {
+  if (
+    input.contract?.contractGovernsCapability &&
+    input.contract?.collaborationTeamMembers !== null &&
+    input.contract?.collaborationTeamMembers !== undefined
+  ) {
+    return input.contract.collaborationTeamMembers;
+  }
+  return getPlanCapabilities(input.plan).maxAcceptedMembersPerCollaborationTeam;
 }
 
 /**
