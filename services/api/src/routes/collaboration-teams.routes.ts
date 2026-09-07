@@ -46,6 +46,8 @@ import {
   listCollaborationTeamMembers,
   listCollaborationTeams,
   listAssignableTargets,
+  getTeamOverview,
+  listResponsibilityForTarget,
   listEligibleWorkspaceMembersForTeam,
   listTeamActivity,
   reinstateMember,
@@ -1181,6 +1183,97 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
   );
 
   // ---------------------------------------------------------------------------
+  // GET /v1/collaboration-teams/:teamId/overview
+  //
+  // The group's operational snapshot: open / in-progress / overdue / due-soon /
+  // high-priority / unassigned work, the split by target type, exact
+  // membership counts, and per-member open workload.
+  //
+  // It exists because Overview computed all of this from `team.members` and
+  // `team.invites` — BOUNDED PREVIEWS — so a four-hundred-person Enterprise
+  // group read "25/25 active". Everything here is counted by the database.
+  // ---------------------------------------------------------------------------
+  app.get<{ Params: { teamId: string } }>(
+    "/v1/collaboration-teams/:teamId/overview",
+    {
+      preHandler: requireAuth,
+      handler: async (req, reply) => {
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "collaboration.thread.read",
+        });
+        if (!binding) return;
+        try {
+          const overview = await getTeamOverview({
+            teamId: req.params.teamId,
+            actorUserId: binding.workspace.userId,
+          });
+          return reply.send({ overview });
+        } catch (err) {
+          return handleServiceError(reply, err, req.id ?? null);
+        }
+      },
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // GET /v1/collaboration-teams/responsibility
+  //
+  // THE REVERSE PROJECTION — the same relationship, read from the record's side.
+  //
+  // A Collaboration Team could be made responsible for a case since the
+  // assignment model shipped, and the case could never say so: nothing outside
+  // this module read `collaboration_team_assignments`. So responsibility was
+  // real, tenant-safe, and invisible to everyone who did not already know to
+  // open that group's Work tab.
+  //
+  // This is a READ of the one authority — not a second store, and not a
+  // second writer. It is workspace-bound before it reads anything, and it
+  // grants nothing: a caller sees the group responsible for a record they can
+  // already reach, because `/cases/:id` and `/evidence/:id` authorize
+  // themselves independently and always did.
+  //
+  // Static path, mounted BEFORE nothing that could shadow it: `:teamId` is a
+  // sibling segment, and Fastify prefers a static segment over a parametric
+  // one — the same precedence that made `/entitlement` resolve.
+  // ---------------------------------------------------------------------------
+  app.get(
+    "/v1/collaboration-teams/responsibility",
+    {
+      preHandler: requireAuth,
+      handler: async (req, reply) => {
+        const ctx = await requireWorkspace(req, reply, "collaboration.thread.read");
+        if (!ctx) return;
+        const q = (req.query as Record<string, string | undefined>) ?? {};
+        const parsed = z
+          .object({
+            targetType: z.enum(["CASE", "EVIDENCE", "REVIEW"]),
+            targetId: z.string().uuid(),
+          })
+          .safeParse({ targetType: q.targetType, targetId: q.targetId });
+        if (!parsed.success) {
+          return reply.code(400).send({
+            error: "invalid_query",
+            message:
+              "targetType must be CASE, EVIDENCE or REVIEW and targetId must be a uuid.",
+          });
+        }
+        try {
+          const res = await listResponsibilityForTarget({
+            workspaceId: ctx.workspaceId,
+            actorUserId: ctx.userId,
+            targetType: parsed.data.targetType,
+            targetId: parsed.data.targetId,
+          });
+          return reply.send(res);
+        } catch (err) {
+          return handleServiceError(reply, err, req.id ?? null);
+        }
+      },
+    },
+  );
+
+  // ---------------------------------------------------------------------------
   // GET /v1/collaboration-teams/:teamId/eligible-members
   //
   // The directory a team is BUILT FROM, and the replacement for inviting by
@@ -1316,10 +1409,20 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
         };
         try {
           const q = (req.query ?? {}) as Record<string, string | undefined>;
+          // EVERY Work filter is the server's. The surface used to narrow an
+          // already-fetched cursor page by search, assignee and priority,
+          // which on a group with more work than one page hides rows the
+          // operator can see and counts only what happened to be loaded. The
+          // service validates each value against its closed vocabulary.
           const page = await listAssignments({
             teamId: req.params.teamId,
             actorUserId: ctx.userId,
             status: q.status ?? null,
+            targetType: q.targetType ?? null,
+            priority: q.priority ?? null,
+            assigneeUserId: q.assignee ?? null,
+            overdueOnly: q.overdue === "true",
+            search: q.q ?? null,
             limit: q.limit ? Number.parseInt(q.limit, 10) : undefined,
             cursor: q.cursor ?? null,
           });

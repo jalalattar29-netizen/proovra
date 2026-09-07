@@ -51,6 +51,19 @@ import {
   CollaborationTeamError,
   isCollaborationTeamModerator,
 } from "./collaboration-team.service.js";
+/**
+ * THE fan-out moved to a leaf module (`team-notifications.ts`) so the
+ * assignment writers in `collaboration-team.service.ts` can reach it: this
+ * file imports FROM that service, so a notification emitter defined here was
+ * structurally unreachable from the one surface that most needed it — which is
+ * why nine of the ten declared notification types had no producer.
+ *
+ * Re-exported because callers already import it from this module. One
+ * definition, one emitter, no cycle.
+ */
+import { emitTeamNotifications } from "./team-notifications.js";
+
+export { emitTeamNotifications };
 
 // =============================================================================
 // Helpers
@@ -680,39 +693,6 @@ export async function listMyNotifications(
 
 // Internal: create a notification (called by other services for
 // assignment-assigned events etc.). NEVER notify the actor themselves.
-export async function emitTeamNotifications(
-  client: PrismaClient | Prisma.TransactionClient,
-  args: {
-    teamId: string;
-    workspaceId: string;
-    actorUserId: string | null;
-    recipientUserIds: ReadonlyArray<string>;
-    type: CollaborationTeamNotificationType;
-    title: string;
-    body: string | null;
-    targetType: string | null;
-    targetId: string | null;
-  },
-): Promise<number> {
-  const filtered = args.recipientUserIds.filter(
-    (id) => id && id !== args.actorUserId,
-  );
-  if (filtered.length === 0) return 0;
-  await client.collaborationTeamNotification.createMany({
-    data: filtered.map((uid) => ({
-      userId: uid,
-      workspaceId: args.workspaceId,
-      teamId: args.teamId,
-      type: args.type,
-      title: args.title.slice(0, 200),
-      body: args.body ? args.body.slice(0, 1000) : null,
-      targetType: args.targetType,
-      targetId: args.targetId,
-    })),
-  });
-  return filtered.length;
-}
-
 // =============================================================================
 // Preferences (Stage 6)
 // =============================================================================

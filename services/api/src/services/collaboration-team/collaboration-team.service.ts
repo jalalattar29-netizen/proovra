@@ -55,6 +55,11 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { effectiveGroupMemberWhere } from "./effective-membership.js";
+// THE notification fan-out. A leaf module precisely so the assignment writers
+// below can reach it: `collaboration-completion.service.ts`, where it used to
+// live, imports FROM this file. Writing rows the canonical account inbox
+// already reads — not a second notification store.
+import { emitTeamNotifications } from "./team-notifications.js";
 import {
   assertCanCreateCollaborationTeam,
   assertCollaborationTeamMemberLimit,
@@ -1637,19 +1642,27 @@ export async function acceptInvite(
  * The refusal is deliberately the same shape for "does not exist" and "belongs
  * to another workspace": the caller must not learn which.
  */
-async function assertAssignmentTargetInWorkspace(
+/**
+ * Is this record in this workspace? ONE predicate, two callers.
+ *
+ * The write path asserts it (below) and the reverse projection asks it as a
+ * question. Both must mean the same thing by "in this workspace" — including a
+ * PERSONAL workspace's legacy `team_id IS NULL` rows, which only these
+ * canonical scope predicates know how to identify — so there is one
+ * implementation and the assert is a thin wrapper over it.
+ */
+export async function assignmentTargetExistsInWorkspace(
   client: PrismaClient,
   workspaceId: string,
   targetType: CollaborationTeamAssignmentTarget,
   targetId: string,
-): Promise<void> {
+): Promise<boolean> {
   if (targetType === "CASE") {
     const found = await client.case.findFirst({
       where: { AND: [await workspaceCaseWhere(workspaceId, client), { id: targetId }] },
       select: { id: true },
     });
-    if (!found) throw E.notFound("Case");
-    return;
+    return Boolean(found);
   }
   if (targetType === "EVIDENCE") {
     const found = await client.evidence.findFirst({
@@ -1658,8 +1671,7 @@ async function assertAssignmentTargetInWorkspace(
       },
       select: { id: true },
     });
-    if (!found) throw E.notFound("Evidence record");
-    return;
+    return Boolean(found);
   }
   // REVIEW — a review workflow belongs to the workspace THROUGH its evidence.
   // Scoping it by its own nullable `team_id` would reproduce the original
@@ -1671,7 +1683,25 @@ async function assertAssignmentTargetInWorkspace(
     },
     select: { id: true },
   });
-  if (!found) throw E.notFound("Review");
+  return Boolean(found);
+}
+
+async function assertAssignmentTargetInWorkspace(
+  client: PrismaClient,
+  workspaceId: string,
+  targetType: CollaborationTeamAssignmentTarget,
+  targetId: string,
+): Promise<void> {
+  const ok = await assignmentTargetExistsInWorkspace(
+    client,
+    workspaceId,
+    targetType,
+    targetId,
+  );
+  if (ok) return;
+  if (targetType === "CASE") throw E.notFound("Case");
+  if (targetType === "EVIDENCE") throw E.notFound("Evidence record");
+  throw E.notFound("Review");
 }
 
 /**
@@ -2191,6 +2221,37 @@ export async function createAssignment(
         assigneeUserId: input.assigneeUserId ?? null,
       },
     });
+
+    /**
+     * AN ASSIGNMENT NOBODY IS TOLD ABOUT IS NOT AN ASSIGNMENT.
+     *
+     * Work could be handed to a named person with a priority and a due date
+     * and reach them only if they happened to open that group's Work tab. The
+     * declared `ASSIGNMENT_ASSIGNED` notification type existed for this and
+     * had no producer anywhere in the repository.
+     *
+     * Only the named assignee is notified. TEAM-LEVEL work (no assignee) is
+     * deliberately silent: notifying every member that the group has a new
+     * item turns the group into a mailing list, and unassigned work is exactly
+     * what the Overview's "unassigned" count and the Work filter exist to
+     * surface.
+     *
+     * In the transaction, so the notification and the assignment commit
+     * together.
+     */
+    if (input.assigneeUserId) {
+      await emitTeamNotifications(tx, {
+        teamId: input.teamId,
+        workspaceId: team.workspaceId,
+        actorUserId: input.actorUserId,
+        recipientUserIds: [input.assigneeUserId],
+        type: "ASSIGNMENT_ASSIGNED",
+        title: "Work assigned to you",
+        body: "You have been made responsible for a record assigned to your team.",
+        targetType: "ASSIGNMENT",
+        targetId: a.id,
+      });
+    }
     return a;
   });
   return result;
@@ -2216,6 +2277,8 @@ export async function updateAssignment(
       teamId: true,
       workspaceId: true,
       assigneeUserId: true,
+      // Needed to tell the person who handed the work over that it closed.
+      assignedByUserId: true,
       status: true,
       priority: true,
     },
@@ -2316,6 +2379,61 @@ export async function updateAssignment(
         metadata: meta,
       });
     }
+
+    /**
+     * TELL THE PERSON WHOSE WORK THIS NOW IS.
+     *
+     * In the transaction, for the same reason the access-review fan-out is:
+     * work that was handed to somebody without telling them is worse than work
+     * that was never handed over, so the notification commits with the change
+     * or not at all.
+     *
+     * DELIBERATELY NARROW. Only two transitions are worth interrupting
+     * somebody for — becoming the assignee, and the work being finished — and
+     * only the people they concern are told. Priority and due-date edits are
+     * recorded on the activity timeline and do NOT notify: an operator
+     * triaging twenty rows would otherwise send twenty interruptions, which is
+     * how a notification channel gets muted and then ignored.
+     */
+    if (
+      input.assigneeUserId !== undefined &&
+      input.assigneeUserId &&
+      input.assigneeUserId !== assignment.assigneeUserId
+    ) {
+      await emitTeamNotifications(tx, {
+        teamId: input.teamId,
+        workspaceId: assignment.workspaceId,
+        actorUserId: input.actorUserId,
+        recipientUserIds: [input.assigneeUserId],
+        type: "ASSIGNMENT_ASSIGNED",
+        title: "Work assigned to you",
+        body: "You are now responsible for a record assigned to your team.",
+        targetType: "ASSIGNMENT",
+        targetId: assignment.id,
+      });
+    }
+    if (data.status === "COMPLETED" && assignment.status !== "COMPLETED") {
+      // The people who need to know a piece of work closed are the person who
+      // was carrying it and the person who handed it over — not the whole
+      // group, which would make completion the noisiest event in the product.
+      const recipients = [
+        assignment.assigneeUserId,
+        assignment.assignedByUserId,
+      ].filter((id): id is string => Boolean(id));
+      if (recipients.length) {
+        await emitTeamNotifications(tx, {
+          teamId: input.teamId,
+          workspaceId: assignment.workspaceId,
+          actorUserId: input.actorUserId,
+          recipientUserIds: Array.from(new Set(recipients)),
+          type: "ASSIGNMENT_COMPLETED",
+          title: "Assigned work completed",
+          body: "Work assigned to your team has been marked completed.",
+          targetType: "ASSIGNMENT",
+          targetId: assignment.id,
+        });
+      }
+    }
   });
 }
 
@@ -2334,44 +2452,350 @@ export async function updateAssignment(
  * a cursor over them can repeat or skip. The surface sorts what it displays;
  * the page boundary is the database's.
  */
+/**
+ * The identity of an assigned record, resolved at READ time.
+ *
+ * Deliberately NOT stored on the assignment row. A Collaboration Team holds a
+ * REFERENCE to a canonical record and no copy of it: a case renamed on
+ * `/cases` must read as renamed here the moment it changes, and a denormalised
+ * label is a second copy of a fact that silently goes stale. `resolved: false`
+ * says the record could not be read in this workspace and is the honest answer
+ * — never a fabricated title.
+ */
+export type AssignmentTargetView = {
+  resolved: boolean;
+  label: string | null;
+  sublabel: string | null;
+  /** The canonical record's own state (case status, evidence status, review status). */
+  state: string | null;
+  /** REVIEW only — the review workflow's operational deadlines, projected read-only. */
+  review: {
+    slaStatus: string | null;
+    dueAtUtc: Date | null;
+    escalationLevel: number;
+  } | null;
+};
+
+const UNRESOLVED_TARGET: AssignmentTargetView = {
+  resolved: false,
+  label: null,
+  sublabel: null,
+  state: null,
+  review: null,
+};
+
+function targetKey(targetType: string, targetId: string): string {
+  return `${targetType}:${targetId}`;
+}
+
+/**
+ * RESOLVE A PAGE OF TARGETS IN THREE QUERIES, NEVER ONE PER ROW.
+ *
+ * The Work surface used to print the target TYPE ("Case") and a link that said
+ * "Open case", because the list response carried nothing but a uuid. Twenty
+ * rows read as twenty identical lines and the one question the row exists to
+ * answer — *which* case? — could only be answered by opening each one.
+ *
+ * Two rules govern this function:
+ *
+ *   BATCHED. One `IN (...)` per target type present on the page, at most
+ *   three queries regardless of page size. A per-row lookup would put a
+ *   hundred queries behind one screen at the 200-row cap.
+ *
+ *   RE-SCOPED. Every lookup is intersected with the canonical workspace
+ *   predicate rather than trusting the `workspaceId` on the assignment row.
+ *   `assertAssignmentTargetInWorkspace` only started validating targets at
+ *   WRITE time recently; rows written before that accepted any uuid at all,
+ *   including one belonging to another tenant. Reading their label back
+ *   without re-scoping would turn a dangling reference into a cross-workspace
+ *   disclosure. A row that does not resolve renders as unresolved, which is
+ *   also exactly what a since-deleted record should look like.
+ *
+ * This grants nothing. Every link still lands on a canonical page that
+ * authorizes the caller independently.
+ */
+async function hydrateAssignmentTargets(
+  client: PrismaClient,
+  workspaceId: string,
+  rows: ReadonlyArray<{ targetType: string; targetId: string }>,
+): Promise<Map<string, AssignmentTargetView>> {
+  const out = new Map<string, AssignmentTargetView>();
+  if (rows.length === 0) return out;
+
+  const idsByType = new Map<string, string[]>();
+  for (const r of rows) {
+    const list = idsByType.get(r.targetType);
+    if (list) list.push(r.targetId);
+    else idsByType.set(r.targetType, [r.targetId]);
+  }
+
+  const caseIds = idsByType.get("CASE") ?? [];
+  const evidenceIds = idsByType.get("EVIDENCE") ?? [];
+  const reviewIds = idsByType.get("REVIEW") ?? [];
+
+  const [cases, evidence, reviews] = await Promise.all([
+    caseIds.length
+      ? client.case.findMany({
+          where: {
+            AND: [
+              await workspaceCaseWhere(workspaceId, client),
+              { id: { in: caseIds } },
+            ],
+          },
+          select: {
+            id: true,
+            name: true,
+            referenceNumber: true,
+            status: true,
+            priority: true,
+          },
+        })
+      : Promise.resolve([]),
+    evidenceIds.length
+      ? client.evidence.findMany({
+          where: {
+            AND: [
+              await workspaceEvidenceWhere(workspaceId, client),
+              { id: { in: evidenceIds } },
+            ],
+          },
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            lifecycleState: true,
+          },
+        })
+      : Promise.resolve([]),
+    reviewIds.length
+      ? client.evidenceReviewWorkflow.findMany({
+          where: {
+            AND: [
+              { evidence: await workspaceEvidenceWhere(workspaceId, client) },
+              { id: { in: reviewIds } },
+            ],
+          },
+          select: {
+            id: true,
+            status: true,
+            slaStatus: true,
+            dueAt: true,
+            escalationLevel: true,
+            evidence: { select: { title: true } },
+          },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  for (const c of cases) {
+    out.set(targetKey("CASE", c.id), {
+      resolved: true,
+      label: c.name,
+      sublabel: c.referenceNumber,
+      state: String(c.status),
+      review: null,
+    });
+  }
+  for (const e of evidence) {
+    out.set(targetKey("EVIDENCE", e.id), {
+      resolved: true,
+      // Evidence titles are optional; the placeholder is the same one the
+      // picker uses, so the two surfaces name the same record identically.
+      label: e.title ?? "Untitled evidence record",
+      sublabel: e.lifecycleState ? String(e.lifecycleState) : null,
+      state: String(e.status),
+      review: null,
+    });
+  }
+  for (const r of reviews) {
+    out.set(targetKey("REVIEW", r.id), {
+      resolved: true,
+      label: r.evidence?.title
+        ? `Review — ${r.evidence.title}`
+        : "Evidence review",
+      sublabel: null,
+      state: String(r.status),
+      // Projected READ-ONLY from the canonical review workflow. Teams do not
+      // own review state, set SLAs or escalate — this is the operational
+      // context a responsible group needs in order to decide what to do next,
+      // and the link goes to the console that owns the actions.
+      review: {
+        slaStatus: r.slaStatus ? String(r.slaStatus) : null,
+        dueAtUtc: r.dueAt,
+        escalationLevel: r.escalationLevel,
+      },
+    });
+  }
+
+  return out;
+}
+
+/** The sentinel the Work surface uses to ask for team-level (unassigned) rows. */
+export const ASSIGNEE_UNASSIGNED = "UNASSIGNED";
+
+/** Statuses that represent work still owed. Completed/cancelled work is not due. */
+const OPEN_ASSIGNMENT_STATUSES = ["OPEN", "IN_PROGRESS"] as const;
+
+/**
+ * How many of a GROUP's own assignments a target-label search will scan.
+ *
+ * The search has to run in two steps because `targetId` is a plain uuid column
+ * with no foreign key — there is no relation for Prisma to filter through. The
+ * cheap direction is to bound by the GROUP's work (this cap) and search inside
+ * it, not to search the workspace's records and hope the matches happen to be
+ * assigned here: a workspace with ten thousand cases can match three thousand
+ * of them while two belong to this team.
+ */
+const ASSIGNMENT_SEARCH_SCAN_CAP = 5000;
+
 export async function listAssignments(
   input: {
     teamId: string;
     actorUserId: string;
     status?: string | null;
+    /** CASE | EVIDENCE | REVIEW */
+    targetType?: string | null;
+    /** LOW | NORMAL | HIGH | URGENT */
+    priority?: string | null;
+    /** A member's user id, or `UNASSIGNED` for team-level work. */
+    assigneeUserId?: string | null;
+    /** `true` narrows to open work whose due date has passed. */
+    overdueOnly?: boolean;
+    /** Matches the assignment note or the assigned record's own label. */
+    search?: string | null;
     limit?: number;
     cursor?: string | null;
   },
   client: PrismaClient = defaultPrisma,
 ) {
-  await requireMemberWithPermission(
+  const { team } = await requireMemberWithPermission(
     client,
     input.teamId,
     input.actorUserId,
     "team.read",
   );
-  const where = {
+
+  /**
+   * EVERY FILTER IS THE DATABASE'S, NOT THE PAGE'S.
+   *
+   * The Work surface filtered an already-fetched cursor page by search,
+   * assignee and priority. On a group with more work than one page that is not
+   * a filter at all — it hides rows the operator can see and shows a count
+   * that means "matches on this page", while the row they are looking for sits
+   * on page two. The status filter went to the server and the others did not,
+   * so two controls beside each other behaved differently and neither said so.
+   *
+   * All of them compose into one WHERE and page with the same keyset cursor.
+   */
+  const now = new Date();
+
+  /**
+   * ONE status clause, composed from two inputs that can both name it.
+   *
+   * Spreading them separately let `overdueOnly` overwrite an explicit status:
+   * asking for COMPLETED work that is overdue would silently have returned
+   * OPEN work instead — a filter answering a question nobody asked. Overdue
+   * only ever means "still owed", so an explicit terminal status intersected
+   * with it is legitimately empty, and saying so is correct.
+   */
+  const explicitStatus = input.status
+    ? validateAssignmentStatus(input.status)
+    : null;
+  const statusClause = input.overdueOnly
+    ? explicitStatus
+      ? (OPEN_ASSIGNMENT_STATUSES as ReadonlyArray<string>).includes(
+          explicitStatus,
+        )
+        ? { status: explicitStatus }
+        : { status: { in: [] as string[] } }
+      : { status: { in: [...OPEN_ASSIGNMENT_STATUSES] } }
+    : explicitStatus
+      ? { status: explicitStatus }
+      : {};
+
+  const where: Record<string, unknown> = {
     teamId: input.teamId,
-    ...(input.status ? { status: validateAssignmentStatus(input.status) } : {}),
+    ...statusClause,
+    ...(input.targetType
+      ? { targetType: validateAssignmentTarget(input.targetType) }
+      : {}),
+    ...(input.priority ? { priority: validatePriority(input.priority) } : {}),
+    ...(input.assigneeUserId
+      ? input.assigneeUserId === ASSIGNEE_UNASSIGNED
+        ? { assigneeUserId: null }
+        : { assigneeUserId: input.assigneeUserId }
+      : {}),
+    // Overdue is DERIVED, never stored: a column holding "is overdue" is a
+    // fact that goes stale on its own the moment a clock ticks.
+    ...(input.overdueOnly ? { dueAtUtc: { lt: now } } : {}),
   };
+
+  /**
+   * TARGET SEARCH — bounded, two-step, and honest about its bound.
+   *
+   * Step one reads this GROUP's assignment ids (capped). Step two asks the
+   * canonical tables which of THOSE records match the term, re-scoped to the
+   * workspace exactly as the hydration is. The result narrows the final page
+   * query. A term therefore matches the assignment's own note or the name of
+   * the record it points at — which is what an operator means by "search".
+   */
+  const term = (input.search ?? "").trim();
+  if (term) {
+    const scanned = await client.collaborationTeamAssignment.findMany({
+      where: where as never,
+      select: { targetType: true, targetId: true },
+      take: ASSIGNMENT_SEARCH_SCAN_CAP,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    });
+    const matchedTargetIds = await searchAssignmentTargets(
+      client,
+      team.workspaceId,
+      scanned,
+      term,
+    );
+    where.OR = [
+      { note: { contains: term, mode: "insensitive" } },
+      ...(matchedTargetIds.length
+        ? [{ targetId: { in: matchedTargetIds } }]
+        : []),
+    ];
+  }
+
   const take = Math.min(Math.max(input.limit ?? 50, 1), 200);
   const found = await client.collaborationTeamAssignment.findMany({
-    where,
+    where: where as never,
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: take + 1,
     ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
   });
   const rows = found.slice(0, take);
   const nextCursor = found.length > take ? rows[rows.length - 1].id : null;
+
+  // ONE batched hydration for the whole page — see `hydrateAssignmentTargets`.
+  const targets = await hydrateAssignmentTargets(
+    client,
+    team.workspaceId,
+    rows,
+  );
+
   const items = rows.map((a) => ({
     id: a.id,
     targetType: a.targetType as CollaborationTeamAssignmentTarget,
     targetId: a.targetId,
+    // The record this assignment is ABOUT — resolved, never stored.
+    target: targets.get(targetKey(a.targetType, a.targetId)) ?? UNRESOLVED_TARGET,
     assigneeUserId: a.assigneeUserId,
     assignedByUserId: a.assignedByUserId,
     status: a.status as CollaborationTeamAssignmentStatus,
     priority: a.priority as CollaborationTeamAssignmentPriority,
     dueAtUtc: a.dueAtUtc,
+    // Derived here so the surface never re-derives it against a different
+    // clock — and so "overdue" means the same thing in the list, the filter
+    // and the Overview aggregate.
+    overdue:
+      a.dueAtUtc !== null &&
+      a.dueAtUtc < now &&
+      (OPEN_ASSIGNMENT_STATUSES as ReadonlyArray<string>).includes(a.status),
     note: a.note,
     createdAt: a.createdAt,
     updatedAt: a.updatedAt,
@@ -2380,8 +2804,365 @@ export async function listAssignments(
   return {
     items,
     nextCursor,
-    total: await client.collaborationTeamAssignment.count({ where }),
+    total: await client.collaborationTeamAssignment.count({ where: where as never }),
   };
+}
+
+/**
+ * THE SAME RELATIONSHIP, READ FROM THE RECORD'S SIDE.
+ *
+ * `CollaborationTeamAssignment` has been the group-responsibility authority
+ * since it shipped, and it was write-only in practice: no case surface, no
+ * evidence surface, no review console and no inbox ever read it. A team could
+ * be made responsible for a case, with an assignee, a priority and a due date,
+ * and the case could not say so.
+ *
+ * This closes that without adding anything. It is a READ of the one authority
+ * — the same rows the Work tab lists, keyed the other way. There is no
+ * `responsibleTeamId` column, no mirror table and no second writer: assigning
+ * from the Case page and assigning from the Team page both go through
+ * `createAssignment`, which is what makes "bidirectional" a property of the UX
+ * and not of the storage.
+ *
+ * SCOPE. The caller has already been bound to a workspace by
+ * `requireWorkspace`; rows are filtered to that workspace AND intersected with
+ * the canonical predicate for the record itself, so a legacy row written
+ * before `assertAssignmentTargetInWorkspace` existed cannot surface another
+ * tenant's group against a record here.
+ *
+ * IT GRANTS NOTHING. Responsibility is not access: `/cases/:id` and
+ * `/evidence/:id` authorize their own reads and always did, and nothing here
+ * changes what a caller may open. It answers "who is on this?", which is a
+ * question about coordination, not custody.
+ */
+export async function listResponsibilityForTarget(
+  input: {
+    workspaceId: string;
+    actorUserId: string;
+    targetType: CollaborationTeamAssignmentTarget;
+    targetId: string;
+  },
+  client: PrismaClient = defaultPrisma,
+): Promise<{
+  assignments: Array<{
+    id: string;
+    teamId: string;
+    teamName: string;
+    teamStatus: string;
+    assigneeUserId: string | null;
+    status: CollaborationTeamAssignmentStatus;
+    priority: CollaborationTeamAssignmentPriority;
+    dueAtUtc: Date | null;
+    overdue: boolean;
+    note: string | null;
+    createdAt: Date;
+  }>;
+}> {
+  /**
+   * The record must be in THIS workspace before its responsibility is
+   * described. Reusing the same predicate the write path validates against
+   * means the two cannot disagree about what "in this workspace" means —
+   * including a PERSONAL workspace's legacy `team_id IS NULL` rows, which only
+   * these predicates know how to identify.
+   */
+  const inWorkspace = await assignmentTargetExistsInWorkspace(
+    client,
+    input.workspaceId,
+    input.targetType,
+    input.targetId,
+  );
+  if (!inWorkspace) return { assignments: [] };
+
+  const now = new Date();
+  const rows = await client.collaborationTeamAssignment.findMany({
+    where: {
+      workspaceId: input.workspaceId,
+      targetType: input.targetType,
+      targetId: input.targetId,
+      // Terminal rows are history, not responsibility. A record shows who is
+      // on it now; the group's own activity timeline holds who used to be.
+      status: { in: [...OPEN_ASSIGNMENT_STATUSES] },
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    // A record carried by more than a handful of groups at once is not a
+    // coordination problem this panel can solve; the bound keeps one record's
+    // panel from becoming an unbounded read.
+    take: 20,
+    select: {
+      id: true,
+      teamId: true,
+      assigneeUserId: true,
+      status: true,
+      priority: true,
+      dueAtUtc: true,
+      note: true,
+      createdAt: true,
+      team: { select: { name: true, status: true } },
+    },
+  });
+
+  return {
+    assignments: rows.map((r) => ({
+      id: r.id,
+      teamId: r.teamId,
+      teamName: r.team.name,
+      teamStatus: r.team.status,
+      assigneeUserId: r.assigneeUserId,
+      status: r.status as CollaborationTeamAssignmentStatus,
+      priority: r.priority as CollaborationTeamAssignmentPriority,
+      dueAtUtc: r.dueAtUtc,
+      overdue: r.dueAtUtc !== null && r.dueAtUtc < now,
+      note: r.note,
+      createdAt: r.createdAt,
+    })),
+  };
+}
+
+/**
+ * THE GROUP'S OPERATIONAL SNAPSHOT — counted by the database, never by the page.
+ *
+ * Overview used to answer "is this team healthy?" from `team.members` and
+ * `team.invites`, which are BOUNDED PREVIEWS (25 members, 50 invites). So
+ * "Membership 25/25 active" was what a four-hundred-person Enterprise group
+ * read, and every health row beside it was computed from the same truncated
+ * array. WCR-08 fixed exactly this for the header badge and stopped there.
+ *
+ * Everything here is a `count` or a `groupBy` — the database counts, the page
+ * renders. No aggregate loads rows to measure them, so the numbers stay exact
+ * at any size and cost the same at any size.
+ *
+ * Every number is about ASSIGNED WORK and MEMBERSHIP, both of which the group
+ * owns. Nothing here re-derives case or evidence state: those belong to their
+ * own authorities and are read through the canonical link.
+ */
+export type CollaborationTeamOverview = {
+  work: {
+    open: number;
+    inProgress: number;
+    completed: number;
+    overdue: number;
+    dueSoon: number;
+    highPriority: number;
+    unassigned: number;
+    byTargetType: { CASE: number; EVIDENCE: number; REVIEW: number };
+  };
+  members: {
+    active: number;
+    suspended: number;
+    managers: number;
+  };
+  /** Per-member open workload, ordered heaviest first. Bounded. */
+  workload: ReadonlyArray<{
+    userId: string;
+    open: number;
+    overdue: number;
+  }>;
+};
+
+/** "Due soon" horizon. Product default, not a stored SLA — reviews own theirs. */
+const DUE_SOON_WINDOW_MS = 72 * 60 * 60 * 1000;
+
+/** Bounded workload list — a group is people, not a dataset. */
+const WORKLOAD_MAX_MEMBERS = 50;
+
+export async function getTeamOverview(
+  input: { teamId: string; actorUserId: string },
+  client: PrismaClient = defaultPrisma,
+): Promise<CollaborationTeamOverview> {
+  const { team } = await requireMemberWithPermission(
+    client,
+    input.teamId,
+    input.actorUserId,
+    "team.read",
+  );
+  const now = new Date();
+  const dueSoonCutoff = new Date(now.getTime() + DUE_SOON_WINDOW_MS);
+  const openWork = {
+    teamId: input.teamId,
+    status: { in: [...OPEN_ASSIGNMENT_STATUSES] },
+  };
+
+  const [
+    byStatus,
+    byTarget,
+    overdue,
+    dueSoon,
+    highPriority,
+    unassigned,
+    memberRows,
+    workloadOpen,
+    workloadOverdue,
+  ] = await Promise.all([
+    client.collaborationTeamAssignment.groupBy({
+      by: ["status"],
+      where: { teamId: input.teamId },
+      _count: { _all: true },
+    }),
+    client.collaborationTeamAssignment.groupBy({
+      by: ["targetType"],
+      where: openWork,
+      _count: { _all: true },
+    }),
+    client.collaborationTeamAssignment.count({
+      where: { ...openWork, dueAtUtc: { lt: now } },
+    }),
+    client.collaborationTeamAssignment.count({
+      where: { ...openWork, dueAtUtc: { gte: now, lt: dueSoonCutoff } },
+    }),
+    client.collaborationTeamAssignment.count({
+      where: { ...openWork, priority: { in: ["HIGH", "URGENT"] } },
+    }),
+    client.collaborationTeamAssignment.count({
+      where: { ...openWork, assigneeUserId: null },
+    }),
+    // WCR-11 — effective members only, the same population the roster counts.
+    client.collaborationTeamMember.groupBy({
+      by: ["status"],
+      where: { teamId: input.teamId, ...effectiveGroupMemberWhere(team.workspaceId) },
+      _count: { _all: true },
+    }),
+    client.collaborationTeamAssignment.groupBy({
+      by: ["assigneeUserId"],
+      where: { ...openWork, assigneeUserId: { not: null } },
+      _count: { _all: true },
+    }),
+    client.collaborationTeamAssignment.groupBy({
+      by: ["assigneeUserId"],
+      where: {
+        ...openWork,
+        assigneeUserId: { not: null },
+        dueAtUtc: { lt: now },
+      },
+      _count: { _all: true },
+    }),
+  ]);
+
+  const managers = await client.collaborationTeamMember.count({
+    where: {
+      teamId: input.teamId,
+      status: "ACTIVE",
+      role: { in: ["LEAD", "ADMIN"] },
+      ...effectiveGroupMemberWhere(team.workspaceId),
+    },
+  });
+
+  const statusCount = (s: string): number =>
+    byStatus.find((r) => r.status === s)?._count._all ?? 0;
+  const targetCount = (t: string): number =>
+    byTarget.find((r) => r.targetType === t)?._count._all ?? 0;
+  const memberCount = (s: string): number =>
+    memberRows.find((r) => r.status === s)?._count._all ?? 0;
+
+  const overdueByUser = new Map<string, number>();
+  for (const row of workloadOverdue) {
+    if (row.assigneeUserId) {
+      overdueByUser.set(row.assigneeUserId, row._count._all);
+    }
+  }
+  const workload = workloadOpen
+    .filter((r): r is typeof r & { assigneeUserId: string } =>
+      Boolean(r.assigneeUserId),
+    )
+    .map((r) => ({
+      userId: r.assigneeUserId,
+      open: r._count._all,
+      overdue: overdueByUser.get(r.assigneeUserId) ?? 0,
+    }))
+    .sort((a, b) => b.open - a.open || a.userId.localeCompare(b.userId))
+    .slice(0, WORKLOAD_MAX_MEMBERS);
+
+  return {
+    work: {
+      open: statusCount("OPEN"),
+      inProgress: statusCount("IN_PROGRESS"),
+      completed: statusCount("COMPLETED"),
+      overdue,
+      dueSoon,
+      highPriority,
+      unassigned,
+      byTargetType: {
+        CASE: targetCount("CASE"),
+        EVIDENCE: targetCount("EVIDENCE"),
+        REVIEW: targetCount("REVIEW"),
+      },
+    },
+    members: {
+      active: memberCount("ACTIVE"),
+      suspended: memberCount("SUSPENDED"),
+      managers,
+    },
+    workload,
+  };
+}
+
+/**
+ * Which of THESE assignment targets match a search term, by the canonical
+ * record's own name. Bounded by the caller's already-capped id set and
+ * re-scoped to the workspace — the same rule `hydrateAssignmentTargets`
+ * follows, and for the same reason.
+ */
+async function searchAssignmentTargets(
+  client: PrismaClient,
+  workspaceId: string,
+  rows: ReadonlyArray<{ targetType: string; targetId: string }>,
+  term: string,
+): Promise<string[]> {
+  if (rows.length === 0) return [];
+  const idsByType = new Map<string, string[]>();
+  for (const r of rows) {
+    const list = idsByType.get(r.targetType);
+    if (list) list.push(r.targetId);
+    else idsByType.set(r.targetType, [r.targetId]);
+  }
+  const caseIds = idsByType.get("CASE") ?? [];
+  const evidenceIds = idsByType.get("EVIDENCE") ?? [];
+  const reviewIds = idsByType.get("REVIEW") ?? [];
+  const like = { contains: term, mode: "insensitive" as const };
+
+  const [cases, evidence, reviews] = await Promise.all([
+    caseIds.length
+      ? client.case.findMany({
+          where: {
+            AND: [
+              await workspaceCaseWhere(workspaceId, client),
+              { id: { in: caseIds } },
+              { OR: [{ name: like }, { referenceNumber: like }] },
+            ],
+          },
+          select: { id: true },
+        })
+      : Promise.resolve([]),
+    evidenceIds.length
+      ? client.evidence.findMany({
+          where: {
+            AND: [
+              await workspaceEvidenceWhere(workspaceId, client),
+              { id: { in: evidenceIds } },
+              { title: like },
+            ],
+          },
+          select: { id: true },
+        })
+      : Promise.resolve([]),
+    reviewIds.length
+      ? client.evidenceReviewWorkflow.findMany({
+          where: {
+            AND: [
+              { evidence: await workspaceEvidenceWhere(workspaceId, client) },
+              { id: { in: reviewIds } },
+              { evidence: { title: like } },
+            ],
+          },
+          select: { id: true },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  return [
+    ...cases.map((r) => r.id),
+    ...evidence.map((r) => r.id),
+    ...reviews.map((r) => r.id),
+  ];
 }
 
 // =============================================================================
