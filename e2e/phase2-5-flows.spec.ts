@@ -38,64 +38,74 @@ test.beforeEach(async () => {
 });
 
 test.describe("Phase 2.5 — operational scale @critical", () => {
-  test("guest login records an AuthenticatedSession row", async () => {
-    // Phase 2.4 ended with this test asserting "0 rows is OK"; Phase
-    // 2.5 strengthens it: a fresh guest MUST have >= 1 session row,
-    // because the guest auth route now calls
-    // `recordAuthenticatedSession`. This proves the write-side gap is
-    // closed.
+  test("signing in records a session row on the canonical surface", async () => {
+    // Phase 2.4 ended with this asserting "0 rows is OK"; Phase 2.5
+    // strengthened it: a fresh sign-in MUST leave >= 1 session row, because
+    // the auth route calls `recordAuthenticatedSession`. That write-side
+    // claim is unchanged — only the surface that reports it moved, from the
+    // retired `/v1/users/me/sessions` to `/v1/identity-security/*`.
     const session = await createGuestSession();
     try {
-      const resp = await session.api.get("/v1/users/me/sessions");
+      const resp = await session.api.get("/v1/identity-security/my-sessions");
       expect(resp.status()).toBe(200);
       const body = (await resp.json()) as {
-        sessions?: Array<{ active: boolean; current: boolean; id: string }>;
+        sessions?: Array<{ id: string; isCurrent: boolean; quarantined: boolean }>;
       };
       const sessions = body.sessions ?? [];
       expect(
         sessions.length,
-        `expected the guest's session to be recorded post-Phase-2.5; got ${sessions.length} rows`,
+        `expected the sign-in to be recorded; got ${sessions.length} rows`,
       ).toBeGreaterThan(0);
-      const active = sessions.filter((s) => s.active);
-      expect(
-        active.length,
-        "expected at least one active session row",
-      ).toBeGreaterThan(0);
-      const current = sessions.find((s) => s.current);
-      expect(
-        current,
-        "expected exactly one session row marked current === true",
-      ).toBeTruthy();
+      // Recorded, and not recorded as quarantined.
+      expect(sessions.every((s) => s.quarantined === false)).toBe(true);
     } finally {
       await disposeSession(session);
     }
   });
 
-  test("user can revoke their own session by id", async () => {
-    // Sanity: with the inventory now populated, the Phase 2.4
-    // DELETE endpoint should resolve a real id and succeed. We use
-    // a fresh guest session so the revoked row is the only one.
+  test("revoking a session is refused without a verified step-up, and revokes nothing", async () => {
+    // WHAT THIS USED TO ASSERT, AND WHY IT CANNOT ANY MORE.
+    //
+    // It expected `DELETE /v1/users/me/sessions/:id` to answer 200/204. That
+    // surface is retired, and its canonical replacement puts a step-up in
+    // front of every session mutation: `requireStepUpForSensitiveAction`
+    // demands a verified challenge id in `x-proovra-step-up-challenge-id`
+    // and is, in its own words, "still unsatisfiable without a verified
+    // challenge id".
+    //
+    // So the gate IS the contract now, and it is asserted directly — including
+    // the part that matters most: that the refusal happened BEFORE the
+    // mutation, not after it.
     const session = await createGuestSession();
     try {
-      const list = await session.api.get("/v1/users/me/sessions");
-      const body = (await list.json()) as {
+      const list = await session.api.get("/v1/identity-security/my-sessions");
+      const before = (await list.json()) as {
         sessions?: Array<{ id: string }>;
       };
-      const target = body.sessions?.[0];
+      const target = before.sessions?.[0];
       expect(target).toBeTruthy();
 
-      const del = await session.api.delete(
-        `/v1/users/me/sessions/${target!.id}`,
+      const revoke = await session.api.post(
+        `/v1/identity-security/my-sessions/${target!.id}/revoke`,
       );
-      // The revocation itself succeeds (200). The subsequent request
-      // on the same `session.api` context may either succeed (cookie
-      // hasn't been re-checked) or 401 (revocation is immediate).
-      // We accept 200/204 as success.
-      expect([200, 204]).toContain(del.status());
+      expect(revoke.status()).toBe(401);
+      const body = (await revoke.json()) as {
+        error?: { code?: string; methods?: string[]; message?: string };
+      };
+      expect(body.error?.code).toBe("STEP_UP_REQUIRED");
+      // The refusal names how to satisfy it, so a client can open the right
+      // challenge instead of reading this as "you are signed out".
+      expect(body.error?.methods).toContain("password");
+      expect(body.error?.message).toBeTruthy();
+
+      // Nothing was revoked. A gate that answered 401 after mutating would
+      // pass every assertion above and still be wrong.
+      const after = (await (
+        await session.api.get("/v1/identity-security/my-sessions")
+      ).json()) as { sessions?: Array<{ id: string }> };
+      expect(after.sessions?.some((s) => s.id === target!.id)).toBe(true);
     } finally {
-      // disposeSession may 401 if the revocation invalidated the
-      // token. Swallow.
-      await disposeSession(session).catch(() => {});
+      await disposeSession(session);
     }
   });
 
@@ -127,18 +137,38 @@ test.describe("Phase 2.5 — operational scale @critical", () => {
     expect(resp?.ok()).toBe(true);
   });
 
-  test("Phase 2.4 password change still refuses guests (regression check)", async () => {
+  test("the legacy password-change surface stays retired (regression check)", async () => {
+    // This was "password change still refuses guests", and it refused because
+    // a guest had no EMAIL provider. Guest auth is gone, so that refusal can
+    // no longer arise — and the endpoint it called is retired outright.
+    //
+    // The security property underneath it survives and is what gets checked:
+    // this route cannot change a password at all, and the canonical one will
+    // not do it without the current password.
     const session = await createGuestSession();
     try {
-      const resp = await session.api.post("/v1/users/me/password/change", {
+      const legacy = await session.api.post("/v1/users/me/password/change", {
         data: {
           currentPassword: "anything",
           newPassword: "a-real-new-password-2024",
         },
       });
-      expect(resp.status()).toBe(409);
-      const body = (await resp.json()) as { code?: string };
-      expect(body.code).toBe("PROVIDER_UNSUPPORTED");
+      expect(legacy.status()).toBe(410);
+      expect(((await legacy.json()) as { code?: string }).code).toBe(
+        "PERSONAL_SECURITY_LEGACY_RETIRED",
+      );
+
+      const canonical = await session.api.post(
+        "/v1/identity-security/password",
+        {
+          data: {
+            currentPassword: "not-the-current-password",
+            newPassword: "A-real-new-Passw0rd-24",
+          },
+        },
+      );
+      expect(canonical.status()).toBe(400);
+      expect(await canonical.text()).toContain("current_password_invalid");
     } finally {
       await disposeSession(session);
     }

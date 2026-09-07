@@ -127,77 +127,106 @@ test.describe("Phase B.3 — workflow orchestration @critical", () => {
     expect(src).toContain("review_decision:awaiting_second:");
   });
 
-  test("ReviewerCommandConsole ships the Phase B.3 summary card markers", async () => {
+  /**
+   * THE COMPONENT THIS GUARDED WAS UNMOUNTED, THEN DELETED.
+   *
+   * `ReviewerCommandConsole` was never rendered. Phase 12 Point 4 extracted
+   * its capabilities onto the canonical `/review` console "so the capability
+   * keeps a real product surface", and the dead component went with it — which
+   * is why this read `ENOENT` rather than a failed assertion.
+   *
+   * So the same markers are asserted against the components that now own them.
+   * That is strictly more than before: these ones actually render.
+   */
+  test("the multi-stage review summary card ships the Phase B.3 markers", async () => {
     const fs = await import("node:fs/promises");
     const path = await import("node:path");
-    const src = await fs.readFile(
-      path.resolve(
-        process.cwd(),
-        "apps/web/components/reviewer-experience/ReviewerCommandConsole.tsx",
-      ),
-      "utf8",
+    const read = async (rel: string) =>
+      fs.readFile(path.resolve(process.cwd(), rel), "utf8");
+    const src = await read(
+      "apps/web/components/reviewer-experience/MultiStageReviewSummaryCard.tsx",
     );
     expect(src).toContain('data-reviewer-section="multi-stage-review-summary"');
     expect(src).toContain("data-multi-stage-summary-tiles");
-    // The tile values are emitted via a templated `chip.key`. We
-    // verify the source-of-truth `stateChips` array declares the 4
-    // expected buckets.
     expect(src).toContain('key: "first_required"');
     expect(src).toContain('key: "second_required"');
     expect(src).toContain('key: "conflict_detected"');
     expect(src).toContain('key: "resolved"');
     expect(src).toContain("data-multi-stage-summary-tile={chip.key}");
-    expect(src).toContain('data-reviewer-scope-item="multi-stage-summary"');
-    expect(src).toContain('data-reviewer-scope-item="review-decision-inbox"');
+
+    // And it is MOUNTED. The predecessor shipped these markers inside a
+    // component nothing rendered, which is the failure mode this line closes.
+    const console_ = await read(
+      "apps/web/components/reviewer-experience/ReviewerConsole.tsx",
+    );
+    expect(console_).toContain("MultiStageReviewSummaryCard");
   });
 
   // ---------------------------------------------------------------------------
-  // Hook-rule deploy-blocker regression guard.
-  //
   // The deploy blocker was a `useCallback` called after early-return
-  // conditionals in ReviewerCommandConsole. The fix consolidates on
-  // the existing `load` callback declared ABOVE the conditionals.
-  // This test enforces that no hook (useCallback / useMemo /
-  // useEffect / useState) is declared inside the function body AFTER
-  // the first `if (state.status === "loading") return …` line.
+  // conditionals. The component it happened in (`ReviewerCommandConsole`) was
+  // unmounted and deleted, and its capabilities moved onto the canonical
+  // console — so the RULE now applies to the three components that inherited
+  // the code, not to one that no longer exists.
+  //
+  // SCOPED TO THE COMPONENT'S OWN INDENTATION, and that is the whole
+  // correction. A file-wide search for `if (…) return` matches the `if
+  // (!envelope) return [];` inside a `useMemo` body, and then flags every
+  // hook below it — measured, that reported five violations in
+  // `ReviewerConsole` where there are none. A return inside a callback is not
+  // an early return FROM the component. The predecessor avoided this by
+  // anchoring on one exact line; this anchors on the body's two-space
+  // indentation instead, which generalises without that blind spot.
+  //
+  // Not vacuous: `ReviewerConsole` really does carry three component-level
+  // early returns, so the rule has a subject in the file that matters.
   // ---------------------------------------------------------------------------
-  test("ReviewerCommandConsole has no hooks declared after the early-return conditionals", async () => {
+  test("no reviewer component declares a hook after an early return", async () => {
     const fs = await import("node:fs/promises");
     const path = await import("node:path");
-    const src = await fs.readFile(
-      path.resolve(
-        process.cwd(),
-        "apps/web/components/reviewer-experience/ReviewerCommandConsole.tsx",
-      ),
-      "utf8",
-    );
-    // Find the `export function ReviewerCommandConsole()` block.
-    const funcStart = src.indexOf("export function ReviewerCommandConsole()");
-    expect(
-      funcStart,
-      "ReviewerCommandConsole function must be locatable",
-    ).toBeGreaterThan(-1);
-    // The block ends where the next top-level `function`/`export` is
-    // declared. We approximate by scanning to "// ----" comment block
-    // or the `function CommandCenterReady` / next exported function.
-    const blockEnd = src.indexOf("\n// ", funcStart + 50);
-    const block = src.slice(funcStart, blockEnd > 0 ? blockEnd : funcStart + 8000);
-    // Index of the first early return.
-    const firstReturn = block.indexOf(
-      'if (state.status === "loading") return',
-    );
-    expect(
-      firstReturn,
-      "the early-return on loading state must exist",
-    ).toBeGreaterThan(-1);
-    const afterReturns = block.slice(firstReturn);
-    // No hook calls allowed after the early return inside this
-    // function body. (The QueuePeekSection/etc are SEPARATE function
-    // components and have their own hook scope — this check only
-    // matches `<hook>(` patterns within the SAME function block.)
-    expect(afterReturns).not.toMatch(/\buseCallback\s*\(/);
-    expect(afterReturns).not.toMatch(/\buseMemo\s*\(/);
-    expect(afterReturns).not.toMatch(/\buseEffect\s*\(/);
-    expect(afterReturns).not.toMatch(/\buseState\s*\(/);
+
+    const EARLY = /^ {2}if \([^)]*\)\s*(\{\s*)?return\b/;
+    const hookAtBodyLevel = (hook: string) =>
+      new RegExp(
+        "^ {2}(?:const|let)\\s+\\w+\\s*=\\s*" + hook + "\\s*\\(|^ {2}" + hook + "\\s*\\(",
+      );
+
+    let subjects = 0;
+    for (const rel of [
+      "apps/web/components/reviewer-experience/ReviewerConsole.tsx",
+      "apps/web/components/reviewer-experience/ReviewerBulkOpsBar.tsx",
+      "apps/web/components/reviewer-experience/MultiStageReviewSummaryCard.tsx",
+    ]) {
+      const lines = (
+        await fs.readFile(path.resolve(process.cwd(), rel), "utf8")
+      ).split("\n");
+
+      const starts: number[] = [];
+      lines.forEach((l, i) => {
+        if (/^(export )?function [A-Z]\w*\s*\(/.test(l)) starts.push(i);
+      });
+
+      for (let c = 0; c < starts.length; c += 1) {
+        const from = starts[c]!;
+        const to = c + 1 < starts.length ? starts[c + 1]! : lines.length;
+        const block = lines.slice(from, to);
+        const early = block.findIndex((l) => EARLY.test(l));
+        if (early < 0) continue;
+        subjects += 1;
+        for (const [j, line] of block.slice(early + 1).entries()) {
+          for (const hook of ["useCallback", "useMemo", "useEffect", "useState"]) {
+            expect(
+              hookAtBodyLevel(hook).test(line),
+              `${rel}:${from + early + 2 + j} declares ${hook} after the early ` +
+                `return at line ${from + early + 1}`,
+            ).toBe(false);
+          }
+        }
+      }
+    }
+
+    // If no component in any of the three has an early return, the rule above
+    // asserted nothing and the test would be green for the wrong reason.
+    expect(subjects, "no component-level early return found to guard").toBeGreaterThan(0);
   });
 });

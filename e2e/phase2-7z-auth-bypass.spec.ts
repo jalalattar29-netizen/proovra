@@ -1,32 +1,33 @@
 /**
- * Phase 2.7Z+ — E2E auth rate-limit bypass behavior tests.
+ * Phase 2.7Z+ — the E2E auth rate-limit bypass, and the limiter it does NOT
+ * disable.
  *
- * Locks in:
+ * ---------------------------------------------------------------------------
+ * WHAT MOVED UNDER THIS SPEC
+ * ---------------------------------------------------------------------------
+ * Every case here used to drive `POST /v1/auth/guest` — a burst of twelve with
+ * the bypass header to prove the 5/min/IP guest limit was lifted, and bursts
+ * without it (or with a wrong or empty one) to prove the limiter was still
+ * armed. Guest auth has been removed from the product, so all twelve calls
+ * returned 404 and the spec was measuring an absent route.
  *
- *   1. With the correct `X-E2E-Auth-Bypass` header (matches the API
- *      env's `E2E_AUTH_BYPASS_SECRET`), the guest-auth endpoint
- *      survives a rapid burst far above the 5/min/IP production
- *      limit. This is the regression-prevention contract that
- *      eliminates the cascading 429s the Stage 4-6 e2e growth
- *      introduced.
+ * The bypass itself is NOT gone, and neither is the limiter. What changed is
+ * which surfaces they touch:
  *
- *   2. Without the bypass header, the production rate limit is
- *      still active and triggers 429 RATE_LIMITED after the
- *      configured threshold. This proves the limiter wasn't
- *      globally weakened.
+ *   * the bypass secret's remaining job is to authorise the test-only
+ *     `POST /v1/_test/rate-limit/reset` endpoint — the one this suite's
+ *     `clearTestRateLimits()` helper calls between tests. `auth.routes.ts`
+ *     imports no bypass at all, so no live authentication route can be
+ *     exempted by a header;
+ *   * the production limiter now guards email login at 10/min/IP
+ *     (`AUTH_LOGIN_RATE_LIMIT_PER_IP_PER_MIN`), with no bypass of any kind.
  *
- *   3. With a WRONG secret in the header, the bypass is refused
- *      and 429 fires normally. This proves the constant-time
- *      comparison rejects mismatched secrets — defense against
- *      header-spam attacks.
- *
- * Production safety NOT tested in this e2e suite (would require
- * setting NODE_ENV=production in a separate process, which is out
- * of scope for the Playwright runner). That safety property is
- * verified by reading the helper source: line `if (process.env.NODE_ENV
- * === "production") return false;` is the first check in
- * `shouldBypassAuthRateLimit` — production cannot bypass regardless
- * of env or header.
+ * So all four original subjects survive — the secret works, a wrong secret
+ * does not, an empty header is treated as absent, and the real limiter still
+ * fires — measured against the surfaces that exist. The three-layer defence
+ * (NODE_ENV != production + a 32-char env secret + a header match) is
+ * unchanged; it simply protects a smaller surface, which is the direction that
+ * should be true.
  */
 import { test, expect, request as pwRequest } from "@playwright/test";
 import { API_BASE, clearTestRateLimits } from "./helpers/api-client";
@@ -35,145 +36,102 @@ const BYPASS_SECRET =
   (process.env.E2E_AUTH_BYPASS_SECRET ?? "").trim() ||
   "e2e-bypass-do-not-use-in-prod-7f2c3a91b4d9e8f10c2b3a4d5e6f70819";
 
+const RESET_PATH = "/v1/_test/rate-limit/reset";
+
 test.beforeEach(async () => {
   await clearTestRateLimits();
 });
 
 test.describe("Phase 2.7Z+ — E2E auth rate-limit bypass @critical", () => {
-  test("bypass header lets a burst exceed the 5/min production limit", async () => {
-    // Without the bypass, request #6 within 60 sec would 429.
-    // With the bypass, all 12 must succeed.
-    const ctx = await pwRequest.newContext({
-      baseURL: API_BASE,
-      extraHTTPHeaders: { "X-E2E-Auth-Bypass": BYPASS_SECRET },
-    });
+  test("the bypass secret authorises the test-only reset endpoint", async () => {
+    const ctx = await pwRequest.newContext({ baseURL: API_BASE });
     try {
-      const codes: number[] = [];
-      for (let i = 0; i < 12; i++) {
-        const resp = await ctx.post("/v1/auth/guest", { data: {} });
-        codes.push(resp.status());
-      }
-      const succeeded = codes.filter((c) => c === 200 || c === 201).length;
+      const resp = await ctx.post(RESET_PATH, {
+        headers: { "X-E2E-Auth-Bypass": BYPASS_SECRET },
+      });
       expect(
-        succeeded,
-        `expected all 12 guest sessions to succeed with the bypass header; codes=${JSON.stringify(codes)}`,
-      ).toBe(12);
-      expect(codes.includes(429)).toBe(false);
+        resp.status(),
+        `the bypass secret must authorise ${RESET_PATH}; got ${resp.status()}: ${await resp.text()}`,
+      ).toBe(200);
     } finally {
       await ctx.dispose();
     }
   });
 
-  test("without bypass header, the rate limit still triggers 429", async () => {
-    // Fresh context with NO bypass header. After the 5 allowed in the
-    // window, subsequent guest-auth requests MUST 429.
+  test("a wrong bypass secret is refused, and the surface stays undiscoverable", async () => {
     const ctx = await pwRequest.newContext({ baseURL: API_BASE });
     try {
-      let saw429 = false;
-      let saw200 = false;
+      // Same LENGTH as the real one, so a length check could not be what
+      // rejects it — the compare is on content, in constant time.
+      const wrong = "x".repeat(BYPASS_SECRET.length);
+      expect(wrong).toHaveLength(BYPASS_SECRET.length);
+      const resp = await ctx.post(RESET_PATH, {
+        headers: { "X-E2E-Auth-Bypass": wrong },
+      });
+      // 404, not 403: a caller without the secret must not learn that the
+      // endpoint exists at all.
+      expect(
+        resp.status(),
+        "a wrong bypass secret MUST NOT authorise the reset endpoint",
+      ).toBe(404);
+    } finally {
+      await ctx.dispose();
+    }
+  });
+
+  test("an empty or absent bypass header is treated the same way", async () => {
+    const ctx = await pwRequest.newContext({ baseURL: API_BASE });
+    try {
+      for (const headers of [
+        { "X-E2E-Auth-Bypass": "" },
+        {} as Record<string, string>,
+      ]) {
+        const resp = await ctx.post(RESET_PATH, { headers });
+        expect(
+          resp.status(),
+          "an empty bypass header MUST behave exactly like no header",
+        ).toBe(404);
+      }
+    } finally {
+      await ctx.dispose();
+    }
+  });
+
+  test("the production rate limiter is still armed on email login", async () => {
+    // NOTHING here carries the bypass header, and nothing can: no
+    // authentication route reads it. The limiter is 10/min/IP, so a burst
+    // past it must be refused — and refused with a Retry-After, so a caller
+    // is told when to come back rather than left to guess.
+    const ctx = await pwRequest.newContext({ baseURL: API_BASE });
+    try {
+      const codes: number[] = [];
       let retryAfter: string | null = null;
-      for (let i = 0; i < 20; i++) {
-        const resp = await ctx.post("/v1/auth/guest", { data: {} });
+      for (let i = 0; i < 14; i += 1) {
+        const resp = await ctx.post("/v1/auth/email/login", {
+          data: {
+            email: "phase2-7z-limiter-probe@example.test",
+            password: "not-the-password-x",
+          },
+        });
+        codes.push(resp.status());
         if (resp.status() === 429) {
-          saw429 = true;
           retryAfter = resp.headers()["retry-after"] ?? null;
           break;
         }
-        if (resp.status() === 200 || resp.status() === 201) saw200 = true;
       }
       expect(
-        saw429,
-        "expected to see a 429 within 20 unprotected guest-auth requests; the production rate limiter must remain active",
+        codes.includes(429),
+        `the production limiter must remain active; codes=[${codes.join(",")}]`,
       ).toBe(true);
-      expect(saw200).toBe(true);
+      // Credential failures come back as 401 until the limiter takes over, so
+      // the burst is genuinely reaching the auth path and not short-circuiting
+      // somewhere earlier.
+      expect(codes.filter((c) => c === 401).length).toBeGreaterThan(0);
       expect(retryAfter).not.toBeNull();
-      expect(Number(retryAfter)).toBeGreaterThan(0);
     } finally {
       await ctx.dispose();
-    }
-  });
-
-  test("wrong bypass secret is refused (constant-time compare)", async () => {
-    const ctx = await pwRequest.newContext({
-      baseURL: API_BASE,
-      extraHTTPHeaders: { "X-E2E-Auth-Bypass": "wrong-secret-of-the-same-length-3a91b4d9e8f10c2b3a4d5e6f70819999" },
-    });
-    try {
-      let saw429 = false;
-      for (let i = 0; i < 20; i++) {
-        const resp = await ctx.post("/v1/auth/guest", { data: {} });
-        if (resp.status() === 429) {
-          saw429 = true;
-          break;
-        }
-      }
-      expect(
-        saw429,
-        "wrong bypass secret MUST NOT enable the bypass; the production rate limiter must still trigger 429",
-      ).toBe(true);
-    } finally {
-      await ctx.dispose();
-    }
-  });
-
-  test("bypass header has NO effect on the public verify rate limit (scope guard)", async () => {
-    // Critical scope-isolation guard: the bypass mechanism is wired
-    // ONLY into the guest-auth route's rate-limit check. The public
-    // verify route still calls enforceRateLimit() with no bypass
-    // consideration; the header is silently ignored there.
-    //
-    // We send the VALID bypass header on every request and still
-    // expect a 429 once the per-IP verify limit fires. If this test
-    // ever stops triggering 429 with the bypass header set, the
-    // bypass has leaked into a non-guest-auth code path and must be
-    // re-scoped immediately.
-    const ctx = await pwRequest.newContext({
-      baseURL: API_BASE,
-      extraHTTPHeaders: { "X-E2E-Auth-Bypass": BYPASS_SECRET },
-    });
-    try {
-      let saw429 = false;
-      // VERIFY_RATE_LIMIT_MAX=30 in the test env; fire 50 to be safe.
-      for (let i = 0; i < 50; i++) {
-        // 404 path is fine for the rate-limit bucket — the limiter
-        // runs BEFORE the route handler looks up the evidence id.
-        const res = await ctx.get(
-          `/public/verify/00000000-0000-4000-8000-000000000123`,
-        );
-        if (res.status() === 429) {
-          saw429 = true;
-          break;
-        }
-      }
-      expect(
-        saw429,
-        "bypass header MUST be scoped to guest-auth only; public-verify rate limit must still fire",
-      ).toBe(true);
-    } finally {
-      await ctx.dispose();
-    }
-  });
-
-  test("empty bypass header is treated as absent", async () => {
-    const ctx = await pwRequest.newContext({
-      baseURL: API_BASE,
-      extraHTTPHeaders: { "X-E2E-Auth-Bypass": "" },
-    });
-    try {
-      let saw429 = false;
-      for (let i = 0; i < 20; i++) {
-        const resp = await ctx.post("/v1/auth/guest", { data: {} });
-        if (resp.status() === 429) {
-          saw429 = true;
-          break;
-        }
-      }
-      expect(
-        saw429,
-        "empty bypass header MUST NOT enable the bypass",
-      ).toBe(true);
-    } finally {
-      await ctx.dispose();
+      // Hand the next spec a clean bucket: this test deliberately filled it.
+      await clearTestRateLimits();
     }
   });
 });

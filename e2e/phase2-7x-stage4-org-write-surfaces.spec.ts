@@ -36,6 +36,7 @@ import { test, expect } from "@playwright/test";
 import {
   clearTestRateLimits,
   createGuestSession,
+  provisionEnterpriseOrg,
 } from "./helpers/api-client";
 
 test.beforeEach(async () => {
@@ -47,31 +48,50 @@ const NONEXISTENT_ORG = "00000000-0000-4000-8000-000000000888";
 const NON_UUID = "not-a-uuid";
 
 test.describe("Phase 2.7X Stage 4 — org write surfaces @critical", () => {
-  test("POST /v1/orgs creates an org and makes caller ORG_OWNER", async () => {
+  /**
+   * SELF-SERVICE ORG CREATION IS RETIRED, AND THE OWNERSHIP CONTRACT SURVIVED
+   * IT.
+   *
+   * `POST /v1/orgs` used to create an Organization with no `kind` — a SYSTEM
+   * container masquerading as a customer Enterprise Organization — and make
+   * the caller ORG_OWNER. It was retired in Phase 2 (2026-07-21) and now
+   * answers a bounded, explanatory denial. Measured against this stack:
+   *
+   *   403  org_self_service_creation_retired
+   *
+   * The route stays registered ON PURPOSE, so a legacy client gets that
+   * denial instead of a confusing 404 — which is itself worth holding, and is
+   * the first half of this case.
+   *
+   * The second half is everything this test was really about: that an org's
+   * owner is ORG_OWNER everywhere the product reports it. That contract did
+   * not move, so it is still asserted here, against an organization
+   * provisioned the way the product provisions one.
+   */
+  test("self-service org creation is retired, and a provisioned org's owner is ORG_OWNER", async () => {
     const session = await createGuestSession();
-    const create = await session.api.post("/v1/orgs", {
+
+    const retired = await session.api.post("/v1/orgs", {
       data: { name: "Stage 4 acceptance org" },
     });
-    expect(create.status()).toBe(201);
-    const created = (await create.json()) as {
-      organizationId: string;
-      name: string;
-      callerRole: string;
-      status: string;
-    };
-    expect(created.name).toBe("Stage 4 acceptance org");
-    expect(created.callerRole).toBe("ORG_OWNER");
-    expect(created.status).toBe("ACTIVE");
+    expect(retired.status()).toBe(403);
+    expect(
+      ((await retired.json()) as { error?: { code?: string } }).error?.code,
+    ).toBe("org_self_service_creation_retired");
+
+    const created = provisionEnterpriseOrg(session, "Stage 4 acceptance org");
 
     // Verify it shows up in /v1/me/orgs.
     const me = await session.api.get("/v1/me/orgs");
     expect(me.ok()).toBe(true);
     const meBody = (await me.json()) as {
-      orgs: Array<{ organizationId: string; role: string }>;
+      orgs: Array<{ organizationId: string; role: string; name: string; status: string }>;
     };
     const row = meBody.orgs.find((r) => r.organizationId === created.organizationId);
     expect(row).toBeTruthy();
     expect(row?.role).toBe("ORG_OWNER");
+    expect(row?.name).toBe("Stage 4 acceptance org");
+    expect(row?.status).toBe("ACTIVE");
 
     // Verify GET /v1/orgs/:id works and callerRole is ORG_OWNER.
     const detail = await session.api.get(`/v1/orgs/${created.organizationId}`);
@@ -79,7 +99,11 @@ test.describe("Phase 2.7X Stage 4 — org write surfaces @critical", () => {
     const detailBody = (await detail.json()) as { callerRole: string };
     expect(detailBody.callerRole).toBe("ORG_OWNER");
 
-    // Audit event: ORG_CREATED.
+    // The audit event that records how this org came to exist.
+    //
+    // NOT `ORG_CREATED` — that was the retired self-service route's event.
+    // An enterprise-provisioned org records `ENTERPRISE_PROVISIONED`, which
+    // is the more informative of the two: it says which door was used.
     const audit = await session.api.get(
       `/v1/orgs/${created.organizationId}/audit-events`,
     );
@@ -87,26 +111,36 @@ test.describe("Phase 2.7X Stage 4 — org write surfaces @critical", () => {
     const auditBody = (await audit.json()) as {
       events: Array<{ eventType: string }>;
     };
-    expect(auditBody.events.some((e) => e.eventType === "ORG_CREATED")).toBe(
-      true,
-    );
+    expect(
+      auditBody.events.some((e) => e.eventType === "ENTERPRISE_PROVISIONED"),
+    ).toBe(true);
   });
 
-  test("POST /v1/orgs validates name", async () => {
+  /**
+   * The denial does not depend on the payload.
+   *
+   * This case used to prove the route validated its name and answered 400 on
+   * an empty one. There is no validation left to prove — the route refuses
+   * before it reads the body — and a refusal that varied with the payload
+   * would leak that some inputs got further than others. So what is asserted
+   * now is that it does not: same status, same code, valid name or not.
+   */
+  test("the retired create route refuses uniformly, whatever the payload", async () => {
     const session = await createGuestSession();
-    const resp = await session.api.post("/v1/orgs", {
-      data: { name: "" },
-    });
-    expect(resp.status()).toBe(400);
+    for (const data of [{ name: "" }, { name: "A perfectly good name" }, {}]) {
+      const resp = await session.api.post("/v1/orgs", { data });
+      expect(resp.status()).toBe(403);
+      expect(
+        ((await resp.json()) as { error?: { code?: string } }).error?.code,
+      ).toBe("org_self_service_creation_retired");
+    }
   });
+
 
   test("PATCH /v1/orgs/:id renames + emits ORG_UPDATED; 403 for non-members", async () => {
     const owner = await createGuestSession();
-    const create = await owner.api.post("/v1/orgs", {
-      data: { name: "Original name" },
-    });
-    const orgId = ((await create.json()) as { organizationId: string })
-      .organizationId;
+    const create = provisionEnterpriseOrg(owner, "Original name");
+    const orgId = create.organizationId;
 
     // Owner can rename.
     const patch = await owner.api.patch(`/v1/orgs/${orgId}`, {
@@ -134,14 +168,19 @@ test.describe("Phase 2.7X Stage 4 — org write surfaces @critical", () => {
 
   test("invite + accept lifecycle works and emits expected audit events", async () => {
     const owner = await createGuestSession();
-    const created = (await (
-      await owner.api.post("/v1/orgs", { data: { name: "Invite test org" } })
-    ).json()) as { organizationId: string };
+    const created = provisionEnterpriseOrg(owner, "Invite test org");
     const orgId = created.organizationId;
+
+    // The invitee's account exists FIRST, because the invite is bound to
+    // its address: acceptance enforces an email match when both sides have
+    // one, and skips it only for a caller with no email at all — which is
+    // what the retired guest session was. Binding it here means these cases
+    // now exercise that enforcement instead of stepping around it.
+    const invitee = await createGuestSession();
 
     // Owner sends invite.
     const invite = await owner.api.post(`/v1/orgs/${orgId}/invites`, {
-      data: { email: "phase-2-7x-stage4-invitee@example.test", role: "ORG_MEMBER" },
+      data: { email: invitee.email, role: "ORG_MEMBER" },
     });
     expect(invite.status()).toBe(201);
     const inviteBody = (await invite.json()) as {
@@ -154,12 +193,11 @@ test.describe("Phase 2.7X Stage 4 — org write surfaces @critical", () => {
 
     // Duplicate pending invite returns 409.
     const dup = await owner.api.post(`/v1/orgs/${orgId}/invites`, {
-      data: { email: "phase-2-7x-stage4-invitee@example.test" },
+      data: { email: invitee.email },
     });
     expect(dup.status()).toBe(409);
 
-    // Second guest accepts the token.
-    const invitee = await createGuestSession();
+    // The invitee accepts the token.
     const accept = await invitee.api.post(
       `/v1/org-invites/${inviteBody.token}/accept`,
     );
@@ -182,11 +220,38 @@ test.describe("Phase 2.7X Stage 4 — org write surfaces @critical", () => {
       ),
     ).toBe(true);
 
-    // Repeat accept fails with 410 (already accepted).
-    const second = await invitee.api.post(
+    // A REPLAY BY THE SAME USER IS IDEMPOTENT, BY DESIGN.
+    //
+    // This asserted 410. Acceptance moved into the canonical service in
+    // Phase 5 §8 (2026-07-22) with "idempotent same-user replay + guarded
+    // atomic claim (concurrency-safe; grants written exactly once)", so a
+    // second accept from the invitee answers the same 200 and writes no
+    // second grant. Measured: 200, then one membership row.
+    const replay = await invitee.api.post(
       `/v1/org-invites/${inviteBody.token}/accept`,
     );
-    expect(second.status()).toBe(410);
+    expect(replay.status()).toBe(200);
+    const replayBody = (await replay.json()) as {
+      organizationId: string;
+      role: string;
+    };
+    expect(replayBody.organizationId).toBe(orgId);
+    expect(replayBody.role).toBe("ORG_MEMBER");
+    const afterReplay = (await (
+      await invitee.api.get("/v1/me/orgs")
+    ).json()) as { orgs: Array<{ organizationId: string }> };
+    expect(
+      afterReplay.orgs.filter((r) => r.organizationId === orgId),
+    ).toHaveLength(1);
+
+    // A DIFFERENT caller cannot spend a consumed invite. Measured: the
+    // already-accepted check runs before the email-match one, so this is
+    // 410 rather than 403.
+    const stranger = await createGuestSession();
+    const stolen = await stranger.api.post(
+      `/v1/org-invites/${inviteBody.token}/accept`,
+    );
+    expect(stolen.status()).toBe(410);
 
     // Audit timeline (owner view) shows INVITED + ACCEPTED.
     const audit = await owner.api.get(`/v1/orgs/${orgId}/audit-events`);
@@ -206,11 +271,7 @@ test.describe("Phase 2.7X Stage 4 — org write surfaces @critical", () => {
 
   test("last ORG_OWNER protections — cannot self-modify, cannot demote-self, cannot remove-self", async () => {
     const owner = await createGuestSession();
-    const orgId = ((
-      (await (
-        await owner.api.post("/v1/orgs", { data: { name: "Self-protect org" } })
-      ).json()) as { organizationId: string }
-    )).organizationId;
+    const orgId = provisionEnterpriseOrg(owner, "Self-protect org").organizationId;
 
     // Find the owner's own membership row.
     const members = (await (
@@ -237,19 +298,21 @@ test.describe("Phase 2.7X Stage 4 — org write surfaces @critical", () => {
   test("last ORG_OWNER protection — cannot demote when only one owner exists (via second admin)", async () => {
     // Provision: owner1 creates org, invites owner2 (also ORG_OWNER).
     const owner1 = await createGuestSession();
-    const orgId = ((
-      (await (
-        await owner1.api.post("/v1/orgs", { data: { name: "Owner-protect org" } })
-      ).json()) as { organizationId: string }
-    )).organizationId;
+    const orgId = provisionEnterpriseOrg(owner1, "Owner-protect org").organizationId;
+
+    // The invitee's account exists FIRST, because the invite is bound to
+    // its address: acceptance enforces an email match when both sides have
+    // one, and skips it only for a caller with no email at all — which is
+    // what the retired guest session was. Binding it here means these cases
+    // now exercise that enforcement instead of stepping around it.
+    const owner2 = await createGuestSession();
 
     const inviteResp = await owner1.api.post(`/v1/orgs/${orgId}/invites`, {
-      data: { email: "owner2@example.test", role: "ORG_OWNER" },
+      data: { email: owner2.email, role: "ORG_OWNER" },
     });
     expect(inviteResp.status()).toBe(201);
     const token = ((await inviteResp.json()) as { token: string }).token;
 
-    const owner2 = await createGuestSession();
     await owner2.api.post(`/v1/org-invites/${token}/accept`);
 
     // owner1 tries to demote owner2 (currently 2 owners → allowed).
@@ -280,18 +343,20 @@ test.describe("Phase 2.7X Stage 4 — org write surfaces @critical", () => {
 
   test("ORG_ADMIN cannot mint an ORG_OWNER invite", async () => {
     const owner = await createGuestSession();
-    const orgId = ((
-      (await (
-        await owner.api.post("/v1/orgs", { data: { name: "Admin-cap org" } })
-      ).json()) as { organizationId: string }
-    )).organizationId;
+    const orgId = provisionEnterpriseOrg(owner, "Admin-cap org").organizationId;
+
+    // The invitee's account exists FIRST, because the invite is bound to
+    // its address: acceptance enforces an email match when both sides have
+    // one, and skips it only for a caller with no email at all — which is
+    // what the retired guest session was. Binding it here means these cases
+    // now exercise that enforcement instead of stepping around it.
+    const adminSession = await createGuestSession();
 
     // Invite an admin.
     const adminInvite = await owner.api.post(`/v1/orgs/${orgId}/invites`, {
-      data: { email: "phase-2-7x-stage4-admin@example.test", role: "ORG_ADMIN" },
+      data: { email: adminSession.email, role: "ORG_ADMIN" },
     });
     const adminToken = ((await adminInvite.json()) as { token: string }).token;
-    const adminSession = await createGuestSession();
     await adminSession.api.post(`/v1/org-invites/${adminToken}/accept`);
 
     // Now the admin tries to invite at ORG_OWNER role -> 403.
@@ -311,11 +376,7 @@ test.describe("Phase 2.7X Stage 4 — org write surfaces @critical", () => {
 
   test("non-members cannot read or mutate via :id endpoints", async () => {
     const owner = await createGuestSession();
-    const orgId = ((
-      (await (
-        await owner.api.post("/v1/orgs", { data: { name: "Isolation org" } })
-      ).json()) as { organizationId: string }
-    )).organizationId;
+    const orgId = provisionEnterpriseOrg(owner, "Isolation org").organizationId;
 
     const stranger = await createGuestSession();
     const reads = await Promise.all([
@@ -341,18 +402,20 @@ test.describe("Phase 2.7X Stage 4 — org write surfaces @critical", () => {
 
   test("audit list refuses ORG_MEMBER, allows ORG_AUDITOR+", async () => {
     const owner = await createGuestSession();
-    const orgId = ((
-      (await (
-        await owner.api.post("/v1/orgs", { data: { name: "Audit-gate org" } })
-      ).json()) as { organizationId: string }
-    )).organizationId;
+    const orgId = provisionEnterpriseOrg(owner, "Audit-gate org").organizationId;
+
+    // The invitee's account exists FIRST, because the invite is bound to
+    // its address: acceptance enforces an email match when both sides have
+    // one, and skips it only for a caller with no email at all — which is
+    // what the retired guest session was. Binding it here means these cases
+    // now exercise that enforcement instead of stepping around it.
+    const memberSession = await createGuestSession();
 
     // Invite a plain MEMBER.
     const m1 = await owner.api.post(`/v1/orgs/${orgId}/invites`, {
-      data: { email: "plain-member@example.test", role: "ORG_MEMBER" },
+      data: { email: memberSession.email, role: "ORG_MEMBER" },
     });
     const m1Token = ((await m1.json()) as { token: string }).token;
-    const memberSession = await createGuestSession();
     await memberSession.api.post(`/v1/org-invites/${m1Token}/accept`);
 
     // ORG_MEMBER cannot read audit timeline -> 403.
@@ -361,12 +424,13 @@ test.describe("Phase 2.7X Stage 4 — org write surfaces @critical", () => {
     );
     expect(memberAttempt.status()).toBe(403);
 
+    const auditorSession = await createGuestSession();
+
     // Invite an AUDITOR.
     const m2 = await owner.api.post(`/v1/orgs/${orgId}/invites`, {
-      data: { email: "auditor@example.test", role: "ORG_AUDITOR" },
+      data: { email: auditorSession.email, role: "ORG_AUDITOR" },
     });
     const m2Token = ((await m2.json()) as { token: string }).token;
-    const auditorSession = await createGuestSession();
     await auditorSession.api.post(`/v1/org-invites/${m2Token}/accept`);
 
     // ORG_AUDITOR CAN read audit timeline.

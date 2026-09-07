@@ -35,6 +35,7 @@ import { test, expect } from "@playwright/test";
 import {
   clearTestRateLimits,
   createGuestSession,
+  SESSION_PASSWORD,
   disposeSession,
 } from "./helpers/api-client";
 
@@ -43,58 +44,96 @@ test.beforeEach(async () => {
 });
 
 test.describe("Phase 2.4 — backend completion @critical", () => {
-  test("GET /v1/users/me/sessions returns the caller's session envelope", async () => {
+  // ===========================================================================
+  // THE LEGACY PERSONAL-SECURITY SURFACE IS RETIRED.
+  //
+  // These five cases exercised `/v1/users/me/sessions*` and
+  // `/v1/users/me/password/change`. All three handlers now answer 410 with
+  // `code: "PERSONAL_SECURITY_LEGACY_RETIRED"`, because they were "a parallel
+  // implementation alongside the canonical Phase 19 identity-security
+  // surface" and "left two ways for a caller to mutate the same auth state".
+  //
+  // Two of them were additionally premised on a GUEST caller having no
+  // password ("refuses non-EMAIL providers (guest)"), and guest auth is gone
+  // too — so they were asserting a refusal that can no longer arise.
+  //
+  // Every subject below is preserved and moved onto `/v1/identity-security/*`,
+  // whose behaviour was measured rather than assumed. Where the canonical
+  // surface is STRICTER, the assertion says so.
+  // ===========================================================================
+
+  test("the legacy personal-security surface answers 410 and names its replacement", async () => {
     const session = await createGuestSession();
     try {
-      const resp = await session.api.get("/v1/users/me/sessions");
-      expect(
-        resp.status(),
-        `expected 200 for /v1/users/me/sessions, got ${resp.status()}: ${await resp.text()}`,
-      ).toBe(200);
-      const body = (await resp.json()) as {
-        sessions?: Array<{
-          id: string;
-          active: boolean;
-          current: boolean;
-          revoked: boolean;
-          issuedAtUtc: string;
-          expiresAtUtc: string;
-          lastSeenAtUtc: string;
-        }>;
-      };
-      expect(Array.isArray(body.sessions)).toBe(true);
-      // NOTE: this test runs under guest auth (`POST /v1/auth/guest`).
-      // Phase 2.4 inspection found that `recordAuthenticatedSession()`
-      // is invoked ONLY by SAML and SSO login paths today — guest +
-      // email-password tokens have no inventory row written. The
-      // user-facing endpoint honestly returns `[]` for those users
-      // instead of fabricating rows. The Phase 2.4 doc documents this
-      // as a follow-up backend gap (extend email-password + guest
-      // login paths to call recordAuthenticatedSession).
-      //
-      // For the test we therefore only assert the SHAPE of the
-      // response — every returned row must have the AccountSecurityCard's
-      // SessionRow fields. A 0-length array is valid today; a future
-      // change that starts writing guest rows must keep this shape.
-      for (const s of body.sessions ?? []) {
-        expect(typeof s.id).toBe("string");
-        expect(typeof s.active).toBe("boolean");
-        expect(typeof s.current).toBe("boolean");
-        expect(typeof s.revoked).toBe("boolean");
-        expect(typeof s.issuedAtUtc).toBe("string");
-        expect(typeof s.expiresAtUtc).toBe("string");
-        expect(typeof s.lastSeenAtUtc).toBe("string");
+      for (const call of [
+        () => session.api.get("/v1/users/me/sessions"),
+        () => session.api.delete("/v1/users/me/sessions/not-a-uuid"),
+        () =>
+          session.api.post("/v1/users/me/password/change", {
+            data: { currentPassword: "x", newPassword: "y" },
+          }),
+      ]) {
+        const resp = await call();
+        expect(resp.status(), `body: ${await resp.text()}`).toBe(410);
+        const body = (await resp.json()) as {
+          code?: string;
+          canonicalPassword?: string;
+          canonicalSessionsList?: string;
+        };
+        expect(body.code).toBe("PERSONAL_SECURITY_LEGACY_RETIRED");
+        // The refusal carries the way forward, so a stuck caller is told
+        // where to go rather than just being told no.
+        expect(body.canonicalPassword).toBe("/v1/identity-security/password");
+        expect(body.canonicalSessionsList).toBe(
+          "/v1/identity-security/my-sessions",
+        );
       }
     } finally {
       await disposeSession(session);
     }
   });
 
-  test("DELETE /v1/users/me/sessions/:id rejects malformed ids", async () => {
+  test("the caller can list their own sessions on the canonical surface", async () => {
     const session = await createGuestSession();
     try {
-      const resp = await session.api.delete(
-        "/v1/users/me/sessions/not-a-uuid",
+      const resp = await session.api.get("/v1/identity-security/my-sessions");
+      expect(
+        resp.status(),
+        `expected 200 for /v1/identity-security/my-sessions, got ${resp.status()}: ${await resp.text()}`,
+      ).toBe(200);
+      const body = (await resp.json()) as {
+        sessions?: Array<{
+          id: string;
+          isCurrent: boolean;
+          issuedAtUtc: string;
+          expiresAtUtc: string;
+          ipPreview: string | null;
+          uaPreview: string | null;
+          quarantined: boolean;
+        }>;
+      };
+      expect(Array.isArray(body.sessions)).toBe(true);
+      expect(body.sessions!.length).toBeGreaterThanOrEqual(1);
+      const row = body.sessions![0]!;
+      expect(row.id).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+      );
+      expect(typeof row.isCurrent).toBe("boolean");
+      expect(typeof row.quarantined).toBe("boolean");
+      expect(new Date(row.issuedAtUtc).toString()).not.toBe("Invalid Date");
+      expect(new Date(row.expiresAtUtc).toString()).not.toBe("Invalid Date");
+      // The address and client are PREVIEWS, never the raw values.
+      if (row.ipPreview !== null) expect(row.ipPreview).toContain("•");
+    } finally {
+      await disposeSession(session);
+    }
+  });
+
+  test("revoking a session rejects a malformed id", async () => {
+    const session = await createGuestSession();
+    try {
+      const resp = await session.api.post(
+        "/v1/identity-security/my-sessions/not-a-uuid/revoke",
       );
       expect(resp.status(), `body: ${await resp.text()}`).toBe(400);
     } finally {
@@ -102,55 +141,56 @@ test.describe("Phase 2.4 — backend completion @critical", () => {
     }
   });
 
-  test("DELETE /v1/users/me/sessions/:id 404s on a UUID not owned by the caller", async () => {
+  test("revoking a session the caller does not own is not an existence oracle", async () => {
     const session = await createGuestSession();
     try {
-      // A random UUID that definitely doesn't belong to this guest.
-      const resp = await session.api.delete(
-        "/v1/users/me/sessions/00000000-0000-4000-8000-000000000000",
+      // STRICTER THAN THE 404 THIS USED TO ASSERT.
+      //
+      // The legacy surface answered 404 for a session id the caller did not
+      // own, which hid existence by choosing a status. The canonical surface
+      // refuses EARLIER: any session mutation requires a step-up, so the
+      // caller is asked to confirm who they are before the id is ever looked
+      // at. There is no oracle left to leak.
+      const resp = await session.api.post(
+        "/v1/identity-security/my-sessions/00000000-0000-4000-8000-000000000000/revoke",
       );
-      expect(resp.status(), `body: ${await resp.text()}`).toBe(404);
+      expect(resp.status(), `body: ${await resp.text()}`).toBe(401);
+      const raw = await resp.text();
+      expect(raw).toContain("password");
+      // Nothing about whether that session exists.
+      expect(raw).not.toMatch(/not found|no such|exists/i);
     } finally {
       await disposeSession(session);
     }
   });
 
-  test("POST /v1/users/me/password/change refuses non-EMAIL providers (guest)", async () => {
+  test("changing a password requires the current one", async () => {
     const session = await createGuestSession();
     try {
-      const resp = await session.api.post("/v1/users/me/password/change", {
+      const resp = await session.api.post("/v1/identity-security/password", {
         data: {
-          currentPassword: "anything",
-          newPassword: "anything-but-strong",
+          currentPassword: "definitely-not-the-current-one",
+          newPassword: "A-new-Passw0rd-9x",
         },
       });
-      expect(
-        resp.status(),
-        `expected 409 PROVIDER_UNSUPPORTED for guest; got ${resp.status()}: ${await resp.text()}`,
-      ).toBe(409);
-      const body = (await resp.json()) as { code?: string };
-      expect(body.code).toBe("PROVIDER_UNSUPPORTED");
+      expect(resp.status(), `body: ${await resp.text()}`).toBe(400);
+      const raw = await resp.text();
+      expect(raw).toContain("current_password_invalid");
     } finally {
       await disposeSession(session);
     }
   });
 
-  test("POST /v1/users/me/password/change validates body (min 8 chars)", async () => {
+  test("a new password must meet the length policy", async () => {
     const session = await createGuestSession();
     try {
-      const resp = await session.api.post("/v1/users/me/password/change", {
-        data: {
-          currentPassword: "x",
-          newPassword: "short", // too short
-        },
+      const resp = await session.api.post("/v1/identity-security/password", {
+        data: { currentPassword: SESSION_PASSWORD, newPassword: "short" },
       });
-      // Either 400 (Zod body validation fires) or 409 (provider check
-      // fires first — a guest token never reaches the body validator).
-      // Both are acceptable; 5xx is not.
-      expect(
-        [400, 409],
-        `expected 400 or 409; got ${resp.status()}: ${await resp.text()}`,
-      ).toContain(resp.status());
+      expect(resp.status(), `body: ${await resp.text()}`).toBe(400);
+      // The canonical policy is TWELVE characters, not the eight the legacy
+      // surface asked for — measured from the validator's own message.
+      expect(await resp.text()).toMatch(/>=\s*12 characters/);
     } finally {
       await disposeSession(session);
     }

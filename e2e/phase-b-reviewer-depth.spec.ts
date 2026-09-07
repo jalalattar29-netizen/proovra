@@ -126,50 +126,98 @@ test.describe("Phase B — reviewer operations enterprise depth @critical", () =
     ).toBe(true);
   });
 
-  // ---------------------------------------------------------------------------
-  // Source-presence regression guards — guarantee the Phase B
-  // additions do not silently regress.
-  // ---------------------------------------------------------------------------
-  test("ReviewerCommandConsole ships the Phase B-1 bulk action markers", async () => {
+  /**
+   * THE COMPONENT THIS GUARDED WAS UNMOUNTED, THEN DELETED.
+   *
+   * `ReviewerCommandConsole` was never rendered. Phase 12 Point 4 extracted
+   * its capabilities onto the canonical `/review` console "so the capability
+   * keeps a real product surface", and the dead component went with it — which
+   * is why this read `ENOENT` rather than a failed assertion.
+   *
+   * So the same markers are asserted against the components that now own them.
+   * That is strictly more than before: these ones actually render.
+   */
+  test("the canonical console ships the Phase B-1 bulk action markers", async () => {
     const fs = await import("node:fs/promises");
     const path = await import("node:path");
-    const src = await fs.readFile(
-      path.resolve(
-        process.cwd(),
-        "apps/web/components/reviewer-experience/ReviewerCommandConsole.tsx",
-      ),
-      "utf8",
+    const read = async (rel: string) =>
+      fs.readFile(path.resolve(process.cwd(), rel), "utf8");
+    const bar = await read(
+      "apps/web/components/reviewer-experience/ReviewerBulkOpsBar.tsx",
     );
-    expect(src).toContain("data-reviewer-bulk-actions-bar");
-    expect(src).toContain('data-reviewer-bulk-action="ASSIGN_TO_ME"');
-    expect(src).toContain('data-reviewer-bulk-action="PRIORITY_HIGH"');
-    expect(src).toContain('data-reviewer-bulk-action="PRIORITY_NORMAL"');
-    expect(src).toContain('data-reviewer-bulk-action="PRIORITY_URGENT"');
-    expect(src).toContain("data-reviewer-bulk-select-all");
-    expect(src).toContain("data-reviewer-bulk-last-result");
-    expect(src).toContain("data-reviewer-bulk-personal-banner");
+    const console_ = await read(
+      "apps/web/components/reviewer-experience/ReviewerConsole.tsx",
+    );
+
+    // The action bar owns the actions.
+    expect(bar).toContain("data-reviewer-bulk-actions-bar");
+    expect(bar).toContain('data-reviewer-bulk-action="ASSIGN_TO_ME"');
+    expect(bar).toContain('data-reviewer-bulk-action="PRIORITY_HIGH"');
+    expect(bar).toContain('data-reviewer-bulk-action="PRIORITY_NORMAL"');
+    expect(bar).toContain('data-reviewer-bulk-action="PRIORITY_URGENT"');
+    expect(bar).toContain("data-reviewer-bulk-last-result");
+    expect(bar).toContain("data-reviewer-bulk-personal-banner");
     // POST path is unchanged from Phase 25.5; the UI must point at it.
-    expect(src).toContain("/v1/reviewer-ops/reviews/bulk");
+    expect(bar).toContain("/v1/reviewer-ops/reviews/bulk");
+
+    // The console owns the selection the bar acts on, and mounts the bar —
+    // without which the markers above would be shipped and unreachable, which
+    // is exactly the state this test used to be blind to.
+    expect(console_).toContain("data-reviewer-bulk-select-all");
+    expect(console_).toContain("ReviewerBulkOpsBar");
   });
 
-  test("ReviewerCommandConsole ships the Phase B-3 operational scope panel", async () => {
+  /**
+   * THE DEFERRAL PANEL WENT WITH THE UNMOUNTED CONSOLE — AND THREE OF ITS FOUR
+   * DEFERRALS WERE DELIVERED.
+   *
+   * This required an "operational scope" panel disclosing four things the
+   * brief said not to fake: bates-numbering, redaction-tooling, second-review
+   * and conflict-resolution. The panel lived in `ReviewerCommandConsole`,
+   * which was never rendered and has since been deleted, so the disclosure was
+   * being asserted in a component no user could reach.
+   *
+   * Measured against the current tree: redaction tooling, second review
+   * (multi-stage) and conflict resolution all exist in the product now. Bates
+   * numbering does not — and, correctly, nothing anywhere claims it does.
+   *
+   * So what the brief actually asked for is asserted directly: the delivered
+   * capabilities are real, and the undelivered one is not faked. That is a
+   * stronger reading of "do not fake it" than a panel admitting the gap.
+   */
+  test("the reviewer capabilities the brief deferred are delivered, and the one that is not is not faked", async () => {
     const fs = await import("node:fs/promises");
     const path = await import("node:path");
-    const src = await fs.readFile(
-      path.resolve(
-        process.cwd(),
-        "apps/web/components/reviewer-experience/ReviewerCommandConsole.tsx",
-      ),
-      "utf8",
+    const read = async (rel: string) =>
+      fs.readFile(path.resolve(process.cwd(), rel), "utf8");
+
+    // Second review / conflict resolution — real, with its own surface.
+    const card = await read(
+      "apps/web/components/reviewer-experience/MultiStageReviewSummaryCard.tsx",
     );
-    expect(src).toContain('data-reviewer-section="operational-scope"');
-    expect(src).toContain('data-reviewer-scope-block="available"');
-    expect(src).toContain('data-reviewer-scope-block="deferred"');
-    // Honest "deferred" items the brief asked us NOT to fake.
-    expect(src).toContain('data-reviewer-scope-item="bates-numbering"');
-    expect(src).toContain('data-reviewer-scope-item="redaction-tooling"');
-    expect(src).toContain('data-reviewer-scope-item="second-review"');
-    expect(src).toContain('data-reviewer-scope-item="conflict-resolution"');
+    expect(card).toContain('key: "second_required"');
+    expect(card).toContain('key: "conflict_detected"');
+    expect(card).toContain('key: "resolved"');
+
+    // Redaction tooling — a real backend surface, not a label.
+    const routes = await read("docs/architecture/current-runtime-capability-map.json");
+    expect(routes).toContain("/v1/redaction/policies");
+    expect(routes).toContain("/v1/redaction/regions/:id");
+
+    // Bates numbering is NOT implemented, and nothing pretends otherwise:
+    // no route, no component, no copy anywhere in the product tree.
+    const { execFileSync } = await import("node:child_process");
+    const hits = execFileSync(
+      process.execPath,
+      [
+        "-e",
+        "const{execSync}=require('node:child_process');" +
+          "try{process.stdout.write(execSync('git grep -il bates -- apps services packages',{encoding:'utf8'}))}" +
+          "catch{process.stdout.write('')}",
+      ],
+      { cwd: process.cwd(), encoding: "utf8" },
+    ).trim();
+    expect(hits, `nothing should claim bates numbering; found: ${hits}`).toBe("");
   });
 
   test("Reviewer detail page ships the Phase B-2 governance signals strip", async () => {

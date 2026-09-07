@@ -98,7 +98,7 @@ test.describe("evidence flow @critical", () => {
     }
   });
 
-  test("cross-tenant access is refused (HTTP 403)", async () => {
+  test("a cross-tenant read is indistinguishable from a record that does not exist", async () => {
     const ownerSession = await createGuestSession();
     const intruderSession = await createGuestSession();
     try {
@@ -107,10 +107,39 @@ test.describe("evidence flow @critical", () => {
       });
       const created = (await create.json()) as { id: string };
 
+      // THIS USED TO REQUIRE 403, AND 403 IS THE BUG.
+      //
+      // Answering an outsider `403` on a real id and `404` on an invented
+      // one tells them which ids are real: the status code becomes an
+      // existence oracle, and anyone with a token can enumerate the
+      // estate. The Phase-12 anti-enumeration closure made the
+      // unauthorized branch return the SAME 404, with the same message,
+      // as the genuinely-missing branch — after a live probe caught the
+      // leak.
+      //
+      // So the property is not the number. It is that the two answers
+      // cannot be told apart, and that is what gets compared here: a real
+      // id the intruder may not see, against an id that never existed.
       const intruderRead = await intruderSession.api.get(
         `/v1/evidence/${created.id}`,
       );
-      expect(intruderRead.status()).toBe(403);
+      const absentRead = await intruderSession.api.get(
+        "/v1/evidence/00000000-0000-4000-8000-000000000000",
+      );
+
+      expect(intruderRead.status()).toBe(404);
+      expect(absentRead.status()).toBe(404);
+      expect(
+        await intruderRead.text(),
+        "a hidden record and a missing record must answer identically",
+      ).toBe(await absentRead.text());
+
+      // And the owner still sees their own record — the closure hid it
+      // from the intruder, not from everyone.
+      const ownerRead = await ownerSession.api.get(
+        `/v1/evidence/${created.id}`,
+      );
+      expect(ownerRead.status()).toBe(200);
     } finally {
       await disposeSession(ownerSession);
       await disposeSession(intruderSession);

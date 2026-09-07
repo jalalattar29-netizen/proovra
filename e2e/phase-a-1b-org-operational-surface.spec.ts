@@ -30,6 +30,7 @@ import { test, expect } from "@playwright/test";
 import {
   clearTestRateLimits,
   createGuestSession,
+  provisionEnterpriseOrg,
 } from "./helpers/api-client";
 
 test.beforeEach(async () => {
@@ -40,7 +41,21 @@ test.describe("Phase A.1B — org operational surface @critical", () => {
   // ---------------------------------------------------------------------------
   // Discoverability — topbar account menu carries Organizations
   // ---------------------------------------------------------------------------
-  test("platform-context accountMenu now includes account.organizations", async () => {
+  /**
+   * THE ACCOUNT MENU MOVED TO THE CLIENT, SO BOTH HALVES ARE ASSERTED.
+   *
+   * This required `navigation.accountMenu.items` to carry
+   * `account.organizations`. `ACCOUNT_GROUP` was retired server-side on
+   * 2026-07-21: the top-bar menu is resolved entirely by the single canonical
+   * resolver `apps/web/lib/navigation/accountMenu.ts`, and the server "emits
+   * an empty list for schema stability".
+   *
+   * So the discoverability claim did not disappear, it changed address. Both
+   * ends are held here: the server still SHAPES the field (so a client reading
+   * it cannot crash) and emits nothing into it, and the resolver that replaced
+   * it still routes Organizations to /organizations.
+   */
+  test("the organizations surface is discoverable from the canonical account menu", async () => {
     const session = await createGuestSession();
     const resp = await session.api.get("/v1/platform/context");
     expect(
@@ -52,13 +67,19 @@ test.describe("Phase A.1B — org operational surface @critical", () => {
         accountMenu?: { items?: Array<{ id: string; href: string }> };
       };
     };
-    const items = body.navigation?.accountMenu?.items ?? [];
-    const orgEntry = items.find((it) => it.id === "account.organizations");
-    expect(
-      orgEntry,
-      "account.organizations must be present in the topbar account menu so the surface is discoverable",
-    ).toBeTruthy();
-    expect(orgEntry?.href).toBe("/organizations");
+    // Shape preserved, contents retired.
+    expect(Array.isArray(body.navigation?.accountMenu?.items)).toBe(true);
+    expect(body.navigation?.accountMenu?.items ?? []).toHaveLength(0);
+
+    // The canonical resolver is the authority now.
+    const fs = await import("node:fs/promises");
+    const path = await import("node:path");
+    const resolver = await fs.readFile(
+      path.resolve(process.cwd(), "apps/web/lib/navigation/accountMenu.ts"),
+      "utf8",
+    );
+    expect(resolver).toContain('id: "account.organizations"');
+    expect(resolver).toContain('href: "/organizations"');
   });
 
   // ---------------------------------------------------------------------------
@@ -113,11 +134,8 @@ test.describe("Phase A.1B — org operational surface @critical", () => {
     const session = await createGuestSession();
 
     // Create the org via the API the new list page uses.
-    const create = await session.api.post("/v1/orgs", {
-      data: { name: "Phase A.1B settings round-trip" },
-    });
-    expect(create.status()).toBe(201);
-    const created = (await create.json()) as { organizationId: string };
+    const create = provisionEnterpriseOrg(session, "Phase A.1B settings round-trip");
+    const created = create;
     expect(created.organizationId).toBeTruthy();
 
     // PATCH name + legalName + legalEmail — the three fields the new
@@ -190,11 +208,8 @@ test.describe("Phase A.1B — org operational surface @critical", () => {
   // ---------------------------------------------------------------------------
   test("Workspaces section endpoint returns the expected envelope (used by overview tile + workspaces panel)", async () => {
     const session = await createGuestSession();
-    const create = await session.api.post("/v1/orgs", {
-      data: { name: "Phase A.1B workspaces tile" },
-    });
-    const orgId = ((await create.json()) as { organizationId: string })
-      .organizationId;
+    const create = provisionEnterpriseOrg(session, "Phase A.1B workspaces tile");
+    const orgId = create.organizationId;
     const resp = await session.api.get(`/v1/orgs/${orgId}/workspaces`);
     expect(resp.ok()).toBe(true);
     const body = (await resp.json()) as {
@@ -257,12 +272,8 @@ test.describe("Phase A.1B — org operational surface @critical", () => {
     const session = await createGuestSession();
     // Seed: create one org and one invite. The list endpoint must
     // surface counts for both without an N+1.
-    const create = await session.api.post("/v1/orgs", {
-      data: { name: "Wave2 counts org" },
-    });
-    expect(create.status()).toBe(201);
-    const orgId = ((await create.json()) as { organizationId: string })
-      .organizationId;
+    const create = provisionEnterpriseOrg(session, "Wave2 counts org");
+    const orgId = create.organizationId;
     const inv = await session.api.post(`/v1/orgs/${orgId}/invites`, {
       data: { email: "wave2-counts@example.test", role: "ORG_MEMBER" },
     });
@@ -293,11 +304,8 @@ test.describe("Phase A.1B — org operational surface @critical", () => {
   // ---------------------------------------------------------------------------
   test("Wave 2: GET /v1/orgs/:id exposes address/timezone/logoUrl + pendingInviteCount", async () => {
     const session = await createGuestSession();
-    const create = await session.api.post("/v1/orgs", {
-      data: { name: "Wave2 detail metadata org" },
-    });
-    const orgId = ((await create.json()) as { organizationId: string })
-      .organizationId;
+    const create = provisionEnterpriseOrg(session, "Wave2 detail metadata org");
+    const orgId = create.organizationId;
 
     // PATCH every field the Settings form sends.
     const patch = await session.api.patch(`/v1/orgs/${orgId}`, {
@@ -337,11 +345,8 @@ test.describe("Phase A.1B — org operational surface @critical", () => {
   // ---------------------------------------------------------------------------
   test("Wave 2: workspaces endpoint surfaces billing for ORG_OWNER, hides for ORG_MEMBER", async () => {
     const owner = await createGuestSession();
-    const create = await owner.api.post("/v1/orgs", {
-      data: { name: "Wave2 workspace billing org" },
-    });
-    const orgId = ((await create.json()) as { organizationId: string })
-      .organizationId;
+    const create = provisionEnterpriseOrg(owner, "Wave2 workspace billing org");
+    const orgId = create.organizationId;
 
     const wOwner = await owner.api.get(`/v1/orgs/${orgId}/workspaces`);
     expect(wOwner.ok()).toBe(true);

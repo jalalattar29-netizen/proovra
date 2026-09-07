@@ -97,6 +97,8 @@ export async function clearTestRateLimits(): Promise<void> {
 export type GuestSession = {
   token: string;
   userId: string;
+  /** The registered address. Enterprise provisioning is keyed by it. */
+  email: string;
   api: APIRequestContext;
 };
 
@@ -175,6 +177,15 @@ export type SessionOptions = {
   plan?: "FREE" | "PRO" | "TEAM";
 };
 
+/**
+ * The password every session in this suite is created with.
+ *
+ * Exported because a spec that changes a password has to prove it knows the
+ * current one, and hard-coding a second copy of this string in a spec is how
+ * the two drift apart.
+ */
+export const SESSION_PASSWORD = "E2e-Session-Passw0rd-x9";
+
 let sessionCounter = 0;
 
 /**
@@ -205,7 +216,7 @@ export async function createGuestSession(
   // database within a job, and two specs registering the same address would
   // couple two tests that share nothing else.
   const email = `e2e-${process.pid}-${Date.now()}-${sessionCounter}@example.test`;
-  const password = "E2e-Session-Passw0rd-x9";
+  const password = SESSION_PASSWORD;
 
   const anon = await makeApi();
   const registered = await anon.post("/v1/auth/email/register", {
@@ -249,9 +260,85 @@ export async function createGuestSession(
     },
   });
 
-  return { token: body.token, userId: body.user.id, api };
+  return { token: body.token, userId: body.user.id, email, api };
 }
 
 export async function disposeSession(s: GuestSession) {
   await s.api.dispose();
+}
+
+/**
+ * AN ENTERPRISE ORGANIZATION, PROVISIONED THE WAY THE PRODUCT PROVISIONS ONE.
+ *
+ * The org-surface specs used to reach this state with `POST /v1/orgs`. That
+ * route is RETIRED (Phase 2, 2026-07-21) and answers
+ *
+ *   403 org_self_service_creation_retired
+ *   "Organizations are provisioned with a PROOVRA Enterprise agreement.
+ *    To work with a team, create a workspace instead."
+ *
+ * and the workspace door it points at is not self-service either — measured
+ * against this stack, `POST /v1/teams` answers
+ * `409 WORKSPACE_CREATION_NOT_SELF_SERVICE`. So no route reaches the state,
+ * and every spec that assumed one cascaded: the org id came back undefined
+ * and each following call hit `/v1/orgs/undefined/...`, which is why so many
+ * of these failures read as an unexplained 400.
+ *
+ * The org-admin contracts those specs assert — invite lifecycle, role
+ * precedence, last-owner protection, audit pagination — are all still live.
+ * They belong to Enterprise organizations now, so the fixture provisions one
+ * through `provisionEnterpriseCustomer`, the sales-led authority the
+ * retirement note itself names. Nothing about the assertions changes.
+ *
+ * Spawned rather than imported for the same reason `prepareAccount` is: the
+ * authority is TypeScript in `services/api`, and this file is transpiled to
+ * CommonJS by Playwright's loader.
+ */
+export type ProvisionedOrg = {
+  organizationId: string;
+  workspaceId: string;
+  ownerUserId: string;
+};
+
+export function provisionEnterpriseOrg(
+  session: GuestSession,
+  organizationName = "E2E Enterprise Org",
+): ProvisionedOrg {
+  const root = repoRoot();
+  const api = join(root, "services", "api");
+  // `node --import tsx`, not the `.bin` shim: a `.CMD` is not directly
+  // executable through CreateProcess, so spawnSync returned `status: null`
+  // with empty streams and the failure said nothing about itself. This form
+  // is the same on every platform.
+  const run = spawnSync(
+    process.execPath,
+    [
+      "--import",
+      "tsx",
+      join(api, "scripts", "e2e-provision-org.ts"),
+      `--owner-email=${session.email}`,
+      `--name=${organizationName}`,
+    ],
+    { cwd: api, encoding: "utf8" },
+  );
+  if (run.error || run.status !== 0) {
+    throw new Error(
+      `Could not provision an Enterprise org for ${session.email} ` +
+        `(exit ${run.status}${run.signal ? ", signal " + run.signal : ""}` +
+        `${run.error ? ", spawn error " + run.error.message : ""}): ` +
+        `${(run.stderr || run.stdout || "(no output)").trim()}`,
+    );
+  }
+  const line = (run.stdout || "")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.startsWith("{"))
+    .pop();
+  if (!line) {
+    throw new Error(
+      `Enterprise provisioning printed no result for ${session.email}: ` +
+        `${(run.stdout || "").trim()}`,
+    );
+  }
+  return JSON.parse(line) as ProvisionedOrg;
 }

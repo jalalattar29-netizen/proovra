@@ -30,8 +30,17 @@ test.beforeEach(async () => {
 });
 
 test.describe("Phase 2.1 — workflow completion @critical", () => {
-  test("guest can create a case via POST /v1/cases", async () => {
-    const session = await createGuestSession();
+  test("an account on a plan that includes cases can create one via POST /v1/cases", async () => {
+    // CASES ARE A PLAN ENTITLEMENT.
+    //
+    // A new account is FREE, and `casesIncluded` is false on FREE and PAYG
+    // — so `POST /v1/cases` answers `CASES_NOT_INCLUDED`, which is the
+    // product working. The guest session this used to run on had no plan
+    // dimension at all, which is why the requirement never showed up here.
+    //
+    // The subject is the cases API, not the paywall, so the fixture asks
+    // for a plan that includes it.
+    const session = await createGuestSession({ plan: "PRO" });
     try {
       // Guest sessions land in a personal Team workspace. POST
       // /v1/cases accepts an optional teamId. We do not pass one —
@@ -73,16 +82,32 @@ test.describe("Phase 2.1 — workflow completion @critical", () => {
       //     (the local audit env)
       //   * 200 with status="COMPLETED" when AI is enabled
       //   * 429 when the cost guard has tripped
+      //
+      // This list is the contract, and it held only because of what the
+      // assertion below adds. The Phase-A2 workspace policy gate was
+      // answering 403 for the FIRST case: "AI is disabled at the platform
+      // level" was being reported as a workspace policy denial, which also
+      // left the route's own DISABLED status unreachable. So the run is
+      // pinned on both sides now — the outcome must be one of the three,
+      // and a refusal must never be one the workspace did not make.
       const res = await session.api.post(
         `/v1/evidence/${c.id}/ai-categorization/run`,
         { data: {} },
       );
-      expect([200, 429]).toContain(res.status());
+      expect(
+        [200, 429],
+        `unexpected status ${res.status()}: ${await res.text()}`,
+      ).toContain(res.status());
       if (res.status() === 200) {
         const body = (await res.json()) as {
           categorization?: { status?: string };
         };
         expect(body.categorization?.status).toBeTruthy();
+        // Whatever the env, the status is one the schema can hold — not a
+        // stray string, and not the empty-but-truthy case.
+        expect(["DISABLED", "COMPLETED", "FAILED"]).toContain(
+          body.categorization?.status,
+        );
       }
     } finally {
       await disposeSession(session);

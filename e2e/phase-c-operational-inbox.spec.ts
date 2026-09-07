@@ -32,6 +32,7 @@ import { test, expect } from "@playwright/test";
 import {
   clearTestRateLimits,
   createGuestSession,
+  provisionEnterpriseOrg,
 } from "./helpers/api-client";
 
 test.beforeEach(async () => {
@@ -146,12 +147,8 @@ test.describe("Phase C — operational inbox @critical", () => {
     const owner = await createGuestSession();
     // Seed: create an org and one invite. The owner now has an
     // admin_pending_invites item in their inbox.
-    const created = await owner.api.post("/v1/orgs", {
-      data: { name: "Phase C isolation org" },
-    });
-    expect(created.status()).toBe(201);
-    const orgId = ((await created.json()) as { organizationId: string })
-      .organizationId;
+    const created = provisionEnterpriseOrg(owner, "Phase C isolation org");
+    const orgId = created.organizationId;
     await owner.api.post(`/v1/orgs/${orgId}/invites`, {
       data: {
         email: "phase-c-isolation-target@example.test",
@@ -226,45 +223,82 @@ test.describe("Phase C — operational inbox @critical", () => {
     ).toBe(true);
   });
 
-  test("Topbar accountMenu now includes account.inbox", async () => {
-    const session = await createGuestSession();
-    const resp = await session.api.get("/v1/platform/context");
-    expect(resp.ok()).toBe(true);
-    const body = (await resp.json()) as {
-      navigation?: {
-        accountMenu?: { items?: Array<{ id: string; href: string }> };
-      };
-    };
-    const items = body.navigation?.accountMenu?.items ?? [];
-    const entry = items.find((i) => i.id === "account.inbox");
-    expect(
-      entry,
-      "account.inbox must be present in the topbar account menu",
-    ).toBeTruthy();
-    expect(entry?.href).toBe("/inbox");
+  /**
+   * THE INBOX IS REACHED BY ITS NAME NOW, NOT BY A MENU ENTRY.
+   *
+   * This required an `account.inbox` entry in the top-bar menu. Two things
+   * moved underneath it:
+   *
+   *   * the account menu itself was retired server-side (2026-07-21) and is
+   *     resolved by `apps/web/lib/navigation/accountMenu.ts`, which declares
+   *     account.settings, account.billing, account.organizations and
+   *     account.help — and deliberately no inbox;
+   *   * Attention Architecture Phase 5 (2026-08-22) made /notifications THE
+   *     personal notification centre and /inbox its "permanent compatibility
+   *     route", because shipped emails and collaboration links point at it.
+   *
+   * So the surface is not less discoverable, it is discoverable under the name
+   * a person would guess. What has to keep working is the compatibility
+   * promise, and that is what is asserted.
+   */
+  test("the personal notification centre is reachable, and /inbox still leads to it", async ({
+    page,
+  }) => {
+    const fs = await import("node:fs/promises");
+    const path = await import("node:path");
+    const resolver = await fs.readFile(
+      path.resolve(process.cwd(), "apps/web/lib/navigation/accountMenu.ts"),
+      "utf8",
+    );
+    // Account MANAGEMENT only — application surfaces are not duplicated here.
+    expect(resolver).not.toContain('id: "account.inbox"');
+
+    // The compatibility route still lands on the canonical one.
+    await page.goto("/inbox");
+    await expect(page).toHaveURL(/\/notifications$/);
   });
 
   // ---------------------------------------------------------------------------
   // Source-presence guards — Phase C deliberately documents what is
   // NOT built so the readiness doc stays in the bundle.
   // ---------------------------------------------------------------------------
-  test("/inbox page ships the deferred-items panel with honest items", async () => {
+  /**
+   * THE DEFERRALS WERE DELIVERED, SO THE PANEL THAT DISCLOSED THEM IS GONE.
+   *
+   * This required a "deferred items" panel naming what the brief said not to
+   * fake: read-state, preferences UI, email digest, cross-workspace reports
+   * and reviews, seat overrun, dismiss. That panel existed so the page would
+   * not imply capability it lacked — an honest thing to ship, and a temporary
+   * one.
+   *
+   * Several of those items now EXIST, so demanding the disclosure back would
+   * be demanding the page understate itself. What replaces it is the delivered
+   * capability, asserted by the markers the page renders: per-item read state,
+   * an exact total rather than a rounded one, a NAMED reason when the list is
+   * empty, and real paging.
+   *
+   * Still the right file: /notifications re-exports this module
+   * (`export { default } from "../inbox/page"`), so there is one
+   * implementation behind both URLs.
+   */
+  test("the inbox page ships delivered capability, not a promise of it", async () => {
     const fs = await import("node:fs/promises");
     const path = await import("node:path");
     const src = await fs.readFile(
       path.resolve(process.cwd(), "apps/web/app/(app)/inbox/page.tsx"),
       "utf8",
     );
-    expect(src).toContain('data-inbox-scope-block="available"');
-    expect(src).toContain('data-inbox-scope-block="deferred"');
-    // Items the brief said NOT to fake.
-    expect(src).toContain('data-inbox-scope-item="read-state"');
-    expect(src).toContain('data-inbox-scope-item="preferences-ui"');
-    expect(src).toContain('data-inbox-scope-item="email-digest"');
-    expect(src).toContain('data-inbox-scope-item="cross-workspace-reports"');
-    expect(src).toContain('data-inbox-scope-item="cross-workspace-reviews"');
-    expect(src).toContain('data-inbox-scope-item="seat-overrun"');
-    expect(src).toContain('data-inbox-scope-item="dismiss"');
+    // Read state is real, per item, from the item's own flag.
+    expect(src).toContain("data-inbox-item-read={item.isRead");
+    // An exact total, so the count cannot quietly round.
+    expect(src).toContain("data-inbox-total-exact");
+    // Empty is explained rather than blank, and says WHICH empty it is.
+    expect(src).toContain('data-inbox-empty-reason="archive"');
+    expect(src).toContain('data-inbox-empty-reason="filters"');
+    // Paging is a real cursor, not a client-side slice.
+    expect(src).toContain("data-inbox-next-cursor");
+    // And the deferral panel it replaced is not still shipping alongside it.
+    expect(src).not.toContain("data-inbox-scope-block");
   });
 
   test("Backend inbox route ships severity-first sort + caller-scoped queries", async () => {

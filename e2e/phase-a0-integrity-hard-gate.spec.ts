@@ -33,6 +33,21 @@ const DETAIL_PAGE = readFileSync(
   "utf8",
 );
 
+// THE RECORD'S ACTIONS MOVED, SO THE ASSERTIONS FOLLOW THEM.
+//
+// The detail page was decomposed into `_tabs/*`; the hero icon actions
+// (copy verification link, lock, unlock) now live in the tab library and
+// receive `isIntegrityFailed` as a prop. The disabled predicates are
+// therefore asserted there, and the page is still asserted to PASS the flag
+// down — without which the child's guard would never be armed.
+const HERO_ACTIONS = readFileSync(
+  path.resolve(
+    process.cwd(),
+    "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx",
+  ),
+  "utf8",
+);
+
 test.describe("Phase A0 — integrity banner + disabled CTAs (source contract)", () => {
   test("evidence detail page derives an isIntegrityFailed flag from status", () => {
     expect(DETAIL_PAGE).toContain(
@@ -45,11 +60,15 @@ test.describe("Phase A0 — integrity banner + disabled CTAs (source contract)",
     // — never rendered for non-failed records, never optimistically
     // rendered while loading.
     expect(DETAIL_PAGE).toMatch(/isIntegrityFailed\s*\?\s*\(/);
-    expect(DETAIL_PAGE).toContain("evidence-detail-integrity-banner");
+    // `evidence-detail-integrity-banner` became the shared record-banner with
+    // an EXPLICIT tone attribute, which is a stronger thing to assert than a
+    // class name: the danger tone is now stated rather than implied.
+    expect(DETAIL_PAGE).toContain("evidence-detail-record-banner");
+    expect(DETAIL_PAGE).toMatch(/data-banner-tone="danger"/);
     expect(DETAIL_PAGE).toContain("Integrity check failed");
-    expect(DETAIL_PAGE).toMatch(
-      /recomputed server-side fingerprint/i,
-    );
+    // Whitespace-tolerant: the copy is unchanged, but JSX wraps it across a
+    // line, so a literal single-space pattern never matched the source.
+    expect(DETAIL_PAGE).toMatch(/recomputed\s+server-side\s+fingerprint/i);
   });
 
   test("Download report disabled when isIntegrityFailed", () => {
@@ -65,18 +84,28 @@ test.describe("Phase A0 — integrity banner + disabled CTAs (source contract)",
   });
 
   test("Copy verification link disabled when isIntegrityFailed", () => {
-    // The Copy button uses a standalone `disabled={isIntegrityFailed}`
-    // — no double-negative through a memo.
-    expect(DETAIL_PAGE).toMatch(
-      /onClick=\{\(\)\s*=>\s*void\s+copyShareLink\(\)\}[\s\S]*?disabled=\{isIntegrityFailed\}/,
+    // Still a standalone predicate — no double-negative through a memo —
+    // and now layered with the share-url guard in the hero actions component.
+    expect(HERO_ACTIONS).toMatch(
+      /data-evidence-action="copy-verification-link"/,
     );
+    expect(HERO_ACTIONS).toMatch(
+      /disabled=\{isIntegrityFailed \|\| !shareUrl\}/,
+    );
+    // The page must still hand the flag down, or the guard above is inert.
+    expect(DETAIL_PAGE).toMatch(/isIntegrityFailed=\{isIntegrityFailed\}/);
+    expect(DETAIL_PAGE).toMatch(/onCopyShareLink=\{\(\)\s*=>\s*void\s+copyShareLink\(\)\}/);
   });
 
   test("Lock record disabled when isIntegrityFailed", () => {
-    // Lock action already has its own disabled-when-locked /
-    // disabled-when-deleted predicates; integrity failure is layered
-    // on with ||.
-    expect(DETAIL_PAGE).toMatch(/\|\|\s*isIntegrityFailed\b[\s\S]*?Lock record/);
+    // Lock action already has its own disabled-when-deleted predicate;
+    // integrity failure is layered on with ||. It lives with the other hero
+    // actions now, and the page keeps the operator-facing REASON.
+    expect(HERO_ACTIONS).toMatch(/data-evidence-action="lock-record"/);
+    expect(HERO_ACTIONS).toMatch(/disabled=\{deleted \|\| isIntegrityFailed\}/);
+    expect(DETAIL_PAGE).toContain(
+      "Locking is unavailable while integrity is failed.",
+    );
   });
 
   test("integrity banner copy stays operational (no overclaiming)", () => {

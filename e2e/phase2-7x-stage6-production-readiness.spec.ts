@@ -25,6 +25,7 @@ import { test, expect } from "@playwright/test";
 import {
   clearTestRateLimits,
   createGuestSession,
+  provisionEnterpriseOrg,
 } from "./helpers/api-client";
 
 test.beforeEach(async () => {
@@ -39,15 +40,14 @@ test.describe("Phase 2.7X Stage 6 — production readiness @critical", () => {
   // -------------------------------------------------------------------------
   test("invite create → accept round-trip works after token hashing", async () => {
     const owner = await createGuestSession();
-    const orgId = ((
-      (await (
-        await owner.api.post("/v1/orgs", { data: { name: "S6 token-hash org" } })
-      ).json()) as { organizationId: string }
-    )).organizationId;
+    const orgId = provisionEnterpriseOrg(owner, "S6 token-hash org").organizationId;
 
+    // Bound to the invitee's own address: acceptance enforces an email
+    // match when both sides have one.
+    const invitee = await createGuestSession();
     const inv = (await (
       await owner.api.post(`/v1/orgs/${orgId}/invites`, {
-        data: { email: "s6-roundtrip@example.test", role: "ORG_MEMBER" },
+        data: { email: invitee.email, role: "ORG_MEMBER" },
       })
     ).json()) as { token: string; inviteId: string };
 
@@ -56,7 +56,6 @@ test.describe("Phase 2.7X Stage 6 — production readiness @critical", () => {
 
     // The invitee accepts using the raw token (the wire protocol
     // is unchanged from Stage 4; only DB storage changed to hashes).
-    const invitee = await createGuestSession();
     const accept = await invitee.api.post(
       `/v1/org-invites/${inv.token}/accept`,
     );
@@ -71,11 +70,7 @@ test.describe("Phase 2.7X Stage 6 — production readiness @critical", () => {
 
   test("pending-invites listing never includes raw tokens", async () => {
     const owner = await createGuestSession();
-    const orgId = ((
-      (await (
-        await owner.api.post("/v1/orgs", { data: { name: "S6 leak-check org" } })
-      ).json()) as { organizationId: string }
-    )).organizationId;
+    const orgId = provisionEnterpriseOrg(owner, "S6 leak-check org").organizationId;
 
     // Create two invites so the listing has rows.
     const i1 = await owner.api.post(`/v1/orgs/${orgId}/invites`, {
@@ -111,11 +106,7 @@ test.describe("Phase 2.7X Stage 6 — production readiness @critical", () => {
 
   test("audit metadata still never contains raw tokens (regression)", async () => {
     const owner = await createGuestSession();
-    const orgId = ((
-      (await (
-        await owner.api.post("/v1/orgs", { data: { name: "S6 audit-leak org" } })
-      ).json()) as { organizationId: string }
-    )).organizationId;
+    const orgId = provisionEnterpriseOrg(owner, "S6 audit-leak org").organizationId;
     const inv = (await (
       await owner.api.post(`/v1/orgs/${orgId}/invites`, {
         data: { email: "s6-audit@example.test" },
@@ -132,23 +123,48 @@ test.describe("Phase 2.7X Stage 6 — production readiness @critical", () => {
   // -------------------------------------------------------------------------
   test("workspace-bootstrap atomically creates an org for the personal team", async () => {
     // Personal-team creation is lazy: it happens on the first
-    // `/v1/platform/context` call, NOT during /v1/auth/guest itself.
-    // Stage 6 wires the bootstrap to create an Organization
-    // atomically with the personal Team. After the context call,
-    // the user MUST have at least one ORG_OWNER membership.
+    // `/v1/platform/context` call. Stage 6 wires the bootstrap to create
+    // an Organization atomically with the personal Team, which is what
+    // makes `teams.organization_id NOT NULL` satisfiable — the subject of
+    // this section.
+    //
+    // MEASURED THROUGH THE RIGHT SURFACE. This used to read the invariant
+    // off `/v1/me/orgs` and require `totalOrgs >= 1` with an ORG_OWNER row.
+    // That endpoint answers a different question: it lists the CUSTOMER
+    // organizations a user belongs to, and deliberately excludes the SYSTEM
+    // container behind a personal workspace. So it reports 0 while the
+    // invariant holds — the container exists, it is just not a membership
+    // anyone is a member OF.
+    //
+    // `/v1/platform/context` is where the workspace's own organization is
+    // reported, so that is where it is asserted.
     const session = await createGuestSession();
     const ctx = await session.api.get("/v1/platform/context");
     expect(ctx.ok()).toBe(true);
+    const ctxBody = (await ctx.json()) as {
+      workspace: { organizationId: string | null; organizationKind: string | null };
+    };
+    expect(ctxBody.workspace.organizationId).toBeTruthy();
+    expect(ctxBody.workspace.organizationId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    );
+    // A SYSTEM container, not a customer Enterprise Organization: those are
+    // provisioned under an agreement, never bootstrapped.
+    expect(ctxBody.workspace.organizationKind).toBe("SYSTEM");
 
+    // And the SYSTEM container is correctly NOT reported as a customer org
+    // the user belongs to.
     const me = await session.api.get("/v1/me/orgs");
     expect(me.ok()).toBe(true);
     const body = (await me.json()) as {
       summary: { totalOrgs: number };
-      orgs: Array<{ role: string }>;
+      orgs: Array<{ organizationId: string }>;
     };
-    expect(body.summary.totalOrgs).toBeGreaterThanOrEqual(1);
-    // The auto-created org makes the user ORG_OWNER.
-    expect(body.orgs.some((o) => o.role === "ORG_OWNER")).toBe(true);
+    expect(
+      body.orgs.some(
+        (o) => o.organizationId === ctxBody.workspace.organizationId,
+      ),
+    ).toBe(false);
   });
 
   test("explicit POST /v1/teams atomically creates an org for the new team", async () => {
@@ -192,11 +208,7 @@ test.describe("Phase 2.7X Stage 6 — production readiness @critical", () => {
 
   test("Stage 5 audit pagination still works (regression)", async () => {
     const owner = await createGuestSession();
-    const orgId = ((
-      (await (
-        await owner.api.post("/v1/orgs", { data: { name: "S6 pagination regression" } })
-      ).json()) as { organizationId: string }
-    )).organizationId;
+    const orgId = provisionEnterpriseOrg(owner, "S6 pagination regression").organizationId;
     const resp = await owner.api.get(
       `/v1/orgs/${orgId}/audit-events?take=10`,
     );
@@ -209,11 +221,7 @@ test.describe("Phase 2.7X Stage 6 — production readiness @critical", () => {
 
   test("Stage 5 invite revoke still works (regression)", async () => {
     const owner = await createGuestSession();
-    const orgId = ((
-      (await (
-        await owner.api.post("/v1/orgs", { data: { name: "S6 revoke regression" } })
-      ).json()) as { organizationId: string }
-    )).organizationId;
+    const orgId = provisionEnterpriseOrg(owner, "S6 revoke regression").organizationId;
     const inv = (await (
       await owner.api.post(`/v1/orgs/${orgId}/invites`, {
         data: { email: "s6-revoke-regression@example.test" },

@@ -198,18 +198,25 @@ test.describe("Phase B.2 — multi-stage review governance @critical", () => {
     expect(src).toContain("workflowReviewDecisions");
   });
 
-  test("Backend reviewer-ops routes ship the decision endpoints + state machine", async () => {
+  test("Backend reviewer-ops ships the decision endpoints + state machine", async () => {
     const fs = await import("node:fs/promises");
     const path = await import("node:path");
-    const src = await fs.readFile(
-      path.resolve(
-        process.cwd(),
-        "services/api/src/routes/reviewer-ops.routes.ts",
-      ),
-      "utf8",
+    const read = async (rel: string) =>
+      fs.readFile(path.resolve(process.cwd(), rel), "utf8");
+
+    // TWO SUBJECTS, TWO FILES.
+    //
+    // Registration lives in the routes file; `deriveReviewState` and every
+    // refusal reason moved into `review-decision.service.ts`. Reading one
+    // file for both matched three of eleven assertions — a location problem,
+    // not a contract one.
+    const routes = await read("services/api/src/routes/reviewer-ops.routes.ts");
+    const src = await read(
+      "services/api/src/services/reviewer-ops/review-decision.service.ts",
     );
     // Endpoints
-    expect(src).toContain(
+    // Registration: the routes file.
+    expect(routes).toContain(
       '"/v1/reviewer-ops/workspace/:workflowId/decisions"',
     );
     // State machine
@@ -245,7 +252,8 @@ test.describe("Phase B.2 — multi-stage review governance @critical", () => {
     ]) {
       expect(src).toContain(`"${k}"`);
     }
-    // All 9 reason codes in the zod enum
+    // All 9 reason codes in the zod enum. Request VALIDATION, so it lives
+    // with the route rather than with the state machine.
     for (const r of [
       "EVIDENCE_INCOMPLETE",
       "REPORT_FAILED",
@@ -257,7 +265,7 @@ test.describe("Phase B.2 — multi-stage review governance @critical", () => {
       "REVIEWER_DISAGREEMENT",
       "OTHER",
     ]) {
-      expect(src).toContain(`"${r}"`);
+      expect(routes).toContain(`"${r}"`);
     }
   });
 

@@ -100,7 +100,16 @@ test.describe("Phase 2.5B — bulk + reconciler @critical", () => {
   });
 
   test("POST /v1/cases/bulk closes accessible cases end-to-end", async () => {
-    const session = await createGuestSession();
+    // CASES ARE A PLAN ENTITLEMENT.
+    //
+    // A new account is FREE, and `casesIncluded` is false on FREE and PAYG
+    // — so `POST /v1/cases` answers `CASES_NOT_INCLUDED`, which is the
+    // product working. The guest session this used to run on had no plan
+    // dimension at all, which is why the requirement never showed up here.
+    //
+    // The subject is the cases API, not the paywall, so the fixture asks
+    // for a plan that includes it.
+    const session = await createGuestSession({ plan: "PRO" });
     try {
       // Create two cases the caller owns (Phase 2.1 backend ships
       // POST /v1/cases for guests).
@@ -125,16 +134,37 @@ test.describe("Phase 2.5B — bulk + reconciler @critical", () => {
         summary: { total: number; success: number; skipped: number };
       };
       expect(body.summary.total).toBe(2);
-      // Newly-created cases default to OPEN. The transition OPEN → CLOSED
-      // is NOT in the allowed-transitions table (OPEN → INVESTIGATING /
-      // ON_HOLD / RESOLVED only). So both should be SKIPPED with
-      // `invalid_transition` — locking the safety property that bulk
-      // close respects the same transition rules as single-case close.
-      expect(body.summary.success).toBe(0);
-      expect(body.summary.skipped).toBe(2);
+
+      // THE SAFETY PROPERTY IS "BULK AGREES WITH SINGLE", AND IT IS ASSERTED
+      // AS THAT NOW.
+      //
+      // This used to require both cases to be SKIPPED with
+      // `invalid_transition`, on the stated grounds that "OPEN → CLOSED is
+      // NOT in the allowed-transitions table (OPEN → INVESTIGATING / ON_HOLD
+      // / RESOLVED only)". That table no longer exists in that form: it is
+      // built programmatically as every status to every OTHER status, so
+      // OPEN → CLOSED is permitted, and the restriction that remains is the
+      // preservation invariant — "an active legal hold blocks CLOSED or
+      // ARCHIVED".
+      //
+      // Asserting SKIPPED would now be asserting a rule the product dropped.
+      // What the case exists for — that the bulk path cannot do something the
+      // single path refuses — is asserted directly instead: the same
+      // transition, both ways, must reach the same outcome.
+      const single = await create("Bulk-close parity control");
+      const singleResp = await session.api.post(`/v1/cases/${single}/status`, {
+        data: { toStatus: "CLOSED", reason: "Phase 2.5B parity control" },
+      });
+      const singleAllowed = singleResp.status() < 300;
+      expect(
+        body.summary.success,
+        `bulk and single disagree: single close returned ${singleResp.status()}`,
+      ).toBe(singleAllowed ? 2 : 0);
+      expect(body.summary.skipped).toBe(singleAllowed ? 0 : 2);
       for (const r of body.results) {
-        expect(r.outcome).toBe("SKIPPED");
-        expect(r.reason).toBe("invalid_transition");
+        expect(r.outcome).toBe(singleAllowed ? "SUCCESS" : "SKIPPED");
+        // A refusal must still say WHY; a success has no reason to give.
+        if (!singleAllowed) expect(r.reason).toBe("invalid_transition");
       }
     } finally {
       await disposeSession(session);
@@ -156,7 +186,16 @@ test.describe("Phase 2.5B — bulk + reconciler @critical", () => {
   });
 
   test("GET /v1/cases/:id/link-reconciliation returns envelope for accessible case", async () => {
-    const session = await createGuestSession();
+    // CASES ARE A PLAN ENTITLEMENT.
+    //
+    // A new account is FREE, and `casesIncluded` is false on FREE and PAYG
+    // — so `POST /v1/cases` answers `CASES_NOT_INCLUDED`, which is the
+    // product working. The guest session this used to run on had no plan
+    // dimension at all, which is why the requirement never showed up here.
+    //
+    // The subject is the cases API, not the paywall, so the fixture asks
+    // for a plan that includes it.
+    const session = await createGuestSession({ plan: "PRO" });
     try {
       const create = await session.api.post("/v1/cases", {
         data: { name: "Phase 2.5B reconciler test" },

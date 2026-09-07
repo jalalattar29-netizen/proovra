@@ -195,10 +195,11 @@ jobs:
             minio/mc:latest \
             mb --ignore-existing local/proovra-e2e
 
-      - name: Build shared + API
+      - name: Build shared + API + worker
         run: |
           pnpm run build:shared
           pnpm --filter proovra-api build
+          pnpm --filter proovra-worker build
 
       # `prisma generate` MOVED OUT of this step (2026-08-25).
       #
@@ -228,6 +229,37 @@ jobs:
           done
           echo "=== API boot summary ==="
           grep -E "schema_validation|listening" /tmp/api-e2e.log | head -5
+
+      # THE STACK THIS SUITE SAYS IT RUNS AGAINST NOW INCLUDES THE WORKER.
+      #
+      # `investigation-enterprise-data-flow.spec.ts` opens with "Runs
+      # against the full stack (web + api + worker + db)", and the job
+      # started three of those four. Its 26-step scenario waits on
+      # projections only the worker produces — `investigation_graph_nodes`
+      # rows come from `reconcileTeamGraph`, and `POST /v1/graph/reconcile`
+      # ENQUEUES that work and answers 202 rather than doing it inline. With
+      # nothing draining the queue, the step waited out its poll budget and
+      # failed on a product that was behaving correctly.
+      #
+      # This was invisible until now because the whole suite was failing
+      # earlier, on guest auth, so the scenario never reached that step.
+      #
+      # `INTERNAL_API_URL` is set because several worker consumers probe the
+      # API for readiness and have no default base URL; without it they
+      # retry until exhausted and fill the log with failures that are
+      # configuration, not defects.
+      - name: Start Worker (background)
+        working-directory: services/worker
+        env:
+          INTERNAL_API_URL: http://localhost:8081
+        run: |
+          nohup pnpm start > /tmp/worker-e2e.log 2>&1 &
+          for _ in {1..60}; do
+            grep -q "worker.started" /tmp/worker-e2e.log && break
+            sleep 1
+          done
+          echo "=== Worker boot summary ==="
+          grep -E "worker.started|error|Error" /tmp/worker-e2e.log | head -10
 
       - name: Start Web (background)
         working-directory: apps/web
@@ -277,6 +309,14 @@ jobs:
           name: api-e2e-log
           path: /tmp/api-e2e.log
           if-no-files-found: ignore
+
+      - name: Upload Worker log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: worker-e2e-log
+          path: /tmp/worker-e2e.log
+          retention-days: 7
 
       - name: Upload Web log on failure
         if: failure()

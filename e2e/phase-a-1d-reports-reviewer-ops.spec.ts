@@ -179,8 +179,19 @@ test.describe("Phase A.1D — reports + reviewer operational maturity @critical"
     expect(src).toContain('/v1/evidence/:id/reports/regenerate');
     expect(src).toContain("evidence.report.regenerate_requested");
     expect(src).toContain("forceRegenerate: true");
-    // The owner-only gate must be used (we deliberately did NOT use
-    // getEvidenceWithReadAccess for this mutation).
-    expect(src).toContain("getEvidenceWithOwnerAccess(userId, id)");
+    // A GATE, AND A STRICTER ONE THAN THIS USED TO DEMAND.
+    //
+    // This required `getEvidenceWithOwnerAccess(userId, id)`. That helper was
+    // REMOVED in the Phase 1 final classification pass — its own note says
+    // every former caller now routes through `getEvidenceWithRecordAccess`
+    // (canonical membership + lifecycle + capability for workspace-bound
+    // evidence; the owner rule for personal scope).
+    //
+    // So the point of the original line still holds and holds harder: this
+    // mutation is not readable-by-anyone, and the capability it demands is
+    // named rather than implied.
+    expect(src).toContain(
+      'getEvidenceWithRecordAccess(userId, id, "evidence.generate_report")',
+    );
   });
 });

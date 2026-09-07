@@ -31,6 +31,7 @@ import { test, expect } from "@playwright/test";
 import {
   clearTestRateLimits,
   createGuestSession,
+  provisionEnterpriseOrg,
 } from "./helpers/api-client";
 
 test.beforeEach(async () => {
@@ -46,11 +47,7 @@ test.describe("Phase 2.7X Stage 5 — governance hardening @critical", () => {
   // -------------------------------------------------------------------------
   test("GET /v1/orgs/:id/invites lists pending invites for ORG_ADMIN+", async () => {
     const owner = await createGuestSession();
-    const orgId = ((
-      (await (
-        await owner.api.post("/v1/orgs", { data: { name: "Pending-list org" } })
-      ).json()) as { organizationId: string }
-    )).organizationId;
+    const orgId = provisionEnterpriseOrg(owner, "Pending-list org").organizationId;
 
     // Create two invites.
     const r1 = await owner.api.post(`/v1/orgs/${orgId}/invites`, {
@@ -78,11 +75,7 @@ test.describe("Phase 2.7X Stage 5 — governance hardening @critical", () => {
 
   test("GET /v1/orgs/:id/invites refuses non-members", async () => {
     const owner = await createGuestSession();
-    const orgId = ((
-      (await (
-        await owner.api.post("/v1/orgs", { data: { name: "Pending-isolation org" } })
-      ).json()) as { organizationId: string }
-    )).organizationId;
+    const orgId = provisionEnterpriseOrg(owner, "Pending-isolation org").organizationId;
 
     const stranger = await createGuestSession();
     const resp = await stranger.api.get(`/v1/orgs/${orgId}/invites`);
@@ -94,11 +87,7 @@ test.describe("Phase 2.7X Stage 5 — governance hardening @critical", () => {
   // -------------------------------------------------------------------------
   test("DELETE invite revokes + emits ORG_INVITE_REVOKED + blocks subsequent accept", async () => {
     const owner = await createGuestSession();
-    const orgId = ((
-      (await (
-        await owner.api.post("/v1/orgs", { data: { name: "Revoke org" } })
-      ).json()) as { organizationId: string }
-    )).organizationId;
+    const orgId = provisionEnterpriseOrg(owner, "Revoke org").organizationId;
 
     const inviteResp = await owner.api.post(`/v1/orgs/${orgId}/invites`, {
       data: { email: "s5-revoke@example.test" },
@@ -149,19 +138,17 @@ test.describe("Phase 2.7X Stage 5 — governance hardening @critical", () => {
 
   test("DELETE invite refuses if already accepted (409)", async () => {
     const owner = await createGuestSession();
-    const orgId = ((
-      (await (
-        await owner.api.post("/v1/orgs", { data: { name: "Revoke-accepted org" } })
-      ).json()) as { organizationId: string }
-    )).organizationId;
+    const orgId = provisionEnterpriseOrg(owner, "Revoke-accepted org").organizationId;
 
+    // Bound to the invitee's own address: acceptance enforces an email
+    // match when both sides have one.
+    const invitee = await createGuestSession();
     const i = (await (
       await owner.api.post(`/v1/orgs/${orgId}/invites`, {
-        data: { email: "s5-accept-revoke@example.test" },
+        data: { email: invitee.email },
       })
     ).json()) as { inviteId: string; token: string };
 
-    const invitee = await createGuestSession();
     const accept = await invitee.api.post(`/v1/org-invites/${i.token}/accept`);
     expect(accept.status()).toBe(200);
 
@@ -176,11 +163,7 @@ test.describe("Phase 2.7X Stage 5 — governance hardening @critical", () => {
   // -------------------------------------------------------------------------
   test("POST resend bumps expiry + resendCount + emits ORG_INVITE_RESENT", async () => {
     const owner = await createGuestSession();
-    const orgId = ((
-      (await (
-        await owner.api.post("/v1/orgs", { data: { name: "Resend org" } })
-      ).json()) as { organizationId: string }
-    )).organizationId;
+    const orgId = provisionEnterpriseOrg(owner, "Resend org").organizationId;
 
     const initial = (await (
       await owner.api.post(`/v1/orgs/${orgId}/invites`, {
@@ -214,11 +197,7 @@ test.describe("Phase 2.7X Stage 5 — governance hardening @critical", () => {
 
   test("resend refuses revoked / accepted invites", async () => {
     const owner = await createGuestSession();
-    const orgId = ((
-      (await (
-        await owner.api.post("/v1/orgs", { data: { name: "Resend-refuse org" } })
-      ).json()) as { organizationId: string }
-    )).organizationId;
+    const orgId = provisionEnterpriseOrg(owner, "Resend-refuse org").organizationId;
 
     // Path A: revoked.
     const a = (await (
@@ -233,12 +212,14 @@ test.describe("Phase 2.7X Stage 5 — governance hardening @critical", () => {
     expect(resendRevoked.status()).toBe(410);
 
     // Path B: accepted.
+    // Bound to the invitee's own address: acceptance enforces an email
+    // match when both sides have one.
+    const invitee = await createGuestSession();
     const b = (await (
       await owner.api.post(`/v1/orgs/${orgId}/invites`, {
-        data: { email: "s5-resend-accept@example.test" },
+        data: { email: invitee.email },
       })
     ).json()) as { inviteId: string; token: string };
-    const invitee = await createGuestSession();
     await invitee.api.post(`/v1/org-invites/${b.token}/accept`);
     const resendAccepted = await owner.api.post(
       `/v1/orgs/${orgId}/invites/${b.inviteId}/resend`,
@@ -249,25 +230,67 @@ test.describe("Phase 2.7X Stage 5 — governance hardening @critical", () => {
   // -------------------------------------------------------------------------
   // 2.4 Email-match enforcement
   //
-  // Guest sessions have no email, so the Stage 4 contract (token
-  // alone suffices) still applies — exercised by the Stage 4 spec.
-  // The Stage 5 enforcement matters when both sides have emails.
-  // We can't easily generate a fully-registered user with email
-  // inside the e2e harness without significant fixture work, so
-  // this test exercises the AUDIT side of the email-match path:
-  // a rejected accept attempt MUST emit ORG_INVITE_ACCEPT_REJECTED
-  // for non-happy paths (revoked / expired / etc.) and the SAME
-  // emitter path is used for email_mismatch. The presence of
-  // rejection-audit emission on those siblings is the regression
-  // proof that the email-match path also emits one in production.
+  // This section used to say: "We can't easily generate a fully-registered
+  // user with email inside the e2e harness without significant fixture work,
+  // so this test exercises the AUDIT side of the email-match path ... The
+  // presence of rejection-audit emission on those siblings is the regression
+  // proof that the email-match path also emits one in production."
+  //
+  // That proxy is no longer necessary. Every session this suite creates is a
+  // registered, verified account WITH an email, so the enforcement itself is
+  // reachable — and it is asserted directly below, alongside the sibling
+  // revoked path that was standing in for it.
+  //
+  // The proxy was also load-bearing in the wrong direction: because guest
+  // sessions had no email, the match was SKIPPED for every accept this suite
+  // performed, so the enforcement had never once run here.
   // -------------------------------------------------------------------------
+  test("accepting an invite addressed to someone else is refused and audited", async () => {
+    const owner = await createGuestSession();
+    const orgId = provisionEnterpriseOrg(owner, "Email-match org").organizationId;
+
+    // The invite names one account; a DIFFERENT registered account presents
+    // the token. Both sides have an email, so the match is enforced.
+    const addressee = await createGuestSession();
+    const interloper = await createGuestSession();
+    const invite = (await (
+      await owner.api.post(`/v1/orgs/${orgId}/invites`, {
+        data: { email: addressee.email, role: "ORG_MEMBER" },
+      })
+    ).json()) as { inviteId: string; token: string };
+
+    const refused = await interloper.api.post(
+      `/v1/org-invites/${invite.token}/accept`,
+    );
+    expect(refused.status()).toBe(403);
+    expect(
+      ((await refused.json()) as { message?: string }).message,
+    ).toBe("Invite email does not match your account.");
+
+    // The refusal is recorded on the org's timeline.
+    const audit = (await (
+      await owner.api.get(`/v1/orgs/${orgId}/audit-events`)
+    ).json()) as { events: Array<{ eventType: string }> };
+    expect(
+      audit.events.some((e) => e.eventType === "ORG_INVITE_ACCEPT_REJECTED"),
+    ).toBe(true);
+
+    // The interloper gained nothing.
+    const theirOrgs = (await (
+      await interloper.api.get("/v1/me/orgs")
+    ).json()) as { orgs: Array<{ organizationId: string }> };
+    expect(theirOrgs.orgs.some((r) => r.organizationId === orgId)).toBe(false);
+
+    // And the invite is still spendable by the account it names.
+    const accepted = await addressee.api.post(
+      `/v1/org-invites/${invite.token}/accept`,
+    );
+    expect(accepted.status()).toBe(200);
+  });
+
   test("rejected accept attempts emit ORG_INVITE_ACCEPT_REJECTED (revoked path)", async () => {
     const owner = await createGuestSession();
-    const orgId = ((
-      (await (
-        await owner.api.post("/v1/orgs", { data: { name: "Reject-audit org" } })
-      ).json()) as { organizationId: string }
-    )).organizationId;
+    const orgId = provisionEnterpriseOrg(owner, "Reject-audit org").organizationId;
 
     const i = (await (
       await owner.api.post(`/v1/orgs/${orgId}/invites`, {
@@ -297,11 +320,7 @@ test.describe("Phase 2.7X Stage 5 — governance hardening @critical", () => {
   // -------------------------------------------------------------------------
   test("audit pagination respects take + cursor + eventType filter", async () => {
     const owner = await createGuestSession();
-    const orgId = ((
-      (await (
-        await owner.api.post("/v1/orgs", { data: { name: "Audit-page org" } })
-      ).json()) as { organizationId: string }
-    )).organizationId;
+    const orgId = provisionEnterpriseOrg(owner, "Audit-page org").organizationId;
 
     // Generate enough events to require pagination (>3): rename,
     // invite, revoke, invite, revoke.
@@ -395,19 +414,38 @@ test.describe("Phase 2.7X Stage 5 — governance hardening @critical", () => {
     expect([403, 404]).toContain(resp.status());
   });
 
-  test("Stage 4 create-org + audit endpoints unchanged (regression)", async () => {
+  /**
+   * The Stage-4 regression, re-pointed at the door that is still open.
+   *
+   * "create-org unchanged" cannot mean what it meant: self-service creation
+   * was retired in Phase 2 and answers `403
+   * org_self_service_creation_retired`. Both halves are held here — the
+   * denial is still the denial, and an org that IS provisioned still reports
+   * ORG_CREATED on its audit feed, which is the half Stage 5 depends on.
+   */
+  test("Stage 4 create-org denial + audit endpoints unchanged (regression)", async () => {
     const session = await createGuestSession();
-    const create = await session.api.post("/v1/orgs", {
+
+    const retired = await session.api.post("/v1/orgs", {
       data: { name: "S5 regression org" },
     });
-    expect(create.status()).toBe(201);
-    const orgId = ((await create.json()) as { organizationId: string }).organizationId;
+    expect(retired.status()).toBe(403);
+    expect(
+      ((await retired.json()) as { error?: { code?: string } }).error?.code,
+    ).toBe("org_self_service_creation_retired");
+
+    const orgId = provisionEnterpriseOrg(session, "S5 regression org")
+      .organizationId;
 
     const audit = await session.api.get(`/v1/orgs/${orgId}/audit-events`);
     expect(audit.ok()).toBe(true);
     const body = (await audit.json()) as {
       events: Array<{ eventType: string }>;
     };
-    expect(body.events.some((e) => e.eventType === "ORG_CREATED")).toBe(true);
+    // `ENTERPRISE_PROVISIONED`, not `ORG_CREATED`: the latter belonged to
+    // the retired self-service route.
+    expect(
+      body.events.some((e) => e.eventType === "ENTERPRISE_PROVISIONED"),
+    ).toBe(true);
   });
 });

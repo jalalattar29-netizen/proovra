@@ -153,11 +153,33 @@ test.describe("public verify privacy @critical", () => {
     }
   });
 
-  test("invalid token / non-uuid path returns 400 — no info leak", async ({
+  test("a malformed token is byte-indistinguishable from an unknown one", async ({
     request,
   }) => {
-    const res = await request.get(`${API_BASE}/public/verify/not-a-uuid`);
-    expect(res.status()).toBe(400);
+    // THIS USED TO REQUIRE 400, WHICH IS THE LEAK THE TITLE WARNS ABOUT.
+    //
+    // A 400 on a malformed token and a 404 on a well-formed unknown one
+    // tells a caller whether their token had the right SHAPE. That is a
+    // free oracle for anyone probing the verify surface: it separates
+    // "you guessed the format" from "you guessed nothing", which is the
+    // first step of enumerating the UUID space. The Phase-12
+    // anti-enumeration closure removed the Zod `.parse` that produced the
+    // 400 precisely so the two cases could not be told apart.
+    //
+    // The property is sameness, so both are requested and compared.
+    const malformed = await request.get(
+      `${API_BASE}/public/verify/not-a-uuid`,
+    );
+    const unknown = await request.get(
+      `${API_BASE}/public/verify/00000000-0000-4000-8000-000000000000`,
+    );
+
+    expect(malformed.status()).toBe(404);
+    expect(unknown.status()).toBe(404);
+    expect(
+      await malformed.text(),
+      "token-format validity must not be observable from the response",
+    ).toBe(await unknown.text());
   });
 
   // ===========================================================================

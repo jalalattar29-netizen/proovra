@@ -57,18 +57,37 @@ test.beforeEach(async () => {
 });
 
 test.describe("Phase 2.2 — workspace completion @critical", () => {
-  test("/inspect in-app verify workspace is reachable", async ({ page }) => {
-    // Phase 2.3 — the in-app verify workspace was relocated from
-    // `/(app)/verify` to `/(app)/inspect` because Next.js route
-    // groups do not affect URL: the original placement collided
-    // with the existing public `/verify` landing page. The auth
-    // gate is a sub-component, not a 401 response, so the (app)
-    // shell must always 2xx.
-    const resp = await page.goto("/inspect", { waitUntil: "load" });
+  test("the verification workspace is reachable, and /inspect stays removed", async ({
+    page,
+  }) => {
+    // WHERE /inspect WENT.
+    //
+    // Phase 2.3 had moved the in-app verify workspace to `/(app)/inspect`
+    // to dodge a URL collision with the public `/verify` landing page.
+    // The architecture consolidation (cd7c6024) then deleted that page
+    // outright — `apps/web/app/(app)/inspect/page.tsx`, 662 lines, along
+    // with `verify-references` — folding verification back onto the one
+    // `/verify` surface and its `/verify/[token]` detail route. There is
+    // no `/inspect` directory and no registry entry for it now.
+    //
+    // The reachability property this case was written for still has a
+    // subject, so it is asserted against the surface that exists: the
+    // shell renders rather than answering an auth error, because the auth
+    // gate is a sub-component and not a 401.
+    const resp = await page.goto("/verify", { waitUntil: "load" });
     expect(
       resp?.ok(),
-      `expected 2xx from /inspect, got ${resp?.status()}`,
+      `expected 2xx from /verify, got ${resp?.status()}`,
     ).toBe(true);
+
+    // And the removal is pinned. Without this the deletion is invisible
+    // to the suite, and a half-restored `/inspect` could come back with
+    // nothing objecting.
+    const gone = await page.goto("/inspect", { waitUntil: "load" });
+    expect(
+      gone?.status(),
+      "/inspect was consolidated away and must not return",
+    ).toBe(404);
   });
 
   test("/reports page reachable post-AccessGate adoption", async ({ page }) => {

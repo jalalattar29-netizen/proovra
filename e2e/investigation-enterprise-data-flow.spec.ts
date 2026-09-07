@@ -46,6 +46,7 @@ import {
   clearTestRateLimits,
   createGuestSession,
   disposeSession,
+  type GuestSession,
 } from "./helpers/api-client";
 import {
   counter,
@@ -58,6 +59,70 @@ import {
 // Local helpers — bounded utility functions ONLY for this spec. None of
 // these reimplement an existing api-client helper.
 // ---------------------------------------------------------------------------
+
+/**
+ * GRAPH NODES ARE MATERIALISED BY RECONCILIATION, NOT BY FINALIZING.
+ *
+ * Steps 6 and 7 used to finalize evidence and then poll diagnostics for
+ * `graphNodeCount >= 1`, with a comment hoping the graph-reconcile queue
+ * would catch up. It never did, and it never could here: the E2E stack has
+ * no worker — the CI job starts MinIO, the API and the web app and nothing
+ * else — and `investigation_graph_nodes` rows are written by
+ * `reconcileTeamGraph`, which runs on a reconcile tick or when someone asks
+ * for it. So step 6 waited for a projection that had no producer, and
+ * failed after the full poll budget.
+ *
+ * Step 14 already knew this: it POSTs `/v1/graph/reconcile` before asserting
+ * on `graphEdgeCount`, and its label says "after case-link + reconcile". The
+ * same trigger is used for the node and timeline assertions now, and lives
+ * in one place so all three cannot drift apart.
+ *
+ * This is the product's own reconciliation path, so what the steps prove is
+ * unchanged in substance: finalized evidence becomes a graph node. Only the
+ * assumption about WHO materialises it is corrected.
+ */
+async function reconcileGraph(
+  api: GuestSession["api"],
+  teamId: string,
+): Promise<void> {
+  const res = await api.post(`/v1/graph/reconcile?teamId=${teamId}`, {
+    data: { reason: "phase8-e2e" },
+  });
+  // 202 = queued; 200 = already-up-to-date noop. Both are honest.
+  expect([200, 202], `reconcile: ${await res.text()}`).toContain(res.status());
+}
+
+/**
+ * DUPLICATES ARE A DIFFERENT TABLE, WITH A DIFFERENT TRIGGER.
+ *
+ * Step 11 said "the graph-reconcile worker writes a SAME_HASH_AS edge" and
+ * then waited on `duplicateExactCount`. Those are two different things:
+ * `duplicateExactCount` counts `EvidenceSimilarity` rows of kind
+ * `HASH_DUPLICATE`, and the only code that writes those is the similarity
+ * detector — not graph reconciliation, which writes graph edges. So no
+ * amount of graph work could ever have satisfied it.
+ *
+ * The detector runs inline behind
+ * `POST /v1/intelligence/evidence/:id/reconcile-similarity`, so the step
+ * asks for it directly. Detection is per-evidence and records the match
+ * from the evidence it is run for, so it runs for the duplicate.
+ */
+async function reconcileSimilarity(
+  api: GuestSession["api"],
+  evidenceId: string,
+  teamId: string,
+): Promise<void> {
+  // The workspace is named in the BODY here, and the route also checks the
+  // evidence belongs to it — so this cannot run a detector across tenants.
+  const res = await api.post(
+    `/v1/intelligence/evidence/${evidenceId}/reconcile-similarity`,
+    { data: { teamId } },
+  );
+  expect(
+    [200, 202],
+    `reconcile-similarity: ${await res.text()}`,
+  ).toContain(res.status());
+}
 
 /**
  * Create + PUT + complete an Evidence record with the supplied bytes.
@@ -175,7 +240,13 @@ test.describe("Wave 3 Phase 8 — Investigation enterprise data flow @critical",
   test("end-to-end 26-step investigation scenario", async ({ page }) => {
     test.setTimeout(180_000); // 3 minutes hard cap — well above worker latency.
 
-    const session = await createGuestSession();
+    // CASES ARE A PLAN ENTITLEMENT, AND THIS SCENARIO CREATES ONE.
+    //
+    // Step 12 opens a case and steps 13-15 link evidence to it, so a FREE
+    // account meets `CASES_NOT_INCLUDED` and the run stops there. The
+    // subject is the investigation data flow, not the paywall, so the
+    // fixture asks for a plan that includes cases.
+    const session = await createGuestSession({ plan: "PRO" });
     let teamId: string | undefined;
     try {
       // -----------------------------------------------------------------
@@ -245,13 +316,14 @@ test.describe("Wave 3 Phase 8 — Investigation enterprise data flow @critical",
           waitUntil: "load",
         });
         expect(resp?.ok()).toBe(true);
-        // Worker may need extra time to materialise graph nodes
-        // (graph-reconcile queue). Poll diagnostics for honest proof.
+        // Ask for reconciliation, then wait for its result. See
+        // `reconcileGraph` for why waiting alone never finished.
+        await reconcileGraph(session.api, teamId!);
         await waitForDiagnostics({
           api: session.api,
           teamId: teamId!,
           predicate: (d) => counter(d, "graphNodeCount") >= 1,
-          label: "graphNodeCount >= 1 after Evidence A finalize",
+          label: "graphNodeCount >= 1 after Evidence A reconcile",
         });
       });
 
@@ -263,11 +335,15 @@ test.describe("Wave 3 Phase 8 — Investigation enterprise data flow @critical",
           waitUntil: "load",
         });
         expect(resp?.ok()).toBe(true);
+        // `timelineEventCount` is derived from the graph node and edge
+        // counts (there is no dedicated timeline table), so it has the
+        // same producer and needs the same trigger.
+        await reconcileGraph(session.api, teamId!);
         await waitForDiagnostics({
           api: session.api,
           teamId: teamId!,
           predicate: (d) => counter(d, "timelineEventCount") >= 1,
-          label: "timelineEventCount >= 1 after Evidence A",
+          label: "timelineEventCount >= 1 after Evidence A reconcile",
         });
       });
 
@@ -305,13 +381,15 @@ test.describe("Wave 3 Phase 8 — Investigation enterprise data flow @critical",
           waitUntil: "load",
         });
         expect(resp?.ok()).toBe(true);
-        // The graph-reconcile worker writes a SAME_HASH_AS edge.
-        // Diagnostics duplicateExactCount is the honest proof.
+        // Run the similarity detector for the duplicate. See
+        // `reconcileSimilarity` for why waiting on graph reconciliation
+        // could not produce this row.
+        await reconcileSimilarity(session.api, evidenceB.id, teamId!);
         await waitForDiagnostics({
           api: session.api,
           teamId: teamId!,
           predicate: (d) => counter(d, "duplicateExactCount") >= 1,
-          label: "duplicateExactCount >= 1 after duplicate finalize",
+          label: "duplicateExactCount >= 1 after similarity detection",
         });
       });
 
@@ -354,15 +432,7 @@ test.describe("Wave 3 Phase 8 — Investigation enterprise data flow @critical",
       // Step 14 — Run graph refresh (POST /v1/graph/reconcile).
       // -----------------------------------------------------------------
       await test.step("14: POST /v1/graph/reconcile", async () => {
-        const res = await session.api.post(
-          `/v1/graph/reconcile?teamId=${teamId}`,
-          { data: { reason: "phase8-e2e" } },
-        );
-        // 202 = queued; 200 = already-up-to-date noop. Both are honest.
-        expect(
-          [200, 202],
-          `reconcile: ${await res.text()}`,
-        ).toContain(res.status());
+        await reconcileGraph(session.api, teamId!);
       });
 
       // -----------------------------------------------------------------
