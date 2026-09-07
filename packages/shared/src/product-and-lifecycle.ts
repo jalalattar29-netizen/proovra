@@ -29,10 +29,56 @@ export type ProductLineProjection = {
 // -----------------------------------------------------------------------------
 
 export const ENTITLEMENT_KEYS = [
-  'FEATURE_REVIEWER_WORKSPACE',
-  'FEATURE_EXTERNAL_PORTAL',
+  // PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — four more keys are
+  // REMOVED from the vocabulary, following QUOTA_EVIDENCE_COUNT,
+  // QUOTA_STORAGE_BYTES, QUOTA_USERS, QUOTA_WORKSPACES and
+  // QUOTA_REVIEWER_SEATS out for the identical reason. Each was a SECOND
+  // commercial authority over a question the plan catalog already owns, keyed
+  // on ProductLine rather than on the purchased plan, resolved from a grants
+  // table whose only writer is an operator-only route — so the answer for
+  // every workspace that merely BOUGHT a plan was the hard-coded default:
+  //
+  //   FEATURE_EXTERNAL_PORTAL       default false. Gated external-review grant
+  //                                 issuance and external-portal invitations.
+  //                                 Pricing sells External Review on PRO and
+  //                                 above; no purchase path could turn it on,
+  //                                 so a paying customer was refused a
+  //                                 capability they had bought. Canonical
+  //                                 authority: PlanCapabilities
+  //                                 .externalReviewIncluded, read through
+  //                                 resolveEffectiveExternalReviewIncluded.
+  //
+  //   FEATURE_INTELLIGENCE          default false. Gated every provider call
+  //                                 (OCR, transcription), so media
+  //                                 intelligence was commercially unreachable
+  //                                 on every self-serve plan. The canonical
+  //                                 statement of "this plan has no AI" is
+  //                                 aiAdvisoryMonthlyOperations <= 0; a
+  //                                 separate boolean could only ever disagree
+  //                                 with it. The workspace AI opt-out is
+  //                                 WorkspaceAiPolicy and is untouched.
+  //
+  //   FEATURE_REVIEWER_WORKSPACE    default TRUE — the mirror-image failure.
+  //                                 It granted the reviewer workspace to every
+  //                                 plan including FREE, while the canonical
+  //                                 PlanCapabilities.reviewerOperationsIncluded
+  //                                 says TEAM and above. Two authorities over
+  //                                 one question, disagreeing in opposite
+  //                                 directions on the same route family.
+  //
+  //   QUOTA_AI_OPERATIONS_PER_MONTH default 25, on its own usage counter. A
+  //                                 TEAM workspace sold 500 AI operations was
+  //                                 refused at 25, and neither counter held
+  //                                 the month's real total. Canonical
+  //                                 authority: resolveEffectiveContractAiCap
+  //                                 over aiAdvisoryMonthlyOperations, counted
+  //                                 once on 'ai_advisory_operations'.
+  //
+  // Deleting the KEYS rather than only the call sites is the point: a key that
+  // still exists can be granted by POST /v1/packaging/entitlements/grant and
+  // read back by a future gate. Historical entitlement_grants rows carrying
+  // them are untouched and simply never read again.
   'FEATURE_REDACTION',
-  'FEATURE_INTELLIGENCE',
   'FEATURE_TRUST_CENTER',
   'FEATURE_GOVERNANCE_PLATFORM',
   'FEATURE_EVIDENCE_EXCHANGE',
@@ -61,7 +107,6 @@ export const ENTITLEMENT_KEYS = [
   // Canonical replacements: workspace seats → `resolveWorkspaceSeatState`;
   // additional workspaces → not sold; reviewer operations →
   // `PlanCapabilities.reviewerOperationsIncluded`.
-  'QUOTA_AI_OPERATIONS_PER_MONTH',
   'QUOTA_API_REQUESTS_PER_DAY',
   'QUOTA_WEBHOOK_DELIVERIES_PER_DAY',
   'QUOTA_EXPORT_PACKAGES_PER_MONTH',

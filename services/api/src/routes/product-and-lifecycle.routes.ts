@@ -112,7 +112,7 @@ import {
   LEGAL_HOLD_KINDS,
   PRODUCT_LINES,
   EXCHANGE_PACKAGE_KINDS,
-  type EntitlementKey,
+  ENTITLEMENT_KEYS,
   type WebhookEventKind,
 } from "@proovra/shared";
 
@@ -221,7 +221,20 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       if (!ctx) return reply;
       const body = z
         .object({
-          key: z.string().min(1).max(80) as z.ZodType<EntitlementKey>,
+          /*
+           * PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — VALIDATED,
+           * not cast.
+           *
+           * This was `z.string() as z.ZodType<EntitlementKey>`: a cast that
+           * asserts a shape Zod never checks, so any string could be written
+           * as an entitlement key. Nine keys have now been retired from the
+           * vocabulary because they were duplicate commercial authorities, and
+           * the stated reason for deleting the KEY rather than only its
+           * readers is that a key which still exists can be granted here and
+           * read back by a future gate. That reasoning only holds if this
+           * boundary actually enforces the vocabulary.
+           */
+          key: z.enum(ENTITLEMENT_KEYS),
           value: z.union([z.boolean(), z.number()]),
           kind: z.enum(["FEATURE", "QUOTA", "LIMIT"] as const),
           source: z.enum(["PLAN", "CUSTOM", "PROMO"] as const).optional(),

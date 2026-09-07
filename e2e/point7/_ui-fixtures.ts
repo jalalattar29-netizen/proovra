@@ -80,12 +80,16 @@ import {
  * plan-matrix fallback at read time. Without these rows an ENTERPRISE
  * workspace is indistinguishable from a free one at the entitlement layer.
  */
+// PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — FEATURE_EXTERNAL_PORTAL,
+// FEATURE_INTELLIGENCE and FEATURE_REVIEWER_WORKSPACE are REMOVED from this
+// fixture because they are removed from ENTITLEMENT_KEYS: each duplicated a
+// commercial answer PLAN_CAPABILITIES already owns, and the grant route now
+// rejects them. The Enterprise fixture no longer needs to hand-grant External
+// Review, AI or the reviewer workspace — an ENTERPRISE plan includes all
+// three by catalog, which is the point of the change.
 export const ENTERPRISE_FEATURE_KEYS: ReadonlyArray<string> = [
-  "FEATURE_REVIEWER_WORKSPACE",
   "FEATURE_TRUST_CENTER",
   "FEATURE_REDACTION",
-  "FEATURE_EXTERNAL_PORTAL",
-  "FEATURE_INTELLIGENCE",
   "FEATURE_GOVERNANCE_PLATFORM",
   "FEATURE_EVIDENCE_EXCHANGE",
   "FEATURE_WEBHOOKS",

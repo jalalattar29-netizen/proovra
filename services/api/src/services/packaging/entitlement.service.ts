@@ -103,14 +103,28 @@ type EntitlementValue = boolean | number;
 //
 // A quota whose default refuses what the plan sells is not a safety net; it is
 // a second commercial authority that wins by running first.
+//
+// PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — AND SO IS A FEATURE
+// FLAG WHOSE DEFAULT REFUSES WHAT THE PLAN SELLS. Four more keys are removed
+// here and from ENTITLEMENT_KEYS: FEATURE_EXTERNAL_PORTAL,
+// FEATURE_INTELLIGENCE, FEATURE_REVIEWER_WORKSPACE and
+// QUOTA_AI_OPERATIONS_PER_MONTH. See the note on ENTITLEMENT_KEYS for what
+// each one broke and which canonical authority now answers it.
+//
+// WHAT THIS ENGINE STILL OWNS, AND LEGITIMATELY: the operational and
+// governance FEATURE flags that have NO counterpart in the plan catalog
+// (redaction, legal hold, archive tiers, chain transfer, evidence exchange,
+// webhooks, destruction governance, delegated admin, department isolation,
+// cross-org review, trust center, governance platform, lifecycle dashboard)
+// and the non-commercial LIMIT entitlements. For those it is the ONLY
+// authority, which is precisely the condition under which a packaging engine
+// is sound. The rule is not "packaging is bad"; it is "two answers to one
+// commercial question is bad".
 export const DEFAULT_ENTITLEMENTS: Record<
   EntitlementKey,
   { kind: EntitlementKind; value: EntitlementValue }
 > = {
-  FEATURE_REVIEWER_WORKSPACE: { kind: "FEATURE", value: true },
-  FEATURE_EXTERNAL_PORTAL: { kind: "FEATURE", value: false },
   FEATURE_REDACTION: { kind: "FEATURE", value: false },
-  FEATURE_INTELLIGENCE: { kind: "FEATURE", value: false },
   FEATURE_TRUST_CENTER: { kind: "FEATURE", value: true },
   FEATURE_GOVERNANCE_PLATFORM: { kind: "FEATURE", value: false },
   FEATURE_EVIDENCE_EXCHANGE: { kind: "FEATURE", value: false },
@@ -123,7 +137,6 @@ export const DEFAULT_ENTITLEMENTS: Record<
   FEATURE_DELEGATED_ADMIN: { kind: "FEATURE", value: false },
   FEATURE_DEPARTMENT_ISOLATION: { kind: "FEATURE", value: false },
   FEATURE_CROSS_ORG_REVIEW: { kind: "FEATURE", value: false },
-  QUOTA_AI_OPERATIONS_PER_MONTH: { kind: "QUOTA", value: 25 },
   QUOTA_API_REQUESTS_PER_DAY: { kind: "QUOTA", value: 500 },
   QUOTA_WEBHOOK_DELIVERIES_PER_DAY: { kind: "QUOTA", value: 0 },
   QUOTA_EXPORT_PACKAGES_PER_MONTH: { kind: "QUOTA", value: 2 },
@@ -142,28 +155,22 @@ export const PLAN_LINE_ENTITLEMENTS: Record<
   Partial<Record<EntitlementKey, EntitlementValue>>
 > = {
   CAPTURE_AND_VERIFY: {
-    FEATURE_REVIEWER_WORKSPACE: true,
     FEATURE_TRUST_CENTER: true,
     FEATURE_REDACTION: true,
-    QUOTA_AI_OPERATIONS_PER_MONTH: 500,
     QUOTA_API_REQUESTS_PER_DAY: 10_000,
     QUOTA_EXPORT_PACKAGES_PER_MONTH: 25,
     RETENTION_MAX_YEARS: 3,
     INTEGRATION_API_KEYS_MAX: 3,
   },
   INVESTIGATIONS: {
-    FEATURE_REVIEWER_WORKSPACE: true,
     FEATURE_TRUST_CENTER: true,
     FEATURE_REDACTION: true,
-    FEATURE_EXTERNAL_PORTAL: true,
-    FEATURE_INTELLIGENCE: true,
     FEATURE_EVIDENCE_EXCHANGE: true,
     FEATURE_WEBHOOKS: true,
     FEATURE_CHAIN_TRANSFER: true,
     FEATURE_LEGAL_HOLD: true,
     FEATURE_ARCHIVE_TIERS: true,
     FEATURE_LIFECYCLE_DASHBOARD: true,
-    QUOTA_AI_OPERATIONS_PER_MONTH: 5_000,
     QUOTA_API_REQUESTS_PER_DAY: 100_000,
     QUOTA_WEBHOOK_DELIVERIES_PER_DAY: 10_000,
     QUOTA_EXPORT_PACKAGES_PER_MONTH: 250,
@@ -173,11 +180,8 @@ export const PLAN_LINE_ENTITLEMENTS: Record<
     INTEGRATION_WEBHOOK_ENDPOINTS_MAX: 10,
   },
   ENTERPRISE: {
-    FEATURE_REVIEWER_WORKSPACE: true,
     FEATURE_TRUST_CENTER: true,
     FEATURE_REDACTION: true,
-    FEATURE_EXTERNAL_PORTAL: true,
-    FEATURE_INTELLIGENCE: true,
     FEATURE_GOVERNANCE_PLATFORM: true,
     FEATURE_EVIDENCE_EXCHANGE: true,
     FEATURE_WEBHOOKS: true,
@@ -189,7 +193,6 @@ export const PLAN_LINE_ENTITLEMENTS: Record<
     FEATURE_DELEGATED_ADMIN: true,
     FEATURE_DEPARTMENT_ISOLATION: true,
     FEATURE_CROSS_ORG_REVIEW: true,
-    QUOTA_AI_OPERATIONS_PER_MONTH: 100_000,
     QUOTA_API_REQUESTS_PER_DAY: 5_000_000,
     QUOTA_WEBHOOK_DELIVERIES_PER_DAY: 1_000_000,
     QUOTA_EXPORT_PACKAGES_PER_MONTH: 10_000,
