@@ -43,6 +43,12 @@ import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 import { prisma } from "../db.js";
+import {
+  resolveEffectiveContractSeats,
+  resolveEnterpriseContractLimits,
+} from "../services/billing/enterprise-contract-limits.js";
+import { resolveEnterpriseContract } from "../services/organization/enterprise-contract.service.js";
+import { getPlanCapabilities } from "../services/plan-catalog.service.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { getAuthUserId } from "../auth.js";
@@ -311,6 +317,12 @@ export async function organizationsGovernanceRoutes(app: FastifyInstance) {
         orderBy: { createdAt: "asc" },
       });
 
+      // The organization's contract, resolved ONCE — an Enterprise term is an
+      // ORG-level fact, so the rollup gets the exact ceiling without an N+1.
+      const seatContract = resolveEnterpriseContractLimits(
+        await resolveEnterpriseContract(orgId),
+      );
+
       // Billing owner is an ORG-level field (organizations.billingOwnerUserId).
       // Surface the operator-readable identity (email + display name) so
       // the enterprise billing tab can show a billing contact WITHOUT
@@ -339,7 +351,22 @@ export async function organizationsGovernanceRoutes(app: FastifyInstance) {
         planCounts[plan] = (planCounts[plan] ?? 0) + 1;
         const status = String(ws.billingStatus ?? "NONE");
         statusCounts[status] = (statusCounts[status] ?? 0) + 1;
-        const included = ws.includedSeats ?? 0;
+        /*
+         * PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — the included
+         * seats for a workspace are THE canonical seat rule's answer, not the
+         * raw `Team.includedSeats` column, which is one input to that rule and
+         * is 0 on a self-serve workspace. The rollup therefore reported an
+         * organization of PRO workspaces as having zero included seats, and
+         * `overSeatWorkspaceCount` could never rise above zero because the
+         * `included > 0` guard below was never satisfied.
+         */
+        const included = resolveEffectiveContractSeats({
+          plan: (ws.billingPlan ?? "FREE") as Parameters<
+            typeof getPlanCapabilities
+          >[0],
+          contract: seatContract,
+          persistedSeats: ws.includedSeats ?? 0,
+        });
         const used = ws._count.members;
         totalIncludedSeats += included;
         totalUsedSeats += used;

@@ -21,6 +21,10 @@ import {
 import { classifyRouteType } from "../lib/route-classification.js";
 import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
 import { getPlanCapabilities } from "../services/plan-catalog.service.js";
+import {
+  NO_CONTRACT_LIMITS,
+  resolveEffectiveContractSeats,
+} from "../services/billing/enterprise-contract-limits.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import {
@@ -513,7 +517,28 @@ async function computeTeamWorkspaceHealth() {
       storageNearLimitTeams += 1;
     }
 
-    const seatLimit = Math.max(caps.includedSeats, team.includedSeats ?? 0);
+    /*
+     * PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — the seat ceiling
+     * comes from THE canonical seat rule, not from a max() written here.
+     *
+     * `max(caps.includedSeats, team.includedSeats)` was a third seat number:
+     * `includedSeats` is 0 on every plan below TEAM, and the column is 0 on a
+     * self-serve workspace, so `seatLimit` was 0 and the two counters below
+     * skipped every workspace that was not Enterprise — a platform health
+     * report that could not see a full PRO workspace.
+     *
+     * `resolveEffectiveContractSeats` is the same pure rule
+     * `resolveWorkspaceSeatState` applies. This sweep spans every live
+     * workspace on the platform, so it resolves at the catalog-and-persisted
+     * baseline rather than loading each workspace's Enterprise contract:
+     * a documented tolerance on a REPORT, not a second answer — the rule is
+     * one function and this is one of its callers.
+     */
+    const seatLimit = resolveEffectiveContractSeats({
+      plan: effectivePlan,
+      contract: NO_CONTRACT_LIMITS,
+      persistedSeats: team.includedSeats ?? 0,
+    });
     const memberCount = team._count.members;
 
     if (seatLimit > 0 && memberCount >= seatLimit) {

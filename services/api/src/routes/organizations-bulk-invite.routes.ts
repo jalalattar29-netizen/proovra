@@ -43,6 +43,12 @@ import { randomUUID, createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
 
 import { prisma } from "../db.js";
+import {
+  resolveEffectiveContractSeats,
+  resolveEnterpriseContractLimits,
+} from "../services/billing/enterprise-contract-limits.js";
+import { resolveEnterpriseContract } from "../services/organization/enterprise-contract.service.js";
+import { getPlanCapabilities } from "../services/plan-catalog.service.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { getAuthUserId } from "../auth.js";
@@ -314,9 +320,19 @@ async function requireOrgAdmin(input: {
 }
 
 // ---------------------------------------------------------------------------
-// Seat computation — reuses the SAME signal as GET /v1/orgs/:id/billing/rollup:
-// sum of Team.includedSeats and current TeamMember counts across the org's
-// non-personal workspaces.
+// Seat computation — THE canonical workspace seat authority.
+//
+// PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — this summed the RAW
+// `Team.includedSeats` column and treated a zero as "this organization has no
+// seat ceiling". That column is one INPUT to the seat rule, not the rule:
+// `resolveWorkspaceSeatState` resolves `contract seats ?? maxWorkspaceSeats`,
+// and the column is usually 0 on a self-serve workspace. So a PRO workspace
+// selling five seats reported no ceiling at all, and the bulk-invite path — the
+// ONE path that can add many members at once — enforced nothing, while the
+// single-invite path next to it enforced the real limit.
+//
+// A second seat number that answers zero is worse than no check: it makes the
+// bypass look like a deliberate "unlimited".
 // ---------------------------------------------------------------------------
 async function computeSeatUsage(orgId: string): Promise<{
   totalIncludedSeats: number;
@@ -325,21 +341,45 @@ async function computeSeatUsage(orgId: string): Promise<{
 }> {
   const workspaces = await prisma.team.findMany({
     where: { organizationId: orgId, isPersonal: false },
-    select: { includedSeats: true, _count: { select: { members: true } } },
+    select: {
+      id: true,
+      billingPlan: true,
+      includedSeats: true,
+      _count: { select: { members: true } },
+    },
   });
+  /*
+   * The organization's contract, resolved ONCE. An Enterprise contract is an
+   * ORG-level term, so this is one query for the whole batch rather than a
+   * per-workspace resolve — the seat ceiling is exact without an N+1 on an
+   * enforcement path.
+   */
+  const contract = resolveEnterpriseContractLimits(
+    await resolveEnterpriseContract(orgId),
+  );
   let totalIncludedSeats = 0;
   let totalUsedSeats = 0;
-  let hasSeatCap = false;
   for (const ws of workspaces) {
-    const included = ws.includedSeats ?? 0;
-    totalIncludedSeats += included;
+    totalIncludedSeats += resolveEffectiveContractSeats({
+      plan: (ws.billingPlan ??
+        "FREE") as Parameters<typeof getPlanCapabilities>[0],
+      contract,
+      persistedSeats: ws.includedSeats ?? 0,
+    });
     totalUsedSeats += ws._count.members;
-    if (included > 0) hasSeatCap = true;
   }
-  return { totalIncludedSeats, totalUsedSeats, hasSeatCap };
-}
-
-// ---------------------------------------------------------------------------
+  /*
+   * Every plan seats at least its owner, so an organization with any workspace
+   * has a ceiling. The old `included > 0` flag existed only because the raw
+   * column is 0 on a self-serve workspace, and it turned that zero into
+   * "unlimited".
+   */
+  return {
+    totalIncludedSeats,
+    totalUsedSeats,
+    hasSeatCap: workspaces.length > 0,
+  };
+}// ---------------------------------------------------------------------------
 // Domain policy — verified-domain restriction, honestly gated behind an
 // explicit OrganizationPolicy toggle AND the presence of verified domains.
 // ---------------------------------------------------------------------------
