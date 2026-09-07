@@ -1,6 +1,25 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    # pgvector, NOT postgres:16-alpine — for the reason
+    # `playwright-e2e.yml` and `schema-reproducibility.yml` already record.
+    #
+    # `20270701000000_phase15_semantic_search` and its neighbours issue
+    # `CREATE EXTENSION vector`, and the guard inside that migration RAISEs
+    # rather than continue:
+    #
+    #   pgvector is not installed, but 20270701000000_phase15_semantic_search
+    #   should have created it. Refusing to leave
+    #   evidence_search_documents.embedding undeclared while the datamodel
+    #   declares it.
+    #
+    # Measured against this file on the alpine image: `migrate deploy` stops
+    # there, and the API then boots on a schema that is missing the column its
+    # datamodel declares — a stack that looks healthy and is not.
+    #
+    # The other two workflows migrate the same tree against this image and
+    # have always passed. Two stacks migrating one tree must not disagree
+    # about what the tree needs.
+    image: pgvector/pgvector:pg16
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -94,9 +113,63 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS}
       VERIFY_RATE_LIMIT_MAX: ${VERIFY_RATE_LIMIT_MAX}
       VERIFY_RATE_LIMIT_WINDOW_SEC: ${VERIFY_RATE_LIMIT_WINDOW_SEC}
+      # THE TWO VALUES THAT DECIDED WHETHER THIS STACK COULD START AT ALL.
+      #
+      # `NODE_ENV: production` above puts the API through
+      # `runStartupConfigValidation`, and it refused to boot:
+      #
+      #   ProductionConfigError: Missing required production config:
+      #     AUTH_JWT_SECRET, PDF_SIGNING_ENABLED
+      #
+      # `AUTH_JWT_SECRET` is core-required in production and was never passed
+      # through this file; PDF artifact signing must be either ON or
+      # explicitly opted out of, and both were unset. The API exited 1, the
+      # worker's `depends_on: proovra-api: service_healthy` could not be met,
+      # and `docker compose up -d` failed about eighteen seconds in — which is
+      # exactly where `ci.yml` has been failing.
+      #
+      # Both are passed through rather than defaulted: a stack that silently
+      # invents its own JWT secret is worse than one that refuses to start.
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
+      # THE SECRET THE AUTH PATH NEEDS WHETHER OR NOT THE FEATURE IS ON.
+      #
+      # `collectStartupViolations` requires this only when
+      # IDENTITY_SECURITY_ENABLED is true, so the API boots happily without
+      # it — and then EVERY authenticated request fails 401 with
+      #
+      #   auth.revocation_check_failed
+      #   Required secret "IDENTITY_SECURITY_HASH_SECRET" is not set.
+      #   Refusing to use a fallback in production.
+      #
+      # because `requireAuth`'s token-revocation check hashes the presented
+      # token unconditionally. Measured against this stack: login returns a
+      # token and `GET /v1/users/me` rejects it.
+      IDENTITY_SECURITY_HASH_SECRET: ${IDENTITY_SECURITY_HASH_SECRET}
+      PDF_SIGNING_ENABLED: ${PDF_SIGNING_ENABLED:-}
+      PDF_ARTIFACT_SIGNATURE_OPT_OUT_ACK: ${PDF_ARTIFACT_SIGNATURE_OPT_OUT_ACK:-}
       # Phase Y — Observability config (api side).
       METRICS_SCRAPE_TOKEN: ${METRICS_SCRAPE_TOKEN:-}
       SENTRY_DSN: ${SENTRY_DSN:-}
+    # A SIGNING KEY COMES FROM OUTSIDE THE IMAGE, ALWAYS.
+    #
+    # Point 8 deliberately stopped `services/api/Dockerfile` from copying
+    # `services/api/keys`, because that put the repository's committed dev
+    # fixture — a real Ed25519 private key, public in Git — inside the
+    # production image. So the image ships NO key, and
+    # `assertNotCommittedFixture` refuses the fixture by public-key
+    # fingerprint even if one is mounted back in.
+    #
+    # This stack therefore had no key it was allowed to use, and said so at
+    # the only point that matters. Measured:
+    #
+    #   POST /v1/evidence/:id/complete → 500
+    #   FixtureSigningKeyRefused: Refusing to sign in production with the
+    #   repository's committed signing fixture
+    #
+    # Required rather than defaulted: a stack that quietly starts without a
+    # signer is a stack that fails on the first record somebody captures.
+    volumes:
+      - ${SIGNING_KEY_DIR:?SIGNING_KEY_DIR must name a host directory holding the signing keypair — the image ships none by design}:/run/signing:ro
     ports:
       - "8080:8080"
     healthcheck:
@@ -142,10 +215,48 @@ services:
       S3_ALLOW_INSECURE: ${S3_ALLOW_INSECURE}
       WORKER_BUILD_INFO: ${WORKER_BUILD_INFO}
       WORKER_PORT: ${WORKER_PORT}
+      # The same PDF-signing decision the API validates at boot. The worker is
+      # the process that actually renders the artifact, and
+      # `assertPdfSigningProductionSafetyOrThrow` makes the same demand per
+      # job, so the two must be told the same thing.
+      PDF_SIGNING_ENABLED: ${PDF_SIGNING_ENABLED:-}
+      PDF_ARTIFACT_SIGNATURE_OPT_OUT_ACK: ${PDF_ARTIFACT_SIGNATURE_OPT_OUT_ACK:-}
+      # The PDF artifact signer's certificate, from the same mounted directory
+      # as the evidence signing key and for the same reason: the image ships
+      # none. Measured with PDF_SIGNING_ENABLED=true and nothing mounted —
+      # the report job failed five times with
+      #
+      #   PDF signing .p12 not found at
+      #   /app/services/worker/keys/proovra-signing.p12
+      #
+      # so the alternative to supplying one is the explicit
+      # PDF_ARTIFACT_SIGNATURE_OPT_OUT_ACK path above, never silence.
+      PDF_SIGNING_P12_PATH: ${PDF_SIGNING_P12_PATH:-}
+      PDF_SIGNING_P12_PASSWORD: ${PDF_SIGNING_P12_PASSWORD:-}
       # Phase Y — Observability config (worker side).
       SENTRY_DSN: ${SENTRY_DSN:-}
       WORKER_HEARTBEAT_INTERVAL_MS: ${WORKER_HEARTBEAT_INTERVAL_MS:-30000}
       WORKER_QUEUE_HEALTH_INTERVAL_MS: ${WORKER_QUEUE_HEALTH_INTERVAL_MS:-60000}
+    # A SIGNING KEY COMES FROM OUTSIDE THE IMAGE, ALWAYS.
+    #
+    # Point 8 deliberately stopped `services/api/Dockerfile` from copying
+    # `services/api/keys`, because that put the repository's committed dev
+    # fixture — a real Ed25519 private key, public in Git — inside the
+    # production image. So the image ships NO key, and
+    # `assertNotCommittedFixture` refuses the fixture by public-key
+    # fingerprint even if one is mounted back in.
+    #
+    # This stack therefore had no key it was allowed to use, and said so at
+    # the only point that matters. Measured:
+    #
+    #   POST /v1/evidence/:id/complete → 500
+    #   FixtureSigningKeyRefused: Refusing to sign in production with the
+    #   repository's committed signing fixture
+    #
+    # Required rather than defaulted: a stack that quietly starts without a
+    # signer is a stack that fails on the first record somebody captures.
+    volumes:
+      - ${SIGNING_KEY_DIR:?SIGNING_KEY_DIR must name a host directory holding the signing keypair — the image ships none by design}:/run/signing:ro
     ports:
       - "8090:8090"
     healthcheck:
