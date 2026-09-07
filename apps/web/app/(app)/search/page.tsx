@@ -2631,6 +2631,38 @@ function getOpenAction(
     // operator just found rather than a list they have to search again.
     case "INTAKE_LINK":
       return { href: `/intake-links?linkId=${row.sourceId}`, label: "Open request" };
+    /*
+     * WORKFLOW IS INDEXED, SO IT NEEDS A DESTINATION.
+     *
+     * `evidence-indexing.service.ts` writes WORKFLOW documents through
+     * `buildWorkflowInstanceProjection`, so a workflow row can and does come
+     * back from a search — but this switch had no case for it and fell through
+     * to `null`, which renders no primary action at all. The only workflow
+     * link on the row was the pointer in the Investigation section, and that
+     * one is gated on `canSeeWorkflows`: a self-serve reader who searched a
+     * workflow title got a result they could not open by any route.
+     *
+     * The destination is the same `/workflows/:id` the pointer already used.
+     * It is offered only when the row carries the id, exactly like every case
+     * above — a button that resolves to `/workflows/undefined` is worse than
+     * no button.
+     */
+    case "WORKFLOW":
+      return row.workflowInstanceId
+        ? {
+            href: `/workflows/${row.workflowInstanceId}${trashSuffix}`,
+            label: isInTrash ? "Open in trash" : "Open workflow",
+          }
+        : null;
+    /*
+     * The remaining canonical types — WORKFLOW_STEP, REVIEW_EVENT,
+     * AUDIT_EVENT, COMMUNICATION, CASE_TIMELINE, INCIDENT — are declared in
+     * SEARCH_DOCUMENT_TYPES but no indexer writes one, so no row of those
+     * types can reach this function. `search-remediation.test.ts` holds that
+     * statement: it derives the written set from the indexers and requires a
+     * case here for every one of them, so the day one of them starts being
+     * indexed this returns null and the test says so.
+     */
     default:
       return null;
   }

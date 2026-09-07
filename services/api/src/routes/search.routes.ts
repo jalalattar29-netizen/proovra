@@ -10,14 +10,15 @@ import { z } from "zod";
 // Search index eligibility + readiness — the ONE authority. The counting
 // queries below emit their eligibility clause from it so the numerator and
 // the denominator can never measure different populations.
-import {
-  projectSearchReadiness,
-  // Imported to PIN this file to the shared eligibility predicate rather than
-  // to a hand-written copy of the lifecycle list — search-readiness-projection
-  // asserts the reference. The counting queries themselves moved into the
-  // health module; the pin stays, deliberately.
-  searchIndexableLifecycleSql,
-} from "@proovra/shared";
+/* THE PIN THAT PINNED NOTHING IS GONE.
+   `searchIndexableLifecycleSql` was imported here and never called: the
+   counting queries moved into the health module, and the import survived to
+   satisfy one line of search-readiness-projection.test.ts that asserted this
+   file mentions the symbol. A reference kept alive only by the assertion that
+   looks for it protects nothing — it is a symbol, not a query — and eslint
+   was right to call it unused. The test now asserts the property that is
+   actually true of this file: it emits no eligibility clause at all. */
+import { projectSearchReadiness } from "@proovra/shared";
 // The ONE durable reconciliation-run authority. Readiness reads the run row;
 // the reconcile endpoint starts runs through the same wrapper the worker's
 // scheduler uses, so the two cannot work one workspace at the same time.

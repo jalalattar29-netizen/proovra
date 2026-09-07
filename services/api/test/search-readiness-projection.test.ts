@@ -43,8 +43,22 @@ describe("Search readiness — one eligibility population", () => {
     // reindex SQL, and in the projection builder. Three copies of a predicate
     // that must agree forever is how "175 of 393" becomes unexplainable.
     expect(HEALTH).toMatch(/searchIndexableLifecycleSql/);
-    expect(ROUTES).toMatch(/searchIndexableLifecycleSql/);
     expect(REINDEX).toMatch(/searchIndexableLifecycleSql/);
+    /*
+     * THE ROUTES FILE IS ASSERTED ON WHAT IT DOES, NOT ON A SYMBOL IT NAMES.
+     *
+     * This line used to be `expect(ROUTES).toMatch(/searchIndexableLifecycleSql/)`,
+     * and the only thing keeping it true was an import in search.routes.ts that
+     * nothing called — the counting queries had moved into the health module.
+     * A symbol imported to satisfy the assertion looking for it is not a pin;
+     * it protects nothing, and eslint reported it as the unused import it was.
+     *
+     * The property that IS true of the routes file, and worth holding, is that
+     * it emits no eligibility clause of its own: no lifecycle column appears in
+     * it in any form, so there is no second population for it to count.
+     */
+    expect(ROUTES).not.toMatch(/lifecycle_state/);
+    expect(ROUTES).not.toMatch(/lifecycleState/);
     expect(PROJECTION).toMatch(/isSearchIndexableLifecycle/);
 
     // No hand-written copy of the list survives in either query.

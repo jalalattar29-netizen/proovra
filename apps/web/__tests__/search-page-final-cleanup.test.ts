@@ -239,11 +239,35 @@ test("C) Date input fields carry stable data-attrs for end-to-end pickers", () =
 
 test("D) Wire — documentTypes serialise as uppercase, comma-joined, into the URL", () => {
   const src = read(PAGE);
-  // DOCUMENT_TYPES catalog uppercase.
-  assert.match(
-    src,
-    /const DOCUMENT_TYPES: DocumentType\[\] = \[\s*\n\s*"EVIDENCE",\s*\n\s*"CASE",\s*\n\s*"REPORT",\s*\n\s*"PACKAGE",\s*\n\s*"NOTE",\s*\n\s*\]/,
-  );
+  /*
+   * THE CATALOG IS CHECKED FOR THE PROPERTY, NOT FOR ITS TEXT.
+   *
+   * This asserted the literal array — `"EVIDENCE", "CASE", "REPORT",
+   * "PACKAGE", "NOTE"` in that order — under the heading "uppercase". Adding
+   * INTAKE_LINK, a real indexed type, broke it, while a genuinely lowercase
+   * entry inside the same five would have passed it unchanged: the regex was
+   * matching the list, not the case of its members.
+   *
+   * What the wire actually requires is that every value the page puts in the
+   * `documentTypes` query parameter is the UPPERCASE enum spelling the API
+   * validates, and that they are joined with a comma. Both are checked here.
+   */
+  const at = src.search(/const DOCUMENT_TYPES: DocumentType\[\] = \[/);
+  assert.notStrictEqual(at, -1, "DOCUMENT_TYPES declaration not found");
+  /* The ARRAY's bracket, not the one in `DocumentType[]`. */
+  const open = src.indexOf("= [", at) + 2;
+  /* COMMENTS STRIPPED FIRST. The array carries a prose note explaining why
+     INTAKE_LINK is a chip, and it contains a quoted sentence; matching every
+     quoted string in the raw slice read that sentence as a document type. */
+  const declared = src
+    .slice(open, src.indexOf("]", open))
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/\/\/.*$/gm, " ");
+  const values = [...declared.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  assert.ok(values.length >= 5, "DOCUMENT_TYPES did not parse");
+  for (const v of values) {
+    assert.strictEqual(v, v.toUpperCase(), `document type ${v} is not the uppercase enum spelling`);
+  }
   // runSearch serialiser joins with comma.
   assert.match(
     src,

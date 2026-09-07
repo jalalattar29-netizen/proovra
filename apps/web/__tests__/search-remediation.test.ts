@@ -58,13 +58,124 @@ const BACKFILL = src("services/api/scripts/backfill-search-index.ts");
 // UI simplification
 // ===========================================================================
 
-test("Personal DOCUMENT_TYPES chip list exposes only EVIDENCE / CASE / REPORT / PACKAGE / NOTE", () => {
-  // Match the literal array — pinned so a refactor that
-  // re-introduces WORKFLOW / INCIDENT chips fails here.
-  assert.match(
-    SEARCH_PAGE,
-    /const DOCUMENT_TYPES: DocumentType\[\] = \[\s*\n?\s*"EVIDENCE",\s*\n?\s*"CASE",\s*\n?\s*"REPORT",\s*\n?\s*"PACKAGE",\s*\n?\s*"NOTE",\s*\n?\s*\];/,
-  );
+/**
+ * ===========================================================================
+ * THE DOCUMENT-TYPE FACTS, DERIVED — NOT A SECOND COPY OF THE LIST
+ * ===========================================================================
+ * The case here used to pin the chip array as LITERAL SOURCE TEXT — a regex
+ * spelling out `"EVIDENCE", "CASE", "REPORT", "PACKAGE", "NOTE"` in order.
+ * That is a duplicate of the list it is checking, and it failed the moment
+ * INTAKE_LINK was added: a chip that is legitimate, indexed, and the entire
+ * point of making an intake request findable before any evidence comes back.
+ *
+ * The pin could not tell the two cases apart. "Someone re-introduced an
+ * unimplemented WORKFLOW chip", which is what the test was written for, and
+ * "someone added a real type", which is what happened, are the same edit to a
+ * literal array. So the facts are DERIVED from the three authorities instead:
+ *
+ *   CANONICAL   packages/shared/src/search.ts — SEARCH_DOCUMENT_TYPES, the
+ *               enum GET /v1/search validates `documentTypes` against.
+ *   INDEXED     the projection and the indexers that actually WRITE a
+ *               documentType into evidence_search_documents.
+ *   CHIPS       the personal filter list on the page.
+ *
+ * and the properties held are the ones that were meant all along: a chip is a
+ * type the API accepts; a chip is a type something indexes (a chip for a type
+ * nothing writes is exactly the zero-hits filter this phase removed); and
+ * every type that IS indexed can be labelled and opened.
+ */
+function arrayLiteral(source: string, declaration: RegExp): string[] {
+  const at = source.search(declaration);
+  assert.notStrictEqual(at, -1, `declaration not found: ${declaration}`);
+  /* The ARRAY's bracket, not the one in `DocumentType[]`. */
+  const open = source.indexOf("= [", at) + 2;
+  const close = source.indexOf("]", open);
+  assert.ok(open !== -1 && close > open, "malformed array literal");
+  return [...source.slice(open, close).matchAll(/"([A-Z_]+)"/g)].map((m) => m[1]);
+}
+
+/** Every value the API's document-type enum accepts. */
+const CANONICAL_TYPES = arrayLiteral(
+  SHARED_SEARCH,
+  /export const SEARCH_DOCUMENT_TYPES = \[/,
+);
+
+/** Every type something actually writes into the index. */
+const ARTIFACT_INDEXER = src(
+  "services/api/src/services/search/artifact-indexing.service.ts",
+);
+const SEARCH_PROJECTION = src("packages/shared/src/search-projection.ts");
+const INDEXED_TYPES = [
+  ...new Set(
+    [SEARCH_PROJECTION, ARTIFACT_INDEXER, CASE_INDEXER]
+      .flatMap((file) => [...file.matchAll(/documentType: "([A-Z_]+)"/g)])
+      .map((m) => m[1]),
+  ),
+].sort();
+
+/** The chips the personal filter rail offers. */
+const CHIP_TYPES = arrayLiteral(
+  SEARCH_PAGE,
+  /const DOCUMENT_TYPES: DocumentType\[\] = \[/,
+);
+
+test("the three document-type authorities parse", () => {
+  // A derivation that silently produced an empty set would make every case
+  // below vacuously true, which is the failure mode a derived test has and a
+  // literal one does not.
+  assert.ok(CANONICAL_TYPES.length >= 5, "SEARCH_DOCUMENT_TYPES did not parse");
+  assert.ok(INDEXED_TYPES.length >= 5, "no indexer document types parsed");
+  assert.ok(CHIP_TYPES.length >= 5, "DOCUMENT_TYPES did not parse");
+});
+
+test("every document-type chip is a type the API accepts", () => {
+  for (const t of CHIP_TYPES) {
+    assert.ok(
+      CANONICAL_TYPES.includes(t),
+      `chip "${t}" is not in SEARCH_DOCUMENT_TYPES — the API would refuse it`,
+    );
+  }
+});
+
+test("no chip offers a type nothing indexes (the zero-hits filter)", () => {
+  for (const t of CHIP_TYPES) {
+    assert.ok(
+      INDEXED_TYPES.includes(t),
+      `chip "${t}" filters on a type no indexer writes — it can only return nothing`,
+    );
+  }
+});
+
+test("every indexed document type has a label and an Open destination", () => {
+  const from = SEARCH_PAGE.indexOf("function getOpenAction(");
+  assert.notStrictEqual(from, -1, "getOpenAction not found");
+  const openBody = SEARCH_PAGE.slice(from, SEARCH_PAGE.indexOf("\nfunction ", from + 1));
+  const labelFrom = SEARCH_PAGE.indexOf("const DOCUMENT_TYPE_LABEL");
+  assert.notStrictEqual(labelFrom, -1, "DOCUMENT_TYPE_LABEL not found");
+  const labelBody = SEARCH_PAGE.slice(labelFrom, SEARCH_PAGE.indexOf("};", labelFrom));
+  for (const t of INDEXED_TYPES) {
+    // Substring, not a regex: the label map is written `TYPE: "Label",` and
+    // the switch `case "TYPE":`, both exact shapes. A regex here would need
+    // escapes that say nothing extra.
+    assert.ok(
+      labelBody.includes(`${t}: "`),
+      `indexed type ${t} has no DOCUMENT_TYPE_LABEL entry — the row renders the raw enum`,
+    );
+    assert.ok(
+      openBody.includes(`case "${t}":`),
+      `indexed type ${t} has no case in getOpenAction — a result of this type cannot be opened`,
+    );
+  }
+});
+
+test("a canonical type that nothing indexes is not offered as a chip", () => {
+  for (const t of CANONICAL_TYPES) {
+    if (INDEXED_TYPES.includes(t)) continue;
+    assert.ok(
+      !CHIP_TYPES.includes(t),
+      `${t} is offered as a chip but no indexer writes it`,
+    );
+  }
 });
 
 test("Document-type chip uses the friendly label (no raw enum strings rendered)", () => {
