@@ -20,10 +20,10 @@
   ],
   "entries": [
     {
-      "site": "apps/web/app/intake/[token]/page.tsx:624",
+      "site": "apps/web/app/intake/[token]/page.tsx:766",
       "class": "OBJECT_STORE",
-      "evidence": "fetch(res.upload.putUrl, { method: \"PUT\" }) — the presigned URL returned by the intake upload-session response; the storage provider, not this API.",
-      "reviewedAtUtc": "2026-08-15"
+      "evidence": "fetch(res.upload.putUrl, { method: \"PUT\" }) — the presigned URL returned by the intake upload-session response; the storage provider, not this API. | Re-anchored :624 -> :766 on 2026-09-07. Verified BY READING the site: stageFile still performs the direct PUT under the comment \"Direct upload to S3 via presigned URL. Skip the api wrapper — this request must hit S3 directly without our auth cookie.\" Line 624 is now an apiFetch to the consent route, which the analyzer resolves on its own, so the old anchor had become a dead exemption over a resolvable call.",
+      "reviewedAtUtc": "2026-09-07"
     },
     {
       "site": "apps/web/app/intake/[token]/capture/page.tsx:78",

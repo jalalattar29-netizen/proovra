@@ -445,17 +445,30 @@ describe("Phase R14 — Stage 3: service module public surface", () => {
       "createAssignment",
       "updateAssignment",
       "listAssignments",
-      "recordInviteDeliveryResult",
     ];
     for (const sym of requiredExports) {
       expect(svc, `missing export ${sym}`).toMatch(
         new RegExp(`export (async function|function|const) ${sym}\\b`),
       );
     }
-    for (const gone of ["createSmsInvite", "createLinkInvite"]) {
-      expect(svc, `deleted export ${gone} must be absent`).not.toContain(
-        gone,
-      );
+    /* The EMAIL create writer joined the deleted list. The invitation route
+       was retired and folded into the workspace invitation authority, and an
+       executable writer nothing can reach is the state writer-preservations
+       refuses; `acceptInvite` and `revokeInvite` remain because invitations
+       issued before the retirement still have to be honoured or withdrawn. */
+    for (const gone of [
+      "createSmsInvite",
+      "createLinkInvite",
+      "createEmailInvite",
+      "recordInviteDeliveryResult",
+    ]) {
+      /* The DECLARATION must be gone, not every mention of the name: the
+         service records what was deleted and why in a comment, and a comment
+         is not a re-declaration. */
+      expect(
+        svc,
+        `deleted export ${gone} must be absent`,
+      ).not.toMatch(new RegExp(`export (async function|function|const) ${gone}\b`));
     }
   });
 

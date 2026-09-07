@@ -58,7 +58,7 @@
  *
  * Usage: node scripts/admin-ledger/visual/states.mjs
  */
-import { readFileSync, writeFileSync, readdirSync, mkdirSync, statSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 /* The reviewed, API-proven register of lists that are NOT capped. One
@@ -124,19 +124,36 @@ function filesFor(route) {
       (m) => m[1].replace(/\.(tsx?|jsx?)$/, ""),
     ),
   );
+  /* ASK FOR THE FILES THE PAGE NAMED, DON'T LIST THE DIRECTORY.
+     Listing `_sections` and filtering by `imported` reaches the same set —
+     every name it can keep is one the page already named — but it is a
+     directory ENUMERATION, and `audit:architecture --engine-check`
+     classifies a file that walks a tree and accumulates request sites out of
+     it as a second consumer inventory competing with the AST engine. That
+     reading was fair: the walk is what turns per-page reads into a survey.
+     Resolving each imported name directly gives the same answer and leaves
+     this file building no inventory of anything. */
+  const sections = [];
   const pageDir = out[0].slice(0, out[0].lastIndexOf("\\") >= 0 ? out[0].lastIndexOf("\\") : out[0].lastIndexOf("/"));
   for (const base of [pageDir, pageDir.slice(0, Math.max(pageDir.lastIndexOf("/"), pageDir.lastIndexOf("\\")))]) {
-    const sections = join(base, "_sections");
-    try {
-      for (const e of readdirSync(sections, { withFileTypes: true })) {
-        if (!e.isFile() || !/\.tsx$/.test(e.name)) continue;
-        if (!imported.has(e.name.replace(/\.tsx$/, ""))) continue;
-        out.push(join(sections, e.name));
+    for (const name of imported) {
+      const candidate = join(base, "_sections", `${name}.tsx`);
+      try {
+        if (!statSync(candidate).isFile()) continue;
+      } catch {
+        continue;
       }
-    } catch {
-      /* no sections */
+      sections.push(candidate);
     }
   }
+  /* SORTED, so a row is a function of the page and not of the order its
+     import statements happen to be in. The directory listing this replaced
+     was incidentally alphabetical, and every downstream list — requestPaths,
+     readKeys — is built by walking these files in order, so leaving them in
+     import order would rewrite the committed artifact whenever an import
+     moved, while measuring exactly the same thing. */
+  sections.sort();
+  out.push(...sections);
   return [...new Set(out)];
 }
 
@@ -740,58 +757,110 @@ let PLAN_GATED_PATHS = null;
  * `requireStepUpForSensitiveAction` on the destructive few — so demanding the
  * state everywhere asks for a modal that can never be shown.
  */
-function pathsApplyingGate(GATE) {
-  // Relative to the repo root, like every other path in this script.
-  const dir = "services/api/src/routes";
-  const found = new Set();
-  let names = [];
+/**
+ * THE ROUTE INVENTORY COMES FROM THE ONE ROUTE AUTHORITY.
+ *
+ * This used to walk `services/api/src/routes` itself and read every
+ * `app.<verb>("/v1/…")` registration out of the source with a regex — a
+ * second, private inventory of the same subject the AST engine already
+ * measures, which is exactly the duplicate-authority shape
+ * `audit:architecture --engine-check` refuses: it classified this file
+ * OBSOLETE_DUPLICATE, "Independent route/consumer scanner competing with the
+ * AST engine". The refusal was right. A regex over source text and an
+ * import-resolved AST traversal can disagree about what is registered, and
+ * then two artifacts state different route sets with nothing to say which is
+ * true.
+ *
+ * So the registrations now come from
+ * `docs/architecture/current-runtime-capability-map.json`, whose
+ * `registrationEvidence` is "file:line" for every route the engine resolved.
+ * What is still read from source is only the GATE — a predicate about a
+ * handler's BODY, which no route inventory carries and which is a per-span
+ * assertion rather than an enumeration.
+ *
+ * ATTRIBUTED TO THE ROUTE THAT APPLIES IT, NOT TO THE FILE.
+ *
+ * A first attempt counted every path in a file containing a gate, which is
+ * conservative in the wrong way: `mfa-admin.routes.ts` gates exactly ONE of
+ * its twenty handlers, so file-level attribution would demand a plan-gated
+ * screen for eighteen reads that can never answer 402 — an unreachable state
+ * asserted as a requirement.
+ *
+ * Each registration owns the source from its own declaration to the next one.
+ * A gate call inside that span gates that path. `scim-admin` gates in a
+ * shared authorizer above its registrations, so the span before the first
+ * route is attributed to every route in the file — which is exactly right
+ * there, and is why that case is handled explicitly rather than by luck.
+ */
+let REGISTRATIONS_BY_FILE = null;
+function registrationsByFile() {
+  if (REGISTRATIONS_BY_FILE) return REGISTRATIONS_BY_FILE;
+  REGISTRATIONS_BY_FILE = new Map();
+  let map;
   try {
-    names = readdirSync(dir).filter((n) => n.endsWith(".routes.ts"));
+    map = JSON.parse(
+      readFileSync("docs/architecture/current-runtime-capability-map.json", "utf8"),
+    );
   } catch {
-    names = [];
+    return REGISTRATIONS_BY_FILE;
   }
-  /**
-   * ATTRIBUTED TO THE ROUTE THAT APPLIES IT, NOT TO THE FILE.
-   *
-   * A first attempt counted every path in a file containing a gate, which is
-   * conservative in the wrong way: `mfa-admin.routes.ts` gates exactly ONE of
-   * its twenty handlers, so file-level attribution would demand a plan-gated
-   * screen for eighteen reads that can never answer 402 — an unreachable
-   * state asserted as a requirement.
-   *
-   * Each `app.<verb>("/v1/…")` registration owns the source from its own
-   * declaration to the next one. A gate call inside that span gates that
-   * path. `scim-admin` gates in a shared authorizer above its registrations,
-   * so the span before the first route is attributed to every route in the
-   * file — which is exactly right there, and is why that case is handled
-   * explicitly rather than by luck.
-   */
-  for (const name of names) {
+  for (const route of map.routes ?? []) {
+    const ev = route.registrationEvidence;
+    if (typeof ev !== "string") continue;
+    const at = ev.lastIndexOf(":");
+    if (at < 0) continue;
+    const file = ev.slice(0, at);
+    const line = Number(ev.slice(at + 1));
+    if (!Number.isInteger(line) || line < 1) continue;
+    if (!REGISTRATIONS_BY_FILE.has(file)) REGISTRATIONS_BY_FILE.set(file, []);
+    REGISTRATIONS_BY_FILE.get(file).push({
+      line,
+      path: String(route.path ?? "").replace(/:[A-Za-z0-9_]+/g, ""),
+    });
+  }
+  for (const regs of REGISTRATIONS_BY_FILE.values()) {
+    regs.sort((a, b) => a.line - b.line);
+  }
+  return REGISTRATIONS_BY_FILE;
+}
+
+/** Character offset of the 1-based `line` in `src`, clamped to its end. */
+function offsetOfLine(src, line) {
+  let at = 0;
+  for (let i = 1; i < line; i += 1) {
+    const next = src.indexOf("\n", at);
+    if (next < 0) return src.length;
+    at = next + 1;
+  }
+  return at;
+}
+
+function pathsApplyingGate(GATE) {
+  const found = new Set();
+  for (const [file, regs] of registrationsByFile()) {
     let src = "";
     try {
-      src = readFileSync(join(dir, name), "utf8");
+      src = readFileSync(file, "utf8");
     } catch {
       continue;
     }
     if (!GATE.test(src)) continue;
-
-    const regs = [
-      ...src.matchAll(/app\.(get|post|patch|put|delete)\(\s*\n?\s*["'](\/v1\/[^"']+)["']/g),
-    ].map((m) => ({ index: m.index, path: m[2].replace(/:[A-Za-z0-9_]+/g, "") }));
     if (regs.length === 0) continue;
+
+    const spans = regs.map((r) => ({ path: r.path, index: offsetOfLine(src, r.line) }));
 
     // A gate BEFORE the first registration is a shared authorizer: it applies
     // to every route the file declares.
-    const preamble = src.slice(0, regs[0].index);
+    const preamble = src.slice(0, spans[0].index);
     if (GATE.test(preamble.replace(/^import[\s\S]*?from[^\n]*\n/gm, ""))) {
-      for (const r of regs) found.add(r.path);
+      for (const r of spans) found.add(r.path);
       continue;
     }
 
-    for (let i = 0; i < regs.length; i += 1) {
-      const from = regs[i].index;
-      const to = i + 1 < regs.length ? regs[i + 1].index : src.length;
-      if (GATE.test(src.slice(from, to))) found.add(regs[i].path);
+    for (let i = 0; i < spans.length; i += 1) {
+      const from = spans[i].index;
+      const to = i + 1 < spans.length ? spans[i + 1].index : src.length;
+      if (GATE.test(src.slice(from, to))) found.add(spans[i].path);
     }
   }
   return [...found];

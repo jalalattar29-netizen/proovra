@@ -5,15 +5,15 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "350df28cd1b3592fbce302d87d8037fa4ec1ea078f008fcbdfae86936dbafd59",
   "routeInventoryHash": "3f3a9b09fce676260260e9da13e6af5b017a7adc0467622019564e7c669cb508",
-  "consumerInventoryHash": "c04a52b6986557ddffaaf3ac131329c479b13835def817c4b290e6129c675a62",
-  "dispositionsHash": "0e0f44b9277fd14f6421fc16b47bd940a006321dfaae6485be1b926f1e5434dc",
+  "consumerInventoryHash": "1599756bf24901022e5ff4bc9e3206efd1e09584f8c0c277578e8eb49c1ca2cb",
+  "dispositionsHash": "9e6e9532752cfd33dfd556e66587a473271144aa2d1c41662c0c4c91e70ec02c",
   "totals": {
     "RegisteredRoutes": 1135,
     "ProductionRegisteredRoutes": 1134,
     "DevelopmentOnlyRoutes": 1,
     "ProductConsumedRoutes": 889,
-    "NonProductDispositionedRoutes": 228,
-    "UndisposedRoutes": 17,
+    "NonProductDispositionedRoutes": 245,
+    "UndisposedRoutes": 0,
     "ConservationIdentityHolds": true,
     "ProductConsumerRoutes": 889,
     "MachineOnlyConsumerRoutes": 4,
@@ -21,11 +21,11 @@
     "AuthorizationUnresolved": 0,
     "PublicUnguardedRoutes": 20,
     "DynamicUnresolvedRouteRegistrations": 0,
-    "DynamicUnresolvedConsumers": 1,
-    "UnreviewedOriginConsumers": 1,
-    "AmbiguousConsumerSites": 1,
+    "DynamicUnresolvedConsumers": 0,
+    "UnreviewedOriginConsumers": 0,
+    "AmbiguousConsumerSites": 0,
     "UnmatchedConsumerCalls": 0,
-    "ClassificationConflicts": 1,
+    "ClassificationConflicts": 0,
     "WrongOriginConsumers": 0,
     "byDisposition": {
       "MACHINE_CONSUMER": 3,
@@ -50,21 +50,21 @@
       "MACHINE_OR_CRON": 2,
       "WEBHOOK": 0,
       "ADMIN_OPERATOR": 18,
-      "COMPATIBILITY_TOMBSTONE": 24,
+      "COMPATIBILITY_TOMBSTONE": 30,
       "INTENTIONALLY_BACKEND_ONLY": 3,
       "DEAD_REMOVE": 0,
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
-      "MISSING_PRODUCT_UI_POST_RELEASE": 122
+      "MISSING_PRODUCT_UI_POST_RELEASE": 133
     },
-    "TerminalWriters": 1258,
+    "TerminalWriters": 1254,
     "ReachableSensitiveMutations": 1246,
     "ClassifiedSensitiveMutations": 1246,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 0,
-    "NonRequestWriters": 12,
+    "NonRequestWriters": 8,
     "ModuleScopedAttributionWriters": 0,
-    "DeadUnreachableWriters": 4,
-    "DeadUnreachableWritersPending": 4,
+    "DeadUnreachableWriters": 0,
+    "DeadUnreachableWritersPending": 0,
     "PreservedPlannedWriters": 0,
     "PortAttributedWriters": 2,
     "AuthorizationAfterMutation": 0,
@@ -75,7 +75,7 @@
       "ORGANIZATION": 31,
       "ORGANIZATION_MEMBERSHIP": 29,
       "WORKSPACE": 54,
-      "WORKSPACE_MEMBERSHIP_INVITATION": 63,
+      "WORKSPACE_MEMBERSHIP_INVITATION": 59,
       "CASE": 85,
       "EVIDENCE_CUSTODY_FINALIZATION": 280,
       "LEGAL_HOLD_RETENTION_DELETION": 51,
@@ -96,7 +96,7 @@
       "SEED": 1,
       "INJECTED_PORT_IMPLEMENTATION": 2,
       "PRESERVED_PLANNED_WRITER": 0,
-      "DEAD_UNREACHABLE_WRITER": 4
+      "DEAD_UNREACHABLE_WRITER": 0
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
@@ -109,7 +109,7 @@
       "TEST_OR_BUILD_ONLY": 0,
       "PRESERVED_PLANNED_WRITER": 0,
       "PORT_ATTRIBUTED_REACHABLE": 2,
-      "DEAD_UNREACHABLE": 4,
+      "DEAD_UNREACHABLE": 0,
       "UNRESOLVED": 0
     },
     "WriterBucketOverlaps": 0,
@@ -128,22 +128,22 @@
       "UNRESOLVED_IDENTIFIER": 1052
     },
     "MutationFixpointRounds": 9,
-    "MutationClosurePass": false,
+    "MutationClosurePass": true,
     "PreservedWritersWithoutEvidence": 0,
     "PreservationEntriesUnmatched": 0,
     "byMandateDisposition": {
       "DEVELOPMENT_ONLY": 2,
-      "UNDISPOSED": 17,
+      "UNDISPOSED": 0,
       "PRODUCT_CONNECTED": 889,
       "EXTERNAL_API": 30,
       "MACHINE_OR_CRON": 21,
       "WEBHOOK": 4,
       "ADMIN_OPERATOR": 18,
-      "COMPATIBILITY_TOMBSTONE": 27,
+      "COMPATIBILITY_TOMBSTONE": 33,
       "INTENTIONALLY_BACKEND_ONLY": 5,
       "DEAD_REMOVE": 0,
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
-      "MISSING_PRODUCT_UI_POST_RELEASE": 122
+      "MISSING_PRODUCT_UI_POST_RELEASE": 133
     },
     "MandateDispositionConservationHolds": true,
     "TenantBindingResolved": 1133,
@@ -242,9 +242,8 @@
   },
   "totalRoutes": 1135,
   "classificationCounts": {
-    "BACKEND_ONLY_UNWIRED": 17,
     "COMPATIBILITY_TEMPORARY": 3,
-    "INTERNAL_REQUIRED": 226,
+    "INTERNAL_REQUIRED": 243,
     "TARGET_COMPLETE": 889
   },
   "evidenceLevelCounts": {
@@ -2155,7 +2154,7 @@
       "productConsumer": null,
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "BACKEND_ONLY_UNWIRED",
+      "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
@@ -2191,7 +2190,7 @@
       "productConsumer": null,
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "BACKEND_ONLY_UNWIRED",
+      "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
@@ -2215,7 +2214,7 @@
       "productConsumer": null,
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "BACKEND_ONLY_UNWIRED",
+      "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
@@ -2275,7 +2274,7 @@
       "productConsumer": null,
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "BACKEND_ONLY_UNWIRED",
+      "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
@@ -2299,7 +2298,7 @@
       "productConsumer": null,
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "BACKEND_ONLY_UNWIRED",
+      "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
@@ -5944,7 +5943,7 @@
       "method": "GET",
       "route": "/v1/search",
       "registeringFile": "services/api/src/routes/search.routes.ts",
-      "productConsumer": "apps/web/app/(app)/search/page.tsx:3432",
+      "productConsumer": "apps/web/app/(app)/search/page.tsx:3464",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -6271,7 +6270,7 @@
       "productConsumer": null,
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "BACKEND_ONLY_UNWIRED",
+      "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "UNPROVEN"
     },
     {
@@ -6847,7 +6846,7 @@
       "productConsumer": null,
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "BACKEND_ONLY_UNWIRED",
+      "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
@@ -6883,7 +6882,7 @@
       "productConsumer": null,
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "BACKEND_ONLY_UNWIRED",
+      "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
@@ -6907,7 +6906,7 @@
       "productConsumer": null,
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "BACKEND_ONLY_UNWIRED",
+      "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
@@ -8539,7 +8538,7 @@
       "productConsumer": null,
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "BACKEND_ONLY_UNWIRED",
+      "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "UNPROVEN"
     },
     {
@@ -8551,7 +8550,7 @@
       "productConsumer": null,
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "BACKEND_ONLY_UNWIRED",
+      "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
@@ -8563,7 +8562,7 @@
       "productConsumer": null,
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "BACKEND_ONLY_UNWIRED",
+      "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
@@ -8587,7 +8586,7 @@
       "productConsumer": null,
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "BACKEND_ONLY_UNWIRED",
+      "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
@@ -8599,7 +8598,7 @@
       "productConsumer": null,
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "BACKEND_ONLY_UNWIRED",
+      "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
@@ -8647,7 +8646,7 @@
       "productConsumer": null,
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "BACKEND_ONLY_UNWIRED",
+      "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
@@ -8671,7 +8670,7 @@
       "productConsumer": null,
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "BACKEND_ONLY_UNWIRED",
+      "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
@@ -12640,7 +12639,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/escalations/:id/acknowledge",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:140",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:136",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -12652,7 +12651,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/escalations/:id/reassign",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:140",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:136",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -12664,7 +12663,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/escalations/:id/resolve",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:140",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:136",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -12676,7 +12675,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/escalations/:id/suppress",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:140",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:136",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -13243,7 +13242,7 @@
       "productConsumer": null,
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "BACKEND_ONLY_UNWIRED",
+      "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "UNPROVEN"
     },
     {
@@ -13883,41 +13882,10 @@
       "evidenceLevel": "UNPROVEN"
     }
   ],
-  "problems": [
-    {
-      "kind": "STALE_DYNAMIC_RESOLUTION",
-      "site": "apps/web/app/intake/[token]/page.tsx:624",
-      "why": "the analyzer now resolves this call site (or it has moved); the exemption is dead and must be removed"
-    }
-  ],
-  "dynamicUnresolvedConsumers": [
-    {
-      "file": "apps/web/app/intake/[token]/page.tsx",
-      "line": 766,
-      "caller": "stageFile",
-      "requestPrimitive": "fetch",
-      "reason": "unsupported expression kind PropertyAccessExpression",
-      "text": "fetch(res.upload.putUrl, { method: \"PUT\", body: file, headers: { \"content-type\": file.type || \"application"
-    }
-  ],
-  "unreviewedOriginConsumers": [
-    {
-      "file": "scripts/admin-ledger/visual/rtl-flash.mjs",
-      "line": 70,
-      "caller": "<module>",
-      "originExpression": "WEB",
-      "path": "<interp>",
-      "text": "fetch(`${WEB}${route}`, { headers: { cookie: cookieHeader } })"
-    }
-  ],
-  "ambiguousConsumerSites": [
-    {
-      "site": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:136",
-      "method": "POST",
-      "path": "/v1/reviewer-ops/escalations/<interp>/<interp>",
-      "caller": "EscalationsConsolePageInner"
-    }
-  ],
+  "problems": [],
+  "dynamicUnresolvedConsumers": [],
+  "unreviewedOriginConsumers": [],
+  "ambiguousConsumerSites": [],
   "unmatchedConsumerCalls": [],
   "dynamicUnresolvedRouteRegistrations": [],
   "mutationQueueTopology": {
@@ -27542,8 +27510,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamAccessReview.create@985",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:985",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamAccessReview.create@931",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:931",
       "file": "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
       "enclosingDeclaration": "openAccessReview",
       "kind": "DATABASE",
@@ -27575,8 +27543,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamAccessReview.updateMany@1172",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:1172",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamAccessReview.updateMany@1118",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:1118",
       "file": "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
       "enclosingDeclaration": "completeAccessReview",
       "kind": "DATABASE",
@@ -27608,8 +27576,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamAccessReviewItem.createMany@996",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:996",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamAccessReviewItem.createMany@942",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:942",
       "file": "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
       "enclosingDeclaration": "openAccessReview",
       "kind": "DATABASE",
@@ -27641,8 +27609,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamAccessReviewItem.update@1120",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:1120",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamAccessReviewItem.update@1066",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:1066",
       "file": "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
       "enclosingDeclaration": "decideAccessReviewItem",
       "kind": "DATABASE",
@@ -27845,8 +27813,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamGuest.update@935",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:935",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamGuest.update@881",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:881",
       "file": "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
       "enclosingDeclaration": "revokeGuest",
       "kind": "DATABASE",
@@ -27878,8 +27846,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamMember.update@1238",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:1238",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamMember.update@1184",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:1184",
       "file": "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
       "enclosingDeclaration": "completeAccessReview",
       "kind": "DATABASE",
@@ -27911,8 +27879,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamMember.update@1282",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:1282",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamMember.update@1228",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:1228",
       "file": "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
       "enclosingDeclaration": "completeAccessReview",
       "kind": "DATABASE",
@@ -27977,8 +27945,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamNotification.createMany@718",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:718",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamNotification.createMany@701",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:701",
       "file": "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
       "enclosingDeclaration": "emitTeamNotifications",
       "kind": "DATABASE",
@@ -28008,96 +27976,6 @@
         "payloadVersionAuthority": "NOT_APPLICABLE",
         "canonicalOrLegacy": "UNREGISTERED"
       }
-    },
-    {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamNotification.update@678",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:678",
-      "file": "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
-      "enclosingDeclaration": "markNotificationRead",
-      "kind": "DATABASE",
-      "target": "collaborationTeamNotification",
-      "mutationKind": "update",
-      "primaryFamily": "WORKSPACE_MEMBERSHIP_INVITATION",
-      "insideTransaction": false,
-      "entryRoutes": [],
-      "entryJobs": [],
-      "entryModules": [],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      },
-      "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
-    },
-    {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamNotification.updateMany@688",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:688",
-      "file": "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
-      "enclosingDeclaration": "markAllNotificationsRead",
-      "kind": "DATABASE",
-      "target": "collaborationTeamNotification",
-      "mutationKind": "updateMany",
-      "primaryFamily": "WORKSPACE_MEMBERSHIP_INVITATION",
-      "insideTransaction": false,
-      "entryRoutes": [],
-      "entryJobs": [],
-      "entryModules": [],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      },
-      "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
-    },
-    {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamNotificationPreference.upsert@788",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:788",
-      "file": "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
-      "enclosingDeclaration": "updateMyNotificationPreference",
-      "kind": "DATABASE",
-      "target": "collaborationTeamNotificationPreference",
-      "mutationKind": "upsert",
-      "primaryFamily": "WORKSPACE_MEMBERSHIP_INVITATION",
-      "insideTransaction": false,
-      "entryRoutes": [],
-      "entryJobs": [],
-      "entryModules": [],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      },
-      "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
     },
     {
       "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.create@412",
@@ -28276,8 +28154,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.create@2187",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2187",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.create@2166",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2166",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "createAssignment",
       "kind": "DATABASE",
@@ -28309,8 +28187,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.update@2325",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2325",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.update@2304",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2304",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "updateAssignment",
       "kind": "DATABASE",
@@ -28375,38 +28253,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.update@1357",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1357",
-      "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
-      "enclosingDeclaration": "recordInviteDeliveryResult",
-      "kind": "DATABASE",
-      "target": "collaborationTeamInvite",
-      "mutationKind": "update",
-      "primaryFamily": "WORKSPACE_MEMBERSHIP_INVITATION",
-      "insideTransaction": false,
-      "entryRoutes": [],
-      "entryJobs": [],
-      "entryModules": [],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      },
-      "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
-    },
-    {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.update@1465",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1465",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.update@1444",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1444",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "acceptInvite",
       "kind": "DATABASE",
@@ -28439,8 +28287,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.updateMany@1564",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1564",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.updateMany@1543",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1543",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "acceptInvite",
       "kind": "DATABASE",
@@ -28506,8 +28354,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@1607",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1607",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@1586",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1586",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "acceptInvite",
       "kind": "DATABASE",
@@ -28706,8 +28554,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1591",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1591",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1570",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1570",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "acceptInvite",
       "kind": "DATABASE",
@@ -81296,7 +81144,7 @@
       "method": "DELETE",
       "path": "/v1/search/saved-views/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:473",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:474",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -89049,12 +88897,12 @@
       ],
       "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": null,
-      "dispositionSource": null,
-      "dispositionEvidence": null,
-      "dispositionReason": null,
+      "primaryDisposition": "COMPATIBILITY_TOMBSTONE",
+      "dispositionSource": "REVIEWED",
+      "dispositionEvidence": "reg services/api/src/routes/collaboration-completion.routes.ts:327; the handler is `async (_req, reply) => notificationsRetired(reply)`, defined at services/api/src/routes/collaboration-completion.routes.ts:319, which replies 410 with a stable code and `canonical` pointing at GET /v1/me/inbox. WORKSPACE AND COLLABORATION ARCHITECTURE CLOSURE (2026-09-06) retired the duplicate reader: the inbox already reads the same CollaborationTeamNotification rows and marks the same `readAt`. Its web client was deleted with the surface — see the note at apps/web/lib/api/collaboration-completion.ts:179 — so 0 product call sites remain, which is the intended end state for a tombstone.",
+      "dispositionReason": "retired to a typed 410 naming its replacement; kept so a stale client is told where its data went rather than 404-ed",
       "replacement": null,
-      "result": "UNDISPOSED",
+      "result": "DISPOSED_COMPATIBILITY_TOMBSTONE",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -89226,12 +89074,12 @@
       ],
       "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": null,
-      "dispositionSource": null,
-      "dispositionEvidence": null,
-      "dispositionReason": null,
+      "primaryDisposition": "MISSING_PRODUCT_UI_POST_RELEASE",
+      "dispositionSource": "REVIEWED",
+      "dispositionEvidence": "reg services/api/src/routes/collaboration-completion.routes.ts:501. Superseded by the group's own surface, which is where an access review is reached from. apps/web/lib/api/collaboration-completion.ts:179 records the deletion of every client below that point by name, and 0 call sites remain in apps/web + apps/mobile. The route still answers, so it is COMPATIBILITY_TEMPORARY rather than a tombstone: the handler and its service are live code with no consumer, and removing them is a product decision for whoever owns the group surface. Recorded as MISSING_PRODUCT_UI_POST_RELEASE rather than SUPERSEDED_REMOVE because the replacement is a SURFACE, not a route: there is no single routeId that supersedes this one, and the generator refuses a SUPERSEDED_REMOVE with no named replacement — correctly, since a supersession claim that cannot name what supersedes it is not a claim.",
+      "dispositionReason": "its web client was deleted in the 2026-09-06 collaboration closure; the route still answers and has no product caller, and the capability is reached from another surface",
       "replacement": null,
-      "result": "UNDISPOSED",
+      "result": "DISPOSED_MISSING_PRODUCT_UI_POST_RELEASE",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -89349,12 +89197,12 @@
       ],
       "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": null,
-      "dispositionSource": null,
-      "dispositionEvidence": null,
-      "dispositionReason": null,
+      "primaryDisposition": "MISSING_PRODUCT_UI_POST_RELEASE",
+      "dispositionSource": "REVIEWED",
+      "dispositionEvidence": "reg services/api/src/routes/collaboration-completion.routes.ts:658. Superseded by the Activity tab, which reads the canonical feed. apps/web/lib/api/collaboration-completion.ts:179 records the deletion of every client below that point by name, and 0 call sites remain in apps/web + apps/mobile. The route still answers, so it is COMPATIBILITY_TEMPORARY rather than a tombstone: the handler and its service are live code with no consumer, and removing them is a product decision for whoever owns the group surface. Recorded as MISSING_PRODUCT_UI_POST_RELEASE rather than SUPERSEDED_REMOVE because the replacement is a SURFACE, not a route: there is no single routeId that supersedes this one, and the generator refuses a SUPERSEDED_REMOVE with no named replacement — correctly, since a supersession claim that cannot name what supersedes it is not a claim.",
+      "dispositionReason": "its web client was deleted in the 2026-09-06 collaboration closure; the route still answers and has no product caller, and the capability is reached from another surface",
       "replacement": null,
-      "result": "UNDISPOSED",
+      "result": "DISPOSED_MISSING_PRODUCT_UI_POST_RELEASE",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -89679,12 +89527,12 @@
       ],
       "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": null,
-      "dispositionSource": null,
-      "dispositionEvidence": null,
-      "dispositionReason": null,
+      "primaryDisposition": "MISSING_PRODUCT_UI_POST_RELEASE",
+      "dispositionSource": "REVIEWED",
+      "dispositionEvidence": "reg services/api/src/routes/collaboration-completion.routes.ts:387. Superseded by External Review. The web note records what this actually did: it wrote a row and granted nothing — no email was sent, no read path consulted the table, and the status never left PENDING. apps/web/lib/api/collaboration-completion.ts:179 records the deletion of every client below that point by name, and 0 call sites remain in apps/web + apps/mobile. The route still answers, so it is COMPATIBILITY_TEMPORARY rather than a tombstone: the handler and its service are live code with no consumer, and removing them is a product decision for whoever owns the group surface. Recorded as MISSING_PRODUCT_UI_POST_RELEASE rather than SUPERSEDED_REMOVE because the replacement is a SURFACE, not a route: there is no single routeId that supersedes this one, and the generator refuses a SUPERSEDED_REMOVE with no named replacement — correctly, since a supersession claim that cannot name what supersedes it is not a claim.",
+      "dispositionReason": "its web client was deleted in the 2026-09-06 collaboration closure; the route still answers and has no product caller, and the capability is reached from another surface",
       "replacement": null,
-      "result": "UNDISPOSED",
+      "result": "DISPOSED_MISSING_PRODUCT_UI_POST_RELEASE",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -89801,12 +89649,12 @@
       ],
       "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": null,
-      "dispositionSource": null,
-      "dispositionEvidence": null,
-      "dispositionReason": null,
+      "primaryDisposition": "COMPATIBILITY_TOMBSTONE",
+      "dispositionSource": "REVIEWED",
+      "dispositionEvidence": "reg services/api/src/routes/collaboration-completion.routes.ts:366; the handler is `async (_req, reply) => preferencesRetired(reply)`, defined at services/api/src/routes/collaboration-completion.routes.ts:358, which replies 410 with a stable code and `canonical` pointing at Settings (workspace + organization notification policy). WORKSPACE AND COLLABORATION ARCHITECTURE CLOSURE (2026-09-06) retired the duplicate reader: the inbox already reads the same CollaborationTeamNotification rows and marks the same `readAt`. Its web client was deleted with the surface — see the note at apps/web/lib/api/collaboration-completion.ts:179 — so 0 product call sites remain, which is the intended end state for a tombstone.",
+      "dispositionReason": "retired to a typed 410 naming its replacement; kept so a stale client is told where its data went rather than 404-ed",
       "replacement": null,
-      "result": "UNDISPOSED",
+      "result": "DISPOSED_COMPATIBILITY_TOMBSTONE",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -109514,7 +109362,7 @@
       "method": "GET",
       "path": "/v1/search",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:301",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:302",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveRecipientContactDisclosure -> services/api/src/services/privacy/recipient-contact-disclosure.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
@@ -109527,7 +109375,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/search/page.tsx",
-          "line": 3432,
+          "line": 3464,
           "caller": "runSearch",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -109537,7 +109385,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:3432 (runSearch, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/search/page.tsx:3464 (runSearch, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -109581,7 +109429,7 @@
       "method": "GET",
       "path": "/v1/search/audit",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:672",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:673",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -109636,7 +109484,7 @@
       "method": "GET",
       "path": "/v1/search/diagnostics",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:1115",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:1116",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -109696,7 +109544,7 @@
       "method": "GET",
       "path": "/v1/search/relationships/:evidenceId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:528",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:529",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -109753,7 +109601,7 @@
       "method": "GET",
       "path": "/v1/search/saved-views",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:405",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:406",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -109809,7 +109657,7 @@
       "method": "GET",
       "path": "/v1/search/semantic/status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:770",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:771",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -109865,7 +109713,7 @@
       "method": "GET",
       "path": "/v1/search/suggest",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:804",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:805",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -111215,12 +111063,12 @@
       ],
       "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": null,
-      "dispositionSource": null,
-      "dispositionEvidence": null,
-      "dispositionReason": null,
+      "primaryDisposition": "MISSING_PRODUCT_UI_POST_RELEASE",
+      "dispositionSource": "REVIEWED",
+      "dispositionEvidence": "reg services/api/src/routes/teams.routes.ts:774 app.get(\"/v1/teams/:id/members\", { preHandler: requireAuthAndLegal }); introduced by e65addfb \"perf(collaboration): page the reads that grew, and index what they order on\" with the note that browser-side search over a fully-loaded list cannot work because completeness is the thing that does not scale. Every /members call site in apps/web addresses ONE member — apps/web/app/(app)/teams/[id]/page.tsx:761 and MemberRemovalDialog.tsx:117,179 — and none reads this collection. 0 product call sites.",
+      "dispositionReason": "server-paged member search added ahead of the surface that will use it; the Teams page still reads a member at a time",
       "replacement": null,
-      "result": "UNDISPOSED",
+      "result": "DISPOSED_MISSING_PRODUCT_UI_POST_RELEASE",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -114193,12 +114041,12 @@
       ],
       "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": null,
-      "dispositionSource": null,
-      "dispositionEvidence": null,
-      "dispositionReason": null,
+      "primaryDisposition": "MISSING_PRODUCT_UI_POST_RELEASE",
+      "dispositionSource": "REVIEWED",
+      "dispositionEvidence": "reg services/api/src/routes/collaboration-completion.routes.ts:571. Superseded by the group's own surface. apps/web/lib/api/collaboration-completion.ts:179 records the deletion of every client below that point by name, and 0 call sites remain in apps/web + apps/mobile. The route still answers, so it is COMPATIBILITY_TEMPORARY rather than a tombstone: the handler and its service are live code with no consumer, and removing them is a product decision for whoever owns the group surface. Recorded as MISSING_PRODUCT_UI_POST_RELEASE rather than SUPERSEDED_REMOVE because the replacement is a SURFACE, not a route: there is no single routeId that supersedes this one, and the generator refuses a SUPERSEDED_REMOVE with no named replacement — correctly, since a supersession claim that cannot name what supersedes it is not a claim.",
+      "dispositionReason": "its web client was deleted in the 2026-09-06 collaboration closure; the route still answers and has no product caller, and the capability is reached from another surface",
       "replacement": null,
-      "result": "UNDISPOSED",
+      "result": "DISPOSED_MISSING_PRODUCT_UI_POST_RELEASE",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -114414,12 +114262,12 @@
       ],
       "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": null,
-      "dispositionSource": null,
-      "dispositionEvidence": null,
-      "dispositionReason": null,
+      "primaryDisposition": "MISSING_PRODUCT_UI_POST_RELEASE",
+      "dispositionSource": "REVIEWED",
+      "dispositionEvidence": "reg services/api/src/routes/collaboration-completion.routes.ts:459. Superseded by External Review, where a grant that exists can be withdrawn. apps/web/lib/api/collaboration-completion.ts:179 records the deletion of every client below that point by name, and 0 call sites remain in apps/web + apps/mobile. The route still answers, so it is COMPATIBILITY_TEMPORARY rather than a tombstone: the handler and its service are live code with no consumer, and removing them is a product decision for whoever owns the group surface. Recorded as MISSING_PRODUCT_UI_POST_RELEASE rather than SUPERSEDED_REMOVE because the replacement is a SURFACE, not a route: there is no single routeId that supersedes this one, and the generator refuses a SUPERSEDED_REMOVE with no named replacement — correctly, since a supersession claim that cannot name what supersedes it is not a claim.",
+      "dispositionReason": "its web client was deleted in the 2026-09-06 collaboration closure; the route still answers and has no product caller, and the capability is reached from another surface",
       "replacement": null,
-      "result": "UNDISPOSED",
+      "result": "DISPOSED_MISSING_PRODUCT_UI_POST_RELEASE",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -114563,12 +114411,12 @@
       ],
       "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": null,
-      "dispositionSource": null,
-      "dispositionEvidence": null,
-      "dispositionReason": null,
+      "primaryDisposition": "COMPATIBILITY_TOMBSTONE",
+      "dispositionSource": "REVIEWED",
+      "dispositionEvidence": "reg services/api/src/routes/collaboration-completion.routes.ts:374; the handler is `async (_req, reply) => preferencesRetired(reply)`, defined at services/api/src/routes/collaboration-completion.routes.ts:358, which replies 410 with a stable code and `canonical` pointing at Settings (workspace + organization notification policy). WORKSPACE AND COLLABORATION ARCHITECTURE CLOSURE (2026-09-06) retired the duplicate reader: the inbox already reads the same CollaborationTeamNotification rows and marks the same `readAt`. Its web client was deleted with the surface — see the note at apps/web/lib/api/collaboration-completion.ts:179 — so 0 product call sites remain, which is the intended end state for a tombstone.",
+      "dispositionReason": "retired to a typed 410 naming its replacement; kept so a stale client is told where its data went rather than 404-ed",
       "replacement": null,
-      "result": "UNDISPOSED",
+      "result": "DISPOSED_COMPATIBILITY_TOMBSTONE",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -115903,7 +115751,7 @@
       "method": "PATCH",
       "path": "/v1/search/saved-views/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:499",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:500",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -123903,12 +123751,12 @@
       ],
       "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": null,
-      "dispositionSource": null,
-      "dispositionEvidence": null,
-      "dispositionReason": null,
+      "primaryDisposition": "MISSING_PRODUCT_UI_POST_RELEASE",
+      "dispositionSource": "REVIEWED",
+      "dispositionEvidence": "reg services/api/src/routes/collaboration-teams.routes.ts:1070, documented CANONICAL because the token travels in the body where no intermediary logs it and it cannot leak through Referer. The web client at apps/web/lib/api/collaboration-teams.ts:471 still posts to /v1/collaboration-team-invites/{token}/accept, the LEGACY COMPATIBILITY route kept for links already in mailboxes, so this one has 0 product call sites until that call moves. The capability itself is delivered — this is the safer door to the same handler, not a missing feature.",
+      "dispositionReason": "the canonical body-token accept, added ahead of the client cutover; the accept page still calls the legacy path with the token in the URL",
       "replacement": null,
-      "result": "UNDISPOSED",
+      "result": "DISPOSED_MISSING_PRODUCT_UI_POST_RELEASE",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -123976,12 +123824,12 @@
       ],
       "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": null,
-      "dispositionSource": null,
-      "dispositionEvidence": null,
-      "dispositionReason": null,
+      "primaryDisposition": "COMPATIBILITY_TOMBSTONE",
+      "dispositionSource": "REVIEWED",
+      "dispositionEvidence": "reg services/api/src/routes/collaboration-completion.routes.ts:332; the handler is `async (_req, reply) => notificationsRetired(reply)`, defined at services/api/src/routes/collaboration-completion.routes.ts:319, which replies 410 with a stable code and `canonical` pointing at GET /v1/me/inbox. WORKSPACE AND COLLABORATION ARCHITECTURE CLOSURE (2026-09-06) retired the duplicate reader: the inbox already reads the same CollaborationTeamNotification rows and marks the same `readAt`. Its web client was deleted with the surface — see the note at apps/web/lib/api/collaboration-completion.ts:179 — so 0 product call sites remain, which is the intended end state for a tombstone.",
+      "dispositionReason": "retired to a typed 410 naming its replacement; kept so a stale client is told where its data went rather than 404-ed",
       "replacement": null,
-      "result": "UNDISPOSED",
+      "result": "DISPOSED_COMPATIBILITY_TOMBSTONE",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -124015,12 +123863,12 @@
       ],
       "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": null,
-      "dispositionSource": null,
-      "dispositionEvidence": null,
-      "dispositionReason": null,
+      "primaryDisposition": "COMPATIBILITY_TOMBSTONE",
+      "dispositionSource": "REVIEWED",
+      "dispositionEvidence": "reg services/api/src/routes/collaboration-completion.routes.ts:340; the handler is `async (_req, reply) => notificationsRetired(reply)`, defined at services/api/src/routes/collaboration-completion.routes.ts:319, which replies 410 with a stable code and `canonical` pointing at GET /v1/me/inbox. WORKSPACE AND COLLABORATION ARCHITECTURE CLOSURE (2026-09-06) retired the duplicate reader: the inbox already reads the same CollaborationTeamNotification rows and marks the same `readAt`. Its web client was deleted with the surface — see the note at apps/web/lib/api/collaboration-completion.ts:179 — so 0 product call sites remain, which is the intended end state for a tombstone.",
+      "dispositionReason": "retired to a typed 410 naming its replacement; kept so a stale client is told where its data went rather than 404-ed",
       "replacement": null,
-      "result": "UNDISPOSED",
+      "result": "DISPOSED_COMPATIBILITY_TOMBSTONE",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -124145,12 +123993,12 @@
       ],
       "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": null,
-      "dispositionSource": null,
-      "dispositionEvidence": null,
-      "dispositionReason": null,
+      "primaryDisposition": "MISSING_PRODUCT_UI_POST_RELEASE",
+      "dispositionSource": "REVIEWED",
+      "dispositionEvidence": "reg services/api/src/routes/collaboration-completion.routes.ts:528. Superseded by the group's own surface. apps/web/lib/api/collaboration-completion.ts:179 records the deletion of every client below that point by name, and 0 call sites remain in apps/web + apps/mobile. The route still answers, so it is COMPATIBILITY_TEMPORARY rather than a tombstone: the handler and its service are live code with no consumer, and removing them is a product decision for whoever owns the group surface. Recorded as MISSING_PRODUCT_UI_POST_RELEASE rather than SUPERSEDED_REMOVE because the replacement is a SURFACE, not a route: there is no single routeId that supersedes this one, and the generator refuses a SUPERSEDED_REMOVE with no named replacement — correctly, since a supersession claim that cannot name what supersedes it is not a claim.",
+      "dispositionReason": "its web client was deleted in the 2026-09-06 collaboration closure; the route still answers and has no product caller, and the capability is reached from another surface",
       "replacement": null,
-      "result": "UNDISPOSED",
+      "result": "DISPOSED_MISSING_PRODUCT_UI_POST_RELEASE",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -124212,12 +124060,12 @@
       ],
       "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": null,
-      "dispositionSource": null,
-      "dispositionEvidence": null,
-      "dispositionReason": null,
+      "primaryDisposition": "MISSING_PRODUCT_UI_POST_RELEASE",
+      "dispositionSource": "REVIEWED",
+      "dispositionEvidence": "reg services/api/src/routes/collaboration-completion.routes.ts:616. Superseded by the group's own surface. apps/web/lib/api/collaboration-completion.ts:179 records the deletion of every client below that point by name, and 0 call sites remain in apps/web + apps/mobile. The route still answers, so it is COMPATIBILITY_TEMPORARY rather than a tombstone: the handler and its service are live code with no consumer, and removing them is a product decision for whoever owns the group surface. Recorded as MISSING_PRODUCT_UI_POST_RELEASE rather than SUPERSEDED_REMOVE because the replacement is a SURFACE, not a route: there is no single routeId that supersedes this one, and the generator refuses a SUPERSEDED_REMOVE with no named replacement — correctly, since a supersession claim that cannot name what supersedes it is not a claim.",
+      "dispositionReason": "its web client was deleted in the 2026-09-06 collaboration closure; the route still answers and has no product caller, and the capability is reached from another surface",
       "replacement": null,
-      "result": "UNDISPOSED",
+      "result": "DISPOSED_MISSING_PRODUCT_UI_POST_RELEASE",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -124516,12 +124364,12 @@
       ],
       "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": null,
-      "dispositionSource": null,
-      "dispositionEvidence": null,
-      "dispositionReason": null,
+      "primaryDisposition": "MISSING_PRODUCT_UI_POST_RELEASE",
+      "dispositionSource": "REVIEWED",
+      "dispositionEvidence": "reg services/api/src/routes/collaboration-completion.routes.ts:414. Superseded by External Review, which is the invitation authority that actually delivers and grants. apps/web/lib/api/collaboration-completion.ts:179 records the deletion of every client below that point by name, and 0 call sites remain in apps/web + apps/mobile. The route still answers, so it is COMPATIBILITY_TEMPORARY rather than a tombstone: the handler and its service are live code with no consumer, and removing them is a product decision for whoever owns the group surface. Recorded as MISSING_PRODUCT_UI_POST_RELEASE rather than SUPERSEDED_REMOVE because the replacement is a SURFACE, not a route: there is no single routeId that supersedes this one, and the generator refuses a SUPERSEDED_REMOVE with no named replacement — correctly, since a supersession claim that cannot name what supersedes it is not a claim.",
+      "dispositionReason": "its web client was deleted in the 2026-09-06 collaboration closure; the route still answers and has no product caller, and the capability is reached from another surface",
       "replacement": null,
-      "result": "UNDISPOSED",
+      "result": "DISPOSED_MISSING_PRODUCT_UI_POST_RELEASE",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -124643,12 +124491,12 @@
       ],
       "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": null,
-      "dispositionSource": null,
-      "dispositionEvidence": null,
-      "dispositionReason": null,
+      "primaryDisposition": "COMPATIBILITY_TOMBSTONE",
+      "dispositionSource": "REVIEWED",
+      "dispositionEvidence": "reg services/api/src/routes/collaboration-teams.routes.ts:910. The handler authorizes, writes an audit row with action \"collaboration_team.invite.email.retired\" and outcome \"blocked\", then replies 410 COLLABORATION_TEAM_INVITE_RETIRED with nextSteps naming POST /v1/teams/{workspaceId}/invites and POST /v1/collaboration-teams/{teamId}/members. Group membership is now made from people already in the workspace, so there is no second invitation to send. 0 product call sites: apps/web/lib/api/collaboration-teams.ts calls the accept and revoke paths only.",
+      "dispositionReason": "retired to a typed 410 that names the two routes which replace it; kept so a stale client is told rather than 404-ed",
       "replacement": null,
-      "result": "UNDISPOSED",
+      "result": "DISPOSED_COMPATIBILITY_TOMBSTONE",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -147447,6 +147295,14 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
+          "line": 136,
+          "caller": "EscalationsConsolePageInner",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": true
+        },
+        {
+          "file": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
           "line": 140,
           "caller": "declared-by-review",
           "class": "WEB",
@@ -147465,7 +147321,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:140 (declared-by-review, WEB); apps/web/components/reviewer-experience/ReviewerConsole.tsx:640 (ReviewerConsole, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:136 (EscalationsConsolePageInner, WEB); apps/web/app/(app)/reviewer-ops/escalations/page.tsx:140 (declared-by-review, WEB); apps/web/components/reviewer-experience/ReviewerConsole.tsx:640 (ReviewerConsole, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147519,6 +147375,14 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
+          "line": 136,
+          "caller": "EscalationsConsolePageInner",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": true
+        },
+        {
+          "file": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
           "line": 140,
           "caller": "declared-by-review",
           "class": "WEB",
@@ -147529,7 +147393,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:140 (declared-by-review, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:136 (EscalationsConsolePageInner, WEB); apps/web/app/(app)/reviewer-ops/escalations/page.tsx:140 (declared-by-review, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147583,6 +147447,14 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
+          "line": 136,
+          "caller": "EscalationsConsolePageInner",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": true
+        },
+        {
+          "file": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
           "line": 140,
           "caller": "declared-by-review",
           "class": "WEB",
@@ -147593,7 +147465,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:140 (declared-by-review, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:136 (EscalationsConsolePageInner, WEB); apps/web/app/(app)/reviewer-ops/escalations/page.tsx:140 (declared-by-review, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147664,6 +147536,14 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
+          "line": 136,
+          "caller": "EscalationsConsolePageInner",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": true
+        },
+        {
+          "file": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
           "line": 140,
           "caller": "declared-by-review",
           "class": "WEB",
@@ -147674,7 +147554,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:140 (declared-by-review, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:136 (EscalationsConsolePageInner, WEB); apps/web/app/(app)/reviewer-ops/escalations/page.tsx:140 (declared-by-review, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -149949,7 +149829,7 @@
       "method": "POST",
       "path": "/v1/search/reconcile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:910",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:911",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -150012,7 +149892,7 @@
       "method": "POST",
       "path": "/v1/search/reindex/evidence/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:610",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:611",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -150066,7 +149946,7 @@
       "method": "POST",
       "path": "/v1/search/reindex/workflow/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:636",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:637",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -150114,7 +149994,7 @@
       "method": "POST",
       "path": "/v1/search/relationships",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:555",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:556",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -150164,7 +150044,7 @@
       "method": "POST",
       "path": "/v1/search/saved-views",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:429",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:430",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -150225,7 +150105,7 @@
       "method": "POST",
       "path": "/v1/search/semantic/backfill",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:731",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:732",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -151032,12 +150912,12 @@
       ],
       "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": null,
-      "dispositionSource": null,
-      "dispositionEvidence": null,
-      "dispositionReason": null,
+      "primaryDisposition": "MISSING_PRODUCT_UI_POST_RELEASE",
+      "dispositionSource": "REVIEWED",
+      "dispositionEvidence": "reg services/api/src/routes/teams.routes.ts:1867 app.post(\"/v1/teams/:id/invites/:inviteId/resend\", { preHandler: requireAuthAndLegal }); introduced by 66c1276a \"fix(membership): one workspace membership authority, and a team built from it\" with the note that an operator whose invitation bounced needs to say so directly. The workspace invites UI at apps/web/app/(app)/teams/[id]/page.tsx:852 calls DELETE /v1/teams/:id/invites/:inviteId and nothing else; the only resend controls in the product are the ORGANIZATION ones (apps/web/app/(app)/organizations/[id]/admin/members/page.tsx:376 and the admin provisioning section), which post to /v1/orgs/:id/invites/:inviteId/resend. 0 call sites for the teams path in apps/web + apps/mobile.",
+      "dispositionReason": "workspace invitation resend has no control on any surface yet; the Teams invites list offers revoke only",
       "replacement": null,
-      "result": "UNDISPOSED",
+      "result": "DISPOSED_MISSING_PRODUCT_UI_POST_RELEASE",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",

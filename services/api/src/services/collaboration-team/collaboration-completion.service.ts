@@ -654,46 +654,29 @@ export async function listMyNotifications(
   };
 }
 
-export async function markNotificationRead(
-  input: { actorUserId: string; notificationId: string },
-  client: PrismaClient = defaultPrisma,
-): Promise<void> {
-  const n = await client.collaborationTeamNotification.findUnique({
-    where: { id: input.notificationId },
-    select: { id: true, userId: true, readAt: true },
-  });
-  if (!n)
-    throw new CollaborationTeamError(
-      "team_not_found",
-      "Notification not found.",
-      404,
-    );
-  if (n.userId !== input.actorUserId)
-    throw new CollaborationTeamError(
-      "team_forbidden",
-      "Not your notification.",
-      403,
-    );
-  if (n.readAt) return;
-  await client.collaborationTeamNotification.update({
-    where: { id: input.notificationId },
-    data: { readAt: new Date() },
-  });
-}
-
-export async function markAllNotificationsRead(
-  input: { actorUserId: string; workspaceId: string },
-  client: PrismaClient = defaultPrisma,
-): Promise<void> {
-  await client.collaborationTeamNotification.updateMany({
-    where: {
-      userId: input.actorUserId,
-      workspaceId: input.workspaceId,
-      readAt: null,
-    },
-    data: { readAt: new Date() },
-  });
-}
+// =============================================================================
+// (RETIRED) the second notification reader and its writers
+// =============================================================================
+//
+// `markNotificationRead`, `markAllNotificationsRead` and
+// `updateMyNotificationPreference` used to live here. Their routes were
+// retired to a typed 410 in the 2026-09-06 collaboration closure — the inbox
+// reads the SAME `CollaborationTeamNotification` rows and marks the SAME
+// `readAt` column, so two clients over one column were presenting as two
+// inboxes with two unread counts, and a third preference store had no stated
+// precedence against workspace or organization policy.
+//
+// That left three executable writers nothing could reach, which the
+// mutation-closure analyzer counts as DEAD_UNREACHABLE and
+// `writer-preservations.json` is explicit will not be accepted as a final
+// state: kept indefinitely, such a writer passes review because it is
+// "accounted for", keeps its tests green, and the first time it runs will be
+// the day somebody wires it against data nobody has re-checked. Retiring a
+// route stops the traffic; deleting the writer stops the possibility.
+//
+// The rows, the emitter (`emitTeamNotifications`) and the read-state are
+// untouched, and the inbox's own mark-read path is the one that survives.
+// =============================================================================
 
 // Internal: create a notification (called by other services for
 // assignment-assigned events etc.). NEVER notify the actor themselves.
@@ -773,43 +756,6 @@ export async function getMyNotificationPreference(
   );
 }
 
-export async function updateMyNotificationPreference(
-  input: {
-    teamId: string;
-    actorUserId: string;
-    mentions?: boolean;
-    assignments?: boolean;
-    inviteAccepted?: boolean;
-    digest?: CollaborationTeamDigestMode;
-  },
-  client: PrismaClient = defaultPrisma,
-): Promise<void> {
-  await requireMemberRole(client, input.teamId, input.actorUserId);
-  await client.collaborationTeamNotificationPreference.upsert({
-    where: {
-      collaboration_team_notification_preference_team_user_uniq: {
-        teamId: input.teamId,
-        userId: input.actorUserId,
-      },
-    },
-    create: {
-      teamId: input.teamId,
-      userId: input.actorUserId,
-      mentions: input.mentions ?? true,
-      assignments: input.assignments ?? true,
-      inviteAccepted: input.inviteAccepted ?? true,
-      digest: input.digest ?? "INSTANT",
-    },
-    update: {
-      ...(input.mentions !== undefined ? { mentions: input.mentions } : {}),
-      ...(input.assignments !== undefined ? { assignments: input.assignments } : {}),
-      ...(input.inviteAccepted !== undefined
-        ? { inviteAccepted: input.inviteAccepted }
-        : {}),
-      ...(input.digest !== undefined ? { digest: input.digest } : {}),
-    },
-  });
-}
 
 // =============================================================================
 // Guests (Stage 7)

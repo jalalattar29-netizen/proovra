@@ -198,6 +198,24 @@
       ],
       "evidence": "reg services/api/src/routes/runtime-readiness.routes.ts:92 app.get(\"/admin/runtime/readiness\", ...); apps/web/lib/useGlobalRuntimeState.ts:229-230 const r = (await apiFetch(`/admin/runtime/readiness?teamId=${enc}`)); apps/web/components/operational/RuntimeStatusBanner.tsx:110-111 apiFetch(`/admin/runtime/readiness?teamId=${encodeURIComponent(teamId)}`); apps/web/app/(app)/operations/observability/page.tsx:323-325 apiFetch(`/admin/runtime/readiness?teamId=...`, { method: \"GET\" })",
       "reviewedAtUtc": "2026-08-16"
+    },
+    {
+      "site": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:136",
+      "helper": "the escalations console posts through one act(label, id, path, body) helper whose ACTION segment every call site supplies",
+      "callSitesRead": [
+        "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:302",
+        "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:373",
+        "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:377",
+        "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:381"
+      ],
+      "routes": [
+        "POST /v1/reviewer-ops/escalations/:id/acknowledge",
+        "POST /v1/reviewer-ops/escalations/:id/reassign",
+        "POST /v1/reviewer-ops/escalations/:id/resolve",
+        "POST /v1/reviewer-ops/escalations/:id/suppress"
+      ],
+      "evidence": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:125 const act = useCallback(async (label, id, path, body) => …); :136 await apiFetch(`/v1/reviewer-ops/escalations/${encodeURIComponent(id)}/${path}`, { method: \"POST\" }). Both segments interpolate, so the matcher refuses the site — correctly. The four call sites supply the ACTION literally: :302 act(\"ack\", e.id, \"acknowledge\", {}), :373 \"reassign\", :377 \"resolve\", :381 \"suppress\". Each is registered POST in services/api/src/routes/reviewer-ops.routes.ts — :1428 acknowledge, :1451 reassign, :1480 resolve, :1526 suppress — and the file registers no other escalation action, so the four are the complete set.",
+      "reviewedAtUtc": "2026-09-07"
     }
   ]
 }

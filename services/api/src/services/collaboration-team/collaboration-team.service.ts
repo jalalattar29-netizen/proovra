@@ -1346,27 +1346,6 @@ export async function revokeInvite(
   });
 }
 
-export async function recordInviteDeliveryResult(
-  input: {
-    inviteId: string;
-    status: "SENT" | "DELIVERED" | "FAILED" | "BOUNCED";
-    errorPreview?: string | null;
-  },
-  client: PrismaClient = defaultPrisma,
-): Promise<void> {
-  await client.collaborationTeamInvite
-    .update({
-      where: { id: input.inviteId },
-      data: {
-        deliveryStatus: input.status,
-        deliveryErrorPreview: input.errorPreview
-          ? input.errorPreview.slice(0, 280)
-          : null,
-      },
-    })
-    .catch(() => undefined);
-}
-
 /**
  * Accept an invite. Idempotent — if the accepting user is ALREADY an
  * active member of the team (via this invite, another invite, or a

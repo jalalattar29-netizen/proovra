@@ -1251,6 +1251,22 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // No `security_events` column, index, enum or mapping is altered by it,
       // which is what this allowlist is about.
       "20280501000000_workspace_invite_lifecycle_hardening",
+      // WORKSPACE INVITE RAW TOKEN DROP (2026-09-06) — the contraction half of
+      // the invitation hardening: the plaintext `team_invites.token` column and
+      // its unique index are dropped once no deployed service reads them, so a
+      // database copy stops being a set of live workspace credentials. Behind a
+      // DO block that RAISEs if any row would lose its only lookup key. It
+      // touches `team_invites` alone. No `security_events` column, index, enum
+      // or mapping is altered by it, which is what this allowlist is about.
+      "20280502000000_workspace_invite_raw_token_drop",
+      // COLLABORATION SCALE INDEXES (2026-09-06) — two keyset-pagination
+      // indexes, on `team_members` and `collaboration_team_assignments`, each
+      // matching its query's ORDER BY so a page is a walk rather than a sort of
+      // the whole partition. Purely additive, written in the Phase O-Final
+      // pattern with every named column checked for existence first. It touches
+      // those two tables alone. No `security_events` column, index, enum or
+      // mapping is altered by it, which is what this allowlist is about.
+      "20280503000000_collaboration_scale_indexes",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

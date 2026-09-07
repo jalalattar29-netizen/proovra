@@ -326,11 +326,8 @@ describe("Phase R16 — service module", () => {
       "editComment",
       "deleteComment",
       "listMyNotifications",
-      "markNotificationRead",
-      "markAllNotificationsRead",
       "emitTeamNotifications",
       "getMyNotificationPreference",
-      "updateMyNotificationPreference",
       "inviteGuest",
       "listGuests",
       "revokeGuest",
@@ -345,6 +342,32 @@ describe("Phase R16 — service module", () => {
         new RegExp(`export async function ${sym}\\b`),
       );
     }
+  });
+
+  it("the retired notification writers are gone, not merely unreachable", () => {
+    /*
+     * `markNotificationRead`, `markAllNotificationsRead` and
+     * `updateMyNotificationPreference` were in the list above. Their routes
+     * were retired to a typed 410 in the 2026-09-06 closure — the inbox reads
+     * the same `CollaborationTeamNotification` rows and marks the same `readAt`
+     * column, and a third preference store had no stated precedence against
+     * workspace or organization policy — which left three executable writers
+     * nothing could reach. `writer-preservations.json` refuses that as a final
+     * state and the mutation-closure gate counted all three DEAD_UNREACHABLE,
+     * so they are deleted. Requiring the exports would have kept them alive.
+     */
+    for (const gone of [
+      "markNotificationRead",
+      "markAllNotificationsRead",
+      "updateMyNotificationPreference",
+    ]) {
+      expect(svc, `deleted export ${gone} must be absent`).not.toMatch(
+        new RegExp(`export async function ${gone}\\b`),
+      );
+    }
+    // The rows, the emitter and the surviving read path are untouched.
+    expect(svc).toMatch(/export async function emitTeamNotifications\b/);
+    expect(svc).toMatch(/export async function listMyNotifications\b/);
   });
 
   it("comments emit a CollaborationTeamActivity row with COMMENT_CREATED event", () => {

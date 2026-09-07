@@ -1405,6 +1405,125 @@
       "reason": "platform-admin-gated alert evaluation over the process-global registry; superseded as a product surface by GET /v1/admin/platform/alerts and retained as a serving compatibility spelling",
       "evidence": "reg services/api/src/routes/ops.routes.ts:748 app.get(\"/v1/ops/alerts\", { preHandler: requirePlatformAdmin }, …). Its last product consumer was apps/web/app/(app)/admin/platform/observability/page.tsx, migrated to the canonical path in ADM-013 Phase 1. 1afd5e0f moved both routes behind requirePlatformAdmin because their payload is snapshotMetrics() — the PROCESS-GLOBAL registry — and gave the canonical product surface its own path under the admin namespace: services/api/src/routes/admin-platform-telemetry.routes.ts:56 (GET /v1/admin/platform/metrics) and :84 (GET /v1/admin/platform/alerts), both consumed by apps/web/app/(app)/admin/platform/observability/page.tsx. The two /v1/ops spellings answer the same payload behind the same gate to the same platform-admin population, and after ADM-013 Phase 1 neither has a product consumer. They are NOT dispositioned SUPERSEDED_REMOVE, because that disposition in this manifest means the handler is a 410 tombstone and these two still serve. They are kept serving deliberately: services/api/test/platform-telemetry-boundary.integration.test.ts pins their tenant-refusal behaviour against live PostgreSQL 16, and tombstoning them would retire the executed proof of the P0 fix along with the routes. Retirement is tracked as ADM-013 follow-up.",
       "reviewedAtUtc": "2026-09-01"
+    },
+    {
+      "routeId": "POST /v1/teams/:id/invites/:inviteId/resend",
+      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
+      "reason": "workspace invitation resend has no control on any surface yet; the Teams invites list offers revoke only",
+      "evidence": "reg services/api/src/routes/teams.routes.ts:1867 app.post(\"/v1/teams/:id/invites/:inviteId/resend\", { preHandler: requireAuthAndLegal }); introduced by 66c1276a \"fix(membership): one workspace membership authority, and a team built from it\" with the note that an operator whose invitation bounced needs to say so directly. The workspace invites UI at apps/web/app/(app)/teams/[id]/page.tsx:852 calls DELETE /v1/teams/:id/invites/:inviteId and nothing else; the only resend controls in the product are the ORGANIZATION ones (apps/web/app/(app)/organizations/[id]/admin/members/page.tsx:376 and the admin provisioning section), which post to /v1/orgs/:id/invites/:inviteId/resend. 0 call sites for the teams path in apps/web + apps/mobile.",
+      "reviewedAtUtc": "2026-09-07"
+    },
+    {
+      "routeId": "GET /v1/collaboration-team-notifications",
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "retired to a typed 410 naming its replacement; kept so a stale client is told where its data went rather than 404-ed",
+      "evidence": "reg services/api/src/routes/collaboration-completion.routes.ts:327; the handler is `async (_req, reply) => notificationsRetired(reply)`, defined at services/api/src/routes/collaboration-completion.routes.ts:319, which replies 410 with a stable code and `canonical` pointing at GET /v1/me/inbox. WORKSPACE AND COLLABORATION ARCHITECTURE CLOSURE (2026-09-06) retired the duplicate reader: the inbox already reads the same CollaborationTeamNotification rows and marks the same `readAt`. Its web client was deleted with the surface — see the note at apps/web/lib/api/collaboration-completion.ts:179 — so 0 product call sites remain, which is the intended end state for a tombstone.",
+      "reviewedAtUtc": "2026-09-07"
+    },
+    {
+      "routeId": "POST /v1/collaboration-team-notifications/:notificationId/read",
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "retired to a typed 410 naming its replacement; kept so a stale client is told where its data went rather than 404-ed",
+      "evidence": "reg services/api/src/routes/collaboration-completion.routes.ts:332; the handler is `async (_req, reply) => notificationsRetired(reply)`, defined at services/api/src/routes/collaboration-completion.routes.ts:319, which replies 410 with a stable code and `canonical` pointing at GET /v1/me/inbox. WORKSPACE AND COLLABORATION ARCHITECTURE CLOSURE (2026-09-06) retired the duplicate reader: the inbox already reads the same CollaborationTeamNotification rows and marks the same `readAt`. Its web client was deleted with the surface — see the note at apps/web/lib/api/collaboration-completion.ts:179 — so 0 product call sites remain, which is the intended end state for a tombstone.",
+      "reviewedAtUtc": "2026-09-07"
+    },
+    {
+      "routeId": "POST /v1/collaboration-team-notifications/read-all",
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "retired to a typed 410 naming its replacement; kept so a stale client is told where its data went rather than 404-ed",
+      "evidence": "reg services/api/src/routes/collaboration-completion.routes.ts:340; the handler is `async (_req, reply) => notificationsRetired(reply)`, defined at services/api/src/routes/collaboration-completion.routes.ts:319, which replies 410 with a stable code and `canonical` pointing at GET /v1/me/inbox. WORKSPACE AND COLLABORATION ARCHITECTURE CLOSURE (2026-09-06) retired the duplicate reader: the inbox already reads the same CollaborationTeamNotification rows and marks the same `readAt`. Its web client was deleted with the surface — see the note at apps/web/lib/api/collaboration-completion.ts:179 — so 0 product call sites remain, which is the intended end state for a tombstone.",
+      "reviewedAtUtc": "2026-09-07"
+    },
+    {
+      "routeId": "GET /v1/collaboration-teams/:teamId/notification-preferences",
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "retired to a typed 410 naming its replacement; kept so a stale client is told where its data went rather than 404-ed",
+      "evidence": "reg services/api/src/routes/collaboration-completion.routes.ts:366; the handler is `async (_req, reply) => preferencesRetired(reply)`, defined at services/api/src/routes/collaboration-completion.routes.ts:358, which replies 410 with a stable code and `canonical` pointing at Settings (workspace + organization notification policy). WORKSPACE AND COLLABORATION ARCHITECTURE CLOSURE (2026-09-06) retired the duplicate reader: the inbox already reads the same CollaborationTeamNotification rows and marks the same `readAt`. Its web client was deleted with the surface — see the note at apps/web/lib/api/collaboration-completion.ts:179 — so 0 product call sites remain, which is the intended end state for a tombstone.",
+      "reviewedAtUtc": "2026-09-07"
+    },
+    {
+      "routeId": "PATCH /v1/collaboration-teams/:teamId/notification-preferences",
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "retired to a typed 410 naming its replacement; kept so a stale client is told where its data went rather than 404-ed",
+      "evidence": "reg services/api/src/routes/collaboration-completion.routes.ts:374; the handler is `async (_req, reply) => preferencesRetired(reply)`, defined at services/api/src/routes/collaboration-completion.routes.ts:358, which replies 410 with a stable code and `canonical` pointing at Settings (workspace + organization notification policy). WORKSPACE AND COLLABORATION ARCHITECTURE CLOSURE (2026-09-06) retired the duplicate reader: the inbox already reads the same CollaborationTeamNotification rows and marks the same `readAt`. Its web client was deleted with the surface — see the note at apps/web/lib/api/collaboration-completion.ts:179 — so 0 product call sites remain, which is the intended end state for a tombstone.",
+      "reviewedAtUtc": "2026-09-07"
+    },
+    {
+      "routeId": "GET /v1/collaboration-teams/:teamId/guests",
+      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
+      "reason": "its web client was deleted in the 2026-09-06 collaboration closure; the route still answers and has no product caller, and the capability is reached from another surface",
+      "evidence": "reg services/api/src/routes/collaboration-completion.routes.ts:387. Superseded by External Review. The web note records what this actually did: it wrote a row and granted nothing — no email was sent, no read path consulted the table, and the status never left PENDING. apps/web/lib/api/collaboration-completion.ts:179 records the deletion of every client below that point by name, and 0 call sites remain in apps/web + apps/mobile. The route still answers, so it is COMPATIBILITY_TEMPORARY rather than a tombstone: the handler and its service are live code with no consumer, and removing them is a product decision for whoever owns the group surface. Recorded as MISSING_PRODUCT_UI_POST_RELEASE rather than SUPERSEDED_REMOVE because the replacement is a SURFACE, not a route: there is no single routeId that supersedes this one, and the generator refuses a SUPERSEDED_REMOVE with no named replacement — correctly, since a supersession claim that cannot name what supersedes it is not a claim.",
+      "reviewedAtUtc": "2026-09-07"
+    },
+    {
+      "routeId": "POST /v1/collaboration-teams/:teamId/guests/invite",
+      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
+      "reason": "its web client was deleted in the 2026-09-06 collaboration closure; the route still answers and has no product caller, and the capability is reached from another surface",
+      "evidence": "reg services/api/src/routes/collaboration-completion.routes.ts:414. Superseded by External Review, which is the invitation authority that actually delivers and grants. apps/web/lib/api/collaboration-completion.ts:179 records the deletion of every client below that point by name, and 0 call sites remain in apps/web + apps/mobile. The route still answers, so it is COMPATIBILITY_TEMPORARY rather than a tombstone: the handler and its service are live code with no consumer, and removing them is a product decision for whoever owns the group surface. Recorded as MISSING_PRODUCT_UI_POST_RELEASE rather than SUPERSEDED_REMOVE because the replacement is a SURFACE, not a route: there is no single routeId that supersedes this one, and the generator refuses a SUPERSEDED_REMOVE with no named replacement — correctly, since a supersession claim that cannot name what supersedes it is not a claim.",
+      "reviewedAtUtc": "2026-09-07"
+    },
+    {
+      "routeId": "PATCH /v1/collaboration-teams/:teamId/guests/:guestId/revoke",
+      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
+      "reason": "its web client was deleted in the 2026-09-06 collaboration closure; the route still answers and has no product caller, and the capability is reached from another surface",
+      "evidence": "reg services/api/src/routes/collaboration-completion.routes.ts:459. Superseded by External Review, where a grant that exists can be withdrawn. apps/web/lib/api/collaboration-completion.ts:179 records the deletion of every client below that point by name, and 0 call sites remain in apps/web + apps/mobile. The route still answers, so it is COMPATIBILITY_TEMPORARY rather than a tombstone: the handler and its service are live code with no consumer, and removing them is a product decision for whoever owns the group surface. Recorded as MISSING_PRODUCT_UI_POST_RELEASE rather than SUPERSEDED_REMOVE because the replacement is a SURFACE, not a route: there is no single routeId that supersedes this one, and the generator refuses a SUPERSEDED_REMOVE with no named replacement — correctly, since a supersession claim that cannot name what supersedes it is not a claim.",
+      "reviewedAtUtc": "2026-09-07"
+    },
+    {
+      "routeId": "GET /v1/collaboration-teams/:teamId/access-review",
+      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
+      "reason": "its web client was deleted in the 2026-09-06 collaboration closure; the route still answers and has no product caller, and the capability is reached from another surface",
+      "evidence": "reg services/api/src/routes/collaboration-completion.routes.ts:501. Superseded by the group's own surface, which is where an access review is reached from. apps/web/lib/api/collaboration-completion.ts:179 records the deletion of every client below that point by name, and 0 call sites remain in apps/web + apps/mobile. The route still answers, so it is COMPATIBILITY_TEMPORARY rather than a tombstone: the handler and its service are live code with no consumer, and removing them is a product decision for whoever owns the group surface. Recorded as MISSING_PRODUCT_UI_POST_RELEASE rather than SUPERSEDED_REMOVE because the replacement is a SURFACE, not a route: there is no single routeId that supersedes this one, and the generator refuses a SUPERSEDED_REMOVE with no named replacement — correctly, since a supersession claim that cannot name what supersedes it is not a claim.",
+      "reviewedAtUtc": "2026-09-07"
+    },
+    {
+      "routeId": "POST /v1/collaboration-teams/:teamId/access-review",
+      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
+      "reason": "its web client was deleted in the 2026-09-06 collaboration closure; the route still answers and has no product caller, and the capability is reached from another surface",
+      "evidence": "reg services/api/src/routes/collaboration-completion.routes.ts:528. Superseded by the group's own surface. apps/web/lib/api/collaboration-completion.ts:179 records the deletion of every client below that point by name, and 0 call sites remain in apps/web + apps/mobile. The route still answers, so it is COMPATIBILITY_TEMPORARY rather than a tombstone: the handler and its service are live code with no consumer, and removing them is a product decision for whoever owns the group surface. Recorded as MISSING_PRODUCT_UI_POST_RELEASE rather than SUPERSEDED_REMOVE because the replacement is a SURFACE, not a route: there is no single routeId that supersedes this one, and the generator refuses a SUPERSEDED_REMOVE with no named replacement — correctly, since a supersession claim that cannot name what supersedes it is not a claim.",
+      "reviewedAtUtc": "2026-09-07"
+    },
+    {
+      "routeId": "PATCH /v1/collaboration-teams/:teamId/access-review/items/:itemId",
+      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
+      "reason": "its web client was deleted in the 2026-09-06 collaboration closure; the route still answers and has no product caller, and the capability is reached from another surface",
+      "evidence": "reg services/api/src/routes/collaboration-completion.routes.ts:571. Superseded by the group's own surface. apps/web/lib/api/collaboration-completion.ts:179 records the deletion of every client below that point by name, and 0 call sites remain in apps/web + apps/mobile. The route still answers, so it is COMPATIBILITY_TEMPORARY rather than a tombstone: the handler and its service are live code with no consumer, and removing them is a product decision for whoever owns the group surface. Recorded as MISSING_PRODUCT_UI_POST_RELEASE rather than SUPERSEDED_REMOVE because the replacement is a SURFACE, not a route: there is no single routeId that supersedes this one, and the generator refuses a SUPERSEDED_REMOVE with no named replacement — correctly, since a supersession claim that cannot name what supersedes it is not a claim.",
+      "reviewedAtUtc": "2026-09-07"
+    },
+    {
+      "routeId": "POST /v1/collaboration-teams/:teamId/access-review/:reviewId/complete",
+      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
+      "reason": "its web client was deleted in the 2026-09-06 collaboration closure; the route still answers and has no product caller, and the capability is reached from another surface",
+      "evidence": "reg services/api/src/routes/collaboration-completion.routes.ts:616. Superseded by the group's own surface. apps/web/lib/api/collaboration-completion.ts:179 records the deletion of every client below that point by name, and 0 call sites remain in apps/web + apps/mobile. The route still answers, so it is COMPATIBILITY_TEMPORARY rather than a tombstone: the handler and its service are live code with no consumer, and removing them is a product decision for whoever owns the group surface. Recorded as MISSING_PRODUCT_UI_POST_RELEASE rather than SUPERSEDED_REMOVE because the replacement is a SURFACE, not a route: there is no single routeId that supersedes this one, and the generator refuses a SUPERSEDED_REMOVE with no named replacement — correctly, since a supersession claim that cannot name what supersedes it is not a claim.",
+      "reviewedAtUtc": "2026-09-07"
+    },
+    {
+      "routeId": "GET /v1/collaboration-teams/:teamId/activity/v2",
+      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
+      "reason": "its web client was deleted in the 2026-09-06 collaboration closure; the route still answers and has no product caller, and the capability is reached from another surface",
+      "evidence": "reg services/api/src/routes/collaboration-completion.routes.ts:658. Superseded by the Activity tab, which reads the canonical feed. apps/web/lib/api/collaboration-completion.ts:179 records the deletion of every client below that point by name, and 0 call sites remain in apps/web + apps/mobile. The route still answers, so it is COMPATIBILITY_TEMPORARY rather than a tombstone: the handler and its service are live code with no consumer, and removing them is a product decision for whoever owns the group surface. Recorded as MISSING_PRODUCT_UI_POST_RELEASE rather than SUPERSEDED_REMOVE because the replacement is a SURFACE, not a route: there is no single routeId that supersedes this one, and the generator refuses a SUPERSEDED_REMOVE with no named replacement — correctly, since a supersession claim that cannot name what supersedes it is not a claim.",
+      "reviewedAtUtc": "2026-09-07"
+    },
+    {
+      "routeId": "GET /v1/teams/:id/members",
+      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
+      "reason": "server-paged member search added ahead of the surface that will use it; the Teams page still reads a member at a time",
+      "evidence": "reg services/api/src/routes/teams.routes.ts:774 app.get(\"/v1/teams/:id/members\", { preHandler: requireAuthAndLegal }); introduced by e65addfb \"perf(collaboration): page the reads that grew, and index what they order on\" with the note that browser-side search over a fully-loaded list cannot work because completeness is the thing that does not scale. Every /members call site in apps/web addresses ONE member — apps/web/app/(app)/teams/[id]/page.tsx:761 and MemberRemovalDialog.tsx:117,179 — and none reads this collection. 0 product call sites.",
+      "reviewedAtUtc": "2026-09-07"
+    },
+    {
+      "routeId": "POST /v1/collaboration-teams/:teamId/invites/email",
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "retired to a typed 410 that names the two routes which replace it; kept so a stale client is told rather than 404-ed",
+      "evidence": "reg services/api/src/routes/collaboration-teams.routes.ts:910. The handler authorizes, writes an audit row with action \"collaboration_team.invite.email.retired\" and outcome \"blocked\", then replies 410 COLLABORATION_TEAM_INVITE_RETIRED with nextSteps naming POST /v1/teams/{workspaceId}/invites and POST /v1/collaboration-teams/{teamId}/members. Group membership is now made from people already in the workspace, so there is no second invitation to send. 0 product call sites: apps/web/lib/api/collaboration-teams.ts calls the accept and revoke paths only.",
+      "reviewedAtUtc": "2026-09-07"
+    },
+    {
+      "routeId": "POST /v1/collaboration-team-invites/accept",
+      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
+      "reason": "the canonical body-token accept, added ahead of the client cutover; the accept page still calls the legacy path with the token in the URL",
+      "evidence": "reg services/api/src/routes/collaboration-teams.routes.ts:1070, documented CANONICAL because the token travels in the body where no intermediary logs it and it cannot leak through Referer. The web client at apps/web/lib/api/collaboration-teams.ts:471 still posts to /v1/collaboration-team-invites/{token}/accept, the LEGACY COMPATIBILITY route kept for links already in mailboxes, so this one has 0 product call sites until that call moves. The capability itself is delivered — this is the safer door to the same handler, not a missing feature.",
+      "reviewedAtUtc": "2026-09-07"
     }
   ]
 }

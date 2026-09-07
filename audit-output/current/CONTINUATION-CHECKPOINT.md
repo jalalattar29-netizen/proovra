@@ -37,8 +37,8 @@ tree nobody is still editing.
 
 ```
 ROUTES / TENANCY
-ProductionRegisteredRoutes                  1125
-RegisteredRoutes                            1126
+ProductionRegisteredRoutes                  1134
+RegisteredRoutes                            1135
 TenantBindingUnresolved                        0
 TenantUnboundInsertRoutes                      0
 OrganizationAuthorizationUnresolved            0
@@ -48,8 +48,8 @@ ClassificationConflicts                        0
 AuthorizationUnresolved                        0
 
 MUTATION CLOSURE (eleven disjoint buckets, identity asserted)
-TerminalWriters                             1256
-ROUTE_ATTRIBUTED_REACHABLE                  1132
+TerminalWriters                             1254
+ROUTE_ATTRIBUTED_REACHABLE                  1130
 JOB_ATTRIBUTED_REACHABLE                     106
 MODULE_SCOPED_REACHABLE                        0
 REGISTERED_CLI                                 3
@@ -74,8 +74,8 @@ UnprocessedQueueFamilies                       0
 MutationClosurePass                         true
 
 PRODUCT (route disposition, from the generated map)
-ProductConsumedRoutes                        897
-NonProductDispositionedRoutes                228
+ProductConsumedRoutes                        889
+NonProductDispositionedRoutes                245
 MissingProductUiReleaseRequired                0
 ConservationIdentityHolds                   true
 
@@ -96,6 +96,42 @@ NEW-028Runtime                              PASS
 NEW-029Runtime                              PASS
 NEW-058Runtime                              PASS
 ```
+
+
+### THE DEAD WRITERS ARE GONE, AND FOURTEEN ROUTES ARE DISPOSITIONED
+
+`MutationClosurePass` was false and `UndisposedRoutes` was 14 on the tree this
+phase started from — the 2026-09-06 collaboration closure retired routes and
+deleted web clients without regenerating the artifacts, so the committed map
+described a tree that no longer existed.
+
+FIVE WRITERS, DELETED. `createEmailInvite` and `recordInviteDeliveryResult` in
+`collaboration-team.service.ts`, and `markNotificationRead`,
+`markAllNotificationsRead` and `updateMyNotificationPreference` in
+`collaboration-completion.service.ts`. Each one's route had been retired to a
+typed 410 — group invitations into the one workspace invitation authority, team
+notifications into the inbox that reads the same rows and marks the same
+`readAt` column — leaving executable code nothing could reach.
+`writer-preservations.json` is explicit that this is not a final state, so they
+are gone rather than re-declared as preserved. `acceptInvite`, `revokeInvite`
+and `emitTeamNotifications` remain and are reachable.
+
+SIXTEEN ROUTES, DISPOSITIONED with the call sites read: five retired
+notification and preference doors as COMPATIBILITY_TOMBSTONE (a typed 410
+naming its replacement is a door worth keeping shut rather than 404-ing), eight
+live-but-unconsumed guest, access-review and activity-v2 routes as
+MISSING_PRODUCT_UI_POST_RELEASE, and the new server-paged
+`GET /v1/teams/:id/members` the same way — it was added ahead of the surface
+that will use it.
+
+Two more arrived while this was in flight and are dispositioned the same way:
+the retired group email-invite door as a tombstone (it answers 410 naming the
+two routes that replace it), and the canonical body-token invite accept as
+MISSING_PRODUCT_UI_POST_RELEASE — the accept page still calls the legacy
+token-in-URL path, so the safer door has no caller yet.
+
+Result: UndisposedRoutes 0, DEAD_UNREACHABLE 0, ClassificationConflicts 0,
+MutationClosurePass true, AuditEngineIntegrity PASS.
 
 `ReleaseBlockingClosure` is DERIVED from two inputs — open actionable findings
 and undisposed routes. Both are zero, so it prints PASS. That is a statement

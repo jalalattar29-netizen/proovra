@@ -10,8 +10,8 @@ Every number below is produced by an analyzer executed at generation time and re
 
 | dimension            | status  | basis                                                                 |
 | -------------------- | ------- | --------------------------------------------------------------------- |
-| AuditEngineIntegrity | FAIL    | instrument counters, conservation identities, single-authority checks |
-| ProductClosure       | OPEN    | undisposed routes + locally actionable open findings                  |
+| AuditEngineIntegrity | PASS    | instrument counters, conservation identities, single-authority checks |
+| ProductClosure       | CLOSED  | undisposed routes + locally actionable open findings                  |
 | ExternalClosure      | NOT RUN | requires a real environment; never asserted from source analysis      |
 
 `AuditEngineIntegrity = PASS` alongside `ProductClosure = OPEN` is the expected state while work remains. They are separate exit codes on purpose: a permanent red meaning "open work" teaches everyone to ignore a red meaning "every number here is a guess".
@@ -21,7 +21,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | 1315d1eef6fd4a092caede2f3ef8d00844b6c9120103eda2558fd071b9167ece |
+| engineHash    | 171f42b84c1f43438ae526c8a6cecb58cbc1ea3baccf9ca51b9549c4850ddd49 |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
@@ -33,8 +33,8 @@ Every number below is produced by an analyzer executed at generation time and re
 | productConsumerRoutes         | 889   |
 | machineOnlyConsumerRoutes     | 4     |
 | noConsumerRoutes              | 242   |
-| dispositionedNonProductRoutes | 228   |
-| undisposedRoutes              | 17    |
+| dispositionedNonProductRoutes | 245   |
+| undisposedRoutes              | 0     |
 | authorizationUnresolved       | 0     |
 | publicUnguardedRoutes         | 20    |
 
@@ -45,11 +45,11 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | counter                                        | value |
 | ---------------------------------------------- | ----- |
 | DynamicUnresolvedRouteRegistrations            | 0     |
-| DynamicUnresolvedConsumers                     | 1     |
-| UnreviewedOriginConsumers                      | 1     |
-| AmbiguousConsumerSites                         | 1     |
+| DynamicUnresolvedConsumers                     | 0     |
+| UnreviewedOriginConsumers                      | 0     |
+| AmbiguousConsumerSites                         | 0     |
 | UnmatchedConsumerCalls                         | 0     |
-| ClassificationConflicts                        | 1     |
+| ClassificationConflicts                        | 0     |
 | WrongOriginConsumers                           | 0     |
 | AuthorizationUnresolved                        | 0     |
 | TenantBindingUnresolved                        | 0     |
@@ -76,7 +76,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | counter                                    | value |
 | ------------------------------------------ | ----- |
 | AuditFilesInventoried                      | 348   |
-| AuditFilesUnclassified                     | 1     |
+| AuditFilesUnclassified                     | 0     |
 | AuditArtifactProducersUnknown              | 0     |
 | AuditArtifactConsumersUnknown              | 0     |
 | AuditDependencyCycles                      | 0     |
@@ -86,8 +86,8 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | HistoricalReportsUsedAsAuthority           | 0     |
 | HistoricalReportsAmbiguousStatus           | 0     |
 | DuplicateAuditAuthorityClaims              | 0     |
-| IndependentRouteInventories                | 1     |
-| IndependentConsumerInventories             | 1     |
+| IndependentRouteInventories                | 0     |
+| IndependentConsumerInventories             | 0     |
 | CanonicalAuditEntryPoints                  | 1     |
 | CanonicalRouteAuthorities                  | 1     |
 | CanonicalConsumerAuthorities               | 1     |
@@ -96,7 +96,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | CanonicalCurrentReports                    | 1     |
 | LedgerGenerators                           | 1     |
 | GeneratedLedgerRenderings                  | 2     |
-| ObsoleteAuditScripts                       | 1     |
+| ObsoleteAuditScripts                       | 0     |
 | RetiredPathsResurrected                    | 0     |
 | DiagnosticsReadAsAuthority                 | 0     |
 | HistoricalDiagnosticCreditedAsAuthority    | 0     |
@@ -109,13 +109,13 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | DeletedDiagnosticCurrentConsumers          | 0     |
 | DeletedDiagnosticDecisionConsumers         | 0     |
 | DeletedArtifactConsumersUnresolved         | 0     |
-| ReportRelatedEntries                       | 26    |
-| ReportDocuments                            | 25    |
+| ReportRelatedEntries                       | 27    |
+| ReportDocuments                            | 26    |
 | HistoryTreeMarkers                         | 1     |
 | NonAuditProductReportTemplates             | 0     |
 | CurrentGeneratedReports                    | 1     |
 | HistoricalReports                          | 23    |
-| DomainReportTemplates                      | 1     |
+| DomainReportTemplates                      | 2     |
 | MisclassifiedReportDocuments               | 0     |
 | ReportRoleOverlap                          | 0     |
 | ReportRoleMissing                          | 0     |
@@ -133,8 +133,8 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 ### Report roles
 
 ```
-ReportRelatedEntries 26 = ReportDocuments 25 + HistoryTreeMarkers 1 + NonAuditProductReportTemplates 0
-ReportDocuments 25 = CurrentGeneratedReports 1 + HistoricalReports 23 + DomainReportTemplates 1 + MisclassifiedReportDocuments 0
+ReportRelatedEntries 27 = ReportDocuments 26 + HistoryTreeMarkers 1 + NonAuditProductReportTemplates 0
+ReportDocuments 26 = CurrentGeneratedReports 1 + HistoricalReports 23 + DomainReportTemplates 2 + MisclassifiedReportDocuments 0
 ```
 
 A HISTORY_TREE_MARKER is a governance marker, not a report document: it says what a directory IS. Counting it as a report is what produced the earlier miscount.
@@ -200,19 +200,8 @@ Referenced, never transcribed. Each is measured by its own producer; this report
 
 ### Engine
 
-- INSTRUMENT: DynamicUnresolvedConsumers = 1
-- INSTRUMENT: UnreviewedOriginConsumers = 1
-- INSTRUMENT: AmbiguousConsumerSites = 1
-- INSTRUMENT: ClassificationConflicts = 1
-- UNCLASSIFIED audit file: scripts/admin-ledger/visual/README.md
-- INDEPENDENT ROUTE/CONSUMER SCANNER: scripts/admin-ledger/visual/states.mjs — Independent route/consumer scanner competing with the AST engine.
+_(none — the instrument is sound)_
 
 ### Product closure
 
-- INSTRUMENT: DynamicUnresolvedConsumers = 1
-- INSTRUMENT: UnreviewedOriginConsumers = 1
-- INSTRUMENT: AmbiguousConsumerSites = 1
-- INSTRUMENT: ClassificationConflicts = 1
-- UNWIRED EXECUTABLE WRITERS: 4 terminal writers have zero entrypoints (PRESERVED_PLANNED_WRITER + DEAD_UNREACHABLE)
-- CHECKPOINT: 12 violation(s) — SCALAR_DISAGREES_WITH_FACTS: ProductionRegisteredRoutes: checkpoint says 1125, facts say 1134 | SCALAR_DISAGREES_WITH_FACTS: RegisteredRoutes: checkpoint says 1126, facts say 1135 | SCALAR_DISAGREES_WITH_FACTS: UndisposedRoutes: checkpoint says 0, facts say 17 | SCALAR_DISAGREES_WITH_FACTS: ClassificationConflicts: checkpoint says 0, facts say 1 | SCALAR_DISAGREES_WITH_FACTS: TerminalWriters: checkpoint says 1256, facts say 1258
-- ArchitectureBacklog: UndisposedRoutes = 17 — registered routes with no reviewed product disposition (ARCH-BACKLOG-001, NON-BLOCKING, no security or completeness credit)
+_(none)_

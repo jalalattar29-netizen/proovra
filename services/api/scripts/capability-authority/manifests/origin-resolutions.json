@@ -245,6 +245,13 @@
       "originBinding": "const baseUrl = apiBaseUrl()",
       "evidence": "services/worker/src/reviewer-ops/reviewer-reconciliation.worker.ts:84,127 — this is the intended machine caller of POST /v1/reviewer-ops/reconcile, the route whose authorization FINAL-003 investigated.",
       "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "scripts/admin-ledger/visual/rtl-flash.mjs:70",
+      "verdict": "PLUMBING",
+      "originBinding": "WEB — the Phase-7 visual sweep's target WEB origin, supplied per run (P7_WEB, defaulting to a loopback fixture port)",
+      "evidence": "scripts/admin-ledger/visual/rtl-flash.mjs:70 — fetch(`${WEB}${route}`) requests the Next WEB app's own server-rendered HTML to read <html dir/lang> out of the first frame. The origin is the web app, not this API, and the route list is the admin page list; it calls no /v1 route and is not a product consumer. Same shape as scripts/e2e-web-smoke.mjs:7.",
+      "reviewedAtUtc": "2026-09-07"
     }
   ]
 }

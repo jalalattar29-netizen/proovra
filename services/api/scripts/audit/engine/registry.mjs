@@ -470,6 +470,8 @@ export const CONTINUATION_CHECKPOINT = "audit-output/current/CONTINUATION-CHECKP
  * counts; nothing may reconcile against them.
  */
 export const DOMAIN_REPORT_TEMPLATES = Object.freeze({
+  "scripts/admin-ledger/visual/README.md":
+    "How to run the five Phase-7 visual instruments that live beside it: the containers, the fixture launchers, the commands and what each sweep answers. It is candidate only because its directory is named admin-ledger, which the name signals match; it states no audit count, produces no artifact, and nothing reconciles against it. The numbers it mentions are cited from the Phase-7 report, which cites the sweeps' own output.",
   "docs/architecture/program-ledger.md":
     "The unified programme's own implementation narrative, still being appended to. It records what each phase did; it does not measure the tree. One suite reads it, and only to assert that its NON-AUTHORITATIVE disclaimer for the old 19,360 figure is still present — a disclaimer check, not a count read.",
 });
