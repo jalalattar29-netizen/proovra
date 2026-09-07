@@ -90,7 +90,25 @@ import { ToastProvider } from "../../components/ui";
 import { ConfirmActionProvider } from "../../components/ui/ConfirmActionModal";
 import IntakeLinksPage from "../../app/(app)/intake-links/page";
 import { FIELD_IDS } from "../../app/(app)/intake-links/_components/wizard/steps";
-import { REQUEST_PURPOSES } from "../../lib/intake-links/catalog";
+/*
+ * THE CHANNEL SET COMES FROM THE CATALOG.
+ *
+ * These cases used to name SMS / EMAIL / WHATSAPP / MANUAL by hand. WhatsApp
+ * was retired as an intake delivery channel — `DELIVERY_CHANNELS` offers SMS,
+ * Email and Copy link, and the DB enum and read labels are kept only so
+ * historical rows still render — so nine cases were driving a radio that is
+ * not on the screen and failing on "Unable to fire a click event". A test
+ * that re-types the catalog goes stale the day the catalog changes; derived,
+ * it covers whatever the wizard actually offers.
+ */
+import {
+  DELIVERY_CHANNELS,
+  REQUEST_PURPOSES,
+} from "../../lib/intake-links/catalog";
+
+/** Every channel the wizard renders, and the ones that actually send. */
+const CHANNEL_VALUES = DELIVERY_CHANNELS.map((c) => c.value);
+const SENDING_CHANNELS = DELIVERY_CHANNELS.filter((c) => c.sendsMessage);
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -516,22 +534,26 @@ describe("step 2 — delivery and sender", () => {
   it("asks only for the recipient field the chosen channel needs", async () => {
     await openWizard();
     await clickNext();
-
-    await chooseChannel("SMS");
-    expect(document.querySelector("[data-intake-link-phone]")).toBeTruthy();
-    expect(document.querySelector("[data-intake-link-email]")).toBeNull();
-
-    await chooseChannel("EMAIL");
-    expect(document.querySelector("[data-intake-link-email]")).toBeTruthy();
-    expect(document.querySelector("[data-intake-link-phone]")).toBeNull();
-
-    await chooseChannel("WHATSAPP");
-    expect(document.querySelector("[data-intake-link-phone]")).toBeTruthy();
-
-    await chooseChannel("MANUAL");
-    expect(document.querySelector("[data-intake-link-phone]")).toBeNull();
-    expect(document.querySelector("[data-intake-link-email]")).toBeNull();
-    expect(document.querySelector("[data-intake-link-manual-note]")).toBeTruthy();
+    // Driven from the catalog's own `requires`, so a new channel is covered
+    // the moment it is added and a retired one stops being demanded.
+    for (const channel of DELIVERY_CHANNELS) {
+      await chooseChannel(channel.value);
+      const phone = document.querySelector("[data-intake-link-phone]");
+      const email = document.querySelector("[data-intake-link-email]");
+      if (channel.requires === "phone") {
+        expect(phone, `${channel.value} should ask for a phone`).toBeTruthy();
+        expect(email, `${channel.value} should not ask for an email`).toBeNull();
+      } else if (channel.requires === "email") {
+        expect(email, `${channel.value} should ask for an email`).toBeTruthy();
+        expect(phone, `${channel.value} should not ask for a phone`).toBeNull();
+      } else {
+        expect(phone, `${channel.value} should ask for neither`).toBeNull();
+        expect(email, `${channel.value} should ask for neither`).toBeNull();
+        expect(
+          document.querySelector("[data-intake-link-manual-note]"),
+        ).toBeTruthy();
+      }
+    }
   });
 
   it("blocks Continue and focuses the missing recipient field", async () => {
@@ -566,14 +588,18 @@ describe("step 2 — delivery and sender", () => {
   });
 
   it("disables a channel the deployment cannot send on, with the reason", async () => {
-    transport = { ...ALL_CHANNELS, whatsapp: { configured: false } };
+    // Any sending channel will do; the property is the disabled control and
+    // the stated reason, not which provider happens to be missing.
+    const channel = SENDING_CHANNELS[0]!;
+    transport = { ...ALL_CHANNELS, [channel.transportKey!]: { configured: false } };
     await openWizard();
     await clickNext();
-    const wa = document.querySelector(
-      '[data-intake-link-delivery-method-input="WHATSAPP"]',
+    const input = document.querySelector(
+      `[data-intake-link-delivery-method-input="${channel.value}"]`,
     ) as HTMLInputElement;
-    expect(wa.disabled).toBe(true);
-    const card = wa.closest("[data-intake-link-delivery-method]") as HTMLElement;
+    expect(input, `${channel.value} is not rendered`).toBeTruthy();
+    expect(input.disabled).toBe(true);
+    const card = input.closest("[data-intake-link-delivery-method]") as HTMLElement;
     expect(card.textContent).toMatch(/not configured/i);
   });
 
@@ -1414,7 +1440,7 @@ describe("every step mounts canonical controls only", () => {
     assertCanonicalControls(dialog());
     await clickNext();
     // Every channel variant, including the ones with a conditional field.
-    for (const channel of ["SMS", "EMAIL", "WHATSAPP", "MANUAL"]) {
+    for (const channel of CHANNEL_VALUES) {
       await chooseChannel(channel);
       assertCanonicalControls(dialog());
     }
@@ -1440,7 +1466,7 @@ describe("every step mounts canonical controls only", () => {
     assertCanonicalControls(dialog());
     // Every sending channel is disabled; copy-link remains available and is
     // the default, so the wizard is never a dead end.
-    for (const c of ["SMS", "EMAIL", "WHATSAPP"]) {
+    for (const c of SENDING_CHANNELS.map((x) => x.value)) {
       expect(
         (
           document.querySelector(
@@ -1459,19 +1485,22 @@ describe("every step mounts canonical controls only", () => {
     expect(step()).toBe("review");
   });
 
-  for (const only of ["sms", "email", "whatsapp"] as const) {
-    it(`only ${only} configured leaves exactly that channel and copy-link open`, async () => {
-      transport = {
-        email: { configured: only === "email" },
-        sms: {
-          configured: only === "sms",
-          fromNumberPreview: "+1 ••• ••• 8084",
-        },
-        whatsapp: {
-          configured: only === "whatsapp",
-          fromNumberPreview: "+1 ••• ••• 8084",
-        },
-      };
+  /* One case per sending channel the catalog offers, so the "only this one is
+     configured" branch is covered for whatever the wizard can actually send
+     on — and stops asserting about a provider it no longer offers. */
+  for (const only of SENDING_CHANNELS) {
+    it(`only ${only.transportKey} configured leaves exactly that channel and copy-link open`, async () => {
+      transport = Object.fromEntries(
+        SENDING_CHANNELS.map((c) => [
+          c.transportKey!,
+          {
+            configured: c.transportKey === only.transportKey,
+            ...(c.requires === "phone"
+              ? { fromNumberPreview: "+1 ••• ••• 8084" }
+              : {}),
+          },
+        ]),
+      ) as Transport;
       await openWizard();
       await clickNext();
       const enabled = (c: string) =>
@@ -1480,18 +1509,16 @@ describe("every step mounts canonical controls only", () => {
             `[data-intake-link-delivery-method-input="${c}"]`,
           ) as HTMLInputElement
         ).disabled;
-      expect(enabled(only.toUpperCase())).toBe(true);
+      expect(enabled(only.value)).toBe(true);
       expect(enabled("MANUAL")).toBe(true);
-      for (const other of ["SMS", "EMAIL", "WHATSAPP"].filter(
-        (c) => c !== only.toUpperCase(),
-      )) {
-        expect(enabled(other)).toBe(false);
+      for (const other of SENDING_CHANNELS.filter((c) => c.value !== only.value)) {
+        expect(enabled(other.value), `${other.value} should be closed`).toBe(false);
       }
       // The configured channel is the one the wizard defaults to.
       expect(
         (
           document.querySelector(
-            `[data-intake-link-delivery-method-input="${only.toUpperCase()}"]`,
+            `[data-intake-link-delivery-method-input="${only.value}"]`,
           ) as HTMLInputElement
         ).checked,
       ).toBe(true);
@@ -1672,24 +1699,18 @@ describe("wizard label hierarchy, in every branch", () => {
     });
   }
 
-  for (const channel of ["MANUAL", "SMS", "EMAIL", "WHATSAPP"] as const) {
-    it(`channel ${channel} shows exactly its own recipient label`, async () => {
+  for (const channel of DELIVERY_CHANNELS) {
+    it(`channel ${channel.value} shows exactly its own recipient label`, async () => {
       const dialog = await openWizard();
       await clickNext();
-      await chooseChannel(channel);
-      assertLabelAuthority(dialog, `channel ${channel}`);
+      await chooseChannel(channel.value);
+      assertLabelAuthority(dialog, `channel ${channel.value}`);
       const texts = labelTexts(dialog);
       expect(texts).toContain("Recipient label");
-      if (channel === "EMAIL") {
-        expect(texts).toContain("Recipient email");
-        expect(texts).not.toContain("Recipient phone");
-      } else if (channel === "SMS" || channel === "WHATSAPP") {
-        expect(texts).toContain("Recipient phone");
-        expect(texts).not.toContain("Recipient email");
-      } else {
-        expect(texts).not.toContain("Recipient email");
-        expect(texts).not.toContain("Recipient phone");
-      }
+      // The catalog says which recipient field the channel needs; the labels
+      // must say exactly that and nothing else.
+      expect(texts.includes("Recipient email")).toBe(channel.requires === "email");
+      expect(texts.includes("Recipient phone")).toBe(channel.requires === "phone");
     });
   }
 
@@ -1744,19 +1765,25 @@ describe("wizard label hierarchy, in every branch", () => {
   });
 
   it("an unconfigured provider disables the CONTROL, never the label", async () => {
-    transport = {
-      email: { configured: true, fromName: "PROOVRA" },
-      sms: { configured: false, fromNumberPreview: null },
-      whatsapp: { configured: false, fromNumberPreview: null },
-    };
+    // Every sending channel closed except the first, so there is always at
+    // least one disabled control to read and the wizard still has a default.
+    const [open, ...closed] = SENDING_CHANNELS;
+    expect(closed.length, "no channel left to close").toBeGreaterThan(0);
+    transport = Object.fromEntries([
+      [open!.transportKey!, { configured: true, fromName: "PROOVRA" }],
+      ...closed.map((c) => [
+        c.transportKey!,
+        { configured: false, fromNumberPreview: null },
+      ]),
+    ]) as Transport;
     const dialog = await openWizard();
     await clickNext();
     assertLabelAuthority(dialog, "unconfigured providers");
-    for (const value of ["SMS", "WHATSAPP"]) {
+    for (const c of closed) {
       const input = document.querySelector(
-        `[data-intake-link-delivery-method-input="${value}"]`,
+        `[data-intake-link-delivery-method-input="${c.value}"]`,
       ) as HTMLInputElement;
-      expect(input.disabled, `${value} should be unavailable`).toBe(true);
+      expect(input.disabled, `${c.value} should be unavailable`).toBe(true);
       // The card is still a canonical choice label, and it says WHY.
       const card = input.closest("label") as HTMLElement;
       expect(card.classList.contains("ilk-choice")).toBe(true);

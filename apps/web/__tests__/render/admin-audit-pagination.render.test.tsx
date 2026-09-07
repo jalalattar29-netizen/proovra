@@ -122,7 +122,9 @@ function auditRow(n: number) {
     resourceType: "user",
     resourceId: `user-${n}`,
     requestId: `req-${n}`,
-    metadata: { detail: `metadata-payload-${n}` },
+    /* One allowlisted key and one that is not — the panel must show the
+       first and count the second. */
+    metadata: { correlationId: `corr-${n}`, detail: `metadata-payload-${n}` },
     ipAddress: null,
     createdAt: new Date(T0 - n * 60_000).toISOString(),
     anchoredAt: null,
@@ -246,8 +248,23 @@ describe("/admin/audit — server-paged log", () => {
 
   it("a row's long tail is disclosed per row, not printed on every entry", async () => {
     await mount();
-    // Collapsed: the metadata payload is not in the document.
-    expect(screen.queryByText(/metadata-payload-3/)).toBeNull();
+    /*
+     * WHAT "THE LONG TAIL" IS, SINCE PHASE 5 §12.
+     *
+     * This used to assert that the raw metadata payload appeared in the open
+     * row — the fixture writes `metadata: { detail: "metadata-payload-N" }`
+     * and the panel rendered `JSON.stringify(entry.metadata)`. That dump is
+     * gone on purpose: metadata is free-form, written from 232 call sites, and
+     * `presentMetadata` now renders only the allowlisted correlation/context
+     * keys and COUNTS the rest. So `detail` is withheld by design, and the
+     * assertion was pinning behaviour the product deliberately removed.
+     *
+     * The disclosure property is unchanged and is what is checked here: the
+     * row's identifiers and its recognised context appear only after its own
+     * Details toggle is pressed, and only for that row. The allowlist itself
+     * is exercised in the case below, from both sides.
+     */
+    expect(screen.queryByText("req-3")).toBeNull();
 
     const toggle = document.querySelector('[data-admin-audit-details-toggle="aa-003"]') as HTMLElement;
     expect(toggle).toBeTruthy();
@@ -256,15 +273,36 @@ describe("/admin/audit — server-paged log", () => {
 
     const details = document.querySelector('[data-admin-audit-details="aa-003"]') as HTMLElement;
     expect(details).toBeTruthy();
-    expect(details.textContent).toContain("metadata-payload-3");
     expect(within(details).getByText("req-3")).toBeTruthy();
+    expect(details.textContent).toContain("user-3");
 
     // Only the opened row disclosed anything.
     expect(document.querySelectorAll("[data-admin-audit-details]")).toHaveLength(1);
 
     fireEvent.click(toggle);
     await settle();
-    expect(screen.queryByText(/metadata-payload-3/)).toBeNull();
+    expect(document.querySelector('[data-admin-audit-details="aa-003"]')).toBeNull();
+  });
+
+  it("metadata is allowlisted: recognised keys are shown, the rest are counted", async () => {
+    /*
+     * BOTH SIDES OF PHASE 5 §12, ON ONE ROW.
+     *
+     * `correlationId` is on the allowlist and must reach the screen under its
+     * label; `detail` is not, and must not — but it must be COUNTED, because
+     * silently dropping it would hide from an operator that the row carries
+     * more than the panel shows.
+     */
+    await mount();
+    const toggle = document.querySelector('[data-admin-audit-details-toggle="aa-003"]') as HTMLElement;
+    fireEvent.click(toggle);
+    await settle();
+
+    const details = document.querySelector('[data-admin-audit-details="aa-003"]') as HTMLElement;
+    expect(details.textContent).toContain("Correlation ID");
+    expect(details.textContent).toContain("corr-3");
+    expect(details.textContent).not.toContain("metadata-payload-3");
+    expect(details.textContent).toMatch(/1 further field is recorded/);
   });
 
   it("keeps the export and verify actions", async () => {
