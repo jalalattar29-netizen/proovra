@@ -1210,6 +1210,47 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // this allowlist is about. Permitted by exact name, like every entry
       // above, so the allowlist never becomes a pattern.
       "20280120000000_break_glass_single_active_grant",
+      // INTAKE CUSTOMER ID (2026-08-19) — expand-only: a nullable
+      // `customer_id` on `workflow_intake_links` and its snapshot on
+      // `evidence`, each with one index. It touches those two tables alone. No
+      // `security_events` column, index, enum or mapping is altered by it,
+      // which is what this allowlist is about.
+      "20280125000000_intake_customer_id",
+      // INTAKE IDENTITY SEARCH (2026-08-20) — expand-only: a derived
+      // `recipient_phone_e164` column on `workflow_intake_links`, two
+      // backfills over that same table and two indexes on it, so an operator
+      // can find a request by the identifier they hold. It touches
+      // `workflow_intake_links` alone. No `security_events` column, index,
+      // enum or mapping is altered by it, which is what this allowlist is
+      // about.
+      "20280210000000_intake_identity_search",
+      // ADMIN AUDIT IDENTITY CONTRACT (2026-08-21) — expand-only: actor
+      // identity columns on `admin_audit_logs` plus one index. `security_events`
+      // and `admin_audit_logs` are different tables with different writers;
+      // no `security_events` column, index, enum or mapping is altered by it,
+      // which is what this allowlist is about.
+      "20280215000000_admin_audit_identity_contract",
+      // EVIDENCE CREDIT ADMIN GRANT (2026-08-31) — one enum value
+      // (`EvidenceCreditEntryType.ADMIN_GRANT`), a nullable grant reference on
+      // `evidence_credit_ledger_entries` and one unique index making a grant
+      // reference idempotent. It touches that ledger alone. No
+      // `security_events` column, index, enum or mapping is altered by it,
+      // which is what this allowlist is about.
+      "20280301000000_evidence_credit_admin_grant",
+      // SEARCH PROJECTION VERSION (2026-09-01) — one column on
+      // `evidence_search_documents` recording which projection version wrote a
+      // row, so a projection change can re-index the documents it invalidates
+      // instead of stranding them. It touches that table alone. No
+      // `security_events` column, index, enum or mapping is altered by it,
+      // which is what this allowlist is about.
+      "20280401000000_search_projection_version",
+      // WORKSPACE INVITE LIFECYCLE HARDENING (2026-09-06) — the invitation
+      // token stops being stored in plaintext: a `token_hash` column on
+      // `team_invites`, backfilled and then made NOT NULL, with the plaintext
+      // column relaxed to nullable behind it. It touches `team_invites` alone.
+      // No `security_events` column, index, enum or mapping is altered by it,
+      // which is what this allowlist is about.
+      "20280501000000_workspace_invite_lifecycle_hardening",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

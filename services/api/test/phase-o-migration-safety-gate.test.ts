@@ -67,7 +67,12 @@ type AuditModule = {
   stripSqlComments: (src: string) => string;
   camelToSnake: (s: string) => string;
   parseMigrationName: (name: string) => { timestamp: string | null; slug: string };
-  detectFindings: (sql: string) => {
+  detectFindings: (
+    sql: string,
+    /* Columns created by EARLIER migrations in the chain. Optional: a caller
+       inspecting one migration in isolation keeps the original behaviour. */
+    priorColumnsByTable?: Map<string, Set<string>>,
+  ) => {
     findings: Array<{ kind: string; risk: string; lineHint?: number; detail: string }>;
     columnsAddedByTable: Map<string, Set<string>>;
   };
@@ -683,7 +688,20 @@ describe("Phase O — CI gate on post-baseline migrations", () => {
     const root = REPO_ROOT + MIGRATIONS_DIR;
     const dirs = readdirSync(root, { withFileTypes: true })
       .filter((d) => d.isDirectory())
-      .map((d) => d.name);
+      .map((d) => d.name)
+      /*
+       * IN CHAIN ORDER, CARRYING WHAT EARLIER MIGRATIONS CREATED.
+       *
+       * The walk used to be `readdirSync` order with each migration inspected
+       * alone, so the CREATE INDEX rule could only ask "did THIS migration add
+       * the column". A composite index on `(team_id, <new column>)` — the
+       * tenant column every read is bounded by, created years earlier — was
+       * therefore reported as the "column does not exist" failure class, twice
+       * over, on two migrations whose indexes are correct. Sorted and
+       * accumulated, the rule can ask whether the column was EVER created,
+       * which is the question it means to ask.
+       */
+      .sort();
 
     const violations: Array<{
       migration: string;
@@ -691,24 +709,41 @@ describe("Phase O — CI gate on post-baseline migrations", () => {
       kinds: string[];
     }> = [];
 
+    const priorColumnsByTable = new Map<string, Set<string>>();
+
     for (const name of dirs) {
       const { timestamp } = parseMigrationName(name);
       if (!timestamp) continue;
-      if (timestamp <= BASELINE_TIMESTAMP) continue;
       const sqlPath = `${root}/${name}/migration.sql`;
       if (!existsSync(sqlPath)) continue;
       const sql = readFileSync(sqlPath, "utf8");
-      const { findings } = detectFindings(sql);
-      const approved = APPROVED_CRITICAL_BY_MIGRATION[name] ?? new Set();
-      const crit = findings.filter(
-        (f) => f.risk === "CRITICAL" && !approved.has(f.kind),
+      const { findings, columnsAddedByTable } = detectFindings(
+        sql,
+        priorColumnsByTable,
       );
-      if (crit.length > 0) {
-        violations.push({
-          migration: name,
-          criticalCount: crit.length,
-          kinds: [...new Set(crit.map((f) => f.kind))],
-        });
+
+      if (timestamp > BASELINE_TIMESTAMP) {
+        const approved = APPROVED_CRITICAL_BY_MIGRATION[name] ?? new Set();
+        const crit = findings.filter(
+          (f) => f.risk === "CRITICAL" && !approved.has(f.kind),
+        );
+        if (crit.length > 0) {
+          violations.push({
+            migration: name,
+            criticalCount: crit.length,
+            kinds: [...new Set(crit.map((f) => f.kind))],
+          });
+        }
+      }
+
+      // Every migration contributes, baseline ones included: the column an
+      // index leans on is usually far older than the baseline.
+      for (const [table, cols] of columnsAddedByTable) {
+        if (!priorColumnsByTable.has(table)) {
+          priorColumnsByTable.set(table, new Set());
+        }
+        const acc = priorColumnsByTable.get(table)!;
+        for (const c of cols) acc.add(c);
       }
     }
 

@@ -102,7 +102,23 @@ const RISK = Object.freeze({
  * mentioning a pattern do not false-positive while match indices
  * remain aligned to the raw source for contextual checks.
  */
-export function detectFindings(sql) {
+/**
+ * @param {string} sql the migration under inspection
+ * @param {Map<string, Set<string>>} [priorColumnsByTable] columns created by
+ *   EARLIER migrations in the chain. Optional, and absent by default, so every
+ *   existing single-argument caller keeps exactly today's behaviour.
+ *
+ *   WHY IT EXISTS. The CREATE INDEX rule asks whether an indexed column was
+ *   added by THIS migration, and treats anything else as the
+ *   "mentioned_user_id does not exist" failure class. That is the right
+ *   question with only one migration in hand and the wrong one with a chain:
+ *   a composite index on `(team_id, customer_id)` — the tenant column every
+ *   read is bounded by, created years earlier, plus the column this migration
+ *   adds — was reported CRITICAL twice over, for a column that demonstrably
+ *   exists. Given the chain, "was it ever created" is answerable, and that is
+ *   the question the rule means to ask.
+ */
+export function detectFindings(sql, priorColumnsByTable) {
   const findings = [];
   const masked = maskSqlComments(sql);
   const lines = masked.split("\n");
@@ -229,7 +245,10 @@ export function detectFindings(sql) {
       .map((c) => c.replace(/\(.*$/, "")) // strip expression args like `lower(col)`
       .filter((c) => /^[A-Za-z_]\w*$/.test(c));
     const added = columnsAddedByTable.get(table) ?? new Set();
-    const missing = cols.filter((c) => !added.has(c) && !ALWAYS_PRESENT.has(c));
+    const prior = priorColumnsByTable?.get(table) ?? new Set();
+    const missing = cols.filter(
+      (c) => !added.has(c) && !prior.has(c) && !ALWAYS_PRESENT.has(c),
+    );
     if (missing.length > 0) {
       // Check whether the migration verifies the column existence via
       // information_schema in a DO block (the Phase O-Final defense).
