@@ -768,10 +768,14 @@ describe("Trust residue — packaging entitlement grant", () => {
       method: "POST",
       url: "/v1/packaging/entitlements/grant",
       headers: json,
-      payload: { key: "QUOTA_AI_OPERATIONS_PER_MONTH", kind: "QUOTA", value: 25, productLine: "ENTERPRISE" },
+      // PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — was
+      // QUOTA_AI_OPERATIONS_PER_MONTH, retired as a duplicate commercial
+      // authority. The behaviour under test is numeric pass-through, so any
+      // surviving QUOTA key exercises it; this one the engine still owns.
+      payload: { key: "QUOTA_EXPORT_PACKAGES_PER_MONTH", kind: "QUOTA", value: 25, productLine: "ENTERPRISE" },
     });
     expect(res.statusCode).toBe(201);
-    expect(H.writes).toEqual(["upsertEntitlementGrant:QUOTA:QUOTA_AI_OPERATIONS_PER_MONTH:25"]);
+    expect(H.writes).toEqual(["upsertEntitlementGrant:QUOTA:QUOTA_EXPORT_PACKAGES_PER_MONTH:25"]);
   });
 
   it("ORG_ADMIN is required — a lesser tier grants NOTHING", async () => {

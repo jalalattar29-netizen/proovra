@@ -303,6 +303,12 @@ describe("1. Shared closure contracts — bounded enums", () => {
       "QUOTA_USERS",
       "QUOTA_WORKSPACES",
       "QUOTA_REVIEWER_SEATS",
+      // PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — four more, each
+      // a second answer to a question PLAN_CAPABILITIES already owns.
+      "FEATURE_EXTERNAL_PORTAL",
+      "FEATURE_INTELLIGENCE",
+      "FEATURE_REVIEWER_WORKSPACE",
+      "QUOTA_AI_OPERATIONS_PER_MONTH",
     ];
     for (const key of RETIRED) {
       expect(
@@ -318,7 +324,7 @@ describe("1. Shared closure contracts — bounded enums", () => {
         /^(FEATURE_|QUOTA_|RETENTION_|LEGAL_HOLD_|INTEGRATION_)/,
       );
     }
-    expect(ENTITLEMENT_KEYS.length).toBe(24);
+    expect(ENTITLEMENT_KEYS.length).toBe(20);
   });
 
   it("EXCHANGE_PACKAGE_KINDS has exactly 9 entries", () => {
@@ -557,14 +563,42 @@ describe("4. Entitlement enforcement", () => {
     }
   });
 
-  it("FEATURE_REVIEWER_WORKSPACE=true (default) → ok", async () => {
-    const prisma = makePrismaStub();
-    const result = await assertFeatureEntitlement({
-      prisma: prisma as never,
-      teamId: "team-1",
-      key: "FEATURE_REVIEWER_WORKSPACE",
-    });
-    expect(result.ok).toBe(true);
+  /*
+   * PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — this test used to
+   * assert that `FEATURE_REVIEWER_WORKSPACE` defaulted to TRUE, which was a
+   * faithful pin on a real defect: the packaging engine granted the reviewer
+   * workspace to EVERY plan including FREE, while
+   * `PlanCapabilities.reviewerOperationsIncluded` reserves it for TEAM and
+   * above. The key is retired; the pin now guards the retirement.
+   *
+   * A permissive default is the same defect class as a restrictive one. It is
+   * easier to miss because nobody files a ticket about a capability they were
+   * given for free.
+   */
+  it("the retired commercial keys have no row left in the engine", () => {
+    const src = fs.readFileSync(
+      path.resolve(
+        __dirname,
+        "../src/services/packaging/entitlement.service.ts",
+      ),
+      "utf8",
+    );
+    const rows = src
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => !l.startsWith("//"));
+    for (const key of [
+      "FEATURE_EXTERNAL_PORTAL",
+      "FEATURE_INTELLIGENCE",
+      "FEATURE_REVIEWER_WORKSPACE",
+      "QUOTA_AI_OPERATIONS_PER_MONTH",
+    ]) {
+      const hit = rows.find((l) => l.startsWith(`${key}:`));
+      expect(
+        hit,
+        `${key} must have no DEFAULT_ENTITLEMENTS or PLAN_LINE_ENTITLEMENTS row`,
+      ).toBeUndefined();
+    }
   });
 
   it("assertQuotaEntitlement consumed=5+limit=5+requested=1 → QUOTA_EXCEEDED", async () => {

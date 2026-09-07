@@ -188,7 +188,12 @@ describe("Phase B0 — organization governance write surfaces", () => {
       'app.get(\n    "/v1/orgs/:id/billing/rollup"',
     );
     expect(registerIdx).toBeGreaterThan(0);
-    const handlerSlice = GOV_ROUTES.slice(registerIdx, registerIdx + 3_500);
+    // PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — the window grew
+    // with the handler (it now resolves the org contract once before the
+    // rollup loop). Widening it makes the `not.toMatch` below scan MORE
+    // source, so the payment-instrument guard is strictly stronger, not
+    // weaker; only the `toContain` needed the extra room.
+    const handlerSlice = GOV_ROUTES.slice(registerIdx, registerIdx + 4_500);
     expect(handlerSlice).not.toMatch(
       /stripeSubscriptionId|stripeCustomerId|cardLast4/,
     );

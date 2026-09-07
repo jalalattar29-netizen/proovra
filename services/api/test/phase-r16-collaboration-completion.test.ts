@@ -787,8 +787,14 @@ describe("Phase 12 Point 4 — guest invitation is server-enforced", () => {
   // do. Both are worse than the flag's absence.
   //
   // External access has a real commercial gate now — the canonical
-  // `FEATURE_EXTERNAL_PORTAL` entitlement, resolved server-side per workspace
-  // on the route that issues the grant.
+  // commercial authority `workspaceIncludesExternalReview`, resolved
+  // server-side per WORKSPACE on the route that issues the grant.
+  //
+  // PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — it was
+  // `FEATURE_EXTERNAL_PORTAL` in the packaging engine, which no purchase path
+  // ever granted, so the gate refused every paying customer. The requirement
+  // pinned here is unchanged: a real server-side gate, and NOT a plan-name
+  // comparison written at the route.
   it("the misleading guest projection is gone, and external access is entitlement-gated", () => {
     const ctx = read(
       "services/api/src/services/platform-context/platform-context.service.ts",
@@ -800,8 +806,7 @@ describe("Phase 12 Point 4 — guest invitation is server-enforced", () => {
     const externalReview = read(
       "services/api/src/routes/external-review.routes.ts",
     );
-    expect(externalReview).toContain("FEATURE_EXTERNAL_PORTAL");
-    expect(externalReview).toContain("assertFeatureEntitlement");
+    expect(externalReview).toContain("workspaceIncludesExternalReview");
     // Not a plan-name check pretending to be an entitlement.
     expect(codeOnly(externalReview)).not.toMatch(
       /plan\s*===\s*"(PRO|TEAM|FREE|ENTERPRISE)"/,

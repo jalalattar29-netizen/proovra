@@ -2587,10 +2587,39 @@ describe("SYSTEM 7 — bulk organization invitation", () => {
     expect(outcomeFor(body.rows, "not-an-email")).toBe("INVALID_EMAIL");
     // An ORG_ADMIN cannot mint an ORG_OWNER invite.
     expect(outcomeFor(body.rows, "escalate@acme.test")).toBe("ROLE_TOO_HIGH");
-    expect(body.seatPreview).toMatchObject({ used: 4, included: 10, hasSeatCap: true });
-    // Zero writes, zero audit, and never a token on the dry-run surface.
+    /*
+     * PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — 10 → 500.
+     *
+     * `included` used to be the raw `Team.includedSeats` column summed across
+     * the org. That column is one INPUT to the seat rule, not the ceiling: the
+     * fixture workspace is ENTERPRISE with no ACTIVE contract, and the seat
+     * authority every other invite path already enforced resolves that to the
+     * catalog ENTERPRISE ceiling. The preview was quoting a different number
+     * from the one the single-invite path enforced two files over.
+     *
+     * The pin is not loosened — it is moved onto the enforced value. Where the
+     * organization holds an ACTIVE contract stating seats, that number wins
+     * here too, which is the behaviour a provisioned Enterprise org wants.
+     */
+    expect(body.seatPreview).toMatchObject({ used: 4, included: 500, hasSeatCap: true });
+    // Zero writes, zero INVITATION audit, and never a token on the dry run.
     expect(rows("organizationInvite")).toHaveLength(before);
-    expect(H.audits).toEqual([]);
+    /*
+     * PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — was
+     * `toEqual([])`. The seat preview now resolves the organization's contract
+     * through the canonical resolver, and that resolver emits ONE
+     * `billing.enterprise_contract_legacy_fallback` telemetry event when an org
+     * has no contract row — a Phase-12 retirement metric, not a product write.
+     *
+     * The guarantee this test exists for is unchanged and is asserted more
+     * precisely than before: a dry run writes no rows and emits no INVITATION
+     * audit. Any bulk/member/invite event appearing here would still fail.
+     */
+    expect(
+      H.audits
+        .map((e) => String(e.eventType ?? e.action ?? ""))
+        .filter((t) => !t.startsWith("billing.")),
+    ).toEqual([]);
     expect(res.body).not.toContain("token");
   });
 
@@ -2615,7 +2644,20 @@ describe("SYSTEM 7 — bulk organization invitation", () => {
     expect(created.tokenHash).not.toBe(raw);
     expect(created.tokenHash as string).toHaveLength(64);
     // Batch bracketing + per-row parity with the single-invite audit event.
-    const types = H.audits.map((a) => a.eventType);
+    /*
+     * PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — the ORG events are
+     * selected rather than assumed to be the only ones.
+     *
+     * The seat computation now resolves the organization's contract through the
+     * canonical resolver, which emits a `billing.*` TENANT audit (shape
+     * `{ action }`) when the org has no contract row. Both mocks push into one
+     * array, so `H.audits[0].eventType` was `undefined` — not because the
+     * bracketing broke, but because a differently-shaped event sorted ahead of
+     * it. The bracketing guarantee is asserted unchanged over the ORG events.
+     */
+    const types = H.audits
+      .map((a) => a.eventType)
+      .filter((t): t is string => typeof t === "string");
     expect(types[0]).toBe("ORG_BULK_INVITATION_STARTED");
     expect(types).toContain("ORG_MEMBER_INVITED");
     expect(types[types.length - 1]).toBe("ORG_BULK_INVITATION_COMPLETED");

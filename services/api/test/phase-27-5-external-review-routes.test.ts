@@ -218,9 +218,16 @@ describe("Phase 27.5/28.5 — external-review.routes.ts source contract", () => 
     expect(issueRoute).toMatch(
       /reply\.code\(201\)\.send\(\{\s*grant:\s*result\.grant,\s*rawToken:\s*result\.rawToken/,
     );
-    // The gate that widened this window: the canonical entitlement, not a
-    // plan-name check, and BEFORE the mutation.
-    const gateIdx = issueRoute.indexOf("FEATURE_EXTERNAL_PORTAL");
+    // The gate that widened this window: the canonical COMMERCIAL authority
+    // (the workspace's purchased plan), not a plan-name check written here,
+    // and BEFORE the mutation.
+    //
+    // PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — this used to pin
+    // `FEATURE_EXTERNAL_PORTAL`, the packaging-engine key. The key is retired
+    // (no purchase path ever granted it), and the pin moves to the function
+    // that replaced it rather than being deleted: the ORDERING guarantee is
+    // the part that matters and it is unchanged.
+    const gateIdx = issueRoute.indexOf("workspaceIncludesExternalReview(");
     const issueIdx2 = issueRoute.indexOf("issueExternalReviewGrant(");
     expect(gateIdx).toBeGreaterThan(-1);
     expect(issueIdx2).toBeGreaterThan(gateIdx);
