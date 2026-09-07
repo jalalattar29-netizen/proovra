@@ -435,6 +435,21 @@ const CODE_MAP: Record<
     message: "Select a workspace, then try this action again.",
     severity: "info",
   },
+  /**
+   * NOT "this workspace is full" — that is a different fact.
+   *
+   * Seats are allocated under an advisory lock, so simultaneous acceptances
+   * serialise instead of over-allocating. This is what the loser of that
+   * contention sees, and the invitation is untouched and still acceptable. The
+   * copy has to invite a retry rather than send somebody to an admin for a
+   * seat they may not need.
+   */
+  WORKSPACE_SEAT_CONTENTION: {
+    title: "Too many people are joining at once",
+    message:
+      "Your invitation is still valid. Try accepting it again in a moment.",
+    severity: "warning",
+  },
   WORKSPACE_MEMBERSHIP_REQUIRED: {
     title: "You're not a member of this workspace",
     message:

@@ -138,6 +138,11 @@ const EXPECTED_CONSUMERS = [
   // same label as every internal form rather than a local imitation.
   "app/intake/[token]/page.tsx",
   "components/cases-experience/matter-modals/StatusChangeModal.tsx",
+  // Team responsibility on Case and Evidence detail. Its assign/edit dialog
+  // labels team, assignee, priority, due and note with the canonical field
+  // label, so the record-side form reads as the same form as the group's own
+  // — which is the point of there being one writer behind both.
+  "components/collaboration/TeamResponsibilityPanel.tsx",
   "components/search/SearchAuditLogPanel.tsx",
 ];
 

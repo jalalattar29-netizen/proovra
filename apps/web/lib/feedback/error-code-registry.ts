@@ -123,6 +123,21 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   CASE_RENAME_DENIED: { disposition: "customer", where: "global" },
   WORKSPACE_MEMBERSHIP_REQUIRED: { disposition: "customer", where: "global" },
   WORKSPACE_CONTEXT_REQUIRED: { disposition: "customer", where: "global" },
+  /**
+   * CUSTOMER-FACING, and deliberately not a capacity refusal.
+   *
+   * Workspace seats are allocated under an advisory lock shared by the two
+   * acceptance paths, so simultaneous acceptances serialise rather than
+   * over-allocating. This is what the loser of that contention sees after the
+   * bounded retry: the invitation is UNTOUCHED and still acceptable, and the
+   * workspace may well have room.
+   *
+   * It needs its own words for exactly that reason. Falling back to the 409
+   * bucket would read as "this workspace is full", which is a different fact
+   * and one the recipient would act on by asking an admin for a seat they do
+   * not need.
+   */
+  WORKSPACE_SEAT_CONTENTION: { disposition: "customer", where: "global" },
   WORKSPACE_CREATION_NOT_SELF_SERVICE: {
     disposition: "customer",
     where: "global",
