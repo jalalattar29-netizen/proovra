@@ -222,7 +222,10 @@ import {
 } from "../services/ai/ai-usage-ledger.service.js";
 import { AI_LEGAL_DISCLAIMER } from "../services/ai/ai-policy.js";
 import { AiTask } from "../services/ai/ai-types.js";
-import { evaluateWorkspaceAiPolicy } from "../services/ai/workspace-ai-policy.service.js";
+import {
+  evaluateWorkspaceAiPolicy,
+  isOperatorCapabilityGap,
+} from "../services/ai/workspace-ai-policy.service.js";
 import { sanitizeUntrustedField } from "../services/ai/prompt-context-sanitizer.service.js";
 import { enforceAiEndpointGuard } from "../services/ai/ai-rate-limit.service.js";
 import {
@@ -8125,12 +8128,35 @@ return {
       // Phase A2 — canonical workspace AI policy gate (fail-closed). A
       // workspace master/feature disable blocks the categorization provider
       // call here, in the backend, before any AI runs.
+      //
+      // A DENIAL BY THE WORKSPACE IS NOT THE SAME EVENT AS A PLATFORM THAT
+      // HAS NO AI CONFIGURED, and this call site used to answer both with
+      // 403 AI_WORKSPACE_POLICY_DENIED. That was wrong twice over:
+      //
+      //   * it told the caller their WORKSPACE had refused, when in fact
+      //     the operator had never switched AI on — the distinction this
+      //     module named `isOperatorCapabilityGap` for, and which the chat
+      //     route and the availability endpoint already honour;
+      //   * it made this route's own `DISABLED` outcome unreachable. The
+      //     handler below persists `EvidenceAiCategorizationStatus.DISABLED`
+      //     when the provider reports `disabled`, and the ONLY way the
+      //     provider reports that is the very configuration this gate was
+      //     intercepting. A first-class enum value no code path could
+      //     produce.
+      //
+      // Falling through on an operator gap sends nothing outbound, and does
+      // not depend on this gate for that: `createAiProvider` returns
+      // `NoopAiProvider` under exactly these two conditions
+      // (OPENAI_AI_ENABLED !== "true", or no key), so the provider layer is
+      // independently fail-closed and the request is answered 200/DISABLED
+      // without a call. The gate keeps its teeth where they mean something:
+      // a workspace opt-out, a feature switch, a role, a plan, a data class.
       const catPolicy = await evaluateWorkspaceAiPolicy({
         teamId: evidence.teamId ?? null,
         feature: "EVIDENCE_CATEGORIZATION",
         dataClass: "METADATA",
       });
-      if (!catPolicy.allowed) {
+      if (!catPolicy.allowed && !isOperatorCapabilityGap(catPolicy.decision)) {
         return reply.code(403).send({
           code: "AI_WORKSPACE_POLICY_DENIED",
           message: catPolicy.reason,
