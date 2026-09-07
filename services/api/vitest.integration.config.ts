@@ -141,6 +141,38 @@ export default defineConfig({
       // The local recording email provider's mailbox for this run.
       EMAIL_RECORDER_FILE:
         process.env.EMAIL_RECORDER_FILE ?? "../../.p7tmp/recorded-emails.jsonl",
+      // NO RANDOMLY-TIMED IN-PROCESS SWEEPER MAY WRITE TO A PRODUCT TABLE
+      // WHILE A SUITE IS MEASURING ONE.
+      //
+      // `server.ts` schedules three background sweeps at boot, each behind a
+      // jittered `setTimeout`: the Operations reconciler at
+      // `45000 + random(0..30000)` ms, the billing add-on retry at
+      // `30000 + jitter` and then every 60s, and the billing reconciler at
+      // `120000 + jitter`. Every integration suite that boots the app inherits
+      // them, and the Operations one calls `recordIncident` for EVERY
+      // workspace — an INSERT into `operational_incidents` from a timer that
+      // no test awaits, into the database every other suite shares.
+      //
+      // MEASURED, not suspected. `operations-production-signature` applies a
+      // fixture that backfills the legacy `"safeSummary"` column and then runs
+      // `ALTER COLUMN "safeSummary" SET NOT NULL`; the two statements are not
+      // one transaction, so a row inserted between them has a NULL legacy
+      // twin and the ALTER fails `23502 … contains null values`. Three full
+      // runs of the same tree:
+      //
+      //   file 87,591ms · sweep due at ~+59s  → failed in the 10th case
+      //   file 66,750ms · sweep due at +58,968ms → failed in the 13th case
+      //   file 34,490ms · sweep due at +58,761ms → PASSED (the file ended first)
+      //
+      // A different case each time, and a pass whenever the file finished
+      // before the timer — which is the signature of a background writer, not
+      // of a defect in any of those cases. The sweeps themselves are proven by
+      // the suites that CALL them (`workspace-operations-reconciliation`
+      // invokes `runWorkspaceOperationsSweep` directly and awaits it), so
+      // nothing is left unproven by not also letting them fire on a timer.
+      OPERATIONS_RECONCILER_ENABLED: "false",
+      BILLING_ADDON_RETRY_ENABLED: "false",
+      BILLING_RECONCILER_ENABLED: "false",
       // Non-production, test-only signing secret for harness-minted tokens.
       // Never a real key: the harness only needs a syntactically valid HS256
       // secret to exercise the authenticated request pipeline.

@@ -22,6 +22,14 @@ on:
 jobs:
   e2e:
     runs-on: ubuntu-latest
+    # A JOB THAT CANNOT FINISH CANNOT BE READ.
+    #
+    # Unbounded, this job ran to the platform ceiling — about five hours —
+    # on every one of its 460 historical runs, and reported nothing but the
+    # ceiling. A healthy run of the 254 critical-flow tests plus install,
+    # build, migrate and browser download is minutes; 60 leaves generous
+    # room and still fails FAST enough to be diagnosed on the same day.
+    timeout-minutes: 60
 
     services:
       postgres:
@@ -107,6 +115,24 @@ jobs:
       VERIFY_RATE_LIMIT_PER_EVIDENCE_MAX: "60"
       VERIFY_RATE_LIMIT_PER_EVIDENCE_WINDOW_SEC: "60"
       PUBLIC_VERIFY_EXPOSE_ATTRIBUTION: "false"
+
+      # THE TEST-ONLY RATE-LIMIT BYPASS, WHICH THIS JOB NEVER SET.
+      #
+      # Guest authentication is limited to 5 requests per minute per IP. This
+      # suite creates a guest session in most of its 254 tests, from one IP, so
+      # without the bypass the limiter is the thing under test in every spec
+      # after the first few — and `e2e/helpers/api-client.ts` has been sending
+      # the `X-E2E-Auth-Bypass` header all along, against an API whose own
+      # secret was unset, which makes the header inert.
+      #
+      # This is the documented test-only value that ships in
+      # `.env.audit-local.example`, and it weakens nothing: the API refuses to
+      # honour the bypass at all when `NODE_ENV === "production"`, requires a
+      # 32-character secret, and the limiter's behaviour on any request that
+      # does not carry a matching header is unchanged. It also switches on
+      # `POST /v1/_test/rate-limit/reset`, which the helper calls between
+      # tests and which returned 404 here for the same reason.
+      E2E_AUTH_BYPASS_SECRET: e2e-bypass-do-not-use-in-prod-7f2c3a91b4d9e8f10c2b3a4d5e6f70819
 
     steps:
       - uses: actions/checkout@v4
@@ -213,7 +239,20 @@ jobs:
         env:
           WEB_BASE: http://localhost:3000
           API_BASE: http://localhost:8081
-        run: pnpm test:e2e:playwright
+        # NAMED, because this job provisions ONE stack.
+        #
+        # A bare `playwright test` runs every project in the config, and nine
+        # of the ten bring their own `next start` on their own port behind an
+        # opt-in environment variable this job does not set. Unnamed, this step
+        # therefore drove eight projects at servers that were never started —
+        # 2,290 collected tests, of which 1,561 failed on the last completed
+        # run — and the job ran five hours before the platform stopped it.
+        #
+        # `chromium` is the project this stack is FOR: the Phase-1 critical
+        # flows listed at the top of this file. The layout projects are not
+        # skipped by naming it; they were never runnable here, and each is run
+        # by its own opt-in command against its own production build.
+        run: pnpm test:e2e:playwright --project=chromium
 
       - name: Upload Playwright report on failure
         if: failure()

@@ -91,6 +91,23 @@ export default defineConfig({
     ? [["github"], ["html", { outputFolder: "playwright-report" }]]
     : "list",
   timeout: 60_000,
+  /**
+   * A CEILING ON THE WHOLE RUN, because the per-test one is not a ceiling.
+   *
+   * 60s per test times a suite that is failing on every test is hours, and
+   * that is not a hypothetical: every run of `playwright-e2e.yml` in this
+   * repository's history — 460 of them — burned about five hours and was then
+   * stopped by the platform, reporting only "the job exceeded the maximum
+   * execution time". A gate that cannot finish cannot be read, so it had
+   * never been read.
+   *
+   * The invocation defect behind that is fixed above (the `chromium` project
+   * was collecting 1,033 tests instead of 254). This is the backstop: whatever
+   * goes wrong next, the run STOPS and the reporter still writes its summary
+   * and its artifacts, so the next reader is told which tests failed rather
+   * than only how long they took.
+   */
+  globalTimeout: process.env.CI ? 40 * 60_000 : undefined,
   expect: { timeout: 10_000 },
   use: {
     baseURL: WEB_BASE,
@@ -99,10 +116,39 @@ export default defineConfig({
     video: "retain-on-failure",
   },
   projects: [
+    /**
+     * PHASE-1 CRITICAL FLOW — the specs that sit DIRECTLY in `e2e/`, and only
+     * those.
+     *
+     * `testMatch` rather than `testIgnore`, and that inversion is the whole
+     * correction. This project was declared as "everything under ./e2e except
+     * `point7/` and `search-layout/`", written when those were the only two
+     * sibling directories. Seven more have been added since —
+     * `attention-layout`, `intake-links-layout`, `evidence-detail-layout`,
+     * `operations-layout`, `capture-layout`, `billing-layout`,
+     * `settings-layout` — and every one of them was silently absorbed into
+     * THIS project, which points at `WEB_BASE` and never starts the
+     * production server those projects each bring on their own port.
+     *
+     * MEASURED on the last completed CI run of this workflow: 1,561 tests
+     * failed, the named ones all `[chromium] › e2e/attention-layout/…`, and
+     * the job ran for five hours before the platform stopped it. 779 of this
+     * project's 1,033 collected tests came from those seven directories. The
+     * workflow has 460 runs and has never once been green.
+     *
+     * A `*` in a Playwright pattern does not cross a path separator, so
+     * `*.spec.ts` selects exactly the files in `e2e/` itself. A directory
+     * added tomorrow therefore belongs to nothing until a project claims it,
+     * instead of quietly joining a stack that cannot serve it.
+     */
     {
       name: "chromium",
       testDir: "./e2e",
-      testIgnore: ["point7/**", "search-layout/**"],
+      // A RegExp, not a glob. A Playwright glob with no separator in it is
+      // matched against the BASENAME, so `"*.spec.ts"` still collected every
+      // spec in every subdirectory — measured, 1,511 tests where 254 were
+      // meant. This anchors on the separator and accepts either platform's.
+      testMatch: /[\\/]e2e[\\/][^\\/]+\.spec\.ts$/,
       use: { ...devices["Desktop Chrome"] },
     },
     /**

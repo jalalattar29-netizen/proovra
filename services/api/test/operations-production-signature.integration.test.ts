@@ -295,31 +295,31 @@ describe("Operations production signature (live PostgreSQL 16)", () => {
   /** Put the database into the exact production-hybrid shape. */
   async function applyHybridDrift(): Promise<void> {
     /*
-     * THE PRECONDITION IS TABLE-WIDE, BECAUSE THE ALTER IS — BUT ONLY THE ROWS
-     * THAT WOULD BLOCK IT.
+     * THE FIXTURE'S `SET NOT NULL` IS TABLE-WIDE, SO NOTHING MAY WRITE TO THE
+     * TABLE WHILE IT RUNS.
      *
      * The fixture backfills every legacy twin from its canonical column and
-     * then applies `ALTER COLUMN "safeSummary" SET NOT NULL`. That statement
-     * reads the WHOLE table, so its precondition is a property of the whole
-     * table and not of this suite's workspace: one row left behind by any
-     * earlier suite in the shared integration database whose canonical
-     * `safe_summary` is NULL makes the fixture fail with "column safeSummary
-     * contains null values". It did, in the full run, while this file passed
-     * alone on a fresh database.
+     * then applies `ALTER COLUMN "safeSummary" SET NOT NULL`. Those are two
+     * statements and not one transaction, so a row inserted BETWEEN them
+     * carries a NULL legacy twin and the ALTER fails
+     * `23502 … contains null values`.
      *
-     * Only those rows are removed. Deleting the table outright is the wrong
-     * fix and was tried: the case below re-applies the hybrid and asserts that
-     * conditions recorded BEFORE the drift keep ticking over through the
-     * UPDATE path — which is the whole reason this fault stayed invisible in
-     * production — so wiping this suite's own history removes the property it
-     * exists to prove.
+     * A row like that cannot come from this suite, and it cannot come from a
+     * sibling suite either: `safe_summary` is `NOT NULL`, files run serially
+     * (`fileParallelism: false`), and the backfill covers every row already
+     * present. It came from a TIMER — `server.ts` schedules the Operations
+     * reconciler `45000 + random(0..30000)` ms after any boot, and that sweep
+     * calls `recordIncident` for every workspace. On this file it landed
+     * mid-run twice, in a different case each time, and passed on the run
+     * where the file happened to finish first.
      *
-     * Files in this project run serially (`fileParallelism: false`), so a row
-     * from another suite is a leftover rather than live state.
+     * An earlier pass here deleted rows `WHERE "safe_summary" IS NULL` as a
+     * precondition. That statement can never match anything — the canonical
+     * column is `NOT NULL` — so it fixed nothing and named the wrong cause;
+     * the run that followed it passed on timing alone. The sweepers are now
+     * off for the whole integration project, in `vitest.integration.config.ts`,
+     * where the measurement is recorded.
      */
-    await prisma.$executeRawUnsafe(
-      'DELETE FROM "operational_incidents" WHERE "safe_summary" IS NULL',
-    );
     await runSqlFile(HYBRID_FIXTURE);
   }
 
