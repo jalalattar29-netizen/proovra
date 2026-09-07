@@ -52,6 +52,7 @@ import {
   listTeams,
   type CollaborationEntitlement,
   type CollaborationTeamSummary,
+  type CollaborationWorkspaceRollup,
 } from "../../../lib/api/collaboration-teams";
 import { useActiveSpace, usePlatformContext } from "../../../lib/platform-context";
 import type { WorkspacePlan } from "../../../lib/platform-context/types";
@@ -130,6 +131,14 @@ function TeamsOverview() {
   const [canGovern, setCanGovern] = useState(false);
   const [grantedScope, setGrantedScope] =
     useState<"PARTICIPATING" | "ALL">("PARTICIPATING");
+  /**
+   * The workspace-wide cross-group position. Server-sent, and only for a
+   * governor — the client never derives it from `teams`, because `teams` is a
+   * PAGE and a supervision number computed from a page is wrong the moment
+   * there is a second one.
+   */
+  const [rollup, setRollup] =
+    useState<CollaborationWorkspaceRollup | null>(null);
 
   // Client-side control state (no new fetches — filters/sorts operate on the
   // already-fetched `teams` array).
@@ -234,6 +243,10 @@ function TeamsOverview() {
       setNextCursor(page.nextCursor);
       setCanGovern(page.canGovernWorkspace);
       setGrantedScope(page.scope);
+      // Workspace-wide and identical for every page, so "load more" must not
+      // clear it — and a participation-scoped response legitimately carries
+      // null, which is the value that hides the band.
+      if (!opts?.append) setRollup(page.rollup ?? null);
       if (projection) setEntitlement(projection);
       setTeams((prev) =>
         opts?.append ? [...prev, ...page.teams] : page.teams,
@@ -473,6 +486,80 @@ function TeamsOverview() {
               administer this workspace; you are not a member of the ones
               without a role below, and opening one does not join it.
             </p>
+          ) : null}
+
+          {/*
+            CROSS-GROUP POSITION — the workspace, not the page.
+
+            The supervision question is "where is the work, and what is in
+            trouble?", and the table below could not answer it: its columns
+            describe the rows currently loaded, so every number moved when the
+            operator paged or searched. These four come from the server
+            computed over the whole workspace and hold still.
+
+            ATTENTION is deliberately not `overdue + high priority`. An urgent
+            item that is also late is one problem, and summing the columns
+            would report it twice — inflating the only number anyone triages
+            on. The server counts the distinct rows.
+          */}
+          {rollup ? (
+            <div
+              className="app-grid-kpis"
+              data-testid="teams-rollup"
+              style={{ marginBottom: "0.75rem" }}
+            >
+              <div className="app-kpi-card">
+                <div className="app-kpi-card__value">{rollup.work.open}</div>
+                <div className="app-kpi-card__label">Open work</div>
+                <div className="app-kpi-card__meta">
+                  across {rollup.groups.withOpenWork} of {rollup.groups.active}{" "}
+                  {rollup.groups.active === 1 ? "Team" : "Teams"}
+                </div>
+              </div>
+              {/*
+                `accent`, not `danger`: unowned work needs picking up, it is
+                not yet a failure. `danger` is reserved for the attention card
+                beside it, which counts work that is already late or already
+                urgent. And the meta line says what "unassigned" actually
+                means here — a group holding work is not a person doing it.
+              */}
+              <div className="app-kpi-card">
+                <div
+                  className="app-kpi-card__value"
+                  data-tone={rollup.work.unassigned > 0 ? "accent" : undefined}
+                >
+                  {rollup.work.unassigned}
+                </div>
+                <div className="app-kpi-card__label">Unassigned</div>
+                <div className="app-kpi-card__meta">
+                  held by a Team, not by a person
+                </div>
+              </div>
+              <div className="app-kpi-card">
+                <div
+                  className="app-kpi-card__value"
+                  data-tone={rollup.work.attention > 0 ? "danger" : undefined}
+                >
+                  {rollup.work.attention}
+                </div>
+                <div className="app-kpi-card__label">Needs attention</div>
+                <div className="app-kpi-card__meta">
+                  {rollup.work.overdue} overdue · {rollup.work.highPriority} high
+                  priority
+                </div>
+              </div>
+              <div className="app-kpi-card">
+                <div className="app-kpi-card__value">
+                  {rollup.workload.people}
+                </div>
+                <div className="app-kpi-card__label">People carrying work</div>
+                <div className="app-kpi-card__meta">
+                  {rollup.workload.busiest
+                    ? `heaviest load ${rollup.workload.busiest.open} open`
+                    : "nothing assigned to an individual"}
+                </div>
+              </div>
+            </div>
           ) : null}
           <TeamsToolbar
             search={search}

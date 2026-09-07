@@ -55,6 +55,16 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { effectiveGroupMemberWhere } from "./effective-membership.js";
+/**
+ * THE reviewer-workload authority, reused rather than reimplemented.
+ *
+ * `ReviewerWorkloadSnapshot` is written by `snapshotWorkspaceWorkload` on the
+ * reviewer-ops reconcile pass and read by `/v1/reviewer-ops/workload`. The
+ * group overview below projects the SAME rows for the group's own people; it
+ * does not compute review load itself, does not write a snapshot, and does not
+ * keep a mirror of one.
+ */
+import { listLatestWorkloadSnapshots } from "../reviewer-ops/workload.service.js";
 // THE notification fan-out. A leaf module precisely so the assignment writers
 // below can reach it: `collaboration-completion.service.ts`, where it used to
 // live, imports FROM this file. Writing rows the canonical account inbox
@@ -496,9 +506,171 @@ export type CollaborationTeamSummaryRow = {
   memberCount: number;
   pendingInviteCount: number;
   openAssignmentCount: number;
+  /**
+   * The two numbers that tell a supervisor which group needs them. Both were
+   * already computed and returned; neither was DECLARED, so every consumer of
+   * this type was typed as though the list could not say how a group was
+   * doing. Declaring them is not a new read — it is the contract catching up
+   * with the query.
+   *
+   * Scope note: these describe the ROWS ON THIS PAGE. The workspace-wide
+   * answer is `rollup` on the list response, which is computed from the
+   * workspace and not from the page.
+   */
+  overdueAssignmentCount: number;
+  highPriorityAssignmentCount: number;
   lastActivityAt: Date | null;
   viewerRole: CollaborationTeamRole | null;
 };
+
+/**
+ * ===========================================================================
+ * CROSS-GROUP ROLLUP — the workspace's operational position, not the page's.
+ * ===========================================================================
+ * An Enterprise operator supervising twenty groups needs to know how much work
+ * the WORKSPACE is carrying, how much of it nobody owns, and how much of it is
+ * in trouble. Every number here is computed from `workspaceId` on
+ * `CollaborationTeamAssignment` — the column the model already indexes as
+ * `[workspaceId, status]` — so the answer is identical whether the caller
+ * asked for ten rows or a hundred, and does not change as they page.
+ *
+ * This is a projection over the ONE responsibility authority. It is not a
+ * second attention engine and it stores nothing: there is no snapshot table
+ * behind it, and the numbers are as fresh as the query.
+ */
+export type CollaborationWorkspaceRollup = {
+  groups: {
+    /** ACTIVE groups in the workspace. */
+    active: number;
+    /** Of those, how many are actually carrying open work. */
+    withOpenWork: number;
+  };
+  work: {
+    /** OPEN + IN_PROGRESS across every group. */
+    open: number;
+    /** Open work with no individual assignee — the group holds it, nobody does. */
+    unassigned: number;
+    overdue: number;
+    highPriority: number;
+    /**
+     * Open work that is overdue OR high/urgent, counted as DISTINCT rows.
+     *
+     * Deliberately not `overdue + highPriority`: an urgent item that is also
+     * late is one problem, and adding the two columns would report it twice
+     * and inflate the only number a supervisor triages on.
+     */
+    attention: number;
+    /** Open work falling due inside the same 72h horizon the group overview uses. */
+    dueSoon: number;
+  };
+  workload: {
+    /** Distinct people holding open work anywhere in the workspace. */
+    people: number;
+    /** The heaviest single load, or null when nothing is assigned to anyone. */
+    busiest: { userId: string; open: number; overdue: number } | null;
+  };
+};
+
+/**
+ * The workspace-wide cross-group position.
+ *
+ * AUTHORIZATION IS THE CALLER'S. This function answers a question about the
+ * WHOLE workspace, so it must only ever be reached by an actor who has proven
+ * workspace governance — `listCollaborationTeams` calls it only under the
+ * granted `ALL` scope, which the route grants only to `canGovernWorkspace`.
+ * It takes no `actorUserId` precisely so it cannot be mistaken for a
+ * participation-scoped read that filters itself.
+ */
+async function computeWorkspaceRollup(
+  workspaceId: string,
+  activeGroupCount: number,
+  now: Date,
+  client: PrismaClient,
+): Promise<CollaborationWorkspaceRollup> {
+  const openWork = {
+    workspaceId,
+    status: { in: [...OPEN_ASSIGNMENT_STATUSES] },
+  } satisfies Prisma.CollaborationTeamAssignmentWhereInput;
+  const overdueWhere = { dueAtUtc: { lt: now } };
+  const urgentWhere = { priority: { in: ["HIGH", "URGENT"] } };
+
+  const [
+    open,
+    unassigned,
+    overdue,
+    highPriority,
+    attention,
+    dueSoon,
+    groupsWithWork,
+    byAssignee,
+    overdueByAssignee,
+  ] = await Promise.all([
+    client.collaborationTeamAssignment.count({ where: openWork }),
+    client.collaborationTeamAssignment.count({
+      where: { ...openWork, assigneeUserId: null },
+    }),
+    client.collaborationTeamAssignment.count({
+      where: { ...openWork, ...overdueWhere },
+    }),
+    client.collaborationTeamAssignment.count({
+      where: { ...openWork, ...urgentWhere },
+    }),
+    // DISTINCT rows in trouble — the OR is what stops an urgent-and-late item
+    // being counted twice.
+    client.collaborationTeamAssignment.count({
+      where: { ...openWork, OR: [overdueWhere, urgentWhere] },
+    }),
+    client.collaborationTeamAssignment.count({
+      where: {
+        ...openWork,
+        dueAtUtc: {
+          gte: now,
+          lt: new Date(now.getTime() + DUE_SOON_WINDOW_MS),
+        },
+      },
+    }),
+    // Bounded by the workspace's group cap, which the entitlement enforces.
+    client.collaborationTeamAssignment.groupBy({
+      by: ["teamId"],
+      where: openWork,
+      _count: { _all: true },
+    }),
+    // Bounded by workspace headcount, which the seat limit enforces.
+    client.collaborationTeamAssignment.groupBy({
+      by: ["assigneeUserId"],
+      where: { ...openWork, assigneeUserId: { not: null } },
+      _count: { _all: true },
+    }),
+    client.collaborationTeamAssignment.groupBy({
+      by: ["assigneeUserId"],
+      where: { ...openWork, assigneeUserId: { not: null }, ...overdueWhere },
+      _count: { _all: true },
+    }),
+  ]);
+
+  const overdueByUser = new Map<string, number>();
+  for (const row of overdueByAssignee) {
+    if (row.assigneeUserId) overdueByUser.set(row.assigneeUserId, row._count._all);
+  }
+  const loads = byAssignee
+    .filter((r): r is typeof r & { assigneeUserId: string } =>
+      Boolean(r.assigneeUserId),
+    )
+    .map((r) => ({
+      userId: r.assigneeUserId,
+      open: r._count._all,
+      overdue: overdueByUser.get(r.assigneeUserId) ?? 0,
+    }))
+    // Ties broken by id so the "busiest" name is stable between two reads
+    // that see the same numbers.
+    .sort((a, b) => b.open - a.open || a.userId.localeCompare(b.userId));
+
+  return {
+    groups: { active: activeGroupCount, withOpenWork: groupsWithWork.length },
+    work: { open, unassigned, overdue, highPriority, attention, dueSoon },
+    workload: { people: loads.length, busiest: loads[0] ?? null },
+  };
+}
 
 /**
  * One page of the groups this actor belongs to in this workspace.
@@ -552,6 +724,16 @@ export async function listCollaborationTeams(
   /** ACTIVE groups in the WORKSPACE, whoever is in them. Always authoritative. */
   workspaceTotalActive: number;
   scope: "PARTICIPATING" | "ALL";
+  /**
+   * The workspace-wide cross-group position, or `null` when the caller is not
+   * a workspace governor.
+   *
+   * It is gated on the GRANTED scope rather than the requested one. A
+   * participation-scoped caller sees the groups they are in; telling them how
+   * much work exists across groups they cannot see would leak the shape of the
+   * workspace to somebody the route already decided may not survey it.
+   */
+  rollup: CollaborationWorkspaceRollup | null;
 }> {
   const take = boundedPage(input.limit);
   const search = (input.search ?? "").trim();
@@ -660,11 +842,25 @@ export async function listCollaborationTeams(
   );
   const urgentByTeam = new Map(urgentRows.map((r) => [r.teamId, r._count._all]));
 
+  // Workspace-wide, and only for a caller the route granted the ALL scope to.
+  // Computed from `workspaceId`, never from `pageIds` — the whole point is
+  // that it does not move when the operator pages or narrows their search.
+  const rollup =
+    scope === "ALL"
+      ? await computeWorkspaceRollup(
+          input.workspaceId,
+          workspaceTotalActive,
+          now,
+          client,
+        )
+      : null;
+
   return {
     nextCursor: teams.length > take ? page[page.length - 1]?.id ?? null : null,
     totalActive,
     workspaceTotalActive,
     scope,
+    rollup,
     teams: page.map((t) => ({
     id: t.id,
     name: t.name,
@@ -3065,6 +3261,34 @@ export type CollaborationTeamOverview = {
     open: number;
     overdue: number;
   }>;
+  /**
+   * =========================================================================
+   * EVIDENCE-REVIEW LOAD — the OTHER thing this group's people are carrying.
+   * =========================================================================
+   * `workload` above counts this group's own assignments. It says nothing
+   * about the evidence reviews the same people are holding elsewhere in the
+   * workspace, so a lead could reassign work to the member with the lightest
+   * group load and hand it to the person with the deepest review queue.
+   *
+   * These rows are the canonical `ReviewerWorkloadSnapshot` — the same rows
+   * `/v1/reviewer-ops/workload` serves — narrowed to this group's effective
+   * members. Nothing is recomputed and nothing is stored.
+   *
+   * `null` means the snapshot pass has never produced a row for anyone in this
+   * group. That is reported as UNKNOWN rather than as zeros, because a reviewer
+   * with no snapshot and a reviewer with an empty queue are not the same
+   * person, and only one of them is safe to load up. `computedAtUtc` on each
+   * row carries the age, so a stale answer can be labelled as one.
+   */
+  reviewLoad: ReadonlyArray<{
+    userId: string;
+    activeReviewCount: number;
+    overdueReviewCount: number;
+    dueSoonReviewCount: number;
+    escalatedReviewCount: number;
+    capacityScore: number;
+    computedAtUtc: string;
+  }> | null;
 };
 
 /** "Due soon" horizon. Product default, not a stored SLA — reviews own theirs. */
@@ -3151,14 +3375,71 @@ export async function getTeamOverview(
     }),
   ]);
 
-  const managers = await client.collaborationTeamMember.count({
-    where: {
-      teamId: input.teamId,
-      status: "ACTIVE",
-      role: { in: ["LEAD", "ADMIN"] },
-      ...effectiveGroupMemberWhere(team.workspaceId),
-    },
-  });
+  const [managers, groupMemberRows] = await Promise.all([
+    client.collaborationTeamMember.count({
+      where: {
+        teamId: input.teamId,
+        status: "ACTIVE",
+        role: { in: ["LEAD", "ADMIN"] },
+        ...effectiveGroupMemberWhere(team.workspaceId),
+      },
+    }),
+    // The group's own people, bounded by the same cap the workload list uses.
+    client.collaborationTeamMember.findMany({
+      where: {
+        teamId: input.teamId,
+        ...effectiveGroupMemberWhere(team.workspaceId),
+      },
+      select: { userId: true },
+      take: WORKLOAD_MAX_MEMBERS,
+    }),
+  ]);
+
+  /**
+   * The review-load fan-in.
+   *
+   * Narrowed to this group's members BEFORE anything is returned: the
+   * workspace snapshot covers every reviewer in the workspace, and this
+   * surface is authorized for a group, not for the workspace's whole reviewer
+   * roster. A caller who reached this overview through
+   * `allowWorkspaceGovernorRead` could survey the workspace anyway — but the
+   * caller who reached it as a group member could not, and the narrowing is
+   * what makes one code path safe for both.
+   *
+   * A failure here degrades to UNKNOWN. Reviewer-ops is a neighbouring
+   * subsystem, and a group's roster should not stop rendering because its
+   * snapshot table is unavailable.
+   */
+  const groupMemberIds = new Set(groupMemberRows.map((m) => m.userId));
+  let reviewLoad: CollaborationTeamOverview["reviewLoad"] = null;
+  if (groupMemberIds.size > 0) {
+    try {
+      const snapshots = await listLatestWorkloadSnapshots(
+        { teamId: team.workspaceId, limit: 500 },
+        client,
+      );
+      const mine = snapshots
+        .filter((r) => groupMemberIds.has(r.reviewerUserId))
+        .map((r) => ({
+          userId: r.reviewerUserId,
+          activeReviewCount: r.activeReviewCount,
+          overdueReviewCount: r.overdueReviewCount,
+          dueSoonReviewCount: r.dueSoonReviewCount,
+          escalatedReviewCount: r.escalatedReviewCount,
+          capacityScore: r.capacityScore,
+          computedAtUtc: r.computedAtUtc,
+        }))
+        .sort(
+          (a, b) =>
+            b.activeReviewCount - a.activeReviewCount ||
+            a.userId.localeCompare(b.userId),
+        );
+      // No row for anyone in this group is UNKNOWN, not "everybody is free".
+      reviewLoad = mine.length > 0 ? mine : null;
+    } catch {
+      reviewLoad = null;
+    }
+  }
 
   const statusCount = (s: string): number =>
     byStatus.find((r) => r.status === s)?._count._all ?? 0;
@@ -3206,6 +3487,7 @@ export async function getTeamOverview(
       managers,
     },
     workload,
+    reviewLoad,
   };
 }
 

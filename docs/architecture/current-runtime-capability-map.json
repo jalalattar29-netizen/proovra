@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "350df28cd1b3592fbce302d87d8037fa4ec1ea078f008fcbdfae86936dbafd59",
   "routeInventoryHash": "6b21faa2ad81ff35dbe07329345bb971c1e60d22fb672e3e979ec71dd4518be0",
-  "consumerInventoryHash": "f6a9f5985ee914de85352d0281b820398a85d36edfe7c1e36a32a3337386b129",
+  "consumerInventoryHash": "532d863a24aa822183cc453ff32be9ac56ffce0d6ea9532bc9cfe9d477495a29",
   "dispositionsHash": "9e6e9532752cfd33dfd556e66587a473271144aa2d1c41662c0c4c91e70ec02c",
   "totals": {
     "RegisteredRoutes": 1138,
@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 8444,
+      "METHOD_ON_VALUE": 8448,
       "UNRESOLVED_IDENTIFIER": 1055
     },
     "MutationFixpointRounds": 9,
@@ -387,7 +387,7 @@
       "method": "DELETE",
       "route": "/v1/collaboration-teams/:teamId/members/:memberId",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:548",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:594",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -699,7 +699,7 @@
       "method": "DELETE",
       "route": "/v1/teams/:id",
       "registeringFile": "services/api/src/routes/teams.routes.ts",
-      "productConsumer": "apps/web/app/(app)/teams/[id]/page.tsx:895",
+      "productConsumer": "apps/web/app/(app)/teams/[id]/page.tsx:728",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -711,7 +711,7 @@
       "method": "DELETE",
       "route": "/v1/teams/:id/cases/:caseId",
       "registeringFile": "services/api/src/routes/teams.routes.ts",
-      "productConsumer": "apps/web/app/(app)/teams/[id]/page.tsx:1014",
+      "productConsumer": "apps/web/app/(app)/teams/[id]/page.tsx:812",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -735,7 +735,7 @@
       "method": "DELETE",
       "route": "/v1/teams/:id/invites/:inviteId",
       "registeringFile": "services/api/src/routes/teams.routes.ts",
-      "productConsumer": "apps/web/app/(app)/teams/[id]/page.tsx:868",
+      "productConsumer": "apps/web/app/(app)/teams/[id]/page.tsx:701",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2163,7 +2163,7 @@
       "method": "GET",
       "route": "/v1/collaboration-teams",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:280",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:326",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2175,7 +2175,7 @@
       "method": "GET",
       "route": "/v1/collaboration-teams/:teamId",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:328",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:374",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2199,7 +2199,7 @@
       "method": "GET",
       "route": "/v1/collaboration-teams/:teamId/activity",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:615",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:661",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2223,7 +2223,7 @@
       "method": "GET",
       "route": "/v1/collaboration-teams/:teamId/assignable-targets",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:781",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:827",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2235,7 +2235,7 @@
       "method": "GET",
       "route": "/v1/collaboration-teams/:teamId/assignments",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:665",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:711",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2259,7 +2259,7 @@
       "method": "GET",
       "route": "/v1/collaboration-teams/:teamId/eligible-members",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:352",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:398",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2283,7 +2283,7 @@
       "method": "GET",
       "route": "/v1/collaboration-teams/:teamId/members",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:395",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:441",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2307,7 +2307,7 @@
       "method": "GET",
       "route": "/v1/collaboration-teams/:teamId/overview",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:689",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:735",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2319,7 +2319,7 @@
       "method": "GET",
       "route": "/v1/collaboration-teams/entitlement",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:328",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:374",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2331,7 +2331,7 @@
       "method": "GET",
       "route": "/v1/collaboration-teams/responsibility",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:713",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:759",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6243,7 +6243,7 @@
       "method": "GET",
       "route": "/v1/teams/:id/cases",
       "registeringFile": "services/api/src/routes/teams.routes.ts",
-      "productConsumer": "apps/web/app/(app)/teams/[id]/page.tsx:536",
+      "productConsumer": "apps/web/app/(app)/teams/[id]/page.tsx:326",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6279,7 +6279,7 @@
       "method": "GET",
       "route": "/v1/teams/:id/invites",
       "registeringFile": "services/api/src/routes/teams.routes.ts",
-      "productConsumer": "apps/web/app/(app)/teams/[id]/page.tsx:533",
+      "productConsumer": "apps/web/app/(app)/teams/[id]/page.tsx:323",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6855,7 +6855,7 @@
       "method": "PATCH",
       "route": "/v1/collaboration-teams/:teamId",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:457",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:503",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6879,7 +6879,7 @@
       "method": "PATCH",
       "route": "/v1/collaboration-teams/:teamId/assignments/:assignmentId",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:751",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:797",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6915,7 +6915,7 @@
       "method": "PATCH",
       "route": "/v1/collaboration-teams/:teamId/members/:memberId",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:535",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:581",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7215,7 +7215,7 @@
       "method": "PATCH",
       "route": "/v1/teams/:id/members/:memberId",
       "registeringFile": "services/api/src/routes/teams.routes.ts",
-      "productConsumer": "apps/web/app/(app)/teams/[id]/page.tsx:777",
+      "productConsumer": "apps/web/app/(app)/teams/[id]/page.tsx:610",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8283,7 +8283,7 @@
       "method": "POST",
       "route": "/v1/cases",
       "registeringFile": "services/api/src/routes/cases.routes.ts",
-      "productConsumer": "apps/web/app/(app)/teams/[id]/page.tsx:920",
+      "productConsumer": "apps/web/components/cases-experience/matter-modals/CreateCaseModal.tsx:107",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8547,7 +8547,7 @@
       "method": "POST",
       "route": "/v1/collaboration-team-invites/:token/accept",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:598",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:644",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8595,7 +8595,7 @@
       "method": "POST",
       "route": "/v1/collaboration-teams",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:405",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:451",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8631,7 +8631,7 @@
       "method": "POST",
       "route": "/v1/collaboration-teams/:teamId/archive",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:464",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:510",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8643,7 +8643,7 @@
       "method": "POST",
       "route": "/v1/collaboration-teams/:teamId/assignments",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:730",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:776",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8679,7 +8679,7 @@
       "method": "POST",
       "route": "/v1/collaboration-teams/:teamId/invites/:inviteId/revoke",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:569",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:615",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8703,7 +8703,7 @@
       "method": "POST",
       "route": "/v1/collaboration-teams/:teamId/members",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:486",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:532",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8715,7 +8715,7 @@
       "method": "POST",
       "route": "/v1/collaboration-teams/:teamId/members/bulk",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:516",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:562",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8727,7 +8727,7 @@
       "method": "POST",
       "route": "/v1/collaboration-teams/:teamId/unarchive",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:477",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:523",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -13227,7 +13227,7 @@
       "method": "POST",
       "route": "/v1/teams/:id/cases/link",
       "registeringFile": "services/api/src/routes/teams.routes.ts",
-      "productConsumer": "apps/web/app/(app)/teams/[id]/page.tsx:978",
+      "productConsumer": "apps/web/app/(app)/teams/[id]/page.tsx:776",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -13263,7 +13263,7 @@
       "method": "POST",
       "route": "/v1/teams/:id/invites",
       "registeringFile": "services/api/src/routes/teams.routes.ts",
-      "productConsumer": "apps/web/app/(app)/teams/[id]/page.tsx:706",
+      "productConsumer": "apps/web/app/(app)/teams/[id]/page.tsx:539",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -28058,8 +28058,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.create@453",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:453",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.create@463",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:463",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "createCollaborationTeam",
       "kind": "DATABASE",
@@ -28091,41 +28091,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.update@1018",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1018",
-      "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
-      "enclosingDeclaration": "unarchiveCollaborationTeam",
-      "kind": "DATABASE",
-      "target": "collaborationTeam",
-      "mutationKind": "update",
-      "primaryFamily": "WORKSPACE",
-      "insideTransaction": true,
-      "entryRoutes": [
-        "POST /v1/collaboration-teams/:teamId/unarchive"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/collaboration-teams.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NAMED_AUTHORITY",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "INSIDE_TRANSACTION",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.update@914",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:914",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.update@1110",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1110",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "updateCollaborationTeam",
       "kind": "DATABASE",
@@ -28157,8 +28124,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.update@957",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:957",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.update@1153",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1153",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "archiveCollaborationTeam",
       "kind": "DATABASE",
@@ -28190,8 +28157,41 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamActivity.create@315",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:315",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.update@1214",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1214",
+      "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
+      "enclosingDeclaration": "unarchiveCollaborationTeam",
+      "kind": "DATABASE",
+      "target": "collaborationTeam",
+      "mutationKind": "update",
+      "primaryFamily": "WORKSPACE",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/collaboration-teams/:teamId/unarchive"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/collaboration-teams.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamActivity.create@325",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:325",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "recordActivity",
       "kind": "DATABASE",
@@ -28235,8 +28235,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.create@2301",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2301",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.create@2497",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2497",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "createAssignment",
       "kind": "DATABASE",
@@ -28268,8 +28268,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.update@2472",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2472",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.update@2668",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2668",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "updateAssignment",
       "kind": "DATABASE",
@@ -28301,8 +28301,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.update@1441",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1441",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.update@1637",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1637",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "revokeInvite",
       "kind": "DATABASE",
@@ -28334,8 +28334,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.update@1551",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1551",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.update@1747",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1747",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "acceptInvite",
       "kind": "DATABASE",
@@ -28368,8 +28368,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.updateMany@1650",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1650",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.updateMany@1846",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1846",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "acceptInvite",
       "kind": "DATABASE",
@@ -28402,8 +28402,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@1116",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1116",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@1312",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1312",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "addExistingMember",
       "kind": "DATABASE",
@@ -28436,8 +28436,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@1693",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1693",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@1889",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1889",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "acceptInvite",
       "kind": "DATABASE",
@@ -28470,8 +28470,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@465",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:465",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@475",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:475",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "createCollaborationTeam",
       "kind": "DATABASE",
@@ -28503,8 +28503,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1093",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1093",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1289",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1289",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "addExistingMember",
       "kind": "DATABASE",
@@ -28537,8 +28537,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1187",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1187",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1383",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1383",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "changeMemberRole",
       "kind": "DATABASE",
@@ -28570,8 +28570,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1254",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1254",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1450",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1450",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "suspendMember",
       "kind": "DATABASE",
@@ -28603,8 +28603,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1329",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1329",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1525",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1525",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "reinstateMember",
       "kind": "DATABASE",
@@ -28636,8 +28636,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1373",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1373",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1569",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1569",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "removeMember",
       "kind": "DATABASE",
@@ -28670,8 +28670,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1677",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1677",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1873",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1873",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "acceptInvite",
       "kind": "DATABASE",
@@ -79779,7 +79779,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 548,
+          "line": 594,
           "caller": "removeMember",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -79789,7 +79789,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:548 (removeMember, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:594 (removeMember, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -81457,7 +81457,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 895,
+          "line": 728,
           "caller": "handleDeleteTeam",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -81467,7 +81467,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/teams/[id]/page.tsx:895 (handleDeleteTeam, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/teams/[id]/page.tsx:728 (handleDeleteTeam, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -81535,7 +81535,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 1014,
+          "line": 812,
           "caller": "handleConfirmUnlinkCase",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -81545,7 +81545,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/teams/[id]/page.tsx:1014 (handleConfirmUnlinkCase, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/teams/[id]/page.tsx:812 (handleConfirmUnlinkCase, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -81659,7 +81659,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 868,
+          "line": 701,
           "caller": "handleConfirmDeleteInvite",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -81669,7 +81669,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/teams/[id]/page.tsx:868 (handleConfirmDeleteInvite, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/teams/[id]/page.tsx:701 (handleConfirmDeleteInvite, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -87763,7 +87763,7 @@
         },
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 954,
+          "line": 752,
           "caller": "loadAvailableCases",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -89121,7 +89121,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 280,
+          "line": 326,
           "caller": "listTeams",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -89131,7 +89131,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:280 (listTeams, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:326 (listTeams, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -89162,7 +89162,15 @@
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/middleware/authorize.ts: the canonical current-workspace evaluator",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+        "services/api/src/services/collaboration-team/collaboration-team.service.ts: collaborationTeamAssignment.count — no tenant or self predicate",
+        "services/api/src/services/collaboration-team/collaboration-team.service.ts: collaborationTeamAssignment.count — no tenant or self predicate",
+        "services/api/src/services/collaboration-team/collaboration-team.service.ts: collaborationTeamAssignment.count — no tenant or self predicate",
+        "services/api/src/services/collaboration-team/collaboration-team.service.ts: collaborationTeamAssignment.count — no tenant or self predicate",
+        "services/api/src/services/collaboration-team/collaboration-team.service.ts: collaborationTeamAssignment.count — no tenant or self predicate",
+        "services/api/src/services/collaboration-team/collaboration-team.service.ts: collaborationTeamAssignment.count — no tenant or self predicate",
+        "services/api/src/services/collaboration-team/collaboration-team.service.ts: collaborationTeamAssignment.groupBy — no tenant or self predicate",
+        "services/api/src/services/collaboration-team/collaboration-team.service.ts: collaborationTeamAssignment.groupBy — no tenant or self predicate",
+        "services/api/src/services/collaboration-team/collaboration-team.service.ts: collaborationTeamAssignment.groupBy — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -89186,7 +89194,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 328,
+          "line": 374,
           "caller": "getCollaborationEntitlement",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -89194,7 +89202,7 @@
         },
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 431,
+          "line": 477,
           "caller": "getTeam",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -89202,7 +89210,7 @@
         },
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 713,
+          "line": 759,
           "caller": "listTeamResponsibility",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -89212,7 +89220,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:328 (getCollaborationEntitlement, WEB); apps/web/lib/api/collaboration-teams.ts:431 (getTeam, WEB); apps/web/lib/api/collaboration-teams.ts:713 (listTeamResponsibility, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:374 (getCollaborationEntitlement, WEB); apps/web/lib/api/collaboration-teams.ts:477 (getTeam, WEB); apps/web/lib/api/collaboration-teams.ts:759 (listTeamResponsibility, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -89325,7 +89333,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 615,
+          "line": 661,
           "caller": "listActivity",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -89335,7 +89343,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:615 (listActivity, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:661 (listActivity, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -89450,7 +89458,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 781,
+          "line": 827,
           "caller": "listAssignableTargets",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -89460,7 +89468,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:781 (listAssignableTargets, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:827 (listAssignableTargets, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -89518,7 +89526,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 665,
+          "line": 711,
           "caller": "listAssignments",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -89528,7 +89536,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:665 (listAssignments, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:711 (listAssignments, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -89661,7 +89669,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 352,
+          "line": 398,
           "caller": "listEligibleMembers",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -89671,7 +89679,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:352 (listEligibleMembers, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:398 (listEligibleMembers, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -89783,7 +89791,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 395,
+          "line": 441,
           "caller": "listTeamMembers",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -89793,7 +89801,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:395 (listTeamMembers, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:441 (listTeamMembers, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -89887,7 +89895,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 689,
+          "line": 735,
           "caller": "getTeamOverview",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -89897,7 +89905,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:689 (getTeamOverview, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:735 (getTeamOverview, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -89914,6 +89922,7 @@
         "collaborationTeam",
         "collaborationTeamAssignment",
         "collaborationTeamMember",
+        "reviewerWorkloadSnapshot",
         "revokedSession",
         "supportAccessGrant",
         "team",
@@ -89961,7 +89970,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 328,
+          "line": 374,
           "caller": "getCollaborationEntitlement",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -89971,7 +89980,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:328 (getCollaborationEntitlement, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:374 (getCollaborationEntitlement, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -90043,7 +90052,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 713,
+          "line": 759,
           "caller": "listTeamResponsibility",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -90053,7 +90062,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:713 (listTeamResponsibility, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:759 (listTeamResponsibility, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -94617,7 +94626,7 @@
       "method": "GET",
       "path": "/v1/governance/destruction-reviews",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:421",
+      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:442",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -94690,7 +94699,7 @@
       "method": "GET",
       "path": "/v1/governance/destruction-reviews/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:476",
+      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:497",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -94745,7 +94754,7 @@
       "method": "GET",
       "path": "/v1/governance/destruction-reviews/:id/certificate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:720",
+      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:741",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -94810,7 +94819,7 @@
       "method": "GET",
       "path": "/v1/governance/destruction-reviews/:id/preview",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:513",
+      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:534",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -95062,7 +95071,7 @@
       "method": "GET",
       "path": "/v1/governance/export-eligibility",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:981",
+      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:1002",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -95414,7 +95423,7 @@
       "method": "GET",
       "path": "/v1/governance/lifecycle/evidence/:id/events",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:908",
+      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:929",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -96014,7 +96023,7 @@
       "method": "GET",
       "path": "/v1/governance/retention-policies",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:212",
+      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:233",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -96086,7 +96095,7 @@
       "method": "GET",
       "path": "/v1/governance/retention-policies/:id/versions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:365",
+      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:386",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -96151,7 +96160,7 @@
       "method": "GET",
       "path": "/v1/governance/retention-policies/effective",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:393",
+      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:414",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -96216,7 +96225,7 @@
       "method": "GET",
       "path": "/v1/governance/retention/inheritance",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:834",
+      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:855",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -110935,7 +110944,7 @@
         },
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 532,
+          "line": 322,
           "caller": "TeamDetailPageBody",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -111114,7 +111123,7 @@
         },
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 539,
+          "line": 329,
           "caller": "TeamDetailPageBody",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -111124,7 +111133,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/integrations/page.tsx:2883 (load, WEB); apps/web/app/(app)/integrations/page.tsx:3137 (load, WEB); apps/web/app/(app)/teams/[id]/page.tsx:539 (TeamDetailPageBody, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/integrations/page.tsx:2883 (load, WEB); apps/web/app/(app)/integrations/page.tsx:3137 (load, WEB); apps/web/app/(app)/teams/[id]/page.tsx:329 (TeamDetailPageBody, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -111178,7 +111187,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 536,
+          "line": 326,
           "caller": "TeamDetailPageBody",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -111188,7 +111197,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/teams/[id]/page.tsx:536 (TeamDetailPageBody, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/teams/[id]/page.tsx:326 (TeamDetailPageBody, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -111355,7 +111364,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 533,
+          "line": 323,
           "caller": "TeamDetailPageBody",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -111365,7 +111374,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/teams/[id]/page.tsx:533 (TeamDetailPageBody, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/teams/[id]/page.tsx:323 (TeamDetailPageBody, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -114309,7 +114318,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 457,
+          "line": 503,
           "caller": "updateTeam",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -114319,7 +114328,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:457 (updateTeam, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:503 (updateTeam, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -114458,7 +114467,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 751,
+          "line": 797,
           "caller": "updateAssignment",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -114468,7 +114477,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:751 (updateAssignment, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:797 (updateAssignment, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -114682,7 +114691,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 535,
+          "line": 581,
           "caller": "updateMember",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -114692,7 +114701,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:535 (updateMember, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:581 (updateMember, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -115367,7 +115376,7 @@
       "method": "PATCH",
       "path": "/v1/governance/retention-policies/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:281",
+      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:302",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -116319,7 +116328,7 @@
         },
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 675,
+          "line": 508,
           "caller": "handleSaveTeamName",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -116329,7 +116338,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/organizations/[id]/setup/page.tsx:438 (OrganizationSetupInner, WEB); apps/web/app/(app)/teams/[id]/page.tsx:675 (handleSaveTeamName, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/organizations/[id]/setup/page.tsx:438 (OrganizationSetupInner, WEB); apps/web/app/(app)/teams/[id]/page.tsx:508 (handleSaveTeamName, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -116383,7 +116392,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 777,
+          "line": 610,
           "caller": "handleRoleChange",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -116393,7 +116402,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/teams/[id]/page.tsx:777 (handleRoleChange, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/teams/[id]/page.tsx:610 (handleRoleChange, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -122664,14 +122673,6 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 920,
-          "caller": "handleCreateTeamCase",
-          "class": "WEB",
-          "primitive": "apiFetch",
-          "viaResolution": false
-        },
-        {
           "file": "apps/web/components/cases-experience/matter-modals/CreateCaseModal.tsx",
           "line": 107,
           "caller": "handleSubmit",
@@ -122683,7 +122684,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/teams/[id]/page.tsx:920 (handleCreateTeamCase, WEB); apps/web/components/cases-experience/matter-modals/CreateCaseModal.tsx:107 (handleSubmit, WEB)",
+      "dispositionEvidence": "apps/web/components/cases-experience/matter-modals/CreateCaseModal.tsx:107 (handleSubmit, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -124058,7 +124059,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 598,
+          "line": 644,
           "caller": "acceptInvite",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -124068,7 +124069,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:598 (acceptInvite, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:644 (acceptInvite, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -124291,7 +124292,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 405,
+          "line": 451,
           "caller": "createTeam",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -124301,7 +124302,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:405 (createTeam, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:451 (createTeam, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -124512,7 +124513,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 464,
+          "line": 510,
           "caller": "archiveTeam",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -124522,7 +124523,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:464 (archiveTeam, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:510 (archiveTeam, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -124582,7 +124583,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 730,
+          "line": 776,
           "caller": "createAssignment",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -124592,7 +124593,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:730 (createAssignment, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:776 (createAssignment, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -124812,7 +124813,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 569,
+          "line": 615,
           "caller": "revokeInvite",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -124822,7 +124823,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:569 (revokeInvite, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:615 (revokeInvite, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -124939,7 +124940,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 486,
+          "line": 532,
           "caller": "addExistingMember",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -124949,7 +124950,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:486 (addExistingMember, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:532 (addExistingMember, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -125028,7 +125029,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 516,
+          "line": 562,
           "caller": "addExistingMembersBulk",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -125038,7 +125039,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:516 (addExistingMembersBulk, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:562 (addExistingMembersBulk, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -125117,7 +125118,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 477,
+          "line": 523,
           "caller": "unarchiveTeam",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -125127,7 +125128,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:477 (unarchiveTeam, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:523 (unarchiveTeam, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -131937,7 +131938,7 @@
       "method": "POST",
       "path": "/v1/governance/destruction-reviews",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:445",
+      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:466",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -132027,7 +132028,7 @@
       "method": "POST",
       "path": "/v1/governance/destruction-reviews/:id/transition",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:849",
+      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:870",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -132605,7 +132606,7 @@
       "method": "POST",
       "path": "/v1/governance/lifecycle/evidence/:id/transition",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:930",
+      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:951",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -133080,7 +133081,7 @@
       "method": "POST",
       "path": "/v1/governance/retention-policies",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:236",
+      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:257",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -133167,7 +133168,7 @@
       "method": "POST",
       "path": "/v1/governance/retention-policies/:id/transition",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:325",
+      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:346",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -151201,7 +151202,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 978,
+          "line": 776,
           "caller": "handleAddExistingCase",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -151211,7 +151212,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/teams/[id]/page.tsx:978 (handleAddExistingCase, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/teams/[id]/page.tsx:776 (handleAddExistingCase, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -151396,7 +151397,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 706,
+          "line": 539,
           "caller": "handleInvite",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -151406,7 +151407,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/teams/[id]/page.tsx:706 (handleInvite, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/teams/[id]/page.tsx:539 (handleInvite, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",

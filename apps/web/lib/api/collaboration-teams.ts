@@ -204,6 +204,25 @@ export type CollaborationTeamOverview = {
   };
   members: { active: number; suspended: number; managers: number };
   workload: ReadonlyArray<{ userId: string; open: number; overdue: number }>;
+  /**
+   * The group members' EVIDENCE-REVIEW load, projected from the canonical
+   * `ReviewerWorkloadSnapshot` rows that `/v1/reviewer-ops/workload` serves.
+   * Not a second measurement — the same rows, narrowed to this group.
+   *
+   * `null` means the snapshot pass has produced nothing for anyone in this
+   * group: UNKNOWN, not "everybody is free". Render it as unknown. A reviewer
+   * with no snapshot and a reviewer with an empty queue are not the same
+   * person, and only one of them is safe to load up.
+   */
+  reviewLoad: ReadonlyArray<{
+    userId: string;
+    activeReviewCount: number;
+    overdueReviewCount: number;
+    dueSoonReviewCount: number;
+    escalatedReviewCount: number;
+    capacityScore: number;
+    computedAtUtc: string;
+  }> | null;
 };
 
 /** One group's responsibility for a record, read from the RECORD's side. */
@@ -246,6 +265,33 @@ export type CollaborationTeamPage = {
   scope: "PARTICIPATING" | "ALL";
   /** Whether this actor may ask for the workspace-wide directory at all. */
   canGovernWorkspace: boolean;
+  /**
+   * THE WORKSPACE-WIDE POSITION — every group, not the page.
+   *
+   * Present only for a caller the server granted the `ALL` scope to; `null`
+   * for everyone else. Every number is computed from the workspace, so it does
+   * not move as the operator pages or narrows the search — which is exactly
+   * why it is separate from the per-row counts beside it.
+   */
+  rollup: CollaborationWorkspaceRollup | null;
+};
+
+/** @see CollaborationTeamPage.rollup */
+export type CollaborationWorkspaceRollup = {
+  groups: { active: number; withOpenWork: number };
+  work: {
+    open: number;
+    unassigned: number;
+    overdue: number;
+    highPriority: number;
+    /** Overdue OR high-priority, counted as DISTINCT rows — never a sum. */
+    attention: number;
+    dueSoon: number;
+  };
+  workload: {
+    people: number;
+    busiest: { userId: string; open: number; overdue: number } | null;
+  };
 };
 
 /**

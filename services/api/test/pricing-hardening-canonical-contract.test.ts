@@ -485,10 +485,27 @@ describe("enterprise feature route gates", () => {
       text.match(/denyIfTeamNotEnterprise\(reply, body\.teamId, "retentionPolicy"\)/g) ??
       [];
     expect(retentionMatches.length).toBeGreaterThanOrEqual(3);
-    // Destruction review create + transition + lifecycle transition = 3 gates with legalHold.
-    const legalHoldMatches =
-      text.match(/denyIfTeamNotEnterprise\(reply, body\.teamId, "legalHold"\)/g) ?? [];
-    expect(legalHoldMatches.length).toBeGreaterThanOrEqual(3);
+    // Destruction review create + transition + lifecycle transition = 3 gates.
+    //
+    // These pass "destructionGovernance", not "legalHold" (2026-09-07). The
+    // three routes create a destruction review, decide one, and force a
+    // lifecycle transition — which is what the line above always said they
+    // were, while the string underneath claimed legal hold. That made this
+    // file read as a SECOND eligibility authority for Legal Hold, competing
+    // with the FEATURE_LEGAL_HOLD entitlement that governs the actual hold
+    // surface at /v1/lifecycle/legal-holds.
+    //
+    // The gate is unchanged in strength: `destructionGovernance` carries the
+    // same value as `legalHold` on every plan in the catalog, so the same
+    // callers are refused. Only the name of the question changed.
+    const destructionMatches =
+      text.match(
+        /denyIfTeamNotEnterprise\(reply, body\.teamId, "destructionGovernance"\)/g,
+      ) ?? [];
+    expect(destructionMatches.length).toBeGreaterThanOrEqual(3);
+    // And the borrowed name is gone from this file for good, so the two
+    // authorities cannot silently merge back together.
+    expect(text).not.toContain('"legalHold"');
   });
 
   it("Session governance routes gate sessions/revoke + revoke-all + list", () => {

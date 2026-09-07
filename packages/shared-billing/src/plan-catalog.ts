@@ -45,6 +45,23 @@ export type EnterpriseFeatureFlags = {
   accessReviews: boolean;
   sessionGovernance: boolean;
   legalHold: boolean;
+  /**
+   * DESTRUCTION GOVERNANCE — destruction reviews and forced lifecycle
+   * transitions.
+   *
+   * Split out of `legalHold` (2026-09-07). Three routes in
+   * `governance-lifecycle.routes.ts` — create a destruction review, decide
+   * one, and force a lifecycle transition — were gated on the `legalHold`
+   * flag. None of them places, reads or releases a legal hold. Borrowing the
+   * name made it read as though this catalog were a second eligibility
+   * authority for Legal Hold, competing with the `FEATURE_LEGAL_HOLD`
+   * entitlement that actually governs `/v1/lifecycle/legal-holds`.
+   *
+   * The VALUE is deliberately identical to `legalHold` on every plan, so no
+   * account gains or loses access to anything. Only the name of the question
+   * changes.
+   */
+  destructionGovernance: boolean;
   retentionPolicy: boolean;
   organizationAuditLogs: boolean;
   objectLock: boolean;
@@ -281,6 +298,7 @@ const NO_ENTERPRISE_FEATURES: EnterpriseFeatureFlags = {
   accessReviews: false,
   sessionGovernance: false,
   legalHold: false,
+  destructionGovernance: false,
   retentionPolicy: false,
   organizationAuditLogs: false,
   objectLock: false,
@@ -292,6 +310,7 @@ const ALL_ENTERPRISE_FEATURES: EnterpriseFeatureFlags = {
   accessReviews: true,
   sessionGovernance: true,
   legalHold: true,
+  destructionGovernance: true,
   retentionPolicy: true,
   organizationAuditLogs: true,
   objectLock: true,

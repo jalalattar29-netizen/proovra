@@ -52,11 +52,32 @@ import { assertTeamAllowsEnterpriseFeature } from "../services/billing-enforceme
  * the team's effective plan is not ENTERPRISE. Mirrors the inline
  * pattern already used by `requirePermission` so the route reads
  * uniformly. Returns true when the gate denied (reply already sent).
+ *
+ * ---------------------------------------------------------------------------
+ * WHY THE FEATURE IS `destructionGovernance` AND NOT `legalHold` (2026-09-07)
+ * ---------------------------------------------------------------------------
+ * The three call sites below create a destruction review, decide one, and
+ * force a lifecycle transition. Not one of them places, reads or releases a
+ * legal hold — but all three used to pass the legal-hold flag, which made this
+ * file look like a SECOND eligibility authority for Legal Hold, disagreeing
+ * with the `FEATURE_LEGAL_HOLD` entitlement that governs the actual hold
+ * surface (`/v1/lifecycle/legal-holds` in product-and-lifecycle.routes).
+ *
+ * There is exactly one eligibility authority for Legal Hold and it is the
+ * entitlement grant. This catalog flag answers a different question — whether
+ * the plan includes destruction governance — and now says so. The flag's value
+ * is identical to `legalHold` on every plan in the catalog, so this rename
+ * changes no account's access: it removes a false claim, not a gate.
+ *
+ * Note what is NOT affected: an ACTIVE legal hold blocks destruction through
+ * the canonical lifecycle formula, which consults the hold rows themselves and
+ * never consults plan or entitlement state. No commercial classification can
+ * weaken a hold that exists.
  */
 async function denyIfTeamNotEnterprise(
   reply: FastifyReply,
   teamId: string,
-  feature: "retentionPolicy" | "legalHold",
+  feature: "retentionPolicy" | "destructionGovernance",
 ): Promise<boolean> {
   try {
     await assertTeamAllowsEnterpriseFeature(teamId, feature);
@@ -457,7 +478,7 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ok = await requireMember(req, reply, body.teamId, "evidence.delete");
       if (!ok) return;
-      if (await denyIfTeamNotEnterprise(reply, body.teamId, "legalHold")) return;
+      if (await denyIfTeamNotEnterprise(reply, body.teamId, "destructionGovernance")) return;
       try {
         const review = await createDestructionReview({
           ...body,
@@ -861,7 +882,7 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ok = await requireMember(req, reply, body.teamId, "evidence.delete");
       if (!ok) return;
-      if (await denyIfTeamNotEnterprise(reply, body.teamId, "legalHold")) return;
+      if (await denyIfTeamNotEnterprise(reply, body.teamId, "destructionGovernance")) return;
       // Step-up required for APPROVED + EXECUTED (the destructive
       // branches). The other transitions are operator-recoverable.
       if (body.nextStatus === "APPROVED" || body.nextStatus === "EXECUTED") {
@@ -943,7 +964,7 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
       // of state machine pointers must be permission-gated and audited.
       const ok = await requireMember(req, reply, body.teamId, "governance.policy.manage");
       if (!ok) return;
-      if (await denyIfTeamNotEnterprise(reply, body.teamId, "legalHold")) return;
+      if (await denyIfTeamNotEnterprise(reply, body.teamId, "destructionGovernance")) return;
       // Step-up required when entering destruction or terminal states.
       if (body.toState === "PENDING_DESTRUCTION" || body.toState === "DESTROYED") {
         const gate = await requireStepUpForSensitiveAction({
