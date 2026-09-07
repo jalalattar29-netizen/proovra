@@ -571,6 +571,30 @@ export default function MarketingPricingPage() {
       ],
     },
     {
+      /*
+       * External Review, stated once, where every comparable capability on
+       * this page is already stated. It is a plan capability
+       * (`PlanCapabilities.externalReviewIncluded`: PRO and above), enforced
+       * server-side by `workspaceIncludesExternalReview`; this row REPORTS that
+       * decision and does not make one. There is no second copy in the plan
+       * cards: a capability described in two places is a capability that can
+       * disagree with itself.
+       *
+       * The wording claims inclusion and nothing more — no reviewer count, no
+       * grant allowance, no seats. An external reviewer never becomes a member
+       * of the workspace, so any number here would be inventing a commercial
+       * term the product does not sell.
+       */
+      label: "External review",
+      values: [
+        "Not included",
+        "Not included",
+        "Included",
+        "Included",
+        "Included",
+      ],
+    },
+    {
       label: "Tasks & review queues",
       values: [
         "Not included",
