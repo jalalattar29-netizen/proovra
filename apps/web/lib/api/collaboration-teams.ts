@@ -339,12 +339,33 @@ export async function createTeam(input: {
   return res.team;
 }
 
+/**
+ * THE `as` CAST WAS DOING THE LYING.
+ *
+ * `GET /v1/collaboration-teams/:teamId` shares its path prefix with the
+ * STATIC `GET /v1/collaboration-teams/entitlement`, and Fastify's router
+ * prefers a static segment over a parametric one. So `getTeam("entitlement")`
+ * returned `200 OK` carrying an entitlement projection — an object with no
+ * `team` key at all. The cast asserted otherwise, `res.team` evaluated to
+ * `undefined`, nothing threw, and the detail page rendered "Couldn't load
+ * team" with no request id because there had been no error to carry one.
+ *
+ * That is reachable from the address bar: `/collaboration-teams/entitlement`
+ * is matched by the `[teamId]` segment. A shape mismatch must fail loudly at
+ * the boundary that knows the contract rather than surface three layers up as
+ * a mystery empty state.
+ */
 export async function getTeam(
   teamId: string,
 ): Promise<CollaborationTeamDetail> {
   const res = (await apiFetch(`${BASE}/${encodeURIComponent(teamId)}`)) as {
-    team: CollaborationTeamDetail;
+    team?: CollaborationTeamDetail;
   };
+  if (!res || typeof res !== "object" || !res.team) {
+    throw new Error(
+      "The response for this team did not contain a team. The link may not point at a team.",
+    );
+  }
   return res.team;
 }
 

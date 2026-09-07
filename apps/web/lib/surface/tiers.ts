@@ -131,6 +131,12 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   // surface. Per the pricing page it unlocks at PRO/TEAM (PRO = up to 2
   // teams, TEAM = up to 5 teams).
   { pathPrefix: "/teams", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "workspace (PRO/TEAM)" },
+  // Workspace People resolver — the static entry point that replaces itself
+  // with `/teams/<activeWorkspaceId>`. It MUST carry the same tier as its
+  // destination: a resolver that admits someone the destination refuses just
+  // moves the refusal one navigation later, and a resolver stricter than its
+  // destination hides a surface the plan includes.
+  { pathPrefix: "/people", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "workspace people (PRO/TEAM) — resolver for /teams/[id]" },
   // OpsCenter visibility remediation (2026-07-18) — `/intake-links` is
   // gated by the COMMERCIAL ENTITLEMENT (PLAN_CAPABILITIES.intakeIncluded:
   // PAYG/PRO/TEAM/ENTERPRISE include intake; FREE does not). The rule's

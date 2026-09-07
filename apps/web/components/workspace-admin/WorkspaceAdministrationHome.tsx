@@ -219,13 +219,25 @@ export function WorkspaceAdministrationHome() {
             control was removed with the capability. What remains here are the
             actions that still exist. */}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
-          <Link
-            href="/teams?action=join"
-            className="cc-quick-action"
-            data-workspace-action="join_organization"
-          >
-            Join an organization
-          </Link>
+          {/*
+            "Join an organization" DELETED — it did nothing.
+
+            It linked `/teams?action=join`. `/teams` 308s to
+            `/collaboration-teams`, and `action=join` has ZERO consumers
+            anywhere in the web app: the landing page that once read it was
+            removed in Phase 2B. So the control dropped the operator on the
+            Collaboration Teams list with a query nothing reads, having
+            promised to enrol them somewhere.
+
+            There is no self-serve join. Someone joins an organization by
+            accepting an invitation (`/org-invites/[token]/accept`), which an
+            organization admin issues. "View all organizations" below is the
+            real destination for everything else, so nothing is lost by
+            removing a button that only looked like a third option.
+
+            Same rule the Hub reduction applied: a button that silently does
+            nothing is worse in an evidence product than a missing one.
+          */}
           {/* Phase A.1B — cross-link to the canonical org governance
               hub. The two surfaces are intentionally distinct: this
               page is workspace administration, /organizations is

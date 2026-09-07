@@ -39,6 +39,7 @@ import {
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
 import { openCookiePreferences } from "../../../../lib/consent";
+import { WORKSPACE_PEOPLE_PATH } from "../../../../lib/navigation/workspacePeopleLocator";
 import { useAuth } from "../../../providers";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import {
@@ -408,9 +409,15 @@ const CLOSURE_BLOCKER_ACTION: Record<string, { label: string; href: string }> = 
     label: "Transfer ownership",
     href: "/organizations",
   },
+  // §7.2 — a blocker is never shown without a path to resolve it. This one
+  // pointed at `/teams`, which 308s to `/collaboration-teams`: the operator
+  // was told their account cannot close until workspace members are dealt
+  // with, and the resolution action dropped them into the Collaboration Teams
+  // list, which manages groups and not workspace membership. `/people`
+  // resolves to the surface that can actually remove them.
   WORKSPACE_MEMBERS_ACTIVE: {
-    label: "Manage workspace members",
-    href: "/teams",
+    label: "Manage workspace people",
+    href: WORKSPACE_PEOPLE_PATH,
   },
   LEGAL_HOLD_ACTIVE: { label: "Review evidence holds", href: "/evidence" },
 };

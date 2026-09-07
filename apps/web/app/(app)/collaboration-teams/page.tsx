@@ -881,13 +881,29 @@ function RowOverflowMenu({
               >
                 Open team
               </Link>
+              {/*
+                "Invite member" → "Add people", `?tab=invites` → `?tab=members`.
+
+                The Invites tab was deleted with the group invitation writer:
+                `invites` is no longer in the detail page's `TABS`, so this
+                link silently fell back to Overview — a menu item that named an
+                action the product no longer has, landing somewhere else
+                without saying so.
+
+                A group does not invite anyone. It is assembled from people who
+                already hold workspace access, so the honest action is "Add
+                people" and the honest destination is the Members tab, which is
+                where someone is actually added (and which now carries the
+                handoff to the canonical workspace invitation for anyone who is
+                not in the workspace yet).
+              */}
               <Link
-                href={`/collaboration-teams/${teamId}?tab=invites`}
+                href={`/collaboration-teams/${teamId}?tab=members`}
                 role="menuitem"
                 className="app-ghost-action"
                 style={{ justifyContent: "flex-start", width: "100%" }}
               >
-                Invite member
+                Add people
               </Link>
               <Link
                 href={`/collaboration-teams/${teamId}?tab=settings`}

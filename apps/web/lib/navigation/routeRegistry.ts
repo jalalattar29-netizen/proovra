@@ -1875,6 +1875,49 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     allToolsVisible: true,
     sidebarEligible: false,
   },
+  // WORKSPACE PEOPLE — THE ENTRY POINT THE PRODUCT WAS MISSING.
+  //
+  // `/teams/[id]` has always been the canonical Workspace People surface:
+  // workspace members, workspace INVITATIONS, seats, roles, ownership
+  // transfer, closure. It hosts the only canonical workspace invitation form
+  // in the product.
+  //
+  // Its index was deleted in Phase 2B and `/teams` 308s to
+  // `/collaboration-teams`, while `admin.teams` above was repointed to the
+  // ENTERPRISE-tier workspace SWITCHER at `/workspaces` and left
+  // `sidebarEligible: false`. The combination removed every door: a PRO
+  // workspace sells five seats and a TEAM workspace ten, and neither could
+  // reach the surface that fills seats 2..n without typing a URL. Three live
+  // links that said "workspace members" pointed at `/teams` and bounced the
+  // operator back into Collaboration Teams.
+  //
+  // This entry is that door, and nothing more. `/people` is a RESOLVER
+  // (`app/(app)/people/page.tsx`) that names the caller's active workspace and
+  // replaces itself with `/teams/<id>`. It renders no roster and duplicates no
+  // surface — a workspace-keyed page cannot be named by a static href, and the
+  // navigation registry needs one.
+  //
+  // It is DELIBERATELY not `admin.teams` re-used: that id serves `/workspaces`
+  // (the Enterprise switcher, a genuinely different surface with its own
+  // tier), and one id cannot carry two tiers. The capability is the same
+  // `TEAM_VIEW` the destination enforces, so nav visibility and page access
+  // cannot disagree.
+  {
+    id: "workspace.people",
+    href: "/people",
+    label: "People",
+    description:
+      "The people in this workspace — members, pending invitations, roles and seats.",
+    domain: "ACCOUNT",
+    requiredCapabilities: ["TEAM_VIEW"],
+    requiredActiveSpace: "NONE",
+    fallbackBehavior: "LOAD",
+
+    advancedByDefault: false,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: true,
+  },
 
   // ---------------------------------------------------------------------------
   // Platform-admin only.

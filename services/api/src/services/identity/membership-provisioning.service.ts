@@ -36,6 +36,10 @@ import {
 // suspension / revocation). HYGIENE ONLY — the pointer authorizes nothing.
 import { repairStaleCurrentWorkspacePointers } from "../access/current-workspace-pointer.js";
 import { resolveCommercialContext } from "../billing/commercial-context.service.js";
+// THE workspace seat authority — contract-first, plan-aware, shared with the
+// invitation path and the entitlement projection. Composed here, never
+// reimplemented: see the seat gate inside `grantWorkspaceMembership`.
+import { resolveWorkspaceSeatState } from "../billing/workspace-seats.service.js";
 
 export type TxClient = Prisma.TransactionClient | PrismaClient;
 
@@ -348,7 +352,13 @@ export async function grantWorkspaceMembership(
   },
 ): Promise<
   | { ok: true }
-  | { ok: false; reason: "team_not_in_organization" | "team_is_personal" }
+  | {
+      ok: false;
+      reason:
+        | "team_not_in_organization"
+        | "team_is_personal"
+        | "workspace_seat_limit_reached";
+    }
 > {
   const team = await tx.team.findUnique({
     where: { id: input.assignment.teamId },
@@ -360,6 +370,63 @@ export async function grantWorkspaceMembership(
   if (team.isPersonal) {
     return { ok: false, reason: "team_is_personal" };
   }
+
+  /**
+   * THE SEAT AUTHORITY WAS NOT ON THIS PATH AT ALL.
+   *
+   * `acceptWorkspaceInvitation` claims a seat under an advisory lock before it
+   * provisions anybody, and refuses with `WORKSPACE_SEAT_LIMIT_REACHED` when
+   * the workspace is full. This function — the OTHER way a person becomes a
+   * workspace member, reached by organization-invitation acceptance, SSO JIT
+   * and SCIM — consulted no commercial authority whatsoever. An organization
+   * admin could seat a hundred people into a ten-seat workspace by attaching
+   * workspace assignments to invitations, and nothing anywhere would notice.
+   *
+   * So there was ONE seat resolver and only one of the two writers asked it.
+   * That is the same defect class as the `QUOTA_USERS` gate WCR-01 removed,
+   * inverted: not a second authority disagreeing, but the canonical authority
+   * being skipped.
+   *
+   * WHAT IS CHECKED, AND WHY IT IS NOT A SECOND CHECKER:
+   * `resolveWorkspaceSeatState` is THE resolver — the same one the invitation
+   * path, the entitlement projection and the billing surfaces read. It is
+   * contract-first, so an Enterprise workspace is bounded by what its contract
+   * actually says and not by the catalog default. Nothing is re-derived here.
+   *
+   * WHEN IT APPLIES: `used` counts ACTIVE members, so a seat is consumed both
+   * by a NEW member and by REACTIVATING a suspended one. An already-ACTIVE
+   * member being re-provisioned (an idempotent replay, a repeated SSO login)
+   * consumes nothing and must never be refused — refusing there would lock
+   * existing members out of their own workspace the moment it filled up.
+   *
+   * It is counted on `tx`, not the default client: a count taken outside the
+   * transaction that writes is a count of a different snapshot.
+   *
+   * The refusal is a typed `ok: false`, which is the shape both call sites
+   * already handle by skipping the assignment — an over-limit workspace
+   * assignment is dropped and the rest of the acceptance still commits, rather
+   * than the whole acceptance 500ing.
+   */
+  const existing = await tx.teamMember.findUnique({
+    where: {
+      teamId_userId: {
+        teamId: input.assignment.teamId,
+        userId: input.userId,
+      },
+    },
+    select: { status: true },
+  });
+  const alreadyOccupiesASeat = existing?.status === "ACTIVE";
+  if (!alreadyOccupiesASeat) {
+    const seats = await resolveWorkspaceSeatState(
+      input.assignment.teamId,
+      tx as PrismaClient,
+    );
+    if (seats.used >= seats.limit) {
+      return { ok: false, reason: "workspace_seat_limit_reached" };
+    }
+  }
+
   const row = await tx.teamMember.upsert({
     where: {
       teamId_userId: {

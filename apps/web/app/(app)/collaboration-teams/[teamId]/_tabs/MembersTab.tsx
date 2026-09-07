@@ -30,8 +30,12 @@ import {
   COLLABORATION_TEAM_ROLES,
   type CollaborationTeamRole,
 } from "@proovra/shared";
-import { useActiveSpace } from "../../../../../lib/platform-context";
+import { useActiveSpace, usePlatformContext } from "../../../../../lib/platform-context";
 import type { WorkspacePlan } from "../../../../../lib/platform-context/types";
+import {
+  buildWorkspaceInviteHref,
+  buildWorkspacePeopleHref,
+} from "../../../../../lib/navigation/workspacePeopleLocator";
 
 /**
  * WCR-08 — the paged endpoint returns a FLAT row (displayName/email at the top
@@ -672,6 +676,10 @@ function AddMemberPanel({
   onClose: () => void;
 }) {
   const { addToast } = useToast();
+  // The workspace this group belongs to — the subject of the canonical
+  // invitation flow this panel hands off to. It names a destination and
+  // authorizes nothing; `/teams/:id` re-checks membership server-side.
+  const { activeWorkspaceId } = usePlatformContext();
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [eligible, setEligible] = useState<
@@ -742,10 +750,28 @@ function AddMemberPanel({
         padding: "0.9rem",
       }}
     >
+      {/*
+        THE HANDOFF TO THE CANONICAL WORKSPACE INVITATION.
+
+        This sentence pointed at `/teams`, which 308s to
+        `/collaboration-teams` — so the one link in the product that said
+        "invite them in workspace members" returned the operator to the page
+        they were already on. It now names the Workspace People surface
+        through the single locator that knows how to name it.
+
+        A group is not an invitation authority: it is built from people who
+        already hold workspace access, so the only correct thing this panel can
+        do for a person who is not in the workspace yet is hand them to the
+        canonical workspace invitation flow. That is a LINK, not a second
+        writer.
+      */}
       <p className="app-table__muted" style={{ marginTop: 0 }}>
         People who already have access to this workspace. To bring someone new
         into the workspace, invite them in{" "}
-        <Link href="/teams">workspace members</Link> first.
+        <Link href={buildWorkspacePeopleHref(activeWorkspaceId)}>
+          workspace people
+        </Link>{" "}
+        first.
       </p>
 
       <input
@@ -764,11 +790,35 @@ function AddMemberPanel({
           Loading…
         </p>
       ) : eligible.length === 0 ? (
-        <p className="app-table__muted" data-testid="add-member-empty">
-          {search.trim()
-            ? "Nobody in this workspace matches that."
-            : "Everyone in this workspace is already in this team."}
-        </p>
+        /*
+          A DEAD END NEEDS A DOOR.
+
+          Both empty cases used to be a single grey sentence. The one that
+          matters operationally — "everyone in this workspace is already in
+          this team" — is exactly the moment an operator needs to bring
+          somebody NEW in, and the panel offered them nothing to press. On a
+          PRO workspace holding one person that is the FIRST state anyone sees.
+
+          The action is a LINK into the canonical workspace invitation flow.
+          This panel gains no invitation writer, no email field and no second
+          seat accounting; it hands the job to the one surface that owns it.
+        */
+        <div data-testid="add-member-empty">
+          <p className="app-table__muted" style={{ marginTop: 0 }}>
+            {search.trim()
+              ? "Nobody in this workspace matches that."
+              : "Everyone in this workspace is already in this team."}
+          </p>
+          {search.trim() ? null : (
+            <Link
+              href={buildWorkspaceInviteHref(activeWorkspaceId)}
+              className="app-secondary-action"
+              data-testid="add-member-invite-to-workspace"
+            >
+              Invite someone to the workspace
+            </Link>
+          )}
+        </div>
       ) : (
         <ul
           data-testid="add-member-candidates"

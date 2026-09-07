@@ -162,6 +162,11 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       "governance.hub",
       "account.organizations",
       "admin.teams",
+      // Workspace People — who is in this workspace, who has been invited,
+      // what roles they hold. Primary because it is the entry point for every
+      // multi-user workspace and the only canonical workspace-invitation
+      // surface; it sat behind no door at all before this.
+      "workspace.people",
       // The authenticated Trust Hub (`workspace.trust`) was removed
       // 2026-07-15 — the public Trust Center (`/trust`) is the canonical
       // trust portal; no in-app trust nav entry remains here.

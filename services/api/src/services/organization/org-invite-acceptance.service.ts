@@ -215,6 +215,22 @@ export async function acceptOrganizationInvite(input: {
       throw new Error("invalid_workspace_assignments");
     }
     const assignedWorkspaceIds: string[] = [];
+    /**
+     * A REFUSED ASSIGNMENT IS A FACT SOMEBODY HAS TO BE ABLE TO SEE.
+     *
+     * Refusals were dropped on the floor: the loop kept only the successes,
+     * and the audit event recorded a requested count and a granted list whose
+     * difference an operator had to infer and could never explain. With seat
+     * enforcement now on this path (`workspace_seat_limit_reached`, added to
+     * `grantWorkspaceMembership` because this path consulted no commercial
+     * authority at all) that difference stops being an edge case: a full
+     * workspace is an ordinary, recoverable condition an admin has to be told
+     * about, because the fix is theirs — free a seat, or raise the plan.
+     *
+     * The reason rides the EXISTING org audit event. No new audit authority,
+     * no new table, no new notification.
+     */
+    const refusedAssignments: Array<{ teamId: string; reason: string }> = [];
     for (const assignment of parsedAssignments.assignments) {
       const granted = await grantWorkspaceMembership(tx, {
         organizationId: invite.organizationId,
@@ -222,9 +238,19 @@ export async function acceptOrganizationInvite(input: {
         assignment,
         accessReason: `Organization invite ${invite.id}`,
       });
-      if (granted.ok) assignedWorkspaceIds.push(assignment.teamId);
-      // Invalid assignments (team moved out of the org since invite
-      // creation) are skipped, not silently granted.
+      if (granted.ok) {
+        assignedWorkspaceIds.push(assignment.teamId);
+      } else {
+        // Invalid assignments (team moved out of the org since invite
+        // creation, a personal workspace, or a workspace with no free seat)
+        // are skipped, not silently granted. The organization membership
+        // itself still commits — a full workspace must not cost someone the
+        // governance membership they were validly invited to.
+        refusedAssignments.push({
+          teamId: assignment.teamId,
+          reason: granted.reason,
+        });
+      }
     }
 
     // PATH 9/9 — MANAGED INVITATION. When the Organization REQUIRES managed
@@ -280,6 +306,8 @@ export async function acceptOrganizationInvite(input: {
         acceptedByUserId: userId,
         assignedWorkspaceIds,
         requestedAssignments: parsedAssignments.assignments.length,
+        // Bounded: ids + a closed reason vocabulary, no free text, no PII.
+        refusedAssignments,
       },
     });
 

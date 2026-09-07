@@ -907,10 +907,22 @@ function targetHref(
   targetType: CollaborationTeamAssignment["targetType"],
   targetId: string,
 ): string {
-  if (targetType === "CASE") return `/cases/${targetId}`;
-  if (targetType === "EVIDENCE") return `/evidence/${targetId}`;
-  // A review workflow is presented on its evidence record's review surface.
-  return `/review/queue/${targetId}`;
+  if (targetType === "CASE") return `/cases/${encodeURIComponent(targetId)}`;
+  if (targetType === "EVIDENCE") return `/evidence/${encodeURIComponent(targetId)}`;
+  /*
+    THE REVIEW LINK WAS A 404.
+
+    This returned `/review/queue/<id>`, and no such route exists — the review
+    surfaces are `/review/queues` (the plural LIST) and
+    `/reviewer-ops/[reviewId]` (the single-workflow console). So every REVIEW
+    assignment's only affordance led nowhere.
+
+    `/reviewer-ops/:reviewId` is the right destination and needs no
+    translation: it loads `/v1/reviewer-ops/workspace/:workflowId`, keyed by
+    the `EvidenceReviewWorkflow` id — which is exactly what
+    `listAssignableTargets` puts in `targetId` for this target type.
+  */
+  return `/reviewer-ops/${encodeURIComponent(targetId)}`;
 }
 
 export { AssignmentsTab };

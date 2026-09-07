@@ -275,6 +275,9 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   // ADMIN (workspaces, organizations, integrations, identity, settings)
   // -----------------------------------------------------------------
   ["admin.teams", "ADMIN"],
+  // Workspace People resolver — administration of the workspace's roster,
+  // invitations and seats. Same pillar as `admin.teams`, which it neighbours.
+  ["workspace.people", "ADMIN"],
   ["account.organizations", "ADMIN"],
   ["account.organization-detail", "ADMIN"],
   ["account.organization-setup", "ADMIN"],

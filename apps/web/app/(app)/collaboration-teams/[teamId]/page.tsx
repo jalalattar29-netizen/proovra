@@ -63,6 +63,13 @@ const TABS = [
 ] as const;
 export type TabId = (typeof TABS)[number];
 
+/**
+ * Group ids are `gen_random_uuid()` values (see `CollaborationTeam.id`). This
+ * is the shape check the `[teamId]` segment never had — see `refresh()`.
+ */
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export default function TeamDetailPage() {
   return (
     <PageRouteGate routeId="workspace.collaboration_team_detail">
@@ -96,6 +103,33 @@ function TeamDetail() {
   // team changed (or the page unmounted) — the previous team must never paint.
   const refresh = useCallback(async (isStale?: () => boolean) => {
     if (!teamId) return;
+    /**
+     * A GROUP ID IS A UUID. ANYTHING ELSE IS NOT A TEAM, AND MUST NOT BE ASKED
+     * FOR AS ONE.
+     *
+     * `[teamId]` matches every single segment under `/collaboration-teams/`,
+     * including the API's own vocabulary. `/collaboration-teams/entitlement`
+     * is the case that reached production: the segment was passed through as a
+     * group id, and because the API has a STATIC
+     * `GET /v1/collaboration-teams/entitlement` that Fastify prefers over the
+     * parametric route, the request came back `200 OK` with an entitlement
+     * projection. Nothing threw; the page rendered "Couldn't load team".
+     *
+     * Refusing here is better than repairing the response: a non-uuid segment
+     * cannot name a group under any circumstance, so the correct behaviour is
+     * to issue NO request at all and say plainly that the address is not a
+     * team. That also means a mistyped or crawled URL can never spend a
+     * round-trip against an unrelated endpoint.
+     */
+    if (!UUID_RE.test(teamId)) {
+      setLoading(false);
+      setTeam(null);
+      setError({
+        message:
+          "That address isn't a team. Open a team from the Teams list to see its members, work and discussion.",
+      });
+      return;
+    }
     setLoading(true);
     setError(null);
     // WCR-09 — the tenant this call is FOR, captured before the await and
