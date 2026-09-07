@@ -59,8 +59,12 @@ export const PROPOSED_ADDITIONS = {
   // a cursor in the same pass.
   "20280503000000_collaboration_scale_indexes":
     "REQUIRED_RELEASE_MIGRATION — EXPAND, SAFE_TO_APPLY_NOW. Two CREATE INDEX IF NOT EXISTS statements and nothing else: team_members (team_id, created_at, id) for the new paginated Workspace People endpoint, and collaboration_team_assignments (team_id, created_at DESC, id DESC) for a group's assignments. A keyset page without a matching index is a sequential scan plus a sort of the whole partition on every page, so the pagination added to make a large workspace readable would have made it slower instead. An index changes how a query is answered, never what it answers, so it is safe on either image and idempotent on re-run.",
-  "20280502000000_workspace_invite_raw_token_drop":
-    "REQUIRED_LATER_CONTRACT_MIGRATION — CONTRACT_DROP, CONTRACT_DROP_LATER. Self-guarded: RAISEs if any row has a NULL token_hash and would lose its only lookup key. Drops team_invites.token and its unique index. Apply ONLY after the Release-A image above is live everywhere — an image predating it writes token NOT NULL and reads by token. The current image never touches the column; there is not one reader of it left in the repository. A stored plaintext invitation token is a live workspace credential sitting in every backup, and Release A retained it only so a SERVICE rollback would not strand live invitations.",
+  // WCR-07 (2026-09-07) — Enterprise collaboration capacity becomes contractual.
+  "20280510000000_enterprise_contract_collaboration_limits":
+    "REQUIRED_RELEASE_MIGRATION — EXPAND, SAFE_TO_APPLY_NOW. Two nullable INTEGER columns on enterprise_contracts (collaboration_teams_max, collaboration_team_members_max) plus two CHECK constraints refusing a non-positive value. Seats and storage resolved from the contract and collaboration did not, so an Enterprise group ceiling came from a flat catalog 500 that could sit BELOW the contracted seat count — a self-serve placeholder capping a signed agreement. NULL keeps the existing meaning (the contract is silent, the catalog default governs), so every existing row behaves exactly as before and no backfill is possible or correct. Safe on either image: the previous one never selects the columns; the next treats absent and NULL identically. Idempotent.",
+  // WCR-14 (2026-09-07) — the activity feed's keyset page gets its index.
+  "20280511000000_collaboration_activity_keyset_index":
+    "REQUIRED_RELEASE_MIGRATION — EXPAND, SAFE_TO_APPLY_NOW. One CREATE INDEX IF NOT EXISTS on collaboration_team_activity (team_id, created_at DESC, id DESC). The feed paged on id while ordering by created_at alone, so rows sharing a timestamp had no defined order and a page boundary could move — and ties are the normal case, because recordActivity writes inside the mutation's transaction and several events commit together. The service now orders by the stable pair; without a matching index that is a sort of the whole partition on every page. An index changes how a query is answered, never what it answers.",
   // SECURITY CONTAINMENT (2026-09-04) — the persistent signer lifecycle.
   //
   // Retire and revoke previously wrote nothing: the read model recomputes the
@@ -221,7 +225,26 @@ export const PROPOSED_ADDITIONS = {
  */
 
 /** Nothing is excluded. Recorded explicitly so conservation is provable. */
-export const PROPOSED_EXCLUSIONS = {};
+export const PROPOSED_EXCLUSIONS = {
+  /**
+   * WCR-27 (2026-09-07) — RELEASE B IS HELD OUT OF THIS RELEASE.
+   *
+   * It was a PROPOSED_ADDITION alongside the Release A that makes it possible,
+   * which meant one `prisma migrate deploy` applied both and the rollback
+   * window Release A retains the plaintext column FOR did not exist. Its own
+   * header says "apply ONLY after the Release-A image is live everywhere"; a
+   * header is not a mechanism.
+   *
+   * The migration now lives in `prisma/migrations-held/`, which Prisma does
+   * not scan, so it cannot be applied early by ANY runner — not
+   * `migrate deploy`, not `safe-migrate`, not the raw escape hatch. Excluding
+   * it here keeps the release artifact honest about that: the chain this
+   * release ships is Release A plus the indexes, and the drop is a separate,
+   * later decision gated on `release:b-readiness`.
+   */
+  "20280502000000_workspace_invite_raw_token_drop":
+    "HELD — CONTRACT_DROP whose safety depends on a DEPLOYED APPLICATION STATE, not on the database. It is physically outside prisma/migrations/ (see prisma/migrations-held/README.md) so it cannot be applied by any runner until it is promoted, which requires the Release-A image live everywhere and a green release:b-readiness. Shipping it in the same chain as Release A defeated the staged transition Release A exists to provide.",
+};
 
 function git(...args) {
   return execFileSync("git", args, { cwd: REPO, encoding: "utf8", maxBuffer: 512 * 1024 * 1024 });

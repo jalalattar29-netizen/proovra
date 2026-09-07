@@ -595,6 +595,32 @@ export const PRODUCTION_RUNTIME_ROOTS = Object.freeze([
  * file must be looked at rather than swept into a bucket.
  */
 export const CHANGED_PATH_CLASSES = Object.freeze([
+  /**
+   * WCR-27 (2026-09-07) — A HELD MIGRATION IS ITS OWN CLASS, AND IT MUST SORT
+   * FIRST.
+   *
+   * `prisma/migrations-held/` contains a migration that is written, curated and
+   * rehearsed but deliberately kept OUT of the deployable chain, because its
+   * safety depends on a DEPLOYED APPLICATION STATE rather than on the database
+   * alone. Prisma never scans the directory, which is what turns "apply this
+   * later" from a header comment into a mechanism.
+   *
+   * It is declared BEFORE `HISTORICAL_MIGRATION` because the path still
+   * contains `migrations-held/`, and the historical rule's `migrations\/`
+   * pattern would otherwise claim it. The distinction matters in both
+   * directions:
+   *
+   *   * a held migration has NOT been applied anywhere, so the "an applied
+   *     migration's bytes may not change" rule does not apply to it — editing
+   *     one before promotion is legitimate;
+   *   * and it is not unclassified either, which is what this table refuses to
+   *     let a new kind of file be.
+   *
+   * Whether a held migration is legitimate is proved elsewhere, by the Point-6
+   * inventory (curation required) and Point-8 conservation (exclusion reason
+   * required). This table only has to know what kind of thing it is.
+   */
+  { class: "HELD_MIGRATION", test: (p) => /(^|\/)migrations-held\//.test(p) },
   { class: "HISTORICAL_MIGRATION", test: (p) => /(^|\/)migrations\//.test(p) },
   /**
    * PHASE 13 — the Prisma schema is its OWN class.

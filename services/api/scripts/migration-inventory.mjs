@@ -37,6 +37,9 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const API = resolve(HERE, "..");
 const REPO = resolve(API, "../..");
 const MIGRATIONS_DIR = join(API, "prisma", "migrations");
+// WCR-27 — migrations written and curated but deliberately withheld from the
+// deployable chain. See `prisma/migrations-held/README.md`.
+const HELD_MIGRATIONS_DIR = join(API, "prisma", "migrations-held");
 const INVENTORY_PATH = join(REPO, "docs", "architecture", "migration-inventory-p6.json");
 const CURATION_PATH = join(REPO, "docs", "architecture", "migration-inventory-p6.curation.json");
 /** Written by migration-production-reconcile.mjs — a separate authority, read here as an input. */
@@ -703,10 +706,46 @@ export function validate(migrations, curation) {
     }
   }
 
-  // Curation must not name a migration that does not exist on disk.
+  /**
+   * Curation must not name a migration that exists nowhere.
+   *
+   * WCR-27 (2026-09-07) — "nowhere" now has two places to look.
+   *
+   * `prisma/migrations-held/` holds a migration that is written, curated and
+   * rehearsed but deliberately kept OUT of the deployable chain, because its
+   * safety depends on a deployed application state rather than on the database
+   * alone. Release B (the plaintext invite-token drop) is the case: it shipped
+   * in the same chain as the Release A that makes it possible, so one
+   * `prisma migrate deploy` applied both and the rollback window Release A
+   * retains the column FOR never existed.
+   *
+   * A held migration is NOT an orphan — its curation is exactly what a reader
+   * needs in order to promote it — and it is NOT deployable, so it must not be
+   * counted in the conservation arithmetic either. It is a third state, and
+   * the inventory says so rather than making an operator infer it from an
+   * absence.
+   */
   const onDisk = new Set(migrations.map((m) => m.name));
+  const held = new Set(
+    existsSync(HELD_MIGRATIONS_DIR)
+      ? readdirSync(HELD_MIGRATIONS_DIR, { withFileTypes: true })
+          .filter((d) => d.isDirectory())
+          .map((d) => d.name)
+      : [],
+  );
   for (const name of Object.keys(curation.migrations ?? {})) {
-    if (!onDisk.has(name)) failures.push(`INVENTORY_ORPHAN: curated ${name} is not on disk`);
+    if (onDisk.has(name) || held.has(name)) continue;
+    failures.push(`INVENTORY_ORPHAN: curated ${name} is not on disk`);
+  }
+  // A held migration without curation is the real hazard: it would be promoted
+  // one day with nobody able to say what it does or when it is safe.
+  for (const name of held) {
+    if (!curation.migrations?.[name]) {
+      failures.push(`HELD_WITHOUT_CURATION: ${name} is held but carries no curated disposition`);
+    }
+    if (onDisk.has(name)) {
+      failures.push(`HELD_AND_DEPLOYABLE: ${name} exists in BOTH migrations/ and migrations-held/`);
+    }
   }
 
   // Duplicate inventory records.

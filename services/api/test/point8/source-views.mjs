@@ -67,9 +67,23 @@ export function deriveSourceSets() {
 }
 
 const MIG_DIR = "services/api/prisma/migrations";
+const HELD_DIR = "services/api/prisma/migrations-held";
 
 export function migrationsOnDisk() {
   const root = resolve(REPO, MIG_DIR);
+  if (!existsSync(root)) return [];
+  return readdirSync(root)
+    .filter((d) => statSync(join(root, d)).isDirectory() && existsSync(join(root, d, "migration.sql")))
+    .sort();
+}
+
+/**
+ * WCR-27 — migrations written and curated but deliberately withheld from the
+ * deployable chain. Prisma never scans this directory, which is what makes the
+ * staging a mechanism rather than a comment. See prisma/migrations-held/README.md.
+ */
+export function migrationsHeld() {
+  const root = resolve(REPO, HELD_DIR);
   if (!existsSync(root)) return [];
   return readdirSync(root)
     .filter((d) => statSync(join(root, d)).isDirectory() && existsSync(join(root, d, "migration.sql")))
@@ -200,6 +214,7 @@ export function buildViews({ proposedAdditions = [], proposedExclusions = {} } =
 
   const headSet = new Set(head);
   const diskSet = new Set(onDisk);
+  const heldSet = new Set(migrationsHeld());
   const exclSet = new Set(Object.keys(proposedExclusions));
 
   // `proposedAdditions` is the LEDGER. The landed/proposed split is derived.
@@ -236,9 +251,43 @@ export function buildViews({ proposedAdditions = [], proposedExclusions = {} } =
   // Conservation 1c: a tracked migration must not have been deleted from disk.
   // `git ls-tree` still reports it, so a clean checkout would ship a directory
   // this worktree no longer has — and every local rehearsal would be blind to it.
+  //
+  // WCR-27 (2026-09-07) — WITHHELD IS NOT LOST.
+  //
+  // `prisma/migrations-held/` holds a migration that is written, curated and
+  // rehearsed but deliberately kept out of the deployable chain, because its
+  // safety depends on a DEPLOYED APPLICATION STATE rather than on the database
+  // (Release B, the plaintext invite-token drop, is the case). Prisma does not
+  // scan that directory, so nothing can apply it early — which is the whole
+  // mechanism, replacing a header comment that asked an operator to wait.
+  //
+  // Such a migration leaves `migrations/` and is therefore absent from
+  // `diskSet`, but it has not disappeared: a clean checkout still ships it,
+  // visible and readable, one `git mv` from being promoted. Reporting it as
+  // lost would be false, and it would train a reader to ignore this rule.
+  //
+  // The rule is not weakened — it is split. A tracked migration that is in
+  // NEITHER place is still an error, and a held migration that carries no
+  // recorded reason is a NEW error, because a destructive migration nobody can
+  // explain is worse held than shipped.
   for (const n of head) {
-    if (!diskSet.has(n)) {
-      errors.push(`migration is in HEAD but missing from the worktree: ${n}`);
+    if (diskSet.has(n)) continue;
+    if (heldSet.has(n)) {
+      if (!exclSet.has(n)) {
+        errors.push(
+          `migration is held out of the chain but carries no exclusion reason: ${n}`,
+        );
+      }
+      continue;
+    }
+    errors.push(`migration is in HEAD but missing from the worktree: ${n}`);
+  }
+
+  // A held migration must never ALSO be in the deployable chain: that would
+  // apply it while the repository claims it is withheld.
+  for (const n of heldSet) {
+    if (diskSet.has(n)) {
+      errors.push(`migration is in BOTH migrations/ and migrations-held/: ${n}`);
     }
   }
 

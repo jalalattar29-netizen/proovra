@@ -30,7 +30,7 @@ import {
   scanMigration,
   stripSqlComments,
 } from "./point8/artifact-integrity.mjs";
-import { migrationsInHead, migrationsOnDisk, buildViews, partitionAdditions } from "./point8/source-views.mjs";
+import { migrationsInHead, migrationsOnDisk, migrationsHeld, buildViews, partitionAdditions } from "./point8/source-views.mjs";
 import { PROPOSED_ADDITIONS, PROPOSED_EXCLUSIONS } from "../scripts/release-materialize.mjs";
 import { WAVES, selectForWave } from "../scripts/release-deploy.mjs";
 
@@ -220,9 +220,37 @@ describe("PHASE 12 — POINT 8 A0/A3: conservation between the three source view
     });
   });
 
-  it("the proposed artifact is HEAD plus the additions, losing nothing", () => {
-    for (const n of HEAD) expect(PROPOSED).toContain(n);
-    expect(PROPOSED.length).toBe(PRE_RELEASE.length + Object.keys(PROPOSED_ADDITIONS).length);
+  it("the proposed artifact is HEAD plus the additions, minus only what is held", () => {
+    /**
+     * WCR-27 (2026-09-07) — WITHHELD IS ACCOUNTED FOR, NOT LOST.
+     *
+     * This asserted that every HEAD migration appears in the proposed
+     * artifact, full stop. That was the right rule while every migration
+     * belonged in the chain, and it is what let Release B (the plaintext
+     * invite-token drop) ship in the SAME `prisma migrate deploy` as the
+     * Release A that makes it possible — so the rollback window Release A
+     * retains the column FOR never existed.
+     *
+     * Release B now lives in `prisma/migrations-held/`, which Prisma does not
+     * scan. The rule keeps its force and gains a name for the third state: a
+     * HEAD migration must be in the artifact UNLESS it is held, and a held one
+     * must carry a recorded exclusion reason. Silence is still the bug; being
+     * deliberately withheld, in writing, is not.
+     */
+    const HELD = new Set(migrationsHeld());
+    for (const n of HEAD) {
+      if (HELD.has(n)) {
+        expect(
+          PROPOSED_EXCLUSIONS[n as keyof typeof PROPOSED_EXCLUSIONS],
+          `${n} is held out of the chain and must say why`,
+        ).toBeTruthy();
+        expect(PROPOSED).not.toContain(n);
+        continue;
+      }
+      expect(PROPOSED).toContain(n);
+    }
+    // Nothing is held that is also deployable, and nothing is silently dropped.
+    for (const n of HELD) expect(DISK).not.toContain(n);
     expect(PROPOSED).toEqual(DISK);
   });
 
