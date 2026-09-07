@@ -137,6 +137,12 @@ const EXPECTED_CONSUMERS = [
   // the one control on that page a person has to fill in, and it wears the
   // same label as every internal form rather than a local imitation.
   "app/intake/[token]/page.tsx",
+  // WORKSPACE PEOPLE (`/people`, served by `/teams/[id]`). The invite dialog's
+  // email and role fields. This page previously labelled its own controls with
+  // a page-local uppercase letter-spaced treatment in its own ink, which is
+  // exactly the second authority this gate exists to prevent; the redesign
+  // deleted it and the two fields now name the one declaration.
+  "app/(app)/teams/[id]/page.tsx",
   "components/cases-experience/matter-modals/StatusChangeModal.tsx",
   // Team responsibility on Case and Evidence detail. Its assign/edit dialog
   // labels team, assignee, priority, due and note with the canonical field

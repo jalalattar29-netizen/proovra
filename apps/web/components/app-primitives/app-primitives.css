@@ -1616,6 +1616,20 @@ textarea.app-form-input {
   100% { transform: translateX(100%); }
 }
 
+/* A loading row shaped like a table row, for use inside .app-table-surface
+   while the real rows are still in flight. The children carry their own
+   widths because the columns they stand in for differ per surface; the row
+   only owns the rhythm (height, gutters, separator) so the skeleton and the
+   loaded table do not disagree about how tall a row is. */
+.app-skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+}
+.app-skeleton-row:last-of-type { border-bottom: 0; }
+
 /* Inline notice — non-blocking status message inside a panel (AI provider
    unavailable, policy denial, validation failure). Neutral by default, amber
    for a warning. Also emitted, previously undefined, by the ai-copilot

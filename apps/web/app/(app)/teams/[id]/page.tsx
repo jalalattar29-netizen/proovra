@@ -1,35 +1,42 @@
 "use client";
 /**
- * WORKSPACE-ADMIN DETAIL (INTENTIONAL — final product model classification).
+ * WORKSPACE PEOPLE — the per-WORKSPACE membership surface.
  *
- * This page is the per-WORKSPACE administration detail: workspace profile,
- * billing/seats/storage, WORKSPACE members + invites (TeamMember/TeamInvite),
- * case linkage, and access review — all via the `/v1/teams/*` (workspace /
- * tenancy) API. It is gated by `admin.teams` (capability TEAM_VIEW).
+ * `/people` resolves here for the caller's active workspace (see
+ * `lib/navigation/workspacePeopleLocator`), so this file IS the People page;
+ * the `/teams/[id]` path is retained because the same surface has to be
+ * addressable per workspace from `/workspaces` and from org admin.
  *
- * It is NOT the user-facing collaboration Teams product and is NOT a
- * duplicate of `/collaboration-teams/[teamId]` (which manages CollaborationTeam
- * groups via `/v1/collaboration-teams`). It is retained because it is the
- * unique per-workspace admin surface; the workspace overview at `/workspaces`
- * delegates here / to `/organizations/[id]/admin` for detail. Backend
- * migration of `/v1/teams` (tenancy) is out of scope — it backs billing,
- * seats, and evidence ownership.
+ * What it owns: workspace profile, seats, WORKSPACE members + invitations
+ * (`TeamMember` / `TeamInvite` — the ACCESS authority), case linkage, access
+ * review, and the workspace lifecycle actions. All via the `/v1/teams/*`
+ * (workspace / tenancy) API, gated by `admin.teams` (capability TEAM_VIEW).
+ *
+ * What it is NOT: the collaboration Teams product. `/collaboration-teams/[id]`
+ * manages `CollaborationTeam` GROUPS via `/v1/collaboration-teams`; those are
+ * operational groupings and confer no access. Membership here decides who is
+ * in the workspace; membership there decides who is on the hook for work.
+ * Backend migration of `/v1/teams` (tenancy) is out of scope — it backs
+ * billing, seats, and evidence ownership.
  */
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { createPortal } from "react-dom";
-import {
-  Button,
-  Card,
-  useToast,
-  Skeleton,
-} from "../../../../components/ui";
+import { useToast } from "../../../../components/ui";
 import { apiFetch } from "../../../../lib/api";
 import { captureException } from "../../../../lib/sentry";
-import { formatUserDateTime } from "../../../../lib/date";
+import { formatUserDate, formatUserDateTime } from "../../../../lib/date";
+// THE canonical primitives. This page used to carry its own listbox, its own
+// badge treatment and three per-render button styles; every one of those is a
+// shared component now, so the surface follows the product rather than drifting
+// beside it.
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
+import { AppStatusBadge } from "../../../../components/app-primitives/AppStatusBadge";
+// The accessible dialog (focus trap, Escape, focus restoration) — NOT the
+// legacy `Modal` re-exported from `components/ui`.
+import { Modal } from "../../../../components/cases-experience/matter-modals/Modal";
 // CR1.6 Part 4 — Replace the legacy /v1/users/me self-fetch with the
 // canonical PlatformContextEnvelope user identity. The team detail
 // page only needed `currentUserId` to derive role-from-membership;
@@ -58,6 +65,16 @@ type TeamMember = {
   id?: string;
   userId: string;
   role: string;
+  /**
+   * ACTIVE / SUSPENDED / REVOKED.
+   *
+   * `GET /v1/teams/:id` includes members with no `select`, so the whole row —
+   * status included — has always been on the wire; this type simply never
+   * declared it, and the old page therefore could not show that somebody's
+   * access was suspended. On an access-management surface that is the single
+   * most important thing a row can say after the person's name.
+   */
+  status?: string;
   createdAt?: string;
   user?: TeamMemberUser;
   label?: string;
@@ -159,293 +176,66 @@ type CasesListResponse = {
 
 const MANAGEABLE_ROLE_OPTIONS = ["ADMIN", "MEMBER", "VIEWER"] as const;
 const INVITE_ROLE_OPTIONS = ["ADMIN", "MEMBER", "VIEWER"] as const;
+/**
+ * The roles a manager may SET on somebody else.
+ *
+ * OWNER is absent by construction, not by omission: ownership moves through
+ * `POST /v1/teams/:id/transfer-ownership`, which is gated on `Team.ownerUserId`
+ * and requires step-up. A dropdown is not an authorization boundary — the
+ * server refuses an OWNER grant regardless — but offering it would advertise a
+ * transition this control cannot perform.
+ */
+const ROLE_OPTIONS = MANAGEABLE_ROLE_OPTIONS;
 
-function formatLocalDateTime(value: string | null | undefined): string {
-  return formatUserDateTime(value);
+/** A person's display name, never falling back to a raw id in the primary slot. */
+function memberLabel(member: {
+  user?: { displayName?: string | null; email?: string | null } | null;
+  label?: string | null;
+  userId: string;
+}): string {
+  return (
+    member.user?.displayName?.trim() ||
+    member.user?.email ||
+    member.label ||
+    "Workspace member"
+  );
+}
+
+/**
+ * Activity rows in plain language.
+ *
+ * The stored `eventType` is a bounded machine vocabulary and is never shown
+ * raw — an operator reading "invite_created" is reading the database, not the
+ * product. Anything unmapped degrades to a humanised form rather than being
+ * hidden, so a new event type is legible before anyone writes copy for it.
+ */
+const ACTIVITY_LABELS: Record<string, string> = {
+  invite_created: "Invitation sent",
+  invite_revoked: "Invitation revoked",
+  invite_accepted: "Invitation accepted",
+  member_added: "Person added",
+  member_removed: "Person removed",
+  member_role_changed: "Role changed",
+  team_renamed: "Workspace renamed",
+  case_linked: "Case linked",
+  case_unlinked: "Case removed",
+};
+
+function humanizeActivity(activity: {
+  eventType: string;
+  actor?: { displayName?: string | null; email?: string | null } | null;
+}): string {
+  const what =
+    ACTIVITY_LABELS[activity.eventType] ??
+    activity.eventType.replace(/[_.]/g, " ").replace(/^./, (c) => c.toUpperCase());
+  const who =
+    activity.actor?.displayName?.trim() || activity.actor?.email || null;
+  return who ? `${what} — ${who}` : what;
 }
 
 function normalizePlanLabel(value?: string | null, fallback = "FREE"): string {
   const normalized = String(value ?? "").trim().toUpperCase();
   return normalized || fallback;
-}
-
-function roleTone(role: string) {
-  const normalized = role.toUpperCase();
-
-  if (normalized === "OWNER") {
-    return {
-      border: "1px solid #D9C7FB",
-      background: "#F2ECFE",
-      color: "#6D28D9",
-    };
-  }
-
-  if (normalized === "ADMIN") {
-    return {
-      border: "1px solid rgba(22,122,91,0.16)",
-      background: "#EAF7F1",
-      color: "#167A5B",
-    };
-  }
-
-  return {
-    border: "1px solid rgba(15,23,42,0.08)",
-    background: "#F1F5F9",
-    color: "#475569",
-  };
-}
-
-function billingTone(status?: string | null) {
-  const normalized = String(status ?? "").trim().toUpperCase();
-
-  if (normalized === "ACTIVE") {
-    return {
-      border: "1px solid rgba(22,122,91,0.16)",
-      background: "#EAF7F1",
-      color: "#167A5B",
-    };
-  }
-
-  if (normalized === "PAST_DUE") {
-    return {
-      border: "1px solid rgba(168,102,18,0.17)",
-      background: "#FFF6E5",
-      color: "#A86612",
-    };
-  }
-
-  if (normalized === "CANCELED") {
-    return {
-      border: "1px solid rgba(178,52,66,0.18)",
-      background: "#FFF1F2",
-      color: "#B23442",
-    };
-  }
-
-  return {
-    border: "1px solid rgba(15,23,42,0.08)",
-    background: "#F1F5F9",
-    color: "#475569",
-  };
-}
-
-type TeamRoleValue = "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
-
-function TeamRoleDropdown({
-  value,
-  options,
-  onChange,
-  disabled,
-  minWidth = 0,
-}: {
-  value: TeamRoleValue;
-  options: readonly TeamRoleValue[];
-  onChange: (value: TeamRoleValue) => void;
-  disabled?: boolean;
-  minWidth?: number;
-}) {
-  const [open, setOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const buttonRef = useRef<HTMLButtonElement | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
-
-  const [menuPos, setMenuPos] = useState<{
-    top: number;
-    left: number;
-    width: number;
-  }>({
-    top: 0,
-    left: 0,
-    width: minWidth,
-  });
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // Memoised on the only value it reads besides refs, so the effects below
-  // can list it without re-registering their window listeners every render.
-  const updateMenuPosition = useCallback(() => {
-    const button = buttonRef.current;
-    if (!button) return;
-
-    const rect = button.getBoundingClientRect();
-    const width = Math.max(rect.width, minWidth);
-
-    setMenuPos({
-      top: rect.bottom + 8,
-      left: rect.left,
-      width,
-    });
-  }, [minWidth]);
-
-  useLayoutEffect(() => {
-    if (!open) return;
-    updateMenuPosition();
-  }, [open, updateMenuPosition]);
-
-  useEffect(() => {
-    if (!open) return;
-
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node | null;
-      if (!target) return;
-
-      const clickedInsideButton = buttonRef.current?.contains(target);
-      const clickedInsideMenu = menuRef.current?.contains(target);
-
-      if (clickedInsideButton || clickedInsideMenu) return;
-      setOpen(false);
-    };
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setOpen(false);
-      }
-    };
-
-    const handleReposition = () => {
-      updateMenuPosition();
-    };
-
-    window.addEventListener("mousedown", handleClickOutside);
-    window.addEventListener("resize", handleReposition);
-    window.addEventListener("scroll", handleReposition, true);
-    window.addEventListener("keydown", handleEscape);
-
-    return () => {
-      window.removeEventListener("mousedown", handleClickOutside);
-      window.removeEventListener("resize", handleReposition);
-      window.removeEventListener("scroll", handleReposition, true);
-      window.removeEventListener("keydown", handleEscape);
-    };
-  }, [open, updateMenuPosition]);
-
-  const menu =
-    mounted && open && !disabled
-      ? createPortal(
-          <div
-            ref={menuRef}
-            role="listbox"
-            style={{
-              position: "fixed",
-              top: menuPos.top,
-              left: menuPos.left,
-              width: menuPos.width,
-              zIndex: 9999,
-              borderRadius: 18,
-              overflow: "hidden",
-              border: "1px solid rgba(79,112,107,0.14)",
-              background:
-                "linear-gradient(180deg, rgba(252,253,251,0.98) 0%, rgba(243,245,242,0.99) 100%)",
-              boxShadow:
-                "0 20px 44px rgba(0,0,0,0.14), inset 0 1px 0 rgba(255,255,255,0.72)",
-              backdropFilter: "blur(12px)",
-              WebkitBackdropFilter: "blur(12px)",
-              padding: 8,
-            }}
-          >
-            {options.map((option) => {
-              const active = option === value;
-
-              return (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => {
-                    onChange(option);
-                    setOpen(false);
-                  }}
-                  style={{
-                    width: "100%",
-                    minHeight: 46,
-                    border: "none",
-                    background: active
-                      ? "linear-gradient(180deg, rgba(58,92,95,0.12) 0%, rgba(20,38,42,0.08) 100%)"
-                      : "transparent",
-                    color: "#23373b",
-                    borderRadius: 14,
-                    textAlign: "left",
-                    padding: "0 14px",
-                    fontSize: 14,
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 10,
-                  }}
-                >
-                  <span>{option}</span>
-
-                  {active ? (
-                    <span
-                      style={{
-                        color: "#3a5d61",
-                        fontWeight: 700,
-                        fontSize: 13,
-                        flexShrink: 0,
-                      }}
-                    >
-                      ✓
-                    </span>
-                  ) : null}
-                </button>
-              );
-            })}
-          </div>,
-          document.body
-        )
-      : null;
-
-  return (
-    <>
-      <div
-        ref={rootRef}
-        style={{
-          position: "relative",
-          width: "100%",
-        }}
-      >
-        <button
-          ref={buttonRef}
-          type="button"
-          disabled={disabled}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (disabled) return;
-            setOpen((prev) => !prev);
-          }}
-          className="team-select"
-          style={{
-            minWidth,
-            minHeight: 44,
-            textAlign: "left",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
-            position: "relative",
-            width: "100%",
-          }}
-          aria-expanded={open}
-          aria-haspopup="listbox"
-        >
-          <span
-            style={{
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {value}
-          </span>
-        </button>
-      </div>
-
-      {menu}
-    </>
-  );
 }
 
 function TeamDetailPageBody() {
@@ -594,19 +384,70 @@ function TeamDetailPageBody() {
     [teamId],
   );
 
-  const displayBillingPlan = useMemo(() => {
-    return normalizePlanLabel(team?.billingPlan, "FREE");
-  }, [team?.billingPlan]);
+
+  /**
+   * ==========================================================================
+   * THE PAGE'S DERIVED READS — all from the SERVER's projection.
+   * ==========================================================================
+   * Seat capacity comes from `team.stats`, which is the same seat state the
+   * invitation gate enforces on. It is deliberately NOT counted from the rows
+   * on screen: the roster is a page, and a capacity claim derived from a page
+   * is wrong the moment there is a second one. `null` means UNKNOWN — the KPI
+   * renders an em dash rather than substituting a number.
+   */
+  const billingHref = billingConsoleHref;
+
+  const seatLimit = team?.stats?.seatLimit ?? null;
+  const seatUsed = team?.stats?.seatUsed ?? null;
+  const seatsAvailable =
+    typeof team?.stats?.seatAvailable === "number"
+      ? team.stats.seatAvailable
+      : seatLimit !== null && seatUsed !== null
+        ? Math.max(0, seatLimit - seatUsed)
+        : null;
+
+  const activeMemberCount = useMemo(
+    () =>
+      team?.stats?.memberCount ??
+      (team?.members ?? []).filter((m) => m.status !== "SUSPENDED").length,
+    [team?.stats?.memberCount, team?.members],
+  );
+
+  /** Only invitations still awaiting a decision belong in the pending list. */
+  const pendingInvites = useMemo(
+    () => invites.filter((i) => !i.acceptedAt),
+    [invites],
+  );
+
+  const [memberSearch, setMemberSearch] = useState("");
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [permissionsOpen, setPermissionsOpen] = useState(false);
+
+  /**
+   * Client-side search over the roster.
+   *
+   * Honest about its scope: `/v1/teams/:id/members` pages, and this filters
+   * what the detail payload returned. It is labelled "Search people" rather
+   * than implying a workspace-wide query, and the count beside it is the
+   * SERVER's `memberCount`, so the two numbers never pretend to describe the
+   * same set.
+   */
+  const visibleMembers = useMemo(() => {
+    const q = memberSearch.trim().toLowerCase();
+    const rows = team?.members ?? [];
+    if (!q) return rows;
+    return rows.filter((m) =>
+      [m.user?.displayName, m.user?.email, m.label, m.role]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(q),
+    );
+  }, [team?.members, memberSearch]);
 
   const effectivePlan = useMemo(() => {
     return normalizePlanLabel(team?.effectivePlan ?? team?.billingPlan, "FREE");
   }, [team?.effectivePlan, team?.billingPlan]);
-
-  const effectiveBillingStatus = useMemo(() => {
-    const normalized = String(team?.billingStatus ?? "").trim().toUpperCase();
-    if (normalized) return normalized;
-    return effectivePlan === "TEAM" ? "ACTIVE" : "INACTIVE";
-  }, [team?.billingStatus, effectivePlan]);
 
   /**
    * SEATS COME FROM THE SERVER, NOT FROM RAW COLUMNS.
@@ -626,14 +467,6 @@ function TeamDetailPageBody() {
    * `null` means the projection has not arrived. It is rendered as unknown
    * rather than as a fabricated number.
    */
-  const teamMembersUsed = team?.stats?.seatUsed ?? team?.stats?.memberCount ?? 0;
-  const teamMembersIncluded = team?.stats?.seatLimit ?? null;
-  const teamMembersRemaining = team?.stats?.seatAvailable ?? null;
-
-  const displayMemberName = (member: TeamMember) =>
-    member.user?.displayName || member.label || member.user?.email || member.userId;
-
-  const displayMemberEmail = (member: TeamMember) => member.user?.email || "";
 
   // PHASE 13 — POST /v1/teams/:id/transfer-ownership can only target an
   // ACTIVE member who is not already the owner; the roster the page already
@@ -910,41 +743,6 @@ function TeamDetailPageBody() {
     }
   };
 
-  const handleCreateTeamCase = async () => {
-    if (!teamId || !canManageTeam) return;
-
-    const caseName = window.prompt("Enter case name");
-    if (!caseName?.trim()) return;
-
-    try {
-      const created = await apiFetch("/v1/cases", {
-        method: "POST",
-        body: JSON.stringify({
-          name: caseName.trim(),
-          teamId,
-        }),
-      });
-
-      setTeamCases((prev) => [
-        {
-          id: created.id,
-          name: created.name,
-          createdAt: created.createdAt,
-          ownerUserId: created.ownerUserId,
-          teamId,
-        },
-        ...prev,
-      ]);
-
-      addToast("Case created successfully", "success");
-    } catch (err) {
-      const message =
-        toSafeUserError(err, { message: "Failed to create case" }).message;
-      captureException(err, { feature: "team_case_create", teamId });
-      addToast(message, "error");
-    }
-  };
-
   const loadAvailableCases = async () => {
     if (!teamId || !canManageTeam) return;
 
@@ -1053,168 +851,114 @@ function TeamDetailPageBody() {
    * gets "restored" by putting the token back in the response.
    */
 
-  const outerCardStyle = useMemo(
-    () =>
-      ({
-        border: "1px solid rgba(79,112,107,0.16)",
-        boxShadow:
-          "0 18px 38px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.48)",
-      }) as const,
-    []
-  );
-
-  const primaryButtonStyle = useMemo(
-    () =>
-      ({
-        borderColor: "rgba(79,112,107,0.22)",
-        color: "#eef3f1",
-        background:
-          "linear-gradient(180deg, rgba(58,92,95,0.96) 0%, rgba(20,38,42,0.98) 100%)",
-        boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(18,40,44,0.22)",
-        textShadow: "0 1px 0 rgba(0,0,0,0.22)",
-        backdropFilter: "blur(6px)",
-        WebkitBackdropFilter: "blur(6px)",
-      }) as const,
-    []
-  );
-
-  const secondaryButtonStyle = useMemo(
-    () =>
-      ({
-        borderColor: "rgba(79,112,107,0.12)",
-        color: "#24373b",
-        background:
-          "linear-gradient(180deg, rgba(250,251,249,0.82) 0%, rgba(241,244,241,0.96) 100%)",
-        boxShadow:
-          "0 10px 20px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.70)",
-        textShadow: "0 1px 0 rgba(255,255,255,0.30)",
-        backdropFilter: "blur(6px)",
-        WebkitBackdropFilter: "blur(6px)",
-      }) as const,
-    []
-  );
-
-  const dangerButtonStyle = useMemo(
-    () =>
-      ({
-        borderColor: "rgba(194,78,78,0.20)",
-        color: "#fff3f3",
-        background:
-          "linear-gradient(180deg, rgba(164,84,84,0.94) 0%, rgba(130,62,62,0.98) 100%)",
-        boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.06), 0 14px 28px rgba(90,18,18,0.14)",
-        textShadow: "0 1px 0 rgba(0,0,0,0.22)",
-        backdropFilter: "blur(6px)",
-        WebkitBackdropFilter: "blur(6px)",
-      }) as const,
-    []
-  );
-
-  const rowCardStyle = useMemo(
-    () =>
-      ({
-        border: "1px solid rgba(79,112,107,0.10)",
-        background:
-          "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
-        borderRadius: 24,
-        padding: 16,
-        boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.42), 0 12px 26px rgba(0,0,0,0.06)",
-        backdropFilter: "blur(8px)",
-        WebkitBackdropFilter: "blur(8px)",
-      }) as const,
-    []
-  );
-
-  const statPillBase = useMemo(
-    () =>
-      ({
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        minHeight: 34,
-        padding: "7px 14px",
-        borderRadius: 999,
-        fontSize: 12,
-        fontWeight: 800,
-        letterSpacing: "0.08em",
-        textTransform: "uppercase",
-      }) as const,
-    []
-  );
-
+  /**
+   * ==========================================================================
+   * NON-CONTENT STATES — the same grammar as the page they stand in for.
+   * ==========================================================================
+   * These two used to be a separate design entirely: a dark `app-hero` band
+   * with an uppercase letter-spaced eyebrow, a 2.72rem two-tone headline, and
+   * a silver photographic panel behind a 30px-radius card. A person who hit a
+   * load failure was shown a different product from the one they had asked
+   * for, and the recovery buttons were the page-local gradient pair rather
+   * than anything the rest of the app uses.
+   *
+   * They now render inside the SAME `.app-section` / `.app-section-stack`
+   * shell and behind the SAME `.app-page-header` as the loaded page, so the
+   * frame does not move when the data arrives — only the body swaps. That is
+   * also why the header here carries no actions: there is nothing yet to act
+   * on, and a disabled "Invite person" would be a promise the state cannot
+   * keep.
+   *
+   * The error state offers `Try again` (`loadData` re-arms both `loading` and
+   * `error`, and is safe to call repeatedly) and a way out to Workspaces. It
+   * deliberately does NOT link Billing: a failed read says nothing about the
+   * subscription, and sending someone to a payment surface to explain a fetch
+   * error invents a commercial cause the page has no evidence for.
+   */
   if (loading) {
     return (
-      <div className="section app-section teams-detail-page-shell">
-        <div className="app-hero app-hero-full">
-          <div className="container">
-            <div
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "0.72rem",
-                borderRadius: 999,
-                border: "1px solid rgba(255,255,255,0.10)",
-                background: "rgba(255,255,255,0.04)",
-                padding: "8px 16px",
-                fontSize: "0.68rem",
-                fontWeight: 500,
-                textTransform: "uppercase",
-                letterSpacing: "0.28em",
-                color: "#afbbb7",
-                boxShadow: "0 10px 24px rgba(0,0,0,0.08)",
-              }}
-            >
-              <span
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: 999,
-                  background: "#b79d84",
-                  opacity: 0.95,
-                  display: "inline-block",
-                  flexShrink: 0,
-                }}
-              />
-              Workspace
+      <div className="section app-section">
+        <div className="app-section-stack">
+          <div className="app-page-header" data-testid="people-header">
+            <div className="app-page-header__lead">
+              <span className="app-page-header__icon" aria-hidden="true">
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+              </span>
+              <div className="app-page-header__text">
+                <h1 className="app-page-header__title">People</h1>
+                <p className="app-page-header__subtitle">
+                  Loading people, invitations and workspace cases…
+                </p>
+              </div>
             </div>
-
-            <h1
-              className="mt-5 max-w-[760px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
-              style={{ margin: "20px 0 0" }}
-            >
-              Loading <span style={{ color: "#c3ebe2" }}>workspace</span>.
-            </h1>
-
-            <p
-              style={{
-                marginTop: 20,
-                maxWidth: 720,
-                fontSize: "0.95rem",
-                lineHeight: 1.8,
-                letterSpacing: "-0.006em",
-                color: "#aab5b2",
-              }}
-            >
-              Preparing members, invites, linked workspace cases, and billing context.
-            </p>
           </div>
-        </div>
 
-        <div
-          className="app-body app-body-full pt-8 md:pt-10"
-          style={{
-            position: "relative",
-            overflow: "hidden",
-            background:
-              "linear-gradient(180deg, rgba(239,241,238,0.96) 0%, rgba(234,237,234,0.98) 100%)",
-          }}
-        >
-          <div className="container" style={{ display: "grid", gap: 16 }}>
-            <Skeleton width="100%" height="140px" />
-            <Skeleton width="100%" height="220px" />
-            <Skeleton width="100%" height="220px" />
+          <div
+            className="app-grid-kpis"
+            aria-hidden="true"
+            data-testid="people-kpis-loading"
+          >
+            {[0, 1, 2, 3].map((i) => (
+              <div className="app-kpi-card" key={i}>
+                <div
+                  className="app-skeleton"
+                  style={{ width: "44%", height: 26, borderRadius: 8 }}
+                />
+                <div
+                  className="app-skeleton"
+                  style={{
+                    width: "68%",
+                    height: 12,
+                    borderRadius: 6,
+                    marginTop: 10,
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+
+          <div
+            className="app-table-surface"
+            aria-busy="true"
+            aria-live="polite"
+            aria-label="Loading people"
+            data-testid="people-table-loading"
+          >
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div key={i} className="app-skeleton-row">
+                <div
+                  className="app-skeleton"
+                  style={{ width: 36, height: 36, borderRadius: 999, flexShrink: 0 }}
+                />
+                <div
+                  className="app-skeleton"
+                  style={{ flex: "1 1 auto", height: 12, borderRadius: 6 }}
+                />
+                <div
+                  className="app-skeleton"
+                  style={{ width: 120, height: 12, borderRadius: 6 }}
+                />
+                <div
+                  className="app-skeleton"
+                  style={{ width: 84, height: 22, borderRadius: 999 }}
+                />
+              </div>
+            ))}
+            <span className="app-visually-hidden">Loading people…</span>
           </div>
         </div>
       </div>
@@ -1223,1498 +967,917 @@ function TeamDetailPageBody() {
 
   if (error || !team) {
     return (
-      <div className="section app-section teams-detail-page-shell">
-        <div className="app-hero app-hero-full">
-          <div className="container">
-            <div
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "0.72rem",
-                borderRadius: 999,
-                border: "1px solid rgba(255,255,255,0.10)",
-                background: "rgba(255,255,255,0.04)",
-                padding: "8px 16px",
-                fontSize: "0.68rem",
-                fontWeight: 500,
-                textTransform: "uppercase",
-                letterSpacing: "0.28em",
-                color: "#afbbb7",
-                boxShadow: "0 10px 24px rgba(0,0,0,0.08)",
-              }}
-            >
-              <span
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: 999,
-                  background: "#b79d84",
-                  opacity: 0.95,
-                  display: "inline-block",
-                  flexShrink: 0,
-                }}
-              />
-              Workspace
+      <div className="section app-section">
+        <div className="app-section-stack">
+          <div className="app-page-header" data-testid="people-header">
+            <div className="app-page-header__lead">
+              <span className="app-page-header__icon" aria-hidden="true">
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+              </span>
+              <div className="app-page-header__text">
+                <h1 className="app-page-header__title">People</h1>
+              </div>
             </div>
-
-            <h1
-              className="mt-5 max-w-[760px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
-              style={{ margin: "20px 0 0" }}
-            >
-              Workspace details <span style={{ color: "#c3ebe2" }}>could not load</span>.
-            </h1>
           </div>
-        </div>
 
-        <div
-          className="app-body app-body-full pt-8 md:pt-10"
-          style={{
-            position: "relative",
-            overflow: "hidden",
-            background:
-              "linear-gradient(180deg, rgba(239,241,238,0.96) 0%, rgba(234,237,234,0.98) 100%)",
-          }}
-        >
-          <div className="container">
-            <Card
-              className="team-card relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-              style={outerCardStyle}
-            >
-              <div className="absolute inset-0">
-                <img
-                  src="/images/panel-silver.webp.png"
-                  alt=""
-                  className="h-full w-full object-cover object-center"
-                />
-              </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
-
-              <div className="team-card-inner p-6">
-                <div className="team-card-header">
-                  <div className="team-card-title">Unable to load team</div>
-                  <div className="team-card-copy">{error || "Team not found."}</div>
-                </div>
-
-                <div style={{ marginTop: 16, display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <Link href="/workspaces" style={{ textDecoration: "none" }}>
-                    <Button
-                      className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                      style={primaryButtonStyle}
-                    >
-                      Back to Workspaces
-                    </Button>
-                  </Link>
-
-                  {teamId ? (
-                    <Link href={billingConsoleHref} style={{ textDecoration: "none" }}>
-                      <Button
-                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                        style={secondaryButtonStyle}
-                      >
-                        Open Team Billing
-                      </Button>
-                    </Link>
-                  ) : null}
-                </div>
-              </div>
-            </Card>
+          <div
+            className="app-empty"
+            data-tone="danger"
+            role="alert"
+            data-testid="people-error"
+          >
+            <strong>Couldn&apos;t load this workspace</strong>
+            <p>
+              {error ||
+                "Workspace not found, or you no longer have access to it."}
+            </p>
+            <div className="app-empty__actions">
+              <button
+                type="button"
+                className="app-primary-action"
+                onClick={() => void loadData()}
+                data-testid="people-error-retry"
+              >
+                Try again
+              </button>
+              <Link
+                href="/workspaces"
+                className="app-secondary-action"
+                data-testid="people-error-workspaces"
+              >
+                Back to workspaces
+              </Link>
+            </div>
           </div>
         </div>
       </div>
     );
   }
 
+  /**
+   * WORKSPACE PEOPLE — rebuilt on the canonical `app-*` grammar.
+   *
+   * ==========================================================================
+   * WHAT WAS REMOVED, AND WHY
+   * ==========================================================================
+   * This surface carried a visual language from an earlier generation of the
+   * product and shared it with nothing: ~270 lines of page-local `<style jsx
+   * global>`, silver photographic panel textures behind every card
+   * (`/images/panel-silver.webp.png`), 18px radii, a green-grey gradient form
+   * control with a brown chevron drawn as an inline data-URI, and three button
+   * styles built per-render with `useMemo` so no two cards agreed on what a
+   * primary action looked like.
+   *
+   * None of it was a token. It could not follow a theme change, it duplicated
+   * primitives the rest of the product already had, and it made the page read
+   * as a different application from Evidence, Home and Intake Links.
+   *
+   * Every one of those is replaced by the canonical primitive that already
+   * existed: `.app-page-header`, `.app-panel`, `.app-grid-kpis`/`.app-kpi-card`,
+   * `.app-table-surface`/`.app-table[data-responsive]`, `.app-empty`,
+   * `.app-search-field`, `AppListbox`, `AppStatusBadge`, and the ONE action
+   * hierarchy — `.app-primary-action` (purple), `.app-secondary-action--filled`
+   * (dark), `.app-secondary-action` (light), `.app-secondary-action--danger`
+   * (outlined destructive). No new class is invented here.
+   *
+   * ==========================================================================
+   * WHAT THE PAGE IS FOR
+   * ==========================================================================
+   * Identity, access, membership, invitations and roles. The people table is
+   * the primary object and everything else is subordinate to it.
+   *
+   * Three things that used to compete with it no longer do:
+   *   - the role/permission matrix was a full-width grid that dominated the
+   *     page; it is behind "Role permissions" now, in a dialog, unchanged;
+   *   - the workspace/billing block reproduced a billing dashboard; it is a
+   *     seat KPI and a link to the surface that owns billing;
+   *   - case linkage and activity are workspace ADMINISTRATION rather than
+   *     people management, so they sit below the roster instead of beside it.
+   *     They are kept rather than dropped because `POST /v1/teams/:id/cases/link`
+   *     has no other surface in the product, and removing the only door to a
+   *     capability is not a redesign.
+   *
+   * Ownership transfer, workspace closure and deletion stay reachable and are
+   * separated into their own region, because a control that ends a workspace
+   * should not sit in the same visual rank as changing somebody's role.
+   */
   return (
-    <div className="section app-section teams-detail-page-shell">
-      <style jsx global>{`
-        .teams-detail-page-shell .container {
-          max-width: 1360px !important;
-        }
-
-        .teams-detail-page-shell .team-field,
-        .teams-detail-page-shell .team-select {
-          width: 100%;
-          min-height: 54px;
-          padding: 0 16px;
-          border-radius: 18px;
-          border: 1px solid rgba(79, 112, 107, 0.14);
-          background: linear-gradient(
-            180deg,
-            rgba(250, 251, 249, 0.96) 0%,
-            rgba(241, 244, 241, 0.99) 100%
-          );
-          color: #23373b;
-          box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.7),
-            0 10px 22px rgba(0, 0, 0, 0.05);
-          outline: none;
-        }
-
-        .teams-detail-page-shell .team-field::placeholder {
-          color: rgba(93, 109, 113, 0.62);
-        }
-
-        .teams-detail-page-shell .team-field:focus,
-        .teams-detail-page-shell .team-select:focus {
-          border-color: #8b7cf6;
-          box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.78),
-            0 0 0 3px rgba(124, 58, 237, 0.14),
-            0 12px 24px rgba(0, 0, 0, 0.06);
-        }
-
-        .teams-detail-page-shell .team-select {
-          appearance: none;
-          -webkit-appearance: none;
-          -moz-appearance: none;
-          padding-right: 46px;
-          background-image:
-            linear-gradient(
-              180deg,
-              rgba(250, 251, 249, 0.96) 0%,
-              rgba(241, 244, 241, 0.99) 100%
-            ),
-            url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%238a6e57' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-          background-repeat: no-repeat, no-repeat;
-          background-position: left top, right 16px center;
-          background-size: auto, 16px;
-          cursor: pointer;
-        }
-
-        .teams-detail-page-shell .team-select option {
-          background: #f7f8f5;
-          color: #23373b;
-        }
-
-        .teams-detail-page-shell .team-section-spacer {
-          display: grid;
-          gap: 28px;
-        }
-
-        .teams-detail-page-shell .team-card {
-          height: 100%;
-          isolation: isolate;
-        }
-
-        .teams-detail-page-shell .team-card-inner {
-          position: relative;
-          z-index: 10;
-          height: 100%;
-          display: flex;
-          flex-direction: column;
-          gap: 22px;
-          padding: 30px !important;
-        }
-
-        .teams-detail-page-shell .team-card-header {
-          margin-bottom: 0;
-          max-width: 760px;
-        }
-
-        .teams-detail-page-shell .team-card-title {
-          margin: 0 0 8px;
-          font-weight: 700;
-          color: #21353a;
-          letter-spacing: -0.03em;
-          font-size: 1.65rem;
-          line-height: 1.08;
-        }
-
-        .teams-detail-page-shell .team-card-copy {
-          color: #5d6d71;
-          line-height: 1.72;
-          font-size: 0.98rem;
-          max-width: 62ch;
-        }
-
-        .teams-detail-page-shell .team-stack {
-          display: grid;
-          gap: 14px;
-        }
-
-        .teams-detail-page-shell .team-top-grid,
-        .teams-detail-page-shell .team-secondary-grid {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 28px;
-          align-items: stretch;
-        }
-
-        .teams-detail-page-shell .team-top-grid > .team-card,
-        .teams-detail-page-shell .team-secondary-grid > .team-card {
-          min-height: 320px;
-        }
-
-        .teams-detail-page-shell .team-top-grid > .team-card .team-card-inner,
-        .teams-detail-page-shell .team-secondary-grid > .team-card .team-card-inner {
-          justify-content: space-between;
-        }
-
-        .teams-detail-page-shell .team-top-grid > .team-card .team-stack,
-        .teams-detail-page-shell .team-secondary-grid > .team-card .team-stack {
-          flex: 1;
-          align-content: start;
-        }
-
-        .teams-detail-page-shell .team-hero-title-row {
-          display: flex;
-          align-items: center;
-          gap: 18px;
-          flex-wrap: wrap;
-          margin-top: 22px;
-        }
-
-        .teams-detail-page-shell .team-hero-editbar {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          flex-wrap: wrap;
-          margin-top: 18px;
-        }
-
-        .teams-detail-page-shell .team-hero-name-input {
-          min-width: 260px;
-          max-width: 420px;
-        }
-
-        .teams-detail-page-shell .team-hero-actions {
-          display: flex;
-          gap: 10px;
-          flex-wrap: wrap;
-          justify-content: flex-end;
-          align-items: flex-start;
-        }
-
-        .teams-detail-page-shell .team-cases-actions {
-          display: flex;
-          gap: 10px;
-          flex-wrap: wrap;
-          justify-content: flex-end;
-          align-items: center;
-        }
-
-        .teams-detail-page-shell .team-row-flex {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 12px;
-          flex-wrap: wrap;
-        }
-
-        .teams-detail-page-shell .team-row-flex > :first-child {
-          flex: 1 1 260px;
-          min-width: 0;
-        }
-
-        .teams-detail-page-shell .team-row-flex > :last-child {
-          display: flex;
-          gap: 8px;
-          flex-wrap: wrap;
-          align-items: center;
-          justify-content: flex-end;
-        }
-
-        .teams-detail-page-shell .team-card .rounded-\\[999px\\] {
-          white-space: nowrap;
-        }
-
-        .teams-detail-page-shell .team-card a {
-          text-decoration: none;
-        }
-
-        .teams-detail-page-shell .team-card .team-stack > div[style] {
-          border-radius: 24px !important;
-        }
-
-        @media (max-width: 1180px) {
-          .teams-detail-page-shell .team-top-grid,
-          .teams-detail-page-shell .team-secondary-grid {
-            grid-template-columns: 1fr;
-          }
-        }
-
-        @media (max-width: 860px) {
-          .teams-detail-page-shell .team-card-inner {
-            padding: 24px !important;
-          }
-
-          .teams-detail-page-shell .team-card-title {
-            font-size: 1.35rem;
-          }
-
-          .teams-detail-page-shell .team-card-copy {
-            font-size: 0.95rem;
-          }
-
-          .teams-detail-page-shell .team-hero-name-input {
-            width: 100%;
-            max-width: 100%;
-          }
-        }
-
-        @media (max-width: 720px) {
-          .teams-detail-page-shell .team-card-inner {
-            padding: 20px !important;
-            gap: 18px;
-          }
-
-          .teams-detail-page-shell .team-card-title {
-            font-size: 1.16rem;
-            line-height: 1.1;
-          }
-
-          .teams-detail-page-shell .team-hero-actions,
-          .teams-detail-page-shell .team-cases-actions {
-            justify-content: stretch;
-            width: 100%;
-          }
-
-          .teams-detail-page-shell .team-hero-actions > *,
-          .teams-detail-page-shell .team-cases-actions > * {
-            width: 100%;
-          }
-
-          .teams-detail-page-shell .team-row-flex {
-            flex-direction: column;
-            align-items: stretch;
-          }
-
-          .teams-detail-page-shell .team-row-flex > :first-child,
-          .teams-detail-page-shell .team-row-flex > :last-child {
-            width: 100%;
-          }
-
-          .teams-detail-page-shell .team-row-flex > :last-child {
-            justify-content: stretch;
-          }
-
-          .teams-detail-page-shell .team-row-flex > :last-child > * {
-            width: 100%;
-          }
-        }
-      `}</style>
-
-      <div className="app-hero app-hero-full">
-        <div className="container">
-          <div className="page-title app-page-title" style={{ marginBottom: 0 }}>
-            <div style={{ maxWidth: 900 }}>
-              <div
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "0.72rem",
-                  borderRadius: 999,
-                  border: "1px solid rgba(255,255,255,0.10)",
-                  background: "rgba(255,255,255,0.04)",
-                  padding: "8px 16px",
-                  fontSize: "0.68rem",
-                  fontWeight: 500,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.28em",
-                  color: "#afbbb7",
-                  boxShadow: "0 10px 24px rgba(0,0,0,0.08)",
-                }}
+    <div className="section app-section">
+      <div className="app-section-stack">
+        {/* HEADER — who am I managing, as what, and the one primary action. */}
+        <div className="app-page-header" data-testid="people-header">
+          <div className="app-page-header__lead">
+            <span className="app-page-header__icon" aria-hidden="true">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               >
-                <span
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: 999,
-                    background: "#b79d84",
-                    opacity: 0.95,
-                    display: "inline-block",
-                    flexShrink: 0,
-                  }}
-                />
-                Workspace
-              </div>
-
-              {!isEditingName ? (
-                <div className="team-hero-title-row">
-                  <h1
-                    className="max-w-[820px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
-                    style={{ margin: 0 }}
-                  >
-                    <span style={{ color: "#c3ebe2" }}>{team.name ?? "Workspace"}</span>
-                  </h1>
-
-                  {canManageTeam && (
-                    <Button
-                      variant="secondary"
-                      onClick={handleStartEditName}
-                      className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
-                      style={secondaryButtonStyle}
-                    >
-                      Rename
-                    </Button>
-                  )}
-                </div>
-              ) : (
-                <div className="team-hero-editbar">
-                  <input
-                    value={teamName}
-                    onChange={(e) => setTeamName(e.target.value)}
-                    disabled={savingName}
-                    className="team-field team-hero-name-input"
-                  />
-
-                  <Button
-                    onClick={handleSaveTeamName}
-                    disabled={savingName || !teamName.trim()}
-                    className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
-                    style={primaryButtonStyle}
-                  >
-                    {savingName ? "Saving..." : "Save"}
-                  </Button>
-
-                  <Button
-                    variant="secondary"
-                    onClick={handleCancelEditName}
-                    disabled={savingName}
-                    className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
-                    style={secondaryButtonStyle}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              )}
-
-              <p
-                style={{
-                  marginTop: 20,
-                  maxWidth: 760,
-                  fontSize: "0.95rem",
-                  lineHeight: 1.8,
-                  letterSpacing: "-0.006em",
-                  color: "#aab5b2",
-                }}
-              >
-                Manage <span style={{ color: "#cfd8d5" }}>ownership</span>,{" "}
-                <span style={{ color: "#bbc7c3" }}>members</span>,{" "}
-                <span style={{ color: "#d2dcd8" }}>pending invites</span>, linked{" "}
-                <span style={{ color: "#d9ccbf" }}>workspace cases</span>, and open the{" "}
-                <span style={{ color: "#c3ebe2" }}>workspace billing workflow</span>{" "}
-                from the same workspace.
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            </span>
+            <div className="app-page-header__text">
+              <h1 className="app-page-header__title">People</h1>
+              <p className="app-page-header__subtitle">
+                {team.name} · you are {currentRole}
+                {effectivePlan ? ` · ${effectivePlan} plan` : ""}
               </p>
-
-              <div className="mt-6 flex flex-wrap gap-2.5">
-                <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] font-normal text-[#c7d1ce] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
-                  <span className="mr-2 text-[#91aca5]">✓</span>
-                  {(team.stats?.memberCount ?? team.members?.length ?? 0).toString()} active
-                  member
-                  {(team.stats?.memberCount ?? team.members?.length ?? 0) === 1 ? "" : "s"}
-                </div>
-
-                <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] font-normal text-[#c7d1ce] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
-                  <span className="mr-2 text-[#91aca5]">✓</span>
-                  {team.stats?.pendingInviteCount ?? invites.length} pending invite
-                  {(team.stats?.pendingInviteCount ?? invites.length) === 1 ? "" : "s"}
-                </div>
-
-                <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] font-normal text-[#c7d1ce] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
-                  <span className="mr-2 text-[#91aca5]">✓</span>
-                  {team.stats?.caseCount ?? teamCases.length} linked case
-                  {(team.stats?.caseCount ?? teamCases.length) === 1 ? "" : "s"}
-                </div>
-
-                <div className="rounded-full border border-[rgba(214,184,157,0.18)] bg-[linear-gradient(180deg,rgba(183,157,132,0.07)_0%,rgba(255,255,255,0.028)_100%)] px-3.5 py-2 text-[0.78rem] font-normal text-[#d9ccbf] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
-                  <span className="mr-2 text-[#c2a07f]">✓</span>
-                  Current role: {currentRole}
-                </div>
-
-                <div className="rounded-full border border-[rgba(158,216,207,0.18)] bg-[linear-gradient(180deg,rgba(158,216,207,0.10)_0%,rgba(255,255,255,0.028)_100%)] px-3.5 py-2 text-[0.78rem] font-normal text-[#c3ebe2] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
-                  <span className="mr-2 text-[#9ad1c6]">✓</span>
-                  Plan view: {displayBillingPlan} · Effective: {effectivePlan} · Status:{" "}
-                  {effectiveBillingStatus}
-                </div>
-              </div>
-            </div>
-
-            <div className="team-hero-actions">
-              <Link href="/workspaces" style={{ textDecoration: "none" }}>
-                <Button
-                  className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                  style={secondaryButtonStyle}
-                >
-                  Back to Workspaces
-                </Button>
-              </Link>
-
-              {canManageTeam ? (
-                <Link href={billingConsoleHref} style={{ textDecoration: "none" }}>
-                  <Button
-                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                    style={primaryButtonStyle}
-                  >
-                    Open Team Billing
-                  </Button>
-                </Link>
-              ) : null}
-
-              {isOwner && (
-                <Button
-                  variant="secondary"
-                  onClick={() => setDeleteConfirm(true)}
-                  disabled={deletingTeam}
-                  className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                  style={dangerButtonStyle}
-                >
-                  Delete Team
-                </Button>
-              )}
             </div>
           </div>
-        </div>
-      </div>
-
-      <div
-        className="app-body app-body-full pt-8 md:pt-10"
-        style={{
-          position: "relative",
-          overflow: "hidden",
-          background:
-            "linear-gradient(180deg, rgba(239,241,238,0.96) 0%, rgba(234,237,234,0.98) 100%)",
-        }}
-      >
-        <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
-          {/*
-            PHASE 13 (NEW-071) — DANGLING ASSET REFERENCE.
-
-            `/images/landing-network-bg.png` was DELETED from `public/images` in
-            commit c0057941 and two `src` references were left behind (here and
-            `app/request-demo/success/page.tsx`). It is not in HEAD, not on disk
-            and not gitignored, so every load of this page fired a request that
-            404'd — a wasted round trip and a console error on a surface that is
-            otherwise clean. It surfaced as an unexplained 404 inside the
-            ownership-transfer journey's "no console errors" assertion.
-
-            Repointed to `site-velvet-bg.webp.png`, the asset that DOES exist and
-            that `operations/batch-analysis` and `operations/quotas` already use
-            in exactly this decorative-overlay role. The element is
-            `aria-hidden`/`alt=""` and purely decorative, so nothing about the
-            page's meaning changes — but pointing at a real file is the fix, not
-            deleting the treatment.
-          */}
-          <img
-            src="/images/site-velvet-bg.webp.png"
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover object-top opacity-[0.12] saturate-[0.55] brightness-[1.02] contrast-[0.94]"
-          />
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.03)_22%,rgba(255,255,255,0.03)_78%,rgba(255,255,255,0.08)_100%)]" />
-          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.10)_0%,rgba(255,255,255,0.03)_12%,rgba(255,255,255,0.00)_24%,rgba(255,255,255,0.00)_76%,rgba(255,255,255,0.03)_88%,rgba(255,255,255,0.10)_100%)]" />
-        </div>
-
-        <div
-          className="container relative z-10 team-section-spacer"
-          style={{
-            paddingBottom: 72,
-          }}
-        >
-          {deleteConfirm && isOwner && (
-            <Card
-              className="team-card relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-              style={{
-                ...outerCardStyle,
-                border: "1px solid rgba(194,78,78,0.24)",
-              }}
+          <div className="app-page-header__actions">
+            <button
+              type="button"
+              className="app-secondary-action"
+              onClick={() => setPermissionsOpen(true)}
+              data-testid="people-open-permissions"
             >
-              <div className="absolute inset-0">
-                <img
-                  src="/images/panel-silver.webp.png"
-                  alt=""
-                  className="h-full w-full object-cover object-center"
-                />
-              </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,243,243,0.90)_0%,rgba(248,239,235,0.86)_100%)]" />
-
-              <div className="team-card-inner p-6">
-                <div className="team-card-header">
-                  <div
-                    style={{
-                      fontSize: 22,
-                      fontWeight: 700,
-                      color: "#7b1e1e",
-                      letterSpacing: "-0.03em",
-                    }}
-                  >
-                    Delete team?
-                  </div>
-
-                  <div
-                    style={{
-                      marginTop: 10,
-                      color: "#8b4a4a",
-                      lineHeight: 1.75,
-                    }}
-                  >
-                    This will permanently delete the team, its members list, and all
-                    pending invites.
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 16 }}>
-                  <Button
-                    variant="secondary"
-                    onClick={() => setDeleteConfirm(false)}
-                    disabled={deletingTeam}
-                    className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
-                    style={secondaryButtonStyle}
-                  >
-                    Cancel
-                  </Button>
-
-                  <Button
-                    onClick={handleDeleteTeam}
-                    disabled={deletingTeam}
-                    className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
-                    style={dangerButtonStyle}
-                  >
-                    {deletingTeam ? "Deleting..." : "Delete Team"}
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          )}
-
-          <div className="team-top-grid">
+              Role permissions
+            </button>
             {canManageTeam ? (
-              <Card
-                className="team-card relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-                style={outerCardStyle}
+              <button
+                type="button"
+                className="app-primary-action"
+                onClick={() => setInviteOpen(true)}
+                data-testid="people-invite-open"
               >
-                <div className="absolute inset-0">
-                  <img
-                    src="/images/panel-silver.webp.png"
-                    alt=""
-                    className="h-full w-full object-cover object-center"
-                  />
-                </div>
-                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
-
-                <div className="team-card-inner p-6 md:p-6">
-                  <div className="team-card-header">
-                    <div className="team-card-title">Invite member</div>
-                    <div className="team-card-copy">
-                      Pending invitations do not use a seat. A seat is claimed
-                      when the invitation is accepted.
-                      {teamMembersIncluded === null ? null : (
-                        <>
-                          {" "}
-                          This workspace has{" "}
-                          <strong>{teamMembersIncluded}</strong> seat
-                          {teamMembersIncluded === 1 ? "" : "s"}.
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="team-stack">
-                    <input
-                      placeholder="Email address"
-                      value={inviteEmail}
-                      onChange={(e) => setInviteEmail(e.target.value)}
-                      disabled={inviting}
-                      className="team-field"
-                    />
-
-                    <TeamRoleDropdown
-                      value={inviteRole}
-                      options={INVITE_ROLE_OPTIONS}
-                      onChange={(value) =>
-                        setInviteRole(value as (typeof INVITE_ROLE_OPTIONS)[number])
-                      }
-                      disabled={inviting}
-                      minWidth={180}
-                    />
-
-                    <Button
-                      onClick={handleInvite}
-                      disabled={inviting || !inviteEmail.trim()}
-                      className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                      style={primaryButtonStyle}
-                    >
-                      {inviting ? "Sending..." : "Send invite"}
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-            ) : (
-              <Card
-                className="team-card relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-                style={outerCardStyle}
-              >
-                <div className="absolute inset-0">
-                  <img
-                    src="/images/panel-silver.webp.png"
-                    alt=""
-                    className="h-full w-full object-cover object-center"
-                  />
-                </div>
-                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
-
-                <div className="team-card-inner p-6 md:p-6">
-                  <div className="team-card-header">
-                    <div className="team-card-title">Access summary</div>
-                    <div className="team-card-copy">
-                      Your current access, workspace permissions, and billing entry point.
-                    </div>
-                  </div>
-
-                  <div style={rowCardStyle}>
-                    <div
-                      style={{
-                        display: "grid",
-                        gap: 8,
-                        color: "#5d6d71",
-                        lineHeight: 1.7,
-                      }}
-                    >
-                      <div>
-                        <strong style={{ color: "#7f6450" }}>Owner:</strong>{" "}
-                        {team.ownerUserId === currentUserId ? "You" : "Team owner"}
-                      </div>
-                      <div>
-                        <strong style={{ color: "#7f6450" }}>Your access:</strong>{" "}
-                        {currentRole}
-                      </div>
-                      <div>
-                        <strong style={{ color: "#7f6450" }}>Pending invites:</strong>{" "}
-                        {team.stats?.pendingInviteCount ?? invites.length}
-                      </div>
-                      <div>
-                        <strong style={{ color: "#7f6450" }}>Plan view:</strong>{" "}
-                        {displayBillingPlan}
-                      </div>
-                      <div>
-                        <strong style={{ color: "#7f6450" }}>Effective plan:</strong>{" "}
-                        {effectivePlan}
-                      </div>
-                      <div>
-                        <strong style={{ color: "#7f6450" }}>Status:</strong>{" "}
-                        {effectiveBillingStatus}
-                      </div>
-                    </div>
-                  </div>
-
-                  <Link href={billingConsoleHref} style={{ textDecoration: "none" }}>
-                    <Button
-                      className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                      style={secondaryButtonStyle}
-                    >
-                      Open Team Billing
-                    </Button>
-                  </Link>
-                </div>
-              </Card>
-            )}
-
-            <Card
-              className="team-card relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-              style={outerCardStyle}
-            >
-              <div className="absolute inset-0">
-                <img
-                  src="/images/panel-silver.webp.png"
-                  alt=""
-                  className="h-full w-full object-cover object-center"
-                />
-              </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
-
-              <div className="team-card-inner p-6 md:p-6">
-                <div className="team-card-header">
-                  <div className="team-card-title">Workspace & billing summary</div>
-                  <div className="team-card-copy">
-                    Core team status, plan view, effective capability, member capacity,
-                    and ownership at a glance.
-                  </div>
-                </div>
-
-                <div className="team-stack">
-                  <div style={rowCardStyle}>
-                    <div
-                      style={{
-                        display: "grid",
-                        gap: 8,
-                        color: "#5d6d71",
-                        lineHeight: 1.7,
-                      }}
-                    >
-                      <div>
-                        <strong style={{ color: "#7f6450" }}>Owner:</strong>{" "}
-                        {team.ownerUserId === currentUserId ? "You" : "Team owner"}
-                      </div>
-                      <div>
-                        <strong style={{ color: "#7f6450" }}>Your access:</strong>{" "}
-                        {currentRole}
-                      </div>
-                      <div>
-                        <strong style={{ color: "#7f6450" }}>Linked cases:</strong>{" "}
-                        {team.stats?.caseCount ?? teamCases.length}
-                      </div>
-                      <div>
-                        <strong style={{ color: "#7f6450" }}>Plan view:</strong>{" "}
-                        {displayBillingPlan}
-                      </div>
-                      <div>
-                        <strong style={{ color: "#7f6450" }}>Effective plan:</strong>{" "}
-                        {effectivePlan}
-                      </div>
-                      <div>
-                        <strong style={{ color: "#7f6450" }}>Billing status:</strong>{" "}
-                        {effectiveBillingStatus}
-                      </div>
-                      <div>
-                        <strong style={{ color: "#7f6450" }}>Members:</strong>{" "}
-                        {teamMembersIncluded === null
-                          ? `${teamMembersUsed}`
-                          : `${teamMembersUsed} / ${teamMembersIncluded}`}
-                        {teamMembersRemaining === null
-                          ? ""
-                          : ` · ${teamMembersRemaining} remaining`}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={rowCardStyle}>
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: 10,
-                        flexWrap: "wrap",
-                        alignItems: "center",
-                      }}
-                    >
-                      <span style={{ ...statPillBase, ...roleTone(currentRole) }}>
-                        {currentRole}
-                      </span>
-
-                      <span
-                        style={{
-                          ...statPillBase,
-                          ...billingTone(effectiveBillingStatus),
-                        }}
-                      >
-                        {effectiveBillingStatus}
-                      </span>
-
-                      <span
-                        style={{
-                          ...statPillBase,
-                          border: "1px solid rgba(15,23,42,0.08)",
-                          background: "#F1F5F9",
-                          color: "#475569",
-                        }}
-                      >
-                        {team.stats?.memberCount ?? team.members?.length ?? 0} members
-                      </span>
-
-                      {team?.overSeatLimit ? (
-                        <span
-                          style={{
-                            ...statPillBase,
-                            border: "1px solid rgba(178,52,66,0.18)",
-                            background: "#FFF1F2",
-                            color: "#B23442",
-                          }}
-                        >
-                          Over member limit
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div style={rowCardStyle}>
-                    <div
-                      style={{
-                        display: "grid",
-                        gap: 8,
-                        color: "#5d6d71",
-                        lineHeight: 1.7,
-                      }}
-                    >
-                      <div>
-                        This workspace may remain valid even when it is not on a dedicated
-                        TEAM subscription.
-                      </div>
-                      <div>
-                        Use billing when you specifically want to start, reactivate, or
-                        manage a dedicated <strong>TEAM</strong> subscription for this
-                        workspace.
-                      </div>
-                      <div>
-                        Pending invites are not the same thing as active member count.
-                        The actual member cap is enforced on joined members.
-                      </div>
-                    </div>
-
-                    <div style={{ marginTop: 14 }}>
-                      <Link href={billingConsoleHref} style={{ textDecoration: "none" }}>
-                        <Button
-                          className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                          style={primaryButtonStyle}
-                        >
-                          Open Team Billing
-                        </Button>
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </Card>
+                <svg
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+                Invite person
+              </button>
+            ) : null}
           </div>
+        </div>
 
-          <div className="team-secondary-grid">
-            <Card
-              className="team-card relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-              style={outerCardStyle}
-            >
-              <div className="absolute inset-0">
-                <img
-                  src="/images/panel-silver.webp.png"
-                  alt=""
-                  className="h-full w-full object-cover object-center"
-                />
-              </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
-
-              <div className="team-card-inner p-6 md:p-6">
-                <div className="team-card-header">
-                  <div className="team-card-title">Members</div>
-                  <div className="team-card-copy">
-                    A clear view of who belongs to the team, who owns it, and who can
-                    manage access.
-                  </div>
-                </div>
-
-                {!team.members || team.members.length === 0 ? (
-                  <div style={{ color: "#5d6d71" }}>No members found.</div>
-                ) : (
-                  <div className="team-stack">
-                    {team.members.map((member) => {
-                      const name = displayMemberName(member);
-                      const email = displayMemberEmail(member);
-                      const isSelf = member.userId === currentUserId;
-                      const memberIsOwner = member.role === "OWNER";
-
-                      return (
-                        <div key={member.userId} style={rowCardStyle}>
-                          <div className="team-row-flex">
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div
-                                style={{
-                                  color: "#21353a",
-                                  fontWeight: 700,
-                                  fontSize: 16,
-                                }}
-                              >
-                                {name} {isSelf ? "(You)" : ""}
-                              </div>
-                              <div
-                                style={{
-                                  color: "#6a777b",
-                                  fontSize: 13,
-                                  marginTop: 4,
-                                  lineHeight: 1.6,
-                                }}
-                              >
-                                {email || member.userId}
-                              </div>
-                            </div>
-
-                            <div
-                              style={{
-                                display: "flex",
-                                gap: 8,
-                                flexWrap: "wrap",
-                                alignItems: "center",
-                              }}
-                            >
-                              {canManageTeam && !memberIsOwner ? (
-                                <>
-                                  <TeamRoleDropdown
-                                    value={member.role as TeamRoleValue}
-                                    options={MANAGEABLE_ROLE_OPTIONS}
-                                    onChange={(value) =>
-                                      handleRoleChange(
-                                        member,
-                                        value as (typeof MANAGEABLE_ROLE_OPTIONS)[number]
-                                      )
-                                    }
-                                    disabled={roleSavingKey === member.userId}
-                                    minWidth={150}
-                                  />
-                                  <Button
-                                    variant="secondary"
-                                    onClick={() => handleRemoveMember(member)}
-                                    disabled={removingMemberId === member.userId}
-                                    className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
-                                    style={dangerButtonStyle}
-                                  >
-                                    {removingMemberId === member.userId
-                                      ? "Removing..."
-                                      : "Remove"}
-                                  </Button>
-                                </>
-                              ) : (
-                                <span
-                                  style={{
-                                    ...statPillBase,
-                                    ...roleTone(member.role),
-                                  }}
-                                >
-                                  {member.role}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </Card>
-
-            {/* Phase 2.6 — Permission matrix. Read-only governance
-                reference; mirrors backend rbac enforcement so admins
-                understand what each role can actually do today. */}
-            <TeamPermissionMatrix
-              currentRole={
-                (currentRole as "OWNER" | "ADMIN" | "MEMBER" | "VIEWER") ?? null
-              }
-            />
-
-            {/* Phase 2.6C — Access review card. Consumes the Phase
-                2.6B aggregator endpoint (/v1/teams/:id/access-review)
-                to surface internal members + pending invites + external
-                collaborators in one operator-readable list. ADMIN+
-                gated by the backend; non-admin viewers see an
-                AccessGate panel explaining the restriction. */}
-            {teamId ? <TeamAccessReviewCard teamId={teamId} /> : null}
-
-            <Card
-              className="team-card relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-              style={outerCardStyle}
-            >
-              <div className="absolute inset-0">
-                <img
-                  src="/images/panel-silver.webp.png"
-                  alt=""
-                  className="h-full w-full object-cover object-center"
-                />
-              </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
-
-              <div className="team-card-inner p-6 md:p-6">
-                <div className="team-card-header">
-                  <div className="team-card-title">Pending invites</div>
-                  <div className="team-card-copy">
-                    All invitations waiting for acceptance, with quick actions to manage
-                    them. Pending invites are informational and are shown separately from
-                    active member count.
-                  </div>
-                </div>
-
-                {invites.length === 0 ? (
-                  <div
-                    style={{
-                      color: "#5d6d71",
-                      minHeight: 132,
-                      display: "flex",
-                      alignItems: "center",
-                    }}
-                  >
-                    No pending invites.
-                  </div>
-                ) : (
-                  <div className="team-stack">
-                    {invites.map((invite) => (
-                      <div key={invite.id} style={rowCardStyle}>
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            gap: 12,
-                            flexWrap: "wrap",
-                            alignItems: "center",
-                          }}
-                        >
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div
-                              style={{
-                                color: "#21353a",
-                                fontWeight: 700,
-                                fontSize: 16,
-                              }}
-                            >
-                              {invite.email}
-                            </div>
-                            <div
-                              style={{
-                                color: "#6a777b",
-                                fontSize: 13,
-                                marginTop: 4,
-                                lineHeight: 1.6,
-                              }}
-                            >
-                              {invite.role}
-                              {invite.expiresAt
-                                ? ` • expires ${formatUserDateTime(invite.expiresAt)}`
-                                : ""}
-                            </div>
-                          </div>
-
-                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                            <Button
-                              variant="secondary"
-                              onClick={() => handleDeleteInvite(invite.id)}
-                              disabled={deletingInviteId === invite.id}
-                              className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
-                              style={dangerButtonStyle}
-                            >
-                              {deletingInviteId === invite.id ? "Deleting..." : "Delete"}
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </Card>
+        {/* SUMMARY — the four numbers a person managing access needs. Seats
+            come from the SERVER's projection (`team.stats`), never counted
+            from the rows on screen: the roster is a page, and a capacity claim
+            derived from a page is wrong the moment there is a second one. */}
+        <div className="app-grid-kpis" data-testid="people-kpis">
+          <div className="app-kpi-card">
+            <span className="app-kpi-card__value">{activeMemberCount}</span>
+            <span className="app-kpi-card__label">Active people</span>
+            <span className="app-kpi-card__meta">
+              With access to this workspace
+            </span>
           </div>
+          <div className="app-kpi-card">
+            <span
+              className="app-kpi-card__value"
+              data-tone={pendingInvites.length > 0 ? "accent" : undefined}
+            >
+              {pendingInvites.length}
+            </span>
+            <span className="app-kpi-card__label">Pending invitations</span>
+            <span className="app-kpi-card__meta">
+              Sent, not yet accepted
+            </span>
+          </div>
+          <div className="app-kpi-card">
+            <span
+              className="app-kpi-card__value"
+              data-tone={seatsAvailable === 0 ? "danger" : undefined}
+            >
+              {seatsAvailable === null ? "—" : seatsAvailable}
+            </span>
+            <span className="app-kpi-card__label">Seats available</span>
+            <span className="app-kpi-card__meta">
+              {seatLimit === null
+                ? "Capacity unavailable"
+                : `${seatUsed ?? activeMemberCount} of ${seatLimit} used`}
+            </span>
+          </div>
+          <div className="app-kpi-card">
+            <span className="app-kpi-card__value">{teamCases.length}</span>
+            <span className="app-kpi-card__label">Cases in this workspace</span>
+            <span className="app-kpi-card__meta">
+              <Link href="/cases" className="app-table__link">
+                Open Cases
+              </Link>
+            </span>
+          </div>
+        </div>
 
-          <Card
-            className="team-card relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-            style={outerCardStyle}
-          >
-            <div className="absolute inset-0">
-              <img
-                src="/images/panel-silver.webp.png"
-                alt=""
-                className="h-full w-full object-cover object-center"
+        {/* A seat-full workspace says so once, here, rather than letting the
+            operator discover it from a refusal after composing an invitation. */}
+        {seatsAvailable === 0 ? (
+          <div className="app-panel" data-testid="people-seats-full">
+            <div className="app-panel__body">
+              <strong>Every seat is in use.</strong>{" "}
+              <span className="app-table__muted">
+                A new person can be invited once a seat frees up, or when the
+                plan is changed.{" "}
+                <Link href={billingHref} className="app-table__link">
+                  Review plan and seats
+                </Link>
+                .
+              </span>
+            </div>
+          </div>
+        ) : null}
+
+        {/* PEOPLE — the primary object on the page. */}
+        <div className="app-panel" data-testid="people-roster">
+          <div className="app-panel__head app-panel__head-row">
+            <h2 className="app-panel__title">People</h2>
+            <div className="app-search-field">
+              <span className="app-search-field__icon" aria-hidden="true">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="m21 21-4.3-4.3" />
+                </svg>
+              </span>
+              <input
+                type="search"
+                className="app-search-field__input"
+                placeholder="Search people"
+                aria-label="Search people"
+                value={memberSearch}
+                onChange={(e) => setMemberSearch(e.target.value)}
+                data-testid="people-search"
               />
             </div>
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
-
-            <div className="team-card-inner p-6 md:p-6">
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: 18,
-                  alignItems: "center",
-                  flexWrap: "wrap",
-                  marginBottom: 18,
-                }}
-              >
-                <div>
-                  <div className="team-card-title">Team cases</div>
-                  <div className="team-card-copy">
-                    Cases currently attached to this team, with clear actions to open or
-                    remove them.
-                  </div>
-                </div>
-
-                {canManageTeam && (
-                  <div className="team-cases-actions">
-                    <Button
-                      onClick={handleCreateTeamCase}
-                      className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                      style={primaryButtonStyle}
+          </div>
+          <div className="app-table-surface">
+            {visibleMembers.length === 0 ? (
+              <div className="app-empty" data-testid="people-empty">
+                <span className="app-empty__icon" aria-hidden>
+                  <svg
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                  </svg>
+                </span>
+                <strong>
+                  {memberSearch.trim()
+                    ? "Nobody here matches that"
+                    : "You are the only person in this workspace"}
+                </strong>
+                <p>
+                  {memberSearch.trim()
+                    ? "Try a different name or address."
+                    : "Invite a colleague to give them access to this workspace's evidence, cases and reports."}
+                </p>
+                {!memberSearch.trim() && canManageTeam ? (
+                  <div className="app-empty__actions">
+                    <button
+                      type="button"
+                      className="app-primary-action"
+                      onClick={() => setInviteOpen(true)}
+                      data-testid="people-empty-invite"
                     >
-                      Create Team Case
-                    </Button>
-
-                    <Button
-                      variant="secondary"
-                      onClick={() => {
-                        const next = !showAddCase;
-                        setShowAddCase(next);
-                        if (next) {
-                          void loadAvailableCases();
-                        }
-                      }}
-                      className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                      style={secondaryButtonStyle}
-                    >
-                      {showAddCase ? "Close" : "Add Existing Case"}
-                    </Button>
+                      Invite person
+                    </button>
                   </div>
-                )}
+                ) : null}
               </div>
+            ) : (
+              <table className="app-table" data-responsive>
+                <thead>
+                  <tr>
+                    <th scope="col">Person</th>
+                    <th scope="col">Role</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Joined</th>
+                    <th scope="col" style={{ textAlign: "right" }}>
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleMembers.map((member) => {
+                    const label = memberLabel(member);
+                    const isSelf = member.userId === currentUserId;
+                    const isTeamOwner = member.role === "OWNER";
+                    /**
+                     * The row offers a role control only where the server would
+                     * accept the change: OWNER moves by transfer, and nobody
+                     * edits their own role. The server re-checks both — this
+                     * only avoids showing a control whose use is refused.
+                     */
+                    const roleEditable =
+                      canManageTeam && !isSelf && !isTeamOwner;
+                    return (
+                      <tr key={member.id ?? member.userId}>
+                        <td data-label="Person">
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 10,
+                              minWidth: 0,
+                            }}
+                          >
+                            <span className="app-avatar" aria-hidden>
+                              {(label.trim()[0] ?? "?").toUpperCase()}
+                            </span>
+                            <span style={{ minWidth: 0 }}>
+                              <span className="app-table__primary">
+                                {label}
+                                {isSelf ? " (you)" : ""}
+                              </span>
+                              {member.user?.email ? (
+                                <span className="app-table__muted app-identity">
+                                  {member.user.email}
+                                </span>
+                              ) : null}
+                            </span>
+                          </span>
+                        </td>
+                        <td data-label="Role">
+                          {roleEditable ? (
+                            <div style={{ maxWidth: 168 }}>
+                              <AppListbox
+                                value={member.role}
+                                options={ROLE_OPTIONS.map((r) => ({
+                                  value: r,
+                                  label: r,
+                                }))}
+                                onChange={(next) =>
+                                  void handleRoleChange(
+                                    member,
+                                    next as (typeof MANAGEABLE_ROLE_OPTIONS)[number],
+                                  )
+                                }
+                                ariaLabel={`Role for ${label}`}
+                                id={`member-role-${member.id ?? member.userId}`}
+                                disabled={
+                                  roleSavingKey === (member.id ?? member.userId)
+                                }
+                              />
+                            </div>
+                          ) : (
+                            <AppStatusBadge
+                              tone={isTeamOwner ? "indigo" : "slate"}
+                            >
+                              {member.role}
+                            </AppStatusBadge>
+                          )}
+                        </td>
+                        <td data-label="Status">
+                          <AppStatusBadge
+                            tone={
+                              member.status === "SUSPENDED" ? "amber" : "green"
+                            }
+                          >
+                            {member.status === "SUSPENDED"
+                              ? "Suspended"
+                              : "Active"}
+                          </AppStatusBadge>
+                        </td>
+                        <td data-label="Joined" className="app-table__muted">
+                          {member.createdAt
+                            ? formatUserDate(member.createdAt)
+                            : "—"}
+                        </td>
+                        <td data-label="" style={{ textAlign: "right" }}>
+                          {canManageTeam && !isSelf && !isTeamOwner ? (
+                            <button
+                              type="button"
+                              className="app-secondary-action app-secondary-action--danger"
+                              onClick={() => handleRemoveMember(member)}
+                              disabled={
+                                removingMemberId === (member.id ?? member.userId)
+                              }
+                              data-testid={`member-remove-${member.id ?? member.userId}`}
+                            >
+                              Remove
+                            </button>
+                          ) : (
+                            <span className="app-table__muted" aria-hidden>
+                              —
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
 
-              {teamCases.length === 0 ? (
-                <div style={{ color: "#5d6d71" }}>
-                  No cases linked to this team yet.
+        {/* PENDING INVITATIONS — only rendered when there are any, or when the
+            viewer can create one. An empty panel on a one-person workspace is
+            noise. */}
+        {pendingInvites.length > 0 || canManageTeam ? (
+          <div className="app-panel" data-testid="people-invites">
+            <div className="app-panel__head">
+              <h2 className="app-panel__title">Pending invitations</h2>
+            </div>
+            <div className="app-table-surface">
+              {pendingInvites.length === 0 ? (
+                <div className="app-empty" data-testid="people-invites-empty">
+                  <strong>No invitations outstanding</strong>
+                  <p>
+                    Everyone who was invited has either joined or had their
+                    invitation withdrawn.
+                  </p>
                 </div>
               ) : (
-                <div className="team-stack">
-                  {teamCases.map((item) => (
-                    <div key={item.id} style={rowCardStyle}>
-                      <div className="team-row-flex">
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div
-                            style={{
-                              color: "#21353a",
-                              fontWeight: 700,
-                              fontSize: 16,
-                            }}
-                          >
-                            {item.name}
-                          </div>
-                          <div
-                            style={{
-                              color: "#6a777b",
-                              fontSize: 13,
-                              marginTop: 4,
-                              lineHeight: 1.6,
-                            }}
-                          >
-                            {item.createdAt
-                              ? formatUserDateTime(item.createdAt)
-                              : "Creation date not available"}
-                          </div>
-                        </div>
-
-                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                          <Link
-                            href={`/cases/${item.id}`}
-                            style={{ textDecoration: "none" }}
-                          >
-                            <Button
-                              className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
-                              style={primaryButtonStyle}
+                <table className="app-table" data-responsive>
+                  <thead>
+                    <tr>
+                      <th scope="col">Invited</th>
+                      <th scope="col">Role</th>
+                      <th scope="col">Sent</th>
+                      <th scope="col">Expires</th>
+                      <th scope="col" style={{ textAlign: "right" }}>
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pendingInvites.map((invite) => (
+                      <tr key={invite.id}>
+                        <td data-label="Invited">
+                          <span className="app-table__primary app-identity">
+                            {invite.email}
+                          </span>
+                        </td>
+                        <td data-label="Role">
+                          <AppStatusBadge tone="slate">
+                            {invite.role}
+                          </AppStatusBadge>
+                        </td>
+                        <td data-label="Sent" className="app-table__muted">
+                          {invite.createdAt
+                            ? formatUserDate(invite.createdAt)
+                            : "—"}
+                        </td>
+                        <td data-label="Expires" className="app-table__muted">
+                          {invite.expiresAt
+                            ? formatUserDate(invite.expiresAt)
+                            : "—"}
+                        </td>
+                        <td data-label="" style={{ textAlign: "right" }}>
+                          {canManageTeam ? (
+                            <button
+                              type="button"
+                              className="app-secondary-action app-secondary-action--danger"
+                              onClick={() => handleDeleteInvite(invite.id)}
+                              disabled={deletingInviteId === invite.id}
+                              data-testid={`invite-revoke-${invite.id}`}
                             >
-                              Open
-                            </Button>
-                          </Link>
-
-                          {canManageTeam && (
-                            <Button
-                              variant="secondary"
-                              onClick={() => handleUnlinkTeamCase(item.id)}
-                              disabled={unlinkingCaseId === item.id}
-                              className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
-                              style={dangerButtonStyle}
-                            >
-                              {unlinkingCaseId === item.id
-                                ? "Removing..."
-                                : "Remove from Workspace"}
-                            </Button>
+                              Revoke
+                            </button>
+                          ) : (
+                            <span className="app-table__muted" aria-hidden>
+                              —
+                            </span>
                           )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {showAddCase && canManageTeam && (
-                <div
-                  style={{
-                    marginTop: 16,
-                    paddingTop: 16,
-                    borderTop: "1px solid rgba(79,112,107,0.10)",
-                  }}
-                >
-                  <div
-                    style={{
-                      color: "#5d6d71",
-                      marginBottom: 12,
-                      lineHeight: 1.7,
-                    }}
-                  >
-                    {loadingAvailableCases
-                      ? "Loading available cases..."
-                      : availableCases.length === 0
-                        ? "No available personal cases to link."
-                        : "Choose a personal case to attach to this team."}
-                  </div>
-
-                  {!loadingAvailableCases && availableCases.length > 0 && (
-                    <div className="team-stack">
-                      {availableCases.map((item) => (
-                        <div key={item.id} style={rowCardStyle}>
-                          <div className="team-row-flex">
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div
-                                style={{
-                                  color: "#21353a",
-                                  fontWeight: 700,
-                                  fontSize: 16,
-                                }}
-                              >
-                                {item.name}
-                              </div>
-                              <div
-                                style={{
-                                  color: "#6a777b",
-                                  fontSize: 13,
-                                  marginTop: 4,
-                                }}
-                              >
-                                {item.createdAt
-                                  ? formatUserDateTime(item.createdAt)
-                                  : ""}
-                              </div>
-                            </div>
-
-                            <Button
-                              onClick={() => handleAddExistingCase(item.id)}
-                              disabled={linkingCaseId === item.id}
-                              className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
-                              style={primaryButtonStyle}
-                            >
-                              {linkingCaseId === item.id ? "Linking..." : "Link"}
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               )}
             </div>
-          </Card>
+          </div>
+        ) : null}
 
-          {activities.length > 0 && (
-            <Card
-              className="team-card relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-              style={outerCardStyle}
-            >
-              <div className="absolute inset-0">
-                <img
-                  src="/images/panel-silver.webp.png"
-                  alt=""
-                  className="h-full w-full object-cover object-center"
+        {/* WORKSPACE ADMINISTRATION — subordinate to people, and grouped so it
+            reads as a different job rather than more of the same one. */}
+        <div className="app-panel" data-testid="people-workspace-admin">
+          <div className="app-panel__head app-panel__head-row">
+            <h2 className="app-panel__title">Workspace</h2>
+            {canManageTeam ? (
+              <button
+                type="button"
+                className="app-secondary-action"
+                onClick={() =>
+                  isEditingName ? handleCancelEditName() : handleStartEditName()
+                }
+                data-testid="workspace-rename-toggle"
+              >
+                {isEditingName ? "Cancel" : "Rename"}
+              </button>
+            ) : null}
+          </div>
+          <div className="app-panel__body">
+            {isEditingName ? (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <input
+                  className="app-form-input"
+                  style={{ maxWidth: 340 }}
+                  value={teamName}
+                  onChange={(e) => setTeamName(e.target.value)}
+                  aria-label="Workspace name"
+                  data-testid="workspace-name-input"
                 />
+                <button
+                  type="button"
+                  className="app-secondary-action app-secondary-action--filled"
+                  onClick={() => void handleSaveTeamName()}
+                  disabled={savingName}
+                  data-testid="workspace-name-save"
+                >
+                  {savingName ? "Saving…" : "Save name"}
+                </button>
               </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
+            ) : (
+              <p className="app-table__muted" style={{ margin: 0 }}>
+                Storage, subscription and payment for this workspace are managed
+                in{" "}
+                <Link href={billingHref} className="app-table__link">
+                  Billing
+                </Link>
+                .
+              </p>
+            )}
+          </div>
+        </div>
 
-              <div className="team-card-inner p-6 md:p-6">
-                <div className="team-card-header">
-                  <div className="team-card-title">Recent activity</div>
-                  <div className="team-card-copy">
-                    Latest actions captured inside the team workspace.
-                  </div>
-                </div>
+        {/* Access review — governance, kept but no longer a peer of the roster. */}
+        {teamId ? <TeamAccessReviewCard teamId={teamId} /> : null}
 
-                <div className="team-stack">
-                  {activities.slice(0, 10).map((activity) => (
-                    <div
-                      key={activity.id}
-                      style={{
-                        ...rowCardStyle,
-                        padding: 14,
-                      }}
-                    >
-                      <div style={{ color: "#21353a", fontWeight: 700 }}>
-                        {activity.eventType.replace(/_/g, " ")}
-                      </div>
-                      <div
+        {/* Case linkage. Not people management, and it stays because
+            `POST /v1/teams/:id/cases/link` has no other surface in the product
+            — removing the only door to a capability is not a redesign. */}
+        <div className="app-panel" data-testid="people-cases">
+          <div className="app-panel__head app-panel__head-row">
+            <h2 className="app-panel__title">Cases in this workspace</h2>
+            {canManageTeam ? (
+              <button
+                type="button"
+                className="app-secondary-action"
+                onClick={() => {
+                  const next = !showAddCase;
+                  setShowAddCase(next);
+                  // Candidates are fetched when the picker OPENS, not on page
+                  // load: an unlinked-case list is a whole extra read that
+                  // most visits to this page never need.
+                  if (next) void loadAvailableCases();
+                }}
+                data-testid="workspace-case-add-toggle"
+              >
+                {showAddCase ? "Close" : "Link a case"}
+              </button>
+            ) : null}
+          </div>
+          <div className="app-panel__body">
+            {showAddCase ? (
+              <div style={{ marginBottom: 12 }}>
+                {loadingAvailableCases ? (
+                  <p className="app-table__muted" style={{ margin: 0 }}>
+                    Loading cases…
+                  </p>
+                ) : availableCases.length === 0 ? (
+                  <p className="app-table__muted" style={{ margin: 0 }}>
+                    No unlinked cases are available to add.
+                  </p>
+                ) : (
+                  <ul
+                    style={{
+                      listStyle: "none",
+                      margin: 0,
+                      padding: 0,
+                      display: "grid",
+                      gap: 6,
+                      maxHeight: 220,
+                      overflowY: "auto",
+                    }}
+                    data-testid="workspace-case-candidates"
+                  >
+                    {availableCases.map((c) => (
+                      <li
+                        key={c.id}
                         style={{
-                          color: "#6a777b",
-                          fontSize: 13,
-                          marginTop: 4,
-                          lineHeight: 1.6,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
                         }}
                       >
-                        {activity.actor?.displayName ||
-                          activity.actor?.email ||
-                          "System"}{" "}
-                        • {formatLocalDateTime(activity.createdAt)}
-                      </div>
-                      {activity.metadata && (
-                        <div
-                          style={{
-                            marginTop: 6,
-                            fontSize: 11,
-                            color: "#7a878b",
-                            lineHeight: 1.65,
-                          }}
+                        <span style={{ flex: 1, minWidth: 0 }}>{c.name}</span>
+                        <button
+                          type="button"
+                          className="app-secondary-action"
+                          onClick={() => void handleAddExistingCase(c.id)}
+                          disabled={linkingCaseId === c.id}
+                          data-testid={`workspace-case-link-${c.id}`}
                         >
-                          {JSON.stringify(activity.metadata).substring(0, 90)}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                          {linkingCaseId === c.id ? "Linking…" : "Link"}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
-            </Card>
-          )}
+            ) : null}
 
-          {/* PHASE 4 §7.4 / Phase 13 — hand this workspace to another member.
-              Owner-only affordance; the route re-checks ownership + step-up. */}
-          {/*
-            PHASE 13 (NEW-049) — the transfer outcome lives HERE, not in the
-            card. A successful transfer demotes the actor out of ownership, so
-            the card below unmounts on the very refresh that follows it; a
-            notice inside it is announced for about as long as one render.
-          */}
-          {ownershipNotice ? (
-            <div
-              role="status"
-              aria-live="polite"
-              data-workspace-ownership-notice
-              className="team-card-copy"
-              style={{ marginBottom: 12 }}
-            >
-              {ownershipNotice}
-            </div>
-          ) : null}
-
-          {isOwner && teamId ? (
-            <WorkspaceOwnershipTransferCard
-              teamId={teamId}
-              teamName={team?.name ?? "this workspace"}
-              candidates={ownershipTransferCandidates}
-              onTransferred={async (notice) => {
-                setOwnershipNotice(notice);
-                await loadData();
-              }}
-            />
-          ) : null}
-
-          {/* Lifecycle Phase 7 — workspace closure (owner-only; the card
-              also self-hides when the backend returns 403). */}
-          {isOwner && teamId ? <WorkspaceClosureCard teamId={teamId} /> : null}
+            {teamCases.length === 0 ? (
+              <p className="app-table__muted" style={{ margin: 0 }}>
+                No cases are linked to this workspace yet.
+              </p>
+            ) : (
+              <ul
+                style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}
+                data-testid="workspace-case-list"
+              >
+                {teamCases.map((c) => (
+                  <li
+                    key={c.id}
+                    style={{ display: "flex", alignItems: "center", gap: 10 }}
+                  >
+                    <Link
+                      href={`/cases/${encodeURIComponent(c.id)}`}
+                      className="app-table__link"
+                      style={{ flex: 1, minWidth: 0 }}
+                    >
+                      {c.name}
+                    </Link>
+                    {canManageTeam ? (
+                      <button
+                        type="button"
+                        className="app-secondary-action app-secondary-action--danger"
+                        onClick={() => handleUnlinkTeamCase(c.id)}
+                        disabled={unlinkingCaseId === c.id}
+                        data-testid={`workspace-case-unlink-${c.id}`}
+                      >
+                        Remove
+                      </button>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
+
+        {/* Recent activity — membership and access history, compact. */}
+        {activities.length > 0 ? (
+          <div className="app-panel" data-testid="people-activity">
+            <div className="app-panel__head">
+              <h2 className="app-panel__title">Recent activity</h2>
+            </div>
+            <div className="app-panel__body">
+              <ul
+                style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}
+              >
+                {activities.slice(0, 12).map((a) => (
+                  <li key={a.id} style={{ display: "flex", gap: 10 }}>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      {humanizeActivity(a)}
+                    </span>
+                    <span className="app-table__muted">
+                      {a.createdAt ? formatUserDateTime(a.createdAt) : ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        ) : null}
+
+        {/*
+          LIFECYCLE — separated on purpose.
+
+          Transferring ownership, closing a workspace and deleting it are not
+          the same kind of act as changing somebody's role, and they used to
+          sit in the same visual rank as everything else. They keep their own
+          region, their own heading and the outlined destructive treatment the
+          design system defines, so the difference is visible before the click
+          rather than after it.
+        */}
+        {/*
+          THE TRANSFER OUTCOME LIVES OUTSIDE THE OWNER GATE, ON PURPOSE.
+
+          A successful transfer demotes the caller: the refresh that follows it
+          returns `canManageWorkspace: false`, `isOwner` flips, and the whole
+          lifecycle region below unmounts — taking any message rendered inside
+          it with it. The one moment the sentence matters is the moment the
+          card that produced it disappears, so it is announced here, above the
+          gate, in a live region.
+        */}
+        {ownershipNotice ? (
+          <div
+            className="app-panel"
+            data-testid="people-ownership-notice"
+            data-workspace-ownership-notice
+            role="status"
+            aria-live="polite"
+          >
+            <div className="app-panel__body">{ownershipNotice}</div>
+          </div>
+        ) : null}
+
+        {isOwner ? (
+          <div data-testid="people-lifecycle" className="app-section-stack">
+            <h2 className="app-panel__title" style={{ marginBottom: 0 }}>
+              Workspace lifecycle
+            </h2>
+            {/*
+              Each card repeats the `isOwner` condition the region already
+              applies. That redundancy is deliberate: these are the page's
+              authorization boundaries, and a reader should be able to see that
+              a card is owner-only from the card's own line rather than by
+              walking up the tree to find out.
+            */}
+            {isOwner && teamId ? (
+              <WorkspaceOwnershipTransferCard
+                teamId={teamId}
+                teamName={team?.name ?? "this workspace"}
+                candidates={ownershipTransferCandidates}
+                onTransferred={async (notice) => {
+                  setOwnershipNotice(notice);
+                  await loadData();
+                }}
+              />
+            ) : null}
+            {isOwner && teamId ? <WorkspaceClosureCard teamId={teamId} /> : null}
+            <div className="app-panel" data-testid="people-delete-workspace">
+              <div className="app-panel__head">
+                <h3 className="app-panel__title">Delete this workspace</h3>
+              </div>
+              <div className="app-panel__body">
+                <p className="app-table__muted" style={{ margin: "0 0 10px" }}>
+                  Deleting removes the workspace and everybody&rsquo;s access to
+                  it. Evidence retention and legal holds are governed
+                  separately and are not overridden by this action.
+                </p>
+                <button
+                  type="button"
+                  className="app-secondary-action app-secondary-action--danger"
+                  onClick={() => setDeleteConfirm(true)}
+                  disabled={deletingTeam}
+                  data-testid="workspace-delete"
+                >
+                  {deletingTeam ? "Deleting…" : "Delete workspace"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
-      {/* Phase 2.6B — DangerConfirmModal mounts for the two remaining
-          destructive flows: invite revocation + case unlink. Each
-          modal opens when its `pending*` state is non-null; the
-          handler closes the state on success and re-throws on
-          failure so the modal can surface the error inline. */}
+
+      {/* INVITE — the canonical workspace invitation, in a dialog rather than a
+          permanently-open card. Email only, because that is the only channel
+          `createWorkspaceInvitation` + `deliverWorkspaceInvite` support. */}
+      {inviteOpen ? (
+        <Modal
+          open
+          onClose={() => setInviteOpen(false)}
+          title="Invite a person to this workspace"
+          description="They receive an email with a secure link. A pending invitation does not use a seat — the seat is claimed when they accept."
+          testid="people-invite-modal"
+          footer={
+            <>
+              <button
+                type="button"
+                className="app-secondary-action"
+                onClick={() => setInviteOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="app-primary-action"
+                disabled={inviting || !inviteEmail.trim()}
+                onClick={() => void handleInvite()}
+                data-testid="people-invite-submit"
+              >
+                {inviting ? "Sending…" : "Send invitation"}
+              </button>
+            </>
+          }
+        >
+          <div style={{ display: "grid", gap: 14 }}>
+            <div>
+              <label className="app-field-label" htmlFor="people-invite-email">
+                Email address
+              </label>
+              <input
+                id="people-invite-email"
+                type="email"
+                className="app-form-input"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                placeholder="colleague@example.com"
+                data-testid="people-invite-email"
+              />
+            </div>
+            <div>
+              <label className="app-field-label" htmlFor="people-invite-role">
+                Role
+              </label>
+              <AppListbox
+                value={inviteRole}
+                options={INVITE_ROLE_OPTIONS.map((r) => ({
+                  value: r,
+                  label: r,
+                }))}
+                onChange={(v) =>
+                  setInviteRole(v as (typeof INVITE_ROLE_OPTIONS)[number])
+                }
+                ariaLabel="Role"
+                id="people-invite-role"
+              />
+              <p className="app-field__help">
+                Ownership is not granted by invitation — it moves by transfer.
+              </p>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
+
+      {/* ROLE PERMISSIONS — the same server-authoritative matrix, moved off the
+          page. It answers a question people ask occasionally and it was taking
+          the space the roster needed. */}
+      {permissionsOpen ? (
+        <Modal
+          open
+          onClose={() => setPermissionsOpen(false)}
+          title="What each role can do"
+          description="Roles are enforced by the server. This is the capability catalog the API itself publishes."
+          testid="people-permissions-modal"
+          footer={
+            <button
+              type="button"
+              className="app-secondary-action"
+              onClick={() => setPermissionsOpen(false)}
+            >
+              Close
+            </button>
+          }
+        >
+          <TeamPermissionMatrix
+            currentRole={
+              (currentRole as "OWNER" | "ADMIN" | "MEMBER" | "VIEWER") ?? null
+            }
+          />
+        </Modal>
+      ) : null}
+
       <DangerConfirmModal
         open={pendingInviteDelete !== null}
-        title="Revoke this invite?"
+        title="Revoke this invitation?"
         description={
           pendingInviteDelete
-            ? `${pendingInviteDelete.email} will no longer be able to accept the invite link.`
+            ? `${pendingInviteDelete.email} will no longer be able to accept the invitation link.`
             : ""
         }
-        caveat="The email recipient won't be notified. If you want to re-invite them, send a fresh invite."
-        confirmLabel="Revoke invite"
+        caveat="The recipient is not notified. To invite them again, send a fresh invitation."
+        confirmLabel="Revoke invitation"
         testid="invite-revoke-confirm"
         onCancel={() => setPendingInviteDelete(null)}
         onConfirm={handleConfirmDeleteInvite}
       />
       <DangerConfirmModal
         open={pendingCaseUnlink !== null}
-        title="Remove case from team?"
+        title="Remove case from this workspace?"
         description={
           pendingCaseUnlink
-            ? `"${pendingCaseUnlink.name}" will be detached from this team workspace. The case itself is not deleted; its owner retains it.`
+            ? `"${pendingCaseUnlink.name}" will be detached from this workspace. The case itself is not deleted; its owner retains it.`
             : ""
         }
         caveat="Existing case access grants stay on the case. To revoke individual members, manage access on the case itself."
@@ -2723,16 +1886,21 @@ function TeamDetailPageBody() {
         onCancel={() => setPendingCaseUnlink(null)}
         onConfirm={handleConfirmUnlinkCase}
       />
+      <DangerConfirmModal
+        open={deleteConfirm}
+        title="Delete this workspace?"
+        description="Everybody loses access to this workspace."
+        caveat="Evidence retention and legal holds are governed separately and are not overridden by deleting a workspace."
+        confirmLabel="Delete workspace"
+        testid="workspace-delete-confirm"
+        onCancel={() => setDeleteConfirm(false)}
+        onConfirm={handleDeleteTeam}
+      />
 
-      {/* Phase 2.2 — Offboarding transfer dialog. Mounted at root so
-          the focus-trap and overlay aren't constrained by sidebar /
-          card scroll containers. Closed = dialog is unmounted.
-          NOTE: we pass `TeamMember.id` (the row PK) as `memberId`, NOT
-          `userId`. The Fastify route `:memberId` resolves by
-          TeamMember.id — passing userId there returns 404. We also
-          pass `userId` separately for telemetry / display. If
-          `member.id` is missing on a row (legacy payloads), we cannot
-          safely call the route and the dialog stays closed. */}
+      {/* Offboarding transfer dialog. Mounted at root so the focus trap and
+          overlay are not constrained by a card's scroll container. We pass
+          `TeamMember.id` (the row PK) as `memberId`, NOT `userId`: the Fastify
+          route `:memberId` resolves by TeamMember.id. */}
       {removalDialogMember && teamId && removalDialogMember.id ? (
         <MemberRemovalDialog
           open
