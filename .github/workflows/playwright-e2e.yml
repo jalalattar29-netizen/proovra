@@ -244,14 +244,22 @@ jobs:
       # This was invisible until now because the whole suite was failing
       # earlier, on guest auth, so the scenario never reached that step.
       #
-      # `INTERNAL_API_URL` is set because several worker consumers probe the
-      # API for readiness and have no default base URL; without it they
-      # retry until exhausted and fill the log with failures that are
-      # configuration, not defects.
+      # `INTERNAL_API_BASE_URL` is the name the worker actually reads
+      # (`index.ts`: INTERNAL_API_BASE_URL -> API_BASE_URL -> the compose
+      # default `http://proovra-api:8080`, a hostname that does not resolve
+      # here). Several consumers probe the API for readiness before they run,
+      # so without it they exhaust their retries and fill the log with
+      # failures that are configuration, not defects.
+      #
+      # `LOG_LEVEL` is raised for this process alone. The job sets `warn`,
+      # and `worker.started` is logged at info — so the readiness check
+      # below could never match it, and the uploaded log would hold only
+      # complaints with no record of the boot it is meant to explain.
       - name: Start Worker (background)
         working-directory: services/worker
         env:
-          INTERNAL_API_URL: http://localhost:8081
+          INTERNAL_API_BASE_URL: http://localhost:8081
+          LOG_LEVEL: info
         run: |
           nohup pnpm start > /tmp/worker-e2e.log 2>&1 &
           for _ in {1..60}; do
