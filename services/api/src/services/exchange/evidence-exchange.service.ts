@@ -160,51 +160,72 @@ export async function markPackageReady(
   if (row.state !== "DRAFT" && row.state !== "BUILDING") return { ok: false };
 
   /*
-   * THE COMMERCIAL COMPLETION BOUNDARY, made atomic.
+   * ===========================================================================
+   * THE COMMERCIAL COMPLETION BOUNDARY — ONE TRANSACTION.
+   * ===========================================================================
+   * The billable transition and the meter that records it now commit together
+   * or not at all. Both models live on the same datasource, so this is an
+   * ordinary `$transaction` and not a distributed-commit problem.
    *
-   * The state check above was a read followed by an unconditional update, so
-   * two calls that both observed DRAFT would both "succeed" — harmless while
-   * nothing depended on the transition, and a double-charge the moment a meter
-   * did. The state predicate now lives IN the write: exactly one caller can
-   * move a package out of DRAFT/BUILDING, and `count` says whether it was this
-   * one. The package id plus that transition is the idempotency subject.
+   * WHAT THIS CLOSES. The two writes used to be sequential and the meter
+   * swallowed its own failures, which produced a state nothing could repair:
+   *
+   *   1. the package committed DRAFT/BUILDING → READY;
+   *   2. the usage write failed, silently;
+   *   3. every retry found no DRAFT/BUILDING row to transition, returned
+   *      `{ ok: false }`, and never attempted the meter again.
+   *
+   * The package was READY, the customer had it, and the month's count was
+   * permanently one short — under-billing that no reconciliation pass could
+   * detect, because nothing recorded that the attempt had ever happened.
+   *
+   * Inside the transaction a metering failure rolls the READY transition back,
+   * so the package is exactly as it was before the call and the next attempt is
+   * a normal first attempt. Nothing is swallowed here, deliberately: a
+   * swallowed failure inside this transaction would commit READY with no meter
+   * and rebuild the divergence with extra steps.
+   *
+   * WHY THE PREDICATE IS IN THE WRITE. `state: { in: [...] }` inside the
+   * `updateMany` — not the read above it — is what makes the transition
+   * single-winner. The read is a fast path that distinguishes "no such package
+   * in this workspace" from "already ready"; two concurrent callers can both
+   * pass it, and exactly one can have `count === 1`. That one caller is the one
+   * that meters.
+   *
+   * WHAT IS METERED, AND WHOSE. ONE produced package, ONE monthly unit, here
+   * and nowhere else. Deliberately NOT at creation: `createExchangePackage`
+   * writes a DRAFT whose build can still fail, so metering there would charge
+   * for packages that never existed. Deliberately NOT at signed-URL generation
+   * or delivery: those are reads and re-sends of an artifact already paid for,
+   * and a customer who downloads twice has not bought twice.
+   *
+   * The subject is the workspace that OWNS the package. `teamId` is NOT NULL on
+   * the model and is re-named in the `updateMany` predicate, so a call carrying
+   * another workspace's id matches zero rows, meters nothing, and returns
+   * `{ ok: false }` — never the actor's personal workspace, never the recipient
+   * of the download.
    */
-  const transition = await prisma.evidenceExchangePackage.updateMany({
-    where: {
-      id: row.id,
-      teamId: input.teamId,
-      state: { in: ["DRAFT", "BUILDING"] },
-    },
-    data: {
-      state: "READY",
-      storageKey: input.storageKey.slice(0, 400),
-      packageSha256: input.packageSha256.slice(0, 64),
-      packageSizeBytes: BigInt(input.packageSizeBytes),
-      readyAtUtc: new Date(),
-    },
+  return prisma.$transaction(async (tx) => {
+    const transition = await tx.evidenceExchangePackage.updateMany({
+      where: {
+        id: row.id,
+        teamId: input.teamId,
+        state: { in: ["DRAFT", "BUILDING"] },
+      },
+      data: {
+        state: "READY",
+        storageKey: input.storageKey.slice(0, 400),
+        packageSha256: input.packageSha256.slice(0, 64),
+        packageSizeBytes: BigInt(input.packageSizeBytes),
+        readyAtUtc: new Date(),
+      },
+    });
+    if (transition.count !== 1) return { ok: false };
+
+    await recordExportPackageUsage({ prisma: tx, teamId: input.teamId });
+
+    return { ok: true };
   });
-  if (transition.count !== 1) return { ok: false };
-
-  /*
-   * ONE produced package, ONE monthly unit — metered here and nowhere else.
-   *
-   * Deliberately NOT at creation: `createExchangePackage` writes a DRAFT whose
-   * build can still fail, so metering there would charge for packages that
-   * never existed. Deliberately NOT at signed-URL generation or delivery
-   * either: those are reads and re-sends of an artifact already paid for, and a
-   * customer who downloads twice has not bought twice.
-   *
-   * The subject is the workspace that OWNS the package (`teamId`, which also
-   * scopes the lookup above), never the actor's personal workspace and never
-   * the recipient of the download.
-   *
-   * Awaited so the meter is written before the caller is told the package is
-   * ready; the writer swallows its own failures, so metering cannot fail an
-   * operation whose artifact already exists.
-   */
-  await recordExportPackageUsage({ prisma, teamId: input.teamId });
-
-  return { ok: true };
 }
 
 // ---------------------------------------------------------------------------

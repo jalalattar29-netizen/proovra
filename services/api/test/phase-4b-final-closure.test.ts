@@ -113,6 +113,19 @@ const INTELLIGENCE_LIFECYCLE_CODES_SRC = fs.readFileSync(
 
 function makePrismaStub(overrides: Record<string, unknown> = {}) {
   const base: Record<string, unknown> = {
+    /**
+     * EXPORT PACKAGE METER (2026-09-07) — the completion boundary is now ONE
+     * transaction: the conditional DRAFT/BUILDING → READY transition and the
+     * monthly usage write commit together or not at all, so a failed meter can
+     * no longer leave a package READY and permanently unmetered.
+     *
+     * The stub runs the callback against itself, which is what these
+     * source-and-shape suites need. The ROLLBACK behaviour is exercised
+     * properly in `export-package-meter.test.ts`, whose double restores both
+     * tables when the callback throws.
+     */
+    $transaction: async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> =>
+      fn(base),
     // WORKSPACE-SCOPE CONVERGENCE — the lifecycle services resolve the
     // workspace's kind and owner before reading Evidence, so the stub must
     // model the Team row. A NON-personal default keeps every assertion below
@@ -179,6 +192,16 @@ function makePrismaStub(overrides: Record<string, unknown> = {}) {
     },
     redactionDerivative: {
       findMany: async () => [],
+    },
+    /**
+     * The export-package monthly meter. Present because the writer no longer
+     * swallows: a completion that cannot record its unit now rolls the READY
+     * transition back rather than committing a package the meter never saw, so
+     * a stub without this table would fail the transaction instead of silently
+     * absorbing the write.
+     */
+    entitlementUsage: {
+      upsert: async () => ({}),
     },
     ...overrides,
   };

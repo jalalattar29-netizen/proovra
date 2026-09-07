@@ -475,12 +475,28 @@ export async function assertQuotaEntitlement(input: {
  * same `classifyPeriod`/`periodStart` pair `assertQuotaEntitlement` uses, so it
  * cannot disagree about WHEN either. Gate and meter read one clock.
  *
- * Metering must never fail the operation it measures: by the time this runs the
- * package exists and the customer has it. A failed write is swallowed, exactly
- * as the retired writer did.
+ * IT THROWS. It used to swallow, on the reasoning that "by the time this runs
+ * the package exists and the customer has it, so metering must never fail the
+ * operation it measures". That reasoning described a sequence that no longer
+ * exists — and while it did, it left the meter permanently wrong:
+ *
+ *   1. `markPackageReady` committed DRAFT/BUILDING → READY;
+ *   2. this write failed and said nothing;
+ *   3. the package was READY and unmetered, forever, because a retry finds no
+ *      DRAFT/BUILDING row to transition and so never reaches step 2 again.
+ *
+ * The billable transition and this write are now ONE database transaction, so
+ * a throw here rolls the READY transition back and the package stays exactly
+ * as retryable as it was before the attempt. Swallowing inside that transaction
+ * would reinstate the divergence with extra steps: the transaction would commit
+ * a READY package whose meter was never written.
+ *
+ * `client` is typed structurally so a `$transaction` callback's client
+ * satisfies it — that is the whole point, and a `PrismaClient` parameter would
+ * have forced the caller to cast its way out of the transaction.
  */
 export async function recordExportPackageUsage(input: {
-  prisma?: PrismaClient;
+  prisma?: Pick<PrismaClient, "entitlementUsage">;
   teamId: string;
   amount?: number;
 }): Promise<void> {
@@ -489,26 +505,29 @@ export async function recordExportPackageUsage(input: {
   const start = periodStart(classifyPeriod(key));
   const amount = BigInt(Math.max(0, Math.floor(input.amount ?? 1)));
   if (amount === 0n) return;
-  try {
-    await prisma.entitlementUsage.upsert({
-      where: {
-        teamId_key_periodStartUtc: {
-          teamId: input.teamId,
-          key,
-          periodStartUtc: start,
-        },
-      },
-      create: {
+  /**
+   * The upsert is the idempotency mechanism for the PERIOD ROW, not for the
+   * package: `(teamId, key, periodStartUtc)` is unique, so concurrent first
+   * writes in the same month cannot both insert. What makes it exactly-once
+   * PER PACKAGE is the caller's conditional transition — only the transaction
+   * that actually moved the package out of DRAFT/BUILDING gets here.
+   */
+  await prisma.entitlementUsage.upsert({
+    where: {
+      teamId_key_periodStartUtc: {
         teamId: input.teamId,
         key,
         periodStartUtc: start,
-        consumed: amount,
       },
-      update: { consumed: { increment: amount } },
-    });
-  } catch {
-    /* swallow — metering must never block ops */
-  }
+    },
+    create: {
+      teamId: input.teamId,
+      key,
+      periodStartUtc: start,
+      consumed: amount,
+    },
+    update: { consumed: { increment: amount } },
+  });
 }
 
 // ===========================================================================

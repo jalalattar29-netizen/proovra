@@ -259,6 +259,20 @@ function makePrismaStub(overrides: Record<string, unknown> = {}) {
     user: {
       findUnique: async () => null,
     },
+    /**
+     * EXPORT PACKAGE METER (2026-09-07) — the completion boundary is now ONE
+     * transaction: the conditional DRAFT/BUILDING → READY transition and the
+     * monthly usage write commit together or not at all, so a failed meter can
+     * no longer leave a package READY and permanently unmetered.
+     *
+     * The `entitlementUsage` stub above now matters: the writer no longer
+     * swallows its failures, so a stub without that table would fail the
+     * transaction rather than silently absorbing the write. The ROLLBACK
+     * behaviour itself is exercised in `export-package-meter.test.ts`, whose
+     * double restores both tables when the callback throws.
+     */
+    $transaction: async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> =>
+      fn(base),
     $executeRaw: async () => 0,
     ...overrides,
   };
