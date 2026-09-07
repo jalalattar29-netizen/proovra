@@ -1,15 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { useToast } from "../../../../../components/ui";
+import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
+// THE canonical accessible dialog (focus trap, Escape, focus restoration).
+// Despite the `cases-experience` path this is the app-wide authority — the
+// `Modal` re-exported from `components/ui` is the legacy one with none of that.
+import { Modal } from "../../../../../components/cases-experience/matter-modals/Modal";
 import { AppListbox } from "../../../../../components/app-primitives/AppListbox";
 import { AppStatusBadge, type AppTone } from "../../../../../components/app-primitives/AppStatusBadge";
 import { ApiError } from "../../../../../lib/api";
 import { notifyApiError } from "../../../../../lib/feedback/notify";
 import { formatUserDate, formatUserDateTime } from "../../../../../lib/date";
 import {
+  ASSIGNEE_UNASSIGNED,
   type AssignableTarget,
   type CollaborationTeamAssignment,
   type CollaborationTeamDetail,
@@ -29,11 +35,24 @@ import {
 } from "@proovra/shared";
 
 // =============================================================================
-// Assignments tab
+// WORK — the group's operational surface.
 //
-// Neutral `app-*` design system. All header controls filter the
-// already-fetched assignments client-side (search / assignee / priority) —
-// only the status filter re-queries, preserving the original data flow.
+// What work is this team responsible for, who is carrying it, what is late.
+//
+// Every control here is SERVER-authoritative: type, status, priority,
+// assignee, overdue and search compose into one query and page on one keyset
+// cursor. They used to filter the rows already in hand while only status
+// re-queried, which on a group with more work than one page hid rows the
+// operator could see and counted only what happened to be loaded.
+//
+// The rows name the RECORD, not its type. The server resolves each target's
+// canonical label at read time — batched, workspace-scoped, never stored on
+// the assignment — so a case renamed on /cases reads as renamed here.
+//
+// This surface OWNS nothing. It holds references to canonical Cases, Evidence
+// records and Review workflows plus the responsibility metadata around them
+// (assignee, priority, due date, status). Removing work here removes the
+// team's responsibility and never the record.
 // =============================================================================
 
 // -----------------------------------------------------------------------------
@@ -56,10 +75,17 @@ const PRIORITY_LABELS: Record<CollaborationTeamAssignmentPriority, string> = {
   URGENT: "Urgent",
 };
 
+/**
+ * "Access review" was WRONG, and wrong in a way that matters in an evidence
+ * product: a REVIEW target is an `EvidenceReviewWorkflow` — the review of a
+ * record — and an access review is a governance campaign over who holds
+ * permissions. The label named the wrong domain entirely, and the row it sat
+ * on linked to a reviewer console.
+ */
 const TARGET_LABELS: Record<CollaborationTeamAssignmentTarget, string> = {
   CASE: "Case",
   EVIDENCE: "Evidence",
-  REVIEW: "Access review",
+  REVIEW: "Evidence review",
 };
 
 function statusLabel(status: CollaborationTeamAssignmentStatus): string {
@@ -152,34 +178,75 @@ function AssignmentsTab({
   const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
 
-  // Client-side-only filters over already-fetched rows (no new fetch).
+  /**
+   * EVERY FILTER IS THE SERVER'S NOW.
+   *
+   * These narrowed the rows already in hand while the status filter went to
+   * the database. On a group with more work than one page that is not a filter
+   * — the row being searched for sits on page two, the empty state says
+   * "nothing matches" about a set that was never asked, and the count beside
+   * it means "matches on this page". Two controls side by side behaved
+   * differently and neither said so.
+   *
+   * They are query parameters now, they compose into one WHERE, and they page
+   * on the same keyset cursor.
+   */
   const [query, setQuery] = useState("");
   const [assigneeFilter, setAssigneeFilter] = useState<string>("");
   const [priorityFilter, setPriorityFilter] = useState<string>("");
+  const [targetTypeFilter, setTargetTypeFilter] = useState<string>("");
+  const [overdueOnly, setOverdueOnly] = useState(false);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  // `isStale` lets the effect drop a list that arrived after the team or the
-  // status filter changed — a previous team's assignments must never render.
+  // Debounced so typing issues one query per pause, not one per keystroke.
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  useEffect(() => {
+    const handle = setTimeout(() => setDebouncedQuery(query), 250);
+    return () => clearTimeout(handle);
+  }, [query]);
+
+  // `isStale` lets the effect drop a list that arrived after the team or a
+  // filter changed — a previous team's assignments must never render.
   const refresh = useCallback(async (isStale?: () => boolean) => {
     setLoading(true);
     try {
       // ONE PAGE, and the surface says which one. The server used to truncate
       // at two hundred with nothing to say so; a list that is silently
       // incomplete is worse than a short one, because it reads as the whole
-      // set. `total` below is what makes "showing N of M" honest.
-      const page = await listAssignments(team.id, { status: statusFilter });
+      // set. `total` below is the SERVER's count for these filters, which is
+      // what makes "showing N of M" honest.
+      const page = await listAssignments(team.id, {
+        status: statusFilter,
+        targetType: (targetTypeFilter || null) as never,
+        priority: (priorityFilter || null) as never,
+        assignee: assigneeFilter || null,
+        overdueOnly,
+        search: debouncedQuery,
+      });
       if (isStale?.()) return;
       setItems(page.assignments);
       setTotal(page.total);
+      setCursor(page.nextCursor);
       setHasMore(page.nextCursor !== null);
     } catch (err) {
       if (isStale?.()) return;
       if (err instanceof ApiError) {
-        addToast("Couldn't load assignments", "error", undefined, err.requestId ? { supportReference: err.requestId } : undefined);
+        addToast("Couldn't load work", "error", undefined, err.requestId ? { supportReference: err.requestId } : undefined);
       }
     } finally {
       if (!isStale?.()) setLoading(false);
     }
-  }, [team.id, statusFilter, addToast]);
+  }, [
+    team.id,
+    statusFilter,
+    targetTypeFilter,
+    priorityFilter,
+    assigneeFilter,
+    overdueOnly,
+    debouncedQuery,
+    addToast,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -189,42 +256,58 @@ function AssignmentsTab({
     };
   }, [refresh]);
 
-  const assigneeName = useCallback(
-    (userId: string | null): string => {
-      if (!userId) return "Team-level";
-      const m = team.members.find((mm) => mm.userId === userId);
-      return m ? memberLabel(m) : userId.slice(0, 8);
-    },
-    [team.members],
-  );
+  /**
+   * The rest of the set, on the same cursor. Appended rather than replacing,
+   * so "Load more" grows the page instead of navigating it — and the filters
+   * that produced it are unchanged, because the cursor is only valid for them.
+   */
+  const loadMore = useCallback(async () => {
+    if (!cursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const page = await listAssignments(team.id, {
+        status: statusFilter,
+        targetType: (targetTypeFilter || null) as never,
+        priority: (priorityFilter || null) as never,
+        assignee: assigneeFilter || null,
+        overdueOnly,
+        search: debouncedQuery,
+        cursor,
+      });
+      setItems((prev) => [...prev, ...page.assignments]);
+      setCursor(page.nextCursor);
+      setHasMore(page.nextCursor !== null);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        addToast("Couldn't load more work", "error", undefined, err.requestId ? { supportReference: err.requestId } : undefined);
+      }
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [
+    cursor,
+    loadingMore,
+    team.id,
+    statusFilter,
+    targetTypeFilter,
+    priorityFilter,
+    assigneeFilter,
+    overdueOnly,
+    debouncedQuery,
+    addToast,
+  ]);
 
-  const visibleItems = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return items.filter((a) => {
-      if (assigneeFilter) {
-        if (assigneeFilter === "__team__") {
-          if (a.assigneeUserId) return false;
-        } else if (a.assigneeUserId !== assigneeFilter) {
-          return false;
-        }
-      }
-      if (priorityFilter && a.priority !== priorityFilter) return false;
-      if (q) {
-        const haystack = [
-          targetLabel(a.targetType),
-          a.targetId,
-          a.note ?? "",
-          assigneeName(a.assigneeUserId),
-          statusLabel(a.status),
-          priorityLabel(a.priority),
-        ]
-          .join(" ")
-          .toLowerCase();
-        if (!haystack.includes(q)) return false;
-      }
-      return true;
-    });
-  }, [items, query, assigneeFilter, priorityFilter, assigneeName]);
+  // `assigneeName` is gone with the client-side search it fed: the search
+  // haystack it built (target type, uuid, note, assignee, status, priority)
+  // was the browser's approximation of a query the database now runs. The row
+  // resolves its own assignee from `members`.
+
+  /**
+   * The server already applied every filter, so what came back IS what
+   * matches. Re-filtering here would narrow a correct answer a second time
+   * against a stale copy of the criteria.
+   */
+  const visibleItems = items;
 
   const statusOptions = [
     { value: "", label: "All statuses" },
@@ -236,10 +319,20 @@ function AssignmentsTab({
 
   const assigneeOptions = [
     { value: "", label: "All assignees" },
-    { value: "__team__", label: "Team-level (unassigned)" },
+    // The sentinel the SERVER understands. It used to be a client-only
+    // `__team__` that the filter translated locally; now the value travels.
+    { value: ASSIGNEE_UNASSIGNED, label: "Team-level (unassigned)" },
     ...team.members
       .filter((m) => m.status === "ACTIVE")
       .map((m) => ({ value: m.userId, label: memberLabel(m) })),
+  ];
+
+  const targetTypeOptions = [
+    { value: "", label: "All work" },
+    ...COLLABORATION_TEAM_ASSIGNMENT_TARGETS.map((t) => ({
+      value: t,
+      label: targetLabel(t),
+    })),
   ];
 
   const priorityOptions = [
@@ -256,7 +349,7 @@ function AssignmentsTab({
           row + translucent `.cases-segments` control tray + `.cases-search-
           field`/`.cases-filter-search` search. No new/duplicate styles. */}
       <div className="cases-toolbar">
-        <div className="cases-segments" role="group" aria-label="Filter assignments">
+        <div className="cases-segments" role="group" aria-label="Filter work">
           <div style={{ width: 168 }} data-testid="assignment-status-filter">
             <AppListbox
               value={statusFilter ?? ""}
@@ -288,6 +381,36 @@ function AssignmentsTab({
               id="assignment-priority-filter"
             />
           </div>
+
+          {/* Which KIND of work — cases, evidence or reviews. */}
+          <div style={{ width: 160 }} data-testid="assignment-target-type-filter">
+            <AppListbox
+              value={targetTypeFilter}
+              options={targetTypeOptions}
+              onChange={(v) => setTargetTypeFilter(v)}
+              ariaLabel="Filter by work type"
+              id="assignment-target-type-filter"
+            />
+          </div>
+
+          {/*
+            Overdue is the one filter an operator reaches for without thinking,
+            so it is a toggle rather than a value buried in a list. It is
+            server-derived: the row's own `overdue` and this filter are decided
+            by the same clock, so the badge and the count cannot disagree.
+          */}
+          <label
+            className="app-checkbox"
+            style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+          >
+            <input
+              type="checkbox"
+              checked={overdueOnly}
+              onChange={(e) => setOverdueOnly(e.target.checked)}
+              data-testid="assignment-overdue-filter"
+            />
+            <span>Overdue only</span>
+          </label>
         </div>
 
         <div className="cases-toolbar-right">
@@ -298,10 +421,10 @@ function AssignmentsTab({
             <input
               type="search"
               className="cases-filter-search"
-              placeholder="Search assignments"
+              placeholder="Search work"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              aria-label="Search assignments"
+              aria-label="Search work"
               data-testid="assignment-search"
             />
           </div>
@@ -343,7 +466,7 @@ function AssignmentsTab({
             />
           ))}
           <span style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>
-            Loading assignments…
+            Loading work…
           </span>
         </div>
       ) : visibleItems.length === 0 ? (
@@ -372,10 +495,14 @@ function AssignmentsTab({
       ) : (
         <div className="app-table-surface">
           {/*
-            SAY WHAT IS SHOWN. The list is one page, and the filters above it
-            are applied in the browser over that page — so without this the
-            surface would look like a complete, filtered list when it is a
-            filtered view of a page. Naming both numbers is the difference.
+            SAY WHAT IS SHOWN.
+
+            `total` is now the SERVER's count FOR THESE FILTERS, so "showing 50
+            of 380" means what it appears to mean. It used to be the total for
+            the status filter alone while the rows had been narrowed further in
+            the browser, so the two numbers described different sets — and the
+            advice was to "refine the filters", which could not reach anything
+            the page did not already hold. The rest is reachable now.
           */}
           <p
             className="app-table__muted"
@@ -383,13 +510,15 @@ function AssignmentsTab({
             style={{ margin: "0 0 0.5rem" }}
           >
             Showing {visibleItems.length} of {total}
-            {hasMore ? " — refine the filters to narrow this list" : ""}
           </p>
           <table className="app-table" data-responsive>
             <thead>
               <tr>
-                <th>Assignment</th>
-                <th>Target</th>
+                {/* "Work" names the record; the old "Assignment"/"Target"
+                    pair printed a type in one column and "Open case" in the
+                    other, so neither said which record it was. */}
+                <th>Work</th>
+                <th>Review state</th>
                 <th>Assignee</th>
                 <th>Priority</th>
                 <th>Status</th>
@@ -422,6 +551,24 @@ function AssignmentsTab({
               ))}
             </tbody>
           </table>
+          {/*
+            The rest of the set, on the same cursor. Without this the surface
+            showed one page and told the operator to narrow the filters — which
+            could never reach a row the page did not already hold.
+          */}
+          {hasMore ? (
+            <div style={{ padding: "0.75rem", textAlign: "center" }}>
+              <button
+                type="button"
+                className="app-secondary-action"
+                onClick={() => void loadMore()}
+                disabled={loadingMore}
+                data-testid="assignments-load-more"
+              >
+                {loadingMore ? "Loading…" : "Load more"}
+              </button>
+            </div>
+          ) : null}
         </div>
       )}
 
@@ -456,9 +603,35 @@ function AssignmentRow({
   onError: (err: { message: string; requestId?: string }) => void;
 }) {
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const { confirm } = useConfirmAction();
   const assignee = members.find((m) => m.userId === assignment.assigneeUserId);
   const assigneeLabel = assignee ? memberLabel(assignee) : "Team-level";
   const isTeamLevel = !assignment.assigneeUserId;
+
+  /**
+   * Cancel the TEAM'S responsibility. The record is not touched.
+   *
+   * The confirmation says exactly what survives, because this is the one
+   * control on the surface a person could mistake for a destructive one, and
+   * on an evidence platform that mistake has to be impossible to make.
+   */
+  const removeResponsibility = async () => {
+    const name =
+      assignment.target.resolved && assignment.target.label
+        ? assignment.target.label
+        : targetLabel(assignment.targetType).toLowerCase();
+    const ok = await confirm({
+      title: "Remove this work from the team?",
+      description: `The team stops being responsible for ${name}. The ${targetLabel(
+        assignment.targetType,
+      ).toLowerCase()} itself is not changed, not unlinked and not deleted — it keeps its owner and stays exactly where it is.`,
+      confirmLabel: "Remove from team",
+      tone: "danger",
+    });
+    if (!ok) return;
+    await update({ status: "CANCELLED" }, "Removed from this team.");
+  };
 
   const update = async (
     patch: Parameters<typeof updateAssignment>[2],
@@ -481,31 +654,66 @@ function AssignmentRow({
 
   return (
     <tr data-testid={`assignment-row-${assignment.id}`}>
-      <td data-label="Assignment">
-        <div className="app-table__primary">{targetLabel(assignment.targetType)}</div>
+      <td data-label="Work">
+        {/*
+          THE ROW NAMES THE RECORD.
+
+          This printed the target TYPE — the literal word "Case" — because the
+          list response carried nothing but a uuid. Twenty rows read as twenty
+          identical lines, and the one question the row exists to answer,
+          "WHICH case?", could only be answered by opening each one.
+
+          `assignment.target` is the server's read-time resolution of the
+          canonical record: batched, workspace-scoped, and never stored on the
+          assignment, so a case renamed on /cases reads as renamed here.
+        */}
+        <Link
+          href={targetHref(assignment.targetType, assignment.targetId)}
+          className="app-table__link app-table__primary"
+          data-testid={`assignment-target-link-${assignment.id}`}
+        >
+          {assignment.target.resolved && assignment.target.label
+            ? assignment.target.label
+            : /*
+                An unresolved target is a record this workspace cannot read —
+                deleted, or a row written before targets were validated at
+                write time. Saying so is the honest answer; inventing a title
+                for a record that may not exist is not.
+              */
+              `${targetLabel(assignment.targetType)} (unavailable)`}
+        </Link>
+        <div className="app-table__muted" style={{ marginTop: 2 }}>
+          {targetLabel(assignment.targetType)}
+          {assignment.target.sublabel ? ` · ${assignment.target.sublabel}` : ""}
+          {assignment.target.state ? ` · ${assignment.target.state}` : ""}
+        </div>
         {assignment.note ? (
           <div className="app-table__muted" style={{ marginTop: 2 }}>
             {assignment.note}
           </div>
         ) : null}
       </td>
-      <td data-label="Target">
+      <td data-label="Review state">
         {/*
-          A REFERENCE HAS TO BE OPENABLE.
-
-          This rendered the first eight characters of a uuid, in monospace, with
-          no link — so the one question the row exists to answer, "what is this
-          assignment about?", could not be answered from it. The record is in
-          this workspace by construction (the write path proves it), so a link
-          to its canonical page always resolves.
+          Projected READ-ONLY from the canonical review workflow. A group that
+          is responsible for a review needs to know whether it is late and
+          whether it has escalated in order to decide what to do next; it does
+          not own any of it, and the actions live in the reviewer console the
+          row links to.
         */}
-        <Link
-          href={targetHref(assignment.targetType, assignment.targetId)}
-          className="app-table__link"
-          data-testid={`assignment-target-link-${assignment.id}`}
-        >
-          Open {targetLabel(assignment.targetType).toLowerCase()}
-        </Link>
+        {assignment.target.review ? (
+          <span
+            className="app-table__muted"
+            data-testid={`assignment-review-state-${assignment.id}`}
+          >
+            {assignment.target.review.slaStatus ?? "No SLA"}
+            {assignment.target.review.escalationLevel > 0
+              ? ` · escalated ×${assignment.target.review.escalationLevel}`
+              : ""}
+          </span>
+        ) : (
+          <span className="app-table__muted">—</span>
+        )}
       </td>
       <td data-label="Assignee">
         <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
@@ -533,7 +741,25 @@ function AssignmentRow({
       </td>
       <td data-label="Due date">
         {assignment.dueAtUtc ? (
-          formatUserDate(assignment.dueAtUtc)
+          /*
+            `overdue` is the SERVER's, decided against the server's clock and
+            by the same predicate the "Overdue only" filter uses — so the badge
+            on a row and the count in the filter can never disagree, which they
+            would the moment a browser's clock drifted or a page sat open past
+            midnight.
+          */
+          <span
+            data-overdue={assignment.overdue ? "true" : "false"}
+            data-testid={`assignment-due-${assignment.id}`}
+          >
+            {assignment.overdue ? (
+              <AppStatusBadge tone="red">
+                Overdue · {formatUserDate(assignment.dueAtUtc)}
+              </AppStatusBadge>
+            ) : (
+              formatUserDate(assignment.dueAtUtc)
+            )}
+          </span>
         ) : (
           <span className="app-table__muted">—</span>
         )}
@@ -584,6 +810,48 @@ function AssignmentRow({
               Complete
             </button>
           ) : null}
+          {canAssign &&
+          (assignment.status === "OPEN" ||
+            assignment.status === "IN_PROGRESS") ? (
+            <>
+              {/*
+                Reassign, reprioritise, re-date. A supervisor's actual job is
+                moving work between people and changing when it is needed, and
+                the row offered neither — only Start and Complete, which are
+                the assignee's actions, not the manager's.
+              */}
+              <button
+                type="button"
+                disabled={busy}
+                className="app-ghost-action"
+                onClick={() => setEditing(true)}
+                data-testid={`assignment-edit-${assignment.id}`}
+              >
+                Edit
+              </button>
+              {/*
+                REMOVING RESPONSIBILITY IS NOT DELETING ANYTHING.
+
+                The wording is deliberate and load-bearing. This cancels the
+                TEAM'S RESPONSIBILITY for a record; the Case, the Evidence
+                record and the Review workflow are untouched, keep their
+                owners, keep their custody and remain exactly where they were.
+                A control on an evidence platform that reads "Delete" while
+                meaning "stop tracking" is how somebody eventually believes
+                they destroyed something they did not — or destroys something
+                they meant to keep.
+              */}
+              <button
+                type="button"
+                disabled={busy}
+                className="app-danger-link"
+                onClick={() => void removeResponsibility()}
+                data-testid={`assignment-remove-${assignment.id}`}
+              >
+                Remove from team
+              </button>
+            </>
+          ) : null}
           {!canAssign ||
           (assignment.status !== "OPEN" &&
             assignment.status !== "IN_PROGRESS") ? (
@@ -592,8 +860,185 @@ function AssignmentRow({
             </span>
           ) : null}
         </span>
+        {editing ? (
+          <EditAssignmentModal
+            assignment={assignment}
+            members={members}
+            onClose={() => setEditing(false)}
+            onSaved={async (msg) => {
+              setEditing(false);
+              await onChanged(msg);
+            }}
+            onError={onError}
+            teamId={teamId}
+          />
+        ) : null}
       </td>
     </tr>
+  );
+}
+
+/**
+ * REASSIGN, REPRIORITISE, RE-DATE — the supervisor's half of the surface.
+ *
+ * The row only ever offered Start and Complete, which are the ASSIGNEE's
+ * actions. Moving work between people and changing when it is needed is the
+ * manager's job and the reason a group has a lead, and there was no control
+ * for it anywhere: the only way to change an assignee was to cancel the
+ * assignment and create another one, which loses its history.
+ *
+ * It writes the SAME `updateAssignment` the row's status buttons write. One
+ * authority, audited on the group's activity timeline, and a reassignment
+ * notifies the person who has just become responsible.
+ */
+function EditAssignmentModal({
+  assignment,
+  members,
+  teamId,
+  onClose,
+  onSaved,
+  onError,
+}: {
+  assignment: CollaborationTeamAssignment;
+  members: ReadonlyArray<CollaborationTeamMember>;
+  teamId: string;
+  onClose: () => void;
+  onSaved: (msg: string) => void | Promise<void>;
+  onError: (err: { message: string; requestId?: string }) => void;
+}) {
+  const [assigneeUserId, setAssigneeUserId] = useState<string>(
+    assignment.assigneeUserId ?? "",
+  );
+  const [priority, setPriority] = useState<CollaborationTeamAssignmentPriority>(
+    assignment.priority,
+  );
+  // `datetime-local` wants a local wall-clock string, so the stored UTC
+  // instant is trimmed to minutes for the control and sent back as an ISO
+  // instant below. Empty means "no due date", which is a real choice.
+  const [dueAt, setDueAt] = useState(
+    assignment.dueAtUtc ? assignment.dueAtUtc.slice(0, 16) : "",
+  );
+  const [note, setNote] = useState(assignment.note ?? "");
+  const [busy, setBusy] = useState(false);
+
+  const assigneeOptions = [
+    { value: "", label: "Team-level (nobody specific)" },
+    ...members
+      .filter((m) => m.status === "ACTIVE")
+      .map((m) => ({ value: m.userId, label: memberLabel(m) })),
+  ];
+
+  const submit = async () => {
+    setBusy(true);
+    try {
+      await updateAssignment(teamId, assignment.id, {
+        assigneeUserId: assigneeUserId || null,
+        priority,
+        dueAtUtc: dueAt ? new Date(dueAt).toISOString() : null,
+        note: note.trim() ? note.trim() : null,
+      });
+      await onSaved("Work updated.");
+    } catch (err) {
+      if (err instanceof ApiError) {
+        onError({ message: err.message, requestId: err.requestId });
+      } else {
+        onError({ message: "Couldn't update this work." });
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Edit work"
+      description="Change who is responsible, how urgent it is, and when it is needed. The record itself is not affected."
+      testid="edit-assignment-modal"
+      footer={
+        <>
+          <button type="button" className="app-secondary-action" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="app-primary-action"
+            disabled={busy}
+            onClick={() => void submit()}
+            data-testid="edit-assignment-submit"
+          >
+            {busy ? "Saving…" : "Save changes"}
+          </button>
+        </>
+      }
+    >
+      <div style={{ display: "grid", gap: 14 }}>
+        <div data-testid="edit-assignment-assignee">
+          <label className="app-field-label" htmlFor="edit-assignment-assignee-input">
+            Assignee
+          </label>
+          <AppListbox
+            value={assigneeUserId}
+            options={assigneeOptions}
+            onChange={setAssigneeUserId}
+            ariaLabel="Assignee"
+            id="edit-assignment-assignee-input"
+          />
+          <p className="app-field__help">
+            Team-level work belongs to the whole team and notifies nobody in
+            particular.
+          </p>
+        </div>
+
+        <div data-testid="edit-assignment-priority">
+          <label className="app-field-label" htmlFor="edit-assignment-priority-input">
+            Priority
+          </label>
+          <AppListbox
+            value={priority}
+            options={COLLABORATION_TEAM_ASSIGNMENT_PRIORITIES.map((p) => ({
+              value: p,
+              label: priorityLabel(p),
+            }))}
+            onChange={(v) =>
+              setPriority(v as CollaborationTeamAssignmentPriority)
+            }
+            ariaLabel="Priority"
+            id="edit-assignment-priority-input"
+          />
+        </div>
+
+        <div>
+          <label className="app-field-label" htmlFor="edit-assignment-due">
+            Due
+          </label>
+          <input
+            id="edit-assignment-due"
+            type="datetime-local"
+            className="app-form-input"
+            value={dueAt}
+            onChange={(e) => setDueAt(e.target.value)}
+            data-testid="edit-assignment-due"
+          />
+        </div>
+
+        <div>
+          <label className="app-field-label" htmlFor="edit-assignment-note">
+            Note
+          </label>
+          <textarea
+            id="edit-assignment-note"
+            className="app-form-input"
+            rows={3}
+            maxLength={600}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            data-testid="edit-assignment-note"
+          />
+        </div>
+      </div>
+    </Modal>
   );
 }
 

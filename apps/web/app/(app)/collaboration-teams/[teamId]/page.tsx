@@ -36,7 +36,10 @@ import {
 } from "../../../../lib/api/collaboration-teams";
 import { collaborationTeamRoleHasPermission } from "@proovra/shared";
 import { useCan, usePlanFeature, usePlatformContext } from "../../../../lib/platform-context";
-import { useBillingSummary } from "../../../../lib/api/billing-summary";
+import {
+  getCollaborationEntitlement,
+  type CollaborationEntitlement,
+} from "../../../../lib/api/collaboration-teams";
 import { PlanLimitBadge } from "../../../../components/billing/PlanLimitBadge";
 import { OverviewTab } from "./_tabs/OverviewTab";
 import { MembersTab } from "./_tabs/MembersTab";
@@ -53,15 +56,43 @@ import { SettingsTab } from "./_tabs/SettingsTab";
 // longer invites anyone: it is built from people who already hold authority in
 // the workspace, so the Members tab is where someone is added, and the
 // workspace People surface is where someone is brought in.
+/**
+ * FIVE TABS, EACH ANSWERING A JOB SOMEBODY ACTUALLY HAS.
+ *
+ * `assignments` → `work`. The tab is the group's operational surface — what it
+ * is responsible for, who is carrying it, what is late — and "Work" is what an
+ * operator calls that. "Assignments" named the row type, not the job.
+ *
+ * `activity` is no longer a tab. Its twenty-three event types are almost
+ * entirely membership and settings administration; "what administrative
+ * changes happened" is not a daily job, and giving it equal billing with Work
+ * and Members implied it was one. NOTHING IS DELETED — every activity row is
+ * still written, still audited, and still readable at
+ * `?tab=settings`, which is where the group's administrative history belongs.
+ *
+ * `assignments` and `activity` stay ACCEPTED as URL values below, because both
+ * are in people's history and in links they sent each other.
+ */
 const TABS = [
   "overview",
+  "work",
   "members",
-  "assignments",
   "discussion",
-  "activity",
   "settings",
 ] as const;
 export type TabId = (typeof TABS)[number];
+
+/**
+ * Retired tab slugs, mapped to where their content lives now. A link someone
+ * sent last week must still land somewhere sensible rather than silently
+ * falling back to Overview, which is what `?tab=invites` did for months after
+ * the Invites tab was deleted.
+ */
+const RETIRED_TAB_ALIASES: Record<string, TabId> = {
+  assignments: "work",
+  activity: "settings",
+  invites: "members",
+};
 
 /**
  * Group ids are `gen_random_uuid()` values (see `CollaborationTeam.id`). This
@@ -85,10 +116,12 @@ function TeamDetail() {
   const router = useRouter();
 
   const activeTab: TabId = useMemo(() => {
-    const t = (search?.get("tab") as TabId) ?? "overview";
-    return (TABS as ReadonlyArray<string>).includes(t)
-      ? t
-      : "overview";
+    const t = search?.get("tab") ?? "overview";
+    if ((TABS as ReadonlyArray<string>).includes(t)) return t as TabId;
+    // A retired slug lands where its content actually went, rather than
+    // silently falling back to Overview and leaving the operator to wonder
+    // why the link they were sent did not work.
+    return RETIRED_TAB_ALIASES[t] ?? "overview";
   }, [search]);
 
   // WCR-09 — the tenant this page is bound to; every loader below depends on it.
@@ -184,7 +217,39 @@ function TeamDetail() {
   // branch, so React's Rules of Hooks holds (hook call order must be
   // identical across renders regardless of which branch we take).
   // Consumed below in the header chips once `team` is loaded.
-  const headerBillingSummary = useBillingSummary();
+  /**
+   * THE CONTRACT-AWARE CAPACITY, NOT THE CATALOG'S GUESS.
+   *
+   * This read `useBillingSummary()`, which projects raw `PLAN_CATALOG`
+   * integers and returns the literal string "unlimited" for ENTERPRISE. So an
+   * Enterprise workspace whose contract caps a group at 300 members was told
+   * "unlimited members" on the header of every group — the exact defect WCR-06
+   * and WCR-07 removed from the Teams LIST by moving it onto
+   * `/v1/collaboration-teams/entitlement`, left in place one route away on the
+   * DETAIL page.
+   *
+   * `resolveCollaborationEntitlement` is contract-first and status-checked (a
+   * DRAFT, SUSPENDED or TERMINATED contract cannot raise a ceiling), and it is
+   * the same projection the list page and the create gate read. `null` means
+   * UNKNOWN — loading or degraded — and the header renders no capacity claim
+   * at all rather than substituting a number.
+   */
+  const [headerEntitlement, setHeaderEntitlement] =
+    useState<CollaborationEntitlement | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void getCollaborationEntitlement()
+      .then((e) => {
+        if (!cancelled) setHeaderEntitlement(e);
+      })
+      // A capacity chip must never break the page it decorates.
+      .catch(() => {
+        if (!cancelled) setHeaderEntitlement(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeWorkspaceId]);
 
   // One error path for every tab panel: the sanctioned safe-feedback helper,
   // never a raw message.
@@ -352,7 +417,7 @@ function TeamDetail() {
   // Per-tab count badges — only where a real count exists on `team`.
   const tabCounts: Partial<Record<TabId, number>> = {
     members: activeMemberCountForBadge,
-    assignments: openAssignmentCount,
+    work: openAssignmentCount,
   };
 
   const goTab = (tab: TabId) =>
@@ -504,12 +569,12 @@ function TeamDetail() {
                 color: "rgba(255,255,255,0.68)",
               }}
             >
-              {headerBillingSummary ? (
+              {headerEntitlement ? (
                 <PlanLimitBadge
                   kind="MEMBERS_USED"
                   current={activeMemberCountForBadge}
-                  max={headerBillingSummary.membersMax}
-                  planLabel={headerBillingSummary.plan}
+                  max={headerEntitlement.collaborationTeamMembers.limit}
+                  planLabel={headerEntitlement.plan}
                 />
               ) : null}
               <span>
@@ -642,22 +707,31 @@ function TeamDetail() {
             canManage={canManage}
             canInvite={canInvite}
           />
-        ) : activeTab === "assignments" ? (
+        ) : activeTab === "work" ? (
           <AssignmentsTab team={team} canAssign={canAssign} />
         ) : activeTab === "discussion" ? (
           <DiscussionPanel team={team} onError={onTabError} />
-        ) : activeTab === "activity" ? (
-          <ActivityTab team={team} />
         ) : activeTab === "settings" ? (
-          <SettingsTab
-            team={team}
-            onChange={refresh}
-            canManage={canManage}
-            canArchive={collaborationTeamRoleHasPermission(
-              team.viewerRole,
-              "team.archive",
-            )}
-          />
+          <>
+            <SettingsTab
+              team={team}
+              onChange={refresh}
+              canManage={canManage}
+              canArchive={collaborationTeamRoleHasPermission(
+                team.viewerRole,
+                "team.archive",
+              )}
+            />
+            {/*
+              ACTIVITY IS PRESERVED, NOT PROMOTED.
+              Its event vocabulary is almost entirely membership and settings
+              administration, which is a thing an operator audits occasionally
+              and not a daily job — giving it a tab beside Work and Members
+              implied otherwise. Every row is still written and still read
+              here; nothing was deleted, and `?tab=activity` still lands on it.
+            */}
+            <ActivityTab team={team} />
+          </>
         ) : null}
       </div>
     </PageShell>
