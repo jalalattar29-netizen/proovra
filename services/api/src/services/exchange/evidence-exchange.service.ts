@@ -25,6 +25,9 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+// The ONE writer of the export-package monthly meter, kept beside the reader
+// (`assertQuotaEntitlement`) that has to agree with it about key and period.
+import { recordExportPackageUsage } from "../packaging/entitlement.service.js";
 import { signPackageManifest } from "./signed-delivery.service.js";
 
 // ---------------------------------------------------------------------------
@@ -155,8 +158,23 @@ export async function markPackageReady(
   });
   if (!row) return { ok: false };
   if (row.state !== "DRAFT" && row.state !== "BUILDING") return { ok: false };
-  await prisma.evidenceExchangePackage.update({
-    where: { id: row.id },
+
+  /*
+   * THE COMMERCIAL COMPLETION BOUNDARY, made atomic.
+   *
+   * The state check above was a read followed by an unconditional update, so
+   * two calls that both observed DRAFT would both "succeed" — harmless while
+   * nothing depended on the transition, and a double-charge the moment a meter
+   * did. The state predicate now lives IN the write: exactly one caller can
+   * move a package out of DRAFT/BUILDING, and `count` says whether it was this
+   * one. The package id plus that transition is the idempotency subject.
+   */
+  const transition = await prisma.evidenceExchangePackage.updateMany({
+    where: {
+      id: row.id,
+      teamId: input.teamId,
+      state: { in: ["DRAFT", "BUILDING"] },
+    },
     data: {
       state: "READY",
       storageKey: input.storageKey.slice(0, 400),
@@ -165,6 +183,27 @@ export async function markPackageReady(
       readyAtUtc: new Date(),
     },
   });
+  if (transition.count !== 1) return { ok: false };
+
+  /*
+   * ONE produced package, ONE monthly unit — metered here and nowhere else.
+   *
+   * Deliberately NOT at creation: `createExchangePackage` writes a DRAFT whose
+   * build can still fail, so metering there would charge for packages that
+   * never existed. Deliberately NOT at signed-URL generation or delivery
+   * either: those are reads and re-sends of an artifact already paid for, and a
+   * customer who downloads twice has not bought twice.
+   *
+   * The subject is the workspace that OWNS the package (`teamId`, which also
+   * scopes the lookup above), never the actor's personal workspace and never
+   * the recipient of the download.
+   *
+   * Awaited so the meter is written before the caller is told the package is
+   * ready; the writer swallows its own failures, so metering cannot fail an
+   * operation whose artifact already exists.
+   */
+  await recordExportPackageUsage({ prisma, teamId: input.teamId });
+
   return { ok: true };
 }
 

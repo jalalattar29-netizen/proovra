@@ -170,6 +170,7 @@ function makePrismaStub(overrides: Record<string, unknown> = {}) {
       findFirst: async () => null,
       findMany: async () => [],
       update: async () => ({}),
+      updateMany: async () => ({ count: 1 }),
     },
     evidenceExchangePackageDelivery: {
       create: async (args: { data: Record<string, unknown>; select: unknown }) => ({
@@ -1399,13 +1400,23 @@ describe("15. Evidence exchange package lifecycle", () => {
   });
 
   it("markPackageReady → state=READY", async () => {
+    /*
+     * EXPORT PACKAGE METER (2026-09-07) — the double gained `updateMany`.
+     *
+     * The transition moved from a read-then-`update` into a CONDITIONAL
+     * `updateMany` carrying the state predicate, so two callers cannot both
+     * complete one package and cannot both be metered for it. The behaviour
+     * under test is unchanged — DRAFT becomes READY — and the double now
+     * exercises the real path instead of a method the service no longer
+     * calls.
+     */
     let updatedState: string | undefined;
     const prisma = makePrismaStub({
       evidenceExchangePackage: {
         findFirst: async () => ({ id: "pkg-1", state: "DRAFT" }),
-        update: async (args: { data: Record<string, unknown> }) => {
+        updateMany: async (args: { data: Record<string, unknown> }) => {
           updatedState = args.data.state as string;
-          return args.data;
+          return { count: 1 };
         },
         create: async () => ({ id: "pkg-1" }),
         findMany: async () => [],

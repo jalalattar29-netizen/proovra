@@ -455,6 +455,63 @@ export async function assertQuotaEntitlement(input: {
 // not this change.
 
 // ===========================================================================
+// recordExportPackageUsage
+// ===========================================================================
+
+/**
+ * The ONE writer of the export-package monthly meter.
+ *
+ * `QUOTA_EXPORT_PACKAGES_PER_MONTH` was a live READ authority with no writer:
+ * `assertQuotaEntitlement` compared a limit against a counter nothing had ever
+ * incremented, so the gate could not trip and the plan's monthly allowance was
+ * advertised but never enforced.
+ *
+ * WHY IT IS KEY-SPECIFIC AND NOT A GENERIC HELPER. The generic
+ * `recordEntitlementUsage` was retired on 2026-09-07 with zero consumers, and
+ * bringing it back for a single meter would rebuild the thing that let the
+ * writer and the gate drift apart in the first place. This function names its
+ * key, so there is exactly one place a caller could disagree with the reader
+ * about WHICH meter is being written — and it derives the period through the
+ * same `classifyPeriod`/`periodStart` pair `assertQuotaEntitlement` uses, so it
+ * cannot disagree about WHEN either. Gate and meter read one clock.
+ *
+ * Metering must never fail the operation it measures: by the time this runs the
+ * package exists and the customer has it. A failed write is swallowed, exactly
+ * as the retired writer did.
+ */
+export async function recordExportPackageUsage(input: {
+  prisma?: PrismaClient;
+  teamId: string;
+  amount?: number;
+}): Promise<void> {
+  const prisma = input.prisma ?? defaultPrisma;
+  const key: EntitlementKey = "QUOTA_EXPORT_PACKAGES_PER_MONTH";
+  const start = periodStart(classifyPeriod(key));
+  const amount = BigInt(Math.max(0, Math.floor(input.amount ?? 1)));
+  if (amount === 0n) return;
+  try {
+    await prisma.entitlementUsage.upsert({
+      where: {
+        teamId_key_periodStartUtc: {
+          teamId: input.teamId,
+          key,
+          periodStartUtc: start,
+        },
+      },
+      create: {
+        teamId: input.teamId,
+        key,
+        periodStartUtc: start,
+        consumed: amount,
+      },
+      update: { consumed: { increment: amount } },
+    });
+  } catch {
+    /* swallow — metering must never block ops */
+  }
+}
+
+// ===========================================================================
 // upsertEntitlementGrant
 // ===========================================================================
 

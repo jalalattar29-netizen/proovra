@@ -726,9 +726,13 @@ describe("12. C5 — exchange-package builder state transitions", () => {
     const prisma = makePrismaStub({
       evidenceExchangePackage: {
         findFirst: async () => ({ id: "pkg-1", state: "BUILDING" }),
-        update: async (args: { data: Record<string, unknown> }) => {
+        // EXPORT PACKAGE METER (2026-09-07) — the completion transition is a
+        // CONDITIONAL `updateMany` now, so one package can be completed, and
+        // metered, exactly once. Same behaviour under test; the double
+        // follows the call the service actually makes.
+        updateMany: async (args: { data: Record<string, unknown> }) => {
           updatedState = args.data.state as string;
-          return args.data;
+          return { count: 1 };
         },
         create: async (args: { data: Record<string, unknown> }) => ({ id: "pkg-1", ...args.data }),
         findMany: async () => [],
