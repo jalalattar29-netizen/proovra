@@ -15,6 +15,7 @@ import { notifyApiError } from "../../../../../lib/feedback/notify";
 import { formatUserDate } from "../../../../../lib/date";
 import {
   addExistingMember,
+  addExistingMembersBulk,
   getCollaborationEntitlement,
   listTeamMembers,
   type CollaborationTeamMemberPage,
@@ -685,7 +686,11 @@ function AddMemberPanel({
   const [eligible, setEligible] = useState<
     ReadonlyArray<EligibleWorkspaceMember>
   >([]);
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  // Keyed by id rather than by the visible page, so a search does not discard
+  // a selection the operator already made.
+  const [selectedUserIds, setSelectedUserIds] = useState<ReadonlySet<string>>(
+    new Set(),
+  );
   const [role, setRole] = useState<CollaborationTeamRole>("MEMBER");
   const [busy, setBusy] = useState(false);
 
@@ -697,11 +702,9 @@ function AddMemberPanel({
         .then((page) => {
           if (cancelled) return;
           setEligible(page.members);
-          setSelectedUserId((current) =>
-            current && page.members.some((m) => m.userId === current)
-              ? current
-              : (page.members[0]?.userId ?? null),
-          );
+          // Nothing is pre-selected any more. A radio group had to default to
+          // somebody, so an operator who pressed Add without looking added
+          // whoever happened to sort first.
         })
         .catch((err) => {
           if (cancelled) return;
@@ -721,18 +724,49 @@ function AddMemberPanel({
   }, [team.id, search, addToast]);
 
   const submit = async () => {
-    if (!selectedUserId || busy) return;
+    const ids = Array.from(selectedUserIds);
+    if (ids.length === 0 || busy) return;
     setBusy(true);
     try {
-      await addExistingMember(team.id, { userId: selectedUserId, role });
+      if (ids.length === 1) {
+        // One person still takes the single-member endpoint — same writer, and
+        // its refusal carries a message worth showing verbatim.
+        await addExistingMember(team.id, { userId: ids[0], role });
+        await onRefresh();
+        addToast("Added to this team.", "success");
+        onClose();
+        return;
+      }
+      const { added, failed } = await addExistingMembersBulk(team.id, {
+        userIds: ids,
+        role,
+      });
       await onRefresh();
-      addToast("Added to this team.", "success");
-      onClose();
+      /**
+       * PARTIAL SUCCESS IS REPORTED, NOT ROUNDED.
+       *
+       * Adding eight people where the group's ceiling stops at six is an
+       * ordinary condition, and both halves of it are facts the operator needs:
+       * a plain "added" would hide two people who are not in the team, and a
+       * plain error would hide six who now are.
+       */
+      if (failed.length === 0) {
+        addToast(`Added ${added.length} people to this team.`, "success");
+        onClose();
+      } else {
+        addToast(
+          `Added ${added.length}. ${failed.length} could not be added — the team may be at its member limit.`,
+          added.length > 0 ? "info" : "error",
+        );
+        // Keep the panel open with the failures still ticked, so the operator
+        // can see exactly who did not make it in.
+        setSelectedUserIds(new Set(failed.map((f) => f.userId)));
+      }
     } catch (err) {
       // The server is the authority on capacity and on who may be added; a
       // refusal is shown exactly as it was given, never guessed at here.
       notifyApiError(addToast, err, {
-        message: "Could not add this person to the team.",
+        message: "Could not add these people to the team.",
       });
     } finally {
       setBusy(false);
@@ -835,12 +869,34 @@ function AddMemberPanel({
                   cursor: "pointer",
                 }}
               >
+                {/*
+                  MULTI-SELECT.
+
+                  This was a radio group — one person per submit — so building
+                  a group of twelve took twelve round trips through a search
+                  box that reset each time. On a workspace where people arrive
+                  in SSO or SCIM cohorts that is not a workflow anyone performs
+                  twice.
+
+                  Selection survives a search change on purpose: an operator
+                  ticks three people, searches for a fourth, and the first
+                  three are still selected. That is why the set is keyed by id
+                  rather than derived from the visible page.
+                */}
                 <input
-                  type="radio"
+                  type="checkbox"
+                  className="app-checkbox"
                   name="add-member-candidate"
                   value={candidate.userId}
-                  checked={selectedUserId === candidate.userId}
-                  onChange={() => setSelectedUserId(candidate.userId)}
+                  checked={selectedUserIds.has(candidate.userId)}
+                  onChange={(e) =>
+                    setSelectedUserIds((prev) => {
+                      const next = new Set(prev);
+                      if (e.target.checked) next.add(candidate.userId);
+                      else next.delete(candidate.userId);
+                      return next;
+                    })
+                  }
                   data-testid={`add-member-candidate-${candidate.userId}`}
                 />
                 <span className="app-avatar" aria-hidden>
@@ -895,10 +951,12 @@ function AddMemberPanel({
           type="button"
           className="app-primary-action"
           onClick={() => void submit()}
-          disabled={busy || !selectedUserId}
+          disabled={busy || selectedUserIds.size === 0}
           data-testid="add-member-submit"
         >
-          Add to team
+          {selectedUserIds.size > 1
+            ? `Add ${selectedUserIds.size} to team`
+            : "Add to team"}
         </button>
         <button
           type="button"

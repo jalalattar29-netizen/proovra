@@ -493,6 +493,36 @@ export async function addExistingMember(
   return res.member;
 }
 
+/**
+ * Add SEVERAL existing workspace members to a group in one request.
+ *
+ * The picker accepted one radio-button selection per submit, so building a
+ * group of twelve meant twelve round trips — unusable on a workspace where
+ * people arrive in SSO/SCIM cohorts.
+ *
+ * The server loops the canonical single-member writer rather than batching, so
+ * every person still gets their own authorization check, their own
+ * parent-workspace membership check, their own plan-limit evaluation and their
+ * own audit event. Partial success is reported, never hidden: one refusal must
+ * not discard the additions that worked.
+ */
+export async function addExistingMembersBulk(
+  teamId: string,
+  input: { userIds: ReadonlyArray<string>; role?: CollaborationTeamRole },
+): Promise<{
+  added: ReadonlyArray<string>;
+  failed: ReadonlyArray<{ userId: string; reason: string }>;
+}> {
+  const res = (await apiFetch(
+    `${BASE}/${encodeURIComponent(teamId)}/members/bulk`,
+    { method: "POST", body: JSON.stringify(input) },
+  )) as {
+    added?: string[];
+    failed?: Array<{ userId: string; reason: string }>;
+  };
+  return { added: res.added ?? [], failed: res.failed ?? [] };
+}
+
 export async function updateMember(
   teamId: string,
   memberId: string,

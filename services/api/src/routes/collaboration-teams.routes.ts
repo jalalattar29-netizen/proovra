@@ -676,6 +676,113 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
   );
 
   // ---------------------------------------------------------------------------
+  // POST /v1/collaboration-teams/:teamId/members/bulk  — add several at once
+  //
+  // Building a group of twelve took twelve round trips through a radio-button
+  // picker that accepted ONE selection per submit. On an Enterprise workspace
+  // provisioned by SSO or SCIM — where people arrive in cohorts — that is not
+  // a workflow anybody performs twice.
+  //
+  // It is a LOOP OVER THE CANONICAL WRITER, deliberately, not a batch insert:
+  // `addExistingMember` re-checks the actor's group permission, re-checks that
+  // the target is an ACTIVE member of the parent workspace, applies the plan's
+  // per-group member limit, and emits its own audit event — per person. A
+  // bulk path that skipped any of that to go faster would be a second, weaker
+  // membership writer wearing a convenience label.
+  //
+  // Partial success is the honest outcome and is reported as such: one person
+  // hitting the group ceiling must not silently discard the eleven that
+  // succeeded, and must not roll them back either.
+  // ---------------------------------------------------------------------------
+  app.post<{ Params: { teamId: string } }>(
+    "/v1/collaboration-teams/:teamId/members/bulk",
+    {
+      preHandler: requireAuth,
+      handler: async (req, reply) => {
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "collaboration.thread.create",
+          groupPermission: "team.member.invite",
+          requireActiveTeam: true,
+        });
+        if (!binding) return;
+        const ctx = {
+          workspaceId: binding.workspace.workspaceId,
+          userId: binding.workspace.userId,
+        };
+        const parsed = z
+          .object({
+            // Bounded: a page of the eligible-members directory is 100, and a
+            // request that names more than that is not a UI action.
+            userIds: z.array(z.string().uuid()).min(1).max(100),
+            role: z
+              .enum(["LEAD", "ADMIN", "MEMBER", "VIEWER", "EXTERNAL"])
+              .optional(),
+          })
+          .safeParse(req.body);
+        if (!parsed.success) {
+          return reply
+            .code(400)
+            .send({ error: "invalid_body", message: parsed.error.message });
+        }
+        try {
+          await assertSubscriptionActiveOrGraceAllowed({
+            workspaceId: ctx.workspaceId,
+          });
+        } catch (err) {
+          return handleMutationError(reply, err, req.id ?? null, {
+            userId: ctx.userId,
+            workspaceId: ctx.workspaceId,
+            action: "collaboration_team.member.added",
+            resourceType: "collaboration_team_member",
+            resourceId: null,
+          });
+        }
+
+        const added: string[] = [];
+        const failed: Array<{ userId: string; reason: string }> = [];
+        // Sequential on purpose: the per-group member limit is evaluated per
+        // add, and running them concurrently would race that ceiling.
+        for (const userId of Array.from(new Set(parsed.data.userIds))) {
+          try {
+            await assertCollaborationTeamMemberLimit(req.params.teamId, 1);
+            const { id } = await addExistingMember({
+              teamId: req.params.teamId,
+              actorUserId: ctx.userId,
+              userIdToAdd: userId,
+              role: parsed.data.role,
+            });
+            await auditEvent({
+              userId: ctx.userId,
+              workspaceId: ctx.workspaceId,
+              action: "collaboration_team.member.added",
+              resourceType: "collaboration_team_member",
+              resourceId: id,
+              outcome: "success",
+              requestId: req.id ?? null,
+              metadata: {
+                teamId: req.params.teamId,
+                role: parsed.data.role,
+                viaBulk: true,
+              },
+            });
+            added.push(userId);
+          } catch (err) {
+            failed.push({
+              userId,
+              reason:
+                err instanceof CollaborationTeamError
+                  ? err.code
+                  : "add_failed",
+            });
+          }
+        }
+        return reply.code(added.length > 0 ? 201 : 409).send({ added, failed });
+      },
+    },
+  );
+
+  // ---------------------------------------------------------------------------
   // POST /v1/collaboration-teams/:teamId/members  — add existing member
   // ---------------------------------------------------------------------------
   app.post<{ Params: { teamId: string } }>(
