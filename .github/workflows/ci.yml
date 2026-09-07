@@ -581,11 +581,17 @@ jobs:
       #                                      new personal workspace, correctly
       #
       # So it now does what a person does: register, verify, sign in, accept
-      # the current policies, capture a record, and read the report back. Every
-      # assertion is on a value, not on an exit code alone.
+      # the current policies, capture a record, and read the report back.
       #
-      # `jq -n` builds every JSON body: a smoke test is not the place to debug
-      # shell quoting.
+      # NO `jq`, AND EVERY FAILURE PRINTS ITS OWN BODY.
+      #
+      # The first version built its JSON with `jq -nc` and let `curl -f` fail.
+      # It exited 22 — "HTTP page not retrieved" — one second in, on a 400 from
+      # an EMPTY request body, and nothing in the log said which call or why.
+      # `node` is guaranteed here (setup-node ran); `jq` is not this step's
+      # business to depend on. So bodies are literal, responses are read with
+      # `node -pe`, and `req` prints the status and the body whenever the
+      # status is not the one expected.
       - name: E2E smoke — capture, sign, report, verify
         run: |
           set -euo pipefail
@@ -593,13 +599,33 @@ jobs:
           base="http://localhost:8080"
           email="ci-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}@example.test"
           password="Ci-Smoke-Passw0rd-x9"
+          token=""
+
+          # req EXPECTED METHOD PATH [BODY] — leaves the body in /tmp/resp.json
+          req() {
+            local expected="$1" method="$2" path="$3" body="${4-}" status
+            local args=(-sS -o /tmp/resp.json -w '%{http_code}' -X "$method" -H 'content-type: application/json')
+            if [ -n "$token" ]; then args+=(-H "authorization: Bearer $token"); fi
+            if [ -n "$body" ]; then args+=(--data-raw "$body"); fi
+            status=$(curl "${args[@]}" "${base}${path}")
+            if [ "$status" != "$expected" ]; then
+              echo "::error::${method} ${path} returned ${status}, expected ${expected}"
+              echo "--- response body ---"
+              cat /tmp/resp.json || true
+              echo
+              return 1
+            fi
+          }
+
+          # field a.b — read one value out of the last response
+          field() {
+            node -pe "JSON.parse(require('fs').readFileSync('/tmp/resp.json','utf8')).$1 ?? ''"
+          }
 
           sql() { $COMPOSE exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "$1"; }
 
           echo "--- register"
-          curl -sS -f -X POST -H 'content-type: application/json' \
-            -d "$(jq -nc --arg e "$email" --arg p "$password" '{email:$e,password:$p,name:"CI Smoke"}')" \
-            "$base/v1/auth/email/register" > /dev/null
+          req 201 POST /v1/auth/email/register "{\"email\":\"${email}\",\"password\":\"${password}\",\"name\":\"CI Smoke\"}"
 
           # Verification email delivery is off in this stack (NOTIFICATIONS is
           # unconfigured, and `verificationSent: false` says so), and the token
@@ -612,54 +638,52 @@ jobs:
           sql "UPDATE entitlements SET plan = 'PRO' WHERE user_id = (SELECT id FROM users WHERE email = '$email')"
 
           echo "--- sign in"
-          token=$(curl -sS -f -X POST -H 'content-type: application/json' \
-            -d "$(jq -nc --arg e "$email" --arg p "$password" '{email:$e,password:$p}')" \
-            "$base/v1/auth/email/login" | jq -r '.token')
-          test -n "$token" && test "$token" != "null"
+          req 200 POST /v1/auth/email/login "{\"email\":\"${email}\",\"password\":\"${password}\"}"
+          token=$(field token)
+          test -n "$token"
 
           echo "--- accept the current policies"
-          curl -sS -f -X POST -H 'content-type: application/json' -H "authorization: Bearer $token" \
-            -d '{"source":"ci-smoke","acceptances":[{"policyKey":"terms","policyVersion":"2026-04-06"},{"policyKey":"privacy","policyVersion":"2026-04-06"},{"policyKey":"cookies","policyVersion":"2026-04-06"}]}' \
-            "$base/v1/users/legal-acceptance" > /dev/null
+          req 200 POST /v1/users/legal-acceptance '{"source":"ci-smoke","acceptances":[{"policyKey":"terms","policyVersion":"2026-04-06"},{"policyKey":"privacy","policyVersion":"2026-04-06"},{"policyKey":"cookies","policyVersion":"2026-04-06"}]}'
 
           echo "--- capture a record"
-          create=$(curl -sS -f -X POST -H 'content-type: application/json' -H "authorization: Bearer $token" \
-            -d '{"type":"PHOTO","mimeType":"text/plain"}' "$base/v1/evidence")
-          id=$(jq -r '.id' <<< "$create")
-          put=$(jq -r '.upload.putUrl' <<< "$create")
-          test -n "$id" && test "$id" != "null"
+          req 201 POST /v1/evidence '{"type":"PHOTO","mimeType":"text/plain"}'
+          id=$(field id)
+          put=$(field 'upload.putUrl')
+          test -n "$id"
+          test -n "$put"
 
           # The presigned URL is signed FOR `minio:9000`, which is a name only
           # the compose network resolves, and the host is part of the SigV4
           # signature so it cannot be rewritten. The transfer therefore runs
           # where that name means something.
           echo "--- upload"
-          $COMPOSE exec -T proovra-api sh -c \
-            "printf %s proovra-ci-smoke > /tmp/upload.txt && wget -qO- --method=PUT --body-file=/tmp/upload.txt --header='content-type: text/plain' '$put'"
+          $COMPOSE exec -T proovra-api sh -c "printf %s proovra-ci-smoke > /tmp/upload.txt && wget -qO- --method=PUT --body-file=/tmp/upload.txt --header='content-type: text/plain' '$put'"
 
           echo "--- finalize"
-          complete=$(curl -sS -f -X POST -H 'content-type: application/json' -H "authorization: Bearer $token" \
-            -d '{}' "$base/v1/evidence/$id/complete")
-          test "$(jq -r '.status' <<< "$complete")" = "SIGNED"
-          test "$(jq -r '(.signatureBase64 // "") | length > 0' <<< "$complete")" = "true"
-          test "$(jq -r '(.fingerprintHash // "") | length' <<< "$complete")" = "64"
+          req 200 POST "/v1/evidence/$id/complete" '{}'
+          test "$(field status)" = "SIGNED"
+          test -n "$(field signatureBase64)"
+          test "$(field 'fingerprintHash.length')" = "64"
 
           echo "--- report"
-          curl -sS -f -X POST -H 'content-type: application/json' -H "authorization: Bearer $token" \
-            -d '{}' "$base/v1/evidence/$id/reports/regenerate" > /dev/null
-          report=""
+          # 202, not 200: regeneration is ACCEPTED and handed to the worker,
+          # and the message says so — "Poll /v1/evidence/:id/artifacts/status
+          # for progress". Measured; the first version expected 200.
+          req 202 POST "/v1/evidence/$id/reports/regenerate" '{}'
+          url=""
           for _ in $(seq 1 45); do
-            report=$(curl -sS -H "authorization: Bearer $token" "$base/v1/evidence/$id/report/latest")
-            if jq -e '.url' > /dev/null 2>&1 <<< "$report"; then break; fi
+            if req 200 GET "/v1/evidence/$id/report/latest" > /dev/null 2>&1; then
+              url=$(field url)
+              if [ -n "$url" ]; then break; fi
+            fi
             sleep 2
           done
-          url=$(jq -r '.url // "null"' <<< "$report")
-          if [ "$url" = "null" ]; then
-            echo "::error::report never appeared; last response: $report"
-            $COMPOSE logs --no-color --tail=60 proovra-worker
+          if [ -z "$url" ]; then
+            echo "::error::the report never appeared for evidence $id"
+            $COMPOSE logs --no-color --tail=80 proovra-worker
             exit 1
           fi
-          test "$(jq -r '.version' <<< "$report")" = "1"
+          test "$(field version)" = "1"
 
           # Same reason as the upload: fetched from inside the network, and
           # asserted to be a PDF rather than merely a 200.
@@ -668,8 +692,9 @@ jobs:
           test "$head" = "%PDF"
 
           echo "--- public verification"
-          curl -sS -f "$base/public/verify/$id" > /tmp/verify.json
-          jq -e '.versioning.latestReportVersion == 1' /tmp/verify.json > /dev/null
+          token=""
+          req 200 GET "/public/verify/$id"
+          test "$(field 'versioning.latestReportVersion')" = "1"
           echo "smoke OK — evidence $id signed, report v1 produced and verifiable"
 
       - name: Logs on failure

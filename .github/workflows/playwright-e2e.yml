@@ -99,12 +99,20 @@ jobs:
       SIGNER_PROVIDER: local-pem
       SIGNING_KEY_ID: e2e_ed25519
       SIGNING_KEY_VERSION: "1"
-      SIGNING_PRIVATE_KEY_PATH: services/api/keys/signing-private.pem
-      SIGNING_PUBLIC_KEY_PATH: services/api/keys/signing-public.pem
+      # RELATIVE TO services/api, WHICH IS WHERE THE API IS STARTED.
+      #
+      # `Start API (background)` runs with `working-directory: services/api`,
+      # and the signer resolves this against the process CWD — so
+      # `services/api/keys/...` became `services/api/services/api/keys/...`,
+      # a path that does not exist. Measured: `POST /v1/evidence/:id/complete`
+      # answered 500 INTERNAL_SERVER_ERROR and the evidence-flow specs failed
+      # on "complete evidence".
+      SIGNING_PRIVATE_KEY_PATH: keys/signing-private.pem
+      SIGNING_PUBLIC_KEY_PATH: keys/signing-public.pem
       PACKAGE_SIGNING_KEY_ID: e2e_package_ed25519
       PACKAGE_SIGNING_KEY_VERSION: "1"
-      PACKAGE_SIGNING_PRIVATE_KEY_PATH: services/api/keys/signing-private.pem
-      PACKAGE_SIGNING_PUBLIC_KEY_PATH: services/api/keys/signing-public.pem
+      PACKAGE_SIGNING_PRIVATE_KEY_PATH: keys/signing-private.pem
+      PACKAGE_SIGNING_PUBLIC_KEY_PATH: keys/signing-public.pem
 
       AUTH_JWT_SECRET: e2e_jwt_secret_min_32_chars_long_for_validator_xyz12345
 
