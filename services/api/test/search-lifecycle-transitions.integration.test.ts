@@ -408,6 +408,24 @@ describe("Search lifecycle transitions (live PostgreSQL 16)", () => {
       trigger: "test-order",
       // Old enough that the settle grace period cannot hide the row.
       gracePeriodMs: 60_000,
+      /*
+       * ENOUGH WORKSPACES FOR THIS ONE TO BE REACHED.
+       *
+       * One tick claims at most `workspaceBatchSize` workspaces — 50 by
+       * default — oldest drift first, which is correct for a scheduler and is
+       * a crowding problem for a test. On a fresh database this suite's
+       * workspace is the only candidate; in the full integration run the
+       * shared database carries every workspace the earlier suites left, so
+       * this one fell outside the first fifty and the document it asserts on
+       * was simply not visited. The case then reported the ORDER property
+       * broken when nothing had run at all.
+       *
+       * Raising the ceiling to the bounded maximum keeps the assertion about
+       * ordering rather than about scheduling luck. It cannot mask the defect
+       * it is written for: if the ineligible sweep ran after the drift scan,
+       * the document would still be present.
+       */
+      workspaceBatchSize: 500,
     });
 
     expect(tick.ok).toBe(true);

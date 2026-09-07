@@ -294,6 +294,32 @@ describe("Operations production signature (live PostgreSQL 16)", () => {
 
   /** Put the database into the exact production-hybrid shape. */
   async function applyHybridDrift(): Promise<void> {
+    /*
+     * THE PRECONDITION IS TABLE-WIDE, BECAUSE THE ALTER IS — BUT ONLY THE ROWS
+     * THAT WOULD BLOCK IT.
+     *
+     * The fixture backfills every legacy twin from its canonical column and
+     * then applies `ALTER COLUMN "safeSummary" SET NOT NULL`. That statement
+     * reads the WHOLE table, so its precondition is a property of the whole
+     * table and not of this suite's workspace: one row left behind by any
+     * earlier suite in the shared integration database whose canonical
+     * `safe_summary` is NULL makes the fixture fail with "column safeSummary
+     * contains null values". It did, in the full run, while this file passed
+     * alone on a fresh database.
+     *
+     * Only those rows are removed. Deleting the table outright is the wrong
+     * fix and was tried: the case below re-applies the hybrid and asserts that
+     * conditions recorded BEFORE the drift keep ticking over through the
+     * UPDATE path — which is the whole reason this fault stayed invisible in
+     * production — so wiping this suite's own history removes the property it
+     * exists to prove.
+     *
+     * Files in this project run serially (`fileParallelism: false`), so a row
+     * from another suite is a leftover rather than live state.
+     */
+    await prisma.$executeRawUnsafe(
+      'DELETE FROM "operational_incidents" WHERE "safe_summary" IS NULL',
+    );
     await runSqlFile(HYBRID_FIXTURE);
   }
 
