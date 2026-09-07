@@ -13,9 +13,34 @@
  * run confirmed, returning 4 rather than 0. That is the fix working, and it
  * is NOT this branch. The branch below is the one where the health authority
  * itself cannot answer, and the only way to reach it is to make it throw.
+ *
+ * ===========================================================================
+ * WHY THIS IS AN INTEGRATION SUITE
+ * ===========================================================================
+ * It was `admin-overview-health-outage.test.ts` — the UNIT project — and it
+ * calls the REAL `buildPlatformOverview()`, which fans out to thirty-three
+ * Prisma reads plus the worker-fleet, evidence-health and alert sources. Half
+ * these cases need those reads to SUCCEED: "returns to a real measurement once
+ * the source recovers" and "reconciles the count with the dependency rows the
+ * page links to" both require a number and the rows behind it, so a failing
+ * database stub would satisfy them for the wrong reason.
+ *
+ * The unit job has no database. `ci.yml`'s `build-test` job declares
+ * `DATABASE_URL=...@postgres:5432/...` and `REDIS_URL=redis://redis:6379` for
+ * the docker-compose steps later in the job and runs no service containers of
+ * its own, so those hostnames do not resolve while the tests run. Every case
+ * here then waited on a connection that could never open and blew vitest's 5s
+ * default — five timeouts, in a file that takes 1.6s for all five against a
+ * reachable database.
+ *
+ * Raising the timeout would have made CI wait out the failed connects and
+ * measured nothing. The suite needs a database, the integration project is the
+ * one that has one, and the file suffix is how this repository says so.
  */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { IntegrationHarness } from "./integration-harness.js";
 
 /** ON: the health authority is down. OFF: it answers for real. */
 const outage = { active: false };
@@ -33,9 +58,32 @@ vi.mock("../src/services/operations/platform-health-snapshot.service.js", async 
   };
 });
 
-const { buildPlatformOverview } = await import("../src/services/admin/overview.service.js");
-
+/*
+ * THE DATABASE COMES FROM THE ONE CANONICAL HELPER, AND THE SERVICE IS BOUND
+ * AFTER IT.
+ *
+ * `bootIntegrationHarness()` acquires the disposable database and overrides
+ * `DATABASE_URL` before anything imports `../src/db.js`. Importing the overview
+ * service at module scope would capture the ambient environment first — which
+ * is exactly what `phase-12-convergence-guard.test.ts` refuses, and it is right
+ * to: under testcontainers there IS no ambient database, so the suite would
+ * read `undefined` and prove nothing.
+ */
 describe("the overview when platform health cannot be evaluated", () => {
+  let harness: IntegrationHarness;
+  let buildPlatformOverview: typeof import("../src/services/admin/overview.service.js")["buildPlatformOverview"];
+
+  beforeAll(async () => {
+    const { bootIntegrationHarness } = await import("./integration-harness.js");
+    harness = await bootIntegrationHarness();
+    ({ buildPlatformOverview } = await import(
+      "../src/services/admin/overview.service.js"
+    ));
+  });
+
+  afterAll(async () => {
+    await harness?.cleanup();
+  });
   beforeEach(() => {
     outage.active = false;
   });
