@@ -205,6 +205,15 @@ function TeamsOverview() {
     ) => {
     setLoading(true);
     setError(null);
+    /**
+     * WCR-09 — the tenant this call is FOR, captured before any await.
+     *
+     * Comparing it afterwards is what makes the guard real rather than
+     * decorative: a switch that happens mid-flight changes the request header
+     * for the NEXT call but cannot un-send this one, so the response has to be
+     * discarded on arrival by the id it was issued under.
+     */
+    const issuedFor = activeWorkspaceId;
     try {
       const [page, projection] = await Promise.all([
         listTeams({
@@ -221,7 +230,7 @@ function TeamsOverview() {
       ]);
       // WCR-09 — a response for the PREVIOUS workspace must never paint under
       // the newly selected one. Checked after every await, not just the first.
-      if (opts?.isStale?.()) return;
+      if (opts?.isStale?.() || issuedFor !== activeWorkspaceId) return;
       setNextCursor(page.nextCursor);
       setCanGovern(page.canGovernWorkspace);
       setGrantedScope(page.scope);

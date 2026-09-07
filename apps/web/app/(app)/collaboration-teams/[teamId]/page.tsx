@@ -98,9 +98,13 @@ function TeamDetail() {
     if (!teamId) return;
     setLoading(true);
     setError(null);
+    // WCR-09 — the tenant this call is FOR, captured before the await and
+    // compared after it. A workspace switch mid-flight cannot un-send the
+    // request, so the response is discarded by the id it was issued under.
+    const issuedFor = activeWorkspaceId;
     try {
       const detail = await getTeam(teamId);
-      if (isStale?.()) return;
+      if (isStale?.() || issuedFor !== activeWorkspaceId) return;
       setTeam(detail);
     } catch (err) {
       if (isStale?.()) return;

@@ -70,24 +70,46 @@ describe("Phase R15 — Stage 2: API client", () => {
   // (never published by Pricing/Billing); invitations are EMAIL-only;
   // FREE/PAYG include zero Teams. `inviteBySms` / `createInviteLink`
   // are DELETED from the client surface.
-  it("exports the canonical 15 API functions (EMAIL-only invite surface)", () => {
+  /**
+   * WCR-24 / WCR-06 / WCR-08 / WCR-13 (2026-09-07) — the client surface moved.
+   *
+   * `inviteByEmail` is DELETED. It posted to `/invites/email`, which has
+   * answered a typed 410 since the per-group invitation writer was removed: a
+   * group is built from people who already hold workspace access, so it has
+   * nothing to invite. It had no caller, and keeping a client for a retired
+   * endpoint is how the endpoint comes back.
+   *
+   * Four functions join the required list because they went from "exists" to
+   * "is actually used", which is the distinction this pin exists to hold:
+   * `getCollaborationEntitlement` (THE commercial projection, previously with
+   * zero consumers), `listTeamMembers` (the paginated roster, likewise),
+   * `listEligibleMembers`, and `unarchiveTeam` (the operation the archive
+   * dialog always promised).
+   */
+  it("exports the canonical API functions (assignment, not invitation)", () => {
     const required = [
       "listTeams",
       "createTeam",
       "getTeam",
       "updateTeam",
       "archiveTeam",
+      "unarchiveTeam",
       "addExistingMember",
       "updateMember",
       "removeMember",
-      "inviteByEmail",
       "revokeInvite",
       "acceptInvite",
       "listActivity",
       "listAssignments",
       "createAssignment",
       "updateAssignment",
+      "getCollaborationEntitlement",
+      "listTeamMembers",
+      "listEligibleMembers",
     ];
+    // A per-group invitation writer must not return under any name.
+    expect(client).not.toMatch(/export async function inviteByEmail\b/);
+    expect(client).not.toMatch(/\/invites\/email/);
     for (const fn of required) {
       expect(client).toMatch(
         new RegExp(`export async function ${fn}\\b`),

@@ -39,6 +39,9 @@ import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO = path.resolve(HERE, "../../..");
+// WCR-27 — migrations curated and rehearsed but deliberately withheld from the
+// deployable chain. Prisma never scans this directory.
+const HELD_MIGRATIONS_DIR = path.join(REPO, "services/api/prisma/migrations-held");
 
 // ---------------------------------------------------------------------------
 // Statement classification
@@ -472,18 +475,42 @@ export function verifyArtifact(input) {
       );
     }
   }
+  /**
+   * WCR-27 (2026-09-07) — A HELD MIGRATION IS ABSENT ON PURPOSE.
+   *
+   * `prisma/migrations-held/` contains a migration that is written, curated and
+   * rehearsed but deliberately kept OUT of the deployable chain, because its
+   * safety depends on a DEPLOYED APPLICATION STATE rather than on the database
+   * alone. Prisma never scans that directory, so it cannot be applied by any
+   * runner — which is what makes the staging a mechanism rather than a comment.
+   *
+   * It is curated (so a reader can see what it does and when it is safe) and it
+   * is not in the artifact (so nothing applies it). Reporting that as a missing
+   * migration is precisely backwards: the absence IS the control.
+   *
+   * The rule keeps its force in the direction that matters. A curated migration
+   * that is in neither the artifact nor the held directory is still a failure,
+   * and the Point-6 inventory separately refuses a held migration that carries
+   * no curated disposition — a destructive migration nobody can explain is
+   * worse held than shipped.
+   */
+  const heldNames = new Set(
+    existsSync(HELD_MIGRATIONS_DIR)
+      ? readdirSync(HELD_MIGRATIONS_DIR, { withFileTypes: true })
+          .filter((d) => d.isDirectory())
+          .map((d) => d.name)
+      : [],
+  );
   for (const n of curatedNames) {
     const entry = curated[n];
+    if (artifactNames.has(n)) continue;
+    if (heldNames.has(n)) continue;
     // Contract migrations are DELIBERATELY absent from an early wave.
-    if (
-      !artifactNames.has(n) &&
-      !(input.wave !== "D" && entry?.classification === "CONTRACT_DROP")
-    ) {
-      fail(
-        "SOURCE_MIGRATION_MISSING_FROM_ARTIFACT",
-        `${n}: in the inventory but not in the artifact that would be applied.`,
-      );
-    }
+    if (input.wave !== "D" && entry?.classification === "CONTRACT_DROP") continue;
+    fail(
+      "SOURCE_MIGRATION_MISSING_FROM_ARTIFACT",
+      `${n}: in the inventory but not in the artifact that would be applied.`,
+    );
   }
 
   // --- 6. API / Worker inventory parity -----------------------------------

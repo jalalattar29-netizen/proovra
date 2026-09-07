@@ -19,6 +19,11 @@ export declare function deriveSourceSets(): {
   untracked: Set<string>;
 };
 export declare function migrationsOnDisk(): string[];
+/**
+ * WCR-27 — migrations curated and rehearsed but deliberately withheld from the
+ * deployable chain (`prisma/migrations-held/`), which Prisma never scans.
+ */
+export declare function migrationsHeld(): string[];
 export declare function migrationsInHead(): string[];
 export declare function migrationsInInventory(): { names: string[]; entries: Array<Record<string, unknown>> };
 export declare function migrationSql(name: string): Buffer;

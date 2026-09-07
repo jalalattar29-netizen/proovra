@@ -138,13 +138,37 @@ describe("WCR closure — workspace invitation + seat authority (live PostgreSQL
       expect(Object.keys(created.invite)).not.toContain("token");
       expect(Object.keys(created.invite)).not.toContain("tokenHash");
 
-      // RELEASE B — the plaintext column does not exist any more, so the
-      // question "is the token stored" is answered by the schema itself.
-      const columns = await prisma.$queryRaw<Array<{ column_name: string }>>`
-        SELECT column_name FROM information_schema.columns
-        WHERE table_name = 'team_invites'
+      /**
+       * WCR-27 (2026-09-07) — THE QUESTION IS "IS IT STORED", NOT "DOES THE
+       * COLUMN EXIST".
+       *
+       * This asserted the plaintext column had been DROPPED, which was true
+       * only because Release B shipped in the same migration chain as the
+       * Release A that makes it possible — the very coupling that meant one
+       * `prisma migrate deploy` applied both and the rollback window Release A
+       * retains the column FOR did not exist. Release B is now held out of the
+       * chain until it is promoted on proof, so after Release A the column is
+       * present and nullable.
+       *
+       * Asserting on the schema was always the weaker test: it proves a
+       * migration ran, not that the writer behaves. Asserting the column is
+       * EMPTY proves what the invariant actually claims — no writer persists a
+       * raw token — and it keeps proving it after Release B lands, when there
+       * is no column left to be empty.
+       */
+      const stored = await prisma.$queryRaw<Array<{ leaked: bigint }>>`
+        SELECT count(*) AS leaked
+        FROM information_schema.columns c
+        WHERE c.table_name = 'team_invites' AND c.column_name = 'token'
       `;
-      expect(columns.map((c) => c.column_name)).not.toContain("token");
+      if (Number(stored[0]?.leaked ?? 0) > 0) {
+        // Release-A state: the column is retained for service rollback safety
+        // and must hold nothing.
+        const populated = await prisma.$queryRaw<Array<{ n: bigint }>>`
+          SELECT count(*) AS n FROM team_invites WHERE token IS NOT NULL
+        `;
+        expect(Number(populated[0]?.n ?? 0)).toBe(0);
+      }
 
       // And the row that IS stored holds only a hash of it.
       const row = await prisma.teamInvite.findUniqueOrThrow({

@@ -425,7 +425,8 @@ export async function removeMember(
 
 // WCR-24 (2026-09-07) — `inviteByEmail` DELETED.
 //
-// It posted to `/invites/email`, which has answered a typed 410 since the
+// It posted to the per-group email-invite endpoint, which has answered a
+// typed 410 since the
 // per-group invitation writer was removed: a group is built from people who
 // already hold workspace access, so it has nothing to invite. The function had
 // no caller, and keeping a client for a retired endpoint is how one comes back.
