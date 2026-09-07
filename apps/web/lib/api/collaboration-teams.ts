@@ -136,19 +136,81 @@ export type CollaborationTeamActivityItem = {
   createdAt: string;
 };
 
+/**
+ * The record an assignment points at, resolved by the SERVER at read time.
+ *
+ * Never stored on the assignment: a case renamed on `/cases` reads as renamed
+ * here the moment it changes. `resolved: false` means the record could not be
+ * read in this workspace — deleted, or a legacy row written before targets
+ * were validated — and the surface says so instead of inventing a title.
+ */
+export type CollaborationTeamAssignmentTargetView = {
+  resolved: boolean;
+  label: string | null;
+  sublabel: string | null;
+  /** The canonical record's own state — case status, evidence status, review status. */
+  state: string | null;
+  /** REVIEW only. Projected read-only from the canonical review workflow. */
+  review: {
+    slaStatus: string | null;
+    dueAtUtc: string | null;
+    escalationLevel: number;
+  } | null;
+};
+
 export type CollaborationTeamAssignment = {
   id: string;
   targetType: CollaborationTeamAssignmentTarget;
   targetId: string;
+  target: CollaborationTeamAssignmentTargetView;
   assigneeUserId: string | null;
   assignedByUserId: string;
   status: CollaborationTeamAssignmentStatus;
   priority: CollaborationTeamAssignmentPriority;
   dueAtUtc: string | null;
+  /** SERVER-derived against the server's clock, so the list, the filter and the Overview agree. */
+  overdue: boolean;
   note: string | null;
   createdAt: string;
   updatedAt: string;
   completedAtUtc: string | null;
+};
+
+/** The sentinel the Work filter uses to ask for team-level (unassigned) rows. */
+export const ASSIGNEE_UNASSIGNED = "UNASSIGNED";
+
+/**
+ * The group's operational snapshot. Every number is counted by the database;
+ * the surface renders them and derives nothing.
+ */
+export type CollaborationTeamOverview = {
+  work: {
+    open: number;
+    inProgress: number;
+    completed: number;
+    overdue: number;
+    dueSoon: number;
+    highPriority: number;
+    unassigned: number;
+    byTargetType: { CASE: number; EVIDENCE: number; REVIEW: number };
+  };
+  members: { active: number; suspended: number; managers: number };
+  workload: ReadonlyArray<{ userId: string; open: number; overdue: number }>;
+};
+
+/** One group's responsibility for a record, read from the RECORD's side. */
+export type TeamResponsibility = {
+  id: string;
+  teamId: string;
+  teamName: string;
+  teamStatus: string;
+  assigneeUserId: string | null;
+  status: CollaborationTeamAssignmentStatus;
+  priority: CollaborationTeamAssignmentPriority;
+  dueAtUtc: string | null;
+  overdue: boolean;
+  note: string | null;
+  createdAt: string;
 };
 
 // =============================================================================
@@ -526,6 +588,14 @@ export async function listAssignments(
   teamId: string,
   opts?: {
     status?: CollaborationTeamAssignmentStatus | null;
+    /** CASE | EVIDENCE | REVIEW */
+    targetType?: CollaborationTeamAssignmentTarget | null;
+    priority?: CollaborationTeamAssignmentPriority | null;
+    /** A member's user id, or `ASSIGNEE_UNASSIGNED` for team-level work. */
+    assignee?: string | null;
+    overdueOnly?: boolean;
+    /** Matches the assignment note or the assigned record's own name. */
+    search?: string | null;
     limit?: number;
     cursor?: string | null;
   },
@@ -536,6 +606,14 @@ export async function listAssignments(
 }> {
   const qs = new URLSearchParams();
   if (opts?.status) qs.set("status", opts.status);
+  // EVERY filter goes to the server. The surface used to narrow the page it
+  // already held, which on a group with more work than one page hides rows and
+  // counts only what happened to be loaded.
+  if (opts?.targetType) qs.set("targetType", opts.targetType);
+  if (opts?.priority) qs.set("priority", opts.priority);
+  if (opts?.assignee) qs.set("assignee", opts.assignee);
+  if (opts?.overdueOnly) qs.set("overdue", "true");
+  if (opts?.search?.trim()) qs.set("q", opts.search.trim());
   if (opts?.limit) qs.set("limit", String(opts.limit));
   if (opts?.cursor) qs.set("cursor", opts.cursor);
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
@@ -551,6 +629,46 @@ export async function listAssignments(
     nextCursor: res.nextCursor ?? null,
     total: res.total ?? res.assignments.length,
   };
+}
+
+/**
+ * The group's operational snapshot — counted server-side.
+ *
+ * Overview used to compute its health rows from the detail payload's member
+ * and invite arrays, which are BOUNDED PREVIEWS. This is the same question
+ * asked of the database, so it stays exact at any group size.
+ */
+export async function getTeamOverview(
+  teamId: string,
+): Promise<CollaborationTeamOverview> {
+  const res = (await apiFetch(
+    `${BASE}/${encodeURIComponent(teamId)}/overview`,
+  )) as { overview: CollaborationTeamOverview };
+  return res.overview;
+}
+
+/**
+ * Which Collaboration Teams are responsible for a canonical record.
+ *
+ * The REVERSE read of the one group-responsibility authority — the same rows
+ * the Work tab lists, keyed by the record instead of by the group. There is no
+ * second store and no second writer behind this.
+ *
+ * It never grants access: the caller is already reading a record they can
+ * reach, and this only says who is coordinating it.
+ */
+export async function listTeamResponsibility(input: {
+  targetType: CollaborationTeamAssignmentTarget;
+  targetId: string;
+}): Promise<ReadonlyArray<TeamResponsibility>> {
+  const qs = new URLSearchParams({
+    targetType: input.targetType,
+    targetId: input.targetId,
+  });
+  const res = (await apiFetch(`${BASE}/responsibility?${qs.toString()}`)) as {
+    assignments: TeamResponsibility[];
+  };
+  return res.assignments ?? [];
 }
 
 export async function createAssignment(

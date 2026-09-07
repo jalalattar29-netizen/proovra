@@ -68,6 +68,9 @@ import { useConfirmAction } from "../../ui/ConfirmActionModal";
 // when filename fields exist on the record.
 import { getDisplayTitle } from "../../../app/(app)/evidence/lib/evidence-library-status";
 import { CaseCopilotPanel } from "../../ai-copilot/CaseCopilotPanel";
+// The READ of the one group-responsibility authority. Shared with
+// MatterWorkspace and the evidence surface so all three say the same thing.
+import { TeamResponsibilityPanel } from "../../collaboration/TeamResponsibilityPanel";
 // Phase CASES-STATUS-LISTBOX (§22) — accessible custom status listbox
 // replaces the native status dropdown in the Settings tab.
 import { CaseStatusSelect } from "./CaseStatusSelect";
@@ -350,15 +353,28 @@ export function SimpleCaseDetail({
       </nav>
 
       {activeTab === "overview" ? (
-        <OverviewTab
-          caseDetail={caseDetail}
-          evidenceCount={evidenceItems.length}
-          deliverables={deliverables}
-          needsAttention={needsAttention}
-          viewer={viewer}
-          onAddEvidence={() => setAttachOpen(true)}
-          onGoToTab={setActiveTab}
-        />
+        <>
+          <OverviewTab
+            caseDetail={caseDetail}
+            evidenceCount={evidenceItems.length}
+            deliverables={deliverables}
+            needsAttention={needsAttention}
+            viewer={viewer}
+            onAddEvidence={() => setAttachOpen(true)}
+            onGoToTab={setActiveTab}
+          />
+          {/*
+            Team responsibility on the PERSONAL / small-workspace branch too.
+
+            This branch has no Assignments tab at all, so before this it had no
+            way whatsoever to say who was carrying the case — and it is exactly
+            the branch a PRO workspace sees, which is the plan that sells five
+            seats. Gating the answer on Enterprise would have made the
+            reverse projection invisible to the customers who most need a
+            second person to know what they are on.
+          */}
+          <TeamResponsibilityPanel targetType="CASE" targetId={caseId} />
+        </>
       ) : null}
       {activeTab === "evidence" ? (
         // Phase CASE-DETAIL-PROOVRA-V2 §Evidence — Figma places the

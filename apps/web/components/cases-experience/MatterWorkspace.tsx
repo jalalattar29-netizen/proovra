@@ -59,6 +59,9 @@ import {
   type AssignmentRole,
 } from "./matter-modals";
 import { GovernanceSummary } from "../governance/GovernanceSummary";
+// The READ of the one group-responsibility authority. Shared with
+// SimpleCaseDetail and the evidence surface so all three say the same thing.
+import { TeamResponsibilityPanel } from "../collaboration/TeamResponsibilityPanel";
 import { PresenceIndicator } from "../presence/PresenceIndicator";
 import { CaseRiskPanel } from "../hidden-feature-panels/HiddenFeaturePanels";
 // Phase Final-Closure-Verification — mount SiuPanel inside the matter
@@ -734,7 +737,27 @@ export function MatterWorkspace({
 
       <div className="case-detail-split-main" data-matter-workspace-body>
         {activeTab === "overview" ? (
-          <OverviewTab envelope={envelope} />
+          <>
+            <OverviewTab envelope={envelope} />
+            {/*
+              WHICH TEAM IS ON THIS CASE.
+
+              A Collaboration Team could be made responsible for this case
+              since the assignment model shipped, and this page could not say
+              so — nothing outside the collaboration module read that table.
+              This is a READ of the same authority the group's Work tab lists;
+              no second assignment model, and no access is granted by it.
+
+              It sits beside the individual `CaseAssignment` roles on the
+              Assignments tab rather than replacing them: a person's ROLE on a
+              case and the operational UNIT carrying it are different
+              questions.
+            */}
+            <TeamResponsibilityPanel
+              targetType="CASE"
+              targetId={envelope.case.id}
+            />
+          </>
         ) : null}
         {activeTab === "evidence" ? (
           <EvidenceTab
