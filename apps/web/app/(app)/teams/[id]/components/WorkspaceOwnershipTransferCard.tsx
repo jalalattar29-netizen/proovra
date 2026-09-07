@@ -28,7 +28,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { Card } from "../../../../../components/ui/Card";
 import { Button } from "../../../../../components/ui/Button";
 import { apiFetch } from "../../../../../lib/api";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
@@ -185,20 +184,28 @@ export function WorkspaceOwnershipTransferCard({
     [targetUserId, teamId, teamName, candidates, onTransferred],
   );
 
+  /**
+   * On the canonical `.app-panel` anatomy since the People redesign
+   * (2026-09-07), which deleted the page-local stylesheet that defined
+   * `.team-card` and the wrapper class its rules were scoped under. This card
+   * renders inside that page, so those classes stopped resolving to anything.
+   * Presentation only — every `data-*` hook and every branch is unchanged.
+   */
   return (
-    <Card
-      className="team-card rounded-[30px] border p-6"
+    <div
+      className="app-panel"
       data-workspace-ownership-transfer-card
       aria-busy={busy}
     >
-      <div className="team-card-header">
-        <div className="team-card-title">Transfer ownership</div>
-        <div className="team-card-copy">
+      <div className="app-panel__head">
+        <h3 className="app-panel__title">Transfer ownership</h3>
+      </div>
+      <div className="app-panel__body">
+        <p className="app-table__muted" style={{ margin: "0 0 4px" }}>
           Hand this workspace to another active member. They become the owner
           and the billing owner; you stay a member. Evidence, cases and audit
           history are unaffected.
-        </div>
-      </div>
+        </p>
 
       {candidates.length === 0 ? (
         <p
@@ -338,7 +345,8 @@ export function WorkspaceOwnershipTransferCard({
       >
         {busy ? "Transferring ownership…" : error ? error : notice ? notice : ""}
       </div>
-    </Card>
+      </div>
+    </div>
   );
 }
 

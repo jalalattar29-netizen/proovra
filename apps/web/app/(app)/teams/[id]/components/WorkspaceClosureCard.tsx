@@ -27,7 +27,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { Card } from "../../../../../components/ui/Card";
 import { Button } from "../../../../../components/ui/Button";
 import { apiFetch } from "../../../../../lib/api";
 import { formatUserDate } from "../../../../../lib/date";
@@ -244,14 +243,25 @@ export function WorkspaceClosureCard({ teamId }: { teamId: string }) {
   const phraseExpected = state.confirmationPhrase;
   const muted: React.CSSProperties = { color: "#6a777b", fontSize: 13 };
 
+  /**
+   * The People redesign (2026-09-07) deleted the page-local `<style jsx
+   * global>` block that defined `.team-card`, `.team-card-header`,
+   * `.team-card-title` and `.team-card-copy` — and the
+   * `.teams-detail-page-shell` wrapper those rules were scoped under. This
+   * card lived inside that page, so the classes it wore stopped resolving to
+   * anything the moment the block went.
+   *
+   * It is on the canonical `.app-panel` anatomy now, like everything else on
+   * the surface. Presentation only: every `data-*` hook, every control and
+   * every branch below is unchanged.
+   */
   return (
-    <Card
-      className="team-card rounded-[30px] border p-6"
-      data-workspace-closure-card
-    >
-      <div className="team-card-header">
-        <div className="team-card-title">Close workspace</div>
-        <div className="team-card-copy">
+    <div className="app-panel" data-workspace-closure-card>
+      <div className="app-panel__head">
+        <h3 className="app-panel__title">Close workspace</h3>
+      </div>
+      <div className="app-panel__body">
+        <p className="app-table__muted" style={{ margin: "0 0 4px" }}>
           Archives access to this workspace after a {state.coolingOffDays}-day
           cancellation window.{" "}
           {state.membersLosingAccess > 0
@@ -261,8 +271,7 @@ export function WorkspaceClosureCard({ teamId }: { teamId: string }) {
             : ""}
           Evidence is never deleted by workspace closure — it stays governed
           by retention and legal-hold rules.
-        </div>
-      </div>
+        </p>
 
       {/*
         PHASE 13 (NEW-048) — the outcome region, rendered OUTSIDE the
@@ -471,6 +480,7 @@ export function WorkspaceClosureCard({ teamId }: { teamId: string }) {
           {error}
         </div>
       ) : null}
-    </Card>
+      </div>
+    </div>
   );
 }
