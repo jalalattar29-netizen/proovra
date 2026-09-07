@@ -126,17 +126,40 @@ describe("Public intake page — friendly completed-link UX", () => {
     );
   });
 
-  it("renders a read-only 'Submission completed' branch with no upload controls", () => {
+  it("renders a read-only 'already submitted' branch with no upload controls", () => {
     const src = read(PAGE);
-    assert.match(
-      src,
-      /phase === "already_submitted"[\s\S]{0,800}Submission completed/,
+    /*
+     * THE BRANCH IS READ, NOT ITS OLD HEADING.
+     *
+     * This looked for "Submission completed" inside the `already_submitted`
+     * branch. That heading belongs to the `submitted` branch — the one shown
+     * immediately after a successful upload — and this branch says "Already
+     * submitted" precisely because it is NOT that: the contributor reopened a
+     * spent link and there is no new submission reference to show. The
+     * assertion was pinning a duplication the copy deliberately removed.
+     *
+     * What must hold is the property the case is named for: the branch exists,
+     * marks itself, confirms the earlier submission, and offers no way to
+     * upload anything.
+     */
+    const at = src.indexOf('if (phase === "already_submitted")');
+    assert.ok(at > 0, "no already_submitted branch");
+    const branch = src.slice(at, src.indexOf("\n  }", at));
+    assert.match(branch, /data-intake-phase="already_submitted"/);
+    assert.match(branch, /already been used/i);
+    // No upload affordance of any kind inside the branch.
+    assert.ok(
+      !branch.includes("data-intake-add-files-btn"),
+      "the already-submitted branch offers a file picker",
     );
-    // The friendly branch MUST NOT render the file input or submit
-    // button. Easiest pin: the branch returns BEFORE the `upload`
-    // section. We assert the read-only marker attribute is unique
-    // to this branch.
-    assert.match(src, /data-intake-phase="already_submitted"/);
+    assert.ok(
+      !branch.includes("type=\"file\""),
+      "the already-submitted branch renders a file input",
+    );
+    assert.ok(
+      !/onClick=\{[^}]*submit/i.test(branch),
+      "the already-submitted branch renders a submit control",
+    );
   });
 
   it("the friendly catalog has LINK_ALREADY_SUBMITTED copy as a fallback", () => {
@@ -208,8 +231,25 @@ describe("Public intake file picker — multi-select", () => {
   it("'Add files' button + multi-select hint are present (discoverability)", () => {
     const src = read(PAGE);
     assert.match(src, /data-intake-add-files-btn="true"/);
-    assert.match(src, /data-intake-add-files-hint="true"/);
-    assert.match(src, /multiple thumbnails/i);
+    /*
+     * THE HINT IS A PROPERTY, NOT A STRING.
+     *
+     * This required `data-intake-add-files-hint="true"` and the words
+     * "multiple thumbnails". The picker was redesigned: the hint is the
+     * button's own subordinate line, and it says "you can select more than
+     * one" — better copy for the same job. Pinning the removed attribute and
+     * the removed phrase reported the affordance missing while it was on
+     * screen, so what is held now is that the input really accepts several
+     * files and that the control says so in words a contributor can read.
+     */
+    assert.match(src, /<input[\s\S]{0,400}?multiple/);
+    const btnAt = src.indexOf('data-intake-add-files-btn="true"');
+    const button = src.slice(btnAt, btnAt + 1200);
+    assert.match(
+      button,
+      /more than one|multiple/i,
+      "the Add files control does not say more than one file can be chosen",
+    );
   });
 
   it("each file goes through stageFile independently with an explicit partIndex argument", () => {

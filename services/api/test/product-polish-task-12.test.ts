@@ -258,7 +258,37 @@ describe("reports empty state is one surface", () => {
 // F — the sidebar fits the screen it is on
 // ===========================================================================
 describe("sidebar short-viewport density", () => {
-  const density = SHELL_CSS.slice(SHELL_CSS.indexOf("/* SIDEBAR SHORT-VIEWPORT DENSITY */"));
+  /*
+   * THE BLOCK, NOT THE REST OF THE FILE.
+   *
+   * This was `SHELL_CSS.slice(indexOf("/* SIDEBAR SHORT-VIEWPORT DENSITY *\/"))`
+   * with no end — every rule appended to the stylesheet afterwards was read as
+   * part of the density block. The skip link, added later and 380 lines below,
+   * carries `font-size: 14px`, so "does not shrink type at any height" failed
+   * on a rule that is not a height tier and does not shrink anything.
+   *
+   * The block runs to the next top-level section, which is where its own tiers
+   * end. Two sibling cases here read the same slice and were passing by
+   * accident; they are honest now too.
+   */
+  const DENSITY_START = SHELL_CSS.indexOf("/* SIDEBAR SHORT-VIEWPORT DENSITY */");
+  const NEXT_SECTION = SHELL_CSS.indexOf(
+    "/* HEADER TRIGGERS — NARROW-VIEWPORT COMPACTION */",
+    DENSITY_START,
+  );
+  const density = SHELL_CSS.slice(
+    DENSITY_START,
+    NEXT_SECTION === -1 ? undefined : NEXT_SECTION,
+  );
+
+  it("the density block was located and bounded", () => {
+    // A slice that silently came back empty, or ran to the end of the file,
+    // would make every case below meaningless in opposite directions.
+    expect(DENSITY_START).toBeGreaterThan(-1);
+    expect(NEXT_SECTION).toBeGreaterThan(DENSITY_START);
+    expect(density).toContain("TIER 3");
+    expect(density).not.toContain(".app-skip-link");
+  });
 
   it("is keyed on viewport height alone — never on plan, role or workspace kind", () => {
     for (const tier of [

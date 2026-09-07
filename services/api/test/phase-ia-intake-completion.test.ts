@@ -128,8 +128,18 @@ describe("Phase IA-intake-completion P2 — Send UI + E.164", () => {
     // every projection when recipient contact came under one disclosure rule.
     expect(SURFACE).toMatch(/recipientPhoneMasked:\s*string\s*\|\s*null/);
     expect(SURFACE).toMatch(/data-intake-link-phone/);
+    /*
+     * THE TWO CHANNELS THAT REMAIN, AND THE ONE THAT MUST NOT COME BACK.
+     *
+     * This required `data-intake-link-send="WHATSAPP"`. WhatsApp was retired
+     * as an intake delivery channel — the DB enum and the read labels are kept
+     * only so historical rows still render — so the assertion demanded a
+     * control the surface is not supposed to offer, and it is now inverted
+     * into the guard it should have been.
+     */
     expect(SURFACE).toMatch(/data-intake-link-send="SMS"/);
-    expect(SURFACE).toMatch(/data-intake-link-send="WHATSAPP"/);
+    expect(SURFACE).toMatch(/data-intake-link-send="EMAIL"/);
+    expect(SURFACE).not.toMatch(/data-intake-link-send="WHATSAPP"/);
     expect(SURFACE).toMatch(/data-intake-link-copy/);
   });
 
@@ -143,10 +153,14 @@ describe("Phase IA-intake-completion P2 — Send UI + E.164", () => {
     );
   });
 
-  it("Send is gated on recipientPhone presence (cannot send without phone)", () => {
+  it("Send is gated on a recipient for the channel (cannot send without one)", () => {
     // Presence, not the number: the dialog never needed to read the phone to
     // decide whether a channel exists, and the projection no longer offers it.
-    expect(intakeLinksSurface()).toMatch(/canSend = link\.hasRecipientPhone/);
+    // Two channels, two presence flags, and Send at all requires one of them.
+    const SURFACE = intakeLinksSurface();
+    expect(SURFACE).toMatch(/canSendSms = link\.hasRecipientPhone === true/);
+    expect(SURFACE).toMatch(/canSendEmail = link\.hasRecipientEmail === true/);
+    expect(SURFACE).toMatch(/canSend = canSendSms \|\| canSendEmail/);
   });
 });
 
@@ -233,7 +247,13 @@ describe("Phase IA-intake-completion P5 — Request more + notify + evidence lin
   it("review endpoint accepts notifyContributor + notifyChannel", () => {
     const ROUTE = readApi("src/routes/evidence-requests.routes.ts");
     expect(ROUTE).toMatch(/notifyContributor:\s*z\.boolean\(\)\.optional\(\)/);
-    expect(ROUTE).toMatch(/notifyChannel:\s*z\.enum\(\["SMS",\s*"WHATSAPP"\]\)/);
+    /*
+     * SMS ONLY. The enum used to be ["SMS", "WHATSAPP"]; WhatsApp is retired
+     * as an outbound intake channel, so a request naming it must be refused by
+     * the schema rather than reach a provider path that cannot serve it.
+     */
+    expect(ROUTE).toMatch(/notifyChannel:\s*z\.enum\(\["SMS"\]\)/);
+    expect(ROUTE).not.toMatch(/notifyChannel:\s*z\.enum\(\[[^\]]*"WHATSAPP"/);
   });
 
   it("review service notifies contributor when REJECTED and phone present", () => {

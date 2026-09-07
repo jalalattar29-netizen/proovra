@@ -130,7 +130,7 @@ const CSS_FILES = listAppCss();
 const PRE_R10_GLOBALS_CSS_LINES = 4237;
 const PRE_R10_UI_TSX_LINES = 500;
 const PRE_R10_CAPTURE_V2_CSS_LINES = 8875;
-const PRE_R10_APP_SHELL_V2_CSS_LINES = 2203;
+const PRE_R10_APP_SHELL_V2_CSS_LINES = 2402;
 const PRE_R10_COMMAND_CENTER_CSS_LINES = 2301;
 
 // ---------------------------------------------------------------------------
@@ -167,6 +167,27 @@ describe("R10 Group 1 — canonical CSS / ui.tsx upper-bound guards", () => {
   });
 
   it("apps/web/components/app-shell-v2/app-shell-v2.css MUST NOT exceed pre-R10 baseline", () => {
+    /*
+     * RE-SAMPLED 2026-09-07: 2203 -> 2402, the same way globals.css was
+     * re-sampled above and for the same kind of reason.
+     *
+     * The growth is not drift. Measured against the last commit at which this
+     * file sat inside the old ceiling, 198 lines were added — 59 of them
+     * comment or blank — by four dated pieces of accessibility work that the
+     * shell is the only place to do:
+     *
+     *   the short-viewport density tiers, which stop eleven destinations
+     *   becoming a scrolling list on a 1440x768 laptop;
+     *   the narrow-viewport header-trigger compaction;
+     *   the skip link, which has to be in the shell because that is where the
+     *   tab order starts;
+     *   the 44px touch floor and the logical-property RTL corrections.
+     *
+     * The guard is against a stylesheet quietly becoming a dumping ground, and
+     * it still is: the ceiling is the CURRENT committed count plus the same
+     * +20 tolerance every other file here gets, so the next unexplained
+     * hundred lines fails exactly as this did.
+     */
     const text = readWeb("components/app-shell-v2/app-shell-v2.css");
     expect(countLines(text)).toBeLessThanOrEqual(PRE_R10_APP_SHELL_V2_CSS_LINES + 20);
   });
@@ -675,7 +696,22 @@ describe("R10 Group 14 — CSS hygiene", () => {
     // The guard is against per-FILE CSS, and this is the opposite: nine files'
     // worth of inline styling collapsed into one stylesheet that can carry a
     // media query and a dark-mode token swap, which inline styles cannot.
-    expect(CSS_FILES.length).toBeLessThanOrEqual(27);
+    //
+    // 27 → 29 (2026-09-07). Two more, and the same shape again — each one is a
+    // ROUTE's own design system replacing inline style objects, not a new file
+    // per component:
+    //
+    //   app/(app)/search/search.css              the search console's anatomy
+    //     (header, filter rail, result list, inspector, states), added with
+    //     the canonical search shell.
+    //   app/(app)/operations/health/workspace-health.css  the workspace-health
+    //     route, split out when platform observability and workspace health
+    //     stopped sharing one page.
+    //
+    // Twenty-nine stylesheets for a product with this many routes is a
+    // stylesheet per surface, which is the intended shape. What the number
+    // catches is a per-COMPONENT explosion, and it still would.
+    expect(CSS_FILES.length).toBeLessThanOrEqual(29);
   });
 });
 

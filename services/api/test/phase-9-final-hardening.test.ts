@@ -59,7 +59,6 @@ vi.mock("../src/db.js", () => {
 
 import { existsSync } from "node:fs";
 import { upsertSubscription } from "../src/services/billing.service.js";
-import { assertWorkspaceAllowsAiOperation } from "../src/services/billing-enforcement.service.js";
 import type { WorkspaceScope } from "../src/services/workspace-billing.service.js";
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
@@ -102,22 +101,14 @@ describe("QA-bypass REMOVAL — zero production commercial bypasses", () => {
 
 // ── CHECK 1 — AI entitlement is scope-bound (no cross-subject leakage) ─────
 describe("AI subject — Workspace A's AI entitlement cannot come from Personal plan or Workspace B", () => {
-  function scope(overrides: Partial<WorkspaceScope>): WorkspaceScope {
-    return {
-      billingShape: "SHARED",
-      ownerUserId: "owner-1",
-      teamId: "ws-A",
-      organizationId: "org-1",
-      plan: "FREE" as WorkspaceScope["plan"],
-      credits: 0,
-      teamSeats: 0,
-      storageBytesOverride: null,
-      activeStorageAddonBytes: 0n,
-      legacyRecordCapOverride: null,
-    contractLimits: NO_CONTRACT_LIMITS,
-      ...overrides,
-    };
-  }
+  /* THE SCOPE BUILDER AND THE ENFORCEMENT IMPORT ARE GONE WITH THE
+     ASSERTION THAT USED THEM.
+     The first case below explains why: it used to call
+     `assertWorkspaceAllowsAiOperation` on a hand-built FREE scope and assert
+     a rejection, which was only true while FREE's allowance was 0. FREE now
+     carries a trial of 10, the case was re-expressed against the CAP, and the
+     builder and the import stayed behind — unused, and pointing at a shape of
+     test the file deliberately no longer performs. */
 
   it("a FREE Workspace A gets FREE's AI allowance, never the acting user's PERSONAL PRO one", () => {
     /*

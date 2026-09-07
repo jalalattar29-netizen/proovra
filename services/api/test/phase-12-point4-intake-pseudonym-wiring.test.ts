@@ -459,7 +459,22 @@ describe("Intake pseudonym §6 — collected publicly, shown to the reviewer", (
       publicPage.indexOf("async function acceptConsent()"),
     );
     const identityBlock = accept.slice(0, accept.indexOf("const policyVersion"));
-    expect(identityBlock).toMatch(/friendlyIntakeError[\s\S]{0,120}return;/);
+    /*
+     * THE CATCH RETURNS — READ TO THE END OF THE CATCH, NOT 120 CHARACTERS IN.
+     *
+     * The window was `friendlyIntakeError[\s\S]{0,120}return;`. The catch now
+     * routes a refusal of the NAME to the field and anything else to the page
+     * banner before returning, which is more than 120 characters of correct
+     * code, so the case failed on the budget rather than on the behaviour.
+     * The bound is the end of the catch, which is what the property is about.
+     */
+    const at = identityBlock.indexOf("friendlyIntakeError");
+    expect(at, "the identity catch does not use the friendly error mapper").toBeGreaterThan(-1);
+    const catchTail = identityBlock.slice(at);
+    const untilFinally = catchTail.slice(0, catchTail.indexOf("} finally"));
+    expect(untilFinally).toContain("return;");
+    // …and it records no consent on the way out.
+    expect(untilFinally).not.toContain("/consent");
   });
 
   it("the reviewer projection surfaces the pseudonym for PSEUDONYMOUS and nothing else", () => {

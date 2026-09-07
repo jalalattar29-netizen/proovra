@@ -160,10 +160,25 @@ describe("Phase 31.9 — ops actions UI: button disablement", () => {
     expect(block!).toMatch(/disabled=\{actionResult\.kind === "pending" \|\| !teamId\}/);
   });
 
-  it("primaryButtonStyle takes a disabled boolean (defensive styling)", () => {
-    expect(PAGE_SRC).toMatch(
-      /function primaryButtonStyle\(disabled: boolean\)/,
-    );
+  it("the action controls are the canonical Button, which owns the disabled treatment", () => {
+    /*
+     * NO MORE `primaryButtonStyle(disabled: boolean)`.
+     *
+     * This case required a page-local helper that computed inline styles for a
+     * disabled state. The page was migrated onto the canonical `Button`, whose
+     * `disabled` prop carries that treatment for the whole product, and the
+     * helper was deleted with the inline styles it existed to build — so the
+     * regex reported "defensive styling missing" about a page that had stopped
+     * hand-rolling it.
+     *
+     * The property is the same and is now stated where it lives: the action
+     * controls are the shared component, they are given a real disabled
+     * expression (asserted in the case above), and nothing in the page
+     * re-implements a button style of its own.
+     */
+    expect(PAGE_SRC).toMatch(/import \{[^}]*\bButton\b[^}]*\} from/);
+    expect(PAGE_SRC).toMatch(/<Button[\s\S]{0,400}?disabled=\{/);
+    expect(PAGE_SRC).not.toMatch(/function \w*[Bb]uttonStyle\(/);
   });
 });
 

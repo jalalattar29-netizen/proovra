@@ -36,7 +36,7 @@ function readApi(rel: string): string {
   );
 }
 
-import { intakeLinksFile } from "./_helpers/intake-links-surface";
+import { intakeLinksFile, intakeLinksSurface } from "./_helpers/intake-links-surface";
 
 const PAGE = readWeb("app/(app)/intake-links/page.tsx");
 
@@ -64,7 +64,19 @@ describe("Phase IA-intake-personal-space-fix — guard semantics", () => {
     // The personal teamId is the same row the backend's TeamMember lookup
     // expects, and every read is scoped to it.
     expect(PAGE).toMatch(/const teamId = activeSpace\?\.id \?\? null/);
-    expect(PAGE).toMatch(/teamId=\$\{encodeURIComponent\(workspaceId\)\}/);
+    /*
+     * READ FROM THE SURFACE, NOT FROM ONE FILE, AND NOT BY THE OLD VARIABLE
+     * NAME. This asserted `teamId=${encodeURIComponent(workspaceId)}` in
+     * page.tsx. The identifier is `teamId` now and the reads live across the
+     * route tree — `_lib/useServerSearch.ts`, the drawers, the wizard — so
+     * the regex matched nothing while every read was still workspace-scoped.
+     * `intakeLinksSurface()` is the reader that already exists for exactly
+     * this, and the property is that the scoping parameter is present and
+     * encoded, whatever the local variable is called.
+     */
+    expect(intakeLinksSurface()).toMatch(
+      /teamId=\$\{encodeURIComponent\([A-Za-z0-9_.]+\)\}/,
+    );
   });
 
   it("PERSONAL active space is labelled \"Personal Space\" (no team jargon)", () => {
@@ -156,6 +168,39 @@ describe("Phase IA-intake-personal-space-fix — copy", () => {
 describe("Phase IA-intake-personal-space-fix — backend works for PERSONAL", () => {
   const ROUTE = readApi("src/routes/workflow-intake-links.routes.ts");
 
+  /*
+   * ===========================================================================
+   * PINNED TO THE GUARD, NOT TO ITS OLD NAME
+   * ===========================================================================
+   * These three cases named `requireAdmin(req, reply, <id>, "<permission>")`
+   * and `outcome.actorUserId` literally. The route's local helper is
+   * `requireIntakeWorkflowActor` now, and it destructures `{ userId }` at the
+   * call site — the SAME guard, one rename later. So the regexes matched
+   * nothing and three cases failed while the property they exist to protect
+   * was intact, which is the worst way for a test to fail: it says the
+   * authorization is gone when only the spelling moved.
+   *
+   * The helper's name is read out of the file instead of assumed, so the next
+   * rename is covered too, and what is asserted is what the phase was about:
+   * every mutation resolves the actor through `authorizeOrFail` keyed by the
+   * TARGET workspace id and a named permission, with no PERSONAL/TEAM filter
+   * anywhere on the path.
+   */
+  const GUARD = (() => {
+    const m = ROUTE.match(
+      /async function (require[A-Za-z]*Actor)\([\s\S]{0,400}?authorizeOrFail\(/,
+    );
+    expect(m, "no authorizeOrFail-backed actor guard found in the route").toBeTruthy();
+    return m![1];
+  })();
+
+  /** The window of source that a route registration owns, from its path literal. */
+  function windowAfter(pathLiteral: string, span = 1500): string {
+    const at = ROUTE.indexOf(`"${pathLiteral}"`);
+    expect(at, `${pathLiteral} is not registered`).toBeGreaterThan(-1);
+    return ROUTE.slice(at, at + span);
+  }
+
   it("authorization composes the canonical primitive keyed by the target teamId (works for personal workspaces)", () => {
     // PHASE 1 (2026-07-21): the auth helpers route through authorizeOrFail,
     // which resolves the actor's ACTIVE membership by teamId + userId (via
@@ -164,28 +209,35 @@ describe("Phase IA-intake-personal-space-fix — backend works for PERSONAL", ()
     // lifecycle, so the canonical gate succeeds for PERSONAL workspaces
     // without ANY backend change.
     expect(ROUTE).toMatch(/authorizeOrFail\(/);
-    // requireAdmin's informational OWNER/ADMIN role read is keyed by
-    // teamId + the authorized actor userId.
-    expect(ROUTE).toMatch(
-      /teamId_userId:\s*\{\s*teamId,\s*userId:\s*outcome\.actorUserId\s*\}/,
-    );
+    // The guard passes the caller's target workspace id and the named
+    // permission straight through — no second identity is invented.
+    const guardAt = ROUTE.indexOf(`async function ${GUARD}(`);
+    const guardBody = ROUTE.slice(guardAt, guardAt + 500);
+    expect(guardBody).toContain("authorizeOrFail(req, reply, {");
+    expect(guardBody).toContain("teamId,");
+    expect(guardBody).toContain("permission,");
+    // The informational role read is keyed by teamId + the authorized actor.
+    expect(ROUTE).toContain("teamId_userId: { teamId: body.teamId, userId: ok.userId }");
     // No path filters out PERSONAL scope.
     expect(ROUTE).not.toMatch(/scope:\s*"PERSONAL"/);
     expect(ROUTE).not.toMatch(/scope:\s*"TEAM"/);
   });
 
   it("POST /v1/workflow/intake-links gates the admin create path on workflow.intake_link.create", () => {
-    expect(ROUTE).toMatch(
-      /app\.post\(\s*"\/v1\/workflow\/intake-links"[\s\S]{0,1500}requireAdmin\(req, reply, body\.teamId, "workflow\.intake_link\.create"\)/,
+    // The FIRST registration of the collection path is the create; the list
+    // read registers the same path on GET further down.
+    const create = windowAfter("/v1/workflow/intake-links");
+    expect(create).toContain(
+      `${GUARD}(req, reply, body.teamId, "workflow.intake_link.create")`,
     );
   });
 
-  it("Send / revoke endpoints reuse the same requireAdmin path with the right capability", () => {
-    expect(ROUTE).toMatch(
-      /\/v1\/workflow\/intake-links\/:id\/revoke[\s\S]{0,1500}requireAdmin\(req, reply, existing\.teamId, "workflow\.intake_link\.revoke"\)/,
+  it("Send / revoke endpoints reuse the same guard with the right capability", () => {
+    expect(windowAfter("/v1/workflow/intake-links/:id/revoke")).toContain(
+      `${GUARD}(req, reply, existing.teamId, "workflow.intake_link.revoke")`,
     );
-    expect(ROUTE).toMatch(
-      /\/v1\/workflow\/intake-links\/:id\/send[\s\S]{0,1500}requireAdmin\(req, reply, existing\.teamId, "workflow\.intake_link\.create"\)/,
+    expect(windowAfter("/v1/workflow/intake-links/:id/send")).toContain(
+      `${GUARD}(req, reply, existing.teamId, "workflow.intake_link.create")`,
     );
   });
 });

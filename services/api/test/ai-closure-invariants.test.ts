@@ -292,7 +292,14 @@ describe("indirect prompt injection through stored records", () => {
     // Bidi/control characters are the part that lets injected text disguise
     // itself; they must not survive.
     expect(clean).not.toMatch(/[‪-‮⁦-⁩]/);
-    expect(clean).not.toMatch(/[ -]/);
+    /* By CODE POINT, not by a character class containing the control
+       characters themselves. eslint's no-control-regex refuses the literal
+       form for the same reason it is hard to review: the range is invisible
+       in the source. This says the same thing and can be read. */
+    expect(
+      [...clean].filter((ch) => (ch.codePointAt(0) ?? 0) <= 0x1f),
+      "no C0 control character may survive sanitisation",
+    ).toEqual([]);
   });
 
   it("record data is delivered inside a labelled untrusted envelope", () => {

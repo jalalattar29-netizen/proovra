@@ -96,15 +96,16 @@ import { getWorkspaceCaseCommentBacklog } from "./case-comment.service.js";
 import { listWorkspaceCorrelations } from "./incident-correlation.service.js";
 import { listWorkspaceWorkflows } from "./workflow-generator.service.js";
 import { listWorkspaceCausalityChains } from "./causality.service.js";
+/* The two GENERATORS are not imported. The note above says importing them
+   here again is how they find their way back onto a GET, and they were in
+   fact still imported — unused, but one keystroke from being called.
+   phase-32-8-c-control-plane.test.ts asserts neither is awaited on this path;
+   not naming them at all is the stronger form of the same statement. */
 import {
-  computeReviewerCapacityForWorkspace,
   listReviewerCapacity,
   listReviewerRoutingRecommendations,
 } from "./reviewer-capacity.service.js";
-import {
-  projectOperationalGraphForWorkspace,
-  getOperationalGraphSummary,
-} from "./operational-graph.service.js";
+import { getOperationalGraphSummary } from "./operational-graph.service.js";
 import {
   getLatestOrgHealthSnapshot,
 } from "./org-health.service.js";

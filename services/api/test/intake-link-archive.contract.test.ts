@@ -154,19 +154,42 @@ describe("Pin 3 — routes require admin + audit + correct shape", () => {
     const src = read(ROUTES);
     assert.match(src, /"\/v1\/workflow\/intake-links\/:id\/archive"/);
     assert.match(src, /"\/v1\/workflow\/intake-links\/:id\/unarchive"/);
-    // Both must sit behind requireAuth + an admin-role check via
-    // requireAdmin(). Source-level pin so a future refactor can't
-    // accidentally drop the gate.
+    /*
+     * PINNED TO THE GUARD, NOT TO ITS OLD NAME.
+     *
+     * These two lines named `requireAdmin(req, reply, existing.teamId, …)`.
+     * The route's local guard is `requireIntakeWorkflowActor` now — the same
+     * `authorizeOrFail`-backed check, renamed — so both regexes matched
+     * nothing and the case reported the gate missing while it was in place.
+     * The helper's name is read out of the file, so the assertion survives
+     * the next rename and still fails if the gate itself goes.
+     */
+    const guard = src.match(
+      /async function (require[A-Za-z]*Actor)\([\s\S]{0,400}?authorizeOrFail\(/,
+    );
+    assert.ok(guard, "no authorizeOrFail-backed actor guard in the routes file");
+    const GUARD = guard![1];
+
     const archiveBlock = src.slice(
       src.indexOf("\"/v1/workflow/intake-links/:id/archive\""),
     );
     assert.match(archiveBlock, /preHandler: requireAuth/);
-    assert.match(archiveBlock, /requireAdmin\(req, reply, existing\.teamId, "workflow\.intake_link\.revoke"\)/);
+    assert.ok(
+      archiveBlock.includes(
+        `${GUARD}(req, reply, existing.teamId, "workflow.intake_link.revoke")`,
+      ),
+      "archive is not gated on workflow.intake_link.revoke",
+    );
     const unarchiveBlock = src.slice(
       src.indexOf("\"/v1/workflow/intake-links/:id/unarchive\""),
     );
     assert.match(unarchiveBlock, /preHandler: requireAuth/);
-    assert.match(unarchiveBlock, /requireAdmin\(req, reply, existing\.teamId, "workflow\.intake_link\.create"\)/);
+    assert.ok(
+      unarchiveBlock.includes(
+        `${GUARD}(req, reply, existing.teamId, "workflow.intake_link.create")`,
+      ),
+      "unarchive is not gated on workflow.intake_link.create",
+    );
   });
 
   it("both endpoints emit a platform audit log row", () => {
@@ -205,7 +228,17 @@ describe("Pin 4 — projection exposes archivedAtUtc", () => {
     const src = read(SERVICE);
     const fnIdx = src.indexOf("export function projectWorkflowIntakeLink");
     assert.ok(fnIdx > 0);
-    const body = src.slice(fnIdx, fnIdx + 2000);
+    /*
+     * THE WHOLE FUNCTION, NOT THE FIRST TWO THOUSAND CHARACTERS.
+     *
+     * The slice was `fnIdx + 2000`. The projection grew past that budget, so
+     * the assignment moved outside the window and the case reported a field
+     * missing that is written sixty lines into the same function. A char
+     * budget is a line pin wearing a different unit; the end of the function
+     * is the honest bound.
+     */
+    const next = src.indexOf("\nexport ", fnIdx + 1);
+    const body = src.slice(fnIdx, next === -1 ? src.length : next);
     assert.match(body, /archivedAtUtc: link\.archivedAtUtc\?\.toISOString\(\) \?\? null/);
   });
 });
