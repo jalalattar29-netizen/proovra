@@ -1,7 +1,9 @@
 /**
  * PROOVRA Phase 6 — Team detail page (with tabs).
  *
- * Route: `/collaboration-teams/[teamId]?tab=overview|members|assignments|discussion|activity|settings`
+ * Route: `/collaboration-teams/[teamId]?tab=overview|work|members|discussion|settings`
+ * (`assignments`, `activity` and `invites` still resolve — see
+ * `RETIRED_TAB_ALIASES`.)
  *
  * Single-page detail with query-string-driven tabs (Linear/GitHub
  * pattern). Permission gating is server-enforced; the UI reads
@@ -31,15 +33,13 @@ import { PageShell, useToast } from "../../../../components/ui";
 import { notifyApiError } from "../../../../lib/feedback/notify";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import {
-  type CollaborationTeamDetail,
+  getCollaborationEntitlement,
   getTeam,
+  type CollaborationEntitlement,
+  type CollaborationTeamDetail,
 } from "../../../../lib/api/collaboration-teams";
 import { collaborationTeamRoleHasPermission } from "@proovra/shared";
 import { useCan, usePlanFeature, usePlatformContext } from "../../../../lib/platform-context";
-import {
-  getCollaborationEntitlement,
-  type CollaborationEntitlement,
-} from "../../../../lib/api/collaboration-teams";
 import { PlanLimitBadge } from "../../../../components/billing/PlanLimitBadge";
 import { OverviewTab } from "./_tabs/OverviewTab";
 import { MembersTab } from "./_tabs/MembersTab";
@@ -126,7 +126,9 @@ function TeamDetail() {
 
   // WCR-09 — the tenant this page is bound to; every loader below depends on it.
   const { activeWorkspaceId } = usePlatformContext();
-  const [team, setTeam] = useState<CollaborationTeamDetail | null>(null);
+  const [team, setTeam] = useState<
+    (CollaborationTeamDetail & { viaWorkspaceGovernance: boolean }) | null
+  >(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<{ message: string; requestId?: string } | null>(
     null,
@@ -676,7 +678,18 @@ function TeamDetail() {
         data-testid="team-tabs"
         className="app-tabs is-sticky"
       >
-        {TABS.map((t) => {
+        {TABS.filter((t) =>
+          /*
+            DISCUSSION IS PARTICIPATION, AND A GOVERNOR IS NOT A PARTICIPANT.
+
+            The comments endpoints deliberately do NOT grant the governor read
+            state — a group's conversation is the one thing supervision should
+            not silently include, and reading it is not needed to see whether
+            the group is coping. Showing a tab that would answer 404 would look
+            like a fault, so it is not offered.
+          */
+          t === "discussion" ? !team.viaWorkspaceGovernance : true,
+        ).map((t) => {
           const count = tabCounts[t];
           return (
             <button
@@ -697,6 +710,37 @@ function TeamDetail() {
         })}
       </nav>
 
+      {/*
+        SAY WHY THE ACTIONS ARE MISSING.
+
+        A workspace OWNER or ADMIN can now open a group they are not a member
+        of — previously every such group 404'd, so they could enumerate twenty
+        groups in their own tenant and inspect none of them. They arrive with
+        no group role, so every mutation affordance resolves away on its own.
+
+        Without this line that reads as a broken page. With it, it reads as
+        what it is: supervision. Membership is still the only way to
+        participate, and joining is a deliberate act rather than a side effect
+        of being an administrator.
+      */}
+      {team.viaWorkspaceGovernance ? (
+        <div
+          className="app-panel"
+          data-testid="team-governance-notice"
+          style={{ marginBottom: 12 }}
+        >
+          <div className="app-panel__body">
+            <strong>Viewing as a workspace administrator.</strong>{" "}
+            <span className="app-table__muted">
+              You are not a member of this team, so you can see its work,
+              members and history but cannot change them or take part in the
+              discussion. A team lead or admin can add you if you need to
+              participate.
+            </span>
+          </div>
+        </div>
+      ) : null}
+
       <div>
         {activeTab === "overview" ? (
           <OverviewTab team={team} onJumpTab={goTab} />
@@ -710,7 +754,19 @@ function TeamDetail() {
         ) : activeTab === "work" ? (
           <AssignmentsTab team={team} canAssign={canAssign} />
         ) : activeTab === "discussion" ? (
-          <DiscussionPanel team={team} onError={onTabError} />
+          // Reachable by URL even though the tab is hidden above, so the
+          // refusal is stated rather than surfacing as a load failure.
+          team.viaWorkspaceGovernance ? (
+            <div className="app-empty" data-testid="discussion-governance-blocked">
+              <strong>Discussion is for members of this team</strong>
+              <p>
+                You are viewing this team as a workspace administrator. Joining
+                the team is what grants a place in its conversation.
+              </p>
+            </div>
+          ) : (
+            <DiscussionPanel team={team} onError={onTabError} />
+          )
         ) : activeTab === "settings" ? (
           <>
             <SettingsTab

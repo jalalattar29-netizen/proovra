@@ -62,6 +62,9 @@ import { prisma as defaultPrisma } from "../../db.js";
 import {
   authorizeWorkspaceOrFail,
   authorizeCurrentWorkspaceOrFail,
+  // Reads a SECONDARY capability off an already-minted context, verifying the
+  // context's provenance first. Used for the workspace-governor read state.
+  contextHasCapability,
   type AuthorizedWorkspaceContext,
 } from "../../middleware/authorize.js";
 
@@ -169,6 +172,19 @@ export type CollaborationTeamBinding = {
   };
   /** The actor's ACTIVE group role, or null when membership was not required. */
   readonly groupRole: CollaborationTeamRole | null;
+  /**
+   * TRUE when the caller reached this group as a WORKSPACE GOVERNOR rather
+   * than as a member of it — the third authorization state (see
+   * `allowWorkspaceGovernorRead` below).
+   *
+   * A caller in this state may READ. Every mutation path must refuse them
+   * exactly as it refuses a non-member, and does: `requireMemberWithPermission`
+   * in the service layer is unchanged and still demands ACTIVE group
+   * membership, so a governor's write meets the same refusal it always did.
+   * This flag exists so a read handler can project honestly (and so the
+   * surface can say why the actions are absent), never to widen one.
+   */
+  readonly viaWorkspaceGovernance: boolean;
 };
 
 export type CollaborationTeamBindingOptions = {
@@ -190,6 +206,29 @@ export type CollaborationTeamBindingOptions = {
   requireGroupMembership?: boolean;
   /** Refuse when the group is ARCHIVED. Mutations pass true. */
   requireActiveTeam?: boolean;
+  /**
+   * THE THIRD AUTHORIZATION STATE: workspace governor, READ-ONLY.
+   *
+   * There were two states — ACTIVE member of the group, or refused — and that
+   * left a real hole. `canViewAllTeams` lets a workspace OWNER or ADMIN
+   * ENUMERATE every group in their own tenant (`?scope=all`), and then every
+   * one of those rows 404'd when they opened it. An operator accountable for a
+   * workspace could see that twenty groups existed and inspect none of them:
+   * not their roster, not their work, not whether anything was overdue.
+   *
+   * The reason it was left that way is sound and is preserved here. Quietly
+   * making every OWNER a member of every group would have granted Discussion
+   * participation and assignment authority as a side effect of administration,
+   * which is worse than the gap. So this is not membership — it is a bounded
+   * READ, and the binding says so via `viaWorkspaceGovernance` for any handler
+   * that needs to project differently.
+   *
+   * Set it ONLY on read handlers. The permission that qualifies someone is
+   * `identity.member.role.change`, the SAME canonical workspace capability
+   * `canGovernWorkspace` already uses for the list — not a governance
+   * capability invented for this surface, which would be a second authority.
+   */
+  allowWorkspaceGovernorRead?: boolean;
 };
 
 /**
@@ -247,7 +286,7 @@ export async function authorizeCollaborationTeam(
   }
 
   if (options.requireGroupMembership === false) {
-    return { workspace, team, groupRole: null };
+    return { workspace, team, groupRole: null, viaWorkspaceGovernance: false };
   }
 
   const member = await client.collaborationTeamMember.findFirst({
@@ -258,7 +297,51 @@ export async function authorizeCollaborationTeam(
     },
     select: { role: true },
   });
-  if (!member) return refuse(reply);
+  if (!member) {
+    /**
+     * NOT A MEMBER — but possibly the person accountable for the whole tenant.
+     *
+     * Checked only when the CALLER asked for it (`allowWorkspaceGovernorRead`,
+     * set on read handlers only) and only against the canonical workspace
+     * capability the group LIST already uses for `scope=all`. A governor who
+     * qualifies gets a binding with NO group role: every service-layer
+     * mutation still runs `requireMemberWithPermission`, which demands ACTIVE
+     * group membership, so this widens exactly one thing — reading — and
+     * cannot be mistaken for membership by anything downstream.
+     *
+     * Everyone else still meets the same opaque 404, so a caller holding a
+     * guessed uuid learns nothing about which groups exist.
+     */
+    if (
+      options.allowWorkspaceGovernorRead &&
+      contextHasCapability(workspace, "identity.member.role.change")
+    ) {
+      /**
+       * The governor is evaluated against VIEWER — the least-privileged role
+       * in the vocabulary, carrying only `team.read` and `team.activity.read`.
+       *
+       * Checking it rather than skipping the check matters: a handler that
+       * declares a `groupPermission` is stating a requirement, and a state
+       * that silently bypassed it would quietly become the most privileged
+       * path into this surface the first time someone marked a
+       * mutation-adjacent read `allowWorkspaceGovernorRead`. This way the flag
+       * can only ever open what VIEWER can already do.
+       */
+      if (
+        options.groupPermission &&
+        !collaborationTeamRoleHasPermission("VIEWER", options.groupPermission)
+      ) {
+        return refuse(reply);
+      }
+      return {
+        workspace,
+        team,
+        groupRole: null,
+        viaWorkspaceGovernance: true,
+      };
+    }
+    return refuse(reply);
+  }
 
   const groupRole = member.role as CollaborationTeamRole;
   if (
@@ -268,5 +351,5 @@ export async function authorizeCollaborationTeam(
     return refuse(reply);
   }
 
-  return { workspace, team, groupRole };
+  return { workspace, team, groupRole, viaWorkspaceGovernance: false };
 }

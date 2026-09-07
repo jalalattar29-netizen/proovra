@@ -329,11 +329,34 @@ async function recordActivity(
 // Permission helpers
 // =============================================================================
 
+/**
+ * READ permissions — the only ones a workspace governor may exercise on a
+ * group they are not a member of.
+ *
+ * Kept as an explicit allow-list rather than a "does the name start with read"
+ * heuristic: adding a permission to this set has to be a decision somebody
+ * makes on purpose, because everything in it is reachable without group
+ * membership.
+ */
+const GOVERNOR_READABLE_PERMISSIONS: ReadonlySet<CollaborationTeamPermission> =
+  new Set<CollaborationTeamPermission>(["team.read", "team.activity.read"]);
+
 async function requireMemberWithPermission(
   client: PrismaClient,
   teamId: string,
   actorUserId: string,
   permission: CollaborationTeamPermission,
+  /**
+   * The caller has already been proven a WORKSPACE GOVERNOR by
+   * `authorizeCollaborationTeam` (`viaWorkspaceGovernance`). It is passed down
+   * rather than re-derived so there is exactly one place that decides who
+   * qualifies — the route binding — and this function cannot disagree with it.
+   *
+   * It NEVER confers a group role. A governor gets a bounded read and nothing
+   * else: any permission outside `GOVERNOR_READABLE_PERMISSIONS` refuses here
+   * exactly as it did before, so every mutation path is untouched.
+   */
+  viaWorkspaceGovernance = false,
 ): Promise<{ role: CollaborationTeamRole; team: { id: string; workspaceId: string; status: string } }> {
   const team = await client.collaborationTeam.findUnique({
     where: { id: teamId },
@@ -344,7 +367,20 @@ async function requireMemberWithPermission(
     where: { teamId, userId: actorUserId, status: "ACTIVE" },
     select: { role: true },
   });
-  if (!member) throw E.forbidden(permission);
+  if (!member) {
+    if (
+      viaWorkspaceGovernance &&
+      GOVERNOR_READABLE_PERMISSIONS.has(permission)
+    ) {
+      // VIEWER is the least-privileged role in the vocabulary and carries
+      // exactly `team.read` + `team.activity.read`. Returning it keeps every
+      // downstream `collaborationTeamRoleHasPermission` check meaningful
+      // rather than introducing a null role every caller would have to handle
+      // — and it cannot over-grant, because VIEWER can do nothing else.
+      return { role: "VIEWER", team };
+    }
+    throw E.forbidden(permission);
+  }
   const role = member.role as CollaborationTeamRole;
   if (!collaborationTeamRoleHasPermission(role, permission))
     throw E.forbidden(permission);
@@ -581,6 +617,49 @@ export async function listCollaborationTeams(
     },
   });
   const page = teams.slice(0, take);
+
+  /**
+   * CROSS-GROUP OPERATIONAL COMPARISON — two grouped queries for the page.
+   *
+   * The list could say how many groups a workspace had and nothing about how
+   * any of them were doing, so an Enterprise operator supervising twenty
+   * groups had to open each one to find the one that was drowning. "How is
+   * operational responsibility distributed across units?" is the governance
+   * question, and it is exactly the question Home does not answer.
+   *
+   * `groupBy` over the page's ids — NOT one query per row, and NOT a count of
+   * anything unbounded. Two queries regardless of page size, and they cost the
+   * same whether a group holds ten items or ten thousand.
+   */
+  const now = new Date();
+  const pageIds = page.map((t) => t.id);
+  const [overdueRows, urgentRows] = pageIds.length
+    ? await Promise.all([
+        client.collaborationTeamAssignment.groupBy({
+          by: ["teamId"],
+          where: {
+            teamId: { in: pageIds },
+            status: { in: [...OPEN_ASSIGNMENT_STATUSES] },
+            dueAtUtc: { lt: now },
+          },
+          _count: { _all: true },
+        }),
+        client.collaborationTeamAssignment.groupBy({
+          by: ["teamId"],
+          where: {
+            teamId: { in: pageIds },
+            status: { in: [...OPEN_ASSIGNMENT_STATUSES] },
+            priority: { in: ["HIGH", "URGENT"] },
+          },
+          _count: { _all: true },
+        }),
+      ])
+    : [[], []];
+  const overdueByTeam = new Map(
+    overdueRows.map((r) => [r.teamId, r._count._all]),
+  );
+  const urgentByTeam = new Map(urgentRows.map((r) => [r.teamId, r._count._all]));
+
   return {
     nextCursor: teams.length > take ? page[page.length - 1]?.id ?? null : null,
     totalActive,
@@ -598,6 +677,9 @@ export async function listCollaborationTeams(
     memberCount: (t._count.members as number) ?? 0,
     pendingInviteCount: (t._count.invites as number) ?? 0,
     openAssignmentCount: (t._count.assignments as number) ?? 0,
+    // The two numbers that tell a supervisor which group needs them.
+    overdueAssignmentCount: overdueByTeam.get(t.id) ?? 0,
+    highPriorityAssignmentCount: urgentByTeam.get(t.id) ?? 0,
     lastActivityAt: t.activity[0]?.createdAt ?? null,
     viewerRole:
       t.members[0] && t.members[0].status === "ACTIVE"
@@ -619,7 +701,13 @@ export async function getCollaborationTeamDetail(
    * service cannot be reached past it either, and a future caller cannot
    * reintroduce the hole by forgetting.
    */
-  input: { teamId: string; workspaceId: string; actorUserId: string },
+  input: {
+    teamId: string;
+    workspaceId: string;
+    actorUserId: string;
+    /** Proven by the route binding — a bounded READ for a workspace governor. */
+    viaWorkspaceGovernance?: boolean;
+  },
   client: PrismaClient = defaultPrisma,
 ) {
   /**
@@ -673,8 +761,22 @@ export async function getCollaborationTeamDetail(
     where: { teamId: input.teamId, userId: input.actorUserId, status: "ACTIVE" },
     select: { role: true },
   });
-  if (!viewerRow) throw E.notFound("Team");
-  const viewer = { role: viewerRow.role };
+  /**
+   * A WORKSPACE GOVERNOR IS NOT A MEMBER, AND MUST NOT BE PROJECTED AS ONE.
+   *
+   * They reach this read through the third authorization state, proven at the
+   * route (`viaWorkspaceGovernance`). They get VIEWER — the least-privileged
+   * role in the vocabulary, carrying only `team.read` and
+   * `team.activity.read` — so every `viewerRole`-driven affordance in the
+   * client resolves to "can look, can do nothing", which is exactly true.
+   *
+   * They are NOT written into `collaboration_team_members`. Auto-joining every
+   * owner to every group would grant Discussion participation and assignment
+   * authority as a side effect of administration, which is the reason this gap
+   * existed rather than an oversight.
+   */
+  if (!viewerRow && !input.viaWorkspaceGovernance) throw E.notFound("Team");
+  const viewer = { role: viewerRow?.role ?? "VIEWER" };
   const [activeMemberCount, pendingInviteCount] = await Promise.all([
     client.collaborationTeamMember.count({
       // WCR-11 — effective members only.
@@ -2078,6 +2180,8 @@ export async function listTeamActivity(
     actorUserId: string;
     limit?: number;
     cursor?: string | null;
+    /** Proven by the route binding — a bounded READ for a workspace governor. */
+    viaWorkspaceGovernance?: boolean;
   },
   client: PrismaClient = defaultPrisma,
 ) {
@@ -2086,6 +2190,7 @@ export async function listTeamActivity(
     input.teamId,
     input.actorUserId,
     "team.activity.read",
+    input.viaWorkspaceGovernance,
   );
   const limit = Math.min(Math.max(input.limit ?? 50, 1), 200);
   /**
@@ -2665,6 +2770,8 @@ export async function listAssignments(
     search?: string | null;
     limit?: number;
     cursor?: string | null;
+    /** Proven by the route binding — a bounded READ for a workspace governor. */
+    viaWorkspaceGovernance?: boolean;
   },
   client: PrismaClient = defaultPrisma,
 ) {
@@ -2673,6 +2780,7 @@ export async function listAssignments(
     input.teamId,
     input.actorUserId,
     "team.read",
+    input.viaWorkspaceGovernance,
   );
 
   /**
@@ -2966,7 +3074,12 @@ const DUE_SOON_WINDOW_MS = 72 * 60 * 60 * 1000;
 const WORKLOAD_MAX_MEMBERS = 50;
 
 export async function getTeamOverview(
-  input: { teamId: string; actorUserId: string },
+  input: {
+    teamId: string;
+    actorUserId: string;
+    /** Proven by the route binding — a bounded READ for a workspace governor. */
+    viaWorkspaceGovernance?: boolean;
+  },
   client: PrismaClient = defaultPrisma,
 ): Promise<CollaborationTeamOverview> {
   const { team } = await requireMemberWithPermission(
@@ -2974,6 +3087,7 @@ export async function getTeamOverview(
     input.teamId,
     input.actorUserId,
     "team.read",
+    input.viaWorkspaceGovernance,
   );
   const now = new Date();
   const dueSoonCutoff = new Date(now.getTime() + DUE_SOON_WINDOW_MS);

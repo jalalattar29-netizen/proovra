@@ -468,6 +468,11 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
         const binding = await authorizeCollaborationTeam(req, reply, {
           collaborationTeamId: req.params.teamId,
           permission: "collaboration.thread.read",
+          // A workspace OWNER/ADMIN could ENUMERATE every group here
+          // (`?scope=all`) and then met a 404 on every one they opened. This is
+          // the bounded READ that closes that; it confers no group role and
+          // every mutation below still demands ACTIVE membership.
+          allowWorkspaceGovernorRead: true,
         });
         if (!binding) return;
         const ctx = {
@@ -479,8 +484,14 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
             teamId: req.params.teamId,
             workspaceId: ctx.workspaceId,
             actorUserId: ctx.userId,
+            viaWorkspaceGovernance: binding.viaWorkspaceGovernance,
           });
-          return reply.send({ team: detail });
+          return reply.send({
+            team: detail,
+            // The surface must be able to SAY why every action is missing.
+            // Without this it looks broken rather than deliberately read-only.
+            viaWorkspaceGovernance: binding.viaWorkspaceGovernance,
+          });
         } catch (err) {
           return handleMutationError(reply, err, req.id ?? null, {
             userId: ctx.userId,
@@ -1201,12 +1212,16 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
         const binding = await authorizeCollaborationTeam(req, reply, {
           collaborationTeamId: req.params.teamId,
           permission: "collaboration.thread.read",
+          // Supervising a workspace means being able to see whether a group is
+          // drowning, which is what this endpoint answers.
+          allowWorkspaceGovernorRead: true,
         });
         if (!binding) return;
         try {
           const overview = await getTeamOverview({
             teamId: req.params.teamId,
             actorUserId: binding.workspace.userId,
+            viaWorkspaceGovernance: binding.viaWorkspaceGovernance,
           });
           return reply.send({ overview });
         } catch (err) {
@@ -1327,6 +1342,12 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
         const binding = await authorizeCollaborationTeam(req, reply, {
           collaborationTeamId: req.params.teamId,
           permission: "collaboration.thread.read",
+          // Who is in a group is a governance question. Note that CONTACT
+          // details stay behind `team.member.invite` below — a governor
+          // resolves to no group role, so they see the roster and NOT every
+          // member's address, which is the WCR-16 least-privilege rule holding
+          // for the new state without needing to know about it.
+          allowWorkspaceGovernorRead: true,
         });
         if (!binding) return;
         try {
@@ -1366,6 +1387,11 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           collaborationTeamId: req.params.teamId,
           permission: "collaboration.thread.read",
           groupPermission: "team.activity.read",
+          // A group's administrative history is exactly what an accountable
+          // workspace owner audits. VIEWER carries `team.activity.read`, so
+          // the group-permission check above is satisfied by the bounded role
+          // the governor state resolves to.
+          allowWorkspaceGovernorRead: true,
         });
         if (!binding) return;
         const ctx = {
@@ -1379,6 +1405,7 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           const result = await listTeamActivity({
             teamId: req.params.teamId,
             actorUserId: ctx.userId,
+            viaWorkspaceGovernance: binding.viaWorkspaceGovernance,
             limit,
             cursor,
           });
@@ -1401,6 +1428,9 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
         const binding = await authorizeCollaborationTeam(req, reply, {
           collaborationTeamId: req.params.teamId,
           permission: "collaboration.thread.read",
+          // "What is this group carrying, and what is late" is the governance
+          // question. Reading it changes nothing.
+          allowWorkspaceGovernorRead: true,
         });
         if (!binding) return;
         const ctx = {
@@ -1417,6 +1447,7 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           const page = await listAssignments({
             teamId: req.params.teamId,
             actorUserId: ctx.userId,
+            viaWorkspaceGovernance: binding.viaWorkspaceGovernance,
             status: q.status ?? null,
             targetType: q.targetType ?? null,
             priority: q.priority ?? null,

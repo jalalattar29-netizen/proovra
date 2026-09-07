@@ -46,6 +46,14 @@ export type CollaborationTeamSummary = {
   memberCount: number;
   pendingInviteCount: number;
   openAssignmentCount: number;
+  /**
+   * Cross-group operational signal, counted server-side per row.
+   *
+   * The list could say how many groups existed and nothing about how any of
+   * them were doing — so supervising twenty groups meant opening twenty.
+   */
+  overdueAssignmentCount: number;
+  highPriorityAssignmentCount: number;
   lastActivityAt: string | null;
   viewerRole: CollaborationTeamRole | null;
 };
@@ -419,16 +427,23 @@ export async function createTeam(input: {
  */
 export async function getTeam(
   teamId: string,
-): Promise<CollaborationTeamDetail> {
+): Promise<CollaborationTeamDetail & { viaWorkspaceGovernance: boolean }> {
   const res = (await apiFetch(`${BASE}/${encodeURIComponent(teamId)}`)) as {
     team?: CollaborationTeamDetail;
+    viaWorkspaceGovernance?: boolean;
   };
   if (!res || typeof res !== "object" || !res.team) {
     throw new Error(
       "The response for this team did not contain a team. The link may not point at a team.",
     );
   }
-  return res.team;
+  // The SERVER says whether this read came through workspace governance rather
+  // than group membership. The surface renders it as a stated read-only state;
+  // it never infers it from an empty role or a missing action.
+  return {
+    ...res.team,
+    viaWorkspaceGovernance: res.viaWorkspaceGovernance === true,
+  };
 }
 
 export async function updateTeam(

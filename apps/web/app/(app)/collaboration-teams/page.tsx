@@ -648,8 +648,9 @@ function TeamsTable({
             <th scope="col">Team</th>
             <th scope="col">Type</th>
             <th scope="col">Members</th>
-            <th scope="col">Pending invites</th>
-            <th scope="col">Open assignments</th>
+            <th scope="col">Open work</th>
+            <th scope="col">Overdue</th>
+            <th scope="col">High priority</th>
             <th scope="col">Your role</th>
             <th scope="col">Last activity</th>
             <th scope="col" style={{ textAlign: "right" }}>Actions</th>
@@ -717,18 +718,40 @@ function TeamRow({ team }: { team: CollaborationTeamSummary }) {
           {team.memberCount}
         </strong>
       </td>
-      <td data-label="Pending invites">
-        {team.pendingInviteCount > 0 ? (
-          <AppStatusBadge tone="amber">{team.pendingInviteCount}</AppStatusBadge>
-        ) : (
-          <span className="app-table__muted" aria-label="No pending invites">—</span>
-        )}
-      </td>
-      <td data-label="Open assignments">
+      {/*
+        "Pending invites" counted RETIRED CollaborationTeamInvite rows — a
+        writer that no longer exists, so the number is structurally zero for
+        every workspace created since it was removed, and for older ones it
+        counts group invitations while sitting in a column an operator reads as
+        workspace invitations. A column that can only ever say "—" is not
+        information; the space goes to the two numbers that tell a supervisor
+        which group needs them.
+      */}
+      <td data-label="Open work">
         {team.openAssignmentCount > 0 ? (
           <AppStatusBadge tone="indigo">{team.openAssignmentCount}</AppStatusBadge>
         ) : (
-          <span className="app-table__muted" aria-label="No open assignments">—</span>
+          <span className="app-table__muted" aria-label="No open work">—</span>
+        )}
+      </td>
+      <td data-label="Overdue">
+        {team.overdueAssignmentCount > 0 ? (
+          <AppStatusBadge tone="red">
+            {team.overdueAssignmentCount}
+          </AppStatusBadge>
+        ) : (
+          <span className="app-table__muted" aria-label="Nothing overdue">—</span>
+        )}
+      </td>
+      <td data-label="High priority">
+        {team.highPriorityAssignmentCount > 0 ? (
+          <AppStatusBadge tone="amber">
+            {team.highPriorityAssignmentCount}
+          </AppStatusBadge>
+        ) : (
+          <span className="app-table__muted" aria-label="No high priority work">
+            —
+          </span>
         )}
       </td>
       <td data-label="Your role">
