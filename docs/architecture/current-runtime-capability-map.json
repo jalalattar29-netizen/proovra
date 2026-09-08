@@ -4,18 +4,18 @@
   "generator": "services/api/scripts/generate-runtime-capability-map.mjs",
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "350df28cd1b3592fbce302d87d8037fa4ec1ea078f008fcbdfae86936dbafd59",
-  "routeInventoryHash": "6b21faa2ad81ff35dbe07329345bb971c1e60d22fb672e3e979ec71dd4518be0",
-  "consumerInventoryHash": "a8dd4cd276ee066f71035716abcf706e2ff1de82099e3546012359d2105111be",
+  "routeInventoryHash": "bd39fa6dd72aba4108620d1ef989ba16a6f14da7995ac0c67e2279d47bf2af54",
+  "consumerInventoryHash": "46e6d6036b3903cfeec142d99b1ebcd6a98287ed9a69e9d487ed8f39cba3576e",
   "dispositionsHash": "9e6e9532752cfd33dfd556e66587a473271144aa2d1c41662c0c4c91e70ec02c",
   "totals": {
-    "RegisteredRoutes": 1138,
-    "ProductionRegisteredRoutes": 1137,
+    "RegisteredRoutes": 1140,
+    "ProductionRegisteredRoutes": 1139,
     "DevelopmentOnlyRoutes": 1,
-    "ProductConsumedRoutes": 892,
+    "ProductConsumedRoutes": 894,
     "NonProductDispositionedRoutes": 245,
     "UndisposedRoutes": 0,
     "ConservationIdentityHolds": true,
-    "ProductConsumerRoutes": 892,
+    "ProductConsumerRoutes": 894,
     "MachineOnlyConsumerRoutes": 4,
     "NoConsumerRoutes": 242,
     "AuthorizationUnresolved": 0,
@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 133
     },
-    "TerminalWriters": 1254,
-    "ReachableSensitiveMutations": 1246,
-    "ClassifiedSensitiveMutations": 1246,
+    "TerminalWriters": 1255,
+    "ReachableSensitiveMutations": 1247,
+    "ClassifiedSensitiveMutations": 1247,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 0,
     "NonRequestWriters": 8,
@@ -74,7 +74,7 @@
       "ACCOUNT_SESSION_SECURITY": 218,
       "ORGANIZATION": 31,
       "ORGANIZATION_MEMBERSHIP": 29,
-      "WORKSPACE": 54,
+      "WORKSPACE": 55,
       "WORKSPACE_MEMBERSHIP_INVITATION": 59,
       "CASE": 85,
       "EVIDENCE_CUSTODY_FINALIZATION": 280,
@@ -100,7 +100,7 @@
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1130,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1131,
       "JOB_ATTRIBUTED_REACHABLE": 106,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 3,
@@ -125,7 +125,7 @@
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
       "METHOD_ON_VALUE": 8453,
-      "UNRESOLVED_IDENTIFIER": 1055
+      "UNRESOLVED_IDENTIFIER": 1057
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": true,
@@ -134,7 +134,7 @@
     "byMandateDisposition": {
       "DEVELOPMENT_ONLY": 2,
       "UNDISPOSED": 0,
-      "PRODUCT_CONNECTED": 892,
+      "PRODUCT_CONNECTED": 894,
       "EXTERNAL_API": 30,
       "MACHINE_OR_CRON": 21,
       "WEBHOOK": 4,
@@ -146,13 +146,13 @@
       "MISSING_PRODUCT_UI_POST_RELEASE": 133
     },
     "MandateDispositionConservationHolds": true,
-    "TenantBindingResolved": 1136,
+    "TenantBindingResolved": 1138,
     "TenantBindingUnresolved": 0,
     "byDataScope": {
       "PUBLIC_DATA": 15,
       "GLOBAL_USER_SELF": 57,
       "PLATFORM_GLOBAL": 52,
-      "WORKSPACE_SCOPED": 712,
+      "WORKSPACE_SCOPED": 714,
       "ORGANIZATION_SCOPED": 105,
       "MULTI_TENANT_PLATFORM_ADMIN": 115,
       "TOKEN_SCOPED": 45,
@@ -165,7 +165,7 @@
     "OrganizationAuthorizationUnresolved": 0,
     "OrganizationRoutesMissingRequiredAuthorization": 0,
     "CurrentWorkspaceIdAuthorizationUses": 0,
-    "ClassifiedSecurityRoutes": 1136,
+    "ClassifiedSecurityRoutes": 1138,
     "UnclassifiedSecurityRoutes": 0,
     "DevelopmentGatedRoutes": 1,
     "SecurityFamilyConservationHolds": true,
@@ -179,8 +179,8 @@
         "tagged": 10
       },
       "SESSION_AUTHENTICATED": {
-        "primary": 408,
-        "tagged": 408
+        "primary": 410,
+        "tagged": 410
       },
       "WORKSPACE_AUTHORIZED": {
         "primary": 374,
@@ -240,24 +240,24 @@
       }
     }
   },
-  "totalRoutes": 1138,
+  "totalRoutes": 1140,
   "classificationCounts": {
     "COMPATIBILITY_TEMPORARY": 3,
     "INTERNAL_REQUIRED": 243,
-    "TARGET_COMPLETE": 892
+    "TARGET_COMPLETE": 894
   },
   "evidenceLevelCounts": {
     "BEHAVIORALLY_PROVEN": 401,
     "BEHAVIORAL_SERVICE_ONLY": 15,
     "STRUCTURALLY_CONNECTED_ONLY": 516,
-    "UNPROVEN": 206
+    "UNPROVEN": 208
   },
   "verticalCounts": {
     "ENTERPRISE_IDENTITY_SECURITY": 178,
     "EVIDENCE_OPERATIONS": 277,
     "OPERATIONS_AUTOMATION": 1,
     "OPERATIONS_INTELLIGENCE": 126,
-    "PLATFORM_CORE": 412,
+    "PLATFORM_CORE": 414,
     "TRUST_ADMINISTRATION": 144
   },
   "capabilities": [
@@ -370,6 +370,18 @@
       "evidenceLevel": "UNPROVEN"
     },
     {
+      "capabilityId": "DELETE:/v1/collaboration-teams/:teamId",
+      "vertical": "PLATFORM_CORE",
+      "method": "DELETE",
+      "route": "/v1/collaboration-teams/:teamId",
+      "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:549",
+      "machineConsumer": null,
+      "authorization": "AUTHENTICATED",
+      "classification": "TARGET_COMPLETE",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
       "capabilityId": "DELETE:/v1/collaboration-teams/:teamId/comments/:commentId",
       "vertical": "PLATFORM_CORE",
       "method": "DELETE",
@@ -387,7 +399,7 @@
       "method": "DELETE",
       "route": "/v1/collaboration-teams/:teamId/members/:memberId",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:594",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:631",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -699,7 +711,7 @@
       "method": "DELETE",
       "route": "/v1/teams/:id",
       "registeringFile": "services/api/src/routes/teams.routes.ts",
-      "productConsumer": "apps/web/app/(app)/teams/[id]/page.tsx:728",
+      "productConsumer": "apps/web/app/(app)/teams/[id]/page.tsx:756",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -711,7 +723,7 @@
       "method": "DELETE",
       "route": "/v1/teams/:id/cases/:caseId",
       "registeringFile": "services/api/src/routes/teams.routes.ts",
-      "productConsumer": "apps/web/app/(app)/teams/[id]/page.tsx:812",
+      "productConsumer": "apps/web/app/(app)/teams/[id]/page.tsx:840",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -735,7 +747,7 @@
       "method": "DELETE",
       "route": "/v1/teams/:id/invites/:inviteId",
       "registeringFile": "services/api/src/routes/teams.routes.ts",
-      "productConsumer": "apps/web/app/(app)/teams/[id]/page.tsx:701",
+      "productConsumer": "apps/web/app/(app)/teams/[id]/page.tsx:729",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2199,7 +2211,7 @@
       "method": "GET",
       "route": "/v1/collaboration-teams/:teamId/activity",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:661",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:698",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2223,7 +2235,7 @@
       "method": "GET",
       "route": "/v1/collaboration-teams/:teamId/assignable-targets",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:827",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:864",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2235,7 +2247,7 @@
       "method": "GET",
       "route": "/v1/collaboration-teams/:teamId/assignments",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:711",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:748",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2252,6 +2264,18 @@
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
+    },
+    {
+      "capabilityId": "GET:/v1/collaboration-teams/:teamId/disposability",
+      "vertical": "PLATFORM_CORE",
+      "method": "GET",
+      "route": "/v1/collaboration-teams/:teamId/disposability",
+      "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:533",
+      "machineConsumer": null,
+      "authorization": "AUTHENTICATED",
+      "classification": "TARGET_COMPLETE",
+      "evidenceLevel": "UNPROVEN"
     },
     {
       "capabilityId": "GET:/v1/collaboration-teams/:teamId/eligible-members",
@@ -2307,7 +2331,7 @@
       "method": "GET",
       "route": "/v1/collaboration-teams/:teamId/overview",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:735",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:772",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2331,7 +2355,7 @@
       "method": "GET",
       "route": "/v1/collaboration-teams/responsibility",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:759",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:796",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -4335,7 +4359,7 @@
       "method": "GET",
       "route": "/v1/lifecycle/dashboard",
       "registeringFile": "services/api/src/routes/product-and-lifecycle.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence-lifecycle/page.tsx:302",
+      "productConsumer": "apps/web/app/(app)/evidence-lifecycle/legal-holds/page.tsx:194",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -4383,7 +4407,7 @@
       "method": "GET",
       "route": "/v1/lifecycle/legal-holds",
       "registeringFile": "services/api/src/routes/product-and-lifecycle.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence-lifecycle/legal-holds/page.tsx:158",
+      "productConsumer": "apps/web/app/(app)/evidence-lifecycle/legal-holds/page.tsx:165",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -6243,7 +6267,7 @@
       "method": "GET",
       "route": "/v1/teams/:id/cases",
       "registeringFile": "services/api/src/routes/teams.routes.ts",
-      "productConsumer": "apps/web/app/(app)/teams/[id]/page.tsx:326",
+      "productConsumer": "apps/web/app/(app)/teams/[id]/page.tsx:354",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6279,7 +6303,7 @@
       "method": "GET",
       "route": "/v1/teams/:id/invites",
       "registeringFile": "services/api/src/routes/teams.routes.ts",
-      "productConsumer": "apps/web/app/(app)/teams/[id]/page.tsx:323",
+      "productConsumer": "apps/web/app/(app)/teams/[id]/page.tsx:351",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6879,7 +6903,7 @@
       "method": "PATCH",
       "route": "/v1/collaboration-teams/:teamId/assignments/:assignmentId",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:797",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:834",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6915,7 +6939,7 @@
       "method": "PATCH",
       "route": "/v1/collaboration-teams/:teamId/members/:memberId",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:581",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:618",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7215,7 +7239,7 @@
       "method": "PATCH",
       "route": "/v1/teams/:id/members/:memberId",
       "registeringFile": "services/api/src/routes/teams.routes.ts",
-      "productConsumer": "apps/web/app/(app)/teams/[id]/page.tsx:610",
+      "productConsumer": "apps/web/app/(app)/teams/[id]/page.tsx:638",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8547,7 +8571,7 @@
       "method": "POST",
       "route": "/v1/collaboration-team-invites/:token/accept",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:644",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:681",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8643,7 +8667,7 @@
       "method": "POST",
       "route": "/v1/collaboration-teams/:teamId/assignments",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:776",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:813",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8679,7 +8703,7 @@
       "method": "POST",
       "route": "/v1/collaboration-teams/:teamId/invites/:inviteId/revoke",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:615",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:652",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8703,7 +8727,7 @@
       "method": "POST",
       "route": "/v1/collaboration-teams/:teamId/members",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:532",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:569",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8715,7 +8739,7 @@
       "method": "POST",
       "route": "/v1/collaboration-teams/:teamId/members/bulk",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:562",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:599",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8727,7 +8751,7 @@
       "method": "POST",
       "route": "/v1/collaboration-teams/:teamId/unarchive",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:523",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:560",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11271,7 +11295,7 @@
       "method": "POST",
       "route": "/v1/lifecycle/legal-holds",
       "registeringFile": "services/api/src/routes/product-and-lifecycle.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence-lifecycle/legal-holds/page.tsx:188",
+      "productConsumer": "apps/web/app/(app)/evidence-lifecycle/legal-holds/page.tsx:230",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -11283,7 +11307,7 @@
       "method": "POST",
       "route": "/v1/lifecycle/legal-holds/:id/release",
       "registeringFile": "services/api/src/routes/product-and-lifecycle.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence-lifecycle/legal-holds/page.tsx:250",
+      "productConsumer": "apps/web/app/(app)/evidence-lifecycle/legal-holds/page.tsx:292",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -13227,7 +13251,7 @@
       "method": "POST",
       "route": "/v1/teams/:id/cases/link",
       "registeringFile": "services/api/src/routes/teams.routes.ts",
-      "productConsumer": "apps/web/app/(app)/teams/[id]/page.tsx:776",
+      "productConsumer": "apps/web/app/(app)/teams/[id]/page.tsx:804",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -13263,7 +13287,7 @@
       "method": "POST",
       "route": "/v1/teams/:id/invites",
       "registeringFile": "services/api/src/routes/teams.routes.ts",
-      "productConsumer": "apps/web/app/(app)/teams/[id]/page.tsx:539",
+      "productConsumer": "apps/web/app/(app)/teams/[id]/page.tsx:567",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -23983,7 +24007,12 @@
         "GET /v1/identity/mfa-admin/digest-preferences",
         "GET /v1/identity/mfa-admin/digest-preferences/preview",
         "GET /v1/identity/mfa-admin/recovery-events",
+        "GET /v1/integrations/webhooks/endpoints",
+        "GET /v1/lifecycle/archive/transitions",
+        "GET /v1/lifecycle/dashboard",
+        "GET /v1/lifecycle/destruction/requests",
         "GET /v1/orgs/:orgId/domains",
+        "GET /v1/packaging/entitlements",
         "GET /v1/platform/context",
         "GET /v1/search/suggest",
         "GET /v1/teams/:id",
@@ -24047,12 +24076,19 @@
         "POST /v1/evidence",
         "POST /v1/evidence-requests",
         "POST /v1/evidence/:id/complete",
+        "POST /v1/exchange/chain-transfers",
+        "POST /v1/exchange/packages",
         "POST /v1/external-intake/:token/sessions/:sid/parts",
         "POST /v1/external-intake/:token/sessions/:sid/submit",
         "POST /v1/external-review/grants",
         "POST /v1/external-review/invitations",
+        "POST /v1/governance/case-legal-holds",
+        "POST /v1/governance/cross-org-review",
+        "POST /v1/governance/delegated-admin",
+        "POST /v1/governance/departments",
         "POST /v1/governance/destruction-reviews",
         "POST /v1/governance/destruction-reviews/:id/transition",
+        "POST /v1/governance/legal-holds",
         "POST /v1/governance/lifecycle/evidence/:id/transition",
         "POST /v1/governance/retention-policies",
         "POST /v1/governance/retention-policies/:id/transition",
@@ -24065,20 +24101,25 @@
         "POST /v1/identity/mfa/recovery-requests/:requestId/verify-email",
         "POST /v1/identity/mfa/recovery-requests/analytics/page-viewed",
         "POST /v1/intake/citizen/sessions/:id/capture",
+        "POST /v1/integrations/webhooks/endpoints",
         "POST /v1/intelligence/evidence/:evidenceId/run/bytes",
         "POST /v1/intelligence/evidence/:evidenceId/run/text",
         "POST /v1/internal/media-intelligence/extract",
+        "POST /v1/lifecycle/legal-holds",
+        "POST /v1/lifecycle/retention/policies",
         "POST /v1/notifications/run-digests",
         "POST /v1/org-invites/:token/accept",
         "POST /v1/orgs/:orgId/domains",
         "POST /v1/orgs/:orgId/domains/:id/verify",
         "POST /v1/platform/context/switch-workspace",
+        "POST /v1/redaction/projects",
         "POST /v1/scim/reconciliation/execute",
         "POST /v1/scim/sync-failures/:id/replay",
         "POST /v1/teams",
         "POST /v1/teams/:id/cases/link",
         "POST /v1/teams/:id/invites",
         "POST /v1/teams/invites/:token/accept",
+        "POST /v1/trust/articles",
         "POST /v1/workflow/intake-links",
         "POST /v2/scim/Groups",
         "POST /v2/scim/Users",
@@ -24105,6 +24146,7 @@
         "MODULE services/api/src/routes/external-portal.routes.ts",
         "MODULE services/api/src/routes/external-review.routes.ts",
         "MODULE services/api/src/routes/governance-lifecycle.routes.ts",
+        "MODULE services/api/src/routes/governance.routes.ts",
         "MODULE services/api/src/routes/identity-operations-completion.routes.ts",
         "MODULE services/api/src/routes/identity-security.routes.ts",
         "MODULE services/api/src/routes/identity.routes.ts",
@@ -24115,6 +24157,8 @@
         "MODULE services/api/src/routes/organization-domains.routes.ts",
         "MODULE services/api/src/routes/organizations.routes.ts",
         "MODULE services/api/src/routes/platform-context.routes.ts",
+        "MODULE services/api/src/routes/product-and-lifecycle.routes.ts",
+        "MODULE services/api/src/routes/redaction.routes.ts",
         "MODULE services/api/src/routes/reviewer-workspace.routes.ts",
         "MODULE services/api/src/routes/saml-auth.routes.ts",
         "MODULE services/api/src/routes/scim-admin.routes.ts",
@@ -24122,6 +24166,7 @@
         "MODULE services/api/src/routes/search.routes.ts",
         "MODULE services/api/src/routes/sso-auth.routes.ts",
         "MODULE services/api/src/routes/teams.routes.ts",
+        "MODULE services/api/src/routes/trust-and-governance.routes.ts",
         "MODULE services/api/src/routes/webhooks.routes.ts",
         "MODULE services/api/src/routes/workflow-intake-links.routes.ts",
         "MODULE services/api/src/routes/workspace-ai-policy.routes.ts"
@@ -24182,7 +24227,12 @@
         "GET /v1/identity/mfa-admin/digest-preferences",
         "GET /v1/identity/mfa-admin/digest-preferences/preview",
         "GET /v1/identity/mfa-admin/recovery-events",
+        "GET /v1/integrations/webhooks/endpoints",
+        "GET /v1/lifecycle/archive/transitions",
+        "GET /v1/lifecycle/dashboard",
+        "GET /v1/lifecycle/destruction/requests",
         "GET /v1/orgs/:orgId/domains",
+        "GET /v1/packaging/entitlements",
         "GET /v1/platform/context",
         "GET /v1/search/suggest",
         "GET /v1/teams/:id",
@@ -24246,12 +24296,19 @@
         "POST /v1/evidence",
         "POST /v1/evidence-requests",
         "POST /v1/evidence/:id/complete",
+        "POST /v1/exchange/chain-transfers",
+        "POST /v1/exchange/packages",
         "POST /v1/external-intake/:token/sessions/:sid/parts",
         "POST /v1/external-intake/:token/sessions/:sid/submit",
         "POST /v1/external-review/grants",
         "POST /v1/external-review/invitations",
+        "POST /v1/governance/case-legal-holds",
+        "POST /v1/governance/cross-org-review",
+        "POST /v1/governance/delegated-admin",
+        "POST /v1/governance/departments",
         "POST /v1/governance/destruction-reviews",
         "POST /v1/governance/destruction-reviews/:id/transition",
+        "POST /v1/governance/legal-holds",
         "POST /v1/governance/lifecycle/evidence/:id/transition",
         "POST /v1/governance/retention-policies",
         "POST /v1/governance/retention-policies/:id/transition",
@@ -24264,20 +24321,25 @@
         "POST /v1/identity/mfa/recovery-requests/:requestId/verify-email",
         "POST /v1/identity/mfa/recovery-requests/analytics/page-viewed",
         "POST /v1/intake/citizen/sessions/:id/capture",
+        "POST /v1/integrations/webhooks/endpoints",
         "POST /v1/intelligence/evidence/:evidenceId/run/bytes",
         "POST /v1/intelligence/evidence/:evidenceId/run/text",
         "POST /v1/internal/media-intelligence/extract",
+        "POST /v1/lifecycle/legal-holds",
+        "POST /v1/lifecycle/retention/policies",
         "POST /v1/notifications/run-digests",
         "POST /v1/org-invites/:token/accept",
         "POST /v1/orgs/:orgId/domains",
         "POST /v1/orgs/:orgId/domains/:id/verify",
         "POST /v1/platform/context/switch-workspace",
+        "POST /v1/redaction/projects",
         "POST /v1/scim/reconciliation/execute",
         "POST /v1/scim/sync-failures/:id/replay",
         "POST /v1/teams",
         "POST /v1/teams/:id/cases/link",
         "POST /v1/teams/:id/invites",
         "POST /v1/teams/invites/:token/accept",
+        "POST /v1/trust/articles",
         "POST /v1/workflow/intake-links",
         "POST /v2/scim/Groups",
         "POST /v2/scim/Users",
@@ -24304,6 +24366,7 @@
         "MODULE services/api/src/routes/external-portal.routes.ts",
         "MODULE services/api/src/routes/external-review.routes.ts",
         "MODULE services/api/src/routes/governance-lifecycle.routes.ts",
+        "MODULE services/api/src/routes/governance.routes.ts",
         "MODULE services/api/src/routes/identity-operations-completion.routes.ts",
         "MODULE services/api/src/routes/identity-security.routes.ts",
         "MODULE services/api/src/routes/identity.routes.ts",
@@ -24314,6 +24377,8 @@
         "MODULE services/api/src/routes/organization-domains.routes.ts",
         "MODULE services/api/src/routes/organizations.routes.ts",
         "MODULE services/api/src/routes/platform-context.routes.ts",
+        "MODULE services/api/src/routes/product-and-lifecycle.routes.ts",
+        "MODULE services/api/src/routes/redaction.routes.ts",
         "MODULE services/api/src/routes/reviewer-workspace.routes.ts",
         "MODULE services/api/src/routes/saml-auth.routes.ts",
         "MODULE services/api/src/routes/scim-admin.routes.ts",
@@ -24321,6 +24386,7 @@
         "MODULE services/api/src/routes/search.routes.ts",
         "MODULE services/api/src/routes/sso-auth.routes.ts",
         "MODULE services/api/src/routes/teams.routes.ts",
+        "MODULE services/api/src/routes/trust-and-governance.routes.ts",
         "MODULE services/api/src/routes/webhooks.routes.ts",
         "MODULE services/api/src/routes/workflow-intake-links.routes.ts",
         "MODULE services/api/src/routes/workspace-ai-policy.routes.ts"
@@ -24381,7 +24447,12 @@
         "GET /v1/identity/mfa-admin/digest-preferences",
         "GET /v1/identity/mfa-admin/digest-preferences/preview",
         "GET /v1/identity/mfa-admin/recovery-events",
+        "GET /v1/integrations/webhooks/endpoints",
+        "GET /v1/lifecycle/archive/transitions",
+        "GET /v1/lifecycle/dashboard",
+        "GET /v1/lifecycle/destruction/requests",
         "GET /v1/orgs/:orgId/domains",
+        "GET /v1/packaging/entitlements",
         "GET /v1/platform/context",
         "GET /v1/search/suggest",
         "GET /v1/teams/:id",
@@ -24445,12 +24516,19 @@
         "POST /v1/evidence",
         "POST /v1/evidence-requests",
         "POST /v1/evidence/:id/complete",
+        "POST /v1/exchange/chain-transfers",
+        "POST /v1/exchange/packages",
         "POST /v1/external-intake/:token/sessions/:sid/parts",
         "POST /v1/external-intake/:token/sessions/:sid/submit",
         "POST /v1/external-review/grants",
         "POST /v1/external-review/invitations",
+        "POST /v1/governance/case-legal-holds",
+        "POST /v1/governance/cross-org-review",
+        "POST /v1/governance/delegated-admin",
+        "POST /v1/governance/departments",
         "POST /v1/governance/destruction-reviews",
         "POST /v1/governance/destruction-reviews/:id/transition",
+        "POST /v1/governance/legal-holds",
         "POST /v1/governance/lifecycle/evidence/:id/transition",
         "POST /v1/governance/retention-policies",
         "POST /v1/governance/retention-policies/:id/transition",
@@ -24463,20 +24541,25 @@
         "POST /v1/identity/mfa/recovery-requests/:requestId/verify-email",
         "POST /v1/identity/mfa/recovery-requests/analytics/page-viewed",
         "POST /v1/intake/citizen/sessions/:id/capture",
+        "POST /v1/integrations/webhooks/endpoints",
         "POST /v1/intelligence/evidence/:evidenceId/run/bytes",
         "POST /v1/intelligence/evidence/:evidenceId/run/text",
         "POST /v1/internal/media-intelligence/extract",
+        "POST /v1/lifecycle/legal-holds",
+        "POST /v1/lifecycle/retention/policies",
         "POST /v1/notifications/run-digests",
         "POST /v1/org-invites/:token/accept",
         "POST /v1/orgs/:orgId/domains",
         "POST /v1/orgs/:orgId/domains/:id/verify",
         "POST /v1/platform/context/switch-workspace",
+        "POST /v1/redaction/projects",
         "POST /v1/scim/reconciliation/execute",
         "POST /v1/scim/sync-failures/:id/replay",
         "POST /v1/teams",
         "POST /v1/teams/:id/cases/link",
         "POST /v1/teams/:id/invites",
         "POST /v1/teams/invites/:token/accept",
+        "POST /v1/trust/articles",
         "POST /v1/workflow/intake-links",
         "POST /v2/scim/Groups",
         "POST /v2/scim/Users",
@@ -24503,6 +24586,7 @@
         "MODULE services/api/src/routes/external-portal.routes.ts",
         "MODULE services/api/src/routes/external-review.routes.ts",
         "MODULE services/api/src/routes/governance-lifecycle.routes.ts",
+        "MODULE services/api/src/routes/governance.routes.ts",
         "MODULE services/api/src/routes/identity-operations-completion.routes.ts",
         "MODULE services/api/src/routes/identity-security.routes.ts",
         "MODULE services/api/src/routes/identity.routes.ts",
@@ -24513,6 +24597,8 @@
         "MODULE services/api/src/routes/organization-domains.routes.ts",
         "MODULE services/api/src/routes/organizations.routes.ts",
         "MODULE services/api/src/routes/platform-context.routes.ts",
+        "MODULE services/api/src/routes/product-and-lifecycle.routes.ts",
+        "MODULE services/api/src/routes/redaction.routes.ts",
         "MODULE services/api/src/routes/reviewer-workspace.routes.ts",
         "MODULE services/api/src/routes/saml-auth.routes.ts",
         "MODULE services/api/src/routes/scim-admin.routes.ts",
@@ -24520,6 +24606,7 @@
         "MODULE services/api/src/routes/search.routes.ts",
         "MODULE services/api/src/routes/sso-auth.routes.ts",
         "MODULE services/api/src/routes/teams.routes.ts",
+        "MODULE services/api/src/routes/trust-and-governance.routes.ts",
         "MODULE services/api/src/routes/webhooks.routes.ts",
         "MODULE services/api/src/routes/workflow-intake-links.routes.ts",
         "MODULE services/api/src/routes/workspace-ai-policy.routes.ts"
@@ -25637,7 +25724,12 @@
         "GET /v1/identity-security/sessions",
         "GET /v1/identity/access-reviews",
         "GET /v1/identity/account-closure",
+        "GET /v1/integrations/webhooks/endpoints",
+        "GET /v1/lifecycle/archive/transitions",
+        "GET /v1/lifecycle/dashboard",
+        "GET /v1/lifecycle/destruction/requests",
         "GET /v1/orgs/:orgId/domains",
+        "GET /v1/packaging/entitlements",
         "GET /v1/platform/context",
         "GET /v1/teams/:id",
         "GET /v1/teams/ai-usage",
@@ -25682,12 +25774,19 @@
         "POST /v1/evidence",
         "POST /v1/evidence-requests",
         "POST /v1/evidence/:id/complete",
+        "POST /v1/exchange/chain-transfers",
+        "POST /v1/exchange/packages",
         "POST /v1/external-intake/:token/sessions/:sid/parts",
         "POST /v1/external-intake/:token/sessions/:sid/submit",
         "POST /v1/external-review/grants",
         "POST /v1/external-review/invitations",
+        "POST /v1/governance/case-legal-holds",
+        "POST /v1/governance/cross-org-review",
+        "POST /v1/governance/delegated-admin",
+        "POST /v1/governance/departments",
         "POST /v1/governance/destruction-reviews",
         "POST /v1/governance/destruction-reviews/:id/transition",
+        "POST /v1/governance/legal-holds",
         "POST /v1/governance/lifecycle/evidence/:id/transition",
         "POST /v1/governance/retention-policies",
         "POST /v1/governance/retention-policies/:id/transition",
@@ -25697,19 +25796,24 @@
         "POST /v1/identity/access-reviews/regenerate",
         "POST /v1/identity/account-closure",
         "POST /v1/intake/citizen/sessions/:id/capture",
+        "POST /v1/integrations/webhooks/endpoints",
         "POST /v1/intelligence/evidence/:evidenceId/run/bytes",
         "POST /v1/intelligence/evidence/:evidenceId/run/text",
         "POST /v1/internal/media-intelligence/extract",
+        "POST /v1/lifecycle/legal-holds",
+        "POST /v1/lifecycle/retention/policies",
         "POST /v1/notifications/run-digests",
         "POST /v1/org-invites/:token/accept",
         "POST /v1/orgs/:orgId/domains",
         "POST /v1/orgs/:orgId/domains/:id/verify",
         "POST /v1/platform/context/switch-workspace",
+        "POST /v1/redaction/projects",
         "POST /v1/scim/reconciliation/execute",
         "POST /v1/scim/sync-failures/:id/replay",
         "POST /v1/teams",
         "POST /v1/teams/:id/invites",
         "POST /v1/teams/invites/:token/accept",
+        "POST /v1/trust/articles",
         "POST /v1/workflow/intake-links",
         "POST /v2/scim/Groups",
         "POST /v2/scim/Users",
@@ -25734,6 +25838,7 @@
         "MODULE services/api/src/routes/external-portal.routes.ts",
         "MODULE services/api/src/routes/external-review.routes.ts",
         "MODULE services/api/src/routes/governance-lifecycle.routes.ts",
+        "MODULE services/api/src/routes/governance.routes.ts",
         "MODULE services/api/src/routes/identity-operations-completion.routes.ts",
         "MODULE services/api/src/routes/identity-security.routes.ts",
         "MODULE services/api/src/routes/identity.routes.ts",
@@ -25744,12 +25849,15 @@
         "MODULE services/api/src/routes/organization-domains.routes.ts",
         "MODULE services/api/src/routes/organizations.routes.ts",
         "MODULE services/api/src/routes/platform-context.routes.ts",
+        "MODULE services/api/src/routes/product-and-lifecycle.routes.ts",
+        "MODULE services/api/src/routes/redaction.routes.ts",
         "MODULE services/api/src/routes/reviewer-workspace.routes.ts",
         "MODULE services/api/src/routes/saml-auth.routes.ts",
         "MODULE services/api/src/routes/scim-admin.routes.ts",
         "MODULE services/api/src/routes/scim.routes.ts",
         "MODULE services/api/src/routes/sso-auth.routes.ts",
         "MODULE services/api/src/routes/teams.routes.ts",
+        "MODULE services/api/src/routes/trust-and-governance.routes.ts",
         "MODULE services/api/src/routes/webhooks.routes.ts",
         "MODULE services/api/src/routes/workflow-intake-links.routes.ts",
         "MODULE services/api/src/routes/workspace-ai-policy.routes.ts"
@@ -28058,8 +28166,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.create@463",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:463",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.create@479",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:479",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "createCollaborationTeam",
       "kind": "DATABASE",
@@ -28091,8 +28199,41 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.update@1110",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1110",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.delete@1312",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1312",
+      "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
+      "enclosingDeclaration": "deleteCollaborationTeam",
+      "kind": "DATABASE",
+      "target": "collaborationTeam",
+      "mutationKind": "delete",
+      "primaryFamily": "WORKSPACE",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "DELETE /v1/collaboration-teams/:teamId"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/collaboration-teams.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.update@1126",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1126",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "updateCollaborationTeam",
       "kind": "DATABASE",
@@ -28124,8 +28265,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.update@1153",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1153",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.update@1340",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1340",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "archiveCollaborationTeam",
       "kind": "DATABASE",
@@ -28157,8 +28298,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.update@1214",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1214",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.update@1401",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1401",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "unarchiveCollaborationTeam",
       "kind": "DATABASE",
@@ -28190,8 +28331,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamActivity.create@325",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:325",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamActivity.create@341",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:341",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "recordActivity",
       "kind": "DATABASE",
@@ -28235,8 +28376,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.create@2497",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2497",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.create@2684",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2684",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "createAssignment",
       "kind": "DATABASE",
@@ -28268,8 +28409,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.update@2668",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2668",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.update@2855",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2855",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "updateAssignment",
       "kind": "DATABASE",
@@ -28301,8 +28442,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.update@1637",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1637",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.update@1824",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1824",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "revokeInvite",
       "kind": "DATABASE",
@@ -28334,8 +28475,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.update@1747",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1747",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.update@1934",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1934",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "acceptInvite",
       "kind": "DATABASE",
@@ -28368,8 +28509,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.updateMany@1846",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1846",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.updateMany@2033",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2033",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "acceptInvite",
       "kind": "DATABASE",
@@ -28402,8 +28543,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@1312",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1312",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@1499",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1499",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "addExistingMember",
       "kind": "DATABASE",
@@ -28436,8 +28577,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@1889",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1889",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@2076",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2076",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "acceptInvite",
       "kind": "DATABASE",
@@ -28470,8 +28611,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@475",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:475",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@491",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:491",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "createCollaborationTeam",
       "kind": "DATABASE",
@@ -28503,8 +28644,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1289",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1289",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1476",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1476",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "addExistingMember",
       "kind": "DATABASE",
@@ -28537,8 +28678,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1383",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1383",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1570",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1570",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "changeMemberRole",
       "kind": "DATABASE",
@@ -28570,8 +28711,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1450",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1450",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1637",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1637",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "suspendMember",
       "kind": "DATABASE",
@@ -28603,8 +28744,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1525",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1525",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1712",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1712",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "reinstateMember",
       "kind": "DATABASE",
@@ -28636,8 +28777,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1569",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1569",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1756",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1756",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "removeMember",
       "kind": "DATABASE",
@@ -28670,8 +28811,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1873",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1873",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@2060",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2060",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "acceptInvite",
       "kind": "DATABASE",
@@ -41640,12 +41781,13 @@
         "GET /v1/lifecycle/archive/transitions",
         "GET /v1/lifecycle/dashboard",
         "GET /v1/lifecycle/destruction/requests",
-        "GET /v1/lifecycle/legal-holds",
         "POST /v1/exchange/chain-transfers",
         "POST /v1/exchange/packages",
+        "POST /v1/governance/case-legal-holds",
         "POST /v1/governance/cross-org-review",
         "POST /v1/governance/delegated-admin",
         "POST /v1/governance/departments",
+        "POST /v1/governance/legal-holds",
         "POST /v1/integrations/webhooks/endpoints",
         "POST /v1/intelligence/corrections",
         "POST /v1/intelligence/corrections/:id/accept",
@@ -41665,6 +41807,7 @@
       ],
       "entryJobs": [],
       "entryModules": [
+        "MODULE services/api/src/routes/governance.routes.ts",
         "MODULE services/api/src/routes/intelligence-platform.routes.ts",
         "MODULE services/api/src/routes/internal-media-intelligence-extract.routes.ts",
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts",
@@ -43535,6 +43678,7 @@
       "entryRoutes": [
         "DELETE /v1/auth/saml/:connectionId/certificate-next",
         "DELETE /v1/cases/:id/comments/:commentId",
+        "DELETE /v1/collaboration-teams/:teamId",
         "DELETE /v1/collaboration-teams/:teamId/comments/:commentId",
         "DELETE /v1/collaboration-teams/:teamId/members/:memberId",
         "DELETE /v1/evidence/:id",
@@ -43608,6 +43752,7 @@
         "GET /v1/collaboration-teams/:teamId/assignable-targets",
         "GET /v1/collaboration-teams/:teamId/assignments",
         "GET /v1/collaboration-teams/:teamId/comments",
+        "GET /v1/collaboration-teams/:teamId/disposability",
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
@@ -44445,6 +44590,7 @@
       "entryRoutes": [
         "DELETE /v1/auth/saml/:connectionId/certificate-next",
         "DELETE /v1/cases/:id/comments/:commentId",
+        "DELETE /v1/collaboration-teams/:teamId",
         "DELETE /v1/collaboration-teams/:teamId/comments/:commentId",
         "DELETE /v1/collaboration-teams/:teamId/members/:memberId",
         "DELETE /v1/evidence/:id",
@@ -44518,6 +44664,7 @@
         "GET /v1/collaboration-teams/:teamId/assignable-targets",
         "GET /v1/collaboration-teams/:teamId/assignments",
         "GET /v1/collaboration-teams/:teamId/comments",
+        "GET /v1/collaboration-teams/:teamId/disposability",
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
@@ -45352,6 +45499,7 @@
       "entryRoutes": [
         "DELETE /v1/auth/saml/:connectionId/certificate-next",
         "DELETE /v1/cases/:id/comments/:commentId",
+        "DELETE /v1/collaboration-teams/:teamId",
         "DELETE /v1/collaboration-teams/:teamId/comments/:commentId",
         "DELETE /v1/collaboration-teams/:teamId/members/:memberId",
         "DELETE /v1/evidence/:id",
@@ -45425,6 +45573,7 @@
         "GET /v1/collaboration-teams/:teamId/assignable-targets",
         "GET /v1/collaboration-teams/:teamId/assignments",
         "GET /v1/collaboration-teams/:teamId/comments",
+        "GET /v1/collaboration-teams/:teamId/disposability",
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
@@ -46262,6 +46411,7 @@
       "entryRoutes": [
         "DELETE /v1/auth/saml/:connectionId/certificate-next",
         "DELETE /v1/cases/:id/comments/:commentId",
+        "DELETE /v1/collaboration-teams/:teamId",
         "DELETE /v1/collaboration-teams/:teamId/comments/:commentId",
         "DELETE /v1/collaboration-teams/:teamId/members/:memberId",
         "DELETE /v1/evidence/:id",
@@ -46335,6 +46485,7 @@
         "GET /v1/collaboration-teams/:teamId/assignable-targets",
         "GET /v1/collaboration-teams/:teamId/assignments",
         "GET /v1/collaboration-teams/:teamId/comments",
+        "GET /v1/collaboration-teams/:teamId/disposability",
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
@@ -47169,6 +47320,7 @@
       "entryRoutes": [
         "DELETE /v1/auth/saml/:connectionId/certificate-next",
         "DELETE /v1/cases/:id/comments/:commentId",
+        "DELETE /v1/collaboration-teams/:teamId",
         "DELETE /v1/collaboration-teams/:teamId/comments/:commentId",
         "DELETE /v1/collaboration-teams/:teamId/members/:memberId",
         "DELETE /v1/evidence/:id",
@@ -47242,6 +47394,7 @@
         "GET /v1/collaboration-teams/:teamId/assignable-targets",
         "GET /v1/collaboration-teams/:teamId/assignments",
         "GET /v1/collaboration-teams/:teamId/comments",
+        "GET /v1/collaboration-teams/:teamId/disposability",
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
@@ -48076,6 +48229,7 @@
       "entryRoutes": [
         "DELETE /v1/auth/saml/:connectionId/certificate-next",
         "DELETE /v1/cases/:id/comments/:commentId",
+        "DELETE /v1/collaboration-teams/:teamId",
         "DELETE /v1/collaboration-teams/:teamId/comments/:commentId",
         "DELETE /v1/collaboration-teams/:teamId/members/:memberId",
         "DELETE /v1/evidence/:id",
@@ -48149,6 +48303,7 @@
         "GET /v1/collaboration-teams/:teamId/assignable-targets",
         "GET /v1/collaboration-teams/:teamId/assignments",
         "GET /v1/collaboration-teams/:teamId/comments",
+        "GET /v1/collaboration-teams/:teamId/disposability",
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
@@ -48983,6 +49138,7 @@
       "entryRoutes": [
         "DELETE /v1/auth/saml/:connectionId/certificate-next",
         "DELETE /v1/cases/:id/comments/:commentId",
+        "DELETE /v1/collaboration-teams/:teamId",
         "DELETE /v1/collaboration-teams/:teamId/comments/:commentId",
         "DELETE /v1/collaboration-teams/:teamId/members/:memberId",
         "DELETE /v1/evidence/:id",
@@ -49056,6 +49212,7 @@
         "GET /v1/collaboration-teams/:teamId/assignable-targets",
         "GET /v1/collaboration-teams/:teamId/assignments",
         "GET /v1/collaboration-teams/:teamId/comments",
+        "GET /v1/collaboration-teams/:teamId/disposability",
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
@@ -49890,6 +50047,7 @@
       "entryRoutes": [
         "DELETE /v1/auth/saml/:connectionId/certificate-next",
         "DELETE /v1/cases/:id/comments/:commentId",
+        "DELETE /v1/collaboration-teams/:teamId",
         "DELETE /v1/collaboration-teams/:teamId/comments/:commentId",
         "DELETE /v1/collaboration-teams/:teamId/members/:memberId",
         "DELETE /v1/evidence/:id",
@@ -49963,6 +50121,7 @@
         "GET /v1/collaboration-teams/:teamId/assignable-targets",
         "GET /v1/collaboration-teams/:teamId/assignments",
         "GET /v1/collaboration-teams/:teamId/comments",
+        "GET /v1/collaboration-teams/:teamId/disposability",
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
@@ -50797,6 +50956,7 @@
       "entryRoutes": [
         "DELETE /v1/auth/saml/:connectionId/certificate-next",
         "DELETE /v1/cases/:id/comments/:commentId",
+        "DELETE /v1/collaboration-teams/:teamId",
         "DELETE /v1/collaboration-teams/:teamId/comments/:commentId",
         "DELETE /v1/collaboration-teams/:teamId/members/:memberId",
         "DELETE /v1/evidence/:id",
@@ -50870,6 +51030,7 @@
         "GET /v1/collaboration-teams/:teamId/assignable-targets",
         "GET /v1/collaboration-teams/:teamId/assignments",
         "GET /v1/collaboration-teams/:teamId/comments",
+        "GET /v1/collaboration-teams/:teamId/disposability",
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
@@ -51707,6 +51868,7 @@
       "entryRoutes": [
         "DELETE /v1/auth/saml/:connectionId/certificate-next",
         "DELETE /v1/cases/:id/comments/:commentId",
+        "DELETE /v1/collaboration-teams/:teamId",
         "DELETE /v1/collaboration-teams/:teamId/comments/:commentId",
         "DELETE /v1/collaboration-teams/:teamId/members/:memberId",
         "DELETE /v1/evidence/:id",
@@ -51780,6 +51942,7 @@
         "GET /v1/collaboration-teams/:teamId/assignable-targets",
         "GET /v1/collaboration-teams/:teamId/assignments",
         "GET /v1/collaboration-teams/:teamId/comments",
+        "GET /v1/collaboration-teams/:teamId/disposability",
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
@@ -53128,6 +53291,7 @@
       "entryRoutes": [
         "DELETE /v1/auth/saml/:connectionId/certificate-next",
         "DELETE /v1/cases/:id/comments/:commentId",
+        "DELETE /v1/collaboration-teams/:teamId",
         "DELETE /v1/collaboration-teams/:teamId/comments/:commentId",
         "DELETE /v1/collaboration-teams/:teamId/members/:memberId",
         "DELETE /v1/evidence/:id",
@@ -53201,6 +53365,7 @@
         "GET /v1/collaboration-teams/:teamId/assignable-targets",
         "GET /v1/collaboration-teams/:teamId/assignments",
         "GET /v1/collaboration-teams/:teamId/comments",
+        "GET /v1/collaboration-teams/:teamId/disposability",
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
@@ -54035,6 +54200,7 @@
       "entryRoutes": [
         "DELETE /v1/auth/saml/:connectionId/certificate-next",
         "DELETE /v1/cases/:id/comments/:commentId",
+        "DELETE /v1/collaboration-teams/:teamId",
         "DELETE /v1/collaboration-teams/:teamId/comments/:commentId",
         "DELETE /v1/collaboration-teams/:teamId/members/:memberId",
         "DELETE /v1/evidence/:id",
@@ -54108,6 +54274,7 @@
         "GET /v1/collaboration-teams/:teamId/assignable-targets",
         "GET /v1/collaboration-teams/:teamId/assignments",
         "GET /v1/collaboration-teams/:teamId/comments",
+        "GET /v1/collaboration-teams/:teamId/disposability",
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
@@ -54942,6 +55109,7 @@
       "entryRoutes": [
         "DELETE /v1/auth/saml/:connectionId/certificate-next",
         "DELETE /v1/cases/:id/comments/:commentId",
+        "DELETE /v1/collaboration-teams/:teamId",
         "DELETE /v1/collaboration-teams/:teamId/comments/:commentId",
         "DELETE /v1/collaboration-teams/:teamId/members/:memberId",
         "DELETE /v1/evidence/:id",
@@ -55015,6 +55183,7 @@
         "GET /v1/collaboration-teams/:teamId/assignable-targets",
         "GET /v1/collaboration-teams/:teamId/assignments",
         "GET /v1/collaboration-teams/:teamId/comments",
+        "GET /v1/collaboration-teams/:teamId/disposability",
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
@@ -55849,6 +56018,7 @@
       "entryRoutes": [
         "DELETE /v1/auth/saml/:connectionId/certificate-next",
         "DELETE /v1/cases/:id/comments/:commentId",
+        "DELETE /v1/collaboration-teams/:teamId",
         "DELETE /v1/collaboration-teams/:teamId/comments/:commentId",
         "DELETE /v1/collaboration-teams/:teamId/members/:memberId",
         "DELETE /v1/evidence/:id",
@@ -55922,6 +56092,7 @@
         "GET /v1/collaboration-teams/:teamId/assignable-targets",
         "GET /v1/collaboration-teams/:teamId/assignments",
         "GET /v1/collaboration-teams/:teamId/comments",
+        "GET /v1/collaboration-teams/:teamId/disposability",
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
@@ -56756,6 +56927,7 @@
       "entryRoutes": [
         "DELETE /v1/auth/saml/:connectionId/certificate-next",
         "DELETE /v1/cases/:id/comments/:commentId",
+        "DELETE /v1/collaboration-teams/:teamId",
         "DELETE /v1/collaboration-teams/:teamId/comments/:commentId",
         "DELETE /v1/collaboration-teams/:teamId/members/:memberId",
         "DELETE /v1/evidence/:id",
@@ -56829,6 +57001,7 @@
         "GET /v1/collaboration-teams/:teamId/assignable-targets",
         "GET /v1/collaboration-teams/:teamId/assignments",
         "GET /v1/collaboration-teams/:teamId/comments",
+        "GET /v1/collaboration-teams/:teamId/disposability",
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
@@ -57663,6 +57836,7 @@
       "entryRoutes": [
         "DELETE /v1/auth/saml/:connectionId/certificate-next",
         "DELETE /v1/cases/:id/comments/:commentId",
+        "DELETE /v1/collaboration-teams/:teamId",
         "DELETE /v1/collaboration-teams/:teamId/comments/:commentId",
         "DELETE /v1/collaboration-teams/:teamId/members/:memberId",
         "DELETE /v1/evidence/:id",
@@ -57736,6 +57910,7 @@
         "GET /v1/collaboration-teams/:teamId/assignable-targets",
         "GET /v1/collaboration-teams/:teamId/assignments",
         "GET /v1/collaboration-teams/:teamId/comments",
+        "GET /v1/collaboration-teams/:teamId/disposability",
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
@@ -58573,6 +58748,7 @@
       "entryRoutes": [
         "DELETE /v1/auth/saml/:connectionId/certificate-next",
         "DELETE /v1/cases/:id/comments/:commentId",
+        "DELETE /v1/collaboration-teams/:teamId",
         "DELETE /v1/collaboration-teams/:teamId/comments/:commentId",
         "DELETE /v1/collaboration-teams/:teamId/members/:memberId",
         "DELETE /v1/evidence/:id",
@@ -58646,6 +58822,7 @@
         "GET /v1/collaboration-teams/:teamId/assignable-targets",
         "GET /v1/collaboration-teams/:teamId/assignments",
         "GET /v1/collaboration-teams/:teamId/comments",
+        "GET /v1/collaboration-teams/:teamId/disposability",
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
@@ -59483,6 +59660,7 @@
       "entryRoutes": [
         "DELETE /v1/auth/saml/:connectionId/certificate-next",
         "DELETE /v1/cases/:id/comments/:commentId",
+        "DELETE /v1/collaboration-teams/:teamId",
         "DELETE /v1/collaboration-teams/:teamId/comments/:commentId",
         "DELETE /v1/collaboration-teams/:teamId/members/:memberId",
         "DELETE /v1/evidence/:id",
@@ -59556,6 +59734,7 @@
         "GET /v1/collaboration-teams/:teamId/assignable-targets",
         "GET /v1/collaboration-teams/:teamId/assignments",
         "GET /v1/collaboration-teams/:teamId/comments",
+        "GET /v1/collaboration-teams/:teamId/disposability",
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
@@ -60390,6 +60569,7 @@
       "entryRoutes": [
         "DELETE /v1/auth/saml/:connectionId/certificate-next",
         "DELETE /v1/cases/:id/comments/:commentId",
+        "DELETE /v1/collaboration-teams/:teamId",
         "DELETE /v1/collaboration-teams/:teamId/comments/:commentId",
         "DELETE /v1/collaboration-teams/:teamId/members/:memberId",
         "DELETE /v1/evidence/:id",
@@ -60463,6 +60643,7 @@
         "GET /v1/collaboration-teams/:teamId/assignable-targets",
         "GET /v1/collaboration-teams/:teamId/assignments",
         "GET /v1/collaboration-teams/:teamId/comments",
+        "GET /v1/collaboration-teams/:teamId/disposability",
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
@@ -61300,6 +61481,7 @@
       "entryRoutes": [
         "DELETE /v1/auth/saml/:connectionId/certificate-next",
         "DELETE /v1/cases/:id/comments/:commentId",
+        "DELETE /v1/collaboration-teams/:teamId",
         "DELETE /v1/collaboration-teams/:teamId/comments/:commentId",
         "DELETE /v1/collaboration-teams/:teamId/members/:memberId",
         "DELETE /v1/evidence/:id",
@@ -61373,6 +61555,7 @@
         "GET /v1/collaboration-teams/:teamId/assignable-targets",
         "GET /v1/collaboration-teams/:teamId/assignments",
         "GET /v1/collaboration-teams/:teamId/comments",
+        "GET /v1/collaboration-teams/:teamId/disposability",
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
@@ -62207,6 +62390,7 @@
       "entryRoutes": [
         "DELETE /v1/auth/saml/:connectionId/certificate-next",
         "DELETE /v1/cases/:id/comments/:commentId",
+        "DELETE /v1/collaboration-teams/:teamId",
         "DELETE /v1/collaboration-teams/:teamId/comments/:commentId",
         "DELETE /v1/collaboration-teams/:teamId/members/:memberId",
         "DELETE /v1/evidence/:id",
@@ -62280,6 +62464,7 @@
         "GET /v1/collaboration-teams/:teamId/assignable-targets",
         "GET /v1/collaboration-teams/:teamId/assignments",
         "GET /v1/collaboration-teams/:teamId/comments",
+        "GET /v1/collaboration-teams/:teamId/disposability",
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
@@ -63637,8 +63822,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/organization/enterprise-contract.service.ts#enterpriseContract.upsert@231",
-      "terminalLocation": "services/api/src/services/organization/enterprise-contract.service.ts:231",
+      "writerId": "services/api/src/services/organization/enterprise-contract.service.ts#enterpriseContract.upsert@258",
+      "terminalLocation": "services/api/src/services/organization/enterprise-contract.service.ts:258",
       "file": "services/api/src/services/organization/enterprise-contract.service.ts",
       "enclosingDeclaration": "upsertEnterpriseContract",
       "kind": "DATABASE",
@@ -64781,8 +64966,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/packaging/entitlement.service.ts#entitlementGrant.upsert@555",
-      "terminalLocation": "services/api/src/services/packaging/entitlement.service.ts:555",
+      "writerId": "services/api/src/services/packaging/entitlement.service.ts#entitlementGrant.upsert@668",
+      "terminalLocation": "services/api/src/services/packaging/entitlement.service.ts:668",
       "file": "services/api/src/services/packaging/entitlement.service.ts",
       "enclosingDeclaration": "upsertEntitlementGrant",
       "kind": "DATABASE",
@@ -64815,8 +65000,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/packaging/entitlement.service.ts#entitlementUsage.upsert@515",
-      "terminalLocation": "services/api/src/services/packaging/entitlement.service.ts:515",
+      "writerId": "services/api/src/services/packaging/entitlement.service.ts#entitlementUsage.upsert@628",
+      "terminalLocation": "services/api/src/services/packaging/entitlement.service.ts:628",
       "file": "services/api/src/services/packaging/entitlement.service.ts",
       "enclosingDeclaration": "recordExportPackageUsage",
       "kind": "DATABASE",
@@ -65328,6 +65513,7 @@
         "DELETE /v1/cases/:id/comments/:commentId",
         "DELETE /v1/cases/:id/evidence-links/:linkId",
         "DELETE /v1/cases/:id/evidence/:evidenceId",
+        "DELETE /v1/collaboration-teams/:teamId",
         "DELETE /v1/collaboration-teams/:teamId/comments/:commentId",
         "DELETE /v1/collaboration-teams/:teamId/members/:memberId",
         "DELETE /v1/evidence/:id",
@@ -65428,6 +65614,7 @@
         "GET /v1/collaboration-teams/:teamId/assignable-targets",
         "GET /v1/collaboration-teams/:teamId/assignments",
         "GET /v1/collaboration-teams/:teamId/comments",
+        "GET /v1/collaboration-teams/:teamId/disposability",
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
@@ -65907,6 +66094,7 @@
         "POST /v1/evidence/bulk",
         "POST /v1/evidence/claim",
         "POST /v1/evidence/saved-views",
+        "POST /v1/exchange/chain-transfers",
         "POST /v1/exchange/deliveries/:id/download",
         "POST /v1/exchange/packages",
         "POST /v1/exchange/packages/:id/deliveries",
@@ -65929,8 +66117,11 @@
         "POST /v1/governance/access-reviews/items/:id/decision",
         "POST /v1/governance/case-legal-holds",
         "POST /v1/governance/case-legal-holds/:id/release",
+        "POST /v1/governance/cross-org-review",
         "POST /v1/governance/cross-org-review/:id/accept",
         "POST /v1/governance/cross-org-review/:id/revoke",
+        "POST /v1/governance/delegated-admin",
+        "POST /v1/governance/departments",
         "POST /v1/governance/departments/:id/memberships",
         "POST /v1/governance/departments/memberships/:id/revoke",
         "POST /v1/governance/destruction-reviews",
@@ -66019,6 +66210,7 @@
         "POST /v1/integrations/webhooks/:id/disable",
         "POST /v1/integrations/webhooks/:id/rotate-secret",
         "POST /v1/integrations/webhooks/:id/test",
+        "POST /v1/integrations/webhooks/endpoints",
         "POST /v1/intelligence/corrections",
         "POST /v1/intelligence/corrections/:id/accept",
         "POST /v1/intelligence/corrections/:id/revert",
@@ -66032,6 +66224,7 @@
         "POST /v1/investigation/media-intelligence/refresh",
         "POST /v1/lifecycle/legal-holds",
         "POST /v1/lifecycle/legal-holds/:id/release",
+        "POST /v1/lifecycle/retention/policies",
         "POST /v1/me/inbox/mark-all-read",
         "POST /v1/me/presence/heartbeat",
         "POST /v1/media-intelligence/signals/:signalId/action",
@@ -66174,6 +66367,7 @@
         "POST /v1/teams/:id/reopen",
         "POST /v1/teams/:id/transfer-ownership",
         "POST /v1/teams/invites/:token/accept",
+        "POST /v1/trust/articles",
         "POST /v1/trust/articles/seed",
         "POST /v1/trust/drift/scan",
         "POST /v1/trust/security-claims/scan",
@@ -71333,6 +71527,7 @@
       "entryRoutes": [
         "DELETE /v1/auth/saml/:connectionId/certificate-next",
         "DELETE /v1/cases/:id/comments/:commentId",
+        "DELETE /v1/collaboration-teams/:teamId",
         "DELETE /v1/collaboration-teams/:teamId/comments/:commentId",
         "DELETE /v1/collaboration-teams/:teamId/members/:memberId",
         "DELETE /v1/evidence/:id",
@@ -71406,6 +71601,7 @@
         "GET /v1/collaboration-teams/:teamId/assignable-targets",
         "GET /v1/collaboration-teams/:teamId/assignments",
         "GET /v1/collaboration-teams/:teamId/comments",
+        "GET /v1/collaboration-teams/:teamId/disposability",
         "GET /v1/collaboration-teams/:teamId/eligible-members",
         "GET /v1/collaboration-teams/:teamId/guests",
         "GET /v1/collaboration-teams/:teamId/members",
@@ -79693,6 +79889,77 @@
       "tenantUnboundInsertSites": []
     },
     {
+      "routeId": "DELETE /v1/collaboration-teams/:teamId",
+      "method": "DELETE",
+      "path": "/v1/collaboration-teams/:teamId",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:622",
+      "authorizationClass": "AUTHENTICATED",
+      "authorizationEvidence": [
+        "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [
+        {
+          "file": "apps/web/lib/api/collaboration-teams.ts",
+          "line": 549,
+          "caller": "deleteTeam",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
+      "nonProductConsumers": [],
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:549 (deleteTeam, WEB)",
+      "dispositionReason": "reached from a product surface",
+      "replacement": null,
+      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "AUTHENTICATED",
+      "authorizationAuthority": "AUTHENTICATED",
+      "dataScope": "WORKSPACE_SCOPED",
+      "tenantType": "WORKSPACE",
+      "tenantBindingAuthority": "authorizeWorkspaceOrFail + teamMemberStatusGrantsAccess + authorizeCurrentWorkspaceOrFail",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "authenticatedSession",
+        "collaborationTeam",
+        "collaborationTeamAccessReview",
+        "collaborationTeamActivity",
+        "collaborationTeamAssignment",
+        "collaborationTeamComment",
+        "collaborationTeamGuest",
+        "collaborationTeamMember",
+        "revokedSession",
+        "supportAccessGrant",
+        "team",
+        "teamMember",
+        "user"
+      ],
+      "modelsWritten": [
+        "collaborationTeam",
+        "securityEvent"
+      ],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/middleware/authorize.ts: the canonical workspace authorization evaluator",
+        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/middleware/authorize.ts: the canonical current-workspace evaluator",
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+      ],
+      "tenantIdSource": "NAMED_AUTHORITY",
+      "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
+      "crossTenantRefusalSemantics": "refuses with 403/404",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
       "routeId": "DELETE /v1/collaboration-teams/:teamId/comments/:commentId",
       "method": "DELETE",
       "path": "/v1/collaboration-teams/:teamId/comments/:commentId",
@@ -79768,7 +80035,7 @@
       "method": "DELETE",
       "path": "/v1/collaboration-teams/:teamId/members/:memberId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:960",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1062",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -79779,7 +80046,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 594,
+          "line": 631,
           "caller": "removeMember",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -79789,7 +80056,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:594 (removeMember, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:631 (removeMember, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -81457,7 +81724,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 728,
+          "line": 756,
           "caller": "handleDeleteTeam",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -81467,7 +81734,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/teams/[id]/page.tsx:728 (handleDeleteTeam, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/teams/[id]/page.tsx:756 (handleDeleteTeam, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -81535,7 +81802,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 812,
+          "line": 840,
           "caller": "handleConfirmUnlinkCase",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -81545,7 +81812,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/teams/[id]/page.tsx:812 (handleConfirmUnlinkCase, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/teams/[id]/page.tsx:840 (handleConfirmUnlinkCase, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -81659,7 +81926,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 701,
+          "line": 729,
           "caller": "handleConfirmDeleteInvite",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -81669,7 +81936,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/teams/[id]/page.tsx:701 (handleConfirmDeleteInvite, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/teams/[id]/page.tsx:729 (handleConfirmDeleteInvite, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -87763,7 +88030,7 @@
         },
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 752,
+          "line": 780,
           "caller": "loadAvailableCases",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -89110,7 +89377,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:377",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:379",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -89183,7 +89450,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:463",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:465",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -89210,7 +89477,7 @@
         },
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 759,
+          "line": 796,
           "caller": "listTeamResponsibility",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -89220,7 +89487,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:374 (getCollaborationEntitlement, WEB); apps/web/lib/api/collaboration-teams.ts:477 (getTeam, WEB); apps/web/lib/api/collaboration-teams.ts:759 (listTeamResponsibility, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:374 (getCollaborationEntitlement, WEB); apps/web/lib/api/collaboration-teams.ts:477 (getTeam, WEB); apps/web/lib/api/collaboration-teams.ts:796 (listTeamResponsibility, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -89322,7 +89589,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId/activity",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1488",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1590",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -89333,7 +89600,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 661,
+          "line": 698,
           "caller": "listActivity",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -89343,7 +89610,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:661 (listActivity, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:698 (listActivity, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -89447,7 +89714,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId/assignable-targets",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1268",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1370",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -89458,7 +89725,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 827,
+          "line": 864,
           "caller": "listAssignableTargets",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -89468,7 +89735,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:827 (listAssignableTargets, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:864 (listAssignableTargets, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -89515,7 +89782,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId/assignments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1530",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1632",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -89526,7 +89793,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 711,
+          "line": 748,
           "caller": "listAssignments",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -89536,7 +89803,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:711 (listAssignments, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:748 (listAssignments, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -89654,11 +89921,81 @@
       "tenantUnboundInsertSites": []
     },
     {
+      "routeId": "GET /v1/collaboration-teams/:teamId/disposability",
+      "method": "GET",
+      "path": "/v1/collaboration-teams/:teamId/disposability",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:584",
+      "authorizationClass": "AUTHENTICATED",
+      "authorizationEvidence": [
+        "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [
+        {
+          "file": "apps/web/lib/api/collaboration-teams.ts",
+          "line": 533,
+          "caller": "getTeamDisposability",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
+      "nonProductConsumers": [],
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:533 (getTeamDisposability, WEB)",
+      "dispositionReason": "reached from a product surface",
+      "replacement": null,
+      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "AUTHENTICATED",
+      "authorizationAuthority": "AUTHENTICATED",
+      "dataScope": "WORKSPACE_SCOPED",
+      "tenantType": "WORKSPACE",
+      "tenantBindingAuthority": "authorizeWorkspaceOrFail + teamMemberStatusGrantsAccess + authorizeCurrentWorkspaceOrFail",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "authenticatedSession",
+        "collaborationTeam",
+        "collaborationTeamAccessReview",
+        "collaborationTeamActivity",
+        "collaborationTeamAssignment",
+        "collaborationTeamComment",
+        "collaborationTeamGuest",
+        "collaborationTeamMember",
+        "revokedSession",
+        "supportAccessGrant",
+        "team",
+        "teamMember",
+        "user"
+      ],
+      "modelsWritten": [
+        "securityEvent"
+      ],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/middleware/authorize.ts: the canonical workspace authorization evaluator",
+        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/middleware/authorize.ts: the canonical current-workspace evaluator",
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+      ],
+      "tenantIdSource": "NAMED_AUTHORITY",
+      "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
+      "crossTenantRefusalSemantics": "refuses with 403/404",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
       "routeId": "GET /v1/collaboration-teams/:teamId/eligible-members",
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId/eligible-members",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1409",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1511",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -89780,7 +90117,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId/members",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1444",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1546",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -89884,7 +90221,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId/overview",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1314",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1416",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -89895,7 +90232,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 735,
+          "line": 772,
           "caller": "getTeamOverview",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -89905,7 +90242,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:735 (getTeamOverview, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:772 (getTeamOverview, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -89959,7 +90296,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/entitlement",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1244",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1346",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -90041,7 +90378,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/responsibility",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1362",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1464",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -90052,7 +90389,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 759,
+          "line": 796,
           "caller": "listTeamResponsibility",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -90062,7 +90399,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:759 (listTeamResponsibility, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:796 (listTeamResponsibility, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -94083,7 +94420,7 @@
       "method": "GET",
       "path": "/v1/governance/case-legal-holds",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:554",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:580",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -94888,7 +95225,7 @@
       "method": "GET",
       "path": "/v1/governance/evidence/:id/holds",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:792",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:834",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -94945,7 +95282,7 @@
       "method": "GET",
       "path": "/v1/governance/evidence/:id/is-held",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:1017",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:1059",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -95005,7 +95342,7 @@
       "method": "GET",
       "path": "/v1/governance/evidence/:id/status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:732",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:774",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -95368,7 +95705,7 @@
       "method": "GET",
       "path": "/v1/governance/legal-holds",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:387",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:388",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -95829,7 +96166,7 @@
       "method": "GET",
       "path": "/v1/governance/policy",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:185",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:186",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveGovernancePolicyWorkspace -> services/api/src/routes/governance.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -95958,7 +96295,7 @@
       "method": "GET",
       "path": "/v1/governance/retention-candidates",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:971",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:1013",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -100792,7 +101129,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/archive/costs",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1381",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1402",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -100861,7 +101198,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/archive/transitions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1324",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1345",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -100932,7 +101269,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/dashboard",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1601",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1622",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -100943,6 +101280,14 @@
         "AUTHENTICATED"
       ],
       "productConsumers": [
+        {
+          "file": "apps/web/app/(app)/evidence-lifecycle/legal-holds/page.tsx",
+          "line": 194,
+          "caller": "Shell",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        },
         {
           "file": "apps/web/app/(app)/evidence-lifecycle/page.tsx",
           "line": 302,
@@ -100955,7 +101300,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence-lifecycle/page.tsx:302 (Shell, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence-lifecycle/legal-holds/page.tsx:194 (Shell, WEB); apps/web/app/(app)/evidence-lifecycle/page.tsx:302 (Shell, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -101006,7 +101351,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/destruction/requests",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1406",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1427",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -101077,7 +101422,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/destruction/requests/:id/certificate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1536",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1557",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -101135,7 +101480,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/destruction/requests/:id/certificate.json",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1562",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1583",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -101205,7 +101550,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence-lifecycle/legal-holds/page.tsx",
-          "line": 158,
+          "line": 165,
           "caller": "Shell",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -101215,7 +101560,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence-lifecycle/legal-holds/page.tsx:158 (Shell, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence-lifecycle/legal-holds/page.tsx:165 (Shell, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -101230,7 +101575,6 @@
       "modelsRead": [
         "adminAuditLog",
         "authenticatedSession",
-        "entitlementGrant",
         "evidenceLegalHold",
         "revokedSession",
         "supportAccessGrant",
@@ -101240,7 +101584,6 @@
       ],
       "modelsWritten": [
         "adminAuditLog",
-        "intelligenceActivityEvent",
         "securityEvent"
       ],
       "tenantBindingResolved": true,
@@ -101253,9 +101596,7 @@
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
-      "tenantStampingInsertSites": [
-        "services/api/src/services/intelligence/intelligence-activity.service.ts: intelligenceActivityEvent.create"
-      ],
+      "tenantStampingInsertSites": [],
       "tenantUnboundInsertSites": []
     },
     {
@@ -101406,7 +101747,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/verification-package/preview",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1709",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1730",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireDelegatedTierAny -> services/api/src/middleware/require-delegated-tier.ts: reaches the canonical authorization evaluator (requireDelegatedTier)",
@@ -101477,7 +101818,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/violations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1740",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1761",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -101543,7 +101884,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/violations/counts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1780",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1801",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -110944,7 +111285,7 @@
         },
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 322,
+          "line": 350,
           "caller": "TeamDetailPageBody",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -111123,7 +111464,7 @@
         },
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 329,
+          "line": 357,
           "caller": "TeamDetailPageBody",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -111133,7 +111474,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/integrations/page.tsx:2883 (load, WEB); apps/web/app/(app)/integrations/page.tsx:3137 (load, WEB); apps/web/app/(app)/teams/[id]/page.tsx:329 (TeamDetailPageBody, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/integrations/page.tsx:2883 (load, WEB); apps/web/app/(app)/integrations/page.tsx:3137 (load, WEB); apps/web/app/(app)/teams/[id]/page.tsx:357 (TeamDetailPageBody, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -111187,7 +111528,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 326,
+          "line": 354,
           "caller": "TeamDetailPageBody",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -111197,7 +111538,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/teams/[id]/page.tsx:326 (TeamDetailPageBody, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/teams/[id]/page.tsx:354 (TeamDetailPageBody, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -111364,7 +111705,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 323,
+          "line": 351,
           "caller": "TeamDetailPageBody",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -111374,7 +111715,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/teams/[id]/page.tsx:323 (TeamDetailPageBody, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/teams/[id]/page.tsx:351 (TeamDetailPageBody, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -114307,7 +114648,7 @@
       "method": "PATCH",
       "path": "/v1/collaboration-teams/:teamId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:511",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:513",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -114456,7 +114797,7 @@
       "method": "PATCH",
       "path": "/v1/collaboration-teams/:teamId/assignments/:assignmentId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1647",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1749",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -114467,7 +114808,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 797,
+          "line": 834,
           "caller": "updateAssignment",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -114477,7 +114818,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:797 (updateAssignment, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:834 (updateAssignment, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -114680,7 +115021,7 @@
       "method": "PATCH",
       "path": "/v1/collaboration-teams/:teamId/members/:memberId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:846",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:948",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -114691,7 +115032,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 581,
+          "line": 618,
           "caller": "updateMember",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -114701,7 +115042,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:581 (updateMember, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:618 (updateMember, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -116328,7 +116669,7 @@
         },
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 508,
+          "line": 536,
           "caller": "handleSaveTeamName",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -116338,7 +116679,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/organizations/[id]/setup/page.tsx:438 (OrganizationSetupInner, WEB); apps/web/app/(app)/teams/[id]/page.tsx:508 (handleSaveTeamName, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/organizations/[id]/setup/page.tsx:438 (OrganizationSetupInner, WEB); apps/web/app/(app)/teams/[id]/page.tsx:536 (handleSaveTeamName, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -116392,7 +116733,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 610,
+          "line": 638,
           "caller": "handleRoleChange",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -116402,7 +116743,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/teams/[id]/page.tsx:610 (handleRoleChange, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/teams/[id]/page.tsx:638 (handleRoleChange, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -124048,7 +124389,7 @@
       "method": "POST",
       "path": "/v1/collaboration-team-invites/:token/accept",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1216",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1318",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -124059,7 +124400,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 644,
+          "line": 681,
           "caller": "acceptInvite",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -124069,7 +124410,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:644 (acceptInvite, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:681 (acceptInvite, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -124130,7 +124471,7 @@
       "method": "POST",
       "path": "/v1/collaboration-team-invites/accept",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1190",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1292",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -124281,7 +124622,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:419",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:421",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -124502,7 +124843,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams/:teamId/archive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:568",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:670",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -124572,7 +124913,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams/:teamId/assignments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1582",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1684",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -124583,7 +124924,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 776,
+          "line": 813,
           "caller": "createAssignment",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -124593,7 +124934,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:776 (createAssignment, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:813 (createAssignment, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -124802,7 +125143,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams/:teamId/invites/:inviteId/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1072",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1174",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -124813,7 +125154,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 615,
+          "line": 652,
           "caller": "revokeInvite",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -124823,7 +125164,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:615 (revokeInvite, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:652 (revokeInvite, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -124873,7 +125214,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams/:teamId/invites/email",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1030",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1132",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -124929,7 +125270,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams/:teamId/members",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:788",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:890",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -124940,7 +125281,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 532,
+          "line": 569,
           "caller": "addExistingMember",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -124950,7 +125291,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:532 (addExistingMember, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:569 (addExistingMember, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -125018,7 +125359,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams/:teamId/members/bulk",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:697",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:799",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -125029,7 +125370,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 562,
+          "line": 599,
           "caller": "addExistingMembersBulk",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -125039,7 +125380,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:562 (addExistingMembersBulk, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:599 (addExistingMembersBulk, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -125107,7 +125448,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams/:teamId/unarchive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:628",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:730",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -125118,7 +125459,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 523,
+          "line": 560,
           "caller": "unarchiveTeam",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -125128,7 +125469,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:523 (unarchiveTeam, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:560 (unarchiveTeam, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -131084,7 +131425,7 @@
       "method": "POST",
       "path": "/v1/governance/case-legal-holds",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:589",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:615",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -131116,6 +131457,7 @@
         "case",
         "caseEvidenceLink",
         "custodyEvent",
+        "entitlementGrant",
         "evidence",
         "mfaFactor",
         "revokedSession",
@@ -131132,6 +131474,7 @@
         "custodyEvent",
         "evidenceLegalHold",
         "integrationWebhookDelivery",
+        "intelligenceActivityEvent",
         "securityEvent",
         "stepUpChallenge",
         "webhookEndpoint"
@@ -131151,6 +131494,7 @@
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [
+        "services/api/src/services/intelligence/intelligence-activity.service.ts: intelligenceActivityEvent.create",
         "services/api/src/services/governance/legal-hold.service.ts: evidenceLegalHold.create",
         "services/api/src/services/integrations/webhook-dispatcher.ts: integrationWebhookDelivery.create"
       ],
@@ -131161,7 +131505,7 @@
       "method": "POST",
       "path": "/v1/governance/case-legal-holds/:id/release",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:657",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:699",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -132139,7 +132483,7 @@
       "method": "POST",
       "path": "/v1/governance/evidence/:id/publish",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:824",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:866",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -132210,7 +132554,7 @@
       "method": "POST",
       "path": "/v1/governance/evidence/:id/restore",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:938",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:980",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -132268,7 +132612,7 @@
       "method": "POST",
       "path": "/v1/governance/evidence/:id/suspend",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:900",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:942",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -132330,7 +132674,7 @@
       "method": "POST",
       "path": "/v1/governance/evidence/:id/unpublish",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:862",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:904",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -132465,7 +132809,7 @@
       "method": "POST",
       "path": "/v1/governance/legal-holds",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:413",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:414",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -132497,6 +132841,7 @@
         "case",
         "caseEvidenceLink",
         "custodyEvent",
+        "entitlementGrant",
         "evidence",
         "mfaFactor",
         "revokedSession",
@@ -132513,6 +132858,7 @@
         "custodyEvent",
         "evidenceLegalHold",
         "integrationWebhookDelivery",
+        "intelligenceActivityEvent",
         "securityEvent",
         "stepUpChallenge",
         "webhookEndpoint"
@@ -132532,6 +132878,7 @@
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [
+        "services/api/src/services/intelligence/intelligence-activity.service.ts: intelligenceActivityEvent.create",
         "services/api/src/services/governance/legal-hold.service.ts: evidenceLegalHold.create",
         "services/api/src/services/integrations/webhook-dispatcher.ts: integrationWebhookDelivery.create"
       ],
@@ -132542,7 +132889,7 @@
       "method": "POST",
       "path": "/v1/governance/legal-holds/:id/release",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:488",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:514",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -133026,7 +133373,7 @@
       "method": "POST",
       "path": "/v1/governance/reconcile-retention",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:994",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:1036",
       "authorizationClass": "CRON_SECRET",
       "authorizationEvidence": [
         "requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)"
@@ -133038,7 +133385,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "CRON_CONSUMER",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/governance.routes.ts:994 — requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
+      "dispositionEvidence": "services/api/src/routes/governance.routes.ts:1036 — requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
       "dispositionReason": "gated by the canonical constant-time cron/internal shared secret, so only a scheduler or operator holding it can call it",
       "replacement": null,
       "result": "DISPOSED_CRON_CONSUMER",
@@ -139280,7 +139627,7 @@
       "method": "POST",
       "path": "/v1/lifecycle/archive/transition",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1352",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1373",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireDelegatedTier -> services/api/src/middleware/require-delegated-tier.ts: reaches the canonical authorization evaluator (requireDelegatedTier)",
@@ -139364,7 +139711,7 @@
       "method": "POST",
       "path": "/v1/lifecycle/destruction/requests",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1434",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1455",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireDelegatedTierAny -> services/api/src/middleware/require-delegated-tier.ts: reaches the canonical authorization evaluator (requireDelegatedTier)",
@@ -139447,7 +139794,7 @@
       "method": "POST",
       "path": "/v1/lifecycle/destruction/requests/:id/approve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1466",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1487",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireDelegatedTierAny -> services/api/src/middleware/require-delegated-tier.ts: reaches the canonical authorization evaluator (requireDelegatedTier)",
@@ -139523,7 +139870,7 @@
       "method": "POST",
       "path": "/v1/lifecycle/destruction/requests/:id/execute",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1513",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1534",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireDelegatedTier -> services/api/src/middleware/require-delegated-tier.ts: reaches the canonical authorization evaluator (requireDelegatedTier)",
@@ -139622,7 +139969,7 @@
       "method": "POST",
       "path": "/v1/lifecycle/destruction/requests/:id/reject",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1487",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1508",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireDelegatedTierAny -> services/api/src/middleware/require-delegated-tier.ts: reaches the canonical authorization evaluator (requireDelegatedTier)",
@@ -139698,7 +140045,7 @@
       "method": "POST",
       "path": "/v1/lifecycle/legal-holds",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1138",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1149",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireDelegatedTierAny -> services/api/src/middleware/require-delegated-tier.ts: reaches the canonical authorization evaluator (requireDelegatedTier)",
@@ -139711,7 +140058,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence-lifecycle/legal-holds/page.tsx",
-          "line": 188,
+          "line": 230,
           "caller": "Shell",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -139729,7 +140076,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence-lifecycle/legal-holds/page.tsx:188 (Shell, WEB); apps/web/app/(app)/organizations/[id]/setup/page.tsx:561 (OrganizationSetupInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence-lifecycle/legal-holds/page.tsx:230 (Shell, WEB); apps/web/app/(app)/organizations/[id]/setup/page.tsx:561 (OrganizationSetupInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -139750,7 +140097,6 @@
         "custodyEvent",
         "delegatedAdminGrant",
         "entitlementGrant",
-        "entitlementUsage",
         "evidence",
         "mfaFactor",
         "revokedSession",
@@ -139803,7 +140149,7 @@
       "method": "POST",
       "path": "/v1/lifecycle/legal-holds/:id/release",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1245",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1266",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireDelegatedTierAny -> services/api/src/middleware/require-delegated-tier.ts: reaches the canonical authorization evaluator (requireDelegatedTier)",
@@ -139816,7 +140162,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence-lifecycle/legal-holds/page.tsx",
-          "line": 250,
+          "line": 292,
           "caller": "Shell",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -139826,7 +140172,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence-lifecycle/legal-holds/page.tsx:250 (Shell, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence-lifecycle/legal-holds/page.tsx:292 (Shell, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -151202,7 +151548,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 776,
+          "line": 804,
           "caller": "handleAddExistingCase",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -151212,7 +151558,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/teams/[id]/page.tsx:776 (handleAddExistingCase, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/teams/[id]/page.tsx:804 (handleAddExistingCase, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -151397,7 +151743,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 539,
+          "line": 567,
           "caller": "handleInvite",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -151407,7 +151753,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/teams/[id]/page.tsx:539 (handleInvite, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/teams/[id]/page.tsx:567 (handleInvite, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -154542,7 +154888,7 @@
       "method": "PUT",
       "path": "/v1/governance/policy",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:233",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:234",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveGovernancePolicyWorkspace -> services/api/src/routes/governance.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",

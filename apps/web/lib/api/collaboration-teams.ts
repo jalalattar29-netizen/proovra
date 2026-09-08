@@ -513,6 +513,43 @@ export async function archiveTeam(teamId: string): Promise<void> {
 }
 
 /**
+ * Whether this group can be permanently deleted, and what stops it.
+ *
+ * The SERVER decides. Emptiness is a property of rows the browser cannot see —
+ * assignments, discussion, access reviews, guests, real activity — so a client
+ * that computed it would be guessing. Read before offering the control, never
+ * inferred from a failed DELETE: teaching a destructive limit by letting the
+ * operator hit it is exactly what §15.28 rules out.
+ */
+export type CollaborationTeamDisposability = {
+  disposable: boolean;
+  /** The history that blocks deletion, by kind. Empty when disposable. */
+  blockers: ReadonlyArray<{ kind: string; count: number }>;
+};
+
+export async function getTeamDisposability(
+  teamId: string,
+): Promise<CollaborationTeamDisposability> {
+  const res = (await apiFetch(
+    `${BASE}/${encodeURIComponent(teamId)}/disposability`,
+  )) as { disposition?: CollaborationTeamDisposability } | null;
+  return res?.disposition ?? { disposable: false, blockers: [] };
+}
+
+/**
+ * Permanently delete a group that carries no operational record.
+ *
+ * The server re-checks disposability inside its transaction and answers 409
+ * `TEAM_NOT_DISPOSABLE` for a group with history — this is the accidental-
+ * creation path, not a way to erase work. Archiving remains the action for a
+ * group that has done any, and it already frees the capacity slot, so deletion
+ * is never the route to more capacity.
+ */
+export async function deleteTeam(teamId: string): Promise<void> {
+  await apiFetch(`${BASE}/${encodeURIComponent(teamId)}`, { method: "DELETE" });
+}
+
+/**
  * WCR-13 — reopen an archived group.
  *
  * Archiving was one-way while the confirmation dialog promised it was not.

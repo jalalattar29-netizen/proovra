@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useToast } from "../../../../../components/ui";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
@@ -11,7 +11,10 @@ import { ApiError } from "../../../../../lib/api";
 import { notifyApiError } from "../../../../../lib/feedback/notify";
 import {
   type CollaborationTeamDetail,
+  type CollaborationTeamDisposability,
   archiveTeam,
+  deleteTeam,
+  getTeamDisposability,
   unarchiveTeam,
   updateTeam,
 } from "../../../../../lib/api/collaboration-teams";
@@ -84,6 +87,66 @@ function SettingsTab({
         notifyApiError(addToast, err);
       } else {
         addToast("Couldn't save settings.", "error");
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /**
+   * The SERVER's disposition on permanent deletion. `null` means not yet known
+   * — while loading, and if the read fails. A failed read must never surface a
+   * destructive control, so `null` shows neither Delete nor a claim that the
+   * group is protected.
+   *
+   * Keyed on the group id so a different team never inherits the previous
+   * one's answer.
+   */
+  const [disposability, setDisposability] =
+    useState<CollaborationTeamDisposability | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setDisposability(null);
+    void getTeamDisposability(team.id)
+      .then((d) => {
+        if (!cancelled) setDisposability(d);
+      })
+      .catch(() => {
+        if (!cancelled) setDisposability(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [team.id]);
+
+  /**
+   * Delete is reached only when the projection says the group is disposable,
+   * so the confirmation describes what it actually does rather than warning
+   * about consequences that cannot occur here. No typed-name confirmation:
+   * that ceremony belongs to destroying work, and this group has none — asking
+   * for it would be the bureaucracy §15.26 rules out.
+   */
+  const onDelete = async () => {
+    const ok = await confirm({
+      title: `Delete "${team.name}" permanently?`,
+      description:
+        "This team has no operational records. Deleting permanently removes the team itself. " +
+        "Workspace members keep their access, and cases and evidence are not affected.",
+      confirmLabel: "Delete team",
+      tone: "danger",
+    });
+    if (!ok) return;
+    setBusy(true);
+    try {
+      await deleteTeam(team.id);
+      addToast("Team deleted.", "success");
+      router.push("/collaboration-teams");
+    } catch (err) {
+      if (err instanceof ApiError) {
+        notifyApiError(addToast, err);
+      } else {
+        addToast("Couldn't delete team.", "error");
       }
     } finally {
       setBusy(false);
@@ -331,6 +394,86 @@ function SettingsTab({
                 </button>
               )}
             </div>
+
+            {/*
+              DELETE — the accidental-creation case, and ONLY that.
+
+              The control is offered only when the SERVER says the group carries
+              no operational record. §15.28 is explicit that a failed request
+              must not be how an operator learns deletion is unsafe, so a
+              history-bearing group gets an explanation and Archive instead of a
+              destructive button that answers 409.
+
+              This is never a route to capacity: an ARCHIVED group already
+              consumes no active slot, so nobody needs to erase history to make
+              room. Archive retires work; Delete removes a group that never did
+              any.
+
+              `null` means the disposition has not arrived — no Delete control
+              and no claim either way, which is the honest state while loading
+              and the safe one if the read fails.
+            */}
+            {disposability === null ? null : disposability.disposable ? (
+              <div
+                className="app-inner-surface"
+                data-testid="settings-delete-available"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 16,
+                  padding: "14px 16px",
+                  flexWrap: "wrap",
+                  marginTop: 12,
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: 13,
+                      fontWeight: 650,
+                      color: "#172033",
+                    }}
+                  >
+                    Delete team
+                  </p>
+                  <p
+                    style={{
+                      margin: "4px 0 0",
+                      fontSize: 12,
+                      lineHeight: 1.45,
+                      color: "#5F6878",
+                    }}
+                  >
+                    This team has no assignments, discussion or activity history.
+                    Deleting permanently removes the team itself. Workspace
+                    members, cases and evidence are not affected.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void onDelete()}
+                  disabled={!canArchive || busy}
+                  className="app-danger-action"
+                  data-testid="settings-delete"
+                >
+                  Delete team
+                </button>
+              </div>
+            ) : (
+              <p
+                className="app-alert"
+                data-testid="settings-delete-blocked"
+                style={{ marginTop: 12 }}
+              >
+                <strong>This team has operational history.</strong> It is linked
+                to work that the workspace keeps a record of, so it cannot be
+                permanently deleted. Archive it instead — the history stays
+                available and the team stops using one of your active team
+                slots.
+              </p>
+            )}
           </div>
         </div>
       </div>

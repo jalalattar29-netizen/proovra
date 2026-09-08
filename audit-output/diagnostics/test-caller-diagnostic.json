@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "5ed058805558999585e841a2cb95ea5fe6e11219d63af300ee9319dda79d2fa6",
-  "capabilityRouteInventoryHash": "6b21faa2ad81ff35dbe07329345bb971c1e60d22fb672e3e979ec71dd4518be0",
+  "capabilityRouteInventoryHash": "bd39fa6dd72aba4108620d1ef989ba16a6f14da7995ac0c67e2279d47bf2af54",
   "totals": {
-    "routes": 1138,
+    "routes": 1140,
     "routesWithAnyTestCaller": 39,
     "testOnlyRoutes": 5,
     "testCallSites": 66,
@@ -64,6 +64,12 @@
     },
     {
       "routeId": "DELETE /v1/cases/:id/legacy-evidence-link/:evidenceId",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "DELETE /v1/collaboration-teams/:teamId",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -1022,6 +1028,12 @@
     },
     {
       "routeId": "GET /v1/collaboration-teams/:teamId/comments",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/collaboration-teams/:teamId/disposability",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -6925,5 +6937,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "1cfe94c7a96b1ecd0346a1bfa1803c1e5e058d8bd103dbc6755a08d3cfcf809c"
+  "contentHash": "8a39f268b5d920717916f51f45e652853b0b17dc46b1f0ad5964e933352c4e46"
 }

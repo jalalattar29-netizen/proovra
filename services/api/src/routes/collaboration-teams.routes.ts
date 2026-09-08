@@ -38,6 +38,8 @@ import {
   acceptInvite,
   addExistingMember,
   archiveCollaborationTeam,
+  assessCollaborationTeamDisposability,
+  deleteCollaborationTeam,
   changeMemberRole,
   createAssignment,
   createCollaborationTeam,
@@ -565,6 +567,106 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
   // ---------------------------------------------------------------------------
   // POST /v1/collaboration-teams/:teamId/archive  — archive
   // ---------------------------------------------------------------------------
+  /**
+   * GET /v1/collaboration-teams/:teamId/disposability
+   *
+   * WHETHER PERMANENT DELETION IS SAFE, ANSWERED BEFORE IT IS ATTEMPTED.
+   *
+   * §15.28 is explicit that a failed DELETE must not be how an operator learns
+   * that deletion is unsafe. This projection lets the surface offer "Delete
+   * team" only where it can actually work, and explain the alternative where it
+   * cannot — rather than presenting a destructive control that answers 409.
+   *
+   * A READ of the group's own disposition, authorized like any other read of
+   * the group. It discloses counts of the group's own history and nothing about
+   * the records that history points at.
+   */
+  app.get<{ Params: { teamId: string } }>(
+    "/v1/collaboration-teams/:teamId/disposability",
+    {
+      preHandler: requireAuth,
+      handler: async (req, reply) => {
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "collaboration.thread.read",
+          allowWorkspaceGovernorRead: true,
+        });
+        if (!binding) return;
+        try {
+          const disposition = await assessCollaborationTeamDisposability({
+            teamId: req.params.teamId,
+            actorUserId: binding.workspace.userId,
+          });
+          return reply.send({ disposition });
+        } catch (err) {
+          return handleServiceError(reply, err, req.id ?? null);
+        }
+      },
+    },
+  );
+
+  /**
+   * DELETE /v1/collaboration-teams/:teamId
+   *
+   * Permanent removal of a group that carries no operational record — the
+   * accidental-creation case, handled without ceremony.
+   *
+   * NOT a commercial workaround: ARCHIVED groups already consume no active
+   * capacity, so nobody ever needs to delete history to free a slot. Deletion
+   * exists for structural cleanup and archiving for retirement, and the two
+   * stay distinct.
+   *
+   * The service re-checks disposability inside its transaction and refuses a
+   * history-bearing group with a typed 409 — this route cannot widen that.
+   */
+  app.delete<{ Params: { teamId: string } }>(
+    "/v1/collaboration-teams/:teamId",
+    {
+      preHandler: requireAuth,
+      handler: async (req, reply) => {
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "collaboration.thread.create",
+          // The authority that retires a group, not the creator. Creator
+          // ownership is not an authorization model in this product.
+          groupPermission: "team.archive",
+          // Deliberately NOT `requireActiveTeam`: an archived accidental group
+          // must remain deletable, and freezing it would force an operator to
+          // reopen — consuming a capacity slot — merely to tidy up.
+        });
+        if (!binding) return;
+        const ctx = {
+          workspaceId: binding.workspace.workspaceId,
+          userId: binding.workspace.userId,
+        };
+        try {
+          await deleteCollaborationTeam({
+            teamId: req.params.teamId,
+            actorUserId: ctx.userId,
+          });
+          await auditEvent({
+            userId: ctx.userId,
+            workspaceId: ctx.workspaceId,
+            action: "collaboration_team.deleted",
+            resourceType: "collaboration_team",
+            resourceId: req.params.teamId,
+            outcome: "success",
+            requestId: req.id ?? null,
+          });
+          return reply.send({ ok: true });
+        } catch (err) {
+          return handleMutationError(reply, err, req.id ?? null, {
+            userId: ctx.userId,
+            workspaceId: ctx.workspaceId,
+            action: "collaboration_team.deleted",
+            resourceType: "collaboration_team",
+            resourceId: req.params.teamId,
+          });
+        }
+      },
+    },
+  );
+
   app.post<{ Params: { teamId: string } }>(
     "/v1/collaboration-teams/:teamId/archive",
     {

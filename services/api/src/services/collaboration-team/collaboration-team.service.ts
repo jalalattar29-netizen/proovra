@@ -69,6 +69,7 @@ import { listLatestWorkloadSnapshots } from "../reviewer-ops/workload.service.js
 // below can reach it: `collaboration-completion.service.ts`, where it used to
 // live, imports FROM this file. Writing rows the canonical account inbox
 // already reads — not a second notification store.
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { emitTeamNotifications } from "./team-notifications.js";
 import {
   assertCanCreateCollaborationTeam,
@@ -83,11 +84,26 @@ import {
 export class CollaborationTeamError extends Error {
   readonly code: string;
   readonly httpStatus: number;
-  constructor(code: string, message: string, httpStatus = 400) {
+  /**
+   * Bounded, non-PII structured context for the client.
+   *
+   * Added for TEAM_NOT_DISPOSABLE, where the refusal is only actionable if the
+   * operator learns WHICH history blocks it — "assignments: 3, discussion: 12"
+   * turns a dead end into a decision. Optional, so every existing throw site is
+   * unchanged.
+   */
+  readonly details?: Record<string, unknown>;
+  constructor(
+    code: string,
+    message: string,
+    httpStatus = 400,
+    details?: Record<string, unknown>,
+  ) {
     super(message);
     this.name = "CollaborationTeamError";
     this.code = code;
     this.httpStatus = httpStatus;
+    this.details = details;
   }
 }
 
@@ -1135,6 +1151,177 @@ export async function updateCollaborationTeam(
         eventType: "TEAM_TYPE_CHANGED",
         metadata: meta,
       });
+  });
+}
+
+/**
+ * ===========================================================================
+ * IS THIS GROUP SAFELY DISPOSABLE? — the ONE backend answer (§15.25–15.28).
+ * ===========================================================================
+ * A Collaboration Team is an operational GROUPING inside a workspace. It owns
+ * no Evidence, no Case, no custody record, no retention or Legal Hold state —
+ * `CollaborationTeamAssignment.targetId` is a bare UUID with NO foreign key to
+ * Case or Evidence, so nothing that cascades from this table can reach them.
+ * Deleting a group therefore cannot destroy evidence, and that is a property of
+ * the schema rather than a promise made here.
+ *
+ * What it CAN destroy is the operational record. Ten child tables cascade from
+ * `collaboration_teams`: members, invites, activity, assignments, comments,
+ * notifications, notification preferences, guests and access reviews. For an
+ * accidentally-created empty group those rows are nothing. For a group that has
+ * carried real work they are the history of who was responsible for what — the
+ * kind of record an evidence platform exists to keep.
+ *
+ * So deletion is admitted only for a genuinely disposable group, and the
+ * decision is made HERE rather than in the browser: emptiness is a property of
+ * the data, and a client that computed it would be guessing at rows it cannot
+ * see. §15.28 OPTION A — a history-bearing group is retained and archived, not
+ * hard-deleted.
+ *
+ * MEMBERS ARE NOT A BLOCKER, deliberately. Adding people to a group is how it
+ * gets created; a group with three members and no work is still an accident
+ * somebody wants tidied away, and removing them by hand first would be exactly
+ * the bureaucracy §15.26 says to avoid. Group membership confers no access and
+ * survives nowhere else, so it is disposable state.
+ *
+ * PENDING INVITES ARE NOT A BLOCKER either: a group invite grants no workspace
+ * access and expires on its own. Neither is a notification preference.
+ */
+export type CollaborationTeamDisposability = {
+  /** True when permanent deletion is safe and permitted. */
+  disposable: boolean;
+  /**
+   * The history that makes it non-disposable, by kind. Empty when disposable.
+   * Bounded counts — enough for the UI to explain WHY without listing rows.
+   */
+  blockers: ReadonlyArray<{ kind: string; count: number }>;
+};
+
+export async function assessCollaborationTeamDisposability(
+  input: { teamId: string; actorUserId: string },
+  client: PrismaClient = defaultPrisma,
+): Promise<CollaborationTeamDisposability> {
+  const { team } = await requireMemberWithPermission(
+    client,
+    input.teamId,
+    input.actorUserId,
+    // Reading the disposition needs no more authority than reading the group.
+    "team.read",
+  );
+  void team;
+
+  const [assignments, comments, accessReviews, guests, activity] =
+    await Promise.all([
+      // Responsibility for a Case, Evidence or Review — the provenance record.
+      client.collaborationTeamAssignment.count({
+        where: { teamId: input.teamId },
+      }),
+      // Operational discussion. People said things about the work here.
+      client.collaborationTeamComment.count({ where: { teamId: input.teamId } }),
+      // Governance: somebody reviewed who belonged to this group.
+      client.collaborationTeamAccessReview.count({
+        where: { teamId: input.teamId },
+      }),
+      // External participants were admitted to this group.
+      client.collaborationTeamGuest.count({ where: { teamId: input.teamId } }),
+      /*
+       * Activity BEYOND the group's own creation.
+       *
+       * Every group has a TEAM_CREATED row the moment it exists, and members
+       * added during setup produce more. Counting all activity would make
+       * every group non-disposable and the feature pointless, so the trivial
+       * lifecycle vocabulary is excluded: what remains is evidence that the
+       * group was actually USED.
+       */
+      client.collaborationTeamActivity.count({
+        where: {
+          teamId: input.teamId,
+          eventType: {
+            notIn: [
+              "TEAM_CREATED",
+              "TEAM_UPDATED",
+              "MEMBER_ADDED",
+              "MEMBER_REMOVED",
+              "MEMBER_ROLE_CHANGED",
+              "TEAM_ARCHIVED",
+              "TEAM_REOPENED",
+            ],
+          },
+        },
+      }),
+    ]);
+
+  const blockers = [
+    { kind: "assignments", count: assignments },
+    { kind: "discussion", count: comments },
+    { kind: "accessReviews", count: accessReviews },
+    { kind: "guests", count: guests },
+    { kind: "activity", count: activity },
+  ].filter((b) => b.count > 0);
+
+  return { disposable: blockers.length === 0, blockers };
+}
+
+/**
+ * PERMANENTLY DELETE A DISPOSABLE GROUP (§15.26).
+ *
+ * The accidental-creation case, handled without ceremony: a group with no
+ * operational record is removed, and the cascade takes only its own empty
+ * bookkeeping with it.
+ *
+ * FAIL CLOSED. The disposability assessment is re-run INSIDE the transaction,
+ * against the same client that performs the delete. Checking outside it would
+ * be a read-then-write race: a comment or an assignment landing between the two
+ * would be destroyed by a decision made before it existed.
+ *
+ * AUTHORITY. `team.archive` — the same authority that retires a group, not the
+ * creator. Creator-ownership is not an authorization model in this product and
+ * introducing one here would be a new authority for a narrower operation.
+ * Tenancy is enforced by `requireMemberWithPermission`, which resolves the
+ * group's workspace and refuses anyone outside it.
+ *
+ * AUDIT BEFORE THE ROW GOES. The activity feed cascades with the group, so the
+ * durable record is the tenant audit event, written with the real workspace and
+ * actor. `recordActivity` is deliberately NOT used: writing to a table that is
+ * about to be deleted in the same transaction records nothing.
+ */
+export async function deleteCollaborationTeam(
+  input: { teamId: string; actorUserId: string },
+  client: PrismaClient = defaultPrisma,
+): Promise<void> {
+  const { team } = await requireMemberWithPermission(
+    client,
+    input.teamId,
+    input.actorUserId,
+    "team.archive",
+  );
+
+  await client.$transaction(async (tx) => {
+    const disposition = await assessCollaborationTeamDisposability(
+      { teamId: input.teamId, actorUserId: input.actorUserId },
+      tx as PrismaClient,
+    );
+    if (!disposition.disposable) {
+      throw new CollaborationTeamError(
+        "TEAM_NOT_DISPOSABLE",
+        "This team has operational history and cannot be permanently deleted. Archive it instead.",
+        409,
+        { blockers: disposition.blockers },
+      );
+    }
+    await tx.collaborationTeam.delete({ where: { id: input.teamId } });
+  });
+
+  // Outside the transaction: the group is gone, and the audit record must
+  // survive independently of it.
+  await emitTenantAudit({
+    action: "collaboration_team.deleted",
+    outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    workspaceId: team.workspaceId,
+    resourceType: "collaboration_team",
+    resourceId: input.teamId,
   });
 }
 
