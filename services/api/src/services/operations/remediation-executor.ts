@@ -273,11 +273,41 @@ async function regenerateArtifacts(
   });
 
   if (!requested.requested) {
-    // The domain refused — policy, legal hold, lifecycle or eligibility. Its
-    // reason stays in the log; the operator gets the bounded form.
+    /*
+     * COMMERCIAL CLOSURE (2026-09-08) — a commercial refusal is not a
+     * permission refusal.
+     *
+     * Every `requested: false` used to collapse into REFUSED ("This action is
+     * not permitted for this record"), which told an operator they lacked a
+     * right when what had actually happened was that the record's plan does not
+     * include the output. NOT_ELIGIBLE is the honest one, and it is already in
+     * the bounded result vocabulary.
+     */
+    if (requested.reason === "not_included_in_plan") {
+      return outcome("NOT_ELIGIBLE");
+    }
+    // The domain refused — policy, legal hold or lifecycle. Its reason stays in
+    // the log; the operator gets the bounded form.
     return outcome("REFUSED");
   }
-  if (requested.terminalState) return outcome("ALREADY_SATISFIED");
+  /*
+   * A TERMINAL REQUEST IS NOT A SATISFIED ONE.
+   *
+   * `terminalState` was mapped straight to ALREADY_SATISFIED — "Nothing to do
+   * — this has already completed" — for SUCCEEDED, FAILED_TERMINAL,
+   * BLOCKED_POLICY and BLOCKED_STALE alike. So an operator retrying a report
+   * that had terminally FAILED was told it had succeeded, on the surface whose
+   * entire job is to tell them the truth about unresolved work.
+   *
+   * Only SUCCEEDED is satisfied. A commercial terminal is now superseded by a
+   * new row upstream, so reaching this branch with one means the record is
+   * still not entitled; the other terminals are genuine refusals.
+   */
+  if (requested.terminalState) {
+    return requested.terminalState === "SUCCEEDED"
+      ? outcome("ALREADY_SATISFIED", requested.requestId)
+      : outcome("NOT_ELIGIBLE", requested.requestId);
+  }
   if (requested.deduplicated) return outcome("ALREADY_IN_PROGRESS");
   if (!requested.enqueued) {
     // Durable but unscheduled. The reconciler owns it, and saying so is more

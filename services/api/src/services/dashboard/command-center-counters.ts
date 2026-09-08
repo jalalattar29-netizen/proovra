@@ -259,16 +259,36 @@ export type EvidencePopulationFragment = Record<string, unknown>;
 export async function loadEvidenceCounters(
   population: EvidencePopulationFragment,
   now: Date = new Date(),
+  /**
+   * COMMERCIAL CLOSURE (2026-09-08) — the OUTPUT-ENTITLED narrowing.
+   *
+   * `signedWithoutReport` and `reportedWithoutPackage` are OPERATIONAL
+   * backlogs: work the pipeline owes and has not delivered. They were counted
+   * with no commercial input, so on a plan that does not include reports every
+   * finalized record counted as a pipeline problem — permanently, because
+   * nothing had ever been enqueued for it — and the surface reported a warning
+   * for the product working exactly as sold.
+   *
+   * Supplied by the caller rather than resolved here because this module is
+   * deliberately a pure counter over a population fragment; the commercial
+   * decision belongs to `outputEntitledEvidenceWhere` and there is one of it.
+   * `null` means "no narrowing" and preserves the previous behaviour exactly.
+   */
+  outputEntitledWhere: { id: { in: string[] } } | null = null,
 ): Promise<EvidenceCounters> {
   const windows = Object.keys(WINDOW_MS) as EvidenceWindow[];
   const [signedWithoutReport, reportedWithoutPackage, blockedSample, ...windowed] =
     await Promise.all([
       prisma.evidence.count({
-        where: { AND: [population], status: "SIGNED", reports: { none: {} } } as never,
+        where: {
+          AND: [population, ...(outputEntitledWhere ? [outputEntitledWhere] : [])],
+          status: "SIGNED",
+          reports: { none: {} },
+        } as never,
       }),
       prisma.evidence.count({
         where: {
-          AND: [population],
+          AND: [population, ...(outputEntitledWhere ? [outputEntitledWhere] : [])],
           status: "REPORTED",
           verificationPackages: { none: {} },
         } as never,

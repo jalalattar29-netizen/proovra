@@ -815,6 +815,58 @@ export function resolveEvidenceOutputEntitlements(input: {
 }
 
 /**
+ * THE INTAKE ENTITLEMENT DECISION — plan OR a funded credit wallet.
+ *
+ * ---------------------------------------------------------------------------
+ * THE CONTRADICTION THIS CLOSES (2026-09-08)
+ * ---------------------------------------------------------------------------
+ * Pricing sells "Intake links" as part of Pay-per-evidence. A real evidence-
+ * credit buyer is on the FREE plan — that is the whole design of
+ * `EVIDENCE_CREDIT_PRODUCT`, and the retired `PLAN_CAPABILITIES.PAYG` row is
+ * explicitly never assigned — and FREE has `intakeIncluded: false`. So the
+ * gate refused `409 INTAKE_NOT_INCLUDED` to exactly the customers the row was
+ * sold to, and the only thing that could have granted it was a plan nothing
+ * writes.
+ *
+ * The rule, once:
+ *
+ *   the plan includes intake
+ *   OR the subject holds at least one unspent evidence credit.
+ *
+ * WHY A BALANCE AND NOT A PURCHASE HISTORY. Intake exists to COLLECT evidence,
+ * and on this account evidence is funded per record. A wallet with nothing in
+ * it cannot fund a submission, so a link that could still be used would be a
+ * collection surface with no way to complete what it collects. The balance is
+ * the honest gate, and it moves the customer to the one action that fixes it.
+ *
+ * WHAT THIS DOES NOT DO. It does not make a submission free: an intake
+ * submission reaches `resolvePersonalEvidenceAdmission` and settles its credit
+ * at completion like every other record. Intake is the door; the wallet still
+ * pays for what comes through it.
+ *
+ * SHARED workspaces are unaffected. A member's personal wallet never funds a
+ * shared workspace (`WorkspaceScope.credits` is 0 for them by construction),
+ * so the credit arm cannot open intake on a workspace nobody is paying for.
+ */
+export function resolveWorkspaceIntakeEntitlement(input: {
+  plan: PlanType;
+  billingShape: WorkspaceBillingShape;
+  /** Unspent purchased evidence credits on the subject's wallet. */
+  availableEvidenceCredits: number;
+}): { intakeIncluded: boolean; source: "PLAN" | "EVIDENCE_CREDIT" | "NONE" } {
+  if (getPlanCapabilities(input.plan).intakeIncluded) {
+    return { intakeIncluded: true, source: "PLAN" };
+  }
+  if (
+    input.billingShape === "SINGLE_OCCUPANT" &&
+    input.availableEvidenceCredits >= EVIDENCE_CREDIT_PRODUCT.creditsPerCompletion
+  ) {
+    return { intakeIncluded: true, source: "EVIDENCE_CREDIT" };
+  }
+  return { intakeIncluded: false, source: "NONE" };
+}
+
+/**
  * THE evidence-creation admission decision for a SINGLE_OCCUPANT (personal)
  * subject, stated once as pure policy so the API gate and any other consumer
  * cannot drift.

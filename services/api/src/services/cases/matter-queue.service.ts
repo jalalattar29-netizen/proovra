@@ -162,6 +162,28 @@ export type MatterQueueItem = {
   status: string;
   priority: string;
   ownerUserId: string;
+  /**
+   * THE OWNER, AS A PERSON.
+   *
+   * COMMERCIAL + IDENTITY CLOSURE (2026-09-08). This envelope carried only
+   * `ownerUserId`, and the Cases queue rendered `Owner · abd21a3a` — the first
+   * eight hex characters of a `gen_random_uuid()` primary key — as a primary
+   * column, for every row, to every user. The component's own comment explained
+   * why ("the envelope exposes only `ownerUserId` — never a display name — so
+   * we NEVER invent a person"), and it was right to refuse to invent one.
+   *
+   * The name was never missing. THIS SERVICE ALREADY QUERIES `prisma.user` for
+   * `email / displayName / firstName / lastName` to build the owner arm of the
+   * search, and then discarded every field. It is projected now.
+   *
+   * `null` only when the row genuinely has no identity to show — a deleted
+   * account — and the client falls back to the short id then, and only then.
+   */
+  owner: {
+    userId: string;
+    displayName: string | null;
+    email: string | null;
+  } | null;
   teamId: string | null;
   createdAt: string;
   updatedAt: string;
@@ -283,6 +305,41 @@ export async function buildMatterQueue(input: {
     }
   }
 
+  /*
+   * THE OWNER IDENTITIES, IN ONE QUERY.
+   *
+   * COMMERCIAL + IDENTITY CLOSURE (2026-09-08). The queue rendered
+   * `Owner · abd21a3a` — eight hex characters of a UUID — because this envelope
+   * projected only `ownerUserId`. One `IN` over the distinct owners of the page
+   * (never one per row) turns that column back into a person.
+   *
+   * Degrades to an empty map: a row whose identity could not be read keeps
+   * `owner: null` and the client falls back to the short id, which is what it
+   * did for every row before.
+   */
+  const ownerIdentityById = new Map<
+    string,
+    { userId: string; displayName: string | null; email: string | null }
+  >();
+  try {
+    const ownerIds = [...new Set(cases.map((c) => c.ownerUserId))];
+    if (ownerIds.length > 0) {
+      const owners = await prisma.user.findMany({
+        where: { id: { in: ownerIds } },
+        select: { id: true, displayName: true, email: true },
+      });
+      for (const o of owners) {
+        ownerIdentityById.set(o.id, {
+          userId: o.id,
+          displayName: o.displayName ?? null,
+          email: o.email ?? null,
+        });
+      }
+    }
+  } catch {
+    /* degrade: rows render with owner: null and the client's id fallback */
+  }
+
   // Per-case counters in parallel batches. Each failure degrades that row.
   const items: MatterQueueItem[] = [];
   for (const c of cases) {
@@ -402,6 +459,7 @@ export async function buildMatterQueue(input: {
         status: String(c.status),
         priority: String(c.priority),
         ownerUserId: c.ownerUserId,
+        owner: ownerIdentityById.get(c.ownerUserId) ?? null,
         teamId: c.teamId,
         createdAt: c.createdAt.toISOString(),
         updatedAt: c.updatedAt.toISOString(),
@@ -456,6 +514,7 @@ export async function buildMatterQueue(input: {
         status: String(c.status),
         priority: String(c.priority),
         ownerUserId: c.ownerUserId,
+        owner: ownerIdentityById.get(c.ownerUserId) ?? null,
         teamId: c.teamId,
         createdAt: c.createdAt.toISOString(),
         updatedAt: c.updatedAt.toISOString(),

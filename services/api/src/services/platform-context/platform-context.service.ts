@@ -70,7 +70,11 @@ import { ensurePersonalWorkspace } from "./workspace-bootstrap.service.js";
 // PHASE 2 (2026-07-21) — the ONE canonical workspace-kind classifier.
 import { resolveWorkspaceKind } from "../identity/workspace-kind.js";
 // ARCH-003 — the ONE tenancy→commerce derivation, shared with billing.
-import { billingShapeForWorkspaceKind } from "@proovra/shared-billing";
+import {
+  billingShapeForWorkspaceKind,
+  // COMMERCIAL CLOSURE (2026-09-08) — the ONE intake rule (plan OR wallet).
+  resolveWorkspaceIntakeEntitlement,
+} from "@proovra/shared-billing";
 // PHASE 10 STEP 5 (2026-07-23) — active support-access envelope projection.
 // The ONE authority (support-access.service) evaluates the grant; this
 // builder only reads + shapes it. Additive envelope section.
@@ -489,32 +493,44 @@ export async function buildPlatformContext(
     }
   }
 
-  // Best-effort plan overlay: when the active workspace is the
-  // personal team, prefer the user's `Entitlement.plan` over the
-  // team's billing plan (personal teams stay FREE — PRO entitles
-  // the USER, not the personal Team row).
-  if (workspace.scope === "PERSONAL") {
+  /**
+   * COMMERCIAL TRUTH CLOSURE (2026-09-08) — the ACTIVE workspace's plan comes
+   * from the ONE effective-plan authority, for every workspace kind.
+   *
+   * What stood here was a hand-written re-derivation: a raw
+   * `Entitlement.findFirst({ userId, active: true })` overlaid onto
+   * `team.billingPlan`, applied only when the active scope was PERSONAL. It
+   * produced the right answer for a personal space and was nonetheless a
+   * SECOND implementation of a decision that already has exactly one
+   * (`resolveWorkspaceEffectivePlan`, reached through
+   * `resolveWorkspaceScopeForUser`). Its own comment records the production
+   * incident that came from the two copies disagreeing about which entitlement
+   * row was live; the fix then was to copy the other implementation's filter,
+   * which is the same class of defect one iteration later.
+   *
+   * `resolveWorkspaceScopeForUser` is the canonical input adapter: it loads
+   * the persisted workspace fields and delegates the DECISION. It is used here
+   * rather than the full `resolveCommercialContext` envelope deliberately —
+   * this is a hot boot-path projection and it needs the plan, not the usage
+   * counters, the lifecycle verdict or the enterprise contract. The plan
+   * decision is identical either way, because both reach the same function.
+   */
+  if (workspace.status === "active" && workspace.id) {
     try {
-      // PRODUCTION FIX (billing-mismatch): mirror the EXACT filter used
-      // by `services/api/src/services/collaboration-team/billing-guards.ts`
-      // → `resolveUserPlan()` (Entitlement.findFirst { userId, active:true,
-      // orderBy: createdAt desc }). Without the `active: true` filter the
-      // envelope can pick up a SUPERSEDED entitlement row while the
-      // authoritative billing guard picks up the live PRO row, producing
-      // the "PRO user blocked by 402; UI badge says FREE" mismatch.
-      const personalEntitlement = await prisma.entitlement.findFirst({
-        where: { userId: userRow.id, active: true },
-        orderBy: { createdAt: "desc" },
-        select: { plan: true },
-      });
-      const personalPlan = coercePlan(
-        personalEntitlement?.plan as unknown as string,
+      const { resolveWorkspaceScopeForUser } = await import(
+        "../workspace-billing.service.js"
       );
-      if (personalPlan) {
-        workspace = { ...workspace, plan: personalPlan };
+      const activeScope = await resolveWorkspaceScopeForUser({
+        ownerUserId: userRow.id,
+        teamId: workspace.id,
+      });
+      const resolvedPlan = coercePlan(activeScope.plan as unknown as string);
+      if (resolvedPlan) {
+        workspace = { ...workspace, plan: resolvedPlan };
       }
     } catch {
-      // Entitlement table missing/degraded — leave plan null.
+      // Resolution degraded — the workspace keeps whatever plan it already
+      // carried (the raw column, or null). Reported, never fabricated.
       workspaceStatus = workspaceStatus === "ok" ? "degraded" : workspaceStatus;
     }
   }
@@ -655,10 +671,43 @@ export async function buildPlatformContext(
     }
   }
 
+  /**
+   * COMMERCIAL CLOSURE (2026-09-08) — intake follows the ONE intake rule.
+   *
+   * `planCaps.intakeIncluded` alone hid the Intake surface from every real
+   * Pay-per-evidence customer — a credit buyer sits on FREE by design — while
+   * Pricing sells intake links to exactly those customers. Projecting the
+   * catalog flag here and enforcing a different rule in the gate would be the
+   * two-authority problem in miniature, so both read
+   * `resolveWorkspaceIntakeEntitlement`.
+   *
+   * Resolved against the CURRENT workspace's commercial scope, and fails closed
+   * to the catalog value if the wallet cannot be read.
+   */
+  let intakeIncluded = planCaps.intakeIncluded;
+  if (!intakeIncluded && workspace.status === "active" && workspace.id) {
+    try {
+      const { resolveWorkspaceScopeForUser } = await import(
+        "../workspace-billing.service.js"
+      );
+      const intakeScope = await resolveWorkspaceScopeForUser({
+        ownerUserId: userRow.id,
+        teamId: workspace.id,
+      });
+      intakeIncluded = resolveWorkspaceIntakeEntitlement({
+        plan: intakeScope.plan,
+        billingShape: intakeScope.billingShape,
+        availableEvidenceCredits: Math.max(0, intakeScope.credits ?? 0),
+      }).intakeIncluded;
+    } catch {
+      intakeIncluded = planCaps.intakeIncluded;
+    }
+  }
+
   const planFeatures = {
     reportsIncluded: planCaps.reportsIncluded,
     verificationPackageIncluded: planCaps.verificationPackageIncluded,
-    intakeIncluded: planCaps.intakeIncluded,
+    intakeIncluded,
     casesIncluded: planCaps.casesIncluded,
     reviewerOperationsIncluded: planCaps.reviewerOperationsIncluded,
     // PHASE 12B Track 1A — server-projected surface-tier entitlement (the ONE
@@ -985,13 +1034,33 @@ export async function buildPlatformContext(
   // emit the real Team id; otherwise we emit a degraded shape so the
   // recovery panel renders.
   // ===========================================================================
+  /**
+   * COMMERCIAL TRUTH CLOSURE (2026-09-08) — the Personal Space's plan does not
+   * depend on which workspace is currently selected.
+   *
+   * This read `workspace.scope === "PERSONAL" ? workspace.plan : null`, so
+   * switching to an Organization made the Spaces page render "Plan: —" for the
+   * user's own Personal Space. Commercial identity belongs to the subject —
+   * the account and its space — not to the navigation state of the browser.
+   *
+   * `accountPlan` is the account-tier entitlement already resolved above for
+   * the flags block, and a Personal Space's effective plan IS its owner's
+   * entitlement (`resolveWorkspaceEffectivePlan`, PERSONAL branch). When the
+   * personal space happens to be the active workspace we prefer the resolved
+   * value so the two sections cannot disagree.
+   */
+  const personalSpacePlan =
+    workspace.scope === "PERSONAL" && workspace.plan
+      ? workspace.plan
+      : (accountPlan ?? null);
+
   const personalSpace: PlatformContextPersonalSpace = personalTeamId
     ? {
         status: "active",
         id: personalTeamId,
         label: "Personal Space",
         ownerUserId: userRow.id,
-        plan: workspace.scope === "PERSONAL" ? workspace.plan : null,
+        plan: personalSpacePlan,
       }
     : {
         status: "degraded",

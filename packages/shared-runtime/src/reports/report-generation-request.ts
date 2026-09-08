@@ -21,6 +21,11 @@
 
 import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
+// COMMERCIAL SUPERSESSION (2026-09-08) — the SHARED classifier for "this
+// terminal reason is one that a change of entitlement makes obsolete". Shared
+// so the writer here, the worker's denial path and the customer projection
+// cannot each hold their own list.
+import { isCommerciallyObsoleteTerminalReason } from "@proovra/shared";
 
 /**
  * Artifact kinds a request may name. Bounded because the processor branches on
@@ -155,12 +160,58 @@ export async function createReportGenerationRequest(
     select: { version: true },
   });
 
-  const idempotencyKey = buildReportGenerationIdempotencyKey({
+  const baseKey = buildReportGenerationIdempotencyKey({
     artifactType,
     evidenceId,
     baselineVersion: latestReport?.version ?? 0,
     forceRegenerate,
   });
+
+  /**
+   * COMMERCIAL SUPERSESSION (2026-09-08) — THE PERMANENT-LOCKOUT FIX.
+   *
+   * The key is anchored on the artifact version a request is trying to advance
+   * past, which is exactly right while the reason a request fails is technical.
+   * It is wrong for the one class of failure that a change of ENTITLEMENT
+   * resolves, and that produced a permanent product dead end:
+   *
+   *   1. a record on a plan without reports gets a request (a recovery sweep,
+   *      an OTS follow-up, an operator click);
+   *   2. the worker refuses it — `REPORT_NOT_INCLUDED_IN_PLAN`, non-retryable —
+   *      and the row goes FAILED_TERMINAL;
+   *   3. no report exists, so `baselineVersion` stays 0 forever;
+   *   4. the customer upgrades to a plan that DOES include reports;
+   *   5. every subsequent request computes the SAME key, collapses onto the
+   *      terminal row, and returns `already_terminal`. Operations reported it
+   *      to the operator as "Nothing to do — this has already completed."
+   *
+   * That record could never be given its report by any path in the product.
+   *
+   * The fix keeps durable idempotency and adds a SUPERSESSION ORDINAL, derived
+   * from state already in the database rather than from a clock: two concurrent
+   * callers compute the same ordinal and the unique index still elects one
+   * winner, while a genuinely new intent after a commercial change gets a
+   * genuinely new row. The old row is never rewritten and never deleted — it is
+   * the audit record of a refusal that really happened.
+   *
+   * ONLY commercial terminal reasons supersede. An integrity failure, a policy
+   * block or an exhausted technical budget stays terminal, because none of them
+   * is resolved by buying something.
+   */
+  let idempotencyKey = baseKey;
+  const priorAtBaseKey = await prisma.reportGenerationRequest.findUnique({
+    where: { idempotencyKey: baseKey },
+    select: { state: true, terminalReasonCode: true },
+  });
+  if (
+    priorAtBaseKey?.state === "FAILED_TERMINAL" &&
+    isCommerciallyObsoleteTerminalReason(priorAtBaseKey.terminalReasonCode)
+  ) {
+    const supersessions = await prisma.reportGenerationRequest.count({
+      where: { evidenceId, artifactType, idempotencyKey: { startsWith: `${baseKey}:s` } },
+    });
+    idempotencyKey = `${baseKey}:s${supersessions + 1}`.slice(0, 160);
+  }
 
   try {
     const created = await prisma.reportGenerationRequest.create({

@@ -744,6 +744,15 @@ export const COUNTER_NAMES = [
   "report_generation_enqueue_total",
   "report_generation_enqueue_failed_total",
   "report_generation_reconciled_total",
+  /*
+   * COMMERCIAL CLOSURE (2026-09-08) — generation refused BEFORE a row exists
+   * because the record's plan and funding do not include the output.
+   *
+   * Counted rather than silent because the number is a product signal, not an
+   * error signal: a rise means surfaces are offering a generate action they
+   * should not, and that is worth seeing without any incident being opened.
+   */
+  "report_generation_not_included_total",
   // Canonical transport client — one pair for every converged api producer.
   "canonical_enqueue_total",
   "canonical_enqueue_failed_total",

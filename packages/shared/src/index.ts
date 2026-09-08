@@ -242,6 +242,35 @@ export type { CustodyEventCategory } from "./custody.js";
 export type { EvidenceIntelligence } from "./evidence-intelligence.js";
 export { buildEvidenceLibraryIntelligenceSummary, EVIDENCE_READINESS_BOUNDARY } from "./evidence-intelligence.js";
 
+// COMMERCIAL + EVIDENCE OUTPUT LIFECYCLE CLOSURE (2026-09-08) — the pure
+// three-axis state machine for report/package lifecycle. Decides nothing
+// commercial; consumes the verdict of `resolveEvidenceOutputEntitlements`.
+export {
+  OUTPUT_COMMERCIAL_ELIGIBILITIES,
+  OUTPUT_INELIGIBILITY_REASONS,
+  OUTPUT_GENERATION_STATES,
+  OUTPUT_TERMINAL_REASON_CLASSES,
+  OUTPUT_ARTIFACT_AVAILABILITIES,
+  EVIDENCE_OUTPUT_STATES,
+  OUTPUT_ACTIONS,
+  projectReportRequestState,
+  classifyTerminalReason,
+  isCommerciallyObsoleteTerminalReason,
+  deriveEvidenceOutputState,
+  outputActionFor,
+} from "./evidence-output-lifecycle.js";
+export type {
+  OutputCommercialEligibility,
+  OutputIneligibilityReason,
+  OutputGenerationState,
+  OutputTerminalReasonClass,
+  OutputArtifactAvailability,
+  EvidenceOutputState,
+  EvidenceOutputAxes,
+  OutputAction,
+  PersistedReportRequestState,
+} from "./evidence-output-lifecycle.js";
+
 export {
   classifyCustodyEventType,
   isAccessCustodyEventType,

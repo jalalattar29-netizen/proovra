@@ -30,6 +30,16 @@ import {
   workspaceEvidenceWhere,
   type WorkspaceEvidenceScope,
 } from "@proovra/shared-runtime";
+// COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — the list derives its
+// lifecycle from the SAME shared state machine the per-record projection uses.
+import {
+  deriveEvidenceOutputState,
+  projectReportRequestState,
+  type EvidenceOutputState,
+  type OutputGenerationState,
+  type PersistedReportRequestState,
+} from "@proovra/shared";
+import { resolveEvidenceOutputEligibilityMany } from "../billing/evidence-output-eligibility.service.js";
 
 /** `skipped` = the caller did not ask for it. NOT a failure. */
 export type SectionStatus = "ok" | "degraded" | "unavailable" | "skipped";
@@ -166,28 +176,65 @@ export type ReportLifecycleFilter =
 // Lifecycle mapping (mirror of Phase 32.6.x artifact-status semantics)
 // ---------------------------------------------------------------------------
 
-function deriveReportState(args: {
-  evidenceStatus: string;
-  reportAvailable: boolean;
-}): ReportLifecycle {
-  if (args.reportAvailable) return "ready";
-  if (args.evidenceStatus === "SIGNED" || args.evidenceStatus === "REPORTED") {
-    return "pending";
+/**
+ * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — the list lifecycle is
+ * now the SAME derivation the per-record projection uses.
+ *
+ * What these two functions used to do: `reportAvailable ? "ready" : finalized ?
+ * "pending" : "not_requested"`. Absence meant pending, with no commercial input
+ * and no reference to whether generation had ever been requested. Three
+ * consequences, all of them live in production:
+ *
+ *   * every finalized record on a plan without reports read "pending" forever,
+ *     and the Reports page told the customer "Report generating — refresh
+ *     later" for the life of the record;
+ *   * `"failed"` was unreachable, so the page's `Retry generation` control —
+ *     gated on exactly that state — had never rendered for anybody;
+ *   * `"unavailable"` was declared and unreachable too, so the page had no way
+ *     to say the honest thing.
+ *
+ * They now take the canonical three axes and delegate to
+ * `deriveEvidenceOutputState`, so a row in the list and the same record's
+ * detail page cannot disagree.
+ */
+function toReportLifecycle(state: EvidenceOutputState): ReportLifecycle {
+  switch (state) {
+    case "READY":
+      return "ready";
+    case "QUEUED":
+    case "GENERATING":
+      return "pending";
+    case "RETRYABLE_FAILURE":
+    case "TERMINAL_FAILURE":
+      return "failed";
+    case "NOT_INCLUDED":
+      return "unavailable";
+    case "ELIGIBLE_NOT_GENERATED":
+    case "BLOCKED":
+      return "not_requested";
   }
-  return "not_requested";
 }
 
-function derivePackageState(args: {
-  evidenceStatus: string;
-  packageAvailable: boolean;
-  packageBlocked: boolean;
-}): PackageLifecycle {
-  if (args.packageAvailable) return "ready";
-  if (args.packageBlocked) return "blocked";
-  if (args.evidenceStatus === "SIGNED" || args.evidenceStatus === "REPORTED") {
-    return "pending";
+function toPackageLifecycle(
+  state: EvidenceOutputState,
+  blocked: boolean,
+): PackageLifecycle {
+  if (blocked && state !== "READY") return "blocked";
+  switch (state) {
+    case "READY":
+      return "ready";
+    case "QUEUED":
+    case "GENERATING":
+      return "pending";
+    case "RETRYABLE_FAILURE":
+    case "TERMINAL_FAILURE":
+      return "failed";
+    case "NOT_INCLUDED":
+      return "unavailable";
+    case "ELIGIBLE_NOT_GENERATED":
+    case "BLOCKED":
+      return "not_requested";
   }
-  return "not_requested";
 }
 
 function readPackageBlocked(metadata: unknown): {
@@ -378,7 +425,7 @@ export async function listWorkspaceArtifacts(input: {
     if (input.caseId) whereBase.caseLinks = { some: { caseId: input.caseId } };
     // The filter narrows the QUERY, so pagination, the total and the page all
     // describe the same population.
-    const lifecycleClause = lifecycleWhere(input.lifecycleFilter ?? "all");
+    const lifecycleClause = await lifecycleWhere(input.lifecycleFilter ?? "all");
     if (lifecycleClause) {
       (whereBase.AND as Prisma.EvidenceWhereInput[]).push(lifecycleClause);
     }
@@ -498,7 +545,8 @@ export async function listWorkspaceArtifacts(input: {
       artifacts = { status: "ok", items: [], nextCursor: null, total };
     } else {
       const evidenceIds = pageRows.map((r) => r.id);
-      const [reportRows, packageRows] = await Promise.all([
+      const [reportRows, packageRows, requestRows, eligibilityByEvidence] =
+        await Promise.all([
         prisma.report.findMany({
           where: { evidenceId: { in: evidenceIds } },
           orderBy: [{ evidenceId: "asc" }, { version: "desc" }],
@@ -519,12 +567,39 @@ export async function listWorkspaceArtifacts(input: {
             generatedAtUtc: true,
           },
         }),
+        /*
+         * AXIS 2 for the page, in ONE query. The newest durable generation
+         * request per record is what makes `failed` reachable at all — the
+         * derivation could not return it before, and the page's own retry
+         * control was gated on it.
+         */
+        prisma.reportGenerationRequest
+          .findMany({
+            where: { evidenceId: { in: evidenceIds } },
+            orderBy: [{ evidenceId: "asc" }, { createdAtUtc: "desc" }],
+            distinct: ["evidenceId"],
+            select: { evidenceId: true, state: true },
+          })
+          .catch(() => []),
+        /*
+         * AXIS 1 for the page. One scope resolution and one ledger read for
+         * the whole page — never per row.
+         */
+        resolveEvidenceOutputEligibilityMany({
+          evidenceIds,
+          // Workspace-scoped list: the commercial subject is the workspace,
+          // and the by-team branch resolves it from the workspace row.
+          teamId: input.teamId,
+        }).catch(() => new Map()),
       ]);
       const reportByEvidence = new Map(
         reportRows.map((r) => [r.evidenceId, r]),
       );
       const packageByEvidence = new Map(
         packageRows.map((p) => [p.evidenceId, p]),
+      );
+      const requestByEvidence = new Map(
+        requestRows.map((q) => [q.evidenceId, q]),
       );
 
       const items: ArtifactRow[] = pageRows.map((r) => {
@@ -533,15 +608,32 @@ export async function listWorkspaceArtifacts(input: {
         const { blocked, reason } = readPackageBlocked(
           r.verificationPackageMetadata,
         );
-        const reportState = deriveReportState({
-          evidenceStatus: String(r.status),
-          reportAvailable: report !== null,
-        });
-        const packageState = derivePackageState({
-          evidenceStatus: String(r.status),
-          packageAvailable: pkg !== null,
-          packageBlocked: blocked,
-        });
+        const finalized = r.status === "SIGNED" || r.status === "REPORTED";
+        const eligibility = eligibilityByEvidence.get(r.id) ?? null;
+        const request = requestByEvidence.get(r.id) ?? null;
+        const generation: OutputGenerationState = request
+          ? projectReportRequestState(
+              request.state as PersistedReportRequestState,
+            )
+          : "NOT_REQUESTED";
+
+        const reportState = toReportLifecycle(
+          deriveEvidenceOutputState({
+            eligibility: eligibility?.reportEligibility ?? "ELIGIBLE",
+            generation,
+            availability: report !== null ? "READY" : "NO_ARTIFACT",
+            finalized,
+          }),
+        );
+        const packageState = toPackageLifecycle(
+          deriveEvidenceOutputState({
+            eligibility: eligibility?.packageEligibility ?? "ELIGIBLE",
+            generation: blocked ? "BLOCKED" : generation,
+            availability: pkg !== null ? "READY" : "NO_ARTIFACT",
+            finalized,
+          }),
+          blocked,
+        );
         return {
           evidenceId: r.id,
           title: r.title ?? null,
@@ -617,28 +709,84 @@ export async function listWorkspaceArtifacts(input: {
  * `verificationPackageMetadata` JSON — so it is expressed as a JSON path
  * filter against the same column `readPackageBlocked` reads.
  */
-function lifecycleWhere(
+/**
+ * THE GENERATION-REQUEST ARM, AS AN ID SET.
+ *
+ * `ReportGenerationRequest` carries `evidence_id` as a plain column — there is
+ * no Prisma relation from `Evidence`, and adding one would mean a schema
+ * change and a foreign key for a read filter. The states are a small closed
+ * set and the population is already narrowed to one workspace's finalized
+ * records, so a bounded id lookup expresses the same predicate with no
+ * migration.
+ *
+ * Bounded deliberately: a filter is a page of results, not an export, and an
+ * unbounded `IN` list is how a filter becomes a table scan.
+ */
+const LIFECYCLE_REQUEST_ID_SCAN = 5000;
+
+async function evidenceIdsWithRequestState(
+  states: readonly string[],
+): Promise<string[]> {
+  try {
+    const rows = await prisma.reportGenerationRequest.findMany({
+      where: { state: { in: [...states] } },
+      orderBy: { createdAtUtc: "desc" },
+      take: LIFECYCLE_REQUEST_ID_SCAN,
+      select: { evidenceId: true },
+      distinct: ["evidenceId"],
+    });
+    return rows.map((r) => r.evidenceId);
+  } catch {
+    return [];
+  }
+}
+
+async function lifecycleWhere(
   filter: ReportLifecycleFilter,
-): Prisma.EvidenceWhereInput | null {
+): Promise<Prisma.EvidenceWhereInput | null> {
   switch (filter) {
     case "all":
       return null;
     case "report_ready":
       return { reports: { some: {} } };
-    case "report_pending":
-      return { reports: { none: {} } };
-    case "report_failed":
-      // No persisted failure state exists for a report; the derivation can
-      // never return it inside this population. Kept total, matching nothing,
-      // rather than silently widening to everything.
-      return { id: { in: [] } };
+    case "report_pending": {
+      /*
+       * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — "pending" is no
+       * longer "no artifact row". It is "a durable generation request exists
+       * and has not finished", which is what the word means and what the
+       * derivation now returns. Absence with no request is either
+       * `eligible_not_generated` or `unavailable`, and neither is pending.
+       */
+      const ids = await evidenceIdsWithRequestState(["QUEUED", "PROCESSING"]);
+      return { reports: { none: {} }, id: { in: ids } };
+    }
+    case "report_failed": {
+      /*
+       * REACHABLE NOW. The note that stood here — "no persisted failure state
+       * exists for a report" — was true of the DERIVATION and false of the
+       * database: `ReportGenerationRequest` has carried FAILED_RETRYABLE and
+       * FAILED_TERMINAL since Point 5, and nothing outside the worker read
+       * them. The page's own `Retry generation` control was gated on this
+       * state, so it had never rendered for anybody.
+       */
+      const ids = await evidenceIdsWithRequestState([
+        "FAILED_RETRYABLE",
+        "FAILED_TERMINAL",
+      ]);
+      return { reports: { none: {} }, id: { in: ids } };
+    }
     case "package_ready":
       return { verificationPackages: { some: {} } };
-    case "package_pending":
+    case "package_pending": {
+      // Same correction as `report_pending`: the package is produced inside
+      // the report job, so its pending-ness is that job's request row.
+      const ids = await evidenceIdsWithRequestState(["QUEUED", "PROCESSING"]);
       return {
         verificationPackages: { none: {} },
         NOT: { verificationPackageMetadata: { path: ["blocked"], equals: true } },
+        id: { in: ids },
       };
+    }
     case "package_blocked":
       return {
         verificationPackages: { none: {} },

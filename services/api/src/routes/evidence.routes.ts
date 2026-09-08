@@ -210,6 +210,9 @@ import { readBillingOverview } from "../services/billing-overview.service.js";
 // directly for the ONE subject each caller is about, instead of scanning an
 // account-wide rollup to find it.
 import { resolveCommercialContext } from "../services/billing/commercial-context.service.js";
+// COMMERCIAL CLOSURE (2026-09-08) — the ONE record-aware output-eligibility
+// resolver (effective plan + this record's funding).
+import { resolveEvidenceOutputEligibility } from "../services/billing/evidence-output-eligibility.service.js";
 import { getWorkspaceUsage } from "../services/workspace-usage.service.js";
 import { getPlanCapabilities } from "../services/plan-catalog.service.js";
 import { createAiProvider } from "../services/ai/ai-provider.js";
@@ -4219,13 +4222,32 @@ async function resolveWorkspaceCapabilitySnapshot(params: {
     )
   ).scope;
 
-  const [usage, subscription] = await Promise.all([
+  const [usage, subscription, recordEligibility] = await Promise.all([
     getWorkspaceUsage(scope),
     prisma.subscription.findFirst({
       where: { userId: params.ownerUserId, teamId },
       orderBy: { createdAt: "desc" },
       select: { status: true },
     }),
+    /*
+     * COMMERCIAL CLOSURE (2026-09-08) — THE OUTPUT FLAGS BELONG TO THE RECORD.
+     *
+     * `reportsIncluded` here was `getPlanCapabilities(scope.plan).reportsIncluded`
+     * — the plan alone. The browser then used it as a hard precondition on the
+     * download handlers, so a customer who had bought a €5 evidence credit was
+     * refused the report that credit paid for: an evidence-credit buyer sits on
+     * the FREE plan by design, and the entitlement belongs to the RECORD.
+     *
+     * The same flag with the same name now answers the question it was always
+     * being asked. `resolveEvidenceOutputEligibility` adds no policy — it feeds
+     * plan AND funding to `resolveEvidenceOutputEntitlements`, which is the one
+     * authority the worker has always used.
+     */
+    resolveEvidenceOutputEligibility({
+      evidenceId: params.evidence.id,
+      ownerUserId: params.evidence.ownerUserId ?? params.ownerUserId,
+      teamId,
+    }).catch(() => null),
   ]);
 
   const caps = getPlanCapabilities(scope.plan);
@@ -4238,9 +4260,25 @@ async function resolveWorkspaceCapabilitySnapshot(params: {
       (shared ? "Team Workspace" : "Personal Workspace"),
     plan: scope.plan,
     effectivePlan: scope.plan,
-    reportsIncluded: Boolean(caps.reportsIncluded),
-    verificationPackageIncluded: Boolean(caps.verificationPackageIncluded),
-    publicVerifyIncluded: Boolean(caps.publicVerifyIncluded),
+    reportsIncluded: Boolean(
+      recordEligibility?.reportsIncluded ?? caps.reportsIncluded,
+    ),
+    verificationPackageIncluded: Boolean(
+      recordEligibility?.verificationPackageIncluded ??
+        caps.verificationPackageIncluded,
+    ),
+    publicVerifyIncluded: Boolean(
+      recordEligibility?.publicVerifyIncluded ?? caps.publicVerifyIncluded,
+    ),
+    /**
+     * The PLAN's own answer, separately, so a surface that genuinely asks a
+     * workspace-level question ("should this workspace see report features at
+     * all") is not forced to read a per-record flag.
+     */
+    planReportsIncluded: Boolean(caps.reportsIncluded),
+    planVerificationPackageIncluded: Boolean(caps.verificationPackageIncluded),
+    /** How this record's completion was funded. PLAN | EVIDENCE_CREDIT. */
+    recordFunding: recordEligibility?.funding ?? null,
     billingStatus: subscription?.status ?? null,
     storageUsedLabel: usage.storageLabel ?? null,
     storageLimitLabel: usage.storageLimitLabel ?? null,
@@ -4544,6 +4582,59 @@ function buildSourceContext(params: {
   };
 }
 
+/**
+ * Reviewer-alert copy per output state.
+ *
+ * `READY` and `NOT_INCLUDED` are deliberately absent: neither needs a
+ * reviewer's attention. `NOT_INCLUDED` in particular is the product working as
+ * sold, and an alert panel that says so on every Free record is noise that
+ * trains reviewers to ignore the panel.
+ */
+const OUTPUT_ALERT_COPY: Partial<
+  Record<
+    import("@proovra/shared").EvidenceOutputState,
+    {
+      severity: "info" | "warning";
+      label: string;
+      detail: (noun: string) => string;
+    }
+  >
+> = {
+  QUEUED: {
+    severity: "info",
+    label: "queued",
+    detail: (noun) => `The ${noun} is queued for generation.`,
+  },
+  GENERATING: {
+    severity: "info",
+    label: "generating",
+    detail: (noun) => `The ${noun} is being generated now.`,
+  },
+  ELIGIBLE_NOT_GENERATED: {
+    severity: "info",
+    label: "not generated yet",
+    detail: (noun) =>
+      `Your current plan includes a ${noun} for this record. Generate one when a fixed review artifact is required.`,
+  },
+  RETRYABLE_FAILURE: {
+    severity: "warning",
+    label: "generation failed",
+    detail: (noun) =>
+      `The last attempt to build the ${noun} failed and can be retried.`,
+  },
+  TERMINAL_FAILURE: {
+    severity: "warning",
+    label: "generation stopped",
+    detail: (noun) =>
+      `The ${noun} could not be produced and the attempt was not retried. Open the record's Artifacts tab for the reason.`,
+  },
+  BLOCKED: {
+    severity: "warning",
+    label: "blocked",
+    detail: (noun) => `${noun} generation is blocked by a policy decision.`,
+  },
+};
+
 function buildResolvedReviewerAlerts(params: {
   evidenceIntelligence: EvidenceIntelligence | null;
   publicVerificationSummary: ReviewWorkspacePublicVerificationSummary;
@@ -4611,17 +4702,31 @@ function buildResolvedReviewerAlerts(params: {
       break;
   }
 
-  if (!params.artifactStatus.report.available) {
-    operationalAlerts.push({
-      severity: params.artifactStatus.report.pending ? ("info" as const) : ("warning" as const),
-      label: params.artifactStatus.report.pending
-        ? "Report generation pending"
-        : "Report not generated",
-      detail:
-        params.artifactStatus.report.pending
-          ? "A fixed report artifact is still being generated."
-          : "Generate a PDF report when a fixed review artifact is required.",
-    });
+  /**
+   * COMMERCIAL CLOSURE (2026-09-08) — the alert follows the canonical output
+   * STATE, not the absence of a row.
+   *
+   * These two blocks read `available` / `pending`, and `pending` used to mean
+   * "no artifact exists". On a Free record — which is never enqueued, because
+   * Free does not include these outputs — that produced "A fixed report
+   * artifact is still being generated" as a permanent reviewer alert. The
+   * reviewer was told to wait for work that had not been scheduled and never
+   * would be.
+   *
+   * `NOT_INCLUDED` is not an alert at all: the product is working as sold, and
+   * an advisory panel is not the place to advertise. The Artifacts tab states
+   * it plainly, once.
+   */
+  const reportOutput = params.artifactStatus.outputs.report;
+  if (reportOutput.state !== "READY" && reportOutput.state !== "NOT_INCLUDED") {
+    const alert = OUTPUT_ALERT_COPY[reportOutput.state];
+    if (alert) {
+      operationalAlerts.push({
+        severity: alert.severity,
+        label: `Report — ${alert.label}`,
+        detail: alert.detail("report"),
+      });
+    }
   }
 
   if (params.artifactStatus.verificationPackage.blocked) {
@@ -4632,19 +4737,21 @@ function buildResolvedReviewerAlerts(params: {
         params.artifactStatus.verificationPackage.blockedReason ??
         "Verification package generation is blocked by governance policy.",
     });
-  } else if (!params.artifactStatus.verificationPackage.available) {
-    operationalAlerts.push({
-      severity: params.artifactStatus.verificationPackage.pending
-        ? ("info" as const)
-        : ("warning" as const),
-      label: params.artifactStatus.verificationPackage.pending
-        ? "Verification package pending"
-        : "Verification package not generated",
-      detail:
-        params.artifactStatus.verificationPackage.pending
-          ? "The verification package is still being generated."
-          : "Generate a verification package for offline or external review when needed.",
-    });
+  } else {
+    const packageOutput = params.artifactStatus.outputs.verificationPackage;
+    if (
+      packageOutput.state !== "READY" &&
+      packageOutput.state !== "NOT_INCLUDED"
+    ) {
+      const alert = OUTPUT_ALERT_COPY[packageOutput.state];
+      if (alert) {
+        operationalAlerts.push({
+          severity: alert.severity,
+          label: `Verification package — ${alert.label}`,
+          detail: alert.detail("verification package"),
+        });
+      }
+    }
   }
 
   return operationalAlerts;
@@ -8936,6 +9043,9 @@ const timestampDigestMatches: boolean | null =
           evidenceId: id,
           evidenceStatus: evidence.status,
           evidenceTeamId: evidence.teamId ?? null,
+          // COMMERCIAL CLOSURE (2026-09-08) — see the sibling call on
+          // /artifacts/status: eligibility is a per-RECORD question.
+          evidenceOwnerUserId: evidence.ownerUserId ?? null,
           evidenceVerificationPackageMetadata:
             evidence.verificationPackageMetadata ?? null,
         });
@@ -10130,12 +10240,17 @@ if (
       // (personal workspace, no governance context)".
       // Phase 32.6.1: pass verificationPackageMetadata so the helper
       // can surface gate-denial state (blocked vs pending vs failed).
+      // COMMERCIAL CLOSURE (2026-09-08): the RECORD's owner, so the helper can
+      // resolve commercial eligibility from the effective plan AND this
+      // record's own funding. Without it a Free record reported "pending"
+      // forever and a credit-funded one reported "not included".
       const artifactStatus = await buildEvidenceArtifactStatus({
         evidenceId: id,
         evidenceStatus: evidenceRecord.status as
           | prismaPkg.EvidenceStatus
           | null,
         evidenceTeamId: evidenceRecord.teamId ?? null,
+        evidenceOwnerUserId: evidenceRecord.ownerUserId ?? null,
         evidenceVerificationPackageMetadata:
           evidenceRecord.verificationPackageMetadata ?? null,
       });
@@ -11027,6 +11142,7 @@ displayName: resolvedDisplayName,
           select: {
             status: true,
             teamId: true,
+            ownerUserId: true,
             verificationPackageMetadata: true,
           },
         });
@@ -11059,6 +11175,37 @@ displayName: resolvedDisplayName,
             message:
               "Verification package generation was blocked by governance policy.",
           });
+        }
+        /*
+         * COMMERCIAL CLOSURE (2026-09-08) — a package that will never be built
+         * is not "pending".
+         *
+         * This branch answered `202 verification_package_pending — being
+         * generated` for every finalized record with no package row. On a plan
+         * that does not include verification packages nothing was ever
+         * enqueued, so that response was a permanent falsehood, and the
+         * comment above this block had already named the state ("intentionally
+         * never generated") without any branch able to produce it.
+         *
+         * `409` is the status the rest of the commercial vocabulary uses for a
+         * refusal that is about the state of the resource rather than the
+         * request. Eligibility is asked per RECORD, so a credit-funded record
+         * on a FREE account is correctly still pending, not excluded.
+         */
+        if (finalized && evidenceForState?.ownerUserId) {
+          const outputEligibility = await resolveEvidenceOutputEligibility({
+            evidenceId: id,
+            ownerUserId: evidenceForState.ownerUserId,
+            teamId: evidenceForState.teamId ?? null,
+          }).catch(() => null);
+          if (outputEligibility?.verificationPackageIncluded === false) {
+            return reply.code(409).send({
+              code: "verification_package_not_included",
+              reason: outputEligibility.ineligibilityReason,
+              message:
+                "Verification packages are not included for this evidence record on its current plan.",
+            });
+          }
         }
         if (finalized) {
           // Worker is still building it. Tell the client to poll the

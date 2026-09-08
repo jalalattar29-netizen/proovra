@@ -254,6 +254,45 @@ export function resolveEffectiveContractEvidenceCap(input: {
 }
 
 /**
+ * IS THE MONTHLY EVIDENCE CAP A HARD CONTRACTUAL MAXIMUM, OR AN INCLUDED
+ * ALLOWANCE THAT PURCHASED CREDITS MAY EXTEND?
+ *
+ * ---------------------------------------------------------------------------
+ * THE DECISION, AND WHY IT IS STATED HERE RATHER THAN INFERRED
+ * ---------------------------------------------------------------------------
+ * `resolveEffectiveContractEvidenceCap` returns one number from two very
+ * different sources, and the sources mean different things:
+ *
+ *   CATALOG   `PLAN_CAPABILITIES.TEAM.maxEvidenceRecordsPerMonth` — 500 in any
+ *             rolling 30 days. This is an INCLUDED ALLOWANCE. PRO's lifetime
+ *             cap has always fallen through to the evidence-credit wallet when
+ *             exhausted, and there is no commercial reason for TEAM to behave
+ *             differently just because its allowance is measured monthly. That
+ *             asymmetry left TEAM customers holding paid, unspendable credits.
+ *
+ *   CONTRACT  `EnterpriseContract.evidence_records_per_month` — a NEGOTIATED
+ *             figure. A consumer credit purchase is not a contract amendment,
+ *             and silently letting a €5 wallet raise an agreed capacity would
+ *             be the platform deciding a commercial term on the customer's
+ *             behalf.
+ *
+ * The Enterprise contract model has no "paid overflow permitted" field today.
+ * We do NOT invent one, and we do not guess: silence resolves to the SAFE
+ * reading, which is that a contracted maximum is hard. If Enterprise overflow
+ * is ever sold, it becomes an explicit contract field and this function reads
+ * it — one place, one decision.
+ */
+export function contractEvidenceCapIsHardMaximum(input: {
+  contract: EnterpriseContractLimits | null | undefined;
+}): boolean {
+  return (
+    input.contract?.contractGovernsCapability === true &&
+    input.contract?.evidenceRecordsPerMonth !== null &&
+    input.contract?.evidenceRecordsPerMonth !== undefined
+  );
+}
+
+/**
  * The effective monthly AI-operation cap. `null` = contract-managed / no cap.
  */
 export function resolveEffectiveContractAiCap(input: {

@@ -43,6 +43,9 @@ import {
   type OperationsCounters,
   type ReviewQueueCounters,
 } from "./command-center-counters.js";
+// COMMERCIAL CLOSURE (2026-09-08) — the ONE narrowing that keeps a commercial
+// product decision out of the operational backlog counters.
+import { outputEntitledEvidenceWhere } from "../billing/evidence-output-eligibility.service.js";
 import {
   caseScopeFor,
   evidenceScopeFor,
@@ -523,14 +526,30 @@ const ROUTING_CATALOG: Record<
   // deliberately neutral: a timestamp-provider failure means the
   // RFC 3161 / OpenTimestamps anchoring step did not complete; it is
   // NOT a claim that the evidence content is invalid or tampered.
+  /*
+   * TSA — THERE IS NO RETRY, AND THIS CATALOG MAY NOT IMPLY ONE.
+   *
+   * The recommended action read "retry anchoring if appropriate", and no such
+   * action exists anywhere in the product. That absence is deliberate and is
+   * the correct behaviour: a timestamp proves a record existed at a moment, so
+   * re-contacting the authority now would mint a token whose genTime is later
+   * than the evidence it certifies, and presenting that as the record's
+   * timestamp would assert something untrue. `remediation-registry.ts`
+   * classifies this condition `NO_SAFE_REMEDIATION_AUTHORITY` and offers no
+   * button; there is no TSA queue in the canonical registry and no route.
+   *
+   * The two catalogs disagreed, and this one was the wrong side of the
+   * disagreement: it advised an operator to do something the platform has
+   * deliberately made impossible. They now say the same thing.
+   */
   tsa_failed: {
     reasonCode: "TSA_FAILED",
     affectedDomain: "evidence_pipeline",
     affectedEntityType: "evidence",
     operationalExplanation:
-      "Trusted timestamp (RFC 3161) anchoring did not complete for this evidence.",
+      "Trusted timestamp (RFC 3161) anchoring did not complete when this evidence was finalized.",
     recommendedAction:
-      "Open the evidence to review the timestamp status; retry anchoring if appropriate.",
+      "Open the evidence to review the timestamp status. A timestamp cannot be obtained after the fact — the record remains valid evidence, and its RFC 3161 timestamp is simply absent. Contact support if the failure needs investigating.",
     primaryRoute: "/evidence",
     secondaryRoute: "/ops/observability",
     sourceTable: "Evidence",
@@ -538,6 +557,13 @@ const ROUTING_CATALOG: Record<
     requiredRoles: ["OWNER", "ADMIN", "MEMBER"],
     escalationPath: "Workspace owner",
   },
+  /*
+   * OTS is the opposite case and the wording keeps them apart. An
+   * OpenTimestamps proof anchors on Bitcoin's schedule, so resuming the upgrade
+   * is real, safe and offered — `ots.resume_anchoring` in the remediation
+   * registry. It asks the pipeline to try again; it cannot make an anchor
+   * appear, and the copy says so rather than promising one.
+   */
   ots_failed: {
     reasonCode: "OTS_FAILED",
     affectedDomain: "evidence_pipeline",
@@ -545,7 +571,7 @@ const ROUTING_CATALOG: Record<
     operationalExplanation:
       "OpenTimestamps public anchoring did not complete for this evidence.",
     recommendedAction:
-      "Open the evidence to review the OpenTimestamps status; retry anchoring if appropriate.",
+      "Open the evidence to review the OpenTimestamps status, or resume anchoring from Operations. Anchoring completes on the public chain's schedule, not ours.",
     primaryRoute: "/evidence",
     secondaryRoute: "/ops/observability",
     sourceTable: "Evidence",
@@ -2985,9 +3011,19 @@ export async function buildCommandCenter(input: {
    * round trips; `detectWorkspaceScope` above already establishes the same
    * shape of dependency.
    */
+  /*
+   * COMMERCIAL CLOSURE (2026-09-08) — the output-entitled narrowing for the
+   * two artifact backlogs, resolved ONCE beside the counters that consume it.
+   * `null` on a plan that includes reports, which is the common case and adds
+   * nothing to the query.
+   */
+  const outputEntitledWhere = await outputEntitledEvidenceWhere({
+    teamId: input.teamId,
+  });
+
   const [counters, evidenceCounters, opsCounters] = await Promise.all([
     loadReviewQueueCounters(input.teamId, reviewQueueWindow()),
-    loadEvidenceCounters(pop.evidence as never),
+    loadEvidenceCounters(pop.evidence as never, new Date(), outputEntitledWhere),
     loadOperationsCounters(input.teamId),
   ]);
 

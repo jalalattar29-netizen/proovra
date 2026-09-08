@@ -56,6 +56,9 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { workspaceIncidentWhereWith } from "../observability/incident-scope.js";
+// COMMERCIAL CLOSURE (2026-09-08) — the ONE narrowing that keeps a commercial
+// product decision out of the artifact-backlog conditions.
+import { outputEntitledEvidenceWhere } from "../billing/evidence-output-eligibility.service.js";
 
 // ===========================================================================
 // THRESHOLDS — every one is real platform state
@@ -126,6 +129,22 @@ export type ProbeContext = {
    * another owner's records.
    */
   readonly evidenceWhere: Prisma.EvidenceWhereInput;
+  /**
+   * COMMERCIAL CLOSURE (2026-09-08) — the OUTPUT-ENTITLED narrowing for the two
+   * artifact-backlog probes.
+   *
+   * `pipeline.report_backlog` counted `Evidence(status=SIGNED,
+   * latestReportVersion=null)` with no commercial input. On a plan that does
+   * not include reports nothing is ever enqueued, so every finalized record
+   * counted toward a backlog that could escalate to HIGH at 20 and CRITICAL at
+   * 100 — an operational condition raised entirely by a commercial decision the
+   * customer made on purpose.
+   *
+   * `null` means "the plan includes them, count everything", which is the
+   * common case and adds nothing to the query. It is resolved once per sweep
+   * beside the evidence scope, never per probe.
+   */
+  readonly outputEntitledWhere: Prisma.EvidenceWhereInput | null;
 };
 
 /** Build a probe context, resolving the canonical evidence scope once. */
@@ -135,6 +154,7 @@ export async function buildProbeContext(input: {
   client?: PrismaClient;
   now?: Date;
   evidenceWhere?: Prisma.EvidenceWhereInput;
+  outputEntitledWhere?: Prisma.EvidenceWhereInput | null;
 }): Promise<ProbeContext> {
   const client = input.client ?? defaultPrisma;
   return {
@@ -144,6 +164,10 @@ export async function buildProbeContext(input: {
     now: input.now ?? new Date(),
     evidenceWhere:
       input.evidenceWhere ?? (await workspaceEvidenceWhere(input.teamId, client)),
+    outputEntitledWhere:
+      input.outputEntitledWhere !== undefined
+        ? input.outputEntitledWhere
+        : await outputEntitledEvidenceWhere({ teamId: input.teamId }),
   };
 }
 
@@ -209,11 +233,15 @@ const AGGREGATE_SPECS: readonly AggregateSpec[] = [
     escalationComparison: "GTE",
     runbookSlug: "report-pipeline",
     describe: () =>
-      `Signed evidence records in this workspace have no generated report. Source: Evidence(status=SIGNED, latestReportVersion=null). HIGH at ${REPORT_BACKLOG_HIGH}, CRITICAL at ${REPORT_BACKLOG_CRITICAL}.`,
+      `Signed evidence records that are entitled to a report in this workspace have none. Source: Evidence(status=SIGNED, latestReportVersion=null), narrowed to records whose plan or funding includes a report. HIGH at ${REPORT_BACKLOG_HIGH}, CRITICAL at ${REPORT_BACKLOG_CRITICAL}.`,
     count: async (ctx) => ({
       value: await ctx.client.evidence.count({
         where: {
-          AND: [ctx.evidenceWhere, { status: "SIGNED", latestReportVersion: null }],
+          AND: [
+            ctx.evidenceWhere,
+            ...(ctx.outputEntitledWhere ? [ctx.outputEntitledWhere] : []),
+            { status: "SIGNED", latestReportVersion: null },
+          ],
         },
       }),
     }),
@@ -233,12 +261,13 @@ const AGGREGATE_SPECS: readonly AggregateSpec[] = [
     escalationComparison: "GTE",
     runbookSlug: "package-pipeline",
     describe: () =>
-      `Reported evidence records in this workspace have no verification package. Source: Evidence(status=REPORTED, verificationPackageVersion=null). HIGH at ${PACKAGE_BACKLOG_HIGH}, CRITICAL at ${PACKAGE_BACKLOG_CRITICAL}.`,
+      `Reported evidence records that are entitled to a verification package have none. Source: Evidence(status=REPORTED, verificationPackageVersion=null), narrowed to records whose plan or funding includes a package. HIGH at ${PACKAGE_BACKLOG_HIGH}, CRITICAL at ${PACKAGE_BACKLOG_CRITICAL}.`,
     count: async (ctx) => ({
       value: await ctx.client.evidence.count({
         where: {
           AND: [
             ctx.evidenceWhere,
+            ...(ctx.outputEntitledWhere ? [ctx.outputEntitledWhere] : []),
             { status: "REPORTED", verificationPackageVersion: null },
           ],
         },

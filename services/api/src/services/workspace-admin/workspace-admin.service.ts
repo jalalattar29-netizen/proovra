@@ -27,6 +27,20 @@ import {
   workspaceCaseWhere,
   workspaceEvidenceWhere,
 } from "@proovra/shared-runtime";
+/**
+ * COMMERCIAL TRUTH CLOSURE (2026-09-08) — THE one effective-plan authority.
+ *
+ * This aggregator projected `String(team.billingPlan)` as "Plan". That column
+ * has exactly one production writer — Enterprise provisioning — so a Personal
+ * Workspace reads `FREE` for the life of the account no matter what its owner
+ * pays. A PRO customer opening Workspace Administration was told they were on
+ * Free by their own product.
+ *
+ * The effective plan is a DECISION (`resolveWorkspaceEffectivePlan`, reached
+ * through `resolveCommercialContext`), not a column. The raw column survives
+ * on the envelope under a name that says what it is.
+ */
+import { resolveCommercialContext } from "../billing/commercial-context.service.js";
 
 export type SectionStatus = "ok" | "degraded" | "unavailable" | "not_applicable";
 
@@ -53,7 +67,18 @@ export type WorkspaceAdminEnvelope = {
     memberCount: number;
     adminCount: number;
     pendingInviteCount: number;
-    plan: string;
+    /**
+     * THE customer-facing commercial plan for this workspace, resolved by
+     * `resolveCommercialContext`. Never a persisted column.
+     */
+    effectivePlan: string;
+    /**
+     * The RAW persisted `Team.billing_plan`. Diagnostics and Enterprise
+     * provisioning introspection ONLY — it is meaningless on a Personal
+     * Workspace, whose commercial subject is the owner's entitlement. Never
+     * render this as "Plan".
+     */
+    persistedBillingPlan: string;
     billingStatus: string;
     createdAt: string;
   };
@@ -110,7 +135,10 @@ export type WorkspaceAdminEnvelope = {
     billing: {
       status: SectionStatus;
       data: {
+        /** Effective commercial plan — identical to `workspace.effectivePlan`. */
         plan: string;
+        /** Raw persisted column. Diagnostics only; never labelled "Plan". */
+        persistedBillingPlan: string;
         status: string;
         includedSeats: number;
         activeMembers: number;
@@ -178,6 +206,31 @@ export async function buildWorkspaceAdmin(input: {
   });
   if (!team) {
     return { notFound: true };
+  }
+
+  /**
+   * THE effective plan, from the one authority.
+   *
+   * `WORKSPACE` is the honest subject: this route is reached by workspace id
+   * before its kind is known, and the resolver classifies it and returns the
+   * verdict. Resolution failure degrades to the raw column rather than
+   * failing the whole envelope — the aggregator's contract is that a section
+   * may be unavailable, never that browsing throws — but the fallback is
+   * recorded so a reader can tell a resolved plan from a fallback one.
+   */
+  let effectivePlan = String(team.billingPlan);
+  let effectivePlanResolved = false;
+  try {
+    const commercial = await resolveCommercialContext({
+      type: "WORKSPACE",
+      teamId: team.id,
+      requesterUserId: input.userId,
+    });
+    effectivePlan = String(commercial.plan);
+    effectivePlanResolved = true;
+  } catch {
+    // Leave the raw column as the degraded value; `billing.status` below
+    // reports `degraded` so the surface can say so rather than assert it.
   }
 
   const [memberCount, adminCount, pendingInviteCount] = await Promise.all([
@@ -407,9 +460,11 @@ export async function buildWorkspaceAdmin(input: {
   };
   try {
     billing = {
-      status: "ok",
+      // A plan we could not resolve is DEGRADED, not "ok" with a wrong number.
+      status: effectivePlanResolved ? "ok" : "degraded",
       data: {
-        plan: String(team.billingPlan),
+        plan: effectivePlan,
+        persistedBillingPlan: String(team.billingPlan),
         status: String(team.billingStatus),
         includedSeats: team.includedSeats,
         activeMembers: memberCount,
@@ -511,7 +566,8 @@ export async function buildWorkspaceAdmin(input: {
       memberCount,
       adminCount,
       pendingInviteCount,
-      plan: String(team.billingPlan),
+      effectivePlan,
+      persistedBillingPlan: String(team.billingPlan),
       billingStatus: String(team.billingStatus),
       createdAt: team.createdAt.toISOString(),
     },

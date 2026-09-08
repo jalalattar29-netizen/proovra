@@ -5,6 +5,8 @@ import {
   EVIDENCE_CREDIT_PRODUCT,
   resolveEvidenceOutputEntitlements,
   resolvePersonalEvidenceAdmission,
+  // COMMERCIAL CLOSURE (2026-09-08) — the ONE intake rule (plan OR wallet).
+  resolveWorkspaceIntakeEntitlement,
   type EvidenceFundingSource,
 } from "@proovra/shared-billing";
 import {
@@ -20,6 +22,10 @@ import {
 } from "./workspace-billing.service.js";
 import { resolveCommercialContext } from "./billing/commercial-context.service.js";
 import {
+  // COMMERCIAL CLOSURE (2026-09-08) — the ONE statement of "is this monthly cap
+  // an included allowance a purchased credit may extend, or a negotiated hard
+  // maximum a consumer purchase may not amend?"
+  contractEvidenceCapIsHardMaximum,
   resolveEffectiveContractAiCap,
   resolveEffectiveContractEvidenceCap,
   resolveEffectiveExternalReviewIncluded,
@@ -197,16 +203,63 @@ export async function assertWorkspaceAllowsEvidenceCreation(
           createdSince: since,
         });
 
-    if (monthlyCount >= contractedMonthlyCap) {
+    if (monthlyCount < contractedMonthlyCap) return;
+
+    /*
+     * ---------------------------------------------------------------------
+     * THE ALLOWANCE IS EXHAUSTED. WHETHER THAT IS THE END DEPENDS ON WHERE THE
+     * NUMBER CAME FROM.
+     * ---------------------------------------------------------------------
+     * This used to throw unconditionally, and that made TEAM the only plan
+     * whose customers could hold paid, unspendable evidence credits: PRO's
+     * lifetime cap has always fallen through to the wallet, TEAM's rolling one
+     * returned before the wallet was ever consulted. The two allowances differ
+     * in how they are MEASURED, not in what a purchased credit is worth.
+     *
+     * An ENTERPRISE contract is the opposite case, and it is not symmetric.
+     * `evidence_records_per_month` there is a negotiated capacity; a consumer
+     * credit purchase is not a contract amendment, and letting a €5 wallet
+     * raise an agreed maximum would be the platform amending a contract on the
+     * customer's behalf. `contractEvidenceCapIsHardMaximum` states that
+     * distinction once, and resolves silence to the safe reading.
+     */
+    if (contractEvidenceCapIsHardMaximum({ contract: scope.contractLimits })) {
       const err: Error & { statusCode?: number; code?: string } = new Error(
-        "Monthly evidence-record limit reached for current plan"
+        "Contracted evidence-record capacity reached for this organization",
       );
       err.statusCode = 409;
       err.code = "EVIDENCE_RECORD_MONTHLY_LIMIT_REACHED";
       throw err;
     }
 
-    return;
+    /*
+     * A CATALOG allowance. The SAME wallet rule PRO already uses, through the
+     * SAME pure policy — never a second, TEAM-specific credit algorithm.
+     *
+     * `effectiveLifetimeRecordCap: 0` is how the rolling allowance is expressed
+     * to a lifetime-shaped policy: the monthly allowance is already spent, so
+     * the plan covers nothing more right now, and admission falls to the
+     * wallet. `currentRecordCount: 0` keeps the comparison about that fact and
+     * not about a lifetime total the plan does not cap.
+     */
+    const monthlyAdmission = resolvePersonalEvidenceAdmission({
+      plan: scope.plan,
+      currentRecordCount: 0,
+      effectiveLifetimeRecordCap: 0,
+      availableEvidenceCredits: Math.max(0, scope.credits ?? 0),
+    });
+
+    if (monthlyAdmission.allowed) return;
+
+    throw new DomainError("Monthly evidence-record limit reached", {
+      httpStatus: 409,
+      publicCode: "EVIDENCE_RECORD_MONTHLY_LIMIT_REACHED",
+      publicMessage:
+        "You have used the records included in your plan for the last 30 days. Existing records remain available — buy evidence credits to continue now, or wait for the window to roll forward.",
+      reportability: "EXPECTED_DENIAL",
+      severity: "info",
+      metadata: { plan: String(scope.plan), limitKind: "evidence_records_monthly" },
+    });
   }
 
   if (scope.billingShape === "SHARED") {
@@ -422,11 +475,28 @@ export async function assertWorkspaceAllowsReport(scope: WorkspaceScope) {
 export async function assertWorkspaceAllowsIntake(scope: WorkspaceScope) {
   // §9.5 — bounded-lifecycle gate (fail closed when grace expired/cancelled/ambiguous).
   assertCommercialLifecycleAllowsPaidMutation(scope);
-  const caps = getPlanCapabilities(scope.plan);
 
-  if (!caps.intakeIncluded) {
+  /*
+   * COMMERCIAL CLOSURE (2026-09-08) — the plan is no longer the only way in.
+   *
+   * `getPlanCapabilities(scope.plan).intakeIncluded` refused every real
+   * Pay-per-evidence customer, because a credit buyer sits on FREE by design
+   * and FREE excludes intake — while Pricing sells intake links as part of
+   * Pay-per-evidence. The rule now lives in ONE pure policy
+   * (`resolveWorkspaceIntakeEntitlement`) and the wallet is a legitimate
+   * source. This gate supplies its inputs; it decides nothing itself.
+   */
+  const intake = resolveWorkspaceIntakeEntitlement({
+    plan: scope.plan,
+    billingShape: scope.billingShape,
+    availableEvidenceCredits: Math.max(0, scope.credits ?? 0),
+  });
+
+  if (!intake.intakeIncluded) {
     const err: Error & { statusCode?: number; code?: string } = new Error(
-      "Secure intake (intake links and submission requests) is not included in the current plan"
+      // The remedy is named, because on FREE there are two of them and the
+      // cheaper one is the credit.
+      "Secure intake (intake links and submission requests) needs a plan that includes it, or at least one evidence credit",
     );
     err.statusCode = 409;
     err.code = "INTAKE_NOT_INCLUDED";
@@ -619,6 +689,75 @@ export async function settleEvidenceCompletionFunding(
   const caps = getPlanCapabilities(scope.plan);
   const effectiveLifetimeCap =
     scope.commercialLimits?.effectiveLifetimeRecordCap ?? caps.maxEvidenceRecords;
+
+  /*
+   * THE ROLLING-WINDOW SUBJECT SETTLES ON THE SAME QUESTION IT WAS ADMITTED ON.
+   *
+   * COMMERCIAL CLOSURE (2026-09-08). Settlement asked only the LIFETIME
+   * question, and a monthly-capped plan has no lifetime cap
+   * (`maxEvidenceRecords: null`), so `withinPlanAllowance` was unconditionally
+   * true and every TEAM record settled as PLAN. With the rolling allowance now
+   * falling through to the wallet at creation, that would have admitted a
+   * record ON a credit and then never charged for it — a free record, and a
+   * ledger that disagrees with the gate about what the customer bought.
+   *
+   * Admission and settlement must ask the same question, so the monthly one is
+   * asked here too, over the same rolling population, with THIS record
+   * excluded (it exists and is inside the window by the time we run).
+   *
+   * A hard contracted maximum never reaches this branch: creation refuses it,
+   * so there is no admitted record to settle.
+   */
+  const monthlyCap = resolveEffectiveContractEvidenceCap({
+    plan: scope.plan,
+    contract: scope.contractLimits,
+  });
+  if (
+    monthlyCap !== null &&
+    monthlyCap > 0 &&
+    !contractEvidenceCapIsHardMaximum({ contract: scope.contractLimits })
+  ) {
+    const since = new Date(Date.now() - THIRTY_DAYS_MS);
+    const priorMonthlyCount = scope.teamId
+      ? await prisma.evidence.count({
+          where: {
+            teamId: scope.teamId,
+            deletedAt: null,
+            createdAt: { gte: since },
+            id: { not: params.evidenceId },
+          },
+        })
+      : await countPersonalEvidenceRecords(scope.ownerUserId, {
+          createdSince: since,
+          excludeEvidenceId: params.evidenceId,
+        });
+
+    if (priorMonthlyCount < monthlyCap) return { funding: "PLAN" };
+
+    const monthlyAdmission = resolvePersonalEvidenceAdmission({
+      plan: scope.plan,
+      currentRecordCount: 0,
+      effectiveLifetimeRecordCap: 0,
+      availableEvidenceCredits: Math.max(0, scope.credits ?? 0),
+    });
+    if (!monthlyAdmission.allowed) {
+      throw new DomainError("Insufficient evidence credits", {
+        httpStatus: 402,
+        publicCode: "INSUFFICIENT_EVIDENCE_CREDITS",
+        publicMessage:
+          "You have used the records included in your plan for the last 30 days and have no evidence credits left.",
+        reportability: "EXPECTED_DENIAL",
+        severity: "info",
+        metadata: { limitKind: "evidence_records_monthly" },
+      });
+    }
+
+    await consumeEvidenceCreditForCompletion(
+      { userId: scope.ownerUserId, evidenceId: params.evidenceId },
+      client,
+    );
+    return { funding: "EVIDENCE_CREDIT" };
+  }
 
   // BILLING PRODUCTION CLOSURE (2026-08-27) — the count is taken HERE, and the
   // record being funded is excluded from it.

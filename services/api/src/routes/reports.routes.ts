@@ -38,6 +38,16 @@ import { z } from "zod";
 import { getAuthUserId } from "../auth.js";
 import { requireAuth } from "../middleware/auth.js";
 import { prisma } from "../db.js";
+// COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — the shared state machine
+// and the record-aware eligibility resolver, so this fallback and the workspace
+// aggregator cannot describe the same record differently.
+import {
+  deriveEvidenceOutputState,
+  projectReportRequestState,
+  type EvidenceOutputState,
+  type PersistedReportRequestState,
+} from "@proovra/shared";
+import { resolveEvidenceOutputEligibilityMany } from "../services/billing/evidence-output-eligibility.service.js";
 
 const ListQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
@@ -87,6 +97,14 @@ export type UserReportRow = {
   status: string;
   caseId: string | null;
   createdAt: string;
+  /**
+   * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — the canonical output
+   * state, so this fallback and the workspace aggregator describe a record the
+   * same way. The client renders this and never derives a state from
+   * `available`.
+   */
+  reportLifecycle: EvidenceOutputState;
+  packageLifecycle: EvidenceOutputState;
   report: {
     available: boolean;
     version: number | null;
@@ -274,7 +292,8 @@ export default async function registerReportsRoutes(
       }
 
       const evidenceIds = pageRows.map((r) => r.id);
-      const [reportRows, packageRows] = await Promise.all([
+      const [reportRows, packageRows, requestRows, eligibilityByEvidence] =
+        await Promise.all([
         prisma.report.findMany({
           where: { evidenceId: { in: evidenceIds } },
           orderBy: [{ evidenceId: "asc" }, { version: "desc" }],
@@ -295,6 +314,29 @@ export default async function registerReportsRoutes(
             generatedAtUtc: true,
           },
         }),
+        /*
+         * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — this fallback
+         * projected only `available`, and the Reports page turned the absence
+         * into `not_requested`. So a Free record read "Report not requested"
+         * here and "Report generating — refresh later" through the workspace
+         * aggregator: two surfaces, two invented answers, neither of them the
+         * state. The lifecycle is projected here too, from the same axes.
+         */
+        prisma.reportGenerationRequest
+          .findMany({
+            where: { evidenceId: { in: evidenceIds } },
+            orderBy: [{ evidenceId: "asc" }, { createdAtUtc: "desc" }],
+            distinct: ["evidenceId"],
+            select: { evidenceId: true, state: true },
+          })
+          .catch(() => []),
+        resolveEvidenceOutputEligibilityMany({
+          evidenceIds,
+          // The user-scoped fallback is by evidence OWNERSHIP, so the personal
+          // subject is the caller.
+          ownerUserId: userId,
+          teamId: null,
+        }).catch(() => new Map()),
       ]);
 
       const reportByEvidence = new Map(
@@ -303,11 +345,36 @@ export default async function registerReportsRoutes(
       const packageByEvidence = new Map(
         packageRows.map((p) => [p.evidenceId, p]),
       );
+      const requestByEvidence = new Map(
+        requestRows.map((q) => [q.evidenceId, q]),
+      );
 
       const items: UserReportRow[] = pageRows.map((r) => {
         const report = reportByEvidence.get(r.id) ?? null;
         const pkg = packageByEvidence.get(r.id) ?? null;
+        const finalized = r.status === "SIGNED" || r.status === "REPORTED";
+        const request = requestByEvidence.get(r.id) ?? null;
+        const eligibility = eligibilityByEvidence.get(r.id) ?? null;
+        const generation = request
+          ? projectReportRequestState(
+              request.state as PersistedReportRequestState,
+            )
+          : "NOT_REQUESTED";
+        const reportLifecycle = deriveEvidenceOutputState({
+          eligibility: eligibility?.reportEligibility ?? "ELIGIBLE",
+          generation,
+          availability: report !== null ? "READY" : "NO_ARTIFACT",
+          finalized,
+        });
+        const packageLifecycle = deriveEvidenceOutputState({
+          eligibility: eligibility?.packageEligibility ?? "ELIGIBLE",
+          generation,
+          availability: pkg !== null ? "READY" : "NO_ARTIFACT",
+          finalized,
+        });
         return {
+          reportLifecycle,
+          packageLifecycle,
           evidenceId: r.id,
           title: r.title,
           displayFileName: r.displayFileName ?? null,

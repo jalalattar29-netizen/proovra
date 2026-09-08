@@ -44,6 +44,9 @@ import { syncEvidenceIntegrityConditions } from "../operations/evidence-integrit
 import { syncDependentCancellationConditions } from "../billing/dependent-cancellation-conditions.service.js";
 import { syncSearchIndexConditions } from "../operations/search-index-conditions.service.js";
 import { sweepSourceTruthRecoveries } from "../operations/source-truth-recovery.service.js";
+// COMMERCIAL CLOSURE (2026-09-08) — keeps a commercial product decision out of
+// the artifact-backlog conditions this sweep opens.
+import { outputEntitledEvidenceWhere } from "../billing/evidence-output-eligibility.service.js";
 import {
   aggregateFingerprint,
   aggregateSpecs,
@@ -261,11 +264,20 @@ export async function generateIncidentsForWorkspace(
   // source can never fabricate a clear result because its id is absent from
   // `successful`.
   // -------------------------------------------------------------------------
+  /*
+   * COMMERCIAL CLOSURE (2026-09-08) — the output-entitled narrowing is
+   * resolved ONCE per sweep, beside the evidence scope, and travels on the
+   * probe context. Resolving it per probe would make two artifact-backlog
+   * conditions ask the commercial question twice and be able to disagree.
+   */
   const probeCtxBase = {
     teamId: ctx.teamId,
     client: prisma,
     now: new Date(),
     evidenceWhere: ctx.evidenceWhere,
+    outputEntitledWhere: await outputEntitledEvidenceWhere({
+      teamId: ctx.teamId,
+    }),
   };
 
   for (const spec of aggregateSpecs()) {

@@ -8,6 +8,10 @@ import {
   decidePaymentTransition,
   observedStateFromPaymentStatus,
 } from "./billing/reconciliation/payment-status.js";
+// COMMERCIAL CLOSURE (2026-09-08) — the canonical capability table, read by the
+// downgrade grandfather below to learn whether the target plan has a lifetime
+// record cap at all.
+import { getPlanCapabilities } from "@proovra/shared-billing";
 
 const GB = 1024n * 1024n * 1024n;
 
@@ -223,6 +227,68 @@ export async function setPersonalPlan(
 
   await ensureEntitlement(userId);
 
+  /**
+   * THE DOWNGRADE GRANDFATHER, DECIDED WHERE THE PLAN IS WRITTEN.
+   *
+   * ---------------------------------------------------------------------------
+   * COMMERCIAL CLOSURE (2026-09-08)
+   * ---------------------------------------------------------------------------
+   * A TEAM customer holding 350 records who moves to PRO used to land on PRO's
+   * 100-record lifetime cap with no adjustment. Nothing was deleted — the
+   * platform never deletes evidence for a plan change — but the account was
+   * INSTANTLY over cap and could not create anything at all, including with
+   * purchased credits, because `resolvePersonalEvidenceAdmission` compares a
+   * lifetime count against a lifetime cap and 350 is not below 100. The
+   * customer's own history became the thing blocking them.
+   *
+   * THE RULE:
+   *   * moving to a plan WITH a lifetime cap (FREE, PRO) freezes the cap at the
+   *     records that already exist, when that is more than the plan includes.
+   *     Existing evidence stays valid and reachable; the plan grants NO new
+   *     free capacity above it. Record 351 needs a credit or a higher plan —
+   *     which is exactly what the customer chose when they downgraded.
+   *   * moving to a plan with NO lifetime cap (TEAM, ENTERPRISE) CLEARS the
+   *     override. A stale frozen number must not survive an upgrade and then
+   *     silently govern a later downgrade: the cap is recomputed from the
+   *     records that exist at the moment the downgrade happens, which is the
+   *     only count that describes the customer's actual history.
+   *
+   * `legacyRecordCapOverride` is REUSED rather than joined by a second field.
+   * It already means exactly this — "the effective lifetime record cap for this
+   * payer, substituting the plan default" — it is already interpreted in
+   * exactly one place (`resolveCommercialContext(...).limits`), and a second
+   * override column would be a second authority over one number.
+   *
+   * The count uses the canonical enforcement predicate so the cap that is
+   * frozen and the count it is later compared against are the same population.
+   * Imported dynamically to keep the static graph acyclic: the enforcement
+   * module reaches this one through `workspace-billing`.
+   */
+  const nextCaps = getPlanCapabilities(plan);
+  /**
+   * Tri-state on purpose. "Do not touch it" and "clear it" are different
+   * instructions, and collapsing them into `null` would let a failed count
+   * erase a real grandfather.
+   */
+  let overrideWrite: { legacyRecordCapOverride: number | null } | null = null;
+  if (nextCaps.maxEvidenceRecords === null) {
+    overrideWrite = { legacyRecordCapOverride: null };
+  } else {
+    try {
+      const { countPersonalEvidenceRecords } = await import(
+        "./billing-enforcement.service.js"
+      );
+      const existing = await countPersonalEvidenceRecords(userId);
+      overrideWrite = {
+        legacyRecordCapOverride:
+          existing > nextCaps.maxEvidenceRecords ? existing : null,
+      };
+    } catch {
+      // Count unavailable — leave whatever is there. The plan write proceeds.
+      overrideWrite = null;
+    }
+  }
+
   await prisma.entitlement.updateMany({
     where: {
       userId,
@@ -231,6 +297,7 @@ export async function setPersonalPlan(
     data: {
       plan,
       teamSeats: 0,
+      ...(overrideWrite ?? {}),
     },
   });
 

@@ -454,6 +454,32 @@ export type BillingAccountProjection = {
    * allowance is a term of the agreement rather than a wallet plus a cap.
    */
   evidenceAdmission?: EvidenceAdmission;
+  /**
+   * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — HOW MANY EXISTING
+   * RECORDS THE CURRENT PLAN NOW COVERS THAT HAVE NO OUTPUTS YET.
+   *
+   * A customer who upgrades expects the thing they bought to apply to the work
+   * they already have. It does — their historical records became eligible the
+   * moment the entitlement changed — but nothing in the product said so, and
+   * nothing produced the artifacts, so the upgrade appeared to do nothing for
+   * anything captured before it.
+   *
+   * A COUNT, and deliberately not a job. Generating N artifacts on a plan
+   * change would spend real work and real storage on a decision the customer
+   * has not made, and would be indistinguishable from an automatic backfill —
+   * which is the option this program explicitly rejected. The customer is told
+   * the number and shown where to act; the action stays theirs, one record at
+   * a time, on the record's own page.
+   *
+   * `0` is a real answer and renders nothing. Absent when the count could not
+   * be taken.
+   */
+  historicalOutputEligibility?: {
+    /** Finalized records this plan covers that have no report yet. */
+    eligibleWithoutOutputs: number;
+    /** Where to review them. Never a generate-everything action. */
+    reviewHref: string;
+  };
   collaboration?: CollaborationUsage;
   contract?: EnterpriseContractSummary;
   /** Plans this account may purchase. Empty when it may purchase none. */
@@ -1286,6 +1312,62 @@ export async function buildBillingAccountProjection(input: {
     };
   }
 
+  /*
+   * ---- Historical records the current plan now covers ----------------------
+   *
+   * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08). A COUNT, never a job.
+   *
+   * Only asked when the plan actually includes reports — on a plan that does
+   * not, every finalized record is in this shape and saying so would be an
+   * upsell dressed as a status. And only for records with NO report at all: a
+   * record that already has one is not waiting for anything.
+   *
+   * The number is bounded and best-effort. A billing page must render.
+   */
+  let historicalOutputEligibility:
+    | { eligibleWithoutOutputs: number; reviewHref: string }
+    | undefined;
+  if (caps.reportsIncluded) {
+    try {
+      const evidenceScope = scope.teamId
+        ? { teamId: scope.teamId, deletedAt: null }
+        : await (async () => {
+            const personalTeam = await prisma.team.findFirst({
+              where: { ownerUserId: scope.ownerUserId, isPersonal: true },
+              select: { id: true },
+            });
+            return {
+              ownerUserId: scope.ownerUserId,
+              deletedAt: null,
+              OR: [
+                { teamId: null },
+                ...(personalTeam ? [{ teamId: personalTeam.id }] : []),
+              ],
+            };
+          })();
+      const eligibleWithoutOutputs = await prisma.evidence.count({
+        where: {
+          ...(evidenceScope as Record<string, unknown>),
+          status: "SIGNED",
+          reports: { none: {} },
+        } as never,
+      });
+      historicalOutputEligibility = {
+        eligibleWithoutOutputs,
+        /*
+         * The Reports surface, unfiltered. Deliberately NOT a lifecycle
+         * deep-link: the bounded filter vocabulary
+         * (`ReportLifecycleFilter`) has no member for "eligible but not
+         * generated", and pointing at the nearest one would land the customer
+         * on a different population than the number they clicked.
+         */
+        reviewHref: "/reports",
+      };
+    } catch {
+      historicalOutputEligibility = undefined;
+    }
+  }
+
   // ---- Collaboration ------------------------------------------------------
   const collaboration: CollaborationUsage = {};
   if (account.type === "PERSONAL") {
@@ -1440,6 +1522,7 @@ export async function buildBillingAccountProjection(input: {
         }
       : {}),
     ...(evidenceAdmission ? { evidenceAdmission } : {}),
+    ...(historicalOutputEligibility ? { historicalOutputEligibility } : {}),
     ...(Object.keys(collaboration).length > 0 ? { collaboration } : {}),
     ...(canManage
       ? {
