@@ -357,8 +357,20 @@ describe("public pricing UI vs catalog parity", () => {
     expect(page).not.toMatch(/[Uu]nlimited\s+[Ll]egal\s+[Hh]old/);
     expect(page).not.toMatch(/\d+\s+[Ll]egal\s+[Hh]olds/);
   });
-  it("Pro card shows 100 evidence records included", () => {
-    expect(page).toContain("evidence records included");
+  it("Pro states its allowance AND its window — the cap is lifetime", () => {
+    /*
+     * STRENGTHENED (2026-09-09). This pinned "evidence records included",
+     * which is the phrasing the correction removed: sitting under "€19
+     * /month · Billed monthly" and above "AI assistance: N operations /
+     * month", "included" read as "included each month", while
+     * `PLAN_CAPABILITIES.PRO` caps records over the account's LIFETIME
+     * (`maxEvidenceRecords: 100`, `maxEvidenceRecordsPerMonth: null`).
+     *
+     * Free and Team both name their window. Pro must too, and must not
+     * silently drop back to a window-less word.
+     */
+    expect(page).toContain("evidence records in total, not per month");
+    expect(page).not.toContain("evidence records included");
   });
   it("Team card shows 500 evidence records / month", () => {
     expect(page).toContain("evidence records in any 30 days");

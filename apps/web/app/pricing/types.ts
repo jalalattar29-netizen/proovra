@@ -82,10 +82,23 @@ export type PricingCatalogResponse = {
 };
 
 /**
- * Canonical helper for rendering an evidence-record cap label on the
- * public Pricing page AND every in-product surface. Source of truth is
- * the catalog response; this helper formats it consistently so the
- * public page and the in-app billing console never drift.
+ * Format an evidence-record cap label from the catalog response.
+ *
+ * ---------------------------------------------------------------------------
+ * WHAT THIS IS NOT (2026-09-09)
+ * ---------------------------------------------------------------------------
+ * The docblock here described this as "the canonical helper ... so the public
+ * page and the in-app billing console never drift". It has NO callers. Both
+ * of those surfaces build their own label — the Pricing page inline, the
+ * billing console in `billing-account-projection.service.ts` — so the sentence
+ * described an arrangement that has never existed, in the confident tone of
+ * one that does.
+ *
+ * It is kept because the formatting decision is a real one and a future
+ * surface may want it, but its output is now correct in the way that matters:
+ * a cap with no monthly window is a LIFETIME cap and must say so. The prior
+ * wording named the number and left the window to the reader, which is exactly
+ * how the Pro card came to read as monthly beneath a monthly price.
  */
 export function formatEvidenceRecordLabel(plan?: PricingCatalogPlan): string {
   if (!plan) return "";
@@ -93,7 +106,7 @@ export function formatEvidenceRecordLabel(plan?: PricingCatalogPlan): string {
     return `${plan.maxEvidenceRecordsPerMonth} evidence records / month`;
   }
   if (typeof plan.maxEvidenceRecords === "number") {
-    return `${plan.maxEvidenceRecords} evidence records included`;
+    return `${plan.maxEvidenceRecords} evidence records in total`;
   }
   // null / undefined = Enterprise custom; never advertise "Unlimited"
   // on a published plan card. Enterprise gets a distinct "Custom" cell.

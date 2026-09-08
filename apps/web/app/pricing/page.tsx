@@ -306,7 +306,31 @@ export default function MarketingPricingPage() {
       ctaLabel: buildCtaLabel("pro"),
       ctaHref: buildCtaHref("pro"),
       features: [
-        `${catalogValue(catalog?.pro?.maxEvidenceRecords)} evidence records included`,
+        /*
+         * COMMERCIAL TRUTH (2026-09-09) — "IN TOTAL", BECAUSE THE PRICE SAYS
+         * "PER MONTH" AND THE ALLOWANCE DOES NOT.
+         *
+         * This line named the number and then stopped, directly beneath "€19
+         * /month · Billed monthly" and directly above "AI assistance: 100
+         * operations / month". Every frame around it was monthly, so the
+         * sentence was read as "each month" — and the number is a
+         * LIFETIME cap: `PLAN_CAPABILITIES.PRO` carries
+         * `maxEvidenceRecords: 100` with `maxEvidenceRecordsPerMonth: null`,
+         * and admission counts the whole population with no date predicate.
+         *
+         * The gap between the two readings is not cosmetic: 100 ever versus
+         * 1,200 a year is a different product, and the customer discovers
+         * which one they bought at record 101.
+         *
+         * Both neighbours already state their window — Free says "total",
+         * Team says "in any 30 days". Pro was the only tier that left it to
+         * the reader, and the only one where the surrounding page answered
+         * wrongly. The credits line follows because "in total" invites the
+         * next question, and the honest answer is the one the product
+         * actually implements: the wallet continues past the allowance.
+         */
+        `${catalogValue(catalog?.pro?.maxEvidenceRecords)} evidence records in total, not per month`,
+        "Buy evidence credits to record more — one credit, one new item",
         `${catalogValue(catalog?.pro?.storageLabel)} storage`,
         "Reports & verification packages included",
         `AI assistance: ${catalogValue(catalog?.pro?.aiAdvisoryMonthlyOperations)} operations / month`,
@@ -486,7 +510,10 @@ export default function MarketingPricingPage() {
       values: [
         `${catalogValue(catalog?.free?.maxEvidenceRecords)} total`,
         "Pay only when you complete evidence",
-        `${catalogValue(catalog?.pro?.maxEvidenceRecords)} included`,
+        // The same correction as the Pro card above: this column sat between
+        // "N total" and "N in any 30 days" and was the only one that did not
+        // say which it was. The cap is lifetime.
+        `${catalogValue(catalog?.pro?.maxEvidenceRecords)} in total`,
         `${catalogValue(catalog?.team?.maxEvidenceRecordsPerMonth)} in any 30 days`,
         "Custom operational volume",
       ],
