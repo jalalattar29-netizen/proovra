@@ -21,7 +21,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | e3cbe947fe87bb88aac7cd810af7160b00d41fc2e62848e6f834c43f5115408a |
+| engineHash    | b5cd5cbf5c35c7d6225d5c667c7363ca4bfc4f3d189c5411d37f6b8d022107df |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
@@ -33,8 +33,8 @@ Every number below is produced by an analyzer executed at generation time and re
 | productConsumerRoutes         | 898   |
 | machineOnlyConsumerRoutes     | 4     |
 | noConsumerRoutes              | 242   |
-| dispositionedNonProductRoutes | 244   |
-| undisposedRoutes              | 1     |
+| dispositionedNonProductRoutes | 245   |
+| undisposedRoutes              | 0     |
 | authorizationUnresolved       | 0     |
 | publicUnguardedRoutes         | 20    |
 
@@ -204,5 +204,4 @@ _(none — the instrument is sound)_
 
 ### Product closure
 
-- CHECKPOINT: 6 violation(s) — SCALAR_DISAGREES_WITH_FACTS: ProductionRegisteredRoutes: checkpoint says 1141, facts say 1143 | SCALAR_DISAGREES_WITH_FACTS: RegisteredRoutes: checkpoint says 1142, facts say 1144 | SCALAR_DISAGREES_WITH_FACTS: UndisposedRoutes: checkpoint says 0, facts say 1 | SCALAR_DISAGREES_WITH_FACTS: ProductConsumedRoutes: checkpoint says 896, facts say 898 | SCALAR_DISAGREES_WITH_FACTS: NonProductDispositionedRoutes: checkpoint says 245, facts say 244
-- ArchitectureBacklog: UndisposedRoutes = 1 — registered routes with no reviewed product disposition (ARCH-BACKLOG-001, NON-BLOCKING, no security or completeness credit)
+- CHECKPOINT: 3 violation(s) — SCALAR_DISAGREES_WITH_FACTS: ProductionRegisteredRoutes: checkpoint says 1141, facts say 1143 | SCALAR_DISAGREES_WITH_FACTS: RegisteredRoutes: checkpoint says 1142, facts say 1144 | SCALAR_DISAGREES_WITH_FACTS: ProductConsumedRoutes: checkpoint says 896, facts say 898

@@ -968,13 +968,34 @@ describe("Operations — incident actions", () => {
 // ===========================================================================
 
 describe("Support access — POST /v1/support-access/start", () => {
-  async function fillMintForm() {
+  /**
+   * OWN-2 — a mint form now needs a customer approver, or a stated reason
+   * there is none.
+   *
+   * The default here supplies the APPROVER, because that is the policy default
+   * and the case most requests take. The exception path gets its own case
+   * below rather than being folded into the fixture: "support entered without
+   * customer approval" is a different fact from "support entered with it", and
+   * a fixture that always took the exception would stop this file being able
+   * to tell them apart.
+   */
+  const APPROVER = "99999999-9999-4999-8999-999999999999";
+
+  async function fillMintForm(opts: { approver?: boolean } = {}) {
     await mountSupportAccess();
     await type(q('[data-testid="mint-organization-id"]'), ORG);
     await type(
       q('[data-testid="mint-reason"]'),
       "Customer export incident 4821",
     );
+    if (opts.approver === false) {
+      await type(
+        q('[data-testid="mint-approval-exception"]'),
+        "customer IdP outage, no administrator contactable",
+      );
+    } else {
+      await type(q('[data-testid="mint-approver-user-id"]'), APPROVER);
+    }
   }
 
   it("asks first, before any request; cancel mints nothing", async () => {
@@ -1009,6 +1030,10 @@ describe("Support access — POST /v1/support-access/start", () => {
       organizationId: ORG,
       reason: "Customer export incident 4821",
       accessLevel: "READ_ONLY",
+      approvedByUserId: APPROVER,
+      // Null, not the exception text: naming an approver and also explaining
+      // their absence would write a contradiction into the audit trail.
+      customerApprovalUnavailableReason: null,
     });
     expect(q("[data-support-access-notice]")).toBeNull();
 
@@ -1023,6 +1048,42 @@ describe("Support access — POST /v1/support-access/start", () => {
       gets().filter((r) => r.path.startsWith("/v1/support-access/grants"))
         .length,
     ).toBeGreaterThan(grantReadsBefore);
+  });
+
+  it("without an approver it sends the stated reason instead, and no approver", async () => {
+    // The bounded exception (OWN-2). The server refuses a grant carrying
+    // neither, so what matters here is that the console sends exactly one of
+    // the two and never both.
+    await fillMintForm({ approver: false });
+    await click(screen.getByRole("button", { name: "Create support grant" }));
+    await confirmDialog("support-access-start");
+
+    expect(writes()).toHaveLength(1);
+    const body = JSON.parse(posts()[0].body as string);
+    expect(body.approvedByUserId).toBeNull();
+    expect(body.customerApprovalUnavailableReason).toBe(
+      "customer IdP outage, no administrator contactable",
+    );
+  });
+
+  it("refuses to mint with neither an approver nor a reason", async () => {
+    // The state the route now rejects. The console says which field is missing
+    // rather than letting the operator press a button on an action over a
+    // customer's data and read a 400 afterwards.
+    await mountSupportAccess();
+    await type(q('[data-testid="mint-organization-id"]'), ORG);
+    await type(
+      q('[data-testid="mint-reason"]'),
+      "Customer export incident 4821",
+    );
+    const button = screen.getByRole("button", { name: "Create support grant" });
+    expect(
+      (button as HTMLButtonElement).disabled,
+      "the console offered to mint a grant with no customer in it",
+    ).toBe(true);
+    expect(document.body.textContent).toContain(
+      "state why no approver was reachable",
+    );
   });
 
   it("a 500 shows the mutation-failure card and no notice", async () => {

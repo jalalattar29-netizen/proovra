@@ -171,6 +171,15 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
     disposition: "internal",
     why: "PROOVRA support break-glass; never rendered to a customer.",
   },
+  // OWN-2 — refused because the grant named neither a customer approver nor a
+  // reason none was reachable. Internal for the same reason as its siblings:
+  // the reader is PROOVRA support staff on the platform console, never a
+  // customer, and the support-access page states the requirement in its own
+  // words before the request is made.
+  SUPPORT_ACCESS_APPROVER_REQUIRED: {
+    disposition: "internal",
+    why: "PROOVRA support break-glass; never rendered to a customer.",
+  },
 
   // -- Rate limiting --------------------------------------------------------
   RATE_LIMITED: { disposition: "customer", where: "global" },

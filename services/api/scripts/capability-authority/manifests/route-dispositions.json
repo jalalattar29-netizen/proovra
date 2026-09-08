@@ -97,6 +97,14 @@
       "machineCallerEvidence": "reg services/api/src/routes/runtime-readiness.routes.ts (requirePlatformAdmin); ADM-P1-003/OWN-1 moved this from the unversioned /admin/runtime/migrations, where audit.read authorised it, to the versioned admin namespace behind the canonical platform gate. Operator probe only: docs/runbooks/sre-runbooks.md and disaster-recovery.md; no apps/web|apps/mobile call site."
     },
     {
+      "routeId": "GET /v1/admin/runtime/readiness",
+      "disposition": "ADMIN_OPERATOR",
+      "reason": "platform-admin operator probe; its product consumer moved to the tenant-safe projection",
+      "evidence": "reg services/api/src/routes/runtime-readiness.routes.ts (requirePlatformAdmin). ADM-P1-003/OWN-1 moved this from the unversioned /admin/runtime/readiness, where requireReadinessActor(audit.read) — a permission every workspace role holds — admitted any member of any workspace to the platform's runtime readiness report. Its only product consumer WAS the shell's RuntimeStatusBanner, which now reads GET /v1/runtime/status, a tenant-safe {status} enum carrying no subsystem detail; that is why this route has a machine caller and no product consumer, where before the move it had the opposite. Operator probe now: docs/operations/runbooks/17-monitoring-readiness.md and the SRE runbooks name it, and no apps/web|apps/mobile call site reads it.",
+      "reviewedAtUtc": "2026-09-08",
+      "machineCallerEvidence": "reg services/api/src/routes/runtime-readiness.routes.ts (requirePlatformAdmin). ADM-P1-003/OWN-1 moved this from the unversioned /admin/runtime/readiness, where requireReadinessActor(audit.read) — a permission every workspace role holds — admitted any member of any workspace to the platform's runtime readiness report. Its only product consumer WAS the shell's RuntimeStatusBanner, which now reads GET /v1/runtime/status, a tenant-safe {status} enum carrying no subsystem detail; that is why this route has a machine caller and no product consumer, where before the move it had the opposite. Operator probe now: docs/operations/runbooks/17-monitoring-readiness.md and the SRE runbooks name it, and no apps/web|apps/mobile call site reads it."
+    },
+    {
       "routeId": "GET /v1/admin/runtime/queues",
       "disposition": "ADMIN_OPERATOR",
       "reason": "platform-admin operator probe; no product consumer",

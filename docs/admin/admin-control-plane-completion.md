@@ -112,7 +112,7 @@
 | `/admin/provisioning` | PLATFORM_AUDIT_SCOPED | handler trace | PLATFORM_ADMIN | requirePlatformAdmin, requireStepUpForSensitiveAction, +STEP_UP | customers | /admin |
 | `/admin/search` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | security | /admin |
 | `/admin/security` | WORKSPACE_UNCLASSIFIED | adminNavigation registry | PLATFORM_ADMIN |  | security | /admin |
-| `/admin/support-access` | WORKSPACE_FILTERED | handler trace | PLATFORM_ADMIN | requirePlatformStaff, authorizeOrFail, AUTHORIZE(?), requireStepUpForSensitiveAction, +STEP_UP | security | /admin |
+| `/admin/support-access` | WORKSPACE_FILTERED | handler trace | PLATFORM_ADMIN | requirePlatformStaff, authorizeOrFail, requireStepUpForSensitiveAction, AUTHORIZE(?), +STEP_UP | security | /admin |
 | `/admin/timeline` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | security | /admin |
 | `/admin/users` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | customers | /admin |
 | `/admin/users/:id` | PLATFORM | handler trace | PLATFORM_ADMIN | requirePlatformAdmin | contextual | /admin/users |
@@ -241,9 +241,9 @@
 | `/admin/security` | — | (no API call) | — | — |
 | `/admin/support-access` | GET | `/v1/support-access/grants` | requirePlatformStaff | FILTER |
 | `/admin/support-access` | GET | `/v1/break-glass/grants` | requirePlatformStaff | FILTER |
-| `/admin/support-access` | POST | `/v1/support-access/enter` | requirePlatformStaff, authorizeOrFail, AUTHORIZE(?) | AUDIT |
+| `/admin/support-access` | POST | `/v1/support-access/enter` | requirePlatformStaff, authorizeOrFail, requireStepUpForSensitiveAction, AUTHORIZE(?), +STEP_UP | AUDIT |
 | `/admin/support-access` | POST | `/v1/support-access/revoke` | requirePlatformStaff | FILTER_CANDIDATE |
-| `/admin/support-access` | POST | `/v1/support-access/start` | requirePlatformStaff, authorizeOrFail, AUTHORIZE(?) | AUDIT |
+| `/admin/support-access` | POST | `/v1/support-access/start` | requirePlatformStaff, authorizeOrFail, requireStepUpForSensitiveAction, AUTHORIZE(?), +STEP_UP | AUDIT |
 | `/admin/support-access` | POST | `/v1/break-glass/activate` | requirePlatformStaff, authorizeOrFail, requireStepUpForSensitiveAction, AUTHORIZE(?), +STEP_UP | AUDIT |
 | `/admin/support-access` | POST | `/v1/break-glass/revoke` | requirePlatformStaff, authorizeOrFail, AUTHORIZE(?) | FILTER_CANDIDATE |
 | `/admin/timeline` | GET | `/v1/admin/timeline` | requirePlatformAdmin | NONE |
@@ -349,7 +349,7 @@
 | `/admin/provisioning` | 775 | 13c/1t/4s |  |
 | `/admin/search` | 410 | 1c/0t/0s |  |
 | `/admin/security` | 108 | 14c/6t/30s |  |
-| `/admin/support-access` | 1052 | 6c/2t/4s |  |
+| `/admin/support-access` | 1150 | 6c/2t/4s |  |
 | `/admin/timeline` | 504 | 0c/1t/1s |  |
 | `/admin/users` | 505 | 2c/2t/1s |  |
 | `/admin/users/:id` | 711 | 7c/2t/6s |  |

@@ -996,9 +996,8 @@ function EvidenceDetailPageInner() {
   return (
     <div className="evidence-detail-page">
       <div className="evidence-detail-shell">
-        {workspace.reviewWorkflow?.teamId ? (
-          <RuntimeStatusBanner />
-        ) : null}
+        {/* Unguarded on purpose (ADM-P1-003) — see RuntimeStatusBanner.tsx. */}
+        <RuntimeStatusBanner />
         {workspace.reviewWorkflow?.teamId ? (
           <div className="evidence-detail-presence-row">
             <PresenceIndicator

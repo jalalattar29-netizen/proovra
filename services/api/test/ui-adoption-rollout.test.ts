@@ -71,10 +71,22 @@ describe("Reviewer console landing page (full adoption)", () => {
     );
   });
 
-  it("scopes RuntimeStatusBanner to reviewer_ops (Phase 32.7 invariant)", () => {
-    expect(src).toMatch(
-      /<RuntimeStatusBanner[\s\S]{0,400}forDomains=\{\s*\[\s*"reviewer_ops"\s*\]/,
-    );
+  it("mounts RuntimeStatusBanner, unscoped", () => {
+    /*
+     * ADM-P1-003 / OWN-1 — THE SCOPING PROP IS GONE, SO THIS ASSERTS THE
+     * BOUNDARY INSTEAD OF THE SCOPE.
+     *
+     * `forDomains` decided which failing platform subsystems mattered to this
+     * page, and to decide that the banner had to READ them — from the full
+     * platform readiness aggregator, on a tenant page. It now reads
+     * `GET /v1/runtime/status`, a three-value enum, and the prop was removed
+     * rather than left inert.
+     *
+     * What must not regress is that the banner is still HERE, and that nobody
+     * passes it a prop it no longer honours.
+     */
+    expect(src).toContain("<RuntimeStatusBanner");
+    expect(src.replace(/\/\*[\s\S]*?\*\//g, "")).not.toContain("forDomains");
   });
 
   it("renders an empty-state note when no review workflows exist", () => {
@@ -119,15 +131,26 @@ describe("Reviewer Ops SLA page (full adoption)", () => {
     );
   });
 
-  it("renders RuntimeStatusBanner only when teamId is known", () => {
-    // Phase 32.7 — banner usage now optionally includes `forDomains`
-    // for degradation isolation, and the JSX may be wrapped in `()`
-    // with intervening comments explaining the scoping decision.
-    // Accept both the legacy single-prop shape and the scoped
-    // multi-prop / multi-line shape with comments between.
-    expect(src).toMatch(
-      /teamId\s*\?\s*\(?[\s\S]{0,800}?<RuntimeStatusBanner[\s\S]{0,400}teamId=\{teamId\}/,
-    );
+  it("renders RuntimeStatusBanner WITHOUT waiting for a workspace", () => {
+    /*
+     * THIS ASSERTION IS INVERTED, AND THAT IS THE FIX.
+     *
+     * It required `{teamId ? <RuntimeStatusBanner teamId={teamId}/> : null}`,
+     * which was correct while the banner read
+     * `/admin/runtime/readiness?teamId=…`. ADM-P1-003 moved it to
+     * `GET /v1/runtime/status`, which takes no workspace — so the guard
+     * suppressed the banner in exactly the situation it exists for: a platform
+     * degraded badly enough that the workspace has not resolved yet.
+     */
+    expect(src).toContain("<RuntimeStatusBanner");
+    const code = src
+      .replace(/\{\/\*[\s\S]*?\*\/\}/g, "")
+      .replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(
+      /teamId\s*\?\s*\(?\s*<RuntimeStatusBanner/.test(code),
+      "the platform-wide banner is still gated on a workspace it does not use",
+    ).toBe(false);
+    expect(code).not.toMatch(/<RuntimeStatusBanner[^>]*teamId=/);
   });
 
   it("renders NoWorkloadSnapshotsEmptyState when no reviewer activity is recorded", () => {
@@ -160,19 +183,32 @@ describe("Reviewer Ops policy page (full adoption)", () => {
     );
   });
 
-  it("renders RuntimeStatusBanner only when teamId is known", () => {
-    // Phase 32.7 — banner usage now optionally includes `forDomains`
-    // for degradation isolation, and the JSX may be wrapped in `()`
-    // with intervening comments explaining the scoping decision.
-    // Accept both the legacy single-prop shape and the scoped
-    // multi-prop / multi-line shape with comments between.
-    expect(src).toMatch(
-      /teamId\s*\?\s*\(?[\s\S]{0,800}?<RuntimeStatusBanner[\s\S]{0,400}teamId=\{teamId\}/,
-    );
+  it("renders RuntimeStatusBanner WITHOUT waiting for a workspace", () => {
+    /*
+     * THIS ASSERTION IS INVERTED, AND THAT IS THE FIX.
+     *
+     * It required `{teamId ? <RuntimeStatusBanner teamId={teamId}/> : null}`,
+     * which was correct while the banner read
+     * `/admin/runtime/readiness?teamId=…`. ADM-P1-003 moved it to
+     * `GET /v1/runtime/status`, which takes no workspace — so the guard
+     * suppressed the banner in exactly the situation it exists for: a platform
+     * degraded badly enough that the workspace has not resolved yet.
+     */
+    expect(src).toContain("<RuntimeStatusBanner");
+    const code = src
+      .replace(/\{\/\*[\s\S]*?\*\/\}/g, "")
+      .replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(
+      /teamId\s*\?\s*\(?\s*<RuntimeStatusBanner/.test(code),
+      "the platform-wide banner is still gated on a workspace it does not use",
+    ).toBe(false);
+    expect(code).not.toMatch(/<RuntimeStatusBanner[^>]*teamId=/);
   });
 
   it("the banner sits inside the main render block (above the policy form)", () => {
-    const bannerIdx = src.indexOf("RuntimeStatusBanner teamId");
+    // The banner no longer takes a teamId (see above), so the ordering is
+    // anchored on the element rather than on a prop it stopped having.
+    const bannerIdx = src.indexOf("<RuntimeStatusBanner");
     const policyFormIdx = src.indexOf("SLA overrides (hours)");
     expect(bannerIdx).toBeGreaterThan(0);
     expect(policyFormIdx).toBeGreaterThan(0);
@@ -204,10 +240,11 @@ describe("Governance dashboard (full adoption — Phase 32.8E architecture)", ()
     );
   });
 
-  it("scopes RuntimeStatusBanner to governance_lifecycle (Phase 32.7 invariant)", () => {
-    expect(src).toMatch(
-      /<RuntimeStatusBanner[\s\S]{0,400}forDomains=\{\s*\[\s*"governance_lifecycle"\s*\]/,
-    );
+  it("mounts RuntimeStatusBanner, unscoped", () => {
+    // See the sibling case on the reviewer console: the scoping prop was
+    // removed with the platform payload it needed, not left inert.
+    expect(src).toContain("<RuntimeStatusBanner");
+    expect(src.replace(/\/\*[\s\S]*?\*\//g, "")).not.toContain("forDomains");
   });
 
   it("renders an empty-state note when no evidence-level holds exist", () => {
@@ -340,9 +377,9 @@ describe("Evidence detail page (full adoption)", () => {
   });
 
   it("renders RuntimeStatusBanner inside the evidence-detail-shell (operator sees runtime state above the hero)", () => {
-    expect(src).toMatch(
-      /evidence-detail-shell[\s\S]*?<RuntimeStatusBanner\s+teamId=\{workspace\.reviewWorkflow\.teamId\}/,
-    );
+    // Same inversion: inside the shell, and no longer conditioned on the
+    // review workflow's workspace, which the tenant-safe read does not use.
+    expect(src).toMatch(/evidence-detail-shell[\s\S]*?<RuntimeStatusBanner\s*\/>/);
   });
 
   it("renders ExportPackageEligibilityBadge for both export and package kinds", () => {

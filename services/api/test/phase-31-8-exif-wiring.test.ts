@@ -496,9 +496,26 @@ describe("Phase 31.8 — ops actions: retry + replay DLQ", () => {
     // re-checked) — because reporting only `attempted` could not distinguish
     // "50 jobs replayed" from "50 looked at, 3 replayed". It is still a closed
     // set of scalars: no job, no payload, no Redis internals.
-    const replaySend = routeSrc.match(
-      /reply\.code\(200\)\.send\(\{\s*scope:[\s\S]*?\}\);/,
-    )?.[0];
+    /*
+     * SLICED FROM THE REPLAY ROUTE, NOT FROM THE FIRST `scope:` IN THE FILE.
+     *
+     * This matched `reply.code(200).send({ scope:` anywhere in
+     * `ops.routes.ts`. When ADM-P2-005 added `GET
+     * /v1/ops/media-intelligence/runs` — which answers `{ scope: "PLATFORM",
+     * … }` and is registered EARLIER in the file — the regex found the run
+     * listing instead and asserted the DLQ contract against the wrong handler.
+     * It failed loudly, which is the good outcome; a version that had failed
+     * quietly would have gone on "proving" the replay response was bounded
+     * while reading a different route entirely.
+     *
+     * Anchored on the registration now, so the slice is the replay handler by
+     * construction and cannot drift onto a neighbour.
+     */
+    const replayAt = routeSrc.indexOf('"/v1/ops/media-intelligence/dlq/replay"');
+    expect(replayAt, "the DLQ replay registration is missing").toBeGreaterThan(-1);
+    const replaySend = routeSrc
+      .slice(replayAt)
+      .match(/reply\.code\(200\)\.send\(\{\s*scope:[\s\S]*?\}\);/)?.[0];
     expect(replaySend, "bounded replay response found").toBeTruthy();
     for (const field of ["discovered", "eligible", "retried", "skipped", "limit"]) {
       expect(replaySend!).toContain(field);

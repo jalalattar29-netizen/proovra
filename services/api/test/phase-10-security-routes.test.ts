@@ -247,15 +247,87 @@ describe("§10.6 — break-glass route", () => {
 });
 
 describe("§10.8 — support-access route (dual identity, read-only default)", () => {
+  /*
+   * OWN-2 — THESE TWO CASES GAINED HEADERS AND A FIELD, AND THAT IS THE POINT.
+   *
+   * They used to POST with `{"content-type": "application/json"}` and no more,
+   * and they passed: minting standing access into a customer organization
+   * needed the platform-staff gate and a capability, and nothing else. Break
+   * glass, one section above, has always required step-up.
+   *
+   * Both now carry `stepUpHeaders` and name a customer approver — the two
+   * controls OWN-2 adds — and the four cases below assert that removing either
+   * one is refused. The change to these payloads is not an accommodation; it is
+   * the new contract, and the refusals are asserted rather than assumed.
+   */
+  const APPROVER = "77777777-7777-4777-8777-777777777777";
+
   it("start records the support ACTOR and defaults READ_ONLY", async () => {
-    const res = await app.inject({ method: "POST", url: "/v1/support-access/start", headers: { "content-type": "application/json" }, payload: { teamId: TEAM, organizationId: ORG, reason: "investigate support ticket" } });
+    const res = await app.inject({ method: "POST", url: "/v1/support-access/start", headers: stepUpHeaders, payload: { teamId: TEAM, organizationId: ORG, reason: "investigate support ticket", approvedByUserId: APPROVER } });
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.body).grant.accessLevel).toBe("READ_ONLY");
   });
+
   it("ELEVATED without approval → 403", async () => {
-    const res = await app.inject({ method: "POST", url: "/v1/support-access/start", headers: { "content-type": "application/json" }, payload: { teamId: TEAM, organizationId: ORG, reason: "investigate support ticket", accessLevel: "ELEVATED" } });
+    const res = await app.inject({ method: "POST", url: "/v1/support-access/start", headers: stepUpHeaders, payload: { teamId: TEAM, organizationId: ORG, reason: "investigate support ticket", accessLevel: "ELEVATED", customerApprovalUnavailableReason: "customer IdP outage, no admin reachable" } });
     expect(res.statusCode).toBe(403);
     expect(JSON.parse(res.body).error.code).toBe("SUPPORT_APPROVAL_REQUIRED");
+  });
+
+  it("no customer approver and no stated reason → refused", async () => {
+    // The ordinary path before OWN-2: a grant into a customer organization
+    // with no customer anywhere in it, and nothing recorded about why.
+    const res = await app.inject({ method: "POST", url: "/v1/support-access/start", headers: stepUpHeaders, payload: { teamId: TEAM, organizationId: ORG, reason: "investigate support ticket" } });
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body).error.code).toBe("SUPPORT_ACCESS_APPROVER_REQUIRED");
+  });
+
+  it("no approver but a stated reason → allowed, because an outage is real", async () => {
+    // The bounded exception. Requiring an approver unconditionally blocks
+    // support during a customer-side outage, which is when support is most
+    // needed — so the exception exists, and it has to say something.
+    const res = await app.inject({ method: "POST", url: "/v1/support-access/start", headers: stepUpHeaders, payload: { teamId: TEAM, organizationId: ORG, reason: "investigate support ticket", customerApprovalUnavailableReason: "customer IdP outage, no admin reachable" } });
+    expect(res.statusCode).toBe(200);
+  });
+
+  it("a reason too short to mean anything is not a reason", async () => {
+    const res = await app.inject({ method: "POST", url: "/v1/support-access/start", headers: stepUpHeaders, payload: { teamId: TEAM, organizationId: ORG, reason: "investigate support ticket", customerApprovalUnavailableReason: "n/a" } });
+    expect(res.statusCode).toBe(400);
+  });
+
+  /*
+   * THE STEP-UP GATE IS DRIVEN THROUGH THE HARNESS, NOT THROUGH A HEADER.
+   *
+   * This file mocks `requireStepUpForSensitiveAction` — deliberately, because
+   * the ceremony has its own suite and what belongs here is whether the ROUTE
+   * consults it. So omitting the header proves nothing (the mock never reads
+   * one); `H.stepUpSent` makes the gate refuse, and a route that never called
+   * it would sail past.
+   *
+   * `H.stepUpBoundTeamId` is also asserted: a gate anchored on the wrong
+   * workspace is a gate, and is not this gate.
+   */
+  it("start consults the step-up gate, anchored on the request's workspace", async () => {
+    H.stepUpBoundTeamId = "";
+    await app.inject({ method: "POST", url: "/v1/support-access/start", headers: stepUpHeaders, payload: { teamId: TEAM, organizationId: ORG, reason: "investigate support ticket", approvedByUserId: APPROVER } });
+    expect(H.stepUpBoundTeamId, "/start never called the step-up gate").toBe(TEAM);
+  });
+
+  it("start is refused when step-up is not satisfied, and mints nothing", async () => {
+    H.stepUpSent = true;
+    H.writes.length = 0;
+    const res = await app.inject({ method: "POST", url: "/v1/support-access/start", headers: stepUpHeaders, payload: { teamId: TEAM, organizationId: ORG, reason: "investigate support ticket", approvedByUserId: APPROVER } });
+    expect(res.statusCode, "a support grant was minted with no step-up").toBe(401);
+    expect(H.writes, "a grant was written behind an unsatisfied step-up").not.toContain("startSupportAccess");
+  });
+
+  it("entering a grant is refused when step-up is not satisfied", async () => {
+    // A grant is durable and a session is not. Without step-up here, a grant
+    // minted behind step-up hours earlier could be entered from any later
+    // session of the same account with no second factor.
+    H.stepUpSent = true;
+    const res = await app.inject({ method: "POST", url: "/v1/support-access/enter", headers: stepUpHeaders, payload: { teamId: TEAM, grantId: GRANT } });
+    expect(res.statusCode, "support context was entered with no step-up").toBe(401);
   });
 });
 

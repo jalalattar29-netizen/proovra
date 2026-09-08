@@ -41,7 +41,32 @@ describe("useGlobalRuntimeState (Phase 28-J)", () => {
   );
 
   it("polls the three runtime-awareness endpoints", () => {
-    expect(src).toMatch(/\/admin\/runtime\/readiness\?teamId=/);
+    /*
+     * ADM-P1-003 / OWN-1 — THE FIRST OF THE THREE MOVED, AND SHRANK.
+     *
+     * This required `/admin/runtime/readiness?teamId=` — the full platform
+     * aggregator, authorised by workspace membership plus `audit.read`, which
+     * every workspace role holds. The hook drives tenant-facing surfaces, so
+     * that read put platform subsystem ids, reason codes and remediation hints
+     * behind a tenant permission.
+     *
+     * It is now `GET /v1/runtime/status`, whose whole body is a three-value
+     * enum. The other two reads are genuinely workspace-scoped and are
+     * unchanged, so their `teamId` assertions stay exactly as they were — the
+     * contrast is the point: two of the three still take a workspace because
+     * their data belongs to one.
+     *
+     * The absence is asserted against CODE. The hook's docblock names the
+     * route it stopped reading, and a check that failed on that explanation
+     * would be closed by deleting it.
+     */
+    expect(src).toMatch(/["'`]\/v1\/runtime\/status["'`]/);
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+    expect(
+      code,
+      "the tenant runtime hook still reads the platform readiness aggregator",
+    ).not.toMatch(/\/admin\/runtime\/readiness/);
+
     expect(src).toMatch(/\/v1\/ops\/incidents\?teamId=[^&]+&status=OPEN/);
     expect(src).toMatch(
       /\/v1\/reviewer-ops\/escalations\?teamId=[^&]+&status=OPEN/,

@@ -293,101 +293,120 @@ describe("Phase 32.7 — subsystem→domain map", () => {
 // Part 6 — Frontend RuntimeStatusBanner accepts `forDomains` and filters
 // =============================================================================
 
-describe("Phase 32.7 — RuntimeStatusBanner degradation boundary", () => {
+/*
+ * =============================================================================
+ * PART 6/7 — SUPERSEDED BY ADM-P1-003 / OWN-1, AND REPLACED WITH THE INVERSE.
+ * =============================================================================
+ * Phase 32.7 gave `RuntimeStatusBanner` a `forDomains` prop so a tenant page
+ * could show the banner only when a failing platform subsystem affected that
+ * page's domain. It worked, and the cases below asserted it thoroughly.
+ *
+ * The scoping was built on data the banner should never have had. To decide
+ * "does this failure affect reviewer_ops?", the component had to READ the
+ * failing subsystems — and it got them from `GET /admin/runtime/readiness`,
+ * the full platform aggregator, authorised by workspace membership plus
+ * `audit.read`. Ordinary tenant users on `/evidence/:id`, `/governance/policy`
+ * and `/reviewer-ops/*` were being shown platform subsystem ids, reason codes,
+ * operator detail and remediation hints: instructions for repairing PROOVRA's
+ * deployment, on pages that belong to customers.
+ *
+ * OWN-1 settles it — runtime, migrations, schema drift, worker and queue
+ * detail are platform-admin only — so the banner now reads
+ * `GET /v1/runtime/status`, whose entire body is
+ * `{ status: "HEALTHY" | "DEGRADED" | "UNAVAILABLE" }`.
+ *
+ * `forDomains` could not survive that. Domain scoping needs the subsystem
+ * list, the tenant projection withholds it, and a prop that silently stopped
+ * filtering would be a permanently-true condition dressed as a control. So it
+ * was removed rather than left inert, and every call site lost it.
+ *
+ * THE COST IS REAL AND IS STATED RATHER THAN HIDDEN: a degraded platform now
+ * shows this banner on every page that mounts it, not only on the pages whose
+ * domain was affected. That is a worse banner and a correct boundary, and the
+ * cases below now assert the boundary — that the component cannot reach the
+ * platform payload at all — because that is the property whose loss would
+ * matter.
+ */
+describe("RuntimeStatusBanner reads only the tenant-safe projection", () => {
   const SRC = readWeb("components/operational/RuntimeStatusBanner.tsx");
 
-  it("declares the typed `RuntimeOperationalDomain` enum (mirrored from shared-runtime)", () => {
-    expect(SRC).toMatch(/export type RuntimeOperationalDomain\s*=/);
-    for (const domain of [
-      "core_evidence",
-      "reviewer_ops",
-      "governance_lifecycle",
-      "workflow_engine",
-      "integrations",
-      "identity",
-      "operational_incidents",
-      "search_discovery",
-      "media_intelligence",
-      "platform_telemetry",
+  it("reads GET /v1/runtime/status and nothing else", () => {
+    expect(SRC).toContain('"/v1/runtime/status"');
+    // The platform aggregator, in either spelling. Absence is asserted against
+    // CODE: the file deliberately NAMES the route it stopped reading, in the
+    // docblock that explains why, and a check that failed on the explanation
+    // would be closed by deleting the explanation.
+    const code = SRC.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+    expect(code).not.toContain("/admin/runtime/readiness");
+    expect(code).not.toContain("/v1/admin/runtime/readiness");
+  });
+
+  it("cannot render a platform subsystem, a reason code or a remediation hint", () => {
+    const code = SRC.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+    for (const forbidden of [
+      "reasonCode",
+      "remediationHint",
+      "subsystems",
+      "affectedDomain",
     ]) {
-      expect(SRC).toContain(`"${domain}"`);
+      expect(
+        code.includes(forbidden),
+        `the tenant banner reaches for ${forbidden}, which the tenant-safe projection does not carry`,
+      ).toBe(false);
     }
   });
 
-  it("props expose optional `forDomains` for page-level scoping", () => {
+  it("declares only the three values the projection can answer", () => {
     expect(SRC).toMatch(
-      /forDomains\?:\s*ReadonlyArray<RuntimeOperationalDomain>/,
+      /TenantRuntimeStatus\s*=\s*"HEALTHY"\s*\|\s*"DEGRADED"\s*\|\s*"UNAVAILABLE"/,
     );
   });
 
-  it("when forDomains is set, banner only renders if a failing subsystem matches a relevant domain", () => {
-    // Locate the filter branch.
-    const filterIdx = SRC.indexOf("if (forDomains && forDomains.length > 0)");
-    expect(filterIdx).toBeGreaterThan(-1);
-    const filterSlice = SRC.slice(filterIdx, filterIdx + 1200);
-    expect(filterSlice).toMatch(/someFailureIsRelevant/);
-    expect(filterSlice).toMatch(/forDomains\.includes\(s\.affectedDomain\)/);
-    // When no failing subsystem is relevant, the banner returns null.
-    expect(filterSlice).toMatch(/return null;/);
+  it("the `forDomains` prop is GONE, not inert", () => {
+    // An accepted-but-ignored prop is worse than none: every call site would
+    // still read as scoped while nothing filtered.
+    const code = SRC.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+    expect(code).not.toMatch(/forDomains/);
+    expect(code).not.toMatch(/RuntimeOperationalDomain/);
   });
 
-  it("forward-compat: a failing subsystem WITHOUT affectedDomain (older readiness payload) still renders the banner", () => {
-    const filterIdx = SRC.indexOf("if (forDomains && forDomains.length > 0)");
-    const filterSlice = SRC.slice(filterIdx, filterIdx + 1200);
-    expect(filterSlice).toMatch(/if \(!s\.affectedDomain\) return true/);
+  it("fails CLOSED — a failed status read renders a banner, never silence", () => {
+    // Rendering nothing on a failed read is visually identical to HEALTHY,
+    // which is the one thing this component must never assert without proof.
+    expect(SRC).toMatch(/UNKNOWN|setError\(/);
   });
 });
 
 // =============================================================================
-// Part 7 — Page consumers scope the banner to their domain
+// Part 7 — no page scopes the banner any more, and none may reintroduce it
 // =============================================================================
 
-describe("Phase 32.7 — page consumers scope the runtime banner", () => {
-  const cases = [
-    {
-      // Phase 32.8E — /governance is a thin wrapper; the banner lives
-      // inside the GovernanceControlPlane component.
-      file: "apps/web/components/governance-experience/GovernanceControlPlane.tsx",
-      domain: "governance_lifecycle",
-    },
-    {
-      file: "apps/web/app/(app)/evidence/[id]/page.tsx",
-      domain: "core_evidence",
-    },
-    {
-      file: "apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
-      domain: "reviewer_ops",
-    },
-    {
-      // Phase 12 Point 4 — `/reviewer-ops` was retired in favour of the
-      // canonical `/review` console; the banner lives inside the
-      // ReviewerConsole component that page mounts.
-      file: "apps/web/components/reviewer-experience/ReviewerConsole.tsx",
-      domain: "reviewer_ops",
-    },
-    {
-      // Phase 32.8B — policy admin consolidated under /governance/policy.
-      file: "apps/web/app/(app)/governance/policy/page.tsx",
-      domain: "reviewer_ops",
-    },
-    {
-      file: "apps/web/app/(app)/reviewer-ops/sla/page.tsx",
-      domain: "reviewer_ops",
-    },
+describe("no page passes the removed scoping prop", () => {
+  const CONSUMERS = [
+    "apps/web/components/governance-experience/GovernanceControlPlane.tsx",
+    "apps/web/app/(app)/evidence/[id]/page.tsx",
+    "apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
+    "apps/web/components/reviewer-experience/ReviewerConsole.tsx",
+    "apps/web/app/(app)/governance/policy/page.tsx",
+    "apps/web/app/(app)/reviewer-ops/sla/page.tsx",
   ] as const;
 
-  for (const c of cases) {
-    it(`${c.file} scopes RuntimeStatusBanner to ${c.domain}`, () => {
+  for (const file of CONSUMERS) {
+    it(`${file} still mounts the banner, unscoped`, () => {
       const src = readFileSync(
-        fileURLToPath(new URL(`../../../${c.file}`, import.meta.url)),
+        fileURLToPath(new URL(`../../../${file}`, import.meta.url)),
         "utf8",
       );
-      // The banner usage must include forDomains={[...]} with the
-      // declared domain literal.
-      const re = new RegExp(
-        `RuntimeStatusBanner[\\s\\S]{0,200}forDomains=\\{\\s*\\[\\s*"${c.domain}"\\s*\\]\\s*\\}`,
+      // Still mounted: the boundary fix must not have quietly removed the
+      // banner from the pages that need it.
+      expect(src, "the runtime banner is no longer mounted here").toContain(
+        "<RuntimeStatusBanner",
       );
-      expect(src).toMatch(re);
+      const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+      expect(
+        code.includes("forDomains"),
+        "forDomains is passed to a component that no longer accepts it — the page reads as scoped while nothing filters",
+      ).toBe(false);
     });
   }
 

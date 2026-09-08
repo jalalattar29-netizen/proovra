@@ -199,6 +199,21 @@ function Shell() {
   const [mintOrgId, setMintOrgId] = useState("");
   const [mintReason, setMintReason] = useState("");
   const [mintAccessLevel, setMintAccessLevel] = useState("READ_ONLY");
+  /**
+   * OWN-2 — WHO ON THE CUSTOMER SIDE AGREED TO THIS.
+   *
+   * A customer administrator is the default, and the server verifies the id
+   * against real ORG_ADMIN membership of the organization being entered — a
+   * name typed here cannot become an approval that did not happen.
+   *
+   * The exception below exists because requiring an approver blocks support
+   * during a customer-side outage, which is when support is most needed. It is
+   * bounded, not optional: the server refuses a grant carrying neither, and
+   * what is typed here is written into the audit trail beside the missing
+   * approval.
+   */
+  const [mintApproverUserId, setMintApproverUserId] = useState("");
+  const [mintApprovalException, setMintApprovalException] = useState("");
   const [emergencyUserId, setEmergencyUserId] = useState("");
   const [emergencyRole, setEmergencyRole] = useState("EMERGENCY_READ_ONLY");
 
@@ -217,9 +232,20 @@ function Shell() {
       : mintReason.trim().length < 8
         ? "The recorded reason needs at least 8 characters."
         : null;
+  /*
+   * OWN-2 — the console states the requirement rather than letting the server
+   * refuse it. The server is still the authority; this only means an operator
+   * is told which field is missing before they press the button on an action
+   * over a customer's data.
+   */
+  const missingApproval =
+    mintApproverUserId.trim().length === 0 &&
+    mintApprovalException.trim().length < 8
+      ? "Name the customer administrator who approved this, or state why no approver was reachable (at least 8 characters)."
+      : null;
   const grantBlockedReason = mutating
     ? "A grant request is in flight."
-    : missingShared;
+    : (missingShared ?? missingApproval);
   const breakGlassBlockedReason = mutating
     ? "A grant request is in flight."
     : (missingShared ??
@@ -324,11 +350,13 @@ function Shell() {
         const res: {
           supportContextToken: string;
           expiresInSeconds: number;
-        } = await apiFetch("/v1/support-access/enter", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ teamId, grantId: grant.id }),
-        });
+        } = await stepUp.runStepUpAction(async (headers) =>
+          apiFetch("/v1/support-access/enter", {
+            method: "POST",
+            headers: { "content-type": "application/json", ...(headers ?? {}) },
+            body: JSON.stringify({ teamId, grantId: grant.id }),
+          }),
+        );
         if (isStale(captured)) return;
         // Token goes to the ref ONLY. Never to state, storage, or a URL.
         supportContextTokenRef.current = res.supportContextToken;
@@ -406,28 +434,58 @@ function Shell() {
     setMutationFailure(null);
     setNotice(null);
     try {
-      await apiFetch("/v1/support-access/start", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          teamId,
-          organizationId: mintOrgId.trim(),
-          reason: mintReason.trim(),
-          accessLevel: mintAccessLevel,
+      /*
+       * OWN-2 — MINTING NOW ASKS FOR A SECOND FACTOR, LIKE BREAK-GLASS BELOW.
+       *
+       * `/v1/support-access/start` answers a structured 401 STEP_UP_REQUIRED.
+       * Without `runStepUpAction` that lands in the failure banner as
+       * "Confirm your identity to continue" — advice with nothing on the page
+       * to act on, which is the dead end break-glass was in before ADM-021.
+       * Same canonical path, so the challenge is presented and the original
+       * request is retried once with the verified challenge id.
+       */
+      await stepUp.runStepUpAction(async (headers) =>
+        apiFetch("/v1/support-access/start", {
+          method: "POST",
+          headers: { "content-type": "application/json", ...(headers ?? {}) },
+          body: JSON.stringify({
+            teamId,
+            organizationId: mintOrgId.trim(),
+            reason: mintReason.trim(),
+            accessLevel: mintAccessLevel,
+            approvedByUserId: mintApproverUserId.trim() || null,
+            customerApprovalUnavailableReason:
+              mintApproverUserId.trim() ? null : mintApprovalException.trim(),
+          }),
         }),
-      });
+      );
       setNotice("Support grant created.");
       setMintOrgId("");
       setMintReason("");
+      setMintApproverUserId("");
+      setMintApprovalException("");
       await loadSupportGrants();
     } catch (err) {
+      // A cancelled challenge is the operator's own decision: nothing was
+      // minted and nothing failed, so nothing is reported.
+      if (isStepUpCancel(err)) return;
       setMutationFailure(
         classifyFailure(err, "Could not create the support grant."),
       );
     } finally {
       setMutating(false);
     }
-  }, [teamId, confirm, mintOrgId, mintReason, mintAccessLevel, loadSupportGrants]);
+  }, [
+    teamId,
+    confirm,
+    stepUp,
+    mintOrgId,
+    mintReason,
+    mintAccessLevel,
+    mintApproverUserId,
+    mintApprovalException,
+    loadSupportGrants,
+  ]);
 
   const activateBreakGlass = useCallback(async () => {
     if (!teamId) return;
@@ -884,6 +942,48 @@ function Shell() {
               />
             </label>
 
+            {/*
+              OWN-2 — THE CUSTOMER SIDE OF A SUPPORT GRANT.
+
+              Support access into a customer organization used to need nothing
+              from the customer at all. The approver id is verified server-side
+              against real ORG_ADMIN membership of that organization, so a name
+              typed here cannot become an approval that never happened.
+
+              The exception field is not a way around it. It exists because
+              requiring an approver blocks support during a customer-side
+              outage — the moment support is most needed — and what is typed in
+              it is written into the audit trail beside the missing approval.
+            */}
+            <label style={{ display: "grid", gap: 4 }}>
+              <span style={muted}>
+                Customer approver (user ID of an administrator of that
+                organization)
+              </span>
+              <input
+                className="app-input"
+                value={mintApproverUserId}
+                onChange={(e) => setMintApproverUserId(e.target.value)}
+                placeholder="Verified against real administrators of the organization"
+                data-testid="mint-approver-user-id"
+              />
+            </label>
+            {mintApproverUserId.trim().length === 0 ? (
+              <label style={{ display: "grid", gap: 4 }}>
+                <span style={muted}>
+                  No approver reachable — state why (recorded, minimum 8
+                  characters)
+                </span>
+                <input
+                  className="app-input"
+                  value={mintApprovalException}
+                  onChange={(e) => setMintApprovalException(e.target.value)}
+                  placeholder="e.g. customer IdP outage, no administrator contactable"
+                  data-testid="mint-approval-exception"
+                />
+              </label>
+            ) : null}
+
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "end" }}>
               <label style={{ display: "grid", gap: 4 }}>
                 <span style={muted}>Support access level</span>
@@ -905,9 +1005,7 @@ function Shell() {
               <Button
                 size="sm"
                 onClick={() => void startSupportGrant()}
-                disabled={
-                  mutating || !mintOrgId.trim() || mintReason.trim().length < 8
-                }
+                disabled={grantBlockedReason !== null}
                 title={grantBlockedReason ?? undefined}
               >
                 Create support grant

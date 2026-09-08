@@ -275,32 +275,32 @@
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
     },
     {
-      "capabilityId": "GET:/admin/runtime/migrations",
-      "routeId": "GET /admin/runtime/migrations",
+      "capabilityId": "GET:/v1/admin/runtime/migrations",
+      "routeId": "GET /v1/admin/runtime/migrations",
       "vertical": "PLATFORM_CORE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
-      "capabilityId": "GET:/admin/runtime/queues",
-      "routeId": "GET /admin/runtime/queues",
+      "capabilityId": "GET:/v1/admin/runtime/queues",
+      "routeId": "GET /v1/admin/runtime/queues",
       "vertical": "PLATFORM_CORE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
-      "capabilityId": "GET:/admin/runtime/readiness",
-      "routeId": "GET /admin/runtime/readiness",
+      "capabilityId": "GET:/v1/admin/runtime/readiness",
+      "routeId": "GET /v1/admin/runtime/readiness",
       "vertical": "PLATFORM_CORE",
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
     },
     {
-      "capabilityId": "GET:/admin/runtime/schema-status",
-      "routeId": "GET /admin/runtime/schema-status",
+      "capabilityId": "GET:/v1/admin/runtime/schema-status",
+      "routeId": "GET /v1/admin/runtime/schema-status",
       "vertical": "OPERATIONS_INTELLIGENCE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
-      "capabilityId": "GET:/admin/runtime/workers",
-      "routeId": "GET /admin/runtime/workers",
+      "capabilityId": "GET:/v1/admin/runtime/workers",
+      "routeId": "GET /v1/admin/runtime/workers",
       "vertical": "PLATFORM_CORE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },

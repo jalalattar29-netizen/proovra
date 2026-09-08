@@ -1,59 +1,63 @@
 [
   {
-    "route": "/admin/runtime/migrations",
+    "route": "/v1/admin/runtime/migrations",
     "methods": [
       "GET"
     ],
     "registeringFile": "services/api/src/routes/runtime-readiness.routes.ts:212",
     "class": "INTENTIONALLY_API_ONLY",
     "consumer": "SRE curl probes (docs/phase-28f-runtime-readiness.md:173)",
-    "authMode": "requireAuth + requireReadinessActor(audit.read)",
-    "evidence": "documented operator probe; web consumes /admin/runtime/readiness aggregator",
+    "authMode": "requireAuth + requirePlatformAdmin",
+    "evidence": "documented SRE operator probe (runbooks); no apps/web or apps/mobile call site",
     "proofSuite": "services/api/test/production-phase-o-stream-c-route-fixes.test.ts",
     "owner": "SRE/platform ops",
-    "productReason": "migration-drift operator probe"
+    "productReason": "migration-drift operator probe",
+    "note": "ADM-P1-003 / OWN-1 (Phase 10) — moved from the unversioned /admin/runtime/* into the versioned admin namespace and re-gated from requireReadinessActor(audit.read), a permission every workspace role holds, to requirePlatformAdmin. The payload is platform-wide runtime state, so a tenant permission was never the right key; the shell now reads GET /v1/runtime/status, a tenant-safe status enum."
   },
   {
-    "route": "/admin/runtime/queues",
+    "route": "/v1/admin/runtime/queues",
     "methods": [
       "GET"
     ],
     "registeringFile": "services/api/src/routes/runtime-readiness.routes.ts:131",
     "class": "INTENTIONALLY_API_ONLY",
     "consumer": "SRE curl; E10_2 runbook:86",
-    "authMode": "requireAuth + requireReadinessActor",
-    "evidence": "runbook + curl docs",
+    "authMode": "requireAuth + requirePlatformAdmin",
+    "evidence": "documented SRE operator probe (runbooks); no apps/web or apps/mobile call site",
     "proofSuite": "services/api/test/production-phase-o-stream-c-route-fixes.test.ts:195",
     "owner": "SRE/platform ops",
-    "productReason": "queue-health probe"
+    "productReason": "queue-health probe",
+    "note": "ADM-P1-003 / OWN-1 (Phase 10) — moved from the unversioned /admin/runtime/* into the versioned admin namespace and re-gated from requireReadinessActor(audit.read), a permission every workspace role holds, to requirePlatformAdmin. The payload is platform-wide runtime state, so a tenant permission was never the right key; the shell now reads GET /v1/runtime/status, a tenant-safe status enum."
   },
   {
-    "route": "/admin/runtime/schema-status",
+    "route": "/v1/admin/runtime/schema-status",
     "methods": [
       "GET"
     ],
     "registeringFile": "services/api/src/routes/ops.routes.ts:564",
     "class": "INTENTIONALLY_API_ONLY",
     "consumer": "SRE curl (3 runbooks incl. disaster-recovery.md:108)",
-    "authMode": "requireAuth + requireOpsActor",
-    "evidence": "three runbooks give curl invocations",
+    "authMode": "requireAuth + requirePlatformAdmin",
+    "evidence": "documented SRE operator probe (runbooks); no apps/web or apps/mobile call site",
     "proofSuite": "services/api/test/reviewer-ops-lifecycle-activation.test.ts",
     "owner": "SRE/platform ops",
-    "productReason": "schema-drift probe in DR/seeding runbooks"
+    "productReason": "schema-drift probe in DR/seeding runbooks",
+    "note": "ADM-P1-003 / OWN-1 (Phase 10) — moved from the unversioned /admin/runtime/* into the versioned admin namespace and re-gated from requireReadinessActor(audit.read), a permission every workspace role holds, to requirePlatformAdmin. The payload is platform-wide runtime state, so a tenant permission was never the right key; the shell now reads GET /v1/runtime/status, a tenant-safe status enum."
   },
   {
-    "route": "/admin/runtime/workers",
+    "route": "/v1/admin/runtime/workers",
     "methods": [
       "GET"
     ],
     "registeringFile": "services/api/src/routes/runtime-readiness.routes.ts:172",
     "class": "INTENTIONALLY_API_ONLY",
     "consumer": "SRE curl (phase-28f docs)",
-    "authMode": "requireAuth + requireReadinessActor",
-    "evidence": "documented probe",
+    "authMode": "requireAuth + requirePlatformAdmin",
+    "evidence": "documented SRE operator probe (runbooks); no apps/web or apps/mobile call site",
     "proofSuite": "services/api/test/production-phase-o-stream-c-route-fixes.test.ts:208",
     "owner": "SRE/platform ops",
-    "productReason": "worker/cron-secret health probe"
+    "productReason": "worker/cron-secret health probe",
+    "note": "ADM-P1-003 / OWN-1 (Phase 10) — moved from the unversioned /admin/runtime/* into the versioned admin namespace and re-gated from requireReadinessActor(audit.read), a permission every workspace role holds, to requirePlatformAdmin. The payload is platform-wide runtime state, so a tenant permission was never the right key; the shell now reads GET /v1/runtime/status, a tenant-safe status enum."
   },
   {
     "route": "/v1/_test/rate-limit/reset",

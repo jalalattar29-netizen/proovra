@@ -87,6 +87,21 @@ export type StartSupportAccessInput = {
   reason: string;
   accessLevel?: SupportAccessLevel;
   approvedByUserId?: string | null;
+  /**
+   * WHY THIS GRANT HAS NO CUSTOMER APPROVER (OWN-2).
+   *
+   * A customer-side approver is the policy DEFAULT for every support grant.
+   * The exception exists because requiring one blocks support during exactly
+   * the incident where support is most needed — a customer-side outage, where
+   * no ORG_ADMIN can be reached to approve anything.
+   *
+   * It is bounded rather than optional: the route refuses a grant that has
+   * neither an approver nor this reason, and the reason is written into the
+   * audit trail at the same place the approver would have been. "Support
+   * entered without customer approval, and here is what they said at the time"
+   * is a reviewable fact; a silently-absent approver is not.
+   */
+  customerApprovalUnavailableReason?: string | null;
   durationMs?: number;
   nowMs?: number;
 };
@@ -150,6 +165,14 @@ export async function startSupportAccess(
       grantId: row.id,
       accessLevel,
       approvedByUserId: input.approvedByUserId ?? null,
+      // OWN-2 — present ONLY when the grant was minted without a customer-side
+      // approver, and it is the recorded justification for that. Kept in the
+      // audit metadata rather than a new column: the grant row records what
+      // access exists, the audit records why it was allowed to.
+      customerApprovalUnavailableReason:
+        input.approvedByUserId
+          ? null
+          : (input.customerApprovalUnavailableReason ?? null),
       expiresAtUtc: expiresAtUtc.toISOString(),
     },
   }, client).catch(() => null);

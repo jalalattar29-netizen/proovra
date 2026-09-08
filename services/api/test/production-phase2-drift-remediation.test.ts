@@ -1182,7 +1182,19 @@ describe("Phase 2 Drift Remediation — Prisma field pins (GROUP D)", () => {
 // the four: putting the shared rule inside any one family would make the other
 // three import from a sibling route module, and the reason this defect
 // survived is precisely that the rule had four homes and no owner.
-const ROUTE_COUNT_PHASE_2_BASELINE = 129;
+// ADM-P3-005 / ADM-P3-006 (Phase 10) — 129 → 130: `deprecated-alias.ts`.
+//
+// It registers no route either. It holds one wrapper that adds the RFC 8594
+// Deprecation / Sunset headers and the RFC 8288 successor Link to an alias
+// registration, and one sunset date shared by all of them.
+//
+// Argued for as a NEW FILE rather than a helper inside one of the two route
+// modules that use it, for the reason the entry above gives: the aliases live
+// in `admin-organizations.routes.ts` and `ops.routes.ts`, so a helper inside
+// either would make the other import from a sibling route module, and the
+// sunset date — the one thing that must not drift between them — would have a
+// home that reads as belonging to one family.
+const ROUTE_COUNT_PHASE_2_BASELINE = 130;
 
 describe("Phase 2 Drift Remediation — central handler sanity (GROUP E)", () => {
   it("E.1 — central error handler maps Prisma P2022/P2021 → 503 SCHEMA_NOT_READY", () => {

@@ -975,27 +975,75 @@ describe("PHASE 12B C10 — support access + break-glass are platform-staff only
     });
   }
 
+  /*
+   * OWN-2 — THESE THREE CASES NOW SEED A CHALLENGE AND NAME AN APPROVER.
+   *
+   * They used to POST with neither, and they passed: minting standing access
+   * into a customer organization needed the staff gate and a capability, and
+   * nothing else. `/v1/break-glass/activate` — tested twenty lines below,
+   * against the same REAL step-up gate — has always required a challenge.
+   *
+   * The step-up gate here is deliberately not mocked (see the note above the
+   * mocks), so passing it means seeding an approved challenge exactly the way
+   * the break-glass cases do. The two new cases at the end assert the refusals,
+   * so the added headers cannot quietly become an accommodation.
+   */
+  function startSupportPayload(over: Record<string, unknown> = {}) {
+    return {
+      teamId: WS,
+      organizationId: ORG,
+      reason: "incident 4821 triage",
+      approvedByUserId: APPROVER,
+      ...over,
+    };
+  }
+
   it("a staff caller can start support access", async () => {
+    installSupportTransport({ seedApprovedChallenge: true });
     const res = await app.inject({
       method: "POST",
       url: "/v1/support-access/start",
-      payload: { teamId: WS, organizationId: ORG, reason: "incident 4821 triage" },
+      headers: { "x-proovra-step-up-challenge-id": BG_CHALLENGE },
+      payload: startSupportPayload(),
     });
     expect(res.statusCode).toBe(200);
     expect(S.writes).toContain("startSupportAccess");
   });
 
+  it("start is step-up gated: no challenge ⇒ 401, ZERO mutation", async () => {
+    // The REAL gate, with no challenge header — the same shape the break-glass
+    // case below asserts, on the route that had no gate at all until OWN-2.
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/support-access/start",
+      payload: startSupportPayload(),
+    });
+    expect(res.statusCode).toBe(401);
+    expect(res.json().error.code).toBe("STEP_UP_REQUIRED");
+    expect(S.writes).toEqual([]);
+  });
+
+  it("start with no customer approver and no stated reason ⇒ 400, ZERO mutation", async () => {
+    installSupportTransport({ seedApprovedChallenge: true });
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/support-access/start",
+      headers: { "x-proovra-step-up-challenge-id": BG_CHALLENGE },
+      payload: startSupportPayload({ approvedByUserId: undefined }),
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe("SUPPORT_ACCESS_APPROVER_REQUIRED");
+    expect(S.writes).toEqual([]);
+  });
+
   it("a fabricated customer approver is rejected with zero mutation", async () => {
+    installSupportTransport({ seedApprovedChallenge: true });
     S.approverIsOrgAdmin = false;
     const res = await app.inject({
       method: "POST",
       url: "/v1/support-access/start",
-      payload: {
-        teamId: WS,
-        organizationId: ORG,
-        reason: "incident 4821 triage",
-        approvedByUserId: APPROVER,
-      },
+      headers: { "x-proovra-step-up-challenge-id": BG_CHALLENGE },
+      payload: startSupportPayload(),
     });
     expect(res.statusCode).toBe(400);
     expect(res.json().error.code).toBe("SUPPORT_ACCESS_APPROVER_INVALID");
@@ -1003,17 +1051,14 @@ describe("PHASE 12B C10 — support access + break-glass are platform-staff only
   });
 
   it("the support actor cannot be their own customer-side approver", async () => {
+    installSupportTransport({ seedApprovedChallenge: true });
     const res = await app.inject({
       method: "POST",
       url: "/v1/support-access/start",
-      payload: {
-        teamId: WS,
-        organizationId: ORG,
-        reason: "incident 4821 triage",
-        // A real UUID that happens to be the actor's own — the self-approval
-        // case, distinct from "approver is not an org admin".
-        approvedByUserId: S.actorUserId,
-      },
+      headers: { "x-proovra-step-up-challenge-id": BG_CHALLENGE },
+      // A real UUID that happens to be the actor's own — the self-approval
+      // case, distinct from "approver is not an org admin".
+      payload: startSupportPayload({ approvedByUserId: S.actorUserId }),
     });
     expect(res.statusCode).toBe(400);
     expect(res.json().error.code).toBe("SUPPORT_ACCESS_APPROVER_INVALID");
@@ -1072,10 +1117,32 @@ describe("PHASE 12B C10 — support access + break-glass are platform-staff only
     expect(S.writes).toEqual([]);
   });
 
-  it("support context entry mints a SESSION-BOUND token and never a grant mutation", async () => {
+  it("support context ENTRY is step-up gated: no challenge ⇒ 401", async () => {
+    /*
+     * OWN-2 — a grant is durable and a session is not.
+     *
+     * Entry used to require only the staff gate and the capability, so a grant
+     * minted behind step-up could be entered from any later session of the
+     * same account with no second factor — which makes the ceremony on /start
+     * a one-time cost rather than a control on the act of reading customer
+     * data.
+     */
     const res = await app.inject({
       method: "POST",
       url: "/v1/support-access/enter",
+      payload: { teamId: WS, grantId: GRANT },
+    });
+    expect(res.statusCode).toBe(401);
+    expect(res.json().error.code).toBe("STEP_UP_REQUIRED");
+    expect(S.writes).toEqual([]);
+  });
+
+  it("support context entry mints a SESSION-BOUND token and never a grant mutation", async () => {
+    installSupportTransport({ seedApprovedChallenge: true });
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/support-access/enter",
+      headers: { "x-proovra-step-up-challenge-id": BG_CHALLENGE },
       payload: { teamId: WS, grantId: GRANT },
     });
     expect(res.statusCode).toBe(200);

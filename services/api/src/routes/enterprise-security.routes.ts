@@ -410,9 +410,48 @@ export async function enterpriseSecurityRoutes(app: FastifyInstance) {
   });
 
   // ── §10.8 support-access start / revoke ───────────────────────────────
-  const SupportBody = z.object({ teamId: z.string().uuid(), organizationId: z.string().uuid(), reason: z.string().min(8).max(600), scopeTeamId: z.string().uuid().nullable().optional(), accessLevel: z.enum(["READ_ONLY", "ELEVATED"]).optional(), approvedByUserId: z.string().uuid().nullable().optional() });
+  const SupportBody = z.object({
+    teamId: z.string().uuid(),
+    organizationId: z.string().uuid(),
+    reason: z.string().min(8).max(600),
+    scopeTeamId: z.string().uuid().nullable().optional(),
+    accessLevel: z.enum(["READ_ONLY", "ELEVATED"]).optional(),
+    approvedByUserId: z.string().uuid().nullable().optional(),
+    /*
+     * OWN-2 — the bounded exception to the customer-approver default.
+     *
+     * Minimum length matches `reason`: a field that accepts "n/a" is a field
+     * that will contain "n/a".
+     */
+    customerApprovalUnavailableReason: z
+      .string()
+      .min(8)
+      .max(600)
+      .nullable()
+      .optional(),
+  });
   app.post("/v1/support-access/start", { preHandler: requireAuth }, async (req: FastifyRequest, reply: FastifyReply) => {
-    const body = SupportBody.parse(req.body ?? {});
+    /*
+     * safeParse, NOT parse.
+     *
+     * A raw `.parse` throws a ZodError that the central handler serves as a
+     * 500, so "your justification was too short to be one" arrived as "the
+     * server broke" — the same failure mode Sentry NODE-W recorded on
+     * /v1/ops/metrics. Found by the OWN-2 test that sends "n/a" as the
+     * approval-exception reason and expects to be told why it was refused.
+     */
+    const parsed = SupportBody.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      return reply.code(400).send({
+        error: {
+          code: "INVALID_BODY",
+          message:
+            "Check the request: a reason must be at least eight characters, and ids must be uuids.",
+          requestId: req.id,
+        },
+      });
+    }
+    const body = parsed.data;
     // PHASE 12B C10 — the support ACTOR must be PLATFORM STAFF. The previous
     // gate was `identity.org_policy.manage` alone, a CUSTOMER capability, so a
     // customer org admin could mint a support grant over their own Organization
@@ -420,6 +459,46 @@ export async function enterpriseSecurityRoutes(app: FastifyInstance) {
     if (!(await requirePlatformStaff(req, reply))) return;
     const auth = await authorizeOrFail(req, reply, { teamId: body.teamId, permission: "identity.org_policy.manage" });
     if (!auth) return;
+    /*
+     * OWN-2 — STEP-UP, BECAUSE ENTERING A CUSTOMER TENANT IS AT LEAST AS
+     * CONSEQUENTIAL AS ACTIVATING BREAK-GLASS.
+     *
+     * `/v1/break-glass/activate` twenty lines above requires step-up. This
+     * route mints standing access into a customer organization's data and
+     * required only the platform-staff gate and a capability — the weakest gate
+     * of the three on the highest-consequence operator action in the product.
+     * Same purpose and same anchor as break-glass, so an operator meets one
+     * ceremony rather than two spellings of one.
+     */
+    {
+      const gate = await requireStepUpForSensitiveAction({ req, reply, teamId: body.teamId, userId: auth.actorUserId, purpose: "ORG_SECURITY_POLICY_UPDATE" });
+      if (gate.sent) return;
+    }
+    /*
+     * OWN-2 — A CUSTOMER APPROVER IS THE DEFAULT, NOT AN OPTION.
+     *
+     * `approvedByUserId` was optional, and when supplied it was verified
+     * properly — but nothing required it, so the ordinary path minted support
+     * access into a customer's organization with no customer in the loop. The
+     * verification was sound and guarded a door that was standing open.
+     *
+     * The exception is real and has to exist: requiring an approver blocks
+     * support during a customer-side outage, which is when support is most
+     * needed. So it is bounded rather than removed — a grant without an
+     * approver must SAY why, in a reason of the same substance the access
+     * reason requires, and that text is audited beside the missing approval.
+     * "No approver" and "no approver, and here is why" are different facts to
+     * anyone reviewing the trail later.
+     */
+    if (!body.approvedByUserId && !body.customerApprovalUnavailableReason) {
+      return reply.code(400).send({
+        error: {
+          code: "SUPPORT_ACCESS_APPROVER_REQUIRED",
+          message:
+            "Name a customer administrator who approved this access, or state why no approver was reachable.",
+        },
+      });
+    }
     // PHASE 12B C10 — `approvedByUserId` arrives from the request, so it must be
     // VERIFIED, not recorded on trust: an unverified value would let the support
     // actor fabricate a customer approval in the audit trail. The approver must
@@ -443,7 +522,7 @@ export async function enterpriseSecurityRoutes(app: FastifyInstance) {
       });
     }
     try {
-      const grant = await startSupportAccess({ supportUserId: auth.actorUserId, organizationId: body.organizationId, teamId: body.scopeTeamId ?? null, reason: body.reason, accessLevel: body.accessLevel, approvedByUserId: body.approvedByUserId ?? null });
+      const grant = await startSupportAccess({ supportUserId: auth.actorUserId, organizationId: body.organizationId, teamId: body.scopeTeamId ?? null, reason: body.reason, accessLevel: body.accessLevel, approvedByUserId: body.approvedByUserId ?? null, customerApprovalUnavailableReason: body.customerApprovalUnavailableReason ?? null });
       return reply.send({ grant: { id: grant.id, accessLevel: grant.accessLevel, expiresAtUtc: grant.expiresAtUtc } });
     } catch (err) {
       const e = err as { statusCode?: number; code?: string; message?: string };
@@ -596,6 +675,19 @@ export async function enterpriseSecurityRoutes(app: FastifyInstance) {
         permission: "identity.org_policy.manage",
       });
       if (!auth) return;
+      /*
+       * OWN-2 — step-up on ENTRY as well as on minting.
+       *
+       * A grant is durable and a session is not. Without this, a grant minted
+       * behind step-up hours earlier could be entered from any later session
+       * of the same staff account with no second factor — which makes the
+       * ceremony on `/start` a one-time cost rather than a control on the
+       * act of actually reading customer data.
+       */
+      {
+        const gate = await requireStepUpForSensitiveAction({ req, reply, teamId: body.teamId, userId: auth.actorUserId, purpose: "ORG_SECURITY_POLICY_UPDATE" });
+        if (gate.sent) return;
+      }
       // Fail closed BEFORE any grant read: a request whose session cannot
       // be resolved (e.g. a pre-Phase-19 token with no `sid`) can never
       // mint a session-bound token — there is nothing to bind it to.
