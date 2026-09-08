@@ -375,7 +375,7 @@ function Shell() {
         setMutating(false);
       }
     },
-    [teamId, confirm, stamp, isStale],
+    [teamId, confirm, stamp, isStale, stepUp],
   );
 
   /** Drop the in-memory token. Does not touch the grant — that is revoke. */

@@ -344,7 +344,11 @@ function InvestigationOverviewPageInner() {
       cancelled = true;
       if (timer) clearInterval(timer);
     };
-  }, [teamId]);
+    // `canPlatformTelemetry` decides whether the platform metrics read is
+    // attempted at all, so a change to it must re-run the poll — otherwise an
+    // operator who gains the capability keeps seeing the unavailable panel
+    // until the next navigation.
+  }, [teamId, canPlatformTelemetry]);
 
   const ageSeconds = useMemo(() => {
     if (!lastFetchAt) return null;

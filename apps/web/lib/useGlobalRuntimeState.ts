@@ -517,7 +517,10 @@ export function useGlobalRuntimeState(
       escalations: escalations.length,
       degradedSubsystems,
     };
-  }, [readiness, incidents, escalations]);
+    // `readiness` is gone from the deps because it is gone from the body:
+    // the shell no longer receives a subsystem list to count. Leaving it in
+    // would recompute this memo on every status poll for no reason.
+  }, [incidents, escalations]);
 
   return {
     loading,

@@ -48,7 +48,6 @@ import type {
   FastifyReply,
   FastifyRequest,
 } from "fastify";
-import { z } from "zod";
 
 import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
 import { prisma } from "../db.js";
