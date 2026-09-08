@@ -168,19 +168,30 @@ describe("delete — admitted only for a disposable group", () => {
      */
     const order: string[] = [];
     const { client } = makeClient();
-    const inner = client as unknown as Record<string, Record<string, unknown>>;
-    const realTx = inner.$transaction as (fn: (tx: unknown) => unknown) => unknown;
-    inner.$transaction = ((fn: (tx: unknown) => unknown) => {
+    // Untyped on purpose: this reaches into the double to record call order,
+    // and every hop goes through `unknown` so tsc is not asked to believe a
+    // Record is a function.
+    const inner = client as unknown as Record<string, never>;
+    const realTx = inner["$transaction"] as unknown as (
+      fn: (tx: unknown) => unknown,
+    ) => unknown;
+    inner["$transaction"] = ((fn: (tx: unknown) => unknown) => {
       order.push("tx:begin");
       return realTx(fn);
     }) as never;
-    const realCount = inner.collaborationTeamAssignment.count as () => Promise<number>;
-    inner.collaborationTeamAssignment.count = (async () => {
+    const assignments = inner["collaborationTeamAssignment"] as unknown as {
+      count: () => Promise<number>;
+    };
+    const realCount = assignments.count;
+    assignments.count = (async () => {
       order.push("assess");
       return realCount();
     }) as never;
-    const realDelete = inner.collaborationTeam.delete as (a: unknown) => unknown;
-    inner.collaborationTeam.delete = ((a: unknown) => {
+    const teamDelegate = inner["collaborationTeam"] as unknown as {
+      delete: (a: unknown) => unknown;
+    };
+    const realDelete = teamDelegate.delete;
+    teamDelegate.delete = ((a: unknown) => {
       order.push("delete");
       return realDelete(a);
     }) as never;
