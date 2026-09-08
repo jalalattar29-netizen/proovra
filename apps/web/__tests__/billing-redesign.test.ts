@@ -495,9 +495,23 @@ test("Pricing no longer claims every plan includes reports and packages", () => 
 
 test("Pricing describes the implemented PAYG credit product", () => {
   const src = read(PRICING);
-  assert.match(src, /One credit records one evidence item/);
+  /*
+   * COMMERCIAL CLOSURE (2026-09-08) — "one NEW evidence item".
+   *
+   * A credit is FORWARD-FUNDING and always has been: it is spent at the moment
+   * a record COMPLETES, and there is no path — by design — that attaches one to
+   * a record already finished. Read by a Free customer holding three bare
+   * records, "one evidence item" invited exactly the wrong conclusion: buy a
+   * credit to unlock a report on one of them. The word NEW is the whole
+   * correction, and it makes the page describe what the code does rather than
+   * the code being changed to match the page.
+   */
+  assert.match(src, /One credit records one new evidence item/);
   assert.match(src, /Credits never expire/);
   assert.match(src, /your account stays on Free/);
+  // Intake links are sold with this row and are now genuinely reachable from a
+  // funded wallet, so the page may say so.
+  assert.match(src, /Intake links/);
   // The unenforceable perpetual promises are gone.
   assert.doesNotMatch(src, /5 GB storage/);
   assert.doesNotMatch(src, /50 AI operations/);

@@ -1840,7 +1840,7 @@ function WhatNeedsAttentionStrip({
   onGoToArtifacts: () => void;
   onGoToReview: () => void;
 }) {
-  const { workspace, workspaceCaps, reviewSignals, canSeeReviewerOps } = ctx;
+  const { workspace, reviewSignals, canSeeReviewerOps } = ctx;
 
   const needsCase = !workspace.relationships.caseId && !workspace.relationships.caseName;
   // Phase EVIDENCE-REVIEW-VISIBILITY — only surface the

@@ -207,7 +207,6 @@ function GenerateOutputsButton({
 export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
   const {
     workspace,
-    workspaceCaps,
     evidenceId,
     publicVerificationState,
     shareUrl,
