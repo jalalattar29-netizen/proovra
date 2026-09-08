@@ -77,9 +77,19 @@ describe("effective plan has one authority", () => {
     expect(code).toMatch(/persistedBillingPlan:\s*String\(team\.billingPlan\)/);
   });
 
-  it("GET /v1/teams/:id sends the effective plan alongside the raw columns", () => {
+  it("GET /v1/teams/:id sends the effective plan, resolved and ungated", () => {
     const code = stripComments(readApi("routes/teams.routes.ts"));
-    expect(code).toMatch(/effectivePlan:\s*commercial\.plan/);
+    /*
+     * The binding name is `workspaceScope`, not `commercial` — the two are the
+     * same object (`commercial.plan` IS `commercial.scope.plan`) and the route
+     * keeps only the one it needs. What this pins is that the value comes from
+     * the canonical resolver and that it is projected exactly ONCE: the field
+     * briefly existed twice in this literal, and a key written twice is a key
+     * whose ADMIN gate does not hold — the later spread simply wins.
+     */
+    expect(code).toMatch(/resolveCommercialContext\(\{\s*type:\s*"WORKSPACE"/);
+    expect(code).toMatch(/effectivePlan:\s*workspaceScope\.plan/);
+    expect(code.match(/effectivePlan:/g) ?? []).toHaveLength(1);
   });
 
   it("the workspace admin panel renders effectivePlan and never the persisted column", () => {

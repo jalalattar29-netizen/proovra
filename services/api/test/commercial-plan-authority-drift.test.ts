@@ -248,7 +248,19 @@ describe("effective plan — no customer surface reads the raw column as truth",
     expect(code).toMatch(/billingPlan\?:\s*string \| null/);
     // …and never read into a rendered value.
     expect(code).not.toMatch(/team\?\.billingPlan/);
-    expect(code).toMatch(/normalizePlanLabel\(team\?\.effectivePlan\)/);
+    /*
+     * The derivation itself, bounded to the memo. It guards the string before
+     * labelling it and yields null otherwise, so matching the whole call
+     * expression would pin one spelling of that guard rather than the rule.
+     * What must hold: the ONLY input is `effectivePlan`, and the label comes
+     * from the helper that can no longer fabricate one.
+     */
+    const memoStart = code.indexOf("const effectivePlan = useMemo(");
+    expect(memoStart).toBeGreaterThan(-1);
+    const memo = code.slice(memoStart, code.indexOf("const ownerLabel", memoStart));
+    expect(memo).toMatch(/team\?\.effectivePlan/);
+    expect(memo).toMatch(/normalizePlanLabel\(/);
+    expect(memo).not.toMatch(/billingPlan|"FREE"/);
   });
 
   it("the workspace-admin panel renders the effective plan on both surfaces that show one", () => {

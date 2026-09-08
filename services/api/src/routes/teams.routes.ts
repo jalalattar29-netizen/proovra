@@ -715,12 +715,13 @@ export async function teamsRoutes(app: FastifyInstance) {
       });
 
       // §9.7 — explicit WORKSPACE subject (existing-workspace seat display).
-      // COMMERCIAL TRUTH CLOSURE (2026-09-08) — the whole envelope is kept,
-      // not just `.scope`: `commercial.plan` is the effective plan and is the
-      // only plan this route may present. It was already being computed and
-      // thrown away, while the response carried the raw column instead.
-      const commercial = await resolveCommercialContext({ type: "WORKSPACE", teamId, requesterUserId: userId });
-      const workspaceScope = commercial.scope;
+      // COMMERCIAL TRUTH CLOSURE (2026-09-08) — the effective plan this route
+      // presents comes from here and nowhere else. It was already being
+      // computed and thrown away, while the response carried the raw column
+      // instead; `workspaceScope.plan` below is that resolved value.
+      const workspaceScope = (
+        await resolveCommercialContext({ type: "WORKSPACE", teamId, requesterUserId: userId })
+      ).scope;
       const workspaceUsage = await getWorkspaceUsage(workspaceScope);
       const effectiveSeatLimit = workspaceUsage.seatLimit;
 
@@ -765,17 +766,17 @@ export async function teamsRoutes(app: FastifyInstance) {
          * Enterprise provisioning wrote it. `stats.seat*` below carries the
          * resolved truth for everyone.
          *
-         * COMMERCIAL TRUTH CLOSURE (2026-09-08) — `effectivePlan` now travels
-         * beside them, and it is the one the client renders. The note above
-         * diagnosed the raw column correctly and then shipped it as the only
-         * plan on the wire, so `/teams/[id]` fell back to it and told a PRO
-         * customer they were on FREE. The raw columns are RETAINED for
+         * COMMERCIAL TRUTH CLOSURE (2026-09-08) — the effective plan the
+         * client renders is projected ONCE, below, and ungated. It is NOT
+         * repeated inside this block: the value would be identical
+         * (`commercial.plan` IS `commercial.scope.plan`), and a key written
+         * twice in one object literal is a key whose gate does not hold — the
+         * later spread simply wins. The raw columns are RETAINED for
          * administrators — provisioning and support genuinely read them — and
          * the privacy decision is unchanged: none of this reaches a VIEWER.
          */
         ...(hasRole(actorMembership.role, prismaPkg.TeamRole.ADMIN)
           ? {
-              effectivePlan: commercial.plan,
               billingPlan: team.billingPlan,
               billingStatus: team.billingStatus,
               includedSeats: team.includedSeats,

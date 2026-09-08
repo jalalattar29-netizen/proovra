@@ -122,17 +122,31 @@ test("unknown renders as an em dash, and the row stays", () => {
   assert.match(pageCode, /\{effectivePlan \?\? "—"\}/);
 });
 
-test("normalizePlanLabel still defaults to FREE only where a caller asks it to", () => {
+test("normalizePlanLabel cannot fabricate a plan at all", () => {
   /*
-   * The helper keeps its optional fallback parameter — other callers may
-   * legitimately want one. What must not exist is a caller on THIS surface
-   * passing "FREE" for a workspace whose plan is simply unknown.
+   * STRENGTHENED (2026-09-08, commercial-truth closure).
+   *
+   * This originally pinned the helper's optional `fallback = "FREE"`
+   * parameter, on the reasoning that "other callers may legitimately want
+   * one", and then checked by grep that no CALL site passes "FREE".
+   *
+   * There are no other callers — this surface is the only one — so what the
+   * parameter actually preserved was a live affordance for manufacturing the
+   * exact commercial claim this file exists to forbid, guarded by a regex over
+   * argument text. The parameter is now gone, and the helper returns `null`
+   * for an unknown plan.
+   *
+   * That is the same rule, held one level lower: a call site cannot pass a
+   * fallback the signature does not accept, so the compiler enforces what the
+   * grep used to approximate. The call-site sweep is kept below because it
+   * still reads a real property directly, and costs nothing.
    */
-  assert.match(page, /function normalizePlanLabel\(value\?: string \| null, fallback = "FREE"\)/);
-  // CALL sites only. The declaration's own parameter list carries the default,
-  // which is the point of keeping it — matching it here would assert that the
-  // helper may not have a fallback at all, which is a different (and wrong)
-  // rule.
+  assert.match(page, /function normalizePlanLabel\(value\?: string \| null\): string \| null/);
+  assert.doesNotMatch(
+    codeOnly(page),
+    /fallback\s*=\s*"FREE"/,
+    "the helper must not carry a plan-fabricating default",
+  );
   const callSites = [
     ...pageCode.matchAll(/(?<!function )normalizePlanLabel\(([^)]*)\)/g),
   ];
