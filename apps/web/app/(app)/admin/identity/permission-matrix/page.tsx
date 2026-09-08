@@ -731,7 +731,7 @@ export default function PermissionMatrixPage() {
               />
               {/* The matrix is the product's compiled-in roles crossed with
                   its compiled-in capabilities — nothing queried, nothing
-                  capped. Declared in scripts/admin-complete-lists.mjs, where
+                  capped. Declared in apps/web/scripts/admin-complete-lists.mjs, where
                   the API test asserts the handler has no take. */}
               <ResultCount
                 shown={filtered.length}

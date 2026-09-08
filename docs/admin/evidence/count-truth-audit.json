@@ -230,6 +230,14 @@
     {
       "route": "/admin/platform/automation",
       "kind": "ResultCount",
+      "noun": "rule",
+      "truth": "COMPLETE_LIST",
+      "filteredAware": false,
+      "loadingAware": false
+    },
+    {
+      "route": "/admin/platform/automation",
+      "kind": "ResultCount",
       "noun": "run",
       "truth": "EXACT_TOTAL",
       "filteredAware": true,
@@ -240,14 +248,6 @@
       "kind": "ResultCount",
       "noun": "run",
       "truth": "CAP_DISCLOSED",
-      "filteredAware": false,
-      "loadingAware": false
-    },
-    {
-      "route": "/admin/platform/automation",
-      "kind": "inline",
-      "noun": "rule",
-      "truth": "COMPLETE_LIST",
       "filteredAware": false,
       "loadingAware": false
     },

@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "350df28cd1b3592fbce302d87d8037fa4ec1ea078f008fcbdfae86936dbafd59",
   "routeInventoryHash": "2ed0cf93ea10458d4e9be585c80099e6ea668aded9f78a061f5831653ad69065",
-  "consumerInventoryHash": "c2aab571b62ff06e22639433ed68262844b4348329f9f822076f0dfb59ee19a7",
+  "consumerInventoryHash": "7df2c19ccff9484c33b3a7ec3fc41e19e78125f4e477402135bfa395776e7c4b",
   "dispositionsHash": "cdff653db3c467402cb060d501f836214922bbfda08070b5ceb9b3c1926684c1",
   "totals": {
     "RegisteredRoutes": 1144,
@@ -1048,7 +1048,7 @@
       "method": "GET",
       "route": "/v1/admin/executive",
       "registeringFile": "services/api/src/routes/admin-executive.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/executive/page.tsx:263",
+      "productConsumer": "apps/web/app/(app)/admin/executive/page.tsx:280",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -88168,7 +88168,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/executive/page.tsx",
-          "line": 263,
+          "line": 280,
           "caller": "ExecutiveDashboardBody",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -88178,7 +88178,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/executive/page.tsx:263 (ExecutiveDashboardBody, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/executive/page.tsx:280 (ExecutiveDashboardBody, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",

@@ -74,9 +74,9 @@ export type ResultCountProps = {
   /**
    * The server returned every row, so `shown` IS the population.
    *
-   * Only for a route declared in `scripts/admin-complete-lists.mjs`, where an
-   * API test asserts the handler has no row cap. Setting it anywhere else
-   * turns `rows.length` into a claim nothing supports.
+   * Only for a route declared in `apps/web/scripts/admin-complete-lists.mjs`,
+   * where an API test asserts the handler has no row cap. Setting it anywhere
+   * else turns `rows.length` into a claim nothing supports.
    */
   complete?: boolean;
   /** A continuation control, rendered on the right when supplied. */

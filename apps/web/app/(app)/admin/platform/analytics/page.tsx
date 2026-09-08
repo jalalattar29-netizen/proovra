@@ -393,7 +393,22 @@ function AnalyticsPageInner(): JSX.Element {
           title={state.code === "auth_required"
                 ? "Sign in required"
                 : "Permission required"}
-          subtitle={"Operational analytics require the ANALYTICS_VIEW capability (team writer or admin)."}
+          /*
+           * ADM-P3-012 — no raw capability code in operator copy.
+           *
+           * This read "Operational analytics require the ANALYTICS_VIEW
+           * capability (team writer or admin)", which names a key from the
+           * capability catalogue. The route registry states the rule for the
+           * Tools surface — no raw capability codes shown to operators — and it
+           * holds here too: the code is not something the reader can act on, and
+           * the two states it was flattening are different problems with
+           * different fixes.
+           */
+          subtitle={
+            state.code === "auth_required"
+              ? "Your session has ended. Sign in again to view operational analytics."
+              : "Your account cannot view operational analytics. A workspace administrator can grant access."
+          }
         />
       }
       >

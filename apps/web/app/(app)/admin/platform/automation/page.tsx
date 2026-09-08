@@ -228,7 +228,17 @@ function AutomationPageInner(): JSX.Element {
           title={state.code === "auth_required"
                 ? "Sign in required"
                 : "Permission required"}
-          subtitle={"Automation visibility requires the AUTOMATION_VIEW capability (team writer or admin)."}
+          /*
+           * ADM-P3-012 — same defect, same page family. The audit named only
+           * the analytics console; this is the identical sentence one route
+           * over, and fixing one of two would leave the rule half-kept and the
+           * next reader unsure which spelling is intended.
+           */
+          subtitle={
+            state.code === "auth_required"
+              ? "Your session has ended. Sign in again to view automation rules."
+              : "Your account cannot view automation rules. A workspace administrator can grant access."
+          }
         />
       }
       >
@@ -276,12 +286,32 @@ function AutomationPageInner(): JSX.Element {
           subtitle={"Bounded operational automation. Each rule has a strictly-typed trigger and a strictly-typed action — no scripts, no visual builder, no marketplace. Rules are team-scoped and audited."}
           secondaryActions={
             <>
+              {/*
+                ADM-P3-009 — the rules count goes through ResultCount like the
+                other three declared-complete lists.
+
+                It was a bare `{envelope.rules.length} rules` template. That was
+                TRUE — the handler runs findMany with no take, and an API test
+                asserts it, which is why the route is in
+                apps/web/scripts/admin-complete-lists.mjs — but a bare length
+                cannot SAY it is the whole population, and it cannot say the
+                read failed. Three of the four declared-complete lists stated
+                their completeness through the one component built to carry the
+                claim; this one asserted it by being written next to a comment.
+
+                `complete` is the whole point of the move: it makes the sentence
+                "N rules" mean "N rules, all of them", which is a different
+                statement from the identical-looking one a capped list prints.
+              */}
+              <ResultCount
+                shown={envelope.rules.length}
+                complete
+                noun="rule"
+                data-testid="admin-automation-rules-count"
+                style={{ marginTop: 0 }}
+              />
               <div className="apf-muted">
-              <span data-automation-counts>
-              {envelope.rules.length} rule
-              {envelope.rules.length === 1 ? "" : "s"} ·{" "}
-              {enabledCount} enabled
-              </span>
+              <span data-automation-counts>{enabledCount} enabled</span>
               </div>
             </>
           }

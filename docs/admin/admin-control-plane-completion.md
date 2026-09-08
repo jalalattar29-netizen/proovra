@@ -323,7 +323,7 @@
 | `/admin/demo-requests/:id` | 536 | 5c/0t/0s |  |
 | `/admin/evidence-ops` | 790 | 4c/0t/7s |  |
 | `/admin/evidence-ops/records` | 626 | 2c/1t/0s |  |
-| `/admin/executive` | 714 | 4c/2t/8s |  |
+| `/admin/executive` | 731 | 4c/2t/8s |  |
 | `/admin/identity` | 296 | 13c/3t/7s |  |
 | `/admin/identity/access-reviews` | 583 | 4c/1t/1s |  |
 | `/admin/identity/permission-matrix` | 785 | 6c/1t/5s |  |
@@ -334,8 +334,8 @@
 | `/admin/identity/timeline` | 373 | 0c/1t/1s |  |
 | `/admin/operations` | 634 | 2c/2t/2s |  |
 | `/admin/platform-health` | 568 | 3c/0t/4s |  |
-| `/admin/platform/analytics` | 839 | 0c/0t/9s |  |
-| `/admin/platform/automation` | 689 | 0c/2t/5s |  |
+| `/admin/platform/analytics` | 854 | 0c/0t/9s |  |
+| `/admin/platform/automation` | 719 | 0c/2t/5s |  |
 | `/admin/platform/exports` | 844 | 0c/4t/0s |  |
 | `/admin/platform/media-graph` | 1133 | 0c/1t/6s |  |
 | `/admin/platform/observability` | 1663 | 0c/2t/0s |  |

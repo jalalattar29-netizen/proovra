@@ -265,7 +265,7 @@ function AdminAdoptionInner() {
           }
         />
         {/* One row per KNOWN capability — a compiled-in catalogue, not a
-            growing table. Declared in scripts/admin-complete-lists.mjs and
+            growing table. Declared in apps/web/scripts/admin-complete-lists.mjs and
             proved API-side, which is what earns the bare length here. */}
         <ResultCount
           shown={report?.capabilities.length ?? 0}

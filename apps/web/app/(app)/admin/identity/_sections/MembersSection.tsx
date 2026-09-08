@@ -650,7 +650,7 @@ export function MembersSection({
           {/* listTeamMembersWithAccess runs findMany with no take, so the
               browser holds EVERY member. That is what makes the filters above
               honest client-side controls, and it is declared and proved in
-              scripts/admin-complete-lists.mjs. */}
+              apps/web/scripts/admin-complete-lists.mjs. */}
           <ResultCount
             shown={visible.length}
             complete

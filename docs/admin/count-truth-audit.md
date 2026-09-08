@@ -38,9 +38,9 @@ confident wrong answer with no way to tell.
 | `/admin/identity/timeline` | ResultCount — event | `SERVER_HAS_MORE` | yes | yes |
 | `/admin/operations` | ResultCount — condition | `CAP_DISCLOSED` | yes | yes |
 | `/admin/operations` | ResultCount — security event | `SERVER_HAS_MORE` | yes | yes |
+| `/admin/platform/automation` | ResultCount — rule | `COMPLETE_LIST` | — | — |
 | `/admin/platform/automation` | ResultCount — run | `EXACT_TOTAL` | yes | — |
 | `/admin/platform/automation` | ResultCount — run | `CAP_DISCLOSED` | — | — |
-| `/admin/platform/automation` | inline — rule | `COMPLETE_LIST` | — | — |
 | `/admin/platform/exports` | ResultCount — export | `CAP_DISCLOSED` | — | — |
 | `/admin/platform/media-graph` | ResultCount — run | `SERVER_HAS_MORE` | yes | yes |
 | `/admin/platform/observability` | ResultCount — non-zero signal | `EXACT_TOTAL` | — | — |

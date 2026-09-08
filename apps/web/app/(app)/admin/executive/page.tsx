@@ -143,13 +143,30 @@ function formatMoneyCents(cents: number | null | undefined, currency = "EUR") {
   }).format(cents / 100);
 }
 
+/**
+ * WHAT A SUB-LINE SAYS WHEN IT WAS NOT GIVEN A NUMBER.
+ *
+ * ADM-P3-010. `formatCount` returns null for a null or NaN input and the tile
+ * VALUE renders that as "Not measured" — the page's own contract, stated in its
+ * header: it never estimates. Five supporting sub-lines then wrote
+ * `${formatCount(x) ?? 0}`, so the same missing figure that made the value
+ * honest printed the character 0 underneath it.
+ *
+ * The worst instance was on the Failed operations tile: "0 hash-mismatch · 0
+ * verification FAILED" is a fabricated all-clear about evidence integrity. The
+ * branch is latent — the service types these fields as non-nullable — and the
+ * condition that reaches it is a web/API deployment skew, which is exactly when
+ * an operator is most likely to be reading this page.
+ */
+const UNMEASURED = "—";
+
 function formatCount(value: number | null | undefined) {
   if (value == null || Number.isNaN(value)) return null;
   return new Intl.NumberFormat().format(value);
 }
 
 function momSub(period: PeriodCount): string {
-  return `${formatCount(period.thisMonth) ?? 0} this month · ${formatCount(period.lastMonth) ?? 0} last month`;
+  return `${formatCount(period.thisMonth) ?? UNMEASURED} this month · ${formatCount(period.lastMonth) ?? UNMEASURED} last month`;
 }
 
 // A metric tile — `value === null` renders an honest "Not measured" using
@@ -299,7 +316,7 @@ function ExecutiveDashboardBody() {
         value: primaryRevenue
           ? formatMoneyCents(primaryRevenue.amountCents, primaryRevenue.currency)
           : null,
-        sub: `${formatCount(data.revenue.successfulPaymentsAllTime) ?? 0} successful payments${
+        sub: `${formatCount(data.revenue.successfulPaymentsAllTime) ?? UNMEASURED} successful payments${
           data.revenue.allTimeByCurrency.length > 1
             ? ` across ${data.revenue.allTimeByCurrency.length} currencies`
             : ""
@@ -331,7 +348,7 @@ function ExecutiveDashboardBody() {
       {
         label: "Active customers",
         value: formatCount(data.customers.activeCustomers),
-        sub: `${formatCount(data.customers.activeBillingWorkspaces) ?? 0} live workspaces billing ACTIVE`,
+        sub: `${formatCount(data.customers.activeBillingWorkspaces) ?? UNMEASURED} live workspaces billing ACTIVE`,
         accent: "var(--ink-primary)",
         testId: "admin-executive-active-customers",
       },
@@ -348,7 +365,7 @@ function ExecutiveDashboardBody() {
         value: formatCount(
           data.leads.demoRequestsTotal + data.leads.contactSalesTotal
         ),
-        sub: `${formatCount(data.leads.demoRequestsTotal) ?? 0} demo · ${formatCount(data.leads.contactSalesTotal) ?? 0} contact-sales`,
+        sub: `${formatCount(data.leads.demoRequestsTotal) ?? UNMEASURED} demo · ${formatCount(data.leads.contactSalesTotal) ?? UNMEASURED} contact-sales`,
         accent: "var(--ink-primary)",
         testId: "admin-executive-leads",
       },
@@ -390,7 +407,7 @@ function ExecutiveDashboardBody() {
           data.failedOperations.evidenceHashMismatch +
             data.failedOperations.evidenceVerificationFailed
         ),
-        sub: `${formatCount(data.failedOperations.evidenceHashMismatch) ?? 0} hash-mismatch · ${formatCount(data.failedOperations.evidenceVerificationFailed) ?? 0} verification FAILED`,
+        sub: `${formatCount(data.failedOperations.evidenceHashMismatch) ?? UNMEASURED} hash-mismatch · ${formatCount(data.failedOperations.evidenceVerificationFailed) ?? UNMEASURED} verification FAILED`,
         /*
          * RED IS EARNED BY THE VALUE, NOT BY THE LABEL.
          *
