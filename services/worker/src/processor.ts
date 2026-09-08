@@ -65,6 +65,9 @@ import {
   JOB_NAMES,
   absoluteInternalUrl,
   internalResourcePath,
+  // COMMERCIAL CLOSURE (2026-09-08) — the SHARED classifier for "this failure
+  // was a commercial denial, not an operational fault".
+  isCommerciallyObsoleteTerminalReason,
   type ReviewerArtifactRole,
   type ReviewerArtifactRoleSource,
 } from "@proovra/shared";
@@ -1096,6 +1099,29 @@ function isRetriableError(error: unknown): boolean {
     return (error as WorkerError).retriable === true;
   }
   return true;
+}
+
+/**
+ * The worker-error codes that mean "this record was not commercially entitled
+ * to the output", as opposed to "the pipeline could not produce it".
+ *
+ * Read through the SHARED classifier so the worker's idea of a commercial
+ * denial and the API's — which decides whether a terminal request may be
+ * superseded after an upgrade — cannot drift. A code this returns true for is
+ * a code that a change of plan resolves; nothing else may be added.
+ */
+function commercialDenialCode(error: unknown): string | null {
+  const code =
+    error && typeof error === "object" && "code" in error
+      ? String((error as { code?: unknown }).code ?? "")
+      : error instanceof Error
+        ? error.message
+        : "";
+  return isCommerciallyObsoleteTerminalReason(code) ? code : null;
+}
+
+function isCommercialDenialError(error: unknown): boolean {
+  return commercialDenialCode(error) !== null;
 }
 
 function isAlreadyObjectLockedLike(e: unknown): boolean {
@@ -4461,25 +4487,35 @@ trustDecisionSnapshot:
       return;
     }
 
-    // Phase CAPTURE-PLAN-GATE-FIX (P0 Bug 2 + P0 Bug 4) — plan-gate
-    // denial is a BUSINESS outcome, not an unhandled server error.
-    // The API-side `canPlanGenerateReports(scope.plan)` check in
-    // evidence-complete.service.ts is supposed to be the only enqueue
-    // gate, so if the worker reaches this branch the most likely
-    // cause is either a stale entitlement read or a free-plan user
-    // whose UI offered a button it shouldn't have. Either way:
-    //   - do NOT capture in Sentry (no debugger pages woken up)
-    //   - DO log at warn so operators can see the divergence
-    //   - DO still discard + DLQ so the job doesn't keep retrying
-    //   - DO record a non-retriable failure incident so the UI can
-    //     surface a "Reports not included in your plan" state instead
-    //     of polling forever.
-    const isPlanDenial =
-      error instanceof Error && error.message === "REPORT_NOT_INCLUDED_IN_PLAN";
+    /*
+     * A COMMERCIAL DENIAL IS NOT AN OPERATIONAL FAILURE.
+     *
+     * Phase CAPTURE-PLAN-GATE-FIX got the first half of this right — no Sentry
+     * capture, a warn log — and then did the second half wrong: it still
+     * discarded to the DLQ and still opened a CRITICAL OperationalIncident,
+     * on the stated reasoning that the incident would let "the UI surface a
+     * 'Reports not included in your plan' state instead of polling forever".
+     *
+     * No UI ever consumed it. What shipped instead was a permanent CRITICAL
+     * incident titled "Report generation failure" on a workspace whose only
+     * offence was being on a plan that does not include reports, offering a
+     * "Regenerate" remediation that would fail identically. A plan is not an
+     * outage; an operator has nothing to fix and nothing to acknowledge.
+     *
+     * So this path now exits cleanly. The DURABLE REQUEST ROW still records
+     * FAILED_TERMINAL with `REPORT_NOT_INCLUDED_IN_PLAN` — the caller writes it
+     * from `toBoundedReasonCode` — and THAT is what the product reads: the
+     * artifact-status projection turns it into `NOT_INCLUDED`, and the
+     * generation authority treats it as commercially obsolete so a later
+     * upgrade can supersede it. One durable fact, read by the surfaces that
+     * need it, instead of an incident nobody could act on.
+     *
+     * `job.discard()` is kept: the job must not retry a decision that will not
+     * change on its own.
+     */
+    const isPlanDenial = isCommercialDenialError(error);
 
-    if (!isPlanDenial) {
-      captureException(error, { requestId, evidenceId, jobId: job.id ?? null });
-    } else {
+    if (isPlanDenial) {
       logger.warn(
         {
           ...withJobContext({
@@ -4487,13 +4523,18 @@ trustDecisionSnapshot:
             jobId: job.id,
             evidenceId,
             attempt: job.attemptsMade + 1,
+            durationMs: Date.now() - start,
             status: "plan_gate_denied",
           }),
-          errorCode: "REPORT_NOT_INCLUDED_IN_PLAN",
+          errorCode: commercialDenialCode(error),
         },
-        "GenerateReportJob refused: plan does not include reports"
+        "GenerateReportJob refused: this record's plan does not include the output",
       );
+      await job.discard();
+      throw error;
     }
+
+    captureException(error, { requestId, evidenceId, jobId: job.id ?? null });
 
     const durationMs = Date.now() - start;
 
@@ -4907,6 +4948,51 @@ export async function enqueueReportJob(
     machineId?: string;
   }
 ): Promise<{ enqueued: boolean; requestId?: string; reason?: string }> {
+  /**
+   * COMMERCIAL CLOSURE (2026-09-08) — THE PRECHECK THE WORKER PRODUCER LACKED.
+   *
+   * `lifecycle-recovery` already asks this question before it mints a request,
+   * and correctly — plan AND funding, through the shared authority. The OTS
+   * upgrade path did not: on anchoring it enqueued a forced regeneration for
+   * every record unconditionally, so a record on a plan without reports got a
+   * request that could only ever be refused, and — before the supersession fix
+   * — that refusal permanently poisoned the record's idempotency key.
+   *
+   * Asking here rather than in each caller puts the check on the one producer
+   * both of them reach. `lifecycle-recovery`'s own check is left in place: it
+   * runs per candidate in a batch scan and skipping early is what keeps that
+   * sweep cheap.
+   *
+   * FAIL OPEN. The worker's generation gate is the enforcement point; this only
+   * avoids scheduling work that would be refused.
+   */
+  try {
+    const subject = await prisma.evidence.findUnique({
+      where: { id: evidenceId },
+      select: { ownerUserId: true, teamId: true },
+    });
+    if (subject) {
+      const plan = await resolveEffectivePlanForEvidence({
+        ownerUserId: subject.ownerUserId,
+        teamId: subject.teamId ?? null,
+      });
+      const outputs = resolveEvidenceOutputEntitlements({
+        plan,
+        funding: await resolveEvidenceFundingSource(evidenceId),
+      });
+      if (!outputs.reportsIncluded) {
+        logger.info(
+          { evidenceId, plan, purpose: options?.purpose ?? null },
+          "report.enqueue.skipped_not_included",
+        );
+        return { enqueued: false, reason: "not_included_in_plan" };
+      }
+    }
+  } catch {
+    // Commercial resolution failed — fall through and let the generation gate
+    // decide. Never refuse an entitled record because a lookup was slow.
+  }
+
   return requestReportGenerationFromWorker({
     evidenceId,
     purpose: options?.purpose ?? "lifecycle_recovery",

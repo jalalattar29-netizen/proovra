@@ -60,6 +60,24 @@ export const REPORT_CLAIM_LEASE_MS = ENTRY.claim?.leaseMs ?? 15 * 60 * 1000;
 /** States from which a request may be claimed for execution. */
 const CLAIMABLE_STATES = ["QUEUED", "FAILED_RETRYABLE"] as const;
 
+/**
+ * THE RECONCILER'S ATTEMPT CEILING.
+ *
+ * The stranded sweep re-enqueued every `QUEUED`/`FAILED_RETRYABLE` row on every
+ * tick, with no bound. That is correct for the case it was written for — a
+ * committed request whose enqueue did not land — and wrong for a request that
+ * genuinely cannot succeed: it re-ran forever, burned worker capacity on every
+ * sweep, and never produced the one thing an operator needs, which is a
+ * terminal state saying "this is not going to work".
+ *
+ * Deliberately generous, and deliberately not the queue's own attempt budget:
+ * BullMQ's retries cover a single scheduled run, while this counts how many
+ * times the request was CLAIMED at all — across worker restarts, redeploys and
+ * lease expiries. A transient outage that spans several sweeps must not be
+ * mistaken for a broken record, which is why this is not 3.
+ */
+export const REPORT_RECONCILE_MAX_ATTEMPTS = 12;
+
 export type ResolvedReportCommand = {
   requestId: string;
   evidenceId: string;
@@ -487,9 +505,56 @@ export async function reconcileStrandedReportRequests(input: {
     if (repaired) summary.terminalRepaired += 1;
   }
 
-  // ---- 3. Durable but never scheduled → re-enqueue -------------------------
+  /*
+   * ---- 3. Retry budget exhausted → TERMINAL --------------------------------
+   *
+   * A retryable failure that has been claimed `REPORT_RECONCILE_MAX_ATTEMPTS`
+   * times is not transient any more, and re-enqueueing it forever is the
+   * opposite of reliability: it hides a broken record inside a healthy-looking
+   * sweep. Writing the terminal state is what lets the customer projection say
+   * "generation stopped" and the operator surface open a real, actionable
+   * condition instead of a permanent re-queue.
+   *
+   * Ordered BEFORE the re-enqueue pass so an exhausted row is retired in the
+   * same tick rather than scheduled once more and retired on the next.
+   */
+  const exhausted = await prisma.reportGenerationRequest.findMany({
+    where: {
+      state: "FAILED_RETRYABLE",
+      attemptCount: { gte: REPORT_RECONCILE_MAX_ATTEMPTS },
+    },
+    select: { id: true, attemptCount: true },
+    orderBy: { createdAtUtc: "asc" },
+    take: batchSize,
+  });
+  for (const row of exhausted) {
+    const retired = await markRequestTerminal({
+      requestId: row.id,
+      state: "FAILED_TERMINAL",
+      terminalReasonCode: "retry_budget_exhausted",
+    });
+    if (retired) {
+      summary.terminalRepaired += 1;
+      logger.warn(
+        {
+          event: "report_generation.retry_budget_exhausted",
+          requestId: row.id,
+          attemptCount: row.attemptCount,
+          maxAttempts: REPORT_RECONCILE_MAX_ATTEMPTS,
+        },
+        "report_generation.retry_budget_exhausted",
+      );
+    }
+  }
+
+  // ---- 4. Durable but never scheduled → re-enqueue -------------------------
   const stranded = await prisma.reportGenerationRequest.findMany({
-    where: { state: { in: ["QUEUED", "FAILED_RETRYABLE"] } },
+    where: {
+      state: { in: ["QUEUED", "FAILED_RETRYABLE"] },
+      // The ceiling is applied to the SELECTION too, so a row retired above (or
+      // by a concurrent reconciler) is never re-enqueued in the same pass.
+      attemptCount: { lt: REPORT_RECONCILE_MAX_ATTEMPTS },
+    },
     select: { id: true },
     orderBy: { createdAtUtc: "asc" },
     take: batchSize,
