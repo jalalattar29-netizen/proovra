@@ -33,7 +33,7 @@ import { formatUserDate, formatUserDateTime } from "../../../../lib/date";
 // shared component now, so the surface follows the product rather than drifting
 // beside it.
 import { AppListbox } from "../../../../components/app-primitives/AppListbox";
-import { AppStatusBadge } from "../../../../components/app-primitives/AppStatusBadge";
+import { AppStatusText } from "../../../../components/app-primitives/AppStatusText";
 // The accessible dialog (focus trap, Escape, focus restoration) — NOT the
 // legacy `Modal` re-exported from `components/ui`.
 import { Modal } from "../../../../components/cases-experience/matter-modals/Modal";
@@ -1120,7 +1120,7 @@ function TeamDetailPageBody() {
    * Every one of those is replaced by the canonical primitive that already
    * existed: `.app-page-header`, `.app-panel`, `.app-grid-kpis`/`.app-kpi-card`,
    * `.app-table-surface`/`.app-table[data-responsive]`, `.app-empty`,
-   * `.app-search-field`, `AppListbox`, `AppStatusBadge`, and the ONE action
+   * `.app-search-field`, `AppListbox`, `AppStatusText`, and the ONE action
    * hierarchy — `.app-primary-action` (purple), `.app-secondary-action--filled`
    * (dark), `.app-secondary-action` (light), `.app-secondary-action--danger`
    * (outlined destructive). No new class is invented here.
@@ -1348,7 +1348,26 @@ function TeamDetailPageBody() {
           control that looks real and does nothing is worse than an empty
           column.
         */}
+        {/*
+          THE PAGE IS ONE GRID NOW (§14, §15).
+
+          It used to be a grid for the roster and its rail, then a full-width
+          panel, then a THREE-column grid of unrelated cards, then another
+          two-column grid — four different column counts down one page, so
+          nothing lined up with anything and the eye had no left edge to
+          follow. Panels also changed rank between sections: the Collaboration
+          Teams bridge (a signpost) sat at the same width as the roster.
+
+          There are two columns for the whole page. The LEFT column carries
+          what an operator works IN — the roster, outstanding invitations,
+          the activity trail, the workspace facts and the lifecycle
+          operations. The RIGHT rail carries what they refer TO while doing
+          it: how to invite, who holds what access, and the two contextual
+          links out. Every rail card is the same width and the two columns
+          share one top edge.
+        */}
         <div className="app-grid-primary">
+        <div className="app-main-column">
         {/* MEMBERS — the primary object on the page. */}
         <div className="app-panel" data-testid="people-roster">
           <div className="app-panel__head app-panel__head-row">
@@ -1423,6 +1442,25 @@ function TeamDetailPageBody() {
               </div>
             ) : (
               <table className="app-table" data-responsive>
+                {/*
+                  PROPORTION, DECLARED (§11).
+
+                  Without a colgroup the browser sizes these columns from their
+                  CONTENT, so a four-letter role and a date each claimed as much
+                  room as the person — the identity, the only column anyone
+                  scans, got whatever was left. `auto` on Person means it takes
+                  the remainder; every other column is pinned to what its
+                  content actually needs. `data-responsive` drops the whole
+                  table to stacked rows on a narrow viewport, where a colgroup
+                  no longer applies.
+                */}
+                <colgroup>
+                  <col style={{ width: "auto" }} />
+                  <col style={{ width: 168 }} />
+                  <col style={{ width: 110 }} />
+                  <col style={{ width: 120 }} />
+                  <col style={{ width: 108 }} />
+                </colgroup>
                 <thead>
                   <tr>
                     <th scope="col">Person</th>
@@ -1461,7 +1499,14 @@ function TeamDetailPageBody() {
                             <span className="app-avatar" aria-hidden>
                               {(label.trim()[0] ?? "?").toUpperCase()}
                             </span>
-                            <span style={{ minWidth: 0 }}>
+                            <span
+                              className="app-table__identity"
+                              title={
+                                member.user?.email
+                                  ? `${label} · ${member.user.email}`
+                                  : label
+                              }
+                            >
                               <span className="app-table__primary">
                                 {label}
                                 {isSelf ? " (you)" : ""}
@@ -1476,7 +1521,7 @@ function TeamDetailPageBody() {
                         </td>
                         <td data-label="Role">
                           {roleEditable ? (
-                            <div style={{ maxWidth: 168 }}>
+                            <div style={{ maxWidth: 150 }}>
                               <AppListbox
                                 value={member.role}
                                 options={ROLE_OPTIONS.map((r) => ({
@@ -1497,15 +1542,15 @@ function TeamDetailPageBody() {
                               />
                             </div>
                           ) : (
-                            <AppStatusBadge
+                            <AppStatusText
                               tone={isTeamOwner ? "indigo" : "slate"}
                             >
-                              {member.role}
-                            </AppStatusBadge>
+                              {workspaceRoleLabel(member.role)}
+                            </AppStatusText>
                           )}
                         </td>
                         <td data-label="Status">
-                          <AppStatusBadge
+                          <AppStatusText
                             tone={
                               member.status === "SUSPENDED" ? "amber" : "green"
                             }
@@ -1513,7 +1558,7 @@ function TeamDetailPageBody() {
                             {member.status === "SUSPENDED"
                               ? "Suspended"
                               : "Active"}
-                          </AppStatusBadge>
+                          </AppStatusText>
                         </td>
                         <td data-label="Joined" className="app-table__muted">
                           {member.createdAt
@@ -1549,92 +1594,6 @@ function TeamDetailPageBody() {
         </div>
 
         {/* THE RAIL. */}
-        <div className="app-rail">
-          {/*
-            INVITE PEOPLE — one purpose, stated, with the one action.
-
-            The delivery channel is the fact worth the space: invitations go out
-            by EMAIL and by nothing else. That is not a limitation being
-            apologised for, it is the thing an operator needs to know before
-            they wonder where the link is. There is no SMS path and no copyable
-            link, so neither is offered.
-          */}
-          {canManageTeam ? (
-            <div className="app-panel" data-testid="people-rail-invite">
-              <div className="app-panel__head">
-                <h2 className="app-panel__title">Invite people</h2>
-              </div>
-              <div className="app-panel__body">
-                <p
-                  className="app-table__muted"
-                  style={{ margin: "0 0 12px", fontSize: 12.5 }}
-                >
-                  Send someone an invitation to join this workspace. They are
-                  delivered <strong>by email</strong>, and the recipient joins
-                  by following the link in that message.
-                </p>
-                <button
-                  type="button"
-                  className="app-primary-action app-primary-action--block"
-                  onClick={() => setInviteOpen(true)}
-                  data-testid="people-rail-invite-open"
-                >
-                  Invite person
-                </button>
-              </div>
-            </div>
-          ) : null}
-
-          {/*
-            MEMBER ROLES — the REAL workspace vocabulary.
-
-            Four roles, because four is what the product has. OWNER is listed
-            and is deliberately not offered by the role selector: ownership
-            moves through transfer-ownership with step-up, never through a
-            dropdown. Each line says what the role can do in terms this page
-            can back up, and none of it is a permission matrix — there is no
-            granular permission editor behind this surface to link to.
-          */}
-          <div className="app-panel" data-testid="people-rail-roles">
-            <div className="app-panel__head">
-              <h2 className="app-panel__title">Member roles</h2>
-            </div>
-            <div className="app-panel__body">
-              <dl className="app-kv-list">
-                <div className="app-kv-row">
-                  <dt className="app-kv-key">Owner</dt>
-                  <dd className="app-kv-value">
-                    Full control, including transfer and deletion
-                  </dd>
-                </div>
-                <div className="app-kv-row">
-                  <dt className="app-kv-key">Admin</dt>
-                  <dd className="app-kv-value">
-                    Manages members, invitations and cases
-                  </dd>
-                </div>
-                <div className="app-kv-row">
-                  <dt className="app-kv-key">Member</dt>
-                  <dd className="app-kv-value">
-                    Works on cases and evidence in this workspace
-                  </dd>
-                </div>
-                <div className="app-kv-row">
-                  <dt className="app-kv-key">Viewer</dt>
-                  <dd className="app-kv-value">Read-only access</dd>
-                </div>
-              </dl>
-              <p
-                className="app-table__muted"
-                style={{ margin: "10px 0 0", fontSize: 11.5 }}
-              >
-                A workspace role governs access across the whole workspace. A
-                Collaboration Team role governs responsibility inside one group.
-              </p>
-            </div>
-          </div>
-        </div>
-        </div>
 
         {/* PENDING INVITATIONS — only rendered when there are any, or when the
             viewer can create one. An empty panel on a one-person workspace is
@@ -1692,9 +1651,9 @@ function TeamDetailPageBody() {
                           </span>
                         </td>
                         <td data-label="Role">
-                          <AppStatusBadge tone="slate">
-                            {invite.role}
-                          </AppStatusBadge>
+                          <AppStatusText tone="slate">
+                            {workspaceRoleLabel(invite.role)}
+                          </AppStatusText>
                         </td>
                         <td data-label="Sent" className="app-table__muted">
                           {invite.createdAt
@@ -1745,165 +1704,6 @@ function TeamDetailPageBody() {
           it, and this one never had anything to put there.
         */}
 
-        {/*
-          ACCESS & ORGANISATION — two columns, not four stacked slabs (§4C).
-
-          The bridge, the member-roles review and the case linkage are all
-          secondary context beside the roster: each is a short panel, and each
-          used to claim the full page width, which is what made this surface
-          read as a long administration form. They keep their content and their
-          order; they simply share the row where the viewport allows it.
-        */}
-        <div className="app-grid-panels">
-        {/*
-          THE BRIDGE TO THE OTHER HALF OF THE MODEL (§15.6).
-
-          A contextual path, not a second front door: no KPI, no oversized CTA,
-          and none of the Collaboration Teams page's own primary actions
-          duplicated here. Its whole job is to teach the relationship at the
-          moment the operator has just finished thinking about membership —
-          these people HAVE access, and organising how they work is the next
-          question, answered somewhere else.
-
-          The sentence states the architecture plainly because that is the
-          thing a first-time operator cannot infer: Collaboration Teams group
-          people who are ALREADY members. They confer no access of their own.
-        */}
-        <div className="app-panel" data-testid="people-collaboration-bridge">
-          <div className="app-panel__body">
-            <p className="app-table__muted" style={{ margin: "0 0 10px" }}>
-              Members can be organised into <strong>Collaboration Teams</strong>{" "}
-              — operational groups for cases, evidence, assignments and review
-              workload. Teams group people who already have access here; they
-              do not grant it.
-            </p>
-            <Link
-              href="/collaboration-teams"
-              className="app-secondary-action"
-              data-testid="people-to-collaboration-teams"
-            >
-              Organise members into Collaboration Teams
-            </Link>
-          </div>
-        </div>
-
-        {/* Access review — governance, kept but no longer a peer of the roster. */}
-        {teamId ? <TeamAccessReviewCard teamId={teamId} /> : null}
-
-        {/* Case linkage. Not people management, and it stays because
-            `POST /v1/teams/:id/cases/link` has no other surface in the product
-            — removing the only door to a capability is not a redesign. */}
-        <div className="app-panel" data-testid="people-cases">
-          <div className="app-panel__head app-panel__head-row">
-            <h2 className="app-panel__title">Cases in this workspace</h2>
-            {canManageTeam ? (
-              <button
-                type="button"
-                className="app-secondary-action"
-                onClick={() => {
-                  const next = !showAddCase;
-                  setShowAddCase(next);
-                  // Candidates are fetched when the picker OPENS, not on page
-                  // load: an unlinked-case list is a whole extra read that
-                  // most visits to this page never need.
-                  if (next) void loadAvailableCases();
-                }}
-                data-testid="workspace-case-add-toggle"
-              >
-                {showAddCase ? "Close" : "Link a case"}
-              </button>
-            ) : null}
-          </div>
-          <div className="app-panel__body">
-            {showAddCase ? (
-              <div style={{ marginBottom: 12 }}>
-                {loadingAvailableCases ? (
-                  <p className="app-table__muted" style={{ margin: 0 }}>
-                    Loading cases…
-                  </p>
-                ) : availableCases.length === 0 ? (
-                  <p className="app-table__muted" style={{ margin: 0 }}>
-                    No unlinked cases are available to add.
-                  </p>
-                ) : (
-                  <ul
-                    style={{
-                      listStyle: "none",
-                      margin: 0,
-                      padding: 0,
-                      display: "grid",
-                      gap: 6,
-                      maxHeight: 220,
-                      overflowY: "auto",
-                    }}
-                    data-testid="workspace-case-candidates"
-                  >
-                    {availableCases.map((c) => (
-                      <li
-                        key={c.id}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 10,
-                        }}
-                      >
-                        <span style={{ flex: 1, minWidth: 0 }}>{c.name}</span>
-                        <button
-                          type="button"
-                          className="app-secondary-action"
-                          onClick={() => void handleAddExistingCase(c.id)}
-                          disabled={linkingCaseId === c.id}
-                          data-testid={`workspace-case-link-${c.id}`}
-                        >
-                          {linkingCaseId === c.id ? "Linking…" : "Link"}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            ) : null}
-
-            {teamCases.length === 0 ? (
-              <p className="app-table__muted" style={{ margin: 0 }}>
-                No cases are linked to this workspace yet.
-              </p>
-            ) : (
-              <ul
-                style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}
-                data-testid="workspace-case-list"
-              >
-                {teamCases.map((c) => (
-                  <li
-                    key={c.id}
-                    style={{ display: "flex", alignItems: "center", gap: 10 }}
-                  >
-                    <Link
-                      href={`/cases/${encodeURIComponent(c.id)}`}
-                      className="app-table__link"
-                      style={{ flex: 1, minWidth: 0 }}
-                    >
-                      {c.name}
-                    </Link>
-                    {canManageTeam ? (
-                      <button
-                        type="button"
-                        className="app-secondary-action app-secondary-action--danger"
-                        onClick={() => handleUnlinkTeamCase(c.id)}
-                        disabled={unlinkingCaseId === c.id}
-                        data-testid={`workspace-case-unlink-${c.id}`}
-                      >
-                        Remove
-                      </button>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-
-        </div>
 
         {/*
           ACTIVITY AND WORKSPACE FACTS, SIDE BY SIDE (§4, §7).
@@ -2154,6 +1954,243 @@ function TeamDetailPageBody() {
             </div>
           </div>
         ) : null}
+        </div>
+
+        {/* THE RAIL — compact, secondary, one width. */}
+        <div className="app-rail">
+          {/*
+            INVITE PEOPLE — one purpose, stated, with the one action.
+
+            The delivery channel is the fact worth the space: invitations go out
+            by EMAIL and by nothing else. That is not a limitation being
+            apologised for, it is the thing an operator needs to know before
+            they wonder where the link is. There is no SMS path and no copyable
+            link, so neither is offered.
+          */}
+          {canManageTeam ? (
+            <div className="app-panel" data-testid="people-rail-invite">
+              <div className="app-panel__head">
+                <h2 className="app-panel__title">Invite people</h2>
+              </div>
+              <div className="app-panel__body">
+                <p
+                  className="app-table__muted"
+                  style={{ margin: "0 0 12px", fontSize: 12.5 }}
+                >
+                  Send someone an invitation to join this workspace. They are
+                  delivered <strong>by email</strong>, and the recipient joins
+                  by following the link in that message.
+                </p>
+                <button
+                  type="button"
+                  className="app-primary-action app-primary-action--block"
+                  onClick={() => setInviteOpen(true)}
+                  data-testid="people-rail-invite-open"
+                >
+                  Invite person
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {/*
+            MEMBER ROLES — the REAL workspace vocabulary.
+
+            Four roles, because four is what the product has. OWNER is listed
+            and is deliberately not offered by the role selector: ownership
+            moves through transfer-ownership with step-up, never through a
+            dropdown. Each line says what the role can do in terms this page
+            can back up, and none of it is a permission matrix — there is no
+            granular permission editor behind this surface to link to.
+          */}
+          <div className="app-panel" data-testid="people-rail-roles">
+            <div className="app-panel__head">
+              <h2 className="app-panel__title">What roles can do</h2>
+            </div>
+            <div className="app-panel__body">
+              <dl className="app-kv-list">
+                <div className="app-kv-row">
+                  <dt className="app-kv-key">Owner</dt>
+                  <dd className="app-kv-value">
+                    Full control, including transfer and deletion
+                  </dd>
+                </div>
+                <div className="app-kv-row">
+                  <dt className="app-kv-key">Admin</dt>
+                  <dd className="app-kv-value">
+                    Manages members, invitations and cases
+                  </dd>
+                </div>
+                <div className="app-kv-row">
+                  <dt className="app-kv-key">Member</dt>
+                  <dd className="app-kv-value">
+                    Works on cases and evidence in this workspace
+                  </dd>
+                </div>
+                <div className="app-kv-row">
+                  <dt className="app-kv-key">Viewer</dt>
+                  <dd className="app-kv-value">Read-only access</dd>
+                </div>
+              </dl>
+              <p
+                className="app-table__muted"
+                style={{ margin: "10px 0 0", fontSize: 11.5 }}
+              >
+                A workspace role governs access across the whole workspace. A
+                Collaboration Team role governs responsibility inside one group.
+              </p>
+            </div>
+          </div>
+        {/*
+          THE BRIDGE TO THE OTHER HALF OF THE MODEL (§15.6).
+
+          A contextual path, not a second front door: no KPI, no oversized CTA,
+          and none of the Collaboration Teams page's own primary actions
+          duplicated here. Its whole job is to teach the relationship at the
+          moment the operator has just finished thinking about membership —
+          these people HAVE access, and organising how they work is the next
+          question, answered somewhere else.
+
+          The sentence states the architecture plainly because that is the
+          thing a first-time operator cannot infer: Collaboration Teams group
+          people who are ALREADY members. They confer no access of their own.
+        */}
+        <div className="app-panel" data-testid="people-collaboration-bridge">
+          <div className="app-panel__body">
+            <p className="app-table__muted" style={{ margin: "0 0 10px" }}>
+              Members can be organised into <strong>Collaboration Teams</strong>{" "}
+              — operational groups for cases, evidence, assignments and review
+              workload. Teams group people who already have access here; they
+              do not grant it.
+            </p>
+            <Link
+              href="/collaboration-teams"
+              className="app-secondary-action"
+              data-testid="people-to-collaboration-teams"
+            >
+              Organise members into Collaboration Teams
+            </Link>
+          </div>
+        </div>
+
+        {/* Access review — governance, kept but no longer a peer of the roster. */}
+        {teamId ? <TeamAccessReviewCard teamId={teamId} /> : null}
+
+        {/* Case linkage. Not people management, and it stays because
+            `POST /v1/teams/:id/cases/link` has no other surface in the product
+            — removing the only door to a capability is not a redesign. */}
+        <div className="app-panel" data-testid="people-cases">
+          <div className="app-panel__head app-panel__head-row">
+            <h2 className="app-panel__title">Cases in this workspace</h2>
+            {canManageTeam ? (
+              <button
+                type="button"
+                className="app-secondary-action"
+                onClick={() => {
+                  const next = !showAddCase;
+                  setShowAddCase(next);
+                  // Candidates are fetched when the picker OPENS, not on page
+                  // load: an unlinked-case list is a whole extra read that
+                  // most visits to this page never need.
+                  if (next) void loadAvailableCases();
+                }}
+                data-testid="workspace-case-add-toggle"
+              >
+                {showAddCase ? "Close" : "Link a case"}
+              </button>
+            ) : null}
+          </div>
+          <div className="app-panel__body">
+            {showAddCase ? (
+              <div style={{ marginBottom: 12 }}>
+                {loadingAvailableCases ? (
+                  <p className="app-table__muted" style={{ margin: 0 }}>
+                    Loading cases…
+                  </p>
+                ) : availableCases.length === 0 ? (
+                  <p className="app-table__muted" style={{ margin: 0 }}>
+                    No unlinked cases are available to add.
+                  </p>
+                ) : (
+                  <ul
+                    style={{
+                      listStyle: "none",
+                      margin: 0,
+                      padding: 0,
+                      display: "grid",
+                      gap: 6,
+                      maxHeight: 220,
+                      overflowY: "auto",
+                    }}
+                    data-testid="workspace-case-candidates"
+                  >
+                    {availableCases.map((c) => (
+                      <li
+                        key={c.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                        }}
+                      >
+                        <span style={{ flex: 1, minWidth: 0 }}>{c.name}</span>
+                        <button
+                          type="button"
+                          className="app-secondary-action"
+                          onClick={() => void handleAddExistingCase(c.id)}
+                          disabled={linkingCaseId === c.id}
+                          data-testid={`workspace-case-link-${c.id}`}
+                        >
+                          {linkingCaseId === c.id ? "Linking…" : "Link"}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ) : null}
+
+            {teamCases.length === 0 ? (
+              <p className="app-table__muted" style={{ margin: 0 }}>
+                No cases are linked to this workspace yet.
+              </p>
+            ) : (
+              <ul
+                style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}
+                data-testid="workspace-case-list"
+              >
+                {teamCases.map((c) => (
+                  <li
+                    key={c.id}
+                    style={{ display: "flex", alignItems: "center", gap: 10 }}
+                  >
+                    <Link
+                      href={`/cases/${encodeURIComponent(c.id)}`}
+                      className="app-table__link"
+                      style={{ flex: 1, minWidth: 0 }}
+                    >
+                      {c.name}
+                    </Link>
+                    {canManageTeam ? (
+                      <button
+                        type="button"
+                        className="app-secondary-action app-secondary-action--danger"
+                        onClick={() => handleUnlinkTeamCase(c.id)}
+                        disabled={unlinkingCaseId === c.id}
+                        data-testid={`workspace-case-unlink-${c.id}`}
+                      >
+                        Remove
+                      </button>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+
+        </div>
+        </div>
       </div>
 
       {/* INVITE — the canonical workspace invitation, in a dialog rather than a

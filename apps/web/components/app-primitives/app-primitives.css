@@ -731,6 +731,36 @@ textarea.app-form-input {
   font-weight: 650;
   color: var(--app-ink-heading);
 }
+/* ===========================================================================
+   THE IDENTITY CELL — a name over its address.
+
+   `.app-table__primary` and `.app-table__muted` are both inline, so a cell
+   holding a name and an email rendered them as ONE run of text:
+   "Jalal Attar (you)jalal.attar@proovra.com". Every consumer that wanted two
+   lines had to remember to make them blocks, and the roster did not.
+
+   This is the pattern itself, so the two lines are a property of the identity
+   cell rather than of whoever remembered. Each line truncates rather than
+   wrapping — a wrapped email doubles every row height in a dense table — and
+   the untruncated value stays reachable through the element's own `title`.
+   =========================================================================== */
+.app-table__identity {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.app-table__identity > .app-table__primary,
+.app-table__identity > .app-table__muted {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-table__identity > .app-table__muted {
+  font-size: 12px;
+  line-height: 1.35;
+}
 .app-table__muted {
   color: var(--app-ink-secondary);
   font-size: 12.5px;
@@ -1789,33 +1819,11 @@ textarea.app-form-input {
   gap: 10px;
   min-width: 0;
 }
-/* The toggle sits on the same baseline as the selectors beside it rather than
-   reading as loose text jammed against one. */
-.app-filter-group .app-checkbox {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 38px;
-  padding: 0 12px;
-  border-radius: 8px;
-  border: 1px solid var(--app-inline-surface-border, rgba(15, 23, 42, 0.1));
-  background: var(--app-inline-surface-bg, rgba(255, 255, 255, 0.7));
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--app-ink-label);
-  white-space: nowrap;
-  cursor: pointer;
-}
-.app-filter-group .app-checkbox:hover {
-  background: rgba(255, 255, 255, 0.92);
-}
-.app-filter-group .app-checkbox input {
-  accent-color: #7C3AED;
-  width: 15px;
-  height: 15px;
-  margin: 0;
-  cursor: pointer;
-}
+/* A `.app-filter-group .app-checkbox` chip treatment used to live here, for
+   the Work tab's "Overdue only" toggle. That control is gone and no filter
+   group contains a checkbox any more, so the rules went with it rather than
+   staying as three selectors nothing matches. Every remaining `.app-checkbox`
+   in the product is a real checkbox in a list or a form, not a filter chip. */
 
 /* A row of PANELS that do not each deserve the full width.
    Density is a layout decision, not a second design system — the panels are
@@ -1868,8 +1876,10 @@ textarea.app-form-input {
     grid-template-columns: minmax(0, 1fr);
   }
 }
-/* The rail is a COLUMN of panels, not one panel: its children stack with the
-   same rhythm the page uses between sections. */
+/* Both sides are COLUMNS of panels, not single panels: their children stack
+   with the same rhythm the page uses between sections, so the two columns
+   share a top edge and a gap. */
+.app-main-column,
 .app-rail {
   display: grid;
   gap: 12px;

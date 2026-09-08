@@ -39,10 +39,11 @@
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 
-import { Card } from "../../../../../components/ui";
 import { apiFetch } from "../../../../../lib/api";
 import { formatUserDate } from "../../../../../lib/date";
 import { AppListbox } from "../../../../../components/app-primitives/AppListbox";
+import { AppStatusText } from "../../../../../components/app-primitives/AppStatusText";
+import type { AppTone } from "../../../../../components/app-primitives/AppStatusBadge";
 import { AccessGate } from "../../../../../components/access/AccessGate";
 
 type RoleId = "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
@@ -94,61 +95,51 @@ type LoadState =
   | { kind: "forbidden" }
   | { kind: "error"; message: string };
 
-const ROLE_TONE: Record<RoleId, { bg: string; border: string; fg: string }> = {
-  OWNER: { bg: "#F2ECFE", border: "#D9C7FB", fg: "#6D28D9" },
-  ADMIN: { bg: "#EAF7F1", border: "rgba(22,122,91,0.16)", fg: "#167A5B" },
-  MEMBER: { bg: "#F1F5F9", border: "rgba(15,23,42,0.08)", fg: "#475569" },
-  VIEWER: { bg: "#F1F5F9", border: "rgba(15,23,42,0.08)", fg: "#5F6B7D" },
+/**
+ * ROLE AND ACCESS CLASS ARE TWO DIFFERENT FACTS (§17).
+ *
+ * These were two adjacent filled capsules with hand-rolled palettes, rendered
+ * with nothing between them, so a row read "OWNERMember" — one word that is
+ * neither of the two things it is made of. They answer different questions:
+ * ROLE is the workspace permission the person holds, ACCESS CLASS is how they
+ * reach this workspace at all (a member, an external collaborator, or an
+ * invitation nobody has accepted yet).
+ *
+ * Both are `AppStatusText` now, so the tone vocabulary is the canonical one
+ * and neither carries a capsule, and they are separated by a real divider with
+ * their own labels in the accessible name. Six hardcoded hex palettes went
+ * with them.
+ */
+const ROLE_TONE: Record<RoleId, AppTone> = {
+  OWNER: "indigo",
+  ADMIN: "green",
+  MEMBER: "slate",
+  VIEWER: "slate",
 };
 
 function RoleBadge({ role }: { role: RoleId }) {
-  const t = ROLE_TONE[role];
   return (
-    <span
-      style={{
-        display: "inline-block",
-        padding: "2px 8px",
-        borderRadius: 999,
-        fontSize: 10.5,
-        fontWeight: 600,
-        letterSpacing: 0.4,
-        textTransform: "uppercase",
-        background: t.bg,
-        border: `1px solid ${t.border}`,
-        color: t.fg,
-        whiteSpace: "nowrap",
-      }}
-    >
+    <AppStatusText tone={ROLE_TONE[role]} size="xs" title={`Workspace role: ${role}`}>
       {role}
-    </span>
+    </AppStatusText>
   );
 }
 
+const KIND_TONE: Record<
+  "MEMBER" | "EXTERNAL" | "PENDING_INVITE",
+  { tone: AppTone; label: string }
+> = {
+  MEMBER: { tone: "green", label: "Member" },
+  EXTERNAL: { tone: "amber", label: "External" },
+  PENDING_INVITE: { tone: "slate", label: "Pending invite" },
+};
+
 function KindPill({ kind }: { kind: "MEMBER" | "EXTERNAL" | "PENDING_INVITE" }) {
-  const palette =
-    kind === "MEMBER"
-      ? { bg: "#EAF7F1", border: "rgba(22,122,91,0.16)", fg: "#167A5B", label: "Member" }
-      : kind === "EXTERNAL"
-        ? { bg: "#FFF6E5", border: "rgba(168,102,18,0.17)", fg: "#A86612", label: "External" }
-        : { bg: "#F1F5F9", border: "rgba(15,23,42,0.08)", fg: "#5F6B7D", label: "Pending invite" };
+  const { tone, label } = KIND_TONE[kind];
   return (
-    <span
-      style={{
-        display: "inline-block",
-        padding: "2px 8px",
-        borderRadius: 999,
-        fontSize: 10.5,
-        fontWeight: 600,
-        letterSpacing: 0.4,
-        textTransform: "uppercase",
-        background: palette.bg,
-        border: `1px solid ${palette.border}`,
-        color: palette.fg,
-        whiteSpace: "nowrap",
-      }}
-    >
-      {palette.label}
-    </span>
+    <AppStatusText tone={tone} size="xs" title={`Access: ${label}`}>
+      {label}
+    </AppStatusText>
   );
 }
 
@@ -189,25 +180,31 @@ export function TeamAccessReviewCard({ teamId }: { teamId: string }) {
   }, [load]);
 
   return (
-    <Card
-      data-team-access-review-card
-    >
+    /*
+      THE CANONICAL PANEL, NOT THE LEGACY CARD (§17, §28).
+
+      This was the legacy `Card` with a hand-built Tailwind header — its own
+      heading size, its own tracking, its own colour — beside panels that all
+      use `.app-panel` / `.app-panel__head` / `.app-panel__title`. Two card
+      systems on one page is what made the surface look assembled rather than
+      designed.
+
+      The four-sentence description shrank to one. What it USED to say — how to
+      read the list, what an external collaborator is, where each kind is
+      managed — was never wrong, it was just four lines of prose above the data
+      it described. It lives in the footnote below the list now, which is where
+      a reader looks after seeing the rows rather than before.
+    */
+    <div className="app-panel" data-team-access-review-card>
       <div>
-        <header className="mb-4">
+        <div className="app-panel__head">
           {/* Phase IA-self-serve-completion — "Access review" is
               SOC2-audit vocabulary. Renamed to plain-language
               "Member roles" without changing the underlying
               aggregator endpoint or restriction semantics. */}
-          <h2 className="m-0 text-[1.08rem] font-semibold tracking-[-0.03em] text-[#172033]">
-            Member roles
-          </h2>
-          <p className="m-0 mt-1 text-[12.5px] leading-snug text-[#5F6B7D]">
-            Everyone with access to this team today — members, pending
-            invites, and external collaborators with case-scoped access.
-            Use this list to check who can see what before changing roles
-            or removing someone.
-          </p>
-        </header>
+          <h2 className="app-panel__title">Member roles</h2>
+        </div>
+        <div className="app-panel__body">
 
         {state.kind === "loading" ? (
           <p
@@ -244,8 +241,9 @@ export function TeamAccessReviewCard({ teamId }: { teamId: string }) {
         {state.kind === "ready" ? (
           <Ready data={state.data} search={search} setSearch={setSearch} filter={filter} setFilter={setFilter} />
         ) : null}
+        </div>
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -360,8 +358,8 @@ function Ready({
     <>
       <div
         data-team-access-review-summary
-        className="mb-4 grid gap-3"
-        style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}
+        className="app-grid-kpis app-grid-kpis--dense"
+        style={{ marginBottom: 14 }}
       >
         <SummaryStat
           label="Internal members"
@@ -506,7 +504,14 @@ function Ready({
               <div
                 style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}
               >
-                {r.kind === "EXTERNAL" ? null : <RoleBadge role={r.role} />}
+                {r.kind === "EXTERNAL" ? null : (
+                  <>
+                    <RoleBadge role={r.role} />
+                    <span aria-hidden style={{ color: "rgba(15,23,42,0.2)" }}>
+                      ·
+                    </span>
+                  </>
+                )}
                 <KindPill kind={r.kind} />
               </div>
             </li>
@@ -518,15 +523,24 @@ function Ready({
         className="m-0 mt-3 text-[11px] text-[#5F6B7D]"
         data-team-access-review-footnote
       >
-        Internal members are managed in the Members card above.
-        External collaborators have case-scoped grants — open the
-        relevant case to manage their access. Pending invites can be
-        resent or revoked from the Invites card.
+        Everyone with access today. Internal members are managed in Members
+        above; external collaborators hold case-scoped grants, so open the
+        relevant case to change them; pending invitations can be resent or
+        revoked from Pending invitations.
       </p>
     </>
   );
 }
 
+/**
+ * THE CANONICAL METRIC CARD (§17).
+ *
+ * These were three filled pastel boxes with their own hex palettes — the
+ * "giant tinted blocks" treatment, in miniature. They are `.app-metric-card`
+ * now: the same near-white surface, semantic rail and tinted figure the
+ * Notifications summary strip uses, so three small equal metrics read as a
+ * summary rather than as three coloured buttons.
+ */
 function SummaryStat({
   label,
   value,
@@ -538,47 +552,14 @@ function SummaryStat({
   tone: "member" | "pending" | "external";
   testid: string;
 }) {
-  const palette =
-    tone === "member"
-      ? { bg: "#EAF7F1", border: "rgba(22,122,91,0.16)", fg: "#167A5B" }
-      : tone === "external"
-        ? { bg: "#FFF6E5", border: "rgba(168,102,18,0.17)", fg: "#A86612" }
-        : { bg: "#F1F5F9", border: "rgba(15,23,42,0.08)", fg: "#5F6B7D" };
+  const metricTone =
+    tone === "member" ? "success" : tone === "external" ? "warning" : "neutral";
   return (
-    <div
-      data-testid={testid}
-      style={{
-        ...palette,
-        background: palette.bg,
-        border: `1px solid ${palette.border}`,
-        borderRadius: 14,
-        padding: "10px 12px",
-      }}
-    >
-      <div
-        style={{
-          fontSize: 10.5,
-          fontWeight: 600,
-          letterSpacing: 0.5,
-          textTransform: "uppercase",
-          color: palette.fg,
-          opacity: 0.9,
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          marginTop: 4,
-          fontSize: 22,
-          fontWeight: 700,
-          color: palette.fg,
-          fontVariantNumeric: "tabular-nums",
-        }}
-        data-access-review-stat-value
-      >
+    <div className="app-metric-card" data-app-metric-tone={metricTone} data-testid={testid}>
+      <span className="app-metric-card__value" data-access-review-stat-value>
         {value}
-      </div>
+      </span>
+      <span className="app-metric-card__label">{label}</span>
     </div>
   );
 }
