@@ -133,6 +133,8 @@ function TeamsOverview() {
    */
   const [scope, setScope] = useState<"PARTICIPATING" | "ALL">("PARTICIPATING");
   const [canGovern, setCanGovern] = useState(false);
+  /** Applied once — the governor default must not fight a later choice. */
+  const governorDefaultApplied = useRef(false);
   const [grantedScope, setGrantedScope] =
     useState<"PARTICIPATING" | "ALL">("PARTICIPATING");
   /**
@@ -246,6 +248,20 @@ function TeamsOverview() {
       if (opts?.isStale?.() || issuedFor !== activeWorkspaceId) return;
       setNextCursor(page.nextCursor);
       setCanGovern(page.canGovernWorkspace);
+      /*
+        A GOVERNOR DEFAULTS TO THE WORKSPACE THEY GOVERN (§C).
+
+        The page opened on the participation view for everyone, so an admin
+        landed on "my teams" and had to discover a toggle to see the workspace
+        they administer. The server decides who MAY see it; the product should
+        not also make the operator ask. Applied once, on the first response
+        that reports the capability — never re-forced, so choosing "My teams"
+        from the filter afterwards sticks.
+      */
+      if (page.canGovernWorkspace && !governorDefaultApplied.current) {
+        governorDefaultApplied.current = true;
+        if (scope !== "ALL") setScope("ALL");
+      }
       setGrantedScope(page.scope);
       // Workspace-wide and identical for every page, so "load more" must not
       // clear it — and a participation-scoped response legitimately carries
@@ -478,7 +494,15 @@ function TeamsOverview() {
               data-testid="teams-rollup"
               style={{ marginBottom: "0.75rem" }}
             >
-              <div className="app-kpi-card">
+              {/*
+                SEMANTIC TONES (§D) — the same canonical status scale the
+                Members KPIs use. Conditional where the condition is the
+                point: unassigned tints amber only when work is actually
+                unowned, attention red only when something is late or urgent.
+                A permanent red card on a healthy workspace teaches an
+                operator to ignore red.
+              */}
+              <div className="app-kpi-card" data-tone="info">
                 <div className="app-kpi-card__value">{rollup.work.open}</div>
                 <div className="app-kpi-card__label">Open work</div>
                 <div className="app-kpi-card__meta">
@@ -493,11 +517,11 @@ function TeamsOverview() {
                 urgent. And the meta line says what "unassigned" actually
                 means here — a group holding work is not a person doing it.
               */}
-              <div className="app-kpi-card">
-                <div
-                  className="app-kpi-card__value"
-                  data-tone={rollup.work.unassigned > 0 ? "accent" : undefined}
-                >
+              <div
+                className="app-kpi-card"
+                data-tone={rollup.work.unassigned > 0 ? "warning" : undefined}
+              >
+                <div className="app-kpi-card__value">
                   {rollup.work.unassigned}
                 </div>
                 <div className="app-kpi-card__label">Unassigned</div>
@@ -505,11 +529,11 @@ function TeamsOverview() {
                   held by a Team, not by a person
                 </div>
               </div>
-              <div className="app-kpi-card">
-                <div
-                  className="app-kpi-card__value"
-                  data-tone={rollup.work.attention > 0 ? "danger" : undefined}
-                >
+              <div
+                className="app-kpi-card"
+                data-tone={rollup.work.attention > 0 ? "danger" : undefined}
+              >
+                <div className="app-kpi-card__value">
                   {rollup.work.attention}
                 </div>
                 <div className="app-kpi-card__label">Needs attention</div>
@@ -518,7 +542,7 @@ function TeamsOverview() {
                   priority
                 </div>
               </div>
-              <div className="app-kpi-card">
+              <div className="app-kpi-card" data-tone="success">
                 <div className="app-kpi-card__value">
                   {rollup.workload.people}
                 </div>
@@ -529,48 +553,6 @@ function TeamsOverview() {
                     : "nothing assigned to an individual"}
                 </div>
               </div>
-            </div>
-          ) : null}
-          {/*
-            * WCR-6A — PARTICIPATION AND GOVERNANCE ARE DIFFERENT QUESTIONS.
-            *
-            * The list answers "which Teams am I in?", which is right for doing
-            * the work and wrong for governing it: a workspace OWNER could not
-            * enumerate the Teams in their own tenant, and no other surface
-            * could either.
-            *
-            * The switch appears ONLY for an actor the SERVER says holds the
-            * workspace governance capability (`canGovernWorkspace`), and asking
-            * for the workspace-wide view grants no participation: seeing a Team
-            * is not being in it, so Discussion and Assignments stay closed
-            * unless the viewer is actually a member.
-            */}
-          {canGovern ? (
-            <div
-              className="cases-segments"
-              role="group"
-              aria-label="Which Teams to show"
-              data-testid="teams-scope-switch"
-              style={{ marginBottom: "0.75rem" }}
-            >
-              <button
-                type="button"
-                aria-pressed={scope === "PARTICIPATING"}
-                data-active={scope === "PARTICIPATING" ? "true" : "false"}
-                onClick={() => setScope("PARTICIPATING")}
-              >
-                Teams I&rsquo;m in
-              </button>
-              <button
-                type="button"
-                aria-pressed={scope === "ALL"}
-                data-active={scope === "ALL" ? "true" : "false"}
-                onClick={() => setScope("ALL")}
-                data-testid="teams-scope-all"
-              >
-                All Teams in this workspace
-                {entitlement ? ` (${entitlement.governance.allTeamsCount})` : ""}
-              </button>
             </div>
           ) : null}
           {grantedScope === "ALL" ? (
@@ -589,6 +571,8 @@ function TeamsOverview() {
             onSearch={setSearch}
             statusFilter={statusFilter}
             onStatusFilter={setStatusFilter}
+            scope={canGovern ? scope : null}
+            onScope={canGovern ? setScope : undefined}
             typeFilter={typeFilter}
             onTypeFilter={setTypeFilter}
             sortKey={sortKey}
@@ -659,6 +643,8 @@ function TeamsToolbar({
   onSearch,
   statusFilter,
   onStatusFilter,
+  scope = null,
+  onScope,
   typeFilter,
   onTypeFilter,
   sortKey,
@@ -668,6 +654,9 @@ function TeamsToolbar({
   onSearch: (v: string) => void;
   statusFilter: StatusFilter;
   onStatusFilter: (v: StatusFilter) => void;
+  /** Governors only. `null` hides the control entirely. */
+  scope?: "PARTICIPATING" | "ALL" | null;
+  onScope?: (v: "PARTICIPATING" | "ALL") => void;
   typeFilter: TypeFilter;
   onTypeFilter: (v: TypeFilter) => void;
   sortKey: SortKey;
@@ -702,11 +691,41 @@ function TeamsToolbar({
     // the `.cases-search-field` + `.cases-filter-search` search. No new /
     // duplicate styles are introduced.
     <div className="cases-toolbar" data-testid="teams-toolbar">
+      {/*
+        A FILTER GROUP, not a segmented chip tray — the same correction the
+        Work tab needed. `.cases-segments` caps itself at `max-content` and
+        scrolls internally, which squeezes real dropdowns.
+      */}
       <div
-        className="cases-segments"
+        className="app-filter-group"
         role="group"
         aria-label="Filter teams"
       >
+        {/*
+          WHICH TEAMS — a normal filter, not a segmented security toggle.
+
+          This was a prominent two-button tray above the toolbar reading
+          "Teams I'm in" / "All Teams in this workspace", which asked the
+          operator to understand a view-scope decision the product can make for
+          them: a governor's default is the workspace they govern. It survives
+          as an ordinary filter beside status and type because narrowing to
+          one's own teams is a genuine daily need — it is simply not a headline
+          control, and it appears only for callers the SERVER has already
+          authorised for the workspace view.
+        */}
+        {scope && onScope ? (
+          <div style={{ width: 190 }} data-testid="teams-scope-filter">
+            <AppListbox<"PARTICIPATING" | "ALL">
+              value={scope}
+              options={[
+                { value: "ALL", label: "All workspace teams" },
+                { value: "PARTICIPATING", label: "My teams" },
+              ]}
+              onChange={onScope}
+              ariaLabel="Which teams to show"
+            />
+          </div>
+        ) : null}
         <div style={{ width: 168 }}>
           <AppListbox<StatusFilter>
             value={statusFilter}

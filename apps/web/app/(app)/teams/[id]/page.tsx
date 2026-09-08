@@ -1186,18 +1186,27 @@ function TeamDetailPageBody() {
             from the rows on screen: the roster is a page, and a capacity claim
             derived from a page is wrong the moment there is a second one. */}
         <div className="app-grid-kpis" data-testid="people-kpis">
-          <div className="app-kpi-card">
+          {/*
+            SEMANTIC TONE ON THE CARD (§B1) — the same grammar Notifications
+            uses. Four identical white slabs gave the eye nothing to rank; the
+            tint says what KIND of number each one is before it is read. Every
+            colour is a canonical status token, and the tone is CONDITIONAL
+            where the condition is what matters: seats tint red only when there
+            are none left, invitations amber only when some are waiting. A
+            permanent warning tint on a healthy workspace is noise.
+          */}
+          <div className="app-kpi-card" data-tone="success">
             <span className="app-kpi-card__value">{activeMemberCount}</span>
             <span className="app-kpi-card__label">Active members</span>
             <span className="app-kpi-card__meta">
               With access to this workspace
             </span>
           </div>
-          <div className="app-kpi-card">
-            <span
-              className="app-kpi-card__value"
-              data-tone={pendingInvites.length > 0 ? "accent" : undefined}
-            >
+          <div
+            className="app-kpi-card"
+            data-tone={pendingInvites.length > 0 ? "warning" : undefined}
+          >
+            <span className="app-kpi-card__value">
               {pendingInvites.length}
             </span>
             <span className="app-kpi-card__label">Pending invitations</span>
@@ -1205,11 +1214,17 @@ function TeamDetailPageBody() {
               Sent, not yet accepted
             </span>
           </div>
-          <div className="app-kpi-card">
-            <span
-              className="app-kpi-card__value"
-              data-tone={seatsAvailable === 0 ? "danger" : undefined}
-            >
+          <div
+            className="app-kpi-card"
+            data-tone={
+              seatsAvailable === 0
+                ? "danger"
+                : seatsAvailable === null
+                  ? undefined
+                  : "info"
+            }
+          >
+            <span className="app-kpi-card__value">
               {seatsAvailable === null ? "—" : seatsAvailable}
             </span>
             <span className="app-kpi-card__label">Seats available</span>
@@ -1219,7 +1234,7 @@ function TeamDetailPageBody() {
                 : `${seatUsed ?? activeMemberCount} of ${seatLimit} used`}
             </span>
           </div>
-          <div className="app-kpi-card">
+          <div className="app-kpi-card" data-tone="accent">
             <span className="app-kpi-card__value">{teamCases.length}</span>
             <span className="app-kpi-card__label">Cases in this workspace</span>
             <span className="app-kpi-card__meta">

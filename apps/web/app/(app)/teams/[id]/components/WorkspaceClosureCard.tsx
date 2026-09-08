@@ -337,15 +337,23 @@ export function WorkspaceClosureCard({ teamId }: { teamId: string }) {
           ) : null}
           {!showForm ? (
             <div style={{ marginTop: 10 }}>
-              <Button
-                variant="secondary"
-                size="sm"
+              {/*
+                WHITE SURFACE, RED TEXT (§B3) — the canonical destructive
+                secondary. Closing a workspace is consequential enough that the
+                control should say so before it is pressed, and neutral grey
+                said nothing. Not a filled red button: the confirmation dialog
+                carries the weight, and a page full of solid red teaches an
+                operator to stop reading it.
+              */}
+              <button
+                type="button"
+                className="app-secondary-action app-secondary-action--danger"
                 onClick={() => setShowForm(true)}
                 disabled={busy}
                 data-action="open-workspace-closure"
               >
                 Close this workspace…
-              </Button>
+              </button>
             </div>
           ) : (
             <div style={{ marginTop: 10 }} data-workspace-closure-form>

@@ -32,7 +32,6 @@
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useCallback, useState } from "react";
 import { Modal } from "../../../../../components/cases-experience/matter-modals/Modal";
-import { Button } from "../../../../../components/ui";
 
 export type DangerConfirmModalProps = {
   open: boolean;
@@ -107,21 +106,40 @@ export function DangerConfirmModal({
       dismissDisabled={pending}
       footer={
         <>
-          <Button
-            variant="secondary"
+          {/*
+            THE CANONICAL ACTION PAIR (§B4).
+
+            These were the legacy `Button` component — `variant="secondary"`
+            rendering the old silver/green treatment, and a default-variant
+            confirm. Neither belonged to the action hierarchy every current
+            surface uses, so the most consequential dialog in the product
+            looked like the oldest thing in it.
+
+            Cancel is the canonical white secondary with dark-neutral label
+            text; confirm is the canonical filled purple primary. The DIALOG
+            carries the destructive weight — its copy, its typed confirmation
+            and its warning — rather than a red button doing that work alone,
+            which is why the affirmative action is the product's primary and
+            not a danger button.
+          */}
+          <button
+            type="button"
+            className="app-secondary-action"
             onClick={onCancel}
             disabled={pending}
             data-danger-confirm-cancel
           >
             {cancelLabel}
-          </Button>
-          <Button
+          </button>
+          <button
+            type="button"
+            className="app-primary-action"
             onClick={() => void handleConfirm()}
             disabled={pending}
             data-danger-confirm-submit
           >
             {pending ? "Working…" : confirmLabel}
-          </Button>
+          </button>
         </>
       }
     >
