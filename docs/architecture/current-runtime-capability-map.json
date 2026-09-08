@@ -28376,8 +28376,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.create@2709",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2709",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.create@2721",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2721",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "createAssignment",
       "kind": "DATABASE",
@@ -28409,8 +28409,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.update@2880",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2880",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.update@2892",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2892",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "updateAssignment",
       "kind": "DATABASE",
@@ -28442,8 +28442,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.update@1849",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1849",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.update@1861",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1861",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "revokeInvite",
       "kind": "DATABASE",
@@ -28475,8 +28475,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.update@1959",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1959",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.update@1971",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1971",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "acceptInvite",
       "kind": "DATABASE",
@@ -28509,8 +28509,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.updateMany@2058",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2058",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.updateMany@2070",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2070",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "acceptInvite",
       "kind": "DATABASE",
@@ -28577,8 +28577,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@2101",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2101",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@2113",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2113",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "acceptInvite",
       "kind": "DATABASE",
@@ -28678,8 +28678,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1595",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1595",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1605",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1605",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "changeMemberRole",
       "kind": "DATABASE",
@@ -28711,8 +28711,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1662",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1662",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1672",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1672",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "suspendMember",
       "kind": "DATABASE",
@@ -28744,8 +28744,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1737",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1737",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1747",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1747",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "reinstateMember",
       "kind": "DATABASE",
@@ -28777,8 +28777,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1781",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1781",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1793",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1793",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "removeMember",
       "kind": "DATABASE",
@@ -28811,8 +28811,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@2085",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2085",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@2097",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2097",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "acceptInvite",
       "kind": "DATABASE",
@@ -79893,7 +79893,7 @@
       "method": "DELETE",
       "path": "/v1/collaboration-teams/:teamId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:625",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:643",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -80035,7 +80035,7 @@
       "method": "DELETE",
       "path": "/v1/collaboration-teams/:teamId/members/:memberId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1065",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1095",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -89377,7 +89377,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:379",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:397",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -89450,7 +89450,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:468",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:486",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -89589,7 +89589,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId/activity",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1593",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1623",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -89714,7 +89714,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId/assignable-targets",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1373",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1403",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -89782,7 +89782,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId/assignments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1635",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1665",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -89925,7 +89925,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId/disposability",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:587",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:605",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -89995,7 +89995,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId/eligible-members",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1514",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1544",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -90117,7 +90117,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId/members",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1549",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1579",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -90221,7 +90221,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId/overview",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1419",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1449",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -90296,7 +90296,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/entitlement",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1349",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1379",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -90378,7 +90378,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/responsibility",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1467",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1497",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -114648,7 +114648,7 @@
       "method": "PATCH",
       "path": "/v1/collaboration-teams/:teamId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:516",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:534",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -114797,7 +114797,7 @@
       "method": "PATCH",
       "path": "/v1/collaboration-teams/:teamId/assignments/:assignmentId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1752",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1782",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -115021,7 +115021,7 @@
       "method": "PATCH",
       "path": "/v1/collaboration-teams/:teamId/members/:memberId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:951",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:981",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -124389,7 +124389,7 @@
       "method": "POST",
       "path": "/v1/collaboration-team-invites/:token/accept",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1321",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1351",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -124471,7 +124471,7 @@
       "method": "POST",
       "path": "/v1/collaboration-team-invites/accept",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1295",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1325",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -124622,7 +124622,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:424",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:442",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -124843,7 +124843,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams/:teamId/archive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:673",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:703",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -124913,7 +124913,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams/:teamId/assignments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1687",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1717",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -125143,7 +125143,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams/:teamId/invites/:inviteId/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1177",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1207",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -125214,7 +125214,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams/:teamId/invites/email",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1135",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1165",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -125270,7 +125270,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams/:teamId/members",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:893",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:923",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -125359,7 +125359,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams/:teamId/members/bulk",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:802",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:832",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -125448,7 +125448,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams/:teamId/unarchive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:733",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:763",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
