@@ -57,25 +57,36 @@ const KIND_NOUNS: Record<PlanLimitBadgeKind, string> = {
   GUEST_STATUS: "guests",
 };
 
-function chipStyle(atLimit: boolean): CSSProperties {
+/**
+ * INLINE METADATA, NOT A CHIP (§2).
+ *
+ * This was a filled capsule — 999px radius, tinted background, its own border
+ * — sitting beside real buttons in a page header, where it read as a control
+ * somebody could press. It is a FACT about the workspace, so it is rendered as
+ * text: the plan prefix in the muted label ink, the capacity itself in the
+ * canonical success green, and red only when the cap is actually reached.
+ *
+ * Every colour is a canonical token. The numbers, the noun and the accessible
+ * label are unchanged, and so is the Upgrade link that appears at the cap.
+ */
+function capacityTextStyle(atLimit: boolean): CSSProperties {
   return {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 6,
-    padding: "4px 10px",
-    borderRadius: 999,
     fontSize: "0.78rem",
     fontWeight: 600,
-    letterSpacing: "0.02em",
-    background: atLimit ? "rgba(186,80,80,0.12)" : "rgba(62,96,99,0.10)",
-    color: atLimit ? "#7c2d2d" : "#3e6063",
-    border: `1px solid ${
-      atLimit ? "rgba(186,80,80,0.30)" : "rgba(79,112,107,0.20)"
-    }`,
+    letterSpacing: "0.01em",
+    color: atLimit ? "var(--error, #DC2626)" : "var(--success-standard, #15803D)",
     whiteSpace: "nowrap",
     lineHeight: 1.4,
+    fontVariantNumeric: "tabular-nums",
   };
 }
+
+const PLAN_PREFIX_STYLE: CSSProperties = {
+  fontSize: "0.78rem",
+  fontWeight: 600,
+  color: "var(--app-ink-secondary, #667085)",
+  whiteSpace: "nowrap",
+};
 
 const UPGRADE_LINK_STYLE: CSSProperties = {
   fontSize: "0.78rem",
@@ -100,6 +111,14 @@ function composeLabel(props: PlanLimitBadgeProps): string {
   return `${planPrefix}${props.current} of ${props.max} ${noun}`;
 }
 
+/** The capacity half alone — what the accessible label says after the plan. */
+function composeCapacity(props: PlanLimitBadgeProps): string {
+  const noun = KIND_NOUNS[props.kind];
+  return props.max === "unlimited"
+    ? `${props.current} ${noun} (unlimited)`
+    : `${props.current} of ${props.max} ${noun}`;
+}
+
 export function PlanLimitBadge(props: PlanLimitBadgeProps): JSX.Element {
   const atLimit = isAtLimit(props.current, props.max);
   const label = composeLabel(props);
@@ -113,8 +132,13 @@ export function PlanLimitBadge(props: PlanLimitBadgeProps): JSX.Element {
       aria-label={label}
       title={label}
     >
-      <span style={chipStyle(atLimit)} aria-hidden="true">
-        <span style={{ fontVariantNumeric: "tabular-nums" }}>{label}</span>
+      <span aria-hidden="true" style={{ display: "inline-flex", gap: 5, alignItems: "baseline" }}>
+        {props.planLabel ? (
+          <span style={PLAN_PREFIX_STYLE}>{props.planLabel} plan ·</span>
+        ) : null}
+        <span style={capacityTextStyle(atLimit)} data-capacity-text>
+          {composeCapacity(props)}
+        </span>
       </span>
       {atLimit ? (
         <Link

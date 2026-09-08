@@ -247,15 +247,54 @@ const ACTIVITY_LABELS: Record<string, string> = {
   team_renamed: "Workspace renamed",
   case_linked: "Case linked",
   case_unlinked: "Case removed",
+  /**
+   * THE REST OF WHAT `team_activities` ACTUALLY HOLDS (§10).
+   *
+   * The nine above were the only mapped types, so every other writer to this
+   * table fell through to the humaniser and rendered its raw enum. Three of
+   * them are SHOUTY — the reviewer-ops writers store `DECISION_LOGGED`,
+   * `STAGE_CHANGED` and `REVIEWER_NOTE_CREATED` — which the old fallback
+   * passed through untouched, so the feed shouted database vocabulary at an
+   * operator. These are the real event types emitted by the workspace
+   * lifecycle, reviewer-ops, and integrations writers; nothing here is
+   * invented, and an unmapped type still degrades legibly rather than hiding.
+   */
+  DECISION_LOGGED: "Review decision recorded",
+  STAGE_CHANGED: "Review stage changed",
+  REVIEWER_NOTE_CREATED: "Reviewer note added",
+  reviewer_governance_flags_updated: "Reviewer governance updated",
+  reviewer_sla_policy_updated: "Reviewer SLA policy updated",
+  workspace_closed: "Workspace closed",
+  workspace_reopened: "Workspace reopened",
+  workspace_suspended: "Workspace suspended",
+  workspace_resumed: "Workspace resumed",
+  workspace_ownership_transferred: "Ownership transferred",
+  "integration.api_key.created": "API key created",
+  "integration.api_key.revoked": "API key revoked",
+  "integration.api_key.rotated": "API key rotated",
+  "integration.api_key.expiry_changed": "API key expiry changed",
+  "integration.webhook.secret_rotated": "Webhook secret rotated",
+  "integration.webhook.test_sent": "Webhook test sent",
+  "integration.webhook.delivery_retried": "Webhook delivery retried",
 };
 
 function humanizeActivity(activity: {
   eventType: string;
   actor?: { displayName?: string | null; email?: string | null } | null;
 }): string {
+  /**
+   * The fallback LOWERCASES first. It used to only capitalise the first
+   * character, so a stored `DECISION_LOGGED` came through as
+   * "DECISION LOGGED" — a raw enum, shouted. Sentence case is legible for a
+   * type nobody has written copy for yet, which is the whole point of having
+   * a fallback rather than hiding the row.
+   */
   const what =
     ACTIVITY_LABELS[activity.eventType] ??
-    activity.eventType.replace(/[_.]/g, " ").replace(/^./, (c) => c.toUpperCase());
+    activity.eventType
+      .replace(/[_.]/g, " ")
+      .toLowerCase()
+      .replace(/^./, (c) => c.toUpperCase());
   const who =
     activity.actor?.displayName?.trim() || activity.actor?.email || null;
   return who ? `${what} — ${who}` : what;
@@ -270,19 +309,124 @@ function humanizeActivity(activity: {
  * stays neutral rather than being guessed at. Colouring every row differently
  * would turn a history into a chart nobody asked for.
  */
-function activityTone(eventType: string): "success" | "danger" | "accent" | undefined {
+function activityTone(eventType: string): "success" | "danger" | "accent" | "info" | undefined {
   switch (eventType) {
     case "member_added":
     case "invite_accepted":
+    case "workspace_reopened":
+    case "workspace_resumed":
       return "success";
     case "member_removed":
     case "invite_revoked":
+    case "workspace_closed":
+    case "workspace_suspended":
+    case "integration.api_key.revoked":
       return "danger";
     case "member_role_changed":
     case "team_renamed":
+    case "invite_created":
+    case "workspace_ownership_transferred":
       return "accent";
+    case "DECISION_LOGGED":
+    case "STAGE_CHANGED":
+    case "REVIEWER_NOTE_CREATED":
+      return "info";
     default:
       return undefined;
+  }
+}
+
+/**
+ * WHICH ICON AN EVENT GETS (§10).
+ *
+ * SIX FAMILIES, not one glyph per event type. An icon is a category cue that
+ * lets the eye group a scrolling list; a unique drawing per event would be a
+ * second vocabulary to learn, and it would go stale the moment a writer added
+ * a type nobody drew for. Anything unrecognised falls back to the neutral dot,
+ * which is what the whole list used before this.
+ *
+ * The icon and the row's tone come from the same `eventType`, so colour and
+ * shape never disagree, and the sentence beside them always says what actually
+ * happened — the icon is never the only carrier of meaning.
+ */
+type ActivityGlyph = "invite" | "member" | "role" | "workspace" | "review" | "key" | "dot";
+
+function activityGlyph(eventType: string): ActivityGlyph {
+  if (eventType.startsWith("invite_")) return "invite";
+  if (eventType.startsWith("member_") && eventType !== "member_role_changed") return "member";
+  if (eventType === "member_role_changed") return "role";
+  if (eventType.startsWith("workspace_") || eventType === "team_renamed") return "workspace";
+  if (
+    eventType === "DECISION_LOGGED" ||
+    eventType === "STAGE_CHANGED" ||
+    eventType === "REVIEWER_NOTE_CREATED" ||
+    eventType.startsWith("reviewer_")
+  ) {
+    return "review";
+  }
+  if (eventType.startsWith("integration.")) return "key";
+  return "dot";
+}
+
+function ActivityIcon({ glyph }: { glyph: ActivityGlyph }) {
+  const common = {
+    width: 14,
+    height: 14,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 2,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true,
+  };
+  switch (glyph) {
+    case "invite":
+      return (
+        <svg {...common}>
+          <path d="M4 5h16v14H4z" />
+          <path d="m4 7 8 6 8-6" />
+        </svg>
+      );
+    case "member":
+      return (
+        <svg {...common}>
+          <path d="M18 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" />
+          <circle cx="10.5" cy="7" r="4" />
+        </svg>
+      );
+    case "role":
+      return (
+        <svg {...common}>
+          <path d="M12 3 4 6v6c0 4.5 3.2 8.3 8 9 4.8-.7 8-4.5 8-9V6z" />
+        </svg>
+      );
+    case "workspace":
+      return (
+        <svg {...common}>
+          <path d="M3 9h18M3 9V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v3M3 9v9a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9" />
+        </svg>
+      );
+    case "review":
+      return (
+        <svg {...common}>
+          <path d="M9 11.5 11 13.5 15.5 9" />
+          <path d="M5 4h14v16l-7-3-7 3z" />
+        </svg>
+      );
+    case "key":
+      return (
+        <svg {...common}>
+          <circle cx="8" cy="15" r="4" />
+          <path d="m11 12 8-8 3 3-2 2-2-2-2 2" />
+        </svg>
+      );
+    default:
+      return (
+        <svg {...common} fill="currentColor" stroke="none">
+          <circle cx="12" cy="12" r="4" />
+        </svg>
+      );
   }
 }
 
@@ -1706,14 +1850,14 @@ function TeamDetailPageBody() {
 
 
         {/*
-          ACTIVITY AND WORKSPACE FACTS, SIDE BY SIDE (§4, §7).
+          RECENT ACTIVITY — THE FULL WIDTH OF THE COLUMN IT LIVES IN (§10).
 
-          Both used to be full-width panels holding a single line — one event
-          stretched across the page, and one sentence about billing. Neither
-          filled the width it claimed, and the two of them together were most of
-          a screen of empty panel. They share a row now.
+          It shared a two-column row with the workspace facts, which made the
+          page's most chronological surface half as wide as the roster above
+          it and squeezed its timestamps into a 300px column. Workspace
+          overview is a rail card now, so activity takes the main column
+          outright and its rows line up with the roster and the invitations.
         */}
-        <div className="app-grid-panels">
           {/*
             RECENT ACTIVITY — a marker, a sentence, a time (§7).
 
@@ -1740,7 +1884,9 @@ function TeamDetailPageBody() {
                       <span
                         className="app-activity-item__marker"
                         aria-hidden="true"
-                      />
+                      >
+                        <ActivityIcon glyph={activityGlyph(a.eventType)} />
+                      </span>
                       <span className="app-activity-item__text">
                         {humanizeActivity(a)}
                         <span className="app-activity-item__time">
@@ -1754,110 +1900,6 @@ function TeamDetailPageBody() {
             </div>
           ) : null}
 
-          {/*
-            WORKSPACE OVERVIEW — the facts the removed giant card never showed.
-
-            Every row is a value the server already sends. Nothing is displayed
-            that this page cannot answer truthfully: there is no created date on
-            the wire, so there is no Created row. Seats read from the SERVER's
-            projection, the same numbers the invitation gate enforces.
-
-            Rename lives here, next to the name it changes, instead of being a
-            button on a panel that did not display the name at all.
-          */}
-          <div className="app-panel" data-testid="people-workspace-overview">
-            <div className="app-panel__head app-panel__head-row">
-              <h2 className="app-panel__title">Workspace overview</h2>
-              {canManageTeam ? (
-                <button
-                  type="button"
-                  className="app-secondary-action"
-                  onClick={() =>
-                    isEditingName
-                      ? handleCancelEditName()
-                      : handleStartEditName()
-                  }
-                  data-testid="workspace-rename-toggle"
-                >
-                  {isEditingName ? "Cancel" : "Rename"}
-                </button>
-              ) : null}
-            </div>
-            <div className="app-panel__body">
-              {isEditingName ? (
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 8,
-                    flexWrap: "wrap",
-                    marginBottom: 12,
-                  }}
-                >
-                  <input
-                    className="app-form-input"
-                    style={{ maxWidth: 340, flex: "1 1 200px" }}
-                    value={teamName}
-                    onChange={(e) => setTeamName(e.target.value)}
-                    aria-label="Workspace name"
-                    data-testid="workspace-name-input"
-                  />
-                  <button
-                    type="button"
-                    className="app-secondary-action app-secondary-action--filled"
-                    onClick={() => void handleSaveTeamName()}
-                    disabled={savingName}
-                    data-testid="workspace-name-save"
-                  >
-                    {savingName ? "Saving…" : "Save name"}
-                  </button>
-                </div>
-              ) : null}
-              <dl className="app-kv-list">
-                <div className="app-kv-row">
-                  <dt className="app-kv-key">Name</dt>
-                  <dd className="app-kv-value" data-testid="overview-name">
-                    {team?.name ?? "—"}
-                  </dd>
-                </div>
-                {effectivePlan ? (
-                  <div className="app-kv-row">
-                    <dt className="app-kv-key">Plan</dt>
-                    <dd className="app-kv-value">{effectivePlan}</dd>
-                  </div>
-                ) : null}
-                {ownerLabel ? (
-                  <div className="app-kv-row">
-                    <dt className="app-kv-key">Owner</dt>
-                    <dd className="app-kv-value">{ownerLabel}</dd>
-                  </div>
-                ) : null}
-                <div className="app-kv-row">
-                  <dt className="app-kv-key">Members</dt>
-                  <dd className="app-kv-value">
-                    {seatLimit === null
-                      ? `${activeMemberCount} active`
-                      : `${seatUsed ?? activeMemberCount} of ${seatLimit} seats used`}
-                  </dd>
-                </div>
-                <div className="app-kv-row">
-                  <dt className="app-kv-key">Billing</dt>
-                  <dd className="app-kv-value">
-                    <Link href={billingHref} className="app-table__link">
-                      Open billing
-                    </Link>
-                  </dd>
-                </div>
-              </dl>
-              <p
-                className="app-table__muted"
-                style={{ margin: "10px 0 0", fontSize: 11.5 }}
-              >
-                Storage, subscription and payment for this workspace are managed
-                in Billing.
-              </p>
-            </div>
-          </div>
-        </div>
 
         {/*
           LIFECYCLE — separated on purpose.
@@ -1994,86 +2036,189 @@ function TeamDetailPageBody() {
           ) : null}
 
           {/*
-            MEMBER ROLES — the REAL workspace vocabulary.
+            THE ROLE LEGEND IS GONE (§3).
 
-            Four roles, because four is what the product has. OWNER is listed
-            and is deliberately not offered by the role selector: ownership
-            moves through transfer-ownership with step-up, never through a
-            dropdown. Each line says what the role can do in terms this page
-            can back up, and none of it is a permission matrix — there is no
-            granular permission editor behind this surface to link to.
+            It listed the four workspace roles and what each can do — which is
+            exactly what the "Role permissions" dialog in the page header
+            already shows, in more detail, from the same vocabulary. Two
+            descriptions of one permission model is how they drift apart, and
+            the header action is the canonical one.
+
+            WORKSPACE OVERVIEW TAKES ITS PLACE (§7), directly under Invite
+            people: the workspace's own facts are reference material an
+            operator glances at while working the roster, which is what the
+            rail is for.
           */}
-          <div className="app-panel" data-testid="people-rail-roles">
-            <div className="app-panel__head">
-              <h2 className="app-panel__title">What roles can do</h2>
+            {/*
+              WORKSPACE OVERVIEW — the facts the removed giant card never showed.
+
+              Every row is a value the server already sends. Nothing is displayed
+              that this page cannot answer truthfully: there is no created date on
+              the wire, so there is no Created row. Seats read from the SERVER's
+              projection, the same numbers the invitation gate enforces.
+
+              Rename lives here, next to the name it changes, instead of being a
+              button on a panel that did not display the name at all.
+            */}
+            <div className="app-panel" data-testid="people-workspace-overview">
+              <div className="app-panel__head app-panel__head-row">
+                <h2 className="app-panel__title">Workspace overview</h2>
+                {canManageTeam ? (
+                  <button
+                    type="button"
+                    className="app-secondary-action"
+                    onClick={() =>
+                      isEditingName
+                        ? handleCancelEditName()
+                        : handleStartEditName()
+                    }
+                    data-testid="workspace-rename-toggle"
+                  >
+                    {isEditingName ? "Cancel" : "Rename"}
+                  </button>
+                ) : null}
+              </div>
+              <div className="app-panel__body">
+                {isEditingName ? (
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      flexWrap: "wrap",
+                      marginBottom: 12,
+                    }}
+                  >
+                    <input
+                      className="app-form-input"
+                      style={{ maxWidth: 340, flex: "1 1 200px" }}
+                      value={teamName}
+                      onChange={(e) => setTeamName(e.target.value)}
+                      aria-label="Workspace name"
+                      data-testid="workspace-name-input"
+                    />
+                    <button
+                      type="button"
+                      className="app-secondary-action app-secondary-action--filled"
+                      onClick={() => void handleSaveTeamName()}
+                      disabled={savingName}
+                      data-testid="workspace-name-save"
+                    >
+                      {savingName ? "Saving…" : "Save name"}
+                    </button>
+                  </div>
+                ) : null}
+                <dl className="app-kv-list">
+                  <div className="app-kv-row">
+                    <dt className="app-kv-key">Name</dt>
+                    <dd className="app-kv-value" data-testid="overview-name">
+                      {team?.name ?? "—"}
+                    </dd>
+                  </div>
+                  {effectivePlan ? (
+                    <div className="app-kv-row">
+                      <dt className="app-kv-key">Plan</dt>
+                      <dd className="app-kv-value">{effectivePlan}</dd>
+                    </div>
+                  ) : null}
+                  {ownerLabel ? (
+                    <div className="app-kv-row">
+                      <dt className="app-kv-key">Owner</dt>
+                      <dd className="app-kv-value">{ownerLabel}</dd>
+                    </div>
+                  ) : null}
+                  <div className="app-kv-row">
+                    <dt className="app-kv-key">Members</dt>
+                    <dd className="app-kv-value">
+                      {seatLimit === null
+                        ? `${activeMemberCount} active`
+                        : `${seatUsed ?? activeMemberCount} of ${seatLimit} seats used`}
+                    </dd>
+                  </div>
+                  <div className="app-kv-row">
+                    <dt className="app-kv-key">Billing</dt>
+                    <dd className="app-kv-value">
+                      <Link href={billingHref} className="app-table__link">
+                        Open billing
+                      </Link>
+                    </dd>
+                  </div>
+                </dl>
+                <p
+                  className="app-table__muted"
+                  style={{ margin: "10px 0 0", fontSize: 11.5 }}
+                >
+                  Storage, subscription and payment for this workspace are managed
+                  in Billing.
+                </p>
+              </div>
             </div>
-            <div className="app-panel__body">
-              <dl className="app-kv-list">
-                <div className="app-kv-row">
-                  <dt className="app-kv-key">Owner</dt>
-                  <dd className="app-kv-value">
-                    Full control, including transfer and deletion
-                  </dd>
-                </div>
-                <div className="app-kv-row">
-                  <dt className="app-kv-key">Admin</dt>
-                  <dd className="app-kv-value">
-                    Manages members, invitations and cases
-                  </dd>
-                </div>
-                <div className="app-kv-row">
-                  <dt className="app-kv-key">Member</dt>
-                  <dd className="app-kv-value">
-                    Works on cases and evidence in this workspace
-                  </dd>
-                </div>
-                <div className="app-kv-row">
-                  <dt className="app-kv-key">Viewer</dt>
-                  <dd className="app-kv-value">Read-only access</dd>
-                </div>
-              </dl>
-              <p
-                className="app-table__muted"
-                style={{ margin: "10px 0 0", fontSize: 11.5 }}
-              >
-                A workspace role governs access across the whole workspace. A
-                Collaboration Team role governs responsibility inside one group.
-              </p>
-            </div>
-          </div>
         {/*
-          THE BRIDGE TO THE OTHER HALF OF THE MODEL (§15.6).
+          THE BRIDGE — A SIGNPOST, NOT DOCUMENTATION (§8).
 
-          A contextual path, not a second front door: no KPI, no oversized CTA,
-          and none of the Collaboration Teams page's own primary actions
-          duplicated here. Its whole job is to teach the relationship at the
-          moment the operator has just finished thinking about membership —
-          these people HAVE access, and organising how they work is the next
-          question, answered somewhere else.
-
-          The sentence states the architecture plainly because that is the
-          thing a first-time operator cannot infer: Collaboration Teams group
-          people who are ALREADY members. They confer no access of their own.
+          It carried the full Workspace-vs-Team architecture paragraph: what a
+          Collaboration Team is, what it is for, and that it grants no access of
+          its own. All true, and all established on the surface it points AT.
+          A rail card's job is to say where to go and why, in the two seconds
+          somebody spends deciding — the sentence that used to be here was
+          longer than the roster row it sat beside.
         */}
         <div className="app-panel" data-testid="people-collaboration-bridge">
+          <div className="app-panel__head app-panel__head-row">
+            <h2 className="app-panel__title">
+              <span className="app-panel__title-icon" aria-hidden="true">
+                <svg
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+              </span>
+              Collaboration Teams
+            </h2>
+          </div>
           <div className="app-panel__body">
-            <p className="app-table__muted" style={{ margin: "0 0 10px" }}>
-              Members can be organised into <strong>Collaboration Teams</strong>{" "}
-              — operational groups for cases, evidence, assignments and review
-              workload. Teams group people who already have access here; they
-              do not grant it.
+            <p
+              className="app-table__muted"
+              style={{ margin: "0 0 12px", fontSize: 12.5 }}
+            >
+              Organise existing workspace members into operational groups for
+              cases, evidence and work.
             </p>
             <Link
               href="/collaboration-teams"
-              className="app-secondary-action"
+              className="app-secondary-action app-secondary-action--block"
               data-testid="people-to-collaboration-teams"
             >
-              Organise members into Collaboration Teams
+              Organise members
             </Link>
           </div>
         </div>
 
-        {/* Access review — governance, kept but no longer a peer of the roster. */}
+        {/*
+          EXTERNAL COLLABORATORS — WHAT WAS ACTUALLY UNIQUE HERE (§3).
+
+          This was a large "Member roles" card holding three counts, a search
+          box, a kind filter and a row per person. Two of its three counts and
+          every internal row restated the roster and the invitations panel
+          directly above it, so the page said the same thing three times and
+          the roster stopped being the primary object.
+
+          One thing in it was NOT available anywhere else on this surface:
+          EXTERNAL COLLABORATORS — people who are not members and hold
+          case-scoped grants. Deleting the card would have removed the only
+          door to that, so the card keeps exactly that and drops the rest.
+          Nothing about the access-review endpoint, its authority, or the
+          external-grant model changed.
+        */}
         {teamId ? <TeamAccessReviewCard teamId={teamId} /> : null}
 
         {/* Case linkage. Not people management, and it stays because

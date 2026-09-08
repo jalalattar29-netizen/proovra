@@ -149,6 +149,20 @@
   margin: 0;
   letter-spacing: -0.01em;
 }
+/* An optional glyph before a panel title, for a rail card whose subject is a
+   DESTINATION rather than the data below it. Applied with `:has` so a title
+   without an icon keeps its plain block layout and nothing else moves. */
+.app-panel__title:has(> .app-panel__title-icon) {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.app-panel__title-icon {
+  display: inline-grid;
+  place-items: center;
+  color: var(--accent-600, #6D28D9);
+  flex: 0 0 auto;
+}
 /* A panel section heading beside its action. Layout only. */
 .app-panel__head-row {
   display: flex;
@@ -1414,21 +1428,31 @@ textarea.app-form-input {
 }
 .app-activity-item {
   display: grid;
-  grid-template-columns: 14px minmax(0, 1fr);
+  grid-template-columns: 26px minmax(0, 1fr);
   gap: 10px;
-  padding: 7px 0;
+  padding: 8px 0;
   border-block-end: 1px solid rgba(15, 23, 42, 0.05);
 }
 .app-activity-item:last-child {
   border-block-end: none;
 }
+/* The marker is a TINTED ICON in a soft disc of the same family. A bare dot
+   said only "an event"; the glyph says which KIND before the sentence is read,
+   and the tint is the same token the row's semantics resolve to, so shape and
+   colour cannot disagree. */
 .app-activity-item__marker {
-  margin-block-start: 6px;
-  inline-size: 7px;
-  block-size: 7px;
-  border-radius: 50%;
-  background: var(--app-activity-tone, var(--app-ink-placeholder));
-  justify-self: center;
+  margin-block-start: 1px;
+  inline-size: 26px;
+  block-size: 26px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: var(--app-activity-tone, var(--app-ink-secondary));
+  background: color-mix(
+    in srgb,
+    var(--app-activity-tone, var(--app-ink-secondary)) 10%,
+    transparent
+  );
 }
 .app-activity-item__text {
   font-size: 13px;
@@ -1446,6 +1470,7 @@ textarea.app-form-input {
 .app-activity-item[data-activity-tone="success"] { --app-activity-tone: var(--success-standard, #15803D); }
 .app-activity-item[data-activity-tone="danger"]  { --app-activity-tone: var(--error, #DC2626); }
 .app-activity-item[data-activity-tone="accent"]  { --app-activity-tone: var(--accent-600, #6D28D9); }
+.app-activity-item[data-activity-tone="info"]    { --app-activity-tone: var(--info, #2563EB); }
 
 /* Chip rows are LISTS — adjacent chips must never run together into one
    accessible name. Reset the list affordances and keep a real gap. */

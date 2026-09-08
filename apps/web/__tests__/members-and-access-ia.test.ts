@@ -103,9 +103,27 @@ test("Members & Access links contextually to Collaboration Teams", () => {
   );
   assert.match(bridge, /app-secondary-action/);
   assert.doesNotMatch(bridge, /app-primary-action/);
-  // And it teaches the architecture: teams group members who already have
-  // access, they do not grant it.
-  assert.match(bridge, /do not grant it/);
+  /*
+   * THIS ASSERTION MOVED, IT DID NOT GO AWAY.
+   *
+   * It used to require the bridge card to carry the architecture sentence
+   * itself — "teams group members who already have access, they do not grant
+   * it". The card is a RAIL SIGNPOST now: a heading, one line of purpose and
+   * a link. Repeating a paragraph of model explanation in a 300px rail card,
+   * on the page a reader is already on, was the duplication this pass exists
+   * to remove.
+   *
+   * The INVARIANT — that the product states the distinction rather than
+   * leaving an operator to infer it — is unchanged and still enforced, by
+   * "Collaboration Teams states that it groups EXISTING members" below, which
+   * asserts it on the canonical surface that owns the model. What is checked
+   * here is the bridge's own contract: it names the destination and says why
+   * to go, without becoming a second explanation that can drift from the
+   * first.
+   */
+  assert.match(bridge, /Collaboration Teams/);
+  assert.match(bridge, /Organise/);
+  assert.doesNotMatch(bridge, /do not grant it/);
 });
 
 test("Collaboration Teams links back to Members & Access", () => {

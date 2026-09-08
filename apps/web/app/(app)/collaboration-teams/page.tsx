@@ -524,14 +524,14 @@ function TeamsOverview() {
                 </div>
               </li>
               {/*
-                Amber, not red: unowned work needs picking up, it is not yet a
-                failure. Red is reserved for the attention card beside it,
+                Accent purple, not red: unowned work needs picking up, it is
+                not yet a failure. Red is reserved for the attention card,
                 which counts work that is already late or already urgent. And
                 the meta line says what "unassigned" actually means here — a
                 group holding work is not a person doing it.
               */}
               <li>
-                <div className="app-metric-card" data-app-metric-tone="warning">
+                <div className="app-metric-card" data-app-metric-tone="accent">
                   <div className="app-metric-card__value">
                     {rollup.work.unassigned}
                   </div>
