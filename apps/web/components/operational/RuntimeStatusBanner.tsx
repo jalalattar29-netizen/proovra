@@ -27,7 +27,7 @@
  * =============================================================================
  * WHAT IT READS NOW
  * =============================================================================
- * `GET /v1/platform/runtime-status`, whose entire body is:
+ * `GET /v1/runtime/status`, whose entire body is:
  *
  *     { "status": "HEALTHY" | "DEGRADED" | "UNAVAILABLE" }
  *
@@ -77,7 +77,7 @@ export function RuntimeStatusBanner({ pollMs = 60_000 }: RuntimeStatusBannerProp
     let cancelled = false;
     async function load() {
       try {
-        const data = (await apiFetch("/v1/platform/runtime-status")) as {
+        const data = (await apiFetch("/v1/runtime/status")) as {
           status: TenantRuntimeStatus;
         };
         if (!cancelled) {

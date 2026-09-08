@@ -97,7 +97,7 @@ export async function platformContextRoutes(app: FastifyInstance) {
 
 
   /**
-   * GET /v1/platform/runtime-status — THE TENANT-SAFE PROJECTION.
+   * GET /v1/runtime/status — THE TENANT-SAFE PROJECTION.
    *
    * =========================================================================
    * WHY THIS EXISTS AND WHY IT IS SO SMALL
@@ -137,7 +137,7 @@ export async function platformContextRoutes(app: FastifyInstance) {
    * the shape this whole finding is about.
    */
   app.get(
-    "/v1/platform/runtime-status",
+    "/v1/runtime/status",
     { preHandler: requireAuth },
     async (_req: FastifyRequest, reply) => {
       let status: "HEALTHY" | "DEGRADED" | "UNAVAILABLE" = "UNAVAILABLE";

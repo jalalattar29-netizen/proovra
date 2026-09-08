@@ -9,7 +9,7 @@
  *   - Any future operator-facing chrome that needs a unified snapshot
  *
  * The hook polls THREE real endpoints (no fake counters, ever):
- *   - GET /v1/platform/runtime-status   (tenant-safe status enum only)
+ *   - GET /v1/runtime/status            (tenant-safe status enum only)
  *   - GET /v1/ops/incidents?teamId=…&status=OPEN
  *   - GET /v1/reviewer-ops/escalations?teamId=…&status=OPEN
  *
@@ -337,21 +337,23 @@ export function useGlobalRuntimeState(
             /*
              * THE TENANT-SAFE PROJECTION (ADM-P1-003 / OWN-1).
              *
-             * This used to read `/admin/runtime/readiness?teamId=…` — the full
+             * This used to read the unversioned admin runtime-readiness route
+             * with a `teamId` query — the full
              * platform aggregator, authorised by tenant membership plus
              * `audit.read`. Fourteen subsystems with reason codes, remediation
              * hints and the deployment's configuration posture, delivered to
              * anyone who could hold a workspace. The shell needed exactly one
              * thing from all of it: whether to colour the pill.
              *
-             * `/v1/platform/runtime-status` answers that and nothing else. The
-             * full payload is platform-admin only at `/v1/admin/runtime/*`.
+             * `/v1/runtime/status` answers that and nothing else. The
+             * full payload is platform-admin only, under the versioned admin
+             * runtime namespace.
              *
              * No `teamId`: the answer is identical for every caller, so there
              * is nothing for a workspace to scope and no caller-supplied field
              * sitting beside an authorization decision.
              */
-            const r = (await apiFetch("/v1/platform/runtime-status")) as {
+            const r = (await apiFetch("/v1/runtime/status")) as {
               status: "HEALTHY" | "DEGRADED" | "UNAVAILABLE";
             };
             nextReadiness = {

@@ -37,7 +37,7 @@
  * namespace with the rest of the platform surface.
  *
  * The application shell still needs to colour an operational pill. It does not
- * get this payload to do it — see `GET /v1/platform/runtime-status` in
+ * get this payload to do it — see `GET /v1/runtime/status` in
  * platform-context.routes.ts, which answers a three-value enum and nothing else.
  *
  * Read-only. Safe to poll.

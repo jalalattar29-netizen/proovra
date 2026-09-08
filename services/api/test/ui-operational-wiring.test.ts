@@ -151,7 +151,7 @@ describe("RuntimeStatusBanner", () => {
      * centre). It rendered failing subsystem ids, their reason codes, their
      * operator detail and their remediation hints to customers.
      */
-    expect(src).toContain("/v1/platform/runtime-status");
+    expect(src).toContain("/v1/runtime/status");
     // Comments stripped: the docblock EXPLAINS what this component used to
     // read, and a guard that fails on its own explanation would push the next
     // author to delete the explanation.

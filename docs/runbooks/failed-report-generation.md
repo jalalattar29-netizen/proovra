@@ -14,7 +14,12 @@
 
 ## Safe commands / routes
 1. Re-enqueue from the operator UI (Phase 8/12 admin surface). The Phase 20 master reconcile does NOT auto-retry report jobs by design — operator decides.
-2. Inspect the failed job: `GET /v1/admin/reports/:id` (Phase 6+).
+2. Inspect the failure through the platform evidence-health surface:
+   `/admin/evidence-ops` for the aggregate, and `/admin/evidence-ops/records`
+   for the individual records behind each figure. There is no per-report job
+   inspection endpoint — a Report row is written only on SUCCESS, so a failed
+   generation leaves a DLQ entry and an evidence record without a report
+   rather than a Report to read.
 
 ## What NOT to do
 - **Do not** delete `Evidence` rows. Retention + legal hold + ownership are governed by Phase 9/14; deleting bypasses the chain.

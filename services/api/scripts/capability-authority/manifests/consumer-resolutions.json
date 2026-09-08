@@ -186,18 +186,17 @@
       "reviewedAtUtc": "2026-08-16"
     },
     {
-      "site": "apps/web/lib/useGlobalRuntimeState.ts:230",
-      "helper": "three web surfaces poll the readiness aggregator through apiFetch",
+      "site": "apps/web/lib/useGlobalRuntimeState.ts:356",
+      "helper": "two web surfaces read the TENANT-SAFE runtime status through apiFetch",
       "callSitesRead": [
-        "apps/web/lib/useGlobalRuntimeState.ts:230",
-        "apps/web/components/operational/RuntimeStatusBanner.tsx:111",
-        "apps/web/app/(app)/operations/observability/page.tsx:324"
+        "apps/web/lib/useGlobalRuntimeState.ts:356",
+        "apps/web/components/operational/RuntimeStatusBanner.tsx:80"
       ],
       "routes": [
-        "GET /admin/runtime/readiness"
+        "GET /v1/runtime/status"
       ],
-      "evidence": "reg services/api/src/routes/runtime-readiness.routes.ts:92 app.get(\"/admin/runtime/readiness\", ...); apps/web/lib/useGlobalRuntimeState.ts:229-230 const r = (await apiFetch(`/admin/runtime/readiness?teamId=${enc}`)); apps/web/components/operational/RuntimeStatusBanner.tsx:110-111 apiFetch(`/admin/runtime/readiness?teamId=${encodeURIComponent(teamId)}`); apps/web/app/(app)/operations/observability/page.tsx:323-325 apiFetch(`/admin/runtime/readiness?teamId=...`, { method: \"GET\" })",
-      "reviewedAtUtc": "2026-08-16"
+      "evidence": "ADM-P1-003 / OWN-1 — this entry used to resolve three surfaces onto GET /admin/runtime/readiness, the full platform aggregator, which they read with a tenant `teamId` and a tenant permission. Both remaining surfaces now read the tenant-safe projection: reg services/api/src/routes/platform-context.routes.ts app.get(\"/v1/runtime/status\", { preHandler: requireAuth }, …) returning { status: \"HEALTHY\" | \"DEGRADED\" | \"UNAVAILABLE\" } and nothing else; apps/web/lib/useGlobalRuntimeState.ts:356 const r = (await apiFetch(\"/v1/runtime/status\")); apps/web/components/operational/RuntimeStatusBanner.tsx:80 const data = (await apiFetch(\"/v1/runtime/status\")). The observability page is no longer in this set — it reads the platform-gated GET /v1/admin/platform/readiness, which is its own resolution.",
+      "reviewedAtUtc": "2026-09-08"
     },
     {
       "site": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:136",

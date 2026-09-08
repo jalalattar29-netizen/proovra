@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "5ed058805558999585e841a2cb95ea5fe6e11219d63af300ee9319dda79d2fa6",
-  "capabilityRouteInventoryHash": "94bae9e9a75446a261eef36bd59b5071bb33b3bb494b086def9f95f2609a77b7",
+  "capabilityRouteInventoryHash": "4997f58344cb5b0e07aa19fd2e872122c117c71821708ff11f179507c03b312e",
   "totals": {
-    "routes": 1142,
+    "routes": 1143,
     "routesWithAnyTestCaller": 39,
     "testOnlyRoutes": 5,
     "testCallSites": 67,
@@ -287,36 +287,6 @@
       "testCallerFiles": []
     },
     {
-      "routeId": "GET /admin/runtime/migrations",
-      "testCallerCount": 0,
-      "testOnly": false,
-      "testCallerFiles": []
-    },
-    {
-      "routeId": "GET /admin/runtime/queues",
-      "testCallerCount": 0,
-      "testOnly": false,
-      "testCallerFiles": []
-    },
-    {
-      "routeId": "GET /admin/runtime/readiness",
-      "testCallerCount": 0,
-      "testOnly": false,
-      "testCallerFiles": []
-    },
-    {
-      "routeId": "GET /admin/runtime/schema-status",
-      "testCallerCount": 0,
-      "testOnly": false,
-      "testCallerFiles": []
-    },
-    {
-      "routeId": "GET /admin/runtime/workers",
-      "testCallerCount": 0,
-      "testOnly": false,
-      "testCallerFiles": []
-    },
-    {
       "routeId": "GET /healthz",
       "testCallerCount": 1,
       "testOnly": true,
@@ -550,6 +520,36 @@
     },
     {
       "routeId": "GET /v1/admin/platform/readiness",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/admin/runtime/migrations",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/admin/runtime/queues",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/admin/runtime/readiness",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/admin/runtime/schema-status",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/admin/runtime/workers",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -2910,6 +2910,12 @@
     },
     {
       "routeId": "GET /v1/runtime/secrets-health",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/runtime/status",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -6949,5 +6955,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "e752d1d433176fbcaa89e70a20f3066b5b7bfe1dd73cc943acf358177d7b791a"
+  "contentHash": "b2218df3e1f5a5e32183d3449df1361a29198141cc0534bf3d5894bb8ffeff26"
 }

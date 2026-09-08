@@ -89,36 +89,36 @@
       "reviewedAtUtc": "2026-08-16"
     },
     {
-      "routeId": "GET /admin/runtime/migrations",
+      "routeId": "GET /v1/admin/runtime/migrations",
       "disposition": "ADMIN_OPERATOR",
-      "reason": "operator curl probe documented in the runtime-readiness runbook",
-      "evidence": "reg services/api/src/routes/runtime-readiness.routes.ts:211; docs/phase-28f-runtime-readiness.md:62 and :173 curl ... \"$API_BASE/admin/runtime/migrations?teamId=<team>\"; no apps/web|apps/mobile call site",
-      "reviewedAtUtc": "2026-08-16",
-      "machineCallerEvidence": "reg services/api/src/routes/runtime-readiness.routes.ts:211; docs/phase-28f-runtime-readiness.md:62 and :173 curl ... \"$API_BASE/admin/runtime/migrations?teamId=<team>\"; no apps/web|apps/mobile call site"
+      "reason": "platform-admin operator probe; no product consumer",
+      "evidence": "reg services/api/src/routes/runtime-readiness.routes.ts (requirePlatformAdmin); ADM-P1-003/OWN-1 moved this from the unversioned /admin/runtime/migrations, where audit.read authorised it, to the versioned admin namespace behind the canonical platform gate. Operator probe only: docs/runbooks/sre-runbooks.md and disaster-recovery.md; no apps/web|apps/mobile call site.",
+      "reviewedAtUtc": "2026-09-08",
+      "machineCallerEvidence": "reg services/api/src/routes/runtime-readiness.routes.ts (requirePlatformAdmin); ADM-P1-003/OWN-1 moved this from the unversioned /admin/runtime/migrations, where audit.read authorised it, to the versioned admin namespace behind the canonical platform gate. Operator probe only: docs/runbooks/sre-runbooks.md and disaster-recovery.md; no apps/web|apps/mobile call site."
     },
     {
-      "routeId": "GET /admin/runtime/queues",
+      "routeId": "GET /v1/admin/runtime/queues",
       "disposition": "ADMIN_OPERATOR",
-      "reason": "operator curl probe documented in the runtime-readiness runbook",
-      "evidence": "reg services/api/src/routes/runtime-readiness.routes.ts:130; docs/phase-28f-runtime-readiness.md:60 \"| GET /admin/runtime/queues?teamId=… | Queues + Redis subset | session + audit.read |\" and :165 curl ... \"$API_BASE/admin/runtime/queues?teamId=<team>\" | jq .; the ops observability page fetches only /admin/runtime/readiness (apps/web/app/(app)/operations/observability/page.tsx:324)",
-      "reviewedAtUtc": "2026-08-16",
-      "machineCallerEvidence": "reg services/api/src/routes/runtime-readiness.routes.ts:130; docs/phase-28f-runtime-readiness.md:60 \"| GET /admin/runtime/queues?teamId=… | Queues + Redis subset | session + audit.read |\" and :165 curl ... \"$API_BASE/admin/runtime/queues?teamId=<team>\" | jq .; the ops observability page fetches only /admin/runtime/readiness (apps/web/app/(app)/operations/observability/page.tsx:324)"
+      "reason": "platform-admin operator probe; no product consumer",
+      "evidence": "reg services/api/src/routes/runtime-readiness.routes.ts (requirePlatformAdmin); ADM-P1-003/OWN-1 moved this from the unversioned /admin/runtime/queues. Operator probe only; the shell reads GET /v1/runtime/status, the tenant-safe status enum, and no apps/web|apps/mobile call site reads this route.",
+      "reviewedAtUtc": "2026-09-08",
+      "machineCallerEvidence": "reg services/api/src/routes/runtime-readiness.routes.ts (requirePlatformAdmin); ADM-P1-003/OWN-1 moved this from the unversioned /admin/runtime/queues. Operator probe only; the shell reads GET /v1/runtime/status, the tenant-safe status enum, and no apps/web|apps/mobile call site reads this route."
     },
     {
-      "routeId": "GET /admin/runtime/schema-status",
+      "routeId": "GET /v1/admin/runtime/schema-status",
       "disposition": "ADMIN_OPERATOR",
-      "reason": "drift-check probe cited by operator runbooks and by the drift-patch SQL headers",
-      "evidence": "reg services/api/src/routes/ops.routes.ts:604; docs/operational-seeding.md:178 curl ... \"$API_BASE/admin/runtime/schema-status?teamId=<team>\"; docs/reviewer-ops-architecture.md:103 same curl; services/api/sql/drift-patches/2026-05-19-saved-search-views-scope.sql:34 and :73 \"Confirm via /admin/runtime/schema-status that drift status is HEALTHY\"; services/api/src/runtime/runtime-readiness.ts:199 remediationHint \"Re-run /admin/runtime/schema-status manually.\"",
-      "reviewedAtUtc": "2026-08-16",
-      "machineCallerEvidence": "reg services/api/src/routes/ops.routes.ts:604; docs/operational-seeding.md:178 curl ... \"$API_BASE/admin/runtime/schema-status?teamId=<team>\"; docs/reviewer-ops-architecture.md:103 same curl; services/api/sql/drift-patches/2026-05-19-saved-search-views-scope.sql:34 and :73 \"Confirm via /admin/runtime/schema-status that drift status is HEALTHY\"; services/api/src/runtime/runtime-readiness.ts:199 remediationHint \"Re-run /admin/runtime/schema-status manually.\""
+      "reason": "platform-admin operator probe; no product consumer",
+      "evidence": "reg services/api/src/routes/ops.routes.ts (requirePlatformAdmin); ADM-P1-003/OWN-1 moved this from the unversioned /admin/runtime/schema-status, where requireOpsActor (operations.view — held by every workspace role including VIEWER) authorised it. Operator drift probe only; cited by docs/runbooks/disaster-recovery.md and the drift-patch SQL headers; no apps/web|apps/mobile call site.",
+      "reviewedAtUtc": "2026-09-08",
+      "machineCallerEvidence": "reg services/api/src/routes/ops.routes.ts (requirePlatformAdmin); ADM-P1-003/OWN-1 moved this from the unversioned /admin/runtime/schema-status, where requireOpsActor (operations.view — held by every workspace role including VIEWER) authorised it. Operator drift probe only; cited by docs/runbooks/disaster-recovery.md and the drift-patch SQL headers; no apps/web|apps/mobile call site."
     },
     {
-      "routeId": "GET /admin/runtime/workers",
+      "routeId": "GET /v1/admin/runtime/workers",
       "disposition": "ADMIN_OPERATOR",
-      "reason": "operator curl probe documented in the runtime-readiness runbook",
-      "evidence": "reg services/api/src/routes/runtime-readiness.routes.ts:171; docs/phase-28f-runtime-readiness.md:61 and :169 curl ... \"$API_BASE/admin/runtime/workers?teamId=<team>\" | jq .; no apps/web|apps/mobile call site",
-      "reviewedAtUtc": "2026-08-16",
-      "machineCallerEvidence": "reg services/api/src/routes/runtime-readiness.routes.ts:171; docs/phase-28f-runtime-readiness.md:61 and :169 curl ... \"$API_BASE/admin/runtime/workers?teamId=<team>\" | jq .; no apps/web|apps/mobile call site"
+      "reason": "platform-admin operator probe; no product consumer",
+      "evidence": "reg services/api/src/routes/runtime-readiness.routes.ts (requirePlatformAdmin); ADM-P1-003/OWN-1 moved this from the unversioned /admin/runtime/workers. Operator probe only; no apps/web|apps/mobile call site.",
+      "reviewedAtUtc": "2026-09-08",
+      "machineCallerEvidence": "reg services/api/src/routes/runtime-readiness.routes.ts (requirePlatformAdmin); ADM-P1-003/OWN-1 moved this from the unversioned /admin/runtime/workers. Operator probe only; no apps/web|apps/mobile call site."
     },
     {
       "routeId": "GET /healthz",

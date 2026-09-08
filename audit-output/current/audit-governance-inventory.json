@@ -86,7 +86,7 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 352,
+    "AuditFilesInventoried": 353,
     "AuditFilesUnclassified": 0,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
@@ -165,7 +165,7 @@
     "GENERATED_LEDGER_RENDERING": 2,
     "CANONICAL_LEDGER_SOURCE": 1,
     "CURRENT_GENERATED_REPORT": 1,
-    "DOMAIN_AUTHORITY": 67,
+    "DOMAIN_AUTHORITY": 68,
     "DIAGNOSTIC_NOT_AUTHORITY": 1,
     "HISTORY_TREE_MARKER": 1,
     "HISTORICAL_REPORT": 23,
@@ -240,6 +240,10 @@
     {
       "id": "services/api/package.json:ops:audit-tenant-scope-readiness",
       "command": "tsx src/commands/audit-tenant-scope-readiness.ts"
+    },
+    {
+      "id": "services/api/package.json:verify:runbook-endpoints",
+      "command": "node scripts/verify-runbook-endpoints.mjs"
     }
   ],
   "records": [
@@ -2969,6 +2973,25 @@
       ],
       "packageScripts": [
         "services/api/package.json:verify:route-consumers"
+      ],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/scripts/verify-runbook-endpoints.mjs",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [
+        "docs/architecture/current-runtime-capability-map.json"
+      ],
+      "packageScripts": [
+        "services/api/package.json:verify:runbook-endpoints"
       ],
       "ciConsumers": [],
       "sourceOfTruthFor": [],

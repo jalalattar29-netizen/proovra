@@ -470,7 +470,7 @@ describe("PLATFORM ADMIN — authorization matrix (live PostgreSQL 16)", () => {
     it("answers a bounded status enum to an ordinary user, and nothing else", async () => {
       const res = await inject({
         method: "GET",
-        url: "/v1/platform/runtime-status",
+        url: "/v1/runtime/status",
         token: normalUser.token,
       });
       expect(res.statusCode).toBe(200);
@@ -486,7 +486,7 @@ describe("PLATFORM ADMIN — authorization matrix (live PostgreSQL 16)", () => {
     it("carries none of the platform detail OWN-1 withholds", async () => {
       const res = await inject({
         method: "GET",
-        url: "/v1/platform/runtime-status",
+        url: "/v1/runtime/status",
         token: normalUser.token,
       });
       const lowered = res.body.toLowerCase();
@@ -501,7 +501,7 @@ describe("PLATFORM ADMIN — authorization matrix (live PostgreSQL 16)", () => {
     it("refuses an anonymous caller", async () => {
       const res = await inject({
         method: "GET",
-        url: "/v1/platform/runtime-status",
+        url: "/v1/runtime/status",
       });
       expect(res.statusCode).toBe(401);
     });
@@ -515,12 +515,12 @@ describe("PLATFORM ADMIN — authorization matrix (live PostgreSQL 16)", () => {
        */
       const plain = await inject({
         method: "GET",
-        url: "/v1/platform/runtime-status",
+        url: "/v1/runtime/status",
         token: normalUser.token,
       });
       const withTeam = await inject({
         method: "GET",
-        url: `/v1/platform/runtime-status?teamId=${randomUUID()}`,
+        url: `/v1/runtime/status?teamId=${randomUUID()}`,
         token: normalUser.token,
       });
       expect(withTeam.statusCode).toBe(200);

@@ -61,7 +61,8 @@
     "ops:twilio-message-recheck": "tsx src/scripts/twilio-message-recheck.ts",
     "db:org-security-policy-readiness": "tsx prisma/scripts/org-security-policy-readiness.ts",
     "db:lifecycle-state-readiness": "node scripts/evidence-lifecycle-state-readiness.mjs",
-    "pretypecheck": "pnpm run build:deps"
+    "pretypecheck": "pnpm run build:deps",
+    "verify:runbook-endpoints": "node scripts/verify-runbook-endpoints.mjs"
   },
   "keywords": [],
   "author": "",

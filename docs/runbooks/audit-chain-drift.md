@@ -30,8 +30,9 @@ immediately.**
    );
    ```
 
-   Then re-walk the chain in operator tooling (the verify endpoint is
-   under `/v1/ops/audit/verify`).
+   Then re-walk the chain in operator tooling: `GET /v1/admin/audit-log/verify`
+   (platform admin; `?limit=` bounds the walk). The Admin activity console
+   exposes the same verifier.
 
 ## Triage
 

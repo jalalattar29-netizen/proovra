@@ -4,20 +4,20 @@
   "generator": "services/api/scripts/generate-runtime-capability-map.mjs",
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "350df28cd1b3592fbce302d87d8037fa4ec1ea078f008fcbdfae86936dbafd59",
-  "routeInventoryHash": "94bae9e9a75446a261eef36bd59b5071bb33b3bb494b086def9f95f2609a77b7",
-  "consumerInventoryHash": "a43a8041acdbf75c34020d9547898d6d47cdfa331d2195a4ce3af127bc06d2de",
-  "dispositionsHash": "9e6e9532752cfd33dfd556e66587a473271144aa2d1c41662c0c4c91e70ec02c",
+  "routeInventoryHash": "4997f58344cb5b0e07aa19fd2e872122c117c71821708ff11f179507c03b312e",
+  "consumerInventoryHash": "08b00a5cd824db3436c39ea0b14d4ba4c3279dac5476a203e4574ec1ecbdb281",
+  "dispositionsHash": "4a0205faf13793632303295808e3cc0d93a9d311e050b0cb86a1eccd29498dae",
   "totals": {
-    "RegisteredRoutes": 1142,
-    "ProductionRegisteredRoutes": 1141,
+    "RegisteredRoutes": 1143,
+    "ProductionRegisteredRoutes": 1142,
     "DevelopmentOnlyRoutes": 1,
     "ProductConsumedRoutes": 896,
     "NonProductDispositionedRoutes": 245,
-    "UndisposedRoutes": 0,
+    "UndisposedRoutes": 1,
     "ConservationIdentityHolds": true,
     "ProductConsumerRoutes": 896,
     "MachineOnlyConsumerRoutes": 4,
-    "NoConsumerRoutes": 242,
+    "NoConsumerRoutes": 243,
     "AuthorizationUnresolved": 0,
     "PublicUnguardedRoutes": 20,
     "DynamicUnresolvedRouteRegistrations": 0,
@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 8515,
+      "METHOD_ON_VALUE": 8512,
       "UNRESOLVED_IDENTIFIER": 1061
     },
     "MutationFixpointRounds": 9,
@@ -133,7 +133,7 @@
     "PreservationEntriesUnmatched": 0,
     "byMandateDisposition": {
       "DEVELOPMENT_ONLY": 2,
-      "UNDISPOSED": 0,
+      "UNDISPOSED": 1,
       "PRODUCT_CONNECTED": 896,
       "EXTERNAL_API": 30,
       "MACHINE_OR_CRON": 21,
@@ -146,15 +146,15 @@
       "MISSING_PRODUCT_UI_POST_RELEASE": 133
     },
     "MandateDispositionConservationHolds": true,
-    "TenantBindingResolved": 1140,
+    "TenantBindingResolved": 1141,
     "TenantBindingUnresolved": 0,
     "byDataScope": {
       "PUBLIC_DATA": 15,
       "GLOBAL_USER_SELF": 57,
-      "PLATFORM_GLOBAL": 52,
-      "WORKSPACE_SCOPED": 716,
+      "PLATFORM_GLOBAL": 53,
+      "WORKSPACE_SCOPED": 711,
       "ORGANIZATION_SCOPED": 105,
-      "MULTI_TENANT_PLATFORM_ADMIN": 115,
+      "MULTI_TENANT_PLATFORM_ADMIN": 120,
       "TOKEN_SCOPED": 45,
       "PROVIDER_SCOPED": 4,
       "MACHINE_SCOPED": 15,
@@ -165,7 +165,7 @@
     "OrganizationAuthorizationUnresolved": 0,
     "OrganizationRoutesMissingRequiredAuthorization": 0,
     "CurrentWorkspaceIdAuthorizationUses": 0,
-    "ClassifiedSecurityRoutes": 1140,
+    "ClassifiedSecurityRoutes": 1141,
     "UnclassifiedSecurityRoutes": 0,
     "DevelopmentGatedRoutes": 1,
     "SecurityFamilyConservationHolds": true,
@@ -179,8 +179,8 @@
         "tagged": 10
       },
       "SESSION_AUTHENTICATED": {
-        "primary": 412,
-        "tagged": 412
+        "primary": 407,
+        "tagged": 407
       },
       "WORKSPACE_AUTHORIZED": {
         "primary": 374,
@@ -191,8 +191,8 @@
         "tagged": 105
       },
       "PLATFORM_ADMIN": {
-        "primary": 115,
-        "tagged": 115
+        "primary": 120,
+        "tagged": 120
       },
       "API_KEY_SCOPED": {
         "primary": 14,
@@ -235,29 +235,30 @@
         "tagged": 34
       },
       "OPERATIONAL_HEALTH_METRICS_DEBUG_SEED": {
-        "primary": 55,
-        "tagged": 55
+        "primary": 56,
+        "tagged": 56
       }
     }
   },
-  "totalRoutes": 1142,
+  "totalRoutes": 1143,
   "classificationCounts": {
+    "BACKEND_ONLY_UNWIRED": 1,
     "COMPATIBILITY_TEMPORARY": 3,
     "INTERNAL_REQUIRED": 243,
     "TARGET_COMPLETE": 896
   },
   "evidenceLevelCounts": {
-    "BEHAVIORALLY_PROVEN": 401,
+    "BEHAVIORALLY_PROVEN": 400,
     "BEHAVIORAL_SERVICE_ONLY": 15,
-    "STRUCTURALLY_CONNECTED_ONLY": 516,
-    "UNPROVEN": 210
+    "STRUCTURALLY_CONNECTED_ONLY": 512,
+    "UNPROVEN": 216
   },
   "verticalCounts": {
     "ENTERPRISE_IDENTITY_SECURITY": 178,
     "EVIDENCE_OPERATIONS": 277,
     "OPERATIONS_AUTOMATION": 1,
-    "OPERATIONS_INTELLIGENCE": 126,
-    "PLATFORM_CORE": 416,
+    "OPERATIONS_INTELLIGENCE": 125,
+    "PLATFORM_CORE": 418,
     "TRUST_ADMINISTRATION": 144
   },
   "capabilities": [
@@ -802,66 +803,6 @@
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
     },
     {
-      "capabilityId": "GET:/admin/runtime/migrations",
-      "vertical": "PLATFORM_CORE",
-      "method": "GET",
-      "route": "/admin/runtime/migrations",
-      "registeringFile": "services/api/src/routes/runtime-readiness.routes.ts",
-      "productConsumer": null,
-      "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
-      "classification": "INTERNAL_REQUIRED",
-      "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
-    },
-    {
-      "capabilityId": "GET:/admin/runtime/queues",
-      "vertical": "PLATFORM_CORE",
-      "method": "GET",
-      "route": "/admin/runtime/queues",
-      "registeringFile": "services/api/src/routes/runtime-readiness.routes.ts",
-      "productConsumer": null,
-      "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
-      "classification": "INTERNAL_REQUIRED",
-      "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
-    },
-    {
-      "capabilityId": "GET:/admin/runtime/readiness",
-      "vertical": "PLATFORM_CORE",
-      "method": "GET",
-      "route": "/admin/runtime/readiness",
-      "registeringFile": "services/api/src/routes/runtime-readiness.routes.ts",
-      "productConsumer": "apps/web/lib/useGlobalRuntimeState.ts:230",
-      "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
-      "classification": "TARGET_COMPLETE",
-      "evidenceLevel": "BEHAVIORALLY_PROVEN"
-    },
-    {
-      "capabilityId": "GET:/admin/runtime/schema-status",
-      "vertical": "OPERATIONS_INTELLIGENCE",
-      "method": "GET",
-      "route": "/admin/runtime/schema-status",
-      "registeringFile": "services/api/src/routes/ops.routes.ts",
-      "productConsumer": null,
-      "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
-      "classification": "INTERNAL_REQUIRED",
-      "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
-    },
-    {
-      "capabilityId": "GET:/admin/runtime/workers",
-      "vertical": "PLATFORM_CORE",
-      "method": "GET",
-      "route": "/admin/runtime/workers",
-      "registeringFile": "services/api/src/routes/runtime-readiness.routes.ts",
-      "productConsumer": null,
-      "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
-      "classification": "INTERNAL_REQUIRED",
-      "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
-    },
-    {
       "capabilityId": "GET:/healthz",
       "vertical": "OPERATIONS_INTELLIGENCE",
       "method": "GET",
@@ -915,7 +856,7 @@
       "method": "GET",
       "route": "/v1/admin/adoption",
       "registeringFile": "services/api/src/routes/admin-adoption.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/adoption/page.tsx:87",
+      "productConsumer": "apps/web/app/(app)/admin/adoption/page.tsx:100",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -927,7 +868,7 @@
       "method": "GET",
       "route": "/v1/admin/alerts",
       "registeringFile": "services/api/src/routes/admin-alerts.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/alerts/page.tsx:120",
+      "productConsumer": "apps/web/app/(app)/admin/alerts/page.tsx:138",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -939,7 +880,7 @@
       "method": "GET",
       "route": "/v1/admin/analytics/dashboard",
       "registeringFile": "services/api/src/routes/analytics.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/dashboard/page.tsx:317",
+      "productConsumer": "apps/web/app/(app)/admin/dashboard/page.tsx:330",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -951,7 +892,7 @@
       "method": "GET",
       "route": "/v1/admin/audit-log",
       "registeringFile": "services/api/src/routes/admin-audit.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/audit/page.tsx:342",
+      "productConsumer": "apps/web/app/(app)/admin/audit/page.tsx:343",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -963,7 +904,7 @@
       "method": "GET",
       "route": "/v1/admin/audit-log/export",
       "registeringFile": "services/api/src/routes/admin-audit.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/audit/page.tsx:396",
+      "productConsumer": "apps/web/app/(app)/admin/audit/page.tsx:397",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -975,7 +916,7 @@
       "method": "GET",
       "route": "/v1/admin/audit-log/verify",
       "registeringFile": "services/api/src/routes/admin-audit.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/audit/page.tsx:429",
+      "productConsumer": "apps/web/app/(app)/admin/audit/page.tsx:430",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1023,7 +964,7 @@
       "method": "GET",
       "route": "/v1/admin/costs",
       "registeringFile": "services/api/src/routes/admin-costs.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/costs/page.tsx:238",
+      "productConsumer": "apps/web/app/(app)/admin/costs/page.tsx:252",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1035,7 +976,7 @@
       "method": "GET",
       "route": "/v1/admin/customers",
       "registeringFile": "services/api/src/routes/admin-organizations.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/customers/page.tsx:184",
+      "productConsumer": "apps/web/app/(app)/admin/customers/page.tsx:197",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1107,7 +1048,7 @@
       "method": "GET",
       "route": "/v1/admin/executive",
       "registeringFile": "services/api/src/routes/admin-executive.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/executive/page.tsx:249",
+      "productConsumer": "apps/web/app/(app)/admin/executive/page.tsx:263",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1215,7 +1156,7 @@
       "method": "GET",
       "route": "/v1/admin/incidents",
       "registeringFile": "services/api/src/routes/admin-security.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/operations/page.tsx:194",
+      "productConsumer": "apps/web/app/(app)/admin/operations/page.tsx:212",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1330,6 +1271,66 @@
       "evidenceLevel": "UNPROVEN"
     },
     {
+      "capabilityId": "GET:/v1/admin/runtime/migrations",
+      "vertical": "PLATFORM_CORE",
+      "method": "GET",
+      "route": "/v1/admin/runtime/migrations",
+      "registeringFile": "services/api/src/routes/runtime-readiness.routes.ts",
+      "productConsumer": null,
+      "machineConsumer": null,
+      "authorization": "MULTI_GATE",
+      "classification": "INTERNAL_REQUIRED",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
+      "capabilityId": "GET:/v1/admin/runtime/queues",
+      "vertical": "PLATFORM_CORE",
+      "method": "GET",
+      "route": "/v1/admin/runtime/queues",
+      "registeringFile": "services/api/src/routes/runtime-readiness.routes.ts",
+      "productConsumer": null,
+      "machineConsumer": null,
+      "authorization": "MULTI_GATE",
+      "classification": "INTERNAL_REQUIRED",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
+      "capabilityId": "GET:/v1/admin/runtime/readiness",
+      "vertical": "PLATFORM_CORE",
+      "method": "GET",
+      "route": "/v1/admin/runtime/readiness",
+      "registeringFile": "services/api/src/routes/runtime-readiness.routes.ts",
+      "productConsumer": null,
+      "machineConsumer": null,
+      "authorization": "MULTI_GATE",
+      "classification": "BACKEND_ONLY_UNWIRED",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
+      "capabilityId": "GET:/v1/admin/runtime/schema-status",
+      "vertical": "PLATFORM_CORE",
+      "method": "GET",
+      "route": "/v1/admin/runtime/schema-status",
+      "registeringFile": "services/api/src/routes/ops.routes.ts",
+      "productConsumer": null,
+      "machineConsumer": null,
+      "authorization": "MULTI_GATE",
+      "classification": "INTERNAL_REQUIRED",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
+      "capabilityId": "GET:/v1/admin/runtime/workers",
+      "vertical": "PLATFORM_CORE",
+      "method": "GET",
+      "route": "/v1/admin/runtime/workers",
+      "registeringFile": "services/api/src/routes/runtime-readiness.routes.ts",
+      "productConsumer": null,
+      "machineConsumer": null,
+      "authorization": "MULTI_GATE",
+      "classification": "INTERNAL_REQUIRED",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
       "capabilityId": "GET:/v1/admin/search",
       "vertical": "PLATFORM_CORE",
       "method": "GET",
@@ -1359,7 +1360,7 @@
       "method": "GET",
       "route": "/v1/admin/timeline",
       "registeringFile": "services/api/src/routes/admin-timeline.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/timeline/page.tsx:163",
+      "productConsumer": "apps/web/app/(app)/admin/timeline/page.tsx:175",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1371,7 +1372,7 @@
       "method": "GET",
       "route": "/v1/admin/users",
       "registeringFile": "services/api/src/routes/admin-users.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/users/page.tsx:139",
+      "productConsumer": "apps/web/app/(app)/admin/users/page.tsx:151",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1395,7 +1396,7 @@
       "method": "GET",
       "route": "/v1/admin/workspaces",
       "registeringFile": "services/api/src/routes/admin-workspaces.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/workspaces/page.tsx:120",
+      "productConsumer": "apps/web/app/(app)/admin/workspaces/page.tsx:132",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -5962,6 +5963,18 @@
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
+      "capabilityId": "GET:/v1/runtime/status",
+      "vertical": "PLATFORM_CORE",
+      "method": "GET",
+      "route": "/v1/runtime/status",
+      "registeringFile": "services/api/src/routes/platform-context.routes.ts",
+      "productConsumer": "apps/web/components/operational/RuntimeStatusBanner.tsx:80",
+      "machineConsumer": null,
+      "authorization": "AUTHENTICATED",
+      "classification": "TARGET_COMPLETE",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
       "capabilityId": "GET:/v1/saml/mapping/current",
       "vertical": "ENTERPRISE_IDENTITY_SECURITY",
       "method": "GET",
@@ -7611,7 +7624,7 @@
       "method": "POST",
       "route": "/v1/admin/incidents/:id/acknowledge",
       "registeringFile": "services/api/src/routes/admin-security.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/operations/page.tsx:236",
+      "productConsumer": "apps/web/app/(app)/admin/operations/page.tsx:257",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -7623,7 +7636,7 @@
       "method": "POST",
       "route": "/v1/admin/incidents/:id/assign",
       "registeringFile": "services/api/src/routes/admin-security.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/operations/page.tsx:236",
+      "productConsumer": "apps/web/app/(app)/admin/operations/page.tsx:257",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -7635,7 +7648,7 @@
       "method": "POST",
       "route": "/v1/admin/incidents/:id/resolve",
       "registeringFile": "services/api/src/routes/admin-security.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/operations/page.tsx:236",
+      "productConsumer": "apps/web/app/(app)/admin/operations/page.tsx:257",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -9219,7 +9232,7 @@
       "method": "POST",
       "route": "/v1/evidence/:id/archive",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:1759",
+      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:1756",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -9303,7 +9316,7 @@
       "method": "POST",
       "route": "/v1/evidence/:id/lock",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:1647",
+      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:1644",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -9375,7 +9388,7 @@
       "method": "POST",
       "route": "/v1/evidence/:id/unlock",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:1693",
+      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:1690",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -19197,8 +19210,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/ops.routes.ts#bulkOperationalActionRun.update@3059",
-      "terminalLocation": "services/api/src/routes/ops.routes.ts:3059",
+      "writerId": "services/api/src/routes/ops.routes.ts#bulkOperationalActionRun.update@3066",
+      "terminalLocation": "services/api/src/routes/ops.routes.ts:3066",
       "file": "services/api/src/routes/ops.routes.ts",
       "enclosingDeclaration": "opsRoutes",
       "kind": "DATABASE",
@@ -19891,8 +19904,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/platform-context.routes.ts#user.update@420",
-      "terminalLocation": "services/api/src/routes/platform-context.routes.ts:420",
+      "writerId": "services/api/src/routes/platform-context.routes.ts#user.update@482",
+      "terminalLocation": "services/api/src/routes/platform-context.routes.ts:482",
       "file": "services/api/src/routes/platform-context.routes.ts",
       "enclosingDeclaration": "platformContextRoutes",
       "kind": "DATABASE",
@@ -24034,11 +24047,6 @@
         "DELETE /v1/users/me/sessions/:id",
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
-        "GET /admin/runtime/migrations",
-        "GET /admin/runtime/queues",
-        "GET /admin/runtime/readiness",
-        "GET /admin/runtime/schema-status",
-        "GET /admin/runtime/workers",
         "GET /v1/admin/identity/permission-matrix",
         "GET /v1/admin/identity/providers",
         "GET /v1/admin/identity/quarantined-sessions",
@@ -24931,7 +24939,6 @@
         "MODULE services/api/src/routes/reviewer-ops.routes.ts",
         "MODULE services/api/src/routes/reviewer-workspace.routes.ts",
         "MODULE services/api/src/routes/runtime-otel-health.routes.ts",
-        "MODULE services/api/src/routes/runtime-readiness.routes.ts",
         "MODULE services/api/src/routes/runtime-secrets-health.routes.ts",
         "MODULE services/api/src/routes/saml-auth.routes.ts",
         "MODULE services/api/src/routes/scim-admin.routes.ts",
@@ -25010,11 +25017,6 @@
         "DELETE /v1/users/me/sessions/:id",
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
-        "GET /admin/runtime/migrations",
-        "GET /admin/runtime/queues",
-        "GET /admin/runtime/readiness",
-        "GET /admin/runtime/schema-status",
-        "GET /admin/runtime/workers",
         "GET /v1/admin/identity/permission-matrix",
         "GET /v1/admin/identity/providers",
         "GET /v1/admin/identity/quarantined-sessions",
@@ -25907,7 +25909,6 @@
         "MODULE services/api/src/routes/reviewer-ops.routes.ts",
         "MODULE services/api/src/routes/reviewer-workspace.routes.ts",
         "MODULE services/api/src/routes/runtime-otel-health.routes.ts",
-        "MODULE services/api/src/routes/runtime-readiness.routes.ts",
         "MODULE services/api/src/routes/runtime-secrets-health.routes.ts",
         "MODULE services/api/src/routes/saml-auth.routes.ts",
         "MODULE services/api/src/routes/scim-admin.routes.ts",
@@ -25986,11 +25987,6 @@
         "DELETE /v1/users/me/sessions/:id",
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
-        "GET /admin/runtime/migrations",
-        "GET /admin/runtime/queues",
-        "GET /admin/runtime/readiness",
-        "GET /admin/runtime/schema-status",
-        "GET /admin/runtime/workers",
         "GET /v1/admin/identity/permission-matrix",
         "GET /v1/admin/identity/providers",
         "GET /v1/admin/identity/quarantined-sessions",
@@ -26883,7 +26879,6 @@
         "MODULE services/api/src/routes/reviewer-ops.routes.ts",
         "MODULE services/api/src/routes/reviewer-workspace.routes.ts",
         "MODULE services/api/src/routes/runtime-otel-health.routes.ts",
-        "MODULE services/api/src/routes/runtime-readiness.routes.ts",
         "MODULE services/api/src/routes/runtime-secrets-health.routes.ts",
         "MODULE services/api/src/routes/saml-auth.routes.ts",
         "MODULE services/api/src/routes/scim-admin.routes.ts",
@@ -28028,11 +28023,6 @@
         "DELETE /v1/users/me/sessions/:id",
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
-        "GET /admin/runtime/migrations",
-        "GET /admin/runtime/queues",
-        "GET /admin/runtime/readiness",
-        "GET /admin/runtime/schema-status",
-        "GET /admin/runtime/workers",
         "GET /v1/admin/identity/permission-matrix",
         "GET /v1/admin/identity/providers",
         "GET /v1/admin/identity/quarantined-sessions",
@@ -28907,7 +28897,6 @@
         "MODULE services/api/src/routes/reviewer-ops.routes.ts",
         "MODULE services/api/src/routes/reviewer-workspace.routes.ts",
         "MODULE services/api/src/routes/runtime-otel-health.routes.ts",
-        "MODULE services/api/src/routes/runtime-readiness.routes.ts",
         "MODULE services/api/src/routes/runtime-secrets-health.routes.ts",
         "MODULE services/api/src/routes/saml-auth.routes.ts",
         "MODULE services/api/src/routes/scim-admin.routes.ts",
@@ -46813,11 +46802,6 @@
         "DELETE /v1/users/me/sessions/:id",
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
-        "GET /admin/runtime/migrations",
-        "GET /admin/runtime/queues",
-        "GET /admin/runtime/readiness",
-        "GET /admin/runtime/schema-status",
-        "GET /admin/runtime/workers",
         "GET /v1/admin/identity/permission-matrix",
         "GET /v1/admin/identity/providers",
         "GET /v1/admin/identity/quarantined-sessions",
@@ -47651,7 +47635,6 @@
         "MODULE services/api/src/routes/reviewer-ops.routes.ts",
         "MODULE services/api/src/routes/reviewer-workspace.routes.ts",
         "MODULE services/api/src/routes/runtime-otel-health.routes.ts",
-        "MODULE services/api/src/routes/runtime-readiness.routes.ts",
         "MODULE services/api/src/routes/runtime-secrets-health.routes.ts",
         "MODULE services/api/src/routes/saml-auth.routes.ts",
         "MODULE services/api/src/routes/scim-admin.routes.ts",
@@ -47727,11 +47710,6 @@
         "DELETE /v1/users/me/sessions/:id",
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
-        "GET /admin/runtime/migrations",
-        "GET /admin/runtime/queues",
-        "GET /admin/runtime/readiness",
-        "GET /admin/runtime/schema-status",
-        "GET /admin/runtime/workers",
         "GET /v1/admin/identity/permission-matrix",
         "GET /v1/admin/identity/providers",
         "GET /v1/admin/identity/quarantined-sessions",
@@ -48562,7 +48540,6 @@
         "MODULE services/api/src/routes/reviewer-ops.routes.ts",
         "MODULE services/api/src/routes/reviewer-workspace.routes.ts",
         "MODULE services/api/src/routes/runtime-otel-health.routes.ts",
-        "MODULE services/api/src/routes/runtime-readiness.routes.ts",
         "MODULE services/api/src/routes/runtime-secrets-health.routes.ts",
         "MODULE services/api/src/routes/saml-auth.routes.ts",
         "MODULE services/api/src/routes/scim-admin.routes.ts",
@@ -48638,11 +48615,6 @@
         "DELETE /v1/users/me/sessions/:id",
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
-        "GET /admin/runtime/migrations",
-        "GET /admin/runtime/queues",
-        "GET /admin/runtime/readiness",
-        "GET /admin/runtime/schema-status",
-        "GET /admin/runtime/workers",
         "GET /v1/admin/identity/permission-matrix",
         "GET /v1/admin/identity/providers",
         "GET /v1/admin/identity/quarantined-sessions",
@@ -49476,7 +49448,6 @@
         "MODULE services/api/src/routes/reviewer-ops.routes.ts",
         "MODULE services/api/src/routes/reviewer-workspace.routes.ts",
         "MODULE services/api/src/routes/runtime-otel-health.routes.ts",
-        "MODULE services/api/src/routes/runtime-readiness.routes.ts",
         "MODULE services/api/src/routes/runtime-secrets-health.routes.ts",
         "MODULE services/api/src/routes/saml-auth.routes.ts",
         "MODULE services/api/src/routes/scim-admin.routes.ts",
@@ -49552,11 +49523,6 @@
         "DELETE /v1/users/me/sessions/:id",
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
-        "GET /admin/runtime/migrations",
-        "GET /admin/runtime/queues",
-        "GET /admin/runtime/readiness",
-        "GET /admin/runtime/schema-status",
-        "GET /admin/runtime/workers",
         "GET /v1/admin/identity/permission-matrix",
         "GET /v1/admin/identity/providers",
         "GET /v1/admin/identity/quarantined-sessions",
@@ -50387,7 +50353,6 @@
         "MODULE services/api/src/routes/reviewer-ops.routes.ts",
         "MODULE services/api/src/routes/reviewer-workspace.routes.ts",
         "MODULE services/api/src/routes/runtime-otel-health.routes.ts",
-        "MODULE services/api/src/routes/runtime-readiness.routes.ts",
         "MODULE services/api/src/routes/runtime-secrets-health.routes.ts",
         "MODULE services/api/src/routes/saml-auth.routes.ts",
         "MODULE services/api/src/routes/scim-admin.routes.ts",
@@ -50463,11 +50428,6 @@
         "DELETE /v1/users/me/sessions/:id",
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
-        "GET /admin/runtime/migrations",
-        "GET /admin/runtime/queues",
-        "GET /admin/runtime/readiness",
-        "GET /admin/runtime/schema-status",
-        "GET /admin/runtime/workers",
         "GET /v1/admin/identity/permission-matrix",
         "GET /v1/admin/identity/providers",
         "GET /v1/admin/identity/quarantined-sessions",
@@ -51298,7 +51258,6 @@
         "MODULE services/api/src/routes/reviewer-ops.routes.ts",
         "MODULE services/api/src/routes/reviewer-workspace.routes.ts",
         "MODULE services/api/src/routes/runtime-otel-health.routes.ts",
-        "MODULE services/api/src/routes/runtime-readiness.routes.ts",
         "MODULE services/api/src/routes/runtime-secrets-health.routes.ts",
         "MODULE services/api/src/routes/saml-auth.routes.ts",
         "MODULE services/api/src/routes/scim-admin.routes.ts",
@@ -51374,11 +51333,6 @@
         "DELETE /v1/users/me/sessions/:id",
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
-        "GET /admin/runtime/migrations",
-        "GET /admin/runtime/queues",
-        "GET /admin/runtime/readiness",
-        "GET /admin/runtime/schema-status",
-        "GET /admin/runtime/workers",
         "GET /v1/admin/identity/permission-matrix",
         "GET /v1/admin/identity/providers",
         "GET /v1/admin/identity/quarantined-sessions",
@@ -52209,7 +52163,6 @@
         "MODULE services/api/src/routes/reviewer-ops.routes.ts",
         "MODULE services/api/src/routes/reviewer-workspace.routes.ts",
         "MODULE services/api/src/routes/runtime-otel-health.routes.ts",
-        "MODULE services/api/src/routes/runtime-readiness.routes.ts",
         "MODULE services/api/src/routes/runtime-secrets-health.routes.ts",
         "MODULE services/api/src/routes/saml-auth.routes.ts",
         "MODULE services/api/src/routes/scim-admin.routes.ts",
@@ -52285,11 +52238,6 @@
         "DELETE /v1/users/me/sessions/:id",
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
-        "GET /admin/runtime/migrations",
-        "GET /admin/runtime/queues",
-        "GET /admin/runtime/readiness",
-        "GET /admin/runtime/schema-status",
-        "GET /admin/runtime/workers",
         "GET /v1/admin/identity/permission-matrix",
         "GET /v1/admin/identity/providers",
         "GET /v1/admin/identity/quarantined-sessions",
@@ -53120,7 +53068,6 @@
         "MODULE services/api/src/routes/reviewer-ops.routes.ts",
         "MODULE services/api/src/routes/reviewer-workspace.routes.ts",
         "MODULE services/api/src/routes/runtime-otel-health.routes.ts",
-        "MODULE services/api/src/routes/runtime-readiness.routes.ts",
         "MODULE services/api/src/routes/runtime-secrets-health.routes.ts",
         "MODULE services/api/src/routes/saml-auth.routes.ts",
         "MODULE services/api/src/routes/scim-admin.routes.ts",
@@ -53196,11 +53143,6 @@
         "DELETE /v1/users/me/sessions/:id",
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
-        "GET /admin/runtime/migrations",
-        "GET /admin/runtime/queues",
-        "GET /admin/runtime/readiness",
-        "GET /admin/runtime/schema-status",
-        "GET /admin/runtime/workers",
         "GET /v1/admin/identity/permission-matrix",
         "GET /v1/admin/identity/providers",
         "GET /v1/admin/identity/quarantined-sessions",
@@ -54031,7 +53973,6 @@
         "MODULE services/api/src/routes/reviewer-ops.routes.ts",
         "MODULE services/api/src/routes/reviewer-workspace.routes.ts",
         "MODULE services/api/src/routes/runtime-otel-health.routes.ts",
-        "MODULE services/api/src/routes/runtime-readiness.routes.ts",
         "MODULE services/api/src/routes/runtime-secrets-health.routes.ts",
         "MODULE services/api/src/routes/saml-auth.routes.ts",
         "MODULE services/api/src/routes/scim-admin.routes.ts",
@@ -54107,11 +54048,6 @@
         "DELETE /v1/users/me/sessions/:id",
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
-        "GET /admin/runtime/migrations",
-        "GET /admin/runtime/queues",
-        "GET /admin/runtime/readiness",
-        "GET /admin/runtime/schema-status",
-        "GET /admin/runtime/workers",
         "GET /v1/admin/identity/permission-matrix",
         "GET /v1/admin/identity/providers",
         "GET /v1/admin/identity/quarantined-sessions",
@@ -54945,7 +54881,6 @@
         "MODULE services/api/src/routes/reviewer-ops.routes.ts",
         "MODULE services/api/src/routes/reviewer-workspace.routes.ts",
         "MODULE services/api/src/routes/runtime-otel-health.routes.ts",
-        "MODULE services/api/src/routes/runtime-readiness.routes.ts",
         "MODULE services/api/src/routes/runtime-secrets-health.routes.ts",
         "MODULE services/api/src/routes/saml-auth.routes.ts",
         "MODULE services/api/src/routes/scim-admin.routes.ts",
@@ -55021,11 +54956,6 @@
         "DELETE /v1/users/me/sessions/:id",
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
-        "GET /admin/runtime/migrations",
-        "GET /admin/runtime/queues",
-        "GET /admin/runtime/readiness",
-        "GET /admin/runtime/schema-status",
-        "GET /admin/runtime/workers",
         "GET /v1/admin/identity/permission-matrix",
         "GET /v1/admin/identity/providers",
         "GET /v1/admin/identity/quarantined-sessions",
@@ -55856,7 +55786,6 @@
         "MODULE services/api/src/routes/reviewer-ops.routes.ts",
         "MODULE services/api/src/routes/reviewer-workspace.routes.ts",
         "MODULE services/api/src/routes/runtime-otel-health.routes.ts",
-        "MODULE services/api/src/routes/runtime-readiness.routes.ts",
         "MODULE services/api/src/routes/runtime-secrets-health.routes.ts",
         "MODULE services/api/src/routes/saml-auth.routes.ts",
         "MODULE services/api/src/routes/scim-admin.routes.ts",
@@ -56446,11 +56375,6 @@
         "DELETE /v1/users/me/sessions/:id",
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
-        "GET /admin/runtime/migrations",
-        "GET /admin/runtime/queues",
-        "GET /admin/runtime/readiness",
-        "GET /admin/runtime/schema-status",
-        "GET /admin/runtime/workers",
         "GET /v1/admin/identity/permission-matrix",
         "GET /v1/admin/identity/providers",
         "GET /v1/admin/identity/quarantined-sessions",
@@ -57281,7 +57205,6 @@
         "MODULE services/api/src/routes/reviewer-ops.routes.ts",
         "MODULE services/api/src/routes/reviewer-workspace.routes.ts",
         "MODULE services/api/src/routes/runtime-otel-health.routes.ts",
-        "MODULE services/api/src/routes/runtime-readiness.routes.ts",
         "MODULE services/api/src/routes/runtime-secrets-health.routes.ts",
         "MODULE services/api/src/routes/saml-auth.routes.ts",
         "MODULE services/api/src/routes/scim-admin.routes.ts",
@@ -57357,11 +57280,6 @@
         "DELETE /v1/users/me/sessions/:id",
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
-        "GET /admin/runtime/migrations",
-        "GET /admin/runtime/queues",
-        "GET /admin/runtime/readiness",
-        "GET /admin/runtime/schema-status",
-        "GET /admin/runtime/workers",
         "GET /v1/admin/identity/permission-matrix",
         "GET /v1/admin/identity/providers",
         "GET /v1/admin/identity/quarantined-sessions",
@@ -58192,7 +58110,6 @@
         "MODULE services/api/src/routes/reviewer-ops.routes.ts",
         "MODULE services/api/src/routes/reviewer-workspace.routes.ts",
         "MODULE services/api/src/routes/runtime-otel-health.routes.ts",
-        "MODULE services/api/src/routes/runtime-readiness.routes.ts",
         "MODULE services/api/src/routes/runtime-secrets-health.routes.ts",
         "MODULE services/api/src/routes/saml-auth.routes.ts",
         "MODULE services/api/src/routes/scim-admin.routes.ts",
@@ -58268,11 +58185,6 @@
         "DELETE /v1/users/me/sessions/:id",
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
-        "GET /admin/runtime/migrations",
-        "GET /admin/runtime/queues",
-        "GET /admin/runtime/readiness",
-        "GET /admin/runtime/schema-status",
-        "GET /admin/runtime/workers",
         "GET /v1/admin/identity/permission-matrix",
         "GET /v1/admin/identity/providers",
         "GET /v1/admin/identity/quarantined-sessions",
@@ -59103,7 +59015,6 @@
         "MODULE services/api/src/routes/reviewer-ops.routes.ts",
         "MODULE services/api/src/routes/reviewer-workspace.routes.ts",
         "MODULE services/api/src/routes/runtime-otel-health.routes.ts",
-        "MODULE services/api/src/routes/runtime-readiness.routes.ts",
         "MODULE services/api/src/routes/runtime-secrets-health.routes.ts",
         "MODULE services/api/src/routes/saml-auth.routes.ts",
         "MODULE services/api/src/routes/scim-admin.routes.ts",
@@ -59179,11 +59090,6 @@
         "DELETE /v1/users/me/sessions/:id",
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
-        "GET /admin/runtime/migrations",
-        "GET /admin/runtime/queues",
-        "GET /admin/runtime/readiness",
-        "GET /admin/runtime/schema-status",
-        "GET /admin/runtime/workers",
         "GET /v1/admin/identity/permission-matrix",
         "GET /v1/admin/identity/providers",
         "GET /v1/admin/identity/quarantined-sessions",
@@ -60014,7 +59920,6 @@
         "MODULE services/api/src/routes/reviewer-ops.routes.ts",
         "MODULE services/api/src/routes/reviewer-workspace.routes.ts",
         "MODULE services/api/src/routes/runtime-otel-health.routes.ts",
-        "MODULE services/api/src/routes/runtime-readiness.routes.ts",
         "MODULE services/api/src/routes/runtime-secrets-health.routes.ts",
         "MODULE services/api/src/routes/saml-auth.routes.ts",
         "MODULE services/api/src/routes/scim-admin.routes.ts",
@@ -60090,11 +59995,6 @@
         "DELETE /v1/users/me/sessions/:id",
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
-        "GET /admin/runtime/migrations",
-        "GET /admin/runtime/queues",
-        "GET /admin/runtime/readiness",
-        "GET /admin/runtime/schema-status",
-        "GET /admin/runtime/workers",
         "GET /v1/admin/identity/permission-matrix",
         "GET /v1/admin/identity/providers",
         "GET /v1/admin/identity/quarantined-sessions",
@@ -60925,7 +60825,6 @@
         "MODULE services/api/src/routes/reviewer-ops.routes.ts",
         "MODULE services/api/src/routes/reviewer-workspace.routes.ts",
         "MODULE services/api/src/routes/runtime-otel-health.routes.ts",
-        "MODULE services/api/src/routes/runtime-readiness.routes.ts",
         "MODULE services/api/src/routes/runtime-secrets-health.routes.ts",
         "MODULE services/api/src/routes/saml-auth.routes.ts",
         "MODULE services/api/src/routes/scim-admin.routes.ts",
@@ -61001,11 +60900,6 @@
         "DELETE /v1/users/me/sessions/:id",
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
-        "GET /admin/runtime/migrations",
-        "GET /admin/runtime/queues",
-        "GET /admin/runtime/readiness",
-        "GET /admin/runtime/schema-status",
-        "GET /admin/runtime/workers",
         "GET /v1/admin/identity/permission-matrix",
         "GET /v1/admin/identity/providers",
         "GET /v1/admin/identity/quarantined-sessions",
@@ -61836,7 +61730,6 @@
         "MODULE services/api/src/routes/reviewer-ops.routes.ts",
         "MODULE services/api/src/routes/reviewer-workspace.routes.ts",
         "MODULE services/api/src/routes/runtime-otel-health.routes.ts",
-        "MODULE services/api/src/routes/runtime-readiness.routes.ts",
         "MODULE services/api/src/routes/runtime-secrets-health.routes.ts",
         "MODULE services/api/src/routes/saml-auth.routes.ts",
         "MODULE services/api/src/routes/scim-admin.routes.ts",
@@ -61912,11 +61805,6 @@
         "DELETE /v1/users/me/sessions/:id",
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
-        "GET /admin/runtime/migrations",
-        "GET /admin/runtime/queues",
-        "GET /admin/runtime/readiness",
-        "GET /admin/runtime/schema-status",
-        "GET /admin/runtime/workers",
         "GET /v1/admin/identity/permission-matrix",
         "GET /v1/admin/identity/providers",
         "GET /v1/admin/identity/quarantined-sessions",
@@ -62747,7 +62635,6 @@
         "MODULE services/api/src/routes/reviewer-ops.routes.ts",
         "MODULE services/api/src/routes/reviewer-workspace.routes.ts",
         "MODULE services/api/src/routes/runtime-otel-health.routes.ts",
-        "MODULE services/api/src/routes/runtime-readiness.routes.ts",
         "MODULE services/api/src/routes/runtime-secrets-health.routes.ts",
         "MODULE services/api/src/routes/saml-auth.routes.ts",
         "MODULE services/api/src/routes/scim-admin.routes.ts",
@@ -62823,11 +62710,6 @@
         "DELETE /v1/users/me/sessions/:id",
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
-        "GET /admin/runtime/migrations",
-        "GET /admin/runtime/queues",
-        "GET /admin/runtime/readiness",
-        "GET /admin/runtime/schema-status",
-        "GET /admin/runtime/workers",
         "GET /v1/admin/identity/permission-matrix",
         "GET /v1/admin/identity/providers",
         "GET /v1/admin/identity/quarantined-sessions",
@@ -63661,7 +63543,6 @@
         "MODULE services/api/src/routes/reviewer-ops.routes.ts",
         "MODULE services/api/src/routes/reviewer-workspace.routes.ts",
         "MODULE services/api/src/routes/runtime-otel-health.routes.ts",
-        "MODULE services/api/src/routes/runtime-readiness.routes.ts",
         "MODULE services/api/src/routes/runtime-secrets-health.routes.ts",
         "MODULE services/api/src/routes/saml-auth.routes.ts",
         "MODULE services/api/src/routes/scim-admin.routes.ts",
@@ -63737,11 +63618,6 @@
         "DELETE /v1/users/me/sessions/:id",
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
-        "GET /admin/runtime/migrations",
-        "GET /admin/runtime/queues",
-        "GET /admin/runtime/readiness",
-        "GET /admin/runtime/schema-status",
-        "GET /admin/runtime/workers",
         "GET /v1/admin/identity/permission-matrix",
         "GET /v1/admin/identity/providers",
         "GET /v1/admin/identity/quarantined-sessions",
@@ -64575,7 +64451,6 @@
         "MODULE services/api/src/routes/reviewer-ops.routes.ts",
         "MODULE services/api/src/routes/reviewer-workspace.routes.ts",
         "MODULE services/api/src/routes/runtime-otel-health.routes.ts",
-        "MODULE services/api/src/routes/runtime-readiness.routes.ts",
         "MODULE services/api/src/routes/runtime-secrets-health.routes.ts",
         "MODULE services/api/src/routes/saml-auth.routes.ts",
         "MODULE services/api/src/routes/scim-admin.routes.ts",
@@ -64651,11 +64526,6 @@
         "DELETE /v1/users/me/sessions/:id",
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
-        "GET /admin/runtime/migrations",
-        "GET /admin/runtime/queues",
-        "GET /admin/runtime/readiness",
-        "GET /admin/runtime/schema-status",
-        "GET /admin/runtime/workers",
         "GET /v1/admin/identity/permission-matrix",
         "GET /v1/admin/identity/providers",
         "GET /v1/admin/identity/quarantined-sessions",
@@ -65486,7 +65356,6 @@
         "MODULE services/api/src/routes/reviewer-ops.routes.ts",
         "MODULE services/api/src/routes/reviewer-workspace.routes.ts",
         "MODULE services/api/src/routes/runtime-otel-health.routes.ts",
-        "MODULE services/api/src/routes/runtime-readiness.routes.ts",
         "MODULE services/api/src/routes/runtime-secrets-health.routes.ts",
         "MODULE services/api/src/routes/saml-auth.routes.ts",
         "MODULE services/api/src/routes/scim-admin.routes.ts",
@@ -65562,11 +65431,6 @@
         "DELETE /v1/users/me/sessions/:id",
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
-        "GET /admin/runtime/migrations",
-        "GET /admin/runtime/queues",
-        "GET /admin/runtime/readiness",
-        "GET /admin/runtime/schema-status",
-        "GET /admin/runtime/workers",
         "GET /v1/admin/identity/permission-matrix",
         "GET /v1/admin/identity/providers",
         "GET /v1/admin/identity/quarantined-sessions",
@@ -66400,7 +66264,6 @@
         "MODULE services/api/src/routes/reviewer-ops.routes.ts",
         "MODULE services/api/src/routes/reviewer-workspace.routes.ts",
         "MODULE services/api/src/routes/runtime-otel-health.routes.ts",
-        "MODULE services/api/src/routes/runtime-readiness.routes.ts",
         "MODULE services/api/src/routes/runtime-secrets-health.routes.ts",
         "MODULE services/api/src/routes/saml-auth.routes.ts",
         "MODULE services/api/src/routes/scim-admin.routes.ts",
@@ -66476,11 +66339,6 @@
         "DELETE /v1/users/me/sessions/:id",
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
-        "GET /admin/runtime/migrations",
-        "GET /admin/runtime/queues",
-        "GET /admin/runtime/readiness",
-        "GET /admin/runtime/schema-status",
-        "GET /admin/runtime/workers",
         "GET /v1/admin/identity/permission-matrix",
         "GET /v1/admin/identity/providers",
         "GET /v1/admin/identity/quarantined-sessions",
@@ -67311,7 +67169,6 @@
         "MODULE services/api/src/routes/reviewer-ops.routes.ts",
         "MODULE services/api/src/routes/reviewer-workspace.routes.ts",
         "MODULE services/api/src/routes/runtime-otel-health.routes.ts",
-        "MODULE services/api/src/routes/runtime-readiness.routes.ts",
         "MODULE services/api/src/routes/runtime-secrets-health.routes.ts",
         "MODULE services/api/src/routes/saml-auth.routes.ts",
         "MODULE services/api/src/routes/scim-admin.routes.ts",
@@ -67387,11 +67244,6 @@
         "DELETE /v1/users/me/sessions/:id",
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
-        "GET /admin/runtime/migrations",
-        "GET /admin/runtime/queues",
-        "GET /admin/runtime/readiness",
-        "GET /admin/runtime/schema-status",
-        "GET /admin/runtime/workers",
         "GET /v1/admin/identity/permission-matrix",
         "GET /v1/admin/identity/providers",
         "GET /v1/admin/identity/quarantined-sessions",
@@ -68225,7 +68077,6 @@
         "MODULE services/api/src/routes/reviewer-ops.routes.ts",
         "MODULE services/api/src/routes/reviewer-workspace.routes.ts",
         "MODULE services/api/src/routes/runtime-otel-health.routes.ts",
-        "MODULE services/api/src/routes/runtime-readiness.routes.ts",
         "MODULE services/api/src/routes/runtime-secrets-health.routes.ts",
         "MODULE services/api/src/routes/saml-auth.routes.ts",
         "MODULE services/api/src/routes/scim-admin.routes.ts",
@@ -70479,11 +70330,6 @@
         "DELETE /v1/users/me/sessions/:id",
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
-        "GET /admin/runtime/migrations",
-        "GET /admin/runtime/queues",
-        "GET /admin/runtime/readiness",
-        "GET /admin/runtime/schema-status",
-        "GET /admin/runtime/workers",
         "GET /public/verify/:id",
         "GET /v1/admin/analytics/dashboard",
         "GET /v1/admin/audit-log",
@@ -71452,7 +71298,6 @@
         "MODULE services/api/src/routes/reviewer-ops.routes.ts",
         "MODULE services/api/src/routes/reviewer-workspace.routes.ts",
         "MODULE services/api/src/routes/runtime-otel-health.routes.ts",
-        "MODULE services/api/src/routes/runtime-readiness.routes.ts",
         "MODULE services/api/src/routes/runtime-secrets-health.routes.ts",
         "MODULE services/api/src/routes/saml-auth.routes.ts",
         "MODULE services/api/src/routes/scim-admin.routes.ts",
@@ -76503,11 +76348,6 @@
         "DELETE /v1/users/me/sessions/:id",
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
-        "GET /admin/runtime/migrations",
-        "GET /admin/runtime/queues",
-        "GET /admin/runtime/readiness",
-        "GET /admin/runtime/schema-status",
-        "GET /admin/runtime/workers",
         "GET /v1/admin/identity/permission-matrix",
         "GET /v1/admin/identity/providers",
         "GET /v1/admin/identity/quarantined-sessions",
@@ -77334,7 +77174,6 @@
         "MODULE services/api/src/routes/reviewer-ops.routes.ts",
         "MODULE services/api/src/routes/reviewer-workspace.routes.ts",
         "MODULE services/api/src/routes/runtime-otel-health.routes.ts",
-        "MODULE services/api/src/routes/runtime-readiness.routes.ts",
         "MODULE services/api/src/routes/runtime-secrets-health.routes.ts",
         "MODULE services/api/src/routes/saml-auth.routes.ts",
         "MODULE services/api/src/routes/scim-admin.routes.ts",
@@ -85877,7 +85716,7 @@
       "method": "DELETE",
       "path": "/v1/ops/saved-views/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2825",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2832",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -87131,257 +86970,6 @@
       "tenantUnboundInsertSites": []
     },
     {
-      "routeId": "GET /admin/runtime/migrations",
-      "method": "GET",
-      "path": "/admin/runtime/migrations",
-      "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/runtime-readiness.routes.ts:211",
-      "authorizationClass": "AUTHENTICATED",
-      "authorizationEvidence": [
-        "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
-      ],
-      "gates": [
-        "AUTHENTICATED"
-      ],
-      "productConsumers": [],
-      "nonProductConsumers": [],
-      "primaryDisposition": "ADMIN_OPERATOR",
-      "dispositionSource": "REVIEWED",
-      "dispositionEvidence": "reg services/api/src/routes/runtime-readiness.routes.ts:211; docs/phase-28f-runtime-readiness.md:62 and :173 curl ... \"$API_BASE/admin/runtime/migrations?teamId=<team>\"; no apps/web|apps/mobile call site",
-      "dispositionReason": "operator curl probe documented in the runtime-readiness runbook",
-      "replacement": null,
-      "result": "DISPOSED_ADMIN_OPERATOR",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
-      "secondarySecurityFamilies": [],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
-      "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
-      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
-      "modelsRead": [
-        "teamMember"
-      ],
-      "modelsWritten": [
-        "securityEvent"
-      ],
-      "tenantBindingResolved": true,
-      "tenantBindingEvidence": [
-        "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)"
-      ],
-      "tenantIdSource": "NAMED_AUTHORITY",
-      "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
-      "crossTenantRefusalSemantics": "refuses with 403/404",
-      "tenantStampingInsertSites": [],
-      "tenantUnboundInsertSites": []
-    },
-    {
-      "routeId": "GET /admin/runtime/queues",
-      "method": "GET",
-      "path": "/admin/runtime/queues",
-      "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/runtime-readiness.routes.ts:130",
-      "authorizationClass": "AUTHENTICATED",
-      "authorizationEvidence": [
-        "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
-      ],
-      "gates": [
-        "AUTHENTICATED"
-      ],
-      "productConsumers": [],
-      "nonProductConsumers": [],
-      "primaryDisposition": "ADMIN_OPERATOR",
-      "dispositionSource": "REVIEWED",
-      "dispositionEvidence": "reg services/api/src/routes/runtime-readiness.routes.ts:130; docs/phase-28f-runtime-readiness.md:60 \"| GET /admin/runtime/queues?teamId=… | Queues + Redis subset | session + audit.read |\" and :165 curl ... \"$API_BASE/admin/runtime/queues?teamId=<team>\" | jq .; the ops observability page fetches only /admin/runtime/readiness (apps/web/app/(app)/operations/observability/page.tsx:324)",
-      "dispositionReason": "operator curl probe documented in the runtime-readiness runbook",
-      "replacement": null,
-      "result": "DISPOSED_ADMIN_OPERATOR",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
-      "secondarySecurityFamilies": [],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
-      "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
-      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
-      "modelsRead": [
-        "operationalIncident",
-        "securityEvent",
-        "teamMember"
-      ],
-      "modelsWritten": [
-        "securityEvent"
-      ],
-      "tenantBindingResolved": true,
-      "tenantBindingEvidence": [
-        "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/runtime/runtime-readiness.ts: operationalIncident.count — no tenant or self predicate",
-        "services/api/src/runtime/runtime-readiness.ts: securityEvent.findFirst — no tenant or self predicate"
-      ],
-      "tenantIdSource": "NAMED_AUTHORITY",
-      "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
-      "crossTenantRefusalSemantics": "refuses with 403/404",
-      "tenantStampingInsertSites": [],
-      "tenantUnboundInsertSites": []
-    },
-    {
-      "routeId": "GET /admin/runtime/readiness",
-      "method": "GET",
-      "path": "/admin/runtime/readiness",
-      "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/runtime-readiness.routes.ts:92",
-      "authorizationClass": "AUTHENTICATED",
-      "authorizationEvidence": [
-        "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
-      ],
-      "gates": [
-        "AUTHENTICATED"
-      ],
-      "productConsumers": [
-        {
-          "file": "apps/web/lib/useGlobalRuntimeState.ts",
-          "line": 230,
-          "caller": "declared-by-review",
-          "class": "WEB",
-          "primitive": "declared",
-          "viaResolution": true
-        }
-      ],
-      "nonProductConsumers": [],
-      "primaryDisposition": "PRODUCT_CONSUMED",
-      "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/useGlobalRuntimeState.ts:230 (declared-by-review, WEB)",
-      "dispositionReason": "reached from a product surface",
-      "replacement": null,
-      "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
-      "secondarySecurityFamilies": [],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
-      "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
-      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
-      "modelsRead": [
-        "operationalIncident",
-        "securityEvent",
-        "teamMember"
-      ],
-      "modelsWritten": [
-        "securityEvent"
-      ],
-      "tenantBindingResolved": true,
-      "tenantBindingEvidence": [
-        "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/runtime/runtime-readiness.ts: operationalIncident.count — no tenant or self predicate",
-        "services/api/src/runtime/runtime-readiness.ts: securityEvent.findFirst — no tenant or self predicate"
-      ],
-      "tenantIdSource": "NAMED_AUTHORITY",
-      "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
-      "crossTenantRefusalSemantics": "refuses with 403/404",
-      "tenantStampingInsertSites": [],
-      "tenantUnboundInsertSites": []
-    },
-    {
-      "routeId": "GET /admin/runtime/schema-status",
-      "method": "GET",
-      "path": "/admin/runtime/schema-status",
-      "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:794",
-      "authorizationClass": "AUTHENTICATED",
-      "authorizationEvidence": [
-        "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
-      ],
-      "gates": [
-        "AUTHENTICATED"
-      ],
-      "productConsumers": [],
-      "nonProductConsumers": [],
-      "primaryDisposition": "ADMIN_OPERATOR",
-      "dispositionSource": "REVIEWED",
-      "dispositionEvidence": "reg services/api/src/routes/ops.routes.ts:604; docs/operational-seeding.md:178 curl ... \"$API_BASE/admin/runtime/schema-status?teamId=<team>\"; docs/reviewer-ops-architecture.md:103 same curl; services/api/sql/drift-patches/2026-05-19-saved-search-views-scope.sql:34 and :73 \"Confirm via /admin/runtime/schema-status that drift status is HEALTHY\"; services/api/src/runtime/runtime-readiness.ts:199 remediationHint \"Re-run /admin/runtime/schema-status manually.\"",
-      "dispositionReason": "drift-check probe cited by operator runbooks and by the drift-patch SQL headers",
-      "replacement": null,
-      "result": "DISPOSED_ADMIN_OPERATOR",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
-      "secondarySecurityFamilies": [],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
-      "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
-      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
-      "modelsRead": [
-        "teamMember"
-      ],
-      "modelsWritten": [
-        "securityEvent"
-      ],
-      "tenantBindingResolved": true,
-      "tenantBindingEvidence": [
-        "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)"
-      ],
-      "tenantIdSource": "NAMED_AUTHORITY",
-      "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
-      "crossTenantRefusalSemantics": "refuses with 403/404",
-      "tenantStampingInsertSites": [],
-      "tenantUnboundInsertSites": []
-    },
-    {
-      "routeId": "GET /admin/runtime/workers",
-      "method": "GET",
-      "path": "/admin/runtime/workers",
-      "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/runtime-readiness.routes.ts:171",
-      "authorizationClass": "AUTHENTICATED",
-      "authorizationEvidence": [
-        "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
-      ],
-      "gates": [
-        "AUTHENTICATED"
-      ],
-      "productConsumers": [],
-      "nonProductConsumers": [],
-      "primaryDisposition": "ADMIN_OPERATOR",
-      "dispositionSource": "REVIEWED",
-      "dispositionEvidence": "reg services/api/src/routes/runtime-readiness.routes.ts:171; docs/phase-28f-runtime-readiness.md:61 and :169 curl ... \"$API_BASE/admin/runtime/workers?teamId=<team>\" | jq .; no apps/web|apps/mobile call site",
-      "dispositionReason": "operator curl probe documented in the runtime-readiness runbook",
-      "replacement": null,
-      "result": "DISPOSED_ADMIN_OPERATOR",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
-      "secondarySecurityFamilies": [],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
-      "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
-      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
-      "modelsRead": [
-        "operationalIncident",
-        "securityEvent",
-        "teamMember"
-      ],
-      "modelsWritten": [
-        "securityEvent"
-      ],
-      "tenantBindingResolved": true,
-      "tenantBindingEvidence": [
-        "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/runtime/runtime-readiness.ts: operationalIncident.count — no tenant or self predicate",
-        "services/api/src/runtime/runtime-readiness.ts: securityEvent.findFirst — no tenant or self predicate"
-      ],
-      "tenantIdSource": "NAMED_AUTHORITY",
-      "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
-      "crossTenantRefusalSemantics": "refuses with 403/404",
-      "tenantStampingInsertSites": [],
-      "tenantUnboundInsertSites": []
-    },
-    {
       "routeId": "GET /healthz",
       "method": "GET",
       "path": "/healthz",
@@ -87588,7 +87176,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/adoption/page.tsx",
-          "line": 87,
+          "line": 100,
           "caller": "AdminAdoptionInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -87598,7 +87186,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/adoption/page.tsx:87 (AdminAdoptionInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/adoption/page.tsx:100 (AdminAdoptionInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -87666,7 +87254,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/alerts/page.tsx",
-          "line": 120,
+          "line": 138,
           "caller": "AdminAlertsPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -87676,7 +87264,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/alerts/page.tsx:120 (AdminAlertsPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/alerts/page.tsx:138 (AdminAlertsPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -87736,7 +87324,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/dashboard/page.tsx",
-          "line": 317,
+          "line": 330,
           "caller": "run",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -87746,7 +87334,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/dashboard/page.tsx:317 (run, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/dashboard/page.tsx:330 (run, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -87794,7 +87382,7 @@
       "method": "GET",
       "path": "/v1/admin/audit-log",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-audit.routes.ts:202",
+      "registrationEvidence": "services/api/src/routes/admin-audit.routes.ts:226",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -87807,7 +87395,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/audit/page.tsx",
-          "line": 342,
+          "line": 343,
           "caller": "AdminAuditPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -87817,7 +87405,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/audit/page.tsx:342 (AdminAuditPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/audit/page.tsx:343 (AdminAuditPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -87851,7 +87439,7 @@
       "method": "GET",
       "path": "/v1/admin/audit-log/export",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-audit.routes.ts:310",
+      "registrationEvidence": "services/api/src/routes/admin-audit.routes.ts:334",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -87864,7 +87452,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/audit/page.tsx",
-          "line": 396,
+          "line": 397,
           "caller": "AdminAuditPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -87874,7 +87462,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/audit/page.tsx:396 (AdminAuditPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/audit/page.tsx:397 (AdminAuditPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -87910,7 +87498,7 @@
       "method": "GET",
       "path": "/v1/admin/audit-log/verify",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-audit.routes.ts:407",
+      "registrationEvidence": "services/api/src/routes/admin-audit.routes.ts:431",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -87923,7 +87511,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/audit/page.tsx",
-          "line": 429,
+          "line": 430,
           "caller": "AdminAuditPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -87933,7 +87521,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/audit/page.tsx:429 (AdminAuditPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/audit/page.tsx:430 (AdminAuditPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -88167,7 +87755,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/costs/page.tsx",
-          "line": 238,
+          "line": 252,
           "caller": "AdminCostsInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -88177,7 +87765,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/costs/page.tsx:238 (AdminCostsInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/costs/page.tsx:252 (AdminCostsInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -88233,7 +87821,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/customers/page.tsx",
-          "line": 184,
+          "line": 197,
           "caller": "AdminOrganizationsPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -88243,7 +87831,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/customers/page.tsx:184 (AdminOrganizationsPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/customers/page.tsx:197 (AdminOrganizationsPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -88627,7 +88215,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/executive/page.tsx",
-          "line": 249,
+          "line": 263,
           "caller": "ExecutiveDashboardBody",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -88637,7 +88225,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/executive/page.tsx:249 (ExecutiveDashboardBody, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/executive/page.tsx:263 (ExecutiveDashboardBody, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -89255,7 +88843,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/operations/page.tsx",
-          "line": 194,
+          "line": 212,
           "caller": "AdminOperationsPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -89265,7 +88853,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/operations/page.tsx:194 (AdminOperationsPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/operations/page.tsx:212 (AdminOperationsPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -89872,6 +89460,236 @@
       "tenantUnboundInsertSites": []
     },
     {
+      "routeId": "GET /v1/admin/runtime/migrations",
+      "method": "GET",
+      "path": "/v1/admin/runtime/migrations",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/runtime-readiness.routes.ts:207",
+      "authorizationClass": "MULTI_GATE",
+      "authorizationEvidence": [
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "ADMIN_GATED",
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [],
+      "nonProductConsumers": [],
+      "primaryDisposition": "ADMIN_OPERATOR",
+      "dispositionSource": "REVIEWED",
+      "dispositionEvidence": "reg services/api/src/routes/runtime-readiness.routes.ts (requirePlatformAdmin); ADM-P1-003/OWN-1 moved this from the unversioned /admin/runtime/migrations, where audit.read authorised it, to the versioned admin namespace behind the canonical platform gate. Operator probe only: docs/runbooks/sre-runbooks.md and disaster-recovery.md; no apps/web|apps/mobile call site.",
+      "dispositionReason": "platform-admin operator probe; no product consumer",
+      "replacement": null,
+      "result": "DISPOSED_ADMIN_OPERATOR",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
+      "tenantBindingAuthority": "requirePlatformAdmin",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [],
+      "modelsWritten": [],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/routes/runtime-readiness.routes.ts: platform-admin scope (multi-tenant by design)"
+      ],
+      "tenantIdSource": "NAMED_AUTHORITY",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "refusal raised by the named authority",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "GET /v1/admin/runtime/queues",
+      "method": "GET",
+      "path": "/v1/admin/runtime/queues",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/runtime-readiness.routes.ts:132",
+      "authorizationClass": "MULTI_GATE",
+      "authorizationEvidence": [
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "ADMIN_GATED",
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [],
+      "nonProductConsumers": [],
+      "primaryDisposition": "ADMIN_OPERATOR",
+      "dispositionSource": "REVIEWED",
+      "dispositionEvidence": "reg services/api/src/routes/runtime-readiness.routes.ts (requirePlatformAdmin); ADM-P1-003/OWN-1 moved this from the unversioned /admin/runtime/queues. Operator probe only; the shell reads GET /v1/runtime/status, the tenant-safe status enum, and no apps/web|apps/mobile call site reads this route.",
+      "dispositionReason": "platform-admin operator probe; no product consumer",
+      "replacement": null,
+      "result": "DISPOSED_ADMIN_OPERATOR",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
+      "tenantBindingAuthority": "requirePlatformAdmin",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "operationalIncident",
+        "securityEvent"
+      ],
+      "modelsWritten": [],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/routes/runtime-readiness.routes.ts: platform-admin scope (multi-tenant by design)",
+        "services/api/src/runtime/runtime-readiness.ts: operationalIncident.count — no tenant or self predicate",
+        "services/api/src/runtime/runtime-readiness.ts: securityEvent.findFirst — no tenant or self predicate"
+      ],
+      "tenantIdSource": "NAMED_AUTHORITY",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "refusal raised by the named authority",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "GET /v1/admin/runtime/readiness",
+      "method": "GET",
+      "path": "/v1/admin/runtime/readiness",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/runtime-readiness.routes.ts:97",
+      "authorizationClass": "MULTI_GATE",
+      "authorizationEvidence": [
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "ADMIN_GATED",
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [],
+      "nonProductConsumers": [],
+      "primaryDisposition": null,
+      "dispositionSource": null,
+      "dispositionEvidence": null,
+      "dispositionReason": null,
+      "replacement": null,
+      "result": "UNDISPOSED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
+      "tenantBindingAuthority": "requirePlatformAdmin",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "operationalIncident",
+        "securityEvent"
+      ],
+      "modelsWritten": [],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/routes/runtime-readiness.routes.ts: platform-admin scope (multi-tenant by design)",
+        "services/api/src/runtime/runtime-readiness.ts: operationalIncident.count — no tenant or self predicate",
+        "services/api/src/runtime/runtime-readiness.ts: securityEvent.findFirst — no tenant or self predicate"
+      ],
+      "tenantIdSource": "NAMED_AUTHORITY",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "refusal raised by the named authority",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "GET /v1/admin/runtime/schema-status",
+      "method": "GET",
+      "path": "/v1/admin/runtime/schema-status",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:804",
+      "authorizationClass": "MULTI_GATE",
+      "authorizationEvidence": [
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "ADMIN_GATED",
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [],
+      "nonProductConsumers": [],
+      "primaryDisposition": "ADMIN_OPERATOR",
+      "dispositionSource": "REVIEWED",
+      "dispositionEvidence": "reg services/api/src/routes/ops.routes.ts (requirePlatformAdmin); ADM-P1-003/OWN-1 moved this from the unversioned /admin/runtime/schema-status, where requireOpsActor (operations.view — held by every workspace role including VIEWER) authorised it. Operator drift probe only; cited by docs/runbooks/disaster-recovery.md and the drift-patch SQL headers; no apps/web|apps/mobile call site.",
+      "dispositionReason": "platform-admin operator probe; no product consumer",
+      "replacement": null,
+      "result": "DISPOSED_ADMIN_OPERATOR",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
+      "tenantBindingAuthority": "requirePlatformAdmin",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [],
+      "modelsWritten": [],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/routes/ops.routes.ts: platform-admin scope (multi-tenant by design)"
+      ],
+      "tenantIdSource": "NAMED_AUTHORITY",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "refusal raised by the named authority",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "GET /v1/admin/runtime/workers",
+      "method": "GET",
+      "path": "/v1/admin/runtime/workers",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/runtime-readiness.routes.ts:170",
+      "authorizationClass": "MULTI_GATE",
+      "authorizationEvidence": [
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "ADMIN_GATED",
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [],
+      "nonProductConsumers": [],
+      "primaryDisposition": "ADMIN_OPERATOR",
+      "dispositionSource": "REVIEWED",
+      "dispositionEvidence": "reg services/api/src/routes/runtime-readiness.routes.ts (requirePlatformAdmin); ADM-P1-003/OWN-1 moved this from the unversioned /admin/runtime/workers. Operator probe only; no apps/web|apps/mobile call site.",
+      "dispositionReason": "platform-admin operator probe; no product consumer",
+      "replacement": null,
+      "result": "DISPOSED_ADMIN_OPERATOR",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
+      "tenantBindingAuthority": "requirePlatformAdmin",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "operationalIncident",
+        "securityEvent"
+      ],
+      "modelsWritten": [],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/routes/runtime-readiness.routes.ts: platform-admin scope (multi-tenant by design)",
+        "services/api/src/runtime/runtime-readiness.ts: operationalIncident.count — no tenant or self predicate",
+        "services/api/src/runtime/runtime-readiness.ts: securityEvent.findFirst — no tenant or self predicate"
+      ],
+      "tenantIdSource": "NAMED_AUTHORITY",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "refusal raised by the named authority",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
       "routeId": "GET /v1/admin/search",
       "method": "GET",
       "path": "/v1/admin/search",
@@ -90018,7 +89836,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/timeline/page.tsx",
-          "line": 163,
+          "line": 175,
           "caller": "AdminTimelinePage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -90026,7 +89844,7 @@
         },
         {
           "file": "apps/web/app/(app)/admin/timeline/page.tsx",
-          "line": 193,
+          "line": 210,
           "caller": "AdminTimelinePage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -90036,7 +89854,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/timeline/page.tsx:163 (AdminTimelinePage, WEB); apps/web/app/(app)/admin/timeline/page.tsx:193 (AdminTimelinePage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/timeline/page.tsx:175 (AdminTimelinePage, WEB); apps/web/app/(app)/admin/timeline/page.tsx:210 (AdminTimelinePage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -90086,7 +89904,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/users/page.tsx",
-          "line": 139,
+          "line": 151,
           "caller": "AdminPeoplePage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -90096,7 +89914,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/users/page.tsx:139 (AdminPeoplePage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/users/page.tsx:151 (AdminPeoplePage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -90222,7 +90040,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/workspaces/page.tsx",
-          "line": 120,
+          "line": 132,
           "caller": "AdminWorkspacesPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -90232,7 +90050,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/workspaces/page.tsx:120 (AdminWorkspacesPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/workspaces/page.tsx:132 (AdminWorkspacesPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -108646,7 +108464,7 @@
       "method": "GET",
       "path": "/v1/ops/assignable-operators",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1730",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1737",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -108701,7 +108519,7 @@
       "method": "GET",
       "path": "/v1/ops/bulk-actions/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3091",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3098",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -108747,7 +108565,7 @@
       "method": "GET",
       "path": "/v1/ops/causality/chains",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2431",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2438",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -108802,7 +108620,7 @@
       "method": "GET",
       "path": "/v1/ops/causality/chains/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2454",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2461",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -108906,7 +108724,7 @@
       "method": "GET",
       "path": "/v1/ops/incident-groups",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1230",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1237",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -108962,7 +108780,7 @@
       "method": "GET",
       "path": "/v1/ops/incident-groups/:groupKey/affected",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1362",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1369",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -109018,7 +108836,7 @@
       "method": "GET",
       "path": "/v1/ops/incidents",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1041",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1048",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -109053,7 +108871,7 @@
         },
         {
           "file": "apps/web/lib/useGlobalRuntimeState.ts",
-          "line": 353,
+          "line": 376,
           "caller": "tickOnce",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -109099,7 +108917,7 @@
       "method": "GET",
       "path": "/v1/ops/incidents/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1412",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1419",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -109216,7 +109034,7 @@
       "method": "GET",
       "path": "/v1/ops/saved-views",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2652",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2659",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -109319,7 +109137,7 @@
       "method": "GET",
       "path": "/v1/ops/summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:907",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:914",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -109392,7 +109210,7 @@
       "method": "GET",
       "path": "/v1/ops/workflows",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2002",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2009",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -109447,7 +109265,7 @@
       "method": "GET",
       "path": "/v1/ops/workflows/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2040",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2047",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -110841,7 +110659,7 @@
       "method": "GET",
       "path": "/v1/platform/context",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/platform-context.routes.ts:70",
+      "registrationEvidence": "services/api/src/routes/platform-context.routes.ts:71",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/services/platform-context/platform-context.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -113744,7 +113562,7 @@
         },
         {
           "file": "apps/web/lib/useGlobalRuntimeState.ts",
-          "line": 367,
+          "line": 390,
           "caller": "tickOnce",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -113754,7 +113572,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:110 (EscalationsConsolePageInner, WEB); apps/web/components/reviewer-experience/ReviewerConsole.tsx:574 (ReviewerConsole, WEB); apps/web/lib/useGlobalRuntimeState.ts:367 (tickOnce, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:110 (EscalationsConsolePageInner, WEB); apps/web/components/reviewer-experience/ReviewerConsole.tsx:574 (ReviewerConsole, WEB); apps/web/lib/useGlobalRuntimeState.ts:390 (tickOnce, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -114935,6 +114753,68 @@
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "GET /v1/runtime/status",
+      "method": "GET",
+      "path": "/v1/runtime/status",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/platform-context.routes.ts:139",
+      "authorizationClass": "AUTHENTICATED",
+      "authorizationEvidence": [
+        "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [
+        {
+          "file": "apps/web/components/operational/RuntimeStatusBanner.tsx",
+          "line": 80,
+          "caller": "load",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        },
+        {
+          "file": "apps/web/lib/useGlobalRuntimeState.ts",
+          "line": 356,
+          "caller": "tickOnce",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
+      "nonProductConsumers": [],
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/components/operational/RuntimeStatusBanner.tsx:80 (load, WEB); apps/web/lib/useGlobalRuntimeState.ts:356 (tickOnce, WEB)",
+      "dispositionReason": "reached from a product surface",
+      "replacement": null,
+      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "primarySecurityFamily": "OPERATIONAL_HEALTH_METRICS_DEBUG_SEED",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "AUTHENTICATED",
+      "authorizationAuthority": "AUTHENTICATED",
+      "dataScope": "PLATFORM_GLOBAL",
+      "tenantType": "PLATFORM",
+      "tenantBindingAuthority": null,
+      "membershipStatusRequirement": null,
+      "modelsRead": [
+        "operationalIncident",
+        "securityEvent"
+      ],
+      "modelsWritten": [],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/runtime/runtime-readiness.ts: operationalIncident.count — no tenant or self predicate",
+        "services/api/src/runtime/runtime-readiness.ts: securityEvent.findFirst — no tenant or self predicate"
+      ],
+      "tenantIdSource": "PLATFORM_SCOPE",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "NONE_OBSERVED",
       "tenantStampingInsertSites": [],
       "tenantUnboundInsertSites": []
     },
@@ -121214,7 +121094,7 @@
       "method": "PATCH",
       "path": "/v1/ops/saved-views/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2747",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2754",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -122349,7 +122229,7 @@
       "method": "POST",
       "path": "/v1/admin/audit-log",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-audit.routes.ts:108",
+      "registrationEvidence": "services/api/src/routes/admin-audit.routes.ts:116",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -123887,7 +123767,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/operations/page.tsx",
-          "line": 236,
+          "line": 257,
           "caller": "AdminOperationsPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -123897,7 +123777,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/operations/page.tsx:236 (AdminOperationsPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/operations/page.tsx:257 (AdminOperationsPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -123944,7 +123824,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/operations/page.tsx",
-          "line": 236,
+          "line": 257,
           "caller": "AdminOperationsPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -123954,7 +123834,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/operations/page.tsx:236 (AdminOperationsPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/operations/page.tsx:257 (AdminOperationsPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -124001,7 +123881,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/operations/page.tsx",
-          "line": 236,
+          "line": 257,
           "caller": "AdminOperationsPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -124011,7 +123891,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/operations/page.tsx:236 (AdminOperationsPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/operations/page.tsx:257 (AdminOperationsPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -133124,7 +133004,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
-          "line": 1759,
+          "line": 1756,
           "caller": "EvidenceDetailPageInner",
           "class": "WEB",
           "primitive": "runRecordAction",
@@ -133134,7 +133014,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:1759 (EvidenceDetailPageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:1756 (EvidenceDetailPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -133624,7 +133504,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
-          "line": 1647,
+          "line": 1644,
           "caller": "EvidenceDetailPageInner",
           "class": "WEB",
           "primitive": "runRecordAction",
@@ -133634,7 +133514,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:1647 (EvidenceDetailPageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:1644 (EvidenceDetailPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -134009,7 +133889,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
-          "line": 1802,
+          "line": 1799,
           "caller": "EvidenceDetailPageInner",
           "class": "WEB",
           "primitive": "runRecordAction",
@@ -134019,7 +133899,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(tabs)/archive.tsx:100 (ArchiveScreen, MOBILE); apps/web/app/(app)/evidence/[id]/page.tsx:1802 (EvidenceDetailPageInner, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(tabs)/archive.tsx:100 (ArchiveScreen, MOBILE); apps/web/app/(app)/evidence/[id]/page.tsx:1799 (EvidenceDetailPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -134077,7 +133957,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
-          "line": 1693,
+          "line": 1690,
           "caller": "EvidenceDetailPageInner",
           "class": "WEB",
           "primitive": "runRecordAction",
@@ -134087,7 +133967,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:1693 (EvidenceDetailPageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:1690 (EvidenceDetailPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147300,7 +147180,7 @@
       "method": "POST",
       "path": "/v1/ops/bulk-actions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2936",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2943",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -147374,7 +147254,7 @@
       "method": "POST",
       "path": "/v1/ops/incidents/:id/ack",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1635",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1642",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -147438,7 +147318,7 @@
       "method": "POST",
       "path": "/v1/ops/incidents/:id/assign",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1761",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1768",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -147499,7 +147379,7 @@
       "method": "POST",
       "path": "/v1/ops/incidents/:id/remediate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1547",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1554",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -147580,7 +147460,7 @@
       "method": "POST",
       "path": "/v1/ops/incidents/:id/resolve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1659",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1666",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -147644,7 +147524,7 @@
       "method": "POST",
       "path": "/v1/ops/incidents/:id/suppress",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1684",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1691",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -147708,7 +147588,7 @@
       "method": "POST",
       "path": "/v1/ops/media-intelligence/dlq/replay",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3264",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3271",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -147766,7 +147646,7 @@
       "method": "POST",
       "path": "/v1/ops/media-intelligence/runs/:runId/dismiss",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3239",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3246",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -147812,7 +147692,7 @@
       "method": "POST",
       "path": "/v1/ops/media-intelligence/runs/:runId/retry",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3179",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3186",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -147870,7 +147750,7 @@
       "method": "POST",
       "path": "/v1/ops/reconcile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:839",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:846",
       "authorizationClass": "CRON_SECRET",
       "authorizationEvidence": [
         "requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)"
@@ -147882,7 +147762,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "CRON_CONSUMER",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/ops.routes.ts:839 — requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
+      "dispositionEvidence": "services/api/src/routes/ops.routes.ts:846 — requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
       "dispositionReason": "gated by the canonical constant-time cron/internal shared secret, so only a scheduler or operator holding it can call it",
       "replacement": null,
       "result": "DISPOSED_CRON_CONSUMER",
@@ -147935,7 +147815,7 @@
       "method": "POST",
       "path": "/v1/ops/saved-views",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2670",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2677",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -148086,7 +147966,7 @@
       "method": "POST",
       "path": "/v1/ops/upload-telemetry",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3364",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3371",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -148136,7 +148016,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/assign",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2098",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2105",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -148201,7 +148081,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/escalate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2192",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2199",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -148266,7 +148146,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/mitigation",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2231",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2238",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -148331,7 +148211,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/reopen",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2350",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2357",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -148396,7 +148276,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/resolve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2271",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2278",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -148461,7 +148341,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/schedule-retry",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2389",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2396",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -148526,7 +148406,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/start",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2153",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2160",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -148591,7 +148471,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/suppress",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2311",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2318",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -148656,7 +148536,7 @@
       "method": "POST",
       "path": "/v1/ops/workspace-reconcile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:998",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1005",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -150331,7 +150211,7 @@
       "method": "POST",
       "path": "/v1/platform/context/switch-workspace",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/platform-context.routes.ts:104",
+      "registrationEvidence": "services/api/src/routes/platform-context.routes.ts:166",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/services/platform-context/platform-context.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",

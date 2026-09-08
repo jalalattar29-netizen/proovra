@@ -514,7 +514,7 @@ function respond(path: string): unknown {
   if (path.startsWith("/v1/cases?")) return { items: [] };
   if (path.includes("/reviewer-workflow/events")) return { items: [] };
   // ADM-P1-003 / OWN-1 — the shell reads the tenant-safe status enum.
-  if (path.includes("/v1/platform/runtime-status")) {
+  if (path.includes("/v1/runtime/status")) {
     return { status: "HEALTHY" };
   }
   if (path.includes("/governance-snapshot")) {

@@ -78,7 +78,7 @@ take any of these actions:
 
 - **Reassign workflows** away from the offline reviewer via the
   `POST /v1/reviewer-ops/reviews/:workflowId/assign` endpoint.
-- **Relax SLA policy temporarily** via `POST /v1/reviewer-ops/policy`
+- **Relax SLA policy temporarily** via `POST /v1/reviewer-ops/sla-policy`
   while you investigate root cause.
 - **Add reviewer capacity** by inviting additional team members with
   `evidence_request.review` permission.

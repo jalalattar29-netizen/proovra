@@ -15,7 +15,7 @@ Call the export-eligibility probe for the evidence:
 
 ```bash
 curl -H "Authorization: Bearer $OP_TOKEN" \
-  "$API_BASE/v1/governance/export/eligibility?evidenceId=<id>"
+  "$API_BASE/v1/governance/export-eligibility?teamId=<team>&evidenceId=<id>"
 ```
 
 The response carries `outcome` and `reason`:

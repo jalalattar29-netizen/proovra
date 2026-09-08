@@ -49,7 +49,7 @@ import type { CapabilityKey, PlatformContextEnvelope } from "./types";
 
 /** Which of the shell's three runtime sources this context may read. */
 export type RuntimeReadAccess = {
-  /** `GET /v1/platform/runtime-status` — the tenant-safe status enum. */
+  /** `GET /v1/runtime/status` — the tenant-safe status enum. */
   readiness: boolean;
   /** `GET /v1/ops/incidents` */
   incidents: boolean;
@@ -162,7 +162,7 @@ export function resolveRuntimeReadAccess(
   // capability meaning "may read runtime readiness" because the route was
   // member-gated on `audit.read`. That was true, and it was the finding: a
   // tenant permission unlocking the platform aggregator. The shell now reads
-  // `/v1/platform/runtime-status`, which answers a three-value enum to any
+  // `/v1/runtime/status`, which answers a three-value enum to any
   // authenticated caller, so this gate is what it always should have been —
   // a decision about whether the pill has anything to point at, not an
   // authorization boundary.
