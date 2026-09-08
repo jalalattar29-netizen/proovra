@@ -36,10 +36,10 @@
         "p7.team.direct_api.ui_locked_action_denied",
         "p7.team.removal.preserves_history"
       ],
-      "runId": "7946c830",
-      "buildId": "ae4dd4a88f863d61d29db551297b3ff593e7febbdd411fbe08d61da1805fb3e7",
+      "runId": "dfe3341e",
+      "buildId": "47dc04bc4e0ad78bf283e3c3af5a29fa5d9854fc2951d17c1fe1fc03b161b5c3",
       "binding": "27dd05adb6ac6100ea2a6a974c2bb5212d4ce74eeea8fccc613fdbf99cbb58d4",
-      "recordedAtUtc": "2026-09-08T16:46:09.881Z",
+      "recordedAtUtc": "2026-09-08T17:24:48.234Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -70,10 +70,10 @@
         "p7.overlimit.reducing_usage_restores_operation",
         "p7.xtenant.foreign_ids_concealed_without_side_effects"
       ],
-      "runId": "7946c830",
-      "buildId": "ae4dd4a88f863d61d29db551297b3ff593e7febbdd411fbe08d61da1805fb3e7",
+      "runId": "dfe3341e",
+      "buildId": "47dc04bc4e0ad78bf283e3c3af5a29fa5d9854fc2951d17c1fe1fc03b161b5c3",
       "binding": "27dd05adb6ac6100ea2a6a974c2bb5212d4ce74eeea8fccc613fdbf99cbb58d4",
-      "recordedAtUtc": "2026-09-08T16:46:50.936Z",
+      "recordedAtUtc": "2026-09-08T17:25:32.389Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -103,10 +103,10 @@
         "p7.obs.transport.staging_never_uses_production_project",
         "p7.obs.unexpected_failure_still_captured"
       ],
-      "runId": "7946c830",
-      "buildId": "ae4dd4a88f863d61d29db551297b3ff593e7febbdd411fbe08d61da1805fb3e7",
+      "runId": "dfe3341e",
+      "buildId": "47dc04bc4e0ad78bf283e3c3af5a29fa5d9854fc2951d17c1fe1fc03b161b5c3",
       "binding": "27dd05adb6ac6100ea2a6a974c2bb5212d4ce74eeea8fccc613fdbf99cbb58d4",
-      "recordedAtUtc": "2026-09-08T16:47:16.548Z",
+      "recordedAtUtc": "2026-09-08T17:26:40.393Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -129,10 +129,10 @@
         "p7.sem.team_plan_is_not_a_personal_purchase_target",
         "p7.sem.team_user_keeps_personal_space"
       ],
-      "runId": "7946c830",
-      "buildId": "ae4dd4a88f863d61d29db551297b3ff593e7febbdd411fbe08d61da1805fb3e7",
+      "runId": "dfe3341e",
+      "buildId": "47dc04bc4e0ad78bf283e3c3af5a29fa5d9854fc2951d17c1fe1fc03b161b5c3",
       "binding": "27dd05adb6ac6100ea2a6a974c2bb5212d4ce74eeea8fccc613fdbf99cbb58d4",
-      "recordedAtUtc": "2026-09-08T16:48:49.385Z",
+      "recordedAtUtc": "2026-09-08T17:28:30.835Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -159,10 +159,10 @@
         "p7.invite.resend_rotates_and_delivers_the_successor",
         "p7.invite.revoked_link_still_fails_server_side"
       ],
-      "runId": "7946c830",
-      "buildId": "ae4dd4a88f863d61d29db551297b3ff593e7febbdd411fbe08d61da1805fb3e7",
+      "runId": "dfe3341e",
+      "buildId": "47dc04bc4e0ad78bf283e3c3af5a29fa5d9854fc2951d17c1fe1fc03b161b5c3",
       "binding": "27dd05adb6ac6100ea2a6a974c2bb5212d4ce74eeea8fccc613fdbf99cbb58d4",
-      "recordedAtUtc": "2026-09-08T16:57:57.206Z",
+      "recordedAtUtc": "2026-09-08T17:37:51.255Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -186,10 +186,10 @@
         "p7.sem.no_personal_space_true_blocks_every_route",
         "p7.sem.team_user_keeps_personal_space"
       ],
-      "runId": "7946c830",
-      "buildId": "ae4dd4a88f863d61d29db551297b3ff593e7febbdd411fbe08d61da1805fb3e7",
+      "runId": "dfe3341e",
+      "buildId": "47dc04bc4e0ad78bf283e3c3af5a29fa5d9854fc2951d17c1fe1fc03b161b5c3",
       "binding": "27dd05adb6ac6100ea2a6a974c2bb5212d4ce74eeea8fccc613fdbf99cbb58d4",
-      "recordedAtUtc": "2026-09-08T16:57:57.209Z",
+      "recordedAtUtc": "2026-09-08T17:37:51.258Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -229,10 +229,10 @@
         "p7.team.direct_api.ui_locked_action_denied",
         "p7.team.switch.isolates_cache_and_mutations"
       ],
-      "runId": "7946c830",
-      "buildId": "ae4dd4a88f863d61d29db551297b3ff593e7febbdd411fbe08d61da1805fb3e7",
+      "runId": "dfe3341e",
+      "buildId": "47dc04bc4e0ad78bf283e3c3af5a29fa5d9854fc2951d17c1fe1fc03b161b5c3",
       "binding": "27dd05adb6ac6100ea2a6a974c2bb5212d4ce74eeea8fccc613fdbf99cbb58d4",
-      "recordedAtUtc": "2026-09-08T16:57:57.222Z",
+      "recordedAtUtc": "2026-09-08T17:37:51.272Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -256,10 +256,10 @@
         "p7.new027.download.streams_from_the_api_origin",
         "p7.new027.download.suspended_member_refused"
       ],
-      "runId": "7946c830",
-      "buildId": "ae4dd4a88f863d61d29db551297b3ff593e7febbdd411fbe08d61da1805fb3e7",
+      "runId": "dfe3341e",
+      "buildId": "47dc04bc4e0ad78bf283e3c3af5a29fa5d9854fc2951d17c1fe1fc03b161b5c3",
       "binding": "27dd05adb6ac6100ea2a6a974c2bb5212d4ce74eeea8fccc613fdbf99cbb58d4",
-      "recordedAtUtc": "2026-09-08T16:57:57.211Z",
+      "recordedAtUtc": "2026-09-08T17:37:51.260Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -282,10 +282,10 @@
         "p7.new028.bytes.unauthorized_reads_refused",
         "p7.new028.thumbnail.renders_from_the_api_origin"
       ],
-      "runId": "7946c830",
-      "buildId": "ae4dd4a88f863d61d29db551297b3ff593e7febbdd411fbe08d61da1805fb3e7",
+      "runId": "dfe3341e",
+      "buildId": "47dc04bc4e0ad78bf283e3c3af5a29fa5d9854fc2951d17c1fe1fc03b161b5c3",
       "binding": "27dd05adb6ac6100ea2a6a974c2bb5212d4ce74eeea8fccc613fdbf99cbb58d4",
-      "recordedAtUtc": "2026-09-08T16:57:57.213Z",
+      "recordedAtUtc": "2026-09-08T17:37:51.263Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -311,10 +311,10 @@
         "p7.org.roster.suspend_restore_round_trip",
         "p7.org.roster.terminal_state_offers_no_transition"
       ],
-      "runId": "7946c830",
-      "buildId": "ae4dd4a88f863d61d29db551297b3ff593e7febbdd411fbe08d61da1805fb3e7",
+      "runId": "dfe3341e",
+      "buildId": "47dc04bc4e0ad78bf283e3c3af5a29fa5d9854fc2951d17c1fe1fc03b161b5c3",
       "binding": "27dd05adb6ac6100ea2a6a974c2bb5212d4ce74eeea8fccc613fdbf99cbb58d4",
-      "recordedAtUtc": "2026-09-08T16:57:57.221Z",
+      "recordedAtUtc": "2026-09-08T17:37:51.271Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -341,10 +341,10 @@
         "p7.ui.governance.destruction_review_opened",
         "p7.ui.governance.policy_created"
       ],
-      "runId": "7946c830",
-      "buildId": "ae4dd4a88f863d61d29db551297b3ff593e7febbdd411fbe08d61da1805fb3e7",
+      "runId": "dfe3341e",
+      "buildId": "47dc04bc4e0ad78bf283e3c3af5a29fa5d9854fc2951d17c1fe1fc03b161b5c3",
       "binding": "27dd05adb6ac6100ea2a6a974c2bb5212d4ce74eeea8fccc613fdbf99cbb58d4",
-      "recordedAtUtc": "2026-09-08T16:57:57.229Z",
+      "recordedAtUtc": "2026-09-08T17:37:51.279Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -369,10 +369,10 @@
         "p7.ui.automation.rule_updated",
         "p7.ui.intelligence.provider_budget_created"
       ],
-      "runId": "7946c830",
-      "buildId": "ae4dd4a88f863d61d29db551297b3ff593e7febbdd411fbe08d61da1805fb3e7",
+      "runId": "dfe3341e",
+      "buildId": "47dc04bc4e0ad78bf283e3c3af5a29fa5d9854fc2951d17c1fe1fc03b161b5c3",
       "binding": "27dd05adb6ac6100ea2a6a974c2bb5212d4ce74eeea8fccc613fdbf99cbb58d4",
-      "recordedAtUtc": "2026-09-08T16:57:57.226Z",
+      "recordedAtUtc": "2026-09-08T17:37:51.276Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -398,10 +398,10 @@
         "p7.ui.workspace.ownership_transferred",
         "p7.ui.workspace.reopened"
       ],
-      "runId": "7946c830",
-      "buildId": "ae4dd4a88f863d61d29db551297b3ff593e7febbdd411fbe08d61da1805fb3e7",
+      "runId": "dfe3341e",
+      "buildId": "47dc04bc4e0ad78bf283e3c3af5a29fa5d9854fc2951d17c1fe1fc03b161b5c3",
       "binding": "27dd05adb6ac6100ea2a6a974c2bb5212d4ce74eeea8fccc613fdbf99cbb58d4",
-      "recordedAtUtc": "2026-09-08T16:57:57.233Z",
+      "recordedAtUtc": "2026-09-08T17:37:51.284Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -424,10 +424,10 @@
         "p7.ui.evidence.public_verify_unpublished",
         "p7.ui.redaction.video_frames_and_tracks_authored"
       ],
-      "runId": "7946c830",
-      "buildId": "ae4dd4a88f863d61d29db551297b3ff593e7febbdd411fbe08d61da1805fb3e7",
+      "runId": "dfe3341e",
+      "buildId": "47dc04bc4e0ad78bf283e3c3af5a29fa5d9854fc2951d17c1fe1fc03b161b5c3",
       "binding": "27dd05adb6ac6100ea2a6a974c2bb5212d4ce74eeea8fccc613fdbf99cbb58d4",
-      "recordedAtUtc": "2026-09-08T16:57:57.227Z",
+      "recordedAtUtc": "2026-09-08T17:37:51.278Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -450,10 +450,10 @@
         "p7.ui.security.capture_devices_listed",
         "p7.ui.security.mfa_recovery_requested"
       ],
-      "runId": "7946c830",
-      "buildId": "ae4dd4a88f863d61d29db551297b3ff593e7febbdd411fbe08d61da1805fb3e7",
+      "runId": "dfe3341e",
+      "buildId": "47dc04bc4e0ad78bf283e3c3af5a29fa5d9854fc2951d17c1fe1fc03b161b5c3",
       "binding": "27dd05adb6ac6100ea2a6a974c2bb5212d4ce74eeea8fccc613fdbf99cbb58d4",
-      "recordedAtUtc": "2026-09-08T16:57:57.231Z",
+      "recordedAtUtc": "2026-09-08T17:37:51.282Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -484,10 +484,10 @@
         "p7.stepup.workspace_closure.panel_opens_from_server_denial",
         "p7.stepup.workspace_closure.proof_retries_original_mutation"
       ],
-      "runId": "7946c830",
-      "buildId": "ae4dd4a88f863d61d29db551297b3ff593e7febbdd411fbe08d61da1805fb3e7",
+      "runId": "dfe3341e",
+      "buildId": "47dc04bc4e0ad78bf283e3c3af5a29fa5d9854fc2951d17c1fe1fc03b161b5c3",
       "binding": "27dd05adb6ac6100ea2a6a974c2bb5212d4ce74eeea8fccc613fdbf99cbb58d4",
-      "recordedAtUtc": "2026-09-08T16:57:57.224Z",
+      "recordedAtUtc": "2026-09-08T17:37:51.274Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -509,10 +509,10 @@
         "p7.new029.cancel_aborts_storage_and_session",
         "p7.new029.cancel_survives_abort_network_failure"
       ],
-      "runId": "7946c830",
-      "buildId": "ae4dd4a88f863d61d29db551297b3ff593e7febbdd411fbe08d61da1805fb3e7",
+      "runId": "dfe3341e",
+      "buildId": "47dc04bc4e0ad78bf283e3c3af5a29fa5d9854fc2951d17c1fe1fc03b161b5c3",
       "binding": "27dd05adb6ac6100ea2a6a974c2bb5212d4ce74eeea8fccc613fdbf99cbb58d4",
-      "recordedAtUtc": "2026-09-08T16:57:57.216Z",
+      "recordedAtUtc": "2026-09-08T17:37:51.265Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -540,10 +540,10 @@
         "p7.new058.stepup.unenrolled_account_is_offered_enrolment",
         "p7.new058.stepup.wrong_code_refused_without_elevation"
       ],
-      "runId": "7946c830",
-      "buildId": "ae4dd4a88f863d61d29db551297b3ff593e7febbdd411fbe08d61da1805fb3e7",
+      "runId": "dfe3341e",
+      "buildId": "47dc04bc4e0ad78bf283e3c3af5a29fa5d9854fc2951d17c1fe1fc03b161b5c3",
       "binding": "27dd05adb6ac6100ea2a6a974c2bb5212d4ce74eeea8fccc613fdbf99cbb58d4",
-      "recordedAtUtc": "2026-09-08T16:57:57.219Z",
+      "recordedAtUtc": "2026-09-08T17:37:51.269Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
