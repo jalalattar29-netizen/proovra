@@ -134,7 +134,7 @@ const ALLOWED_BILLING_PLAN_READERS: ReadonlyArray<{
     file: "routes/analytics.routes.ts",
     base: "api",
     reason:
-      "PLATFORM analytics sweep across every live workspace. It carries a DOCUMENTED baseline tolerance — it cannot resolve a commercial context per workspace at that scale — and it is a platform report, never a customer's plan.",
+      "TELEMETRY_ONLY, and bounded by a dedicated guard. `computeTeamWorkspaceHealth` sweeps every live workspace on the platform to fill four counters on one internal admin tile; resolving a canonical envelope per workspace would mean usage rollups, lifecycle verdicts and Enterprise contract loads across the whole estate for numbers nobody is billed by. The value is named `reportingPlanBaseline` so it cannot be mistaken for the canonical answer, and `analytics-is-telemetry-only.test.ts` holds the bound: it feeds only counters, performs no authorization, denial, write or enqueue, never touches the admission or output-entitlement authorities, and is returned only by a requirePlatformAdmin route. If a product decision ever needs it, call resolveCommercialContext and delete this entry.",
   },
   {
     file: "routes/organizations.routes.ts",

@@ -493,11 +493,40 @@ async function computeTeamWorkspaceHealth() {
 
     if (team.overSeatLimit) overSeatLimit += 1;
 
-    const effectivePlan = isTeamBillingActive(team.billingStatus)
+    /*
+     * ===================================================================
+     * A REPORTING BASELINE. NOT THE EFFECTIVE PLAN, AND NOT NAMED LIKE IT.
+     * ===================================================================
+     * This was called `effectivePlan`, which is the name of the canonical
+     * commercial answer (`resolveCommercialContext(...).plan`) and is NOT what
+     * this line computes. The two can legitimately differ: the canonical
+     * resolver is contract-first for Enterprise, applies the grandfather
+     * record-cap override, and resolves a PERSONAL subject from the owner's
+     * entitlement rather than from `Team.billingPlan` — a column that means
+     * nothing on a Personal Workspace.
+     *
+     * The name is the whole risk here. A future reader looking for "where the
+     * effective plan is decided" would find this, and a duplicate authority is
+     * usually born exactly that way: not by someone deciding to write a second
+     * resolver, but by someone reusing a variable that appeared to be the
+     * first one.
+     *
+     * WHY THE DUPLICATE DERIVATION IS TOLERATED AT ALL. This sweep spans every
+     * live workspace on the platform for ONE internal admin tile. Resolving
+     * each workspace's canonical envelope would mean per-workspace usage
+     * rollups, lifecycle verdicts and Enterprise contract loads across the
+     * entire estate to produce four counters that nobody is billed by. The
+     * tolerance is bounded by what the value may touch, and
+     * `analytics-is-telemetry-only.test.ts` holds that bound: this number
+     * reaches storage/seat COUNTERS on the platform admin dashboard and
+     * nothing else. It grants nothing, refuses nothing, and is never returned
+     * to a customer surface.
+     */
+    const reportingPlanBaseline = isTeamBillingActive(team.billingStatus)
       ? team.billingPlan
       : "FREE";
 
-    const caps = getPlanCapabilities(effectivePlan);
+    const caps = getPlanCapabilities(reportingPlanBaseline);
     const storageLimit =
       team.storageBytesOverride && team.storageBytesOverride > 0n
         ? team.storageBytesOverride
@@ -535,7 +564,7 @@ async function computeTeamWorkspaceHealth() {
      * one function and this is one of its callers.
      */
     const seatLimit = resolveEffectiveContractSeats({
-      plan: effectivePlan,
+      plan: reportingPlanBaseline,
       contract: NO_CONTRACT_LIMITS,
       persistedSeats: team.includedSeats ?? 0,
     });
