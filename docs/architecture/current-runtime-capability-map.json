@@ -85863,7 +85863,7 @@
       "method": "GET",
       "path": "/v1/admin/analytics/dashboard",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/analytics.routes.ts:1355",
+      "registrationEvidence": "services/api/src/routes/analytics.routes.ts:1384",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -122826,7 +122826,7 @@
       "method": "POST",
       "path": "/v1/analytics/track",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/analytics.routes.ts:1249",
+      "registrationEvidence": "services/api/src/routes/analytics.routes.ts:1278",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "resolveTrackUserId -> services/api/src/routes/analytics.routes.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
