@@ -207,6 +207,22 @@ export type CollaborationTeamPermission =
   | "team.read"
   | "team.update_settings"
   | "team.archive"
+  /**
+   * PERMANENT DELETION OF A DISPOSABLE GROUP — its own capability.
+   *
+   * Delete used to ride on `team.archive`. The two authorities happened to
+   * resolve to the same role, so nothing was over-permitted, but they are not
+   * the same decision: archiving is reversible and keeps every record;
+   * deletion is forward-only and is only ever allowed for a group that has no
+   * operational record at all. A capability that cannot be named separately
+   * cannot be reasoned about or withdrawn separately.
+   *
+   * Granted to LEAD only — exactly who could reach it before, so this names
+   * the existing authority rather than widening it. The service's
+   * disposability assessment and its in-transaction re-check are unchanged and
+   * remain the thing that actually protects history.
+   */
+  | "team.delete"
   | "team.transfer_lead"
   | "team.member.invite"
   | "team.member.remove"
@@ -228,6 +244,7 @@ const ROLE_PERMISSIONS: Record<
     "team.read",
     "team.update_settings",
     "team.archive",
+    "team.delete",
     "team.transfer_lead",
     "team.member.invite",
     "team.member.remove",

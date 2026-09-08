@@ -1580,18 +1580,28 @@ export async function changeMemberRole(
   if (!member || member.teamId !== input.teamId) throw E.notFound("Member");
   if (member.role === newRole) return;
 
-  // Prevent demoting the LAST lead.
-  if (member.role === "LEAD" && newRole !== "LEAD") {
-    const leadCount = await client.collaborationTeamMember.count({
-      where: { teamId: input.teamId, role: "LEAD", status: "ACTIVE" },
-    });
-    if (leadCount <= 1)
-      throw E.conflict(
-        "Cannot demote the last LEAD. Transfer leadership first.",
-      );
-  }
-
   await client.$transaction(async (tx) => {
+    /*
+     * THE LAST-LEAD COUNT BELONGS IN THE TRANSACTION THAT WRITES.
+     *
+     * This counted on `client` BEFORE the transaction opened, then demoted
+     * inside it — a read-then-write across two snapshots. Two concurrent
+     * demotions of the two remaining LEADs each read a count of 2, each passed,
+     * and the team was left with none: the exact state this guard exists to
+     * make impossible, reachable by doing the thing twice at once.
+     *
+     * `suspendMember` already counted inside its transaction; this and
+     * `removeMember` did not. All three agree now.
+     */
+    if (member.role === "LEAD" && newRole !== "LEAD") {
+      const leadCount = await tx.collaborationTeamMember.count({
+        where: { teamId: input.teamId, role: "LEAD", status: "ACTIVE" },
+      });
+      if (leadCount <= 1)
+        throw E.conflict(
+          "Cannot demote the last LEAD. Transfer leadership first.",
+        );
+    }
     await tx.collaborationTeamMember.update({
       where: { id: input.memberId },
       data: { role: newRole },
@@ -1769,15 +1779,17 @@ export async function removeMember(
   });
   if (!member || member.teamId !== input.teamId) throw E.notFound("Member");
   if (member.status === "REMOVED") return;
-  // Prevent removing the last LEAD.
-  if (member.role === "LEAD") {
-    const leadCount = await client.collaborationTeamMember.count({
-      where: { teamId: input.teamId, role: "LEAD", status: "ACTIVE" },
-    });
-    if (leadCount <= 1)
-      throw E.conflict("Cannot remove the last LEAD. Transfer leadership first.");
-  }
   await client.$transaction(async (tx) => {
+    // Same correction as `changeMemberRole` above: counted outside the
+    // transaction, written inside it. Two concurrent removals of the last two
+    // LEADs both saw 2 and both proceeded.
+    if (member.role === "LEAD") {
+      const leadCount = await tx.collaborationTeamMember.count({
+        where: { teamId: input.teamId, role: "LEAD", status: "ACTIVE" },
+      });
+      if (leadCount <= 1)
+        throw E.conflict("Cannot remove the last LEAD. Transfer leadership first.");
+    }
     await tx.collaborationTeamMember.update({
       where: { id: input.memberId },
       data: { status: "REMOVED", removedAt: new Date() },

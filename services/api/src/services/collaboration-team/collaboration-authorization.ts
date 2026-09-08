@@ -278,9 +278,21 @@ export async function authorizeCollaborationTeam(
   }
 
   if (options.requireActiveTeam && team.status !== "ACTIVE") {
+    /*
+     * THE MESSAGE BELONGS INSIDE `error`.
+     *
+     * This sent `{ error: { code }, message }` — the code nested, the sentence
+     * beside it. The web client reads the message from `body.error.message`,
+     * found nothing there, and substituted "HTTP 409: API error". The reason
+     * this refusal exists to give never reached the client at all, let alone
+     * the operator.
+     */
     void reply.code(409).send({
-      error: { code: "collaboration_team_archived" },
-      message: "This team is archived. Reopen it before making changes.",
+      error: {
+        code: "collaboration_team_archived",
+        message: "This team is archived. Reopen it before making changes.",
+        requestId: req.id ?? null,
+      },
     });
     return null;
   }

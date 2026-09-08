@@ -189,21 +189,39 @@ function handleServiceError(
     return;
   }
   if (err instanceof CollaborationTeamError) {
-    // `code` is the stable machine code (INVITE_EXPIRED, INVITE_REVOKED,
-    // WORKSPACE_MEMBERSHIP_REQUIRED, ...). `error` mirrors it for
-    // backwards compatibility with older consumers.
+    /*
+     * THE CANONICAL ENVELOPE, NOT A THIRD ONE.
+     *
+     * This sent `{ code, error: "team_conflict", message, requestId }` — a
+     * flat shape in which `error` was a STRING. The web client decides how to
+     * parse a failure by asking whether `body.error.code` is a string; with
+     * `error` a string that test is false, so every refusal from this router
+     * took the client's legacy branch and arrived as a plain `Error` rather
+     * than an `ApiError`. Consumers that check `instanceof ApiError` — which
+     * is every mutation handler in the Collaboration Teams console — then
+     * discarded the code and the message and substituted their own.
+     *
+     * `{ error: { code, message, requestId } }` is the shape the rest of the
+     * API already speaks (see `buildZodWirePayload` in server.ts). The CODES
+     * are unchanged, so `err.code` still reads INVITE_EXPIRED, INVITE_REVOKED,
+     * WORKSPACE_MEMBERSHIP_REQUIRED and the rest at every existing consumer —
+     * the invitation accept page among them. Only the wrapper moved.
+     */
     void reply.code(err.httpStatus).send({
-      code: err.code,
-      error: err.code,
-      message: err.message,
-      requestId,
+      error: {
+        code: err.code,
+        message: err.message,
+        requestId,
+      },
     });
     return;
   }
   void reply.code(500).send({
-    error: "internal_error",
-    message: "Something went wrong.",
-    requestId,
+    error: {
+      code: "internal_error",
+      message: "Something went wrong.",
+      requestId,
+    },
   });
 }
 
@@ -630,9 +648,21 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
         const binding = await authorizeCollaborationTeam(req, reply, {
           collaborationTeamId: req.params.teamId,
           permission: "collaboration.thread.create",
-          // The authority that retires a group, not the creator. Creator
-          // ownership is not an authorization model in this product.
-          groupPermission: "team.archive",
+          /*
+           * ITS OWN CAPABILITY, NOT ARCHIVE'S.
+           *
+           * This read `team.archive`. That resolved to the right role — LEAD —
+           * so nothing was over-permitted, but it made permanent deletion and
+           * reversible retirement one authority. They are different decisions
+           * with different consequences, and one that cannot be named cannot
+           * be withdrawn on its own.
+           *
+           * `team.delete` is granted to LEAD and to nobody else, which is
+           * exactly who could reach this route before. The disposability
+           * assessment and its in-transaction re-check are untouched and remain
+           * what actually protects a history-bearing group.
+           */
+          groupPermission: "team.delete",
           // Deliberately NOT `requireActiveTeam`: an archived accidental group
           // must remain deletable, and freezing it would force an operator to
           // reopen — consuming a capacity slot — merely to tidy up.
