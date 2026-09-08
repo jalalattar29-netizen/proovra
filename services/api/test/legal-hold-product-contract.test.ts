@@ -11,20 +11,29 @@
  *   * the PRODUCT-LINE axis — the `FEATURE_LEGAL_HOLD` entitlement, granted by
  *     `applyProductLine` on the INVESTIGATIONS and ENTERPRISE lines.
  *
- * They are not two answers to one question. The entitlement is the ONE
- * eligibility authority for placing, listing and releasing a legal hold: it is
- * the only thing `/v1/lifecycle/legal-holds` consults, and the plan flag was
- * never wired to a legal-hold route at all.
- *
- * What the plan flag actually gated was three routes in
+ * They are not two answers to one question. The plan flag was never wired to a
+ * legal-hold route at all: what it actually gated was three routes in
  * `governance-lifecycle.routes.ts` — create a destruction review, decide one,
- * force a lifecycle transition. It gated them under the BORROWED NAME
- * `legalHold`, which is what made this look like a duplicated authority. The
- * flag is now `destructionGovernance`, carrying an identical value on every
- * plan, so the rename settles the classification without moving a price or
- * changing who is refused.
+ * force a lifecycle transition — under the BORROWED NAME `legalHold`, which is
+ * what made this look like a duplicated authority. That flag is now
+ * `destructionGovernance`, carrying an identical value on every plan, so the
+ * rename settled the classification without moving a price.
  *
- * These tests pin that resolution so it cannot silently merge back.
+ * ===========================================================================
+ * WHAT CHANGED SINCE (2026-09-08)
+ * ===========================================================================
+ * The classification was right and the entitlement was still unreachable.
+ * `FEATURE_LEGAL_HOLD` was fed only by `EntitlementGrant` rows from
+ * `applyProductLine`, so an ENTERPRISE workspace with no product line applied
+ * resolved to `false` — while two governance routes reached the same canonical
+ * writer with no entitlement check at all.
+ *
+ * Legal Hold is now an ENTERPRISE capability whose availability is CONTRACT
+ * DRIVEN: plan eligibility, then an ACTIVE Enterprise contract stating the
+ * term, resolved once in `resolveEntitlement` so every route and the UI read
+ * the same answer. The behavioural cases live in
+ * `legal-hold-enterprise-entitlement.test.ts`; this file pins the source shape
+ * and the safety invariant so neither can silently regress.
  */
 
 import { readFileSync } from "node:fs";
@@ -46,22 +55,95 @@ const HERE = fileURLToPath(new URL(".", import.meta.url));
 const API_SRC = join(HERE, "..", "src");
 const read = (p: string) => readFileSync(join(API_SRC, p), "utf8");
 
+/**
+ * Executable source only.
+ *
+ * A retired key is allowed — required, really — to be NAMED in the comment
+ * explaining why it was retired. What must not survive is a live gate reading
+ * it, so the assertions below run against the code with comments stripped
+ * rather than against the raw file.
+ */
+const codeOnly = (src: string): string =>
+  src
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n")
+    .filter((line) => !line.trim().startsWith("//"))
+    .join("\n");
+
 const GOVERNANCE_ROUTES = "routes/governance-lifecycle.routes.ts";
 const LIFECYCLE_ROUTES = "routes/product-and-lifecycle.routes.ts";
+/** The EVIDENCE- and CASE-scoped hold routes. Not the same file as
+ *  GOVERNANCE_ROUTES above, which is destruction/lifecycle governance. */
+const HOLD_ROUTES = "routes/governance.routes.ts";
 
 describe("Legal Hold — the eligibility authority", () => {
   it("the hold surface gates on the ENTITLEMENT, and on nothing else", () => {
-    const text = read(LIFECYCLE_ROUTES);
-    // The entitlement is consulted for both the read and the placement.
+    const text = codeOnly(read(LIFECYCLE_ROUTES));
+    // CREATION is gated.
     const featureGates =
       text.match(/key:\s*"FEATURE_LEGAL_HOLD"/g) ?? [];
-    expect(featureGates.length).toBeGreaterThanOrEqual(2);
-    // Placement is additionally bounded by the entitlement LIMIT.
-    expect(text).toContain('key: "LEGAL_HOLD_MAX_ACTIVE"');
+    expect(featureGates.length).toBeGreaterThanOrEqual(1);
+    /*
+     * READING IS NOT, deliberately. A lapsed or suspended contract must never
+     * hide a workspace's own ACTIVE holds: they still block destruction, and
+     * the operator who has just been refused a deletion is exactly the person
+     * who needs to see why. The list is authorization-gated
+     * (`governance.policy.read`, anti-enumerating) and not entitlement-gated.
+     */
+    const listHandler = text.slice(
+      text.indexOf('"/v1/lifecycle/legal-holds"'),
+      text.indexOf("listLifecycleLegalHoldsLegacyShape("),
+    );
+    expect(listHandler.length).toBeGreaterThan(0);
+    expect(
+      listHandler,
+      "the legal-hold LIST must not require commercial entitlement",
+    ).not.toContain("FEATURE_LEGAL_HOLD");
+    expect(listHandler).toContain("governance.policy.read");
+    // No numeric ceiling. `LEGAL_HOLD_MAX_ACTIVE` was retired: 0 / 25 / 1000,
+    // none of them a contract term, and the default of 0 would have refused
+    // every workspace the contract had just entitled.
+    expect(text).not.toContain("LEGAL_HOLD_MAX_ACTIVE");
     // And the plan-axis gate does not appear on this surface at all: a second
     // eligibility authority here is exactly the defect being closed.
     expect(text).not.toContain("assertTeamAllowsEnterpriseFeature");
     expect(text).not.toContain("denyIfTeamNotEnterprise");
+  });
+
+  it("EVERY route reaching the canonical writer checks the entitlement", () => {
+    /*
+     * THE GAP THIS CLOSES. `placeCanonicalLegalHold` is the one writer, and
+     * three routes reach it. Two of them — the evidence-scoped and case-scoped
+     * governance routes — checked permission and step-up and no entitlement at
+     * all, so the commercial answer was never asked for on those paths.
+     *
+     * The assertion is on CALL COUNTS in executable source: every file that
+     * calls the writer must check the key at least as many times as it calls
+     * it. That fails the moment a fourth route is added without a gate, which
+     * is the regression worth catching.
+     */
+    for (const file of [HOLD_ROUTES, LIFECYCLE_ROUTES]) {
+      const text = codeOnly(read(file));
+      const writes = (text.match(/placeCanonicalLegalHold\(/g) ?? []).length;
+      expect(writes, `${file} should reach the canonical writer`).toBeGreaterThan(0);
+      const gates = (text.match(/key:\s*"FEATURE_LEGAL_HOLD"/g) ?? []).length;
+      expect(
+        gates,
+        `${file}: ${writes} call(s) to placeCanonicalLegalHold but only ${gates} entitlement check(s) — a creation path is ungated`,
+      ).toBeGreaterThanOrEqual(writes);
+    }
+  });
+
+  it("the contract term is the only thing that can grant it", () => {
+    // The resolver reads plan + contract and nothing else. A stored grant
+    // deciding this key is the duplicate-authority defect returning.
+    const engine = codeOnly(
+      read("services/packaging/entitlement.service.ts"),
+    );
+    expect(engine).toContain("resolveLegalHoldEntitlement");
+    expect(engine).toContain("limits.legalHoldEnabled");
+    // Eligibility is checked before the contract is read.
+    expect(engine).toContain('ctx.plan !== "ENTERPRISE"');
   });
 
   it("no route anywhere gates a legal-hold operation on the plan flag", () => {

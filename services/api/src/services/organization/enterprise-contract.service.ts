@@ -57,6 +57,21 @@ export type EnterpriseContractProjection = {
    */
   collaborationTeamsMax: number | null;
   collaborationTeamMembersMax: number | null;
+  /**
+   * LEGAL HOLD — a CONTRACTUAL capability, not an allowance.
+   *
+   * The four fields above read `null` as "the contract is SILENT, so the
+   * catalog default governs". That is right for a number with a published
+   * default and wrong for a capability grant: reading silence as "granted"
+   * would hand Legal Hold to every Enterprise contract, which is the
+   * plan-shortcut the product decision forbids.
+   *
+   * So here `null` and `false` both mean NOT GRANTED, and only `true`
+   * grants — and only while the contract is ACTIVE, because
+   * `resolveEnterpriseContractLimits` fails closed on status before reading
+   * it.
+   */
+  legalHoldEnabled: boolean | null;
   region: string | null;
   planVersion: string | null;
   billingCustomerRef: string | null;
@@ -135,6 +150,7 @@ export async function resolveEnterpriseContract(
           aiOperationsPerMonth: row.aiOperationsPerMonth,
           collaborationTeamsMax: row.collaborationTeamsMax,
           collaborationTeamMembersMax: row.collaborationTeamMembersMax,
+          legalHoldEnabled: row.legalHoldEnabled,
           region: row.region,
           planVersion: row.planVersion,
           billingCustomerRef: row.billingCustomerRef,
@@ -185,6 +201,11 @@ export async function resolveEnterpriseContract(
     // Nor is there any org signal for contracted collaboration capacity.
     collaborationTeamsMax: null,
     collaborationTeamMembersMax: null,
+    // Nor any signal for a contracted capability. A synthesised contract
+    // grants nothing: the legacy fallback exists to describe an organization
+    // that has no contract row, and "no contract row" cannot have bought
+    // Legal Hold.
+    legalHoldEnabled: null,
     region: null,
     planVersion: null,
     billingCustomerRef: null,
@@ -220,6 +241,12 @@ export async function upsertEnterpriseContract(
      *  semantics as the two allowances above. */
     collaborationTeamsMax?: number | null;
     collaborationTeamMembersMax?: number | null;
+    /**
+     * The contracted Legal Hold capability. Omitted leaves the stored term
+     * untouched; `false` or `null` records that the contract does not grant
+     * it. No normaliser: a boolean has no ambiguous zero to reject.
+     */
+    legalHoldEnabled?: boolean | null;
     contractOwnerUserId?: string | null;
     effectiveAtUtc?: Date | null;
     region?: string | null;
@@ -266,6 +293,9 @@ export async function upsertEnterpriseContract(
               ),
             }
           : {}),
+        ...(input.legalHoldEnabled !== undefined
+          ? { legalHoldEnabled: input.legalHoldEnabled }
+          : {}),
         ...(input.contractOwnerUserId !== undefined
           ? { contractOwnerUserId: input.contractOwnerUserId }
           : {}),
@@ -294,6 +324,7 @@ export async function upsertEnterpriseContract(
           input.collaborationTeamMembersMax ?? null,
           "collaborationTeamMembersMax",
         ),
+        legalHoldEnabled: input.legalHoldEnabled ?? null,
         contractOwnerUserId: input.contractOwnerUserId ?? null,
         effectiveAtUtc: input.effectiveAtUtc ?? new Date(),
         region: input.region ?? null,

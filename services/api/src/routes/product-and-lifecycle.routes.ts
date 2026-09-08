@@ -1118,16 +1118,27 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       ) {
         return reply;
       }
-      const featureOk = await assertFeatureEntitlement({
-        teamId: ctx.teamId,
-        key: "FEATURE_LEGAL_HOLD",
-      });
-      if (!featureOk.ok) {
-        return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", key: "FEATURE_LEGAL_HOLD" });
-      }
-      // ONE surface: every scope (evidence / case / workspace) from the ONE
-      // authority, plus any legacy row the backfill has not converted yet so
-      // no existing hold disappears from the operator's view.
+      /*
+       * READING A HOLD IS NOT BUYING ONE (2026-09-08).
+       *
+       * This list used to require `FEATURE_LEGAL_HOLD`, which under the
+       * contract-driven model would hide a workspace's own ACTIVE holds the
+       * moment its contract lapsed, was suspended, or the term was withdrawn.
+       * That is precisely backwards: the holds still exist, they still block
+       * destruction, and the operator who has just been told they cannot
+       * destroy a record needs to be able to see WHY.
+       *
+       * Commercial entitlement answers "may this workspace create a NEW
+       * hold?". It does not answer "may this workspace see the holds it
+       * already has?" — that is an authorization question, and
+       * `governance.policy.read` above has already answered it. Nothing here
+       * is enumerable across tenants: the read is workspace-scoped and the
+       * capability check is anti-enumerating.
+       *
+       * ONE surface: every scope (evidence / case / workspace) from the ONE
+       * authority, plus any legacy row the backfill has not converted yet so
+       * no existing hold disappears from the operator's view.
+       */
       const holds = await listLifecycleLegalHoldsLegacyShape({
         teamId: ctx.teamId,
       });
@@ -1168,14 +1179,24 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", key: "FEATURE_LEGAL_HOLD" });
       }
 
-      const limitOk = await assertQuotaEntitlement({
-        teamId: ctx.teamId,
-        key: "LEGAL_HOLD_MAX_ACTIVE",
-        requested: 1,
-      });
-      if (!limitOk.ok) {
-        return reply.code(429).send({ denial: "LIMIT_EXCEEDED", key: "LEGAL_HOLD_MAX_ACTIVE" });
-      }
+      /*
+       * THE NUMERIC LEGAL-HOLD CEILING IS GONE (2026-09-08).
+       *
+       * `LEGAL_HOLD_MAX_ACTIVE` gated this route against numbers nobody sold:
+       * an unprovisioned default of 0, 25 on the INVESTIGATIONS product line,
+       * 1000 on ENTERPRISE. None of the three is a contract term, and no
+       * Enterprise agreement in this repository states how many holds it
+       * bought — so the gate refused or permitted on invented figures, and its
+       * default of 0 would have refused every workspace the contract had just
+       * entitled.
+       *
+       * Legal Hold admission is a capability question, not a quantity one:
+       * `FEATURE_LEGAL_HOLD` above resolves it from plan + Enterprise
+       * contract, and that is the whole commercial answer. If a contracted
+       * ceiling is ever sold, it belongs on the contract beside the seat and
+       * storage terms, and it will arrive through the same resolver rather
+       * than as a catalog constant.
+       */
 
       const body = z
         .object({

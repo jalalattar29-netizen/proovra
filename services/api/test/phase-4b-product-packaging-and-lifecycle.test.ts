@@ -323,6 +323,10 @@ describe("1. Shared closure contracts — bounded enums", () => {
       "FEATURE_INTELLIGENCE",
       "FEATURE_REVIEWER_WORKSPACE",
       "QUOTA_AI_OPERATIONS_PER_MONTH",
+      // LEGAL HOLD ENTERPRISE CONTRACT CLOSURE (2026-09-08) — an invented
+      // numeric ceiling (0 / 25 / 1000, none of them a contract term) beside a
+      // capability question the Enterprise contract already answers.
+      "LEGAL_HOLD_MAX_ACTIVE",
     ];
     for (const key of RETIRED) {
       expect(
@@ -338,7 +342,7 @@ describe("1. Shared closure contracts — bounded enums", () => {
         /^(FEATURE_|QUOTA_|RETENTION_|LEGAL_HOLD_|INTEGRATION_)/,
       );
     }
-    expect(ENTITLEMENT_KEYS.length).toBe(20);
+    expect(ENTITLEMENT_KEYS.length).toBe(19);
   });
 
   it("EXCHANGE_PACKAGE_KINDS has exactly 9 entries", () => {

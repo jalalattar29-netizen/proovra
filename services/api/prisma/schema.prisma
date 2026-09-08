@@ -1976,6 +1976,27 @@ model EnterpriseContract {
   /// status before either is read.
   collaborationTeamsMax        Int?                @map("collaboration_teams_max")
   collaborationTeamMembersMax  Int?                @map("collaboration_team_members_max")
+  /// LEGAL HOLD — a CONTRACTUAL Enterprise capability (20280512000000).
+  ///
+  /// Deliberately NOT the convention its numeric neighbours use. For an
+  /// ALLOWANCE, NULL means "the contract is silent, so the catalog default
+  /// governs" — safe, because an allowance has a published default. For a
+  /// CAPABILITY GRANT there is no safe default: reading silence as "granted"
+  /// would be the `plan === ENTERPRISE` shortcut the product decision forbids,
+  /// and would hand a governance capability to customers who never bought it.
+  ///
+  ///   NULL / false  NOT GRANTED — new holds refused with the canonical typed
+  ///                 entitlement denial. What every existing row means today.
+  ///   true          GRANTED, and only while the contract is ACTIVE:
+  ///                 `resolveEnterpriseContractLimits` fails closed on status
+  ///                 before this is read, so DRAFT / PENDING_ACTIVATION /
+  ///                 SUSPENDED / TERMINATED grant nothing.
+  ///
+  /// Governs ADMISSION to creating a NEW hold and nothing else. An ACTIVE hold
+  /// keeps protecting its evidence through downgrade, expiry, entitlement
+  /// removal and suspension; only the authorized Legal Hold lifecycle releases
+  /// it.
+  legalHoldEnabled             Boolean?            @map("legal_hold_enabled")
   region                  String?                  @db.VarChar(40)
   planVersion             String?                  @map("plan_version") @db.VarChar(40)
   billingCustomerRef      String?                  @map("billing_customer_ref") @db.VarChar(200)

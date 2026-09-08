@@ -139,7 +139,6 @@ export const DEFAULT_ENTITLEMENTS: Record<
   QUOTA_WEBHOOK_DELIVERIES_PER_DAY: { kind: "QUOTA", value: 0 },
   QUOTA_EXPORT_PACKAGES_PER_MONTH: { kind: "QUOTA", value: 2 },
   RETENTION_MAX_YEARS: { kind: "LIMIT", value: 1 },
-  LEGAL_HOLD_MAX_ACTIVE: { kind: "LIMIT", value: 0 },
   INTEGRATION_API_KEYS_MAX: { kind: "LIMIT", value: 1 },
   INTEGRATION_WEBHOOK_ENDPOINTS_MAX: { kind: "LIMIT", value: 0 },
 };
@@ -166,14 +165,21 @@ export const PLAN_LINE_ENTITLEMENTS: Record<
     FEATURE_EVIDENCE_EXCHANGE: true,
     FEATURE_WEBHOOKS: true,
     FEATURE_CHAIN_TRANSFER: true,
-    FEATURE_LEGAL_HOLD: true,
+    // FEATURE_LEGAL_HOLD is NOT granted by a product line (2026-09-08).
+    //
+    // Legal Hold is an ENTERPRISE capability whose availability is decided by
+    // the Enterprise CONTRACT, and `applyProductLine` is not the contract.
+    // Granting it here let a non-Enterprise workspace hold the capability
+    // because someone applied the INVESTIGATIONS line to it — a second
+    // commercial authority answering a question the contract already owns.
+    // `resolveEntitlement` now derives this key from plan + contract and
+    // ignores stored grants for it entirely.
     FEATURE_ARCHIVE_TIERS: true,
     FEATURE_LIFECYCLE_DASHBOARD: true,
     QUOTA_API_REQUESTS_PER_DAY: 100_000,
     QUOTA_WEBHOOK_DELIVERIES_PER_DAY: 10_000,
     QUOTA_EXPORT_PACKAGES_PER_MONTH: 250,
     RETENTION_MAX_YEARS: 7,
-    LEGAL_HOLD_MAX_ACTIVE: 25,
     INTEGRATION_API_KEYS_MAX: 10,
     INTEGRATION_WEBHOOK_ENDPOINTS_MAX: 10,
   },
@@ -184,7 +190,10 @@ export const PLAN_LINE_ENTITLEMENTS: Record<
     FEATURE_EVIDENCE_EXCHANGE: true,
     FEATURE_WEBHOOKS: true,
     FEATURE_CHAIN_TRANSFER: true,
-    FEATURE_LEGAL_HOLD: true,
+    // Not here either — see the INVESTIGATIONS note. Even on the ENTERPRISE
+    // line the grant would be a SECOND source of truth beside the contract,
+    // and the two could disagree the moment a contract lapsed while the grant
+    // row remained.
     FEATURE_ARCHIVE_TIERS: true,
     FEATURE_DESTRUCTION_GOVERNANCE: true,
     FEATURE_LIFECYCLE_DASHBOARD: true,
@@ -195,7 +204,6 @@ export const PLAN_LINE_ENTITLEMENTS: Record<
     QUOTA_WEBHOOK_DELIVERIES_PER_DAY: 1_000_000,
     QUOTA_EXPORT_PACKAGES_PER_MONTH: 10_000,
     RETENTION_MAX_YEARS: 25,
-    LEGAL_HOLD_MAX_ACTIVE: 1_000,
     INTEGRATION_API_KEYS_MAX: 100,
     INTEGRATION_WEBHOOK_ENDPOINTS_MAX: 100,
   },
@@ -286,12 +294,117 @@ function isExpired(row: GrantRow, now: Date = new Date()): boolean {
 // resolveEntitlement
 // ===========================================================================
 
+/**
+ * ===========================================================================
+ * LEGAL HOLD — THE ONE EFFECTIVE COMMERCIAL ANSWER.
+ * ===========================================================================
+ * Legal Hold is an ENTERPRISE governance capability whose availability is
+ * CONTRACT-DRIVEN. Enterprise plan eligibility is not runtime authorization:
+ * the catalog says the capability may be sold, the contract says whether THIS
+ * customer bought it.
+ *
+ *     ENTERPRISE plan          — eligibility, necessary and not sufficient
+ *         ↓
+ *     ACTIVE Enterprise contract that states the term
+ *         ↓
+ *     FEATURE_LEGAL_HOLD       — the effective entitlement routes consume
+ *
+ * WHY THIS IS RESOLVED HERE AND NOT AT THE CALL SITES. Every consumer already
+ * reads this key through `resolveEntitlement` — the two lifecycle routes, the
+ * two governance routes, `capability-status.service` and the UI projection it
+ * feeds. Deriving the answer here means all of them get the SAME answer and
+ * none of them can hold an opinion of its own. A helper the routes had to
+ * remember to call would have been a second authority the day someone forgot.
+ *
+ * WHY THE STORED GRANT NO LONGER DECIDES IT. `EntitlementGrant` rows are
+ * written by `applyProductLine`, which is not the Enterprise contract. Leaving
+ * both live would mean a non-Enterprise workspace could hold Legal Hold via a
+ * product line while the contract said nothing — two authorities disagreeing
+ * about one commercial question, which is the defect this whole area exists to
+ * remove. `FEATURE_LEGAL_HOLD` is therefore removed from the product-line
+ * matrix, and this function is the only thing that answers for the key.
+ *
+ * FAIL CLOSED at every step: no workspace, no plan, wrong plan, no contract,
+ * non-ACTIVE contract, silent contract, or an engine failure all resolve to
+ * NOT ENTITLED. Nothing here reads or mutates a hold — see the note on
+ * admission below.
+ */
+async function resolveLegalHoldEntitlement(
+  prisma: PrismaClient,
+  teamId: string,
+): Promise<EntitlementProjection> {
+  const notEntitled: EntitlementProjection = {
+    key: "FEATURE_LEGAL_HOLD",
+    kind: "FEATURE",
+    value: false,
+    source: "DEFAULT",
+    updatedAtUtc: new Date(0).toISOString(),
+    expiresAtUtc: null,
+  };
+  try {
+    const workspace = await prisma.team.findUnique({
+      where: { id: teamId },
+      select: { ownerUserId: true },
+    });
+    if (!workspace) return notEntitled;
+
+    const { resolveCommercialContext } = await import(
+      "../billing/commercial-context.service.js"
+    );
+    const ctx = await resolveCommercialContext({
+      type: "WORKSPACE",
+      teamId,
+      requesterUserId: workspace.ownerUserId,
+    });
+    // ELIGIBILITY. FREE / PAYG / PRO / TEAM do not sell Legal Hold at all, so
+    // no contract term could apply to them.
+    if (ctx.plan !== "ENTERPRISE") return notEntitled;
+
+    const { resolveEnterpriseContractLimits } = await import(
+      "../billing/enterprise-contract-limits.js"
+    );
+    // ACTIVATION. `resolveEnterpriseContractLimits` fails closed on status
+    // before it reads the term, so DRAFT / PENDING_ACTIVATION / SUSPENDED /
+    // TERMINATED grant nothing — an expired or suspended agreement stops NEW
+    // holds with no extra logic here.
+    const limits = resolveEnterpriseContractLimits(ctx.enterpriseContract);
+    if (!limits.legalHoldEnabled) return notEntitled;
+
+    return {
+      key: "FEATURE_LEGAL_HOLD",
+      kind: "FEATURE",
+      value: true,
+      // The grant comes from the contract, and the projection says so rather
+      // than claiming a stored PLAN grant that does not exist.
+      source: "CUSTOM",
+      updatedAtUtc: new Date(0).toISOString(),
+      expiresAtUtc: null,
+    };
+  } catch {
+    // A commercial engine that cannot answer has not said yes.
+    return notEntitled;
+  }
+}
+
 export async function resolveEntitlement(input: {
   prisma?: PrismaClient;
   teamId: string;
   key: EntitlementKey;
 }): Promise<EntitlementProjection> {
   const prisma = input.prisma ?? defaultPrisma;
+  /**
+   * Legal Hold answers from the contract, never from a stored grant row.
+   *
+   * This governs ADMISSION to creating a NEW hold and nothing else. An ACTIVE
+   * hold placed under any past commercial state keeps protecting its evidence
+   * through downgrade, contract expiry, entitlement removal and billing
+   * suspension: the destruction formula consults hold rows and takes no
+   * commercial input, and release runs through the Legal Hold lifecycle
+   * authority. Losing entitlement must never make evidence destructible.
+   */
+  if (input.key === "FEATURE_LEGAL_HOLD") {
+    return resolveLegalHoldEntitlement(prisma, input.teamId);
+  }
   try {
     const row = (await prisma.entitlementGrant.findUnique({
       where: { teamId_key: { teamId: input.teamId, key: input.key } },

@@ -111,7 +111,16 @@ export const ENTITLEMENT_KEYS = [
   'QUOTA_WEBHOOK_DELIVERIES_PER_DAY',
   'QUOTA_EXPORT_PACKAGES_PER_MONTH',
   'RETENTION_MAX_YEARS',
-  'LEGAL_HOLD_MAX_ACTIVE',
+  // LEGAL_HOLD_MAX_ACTIVE retired 2026-09-08 — an invented numeric ceiling.
+  //
+  // Its three values were 0 unprovisioned, 25 on INVESTIGATIONS and 1000 on
+  // ENTERPRISE, and not one of them was ever a contract term. The default of 0
+  // would have refused every workspace the Enterprise contract had just
+  // entitled, so the gate could only ever be wrong in one direction or the
+  // other. Legal Hold admission is a CAPABILITY question, answered by
+  // FEATURE_LEGAL_HOLD from plan + ACTIVE Enterprise contract. If a contracted
+  // ceiling is ever sold it belongs on the contract beside seats and storage,
+  // resolved by the same authority — not as a catalog constant here.
   'INTEGRATION_API_KEYS_MAX',
   'INTEGRATION_WEBHOOK_ENDPOINTS_MAX',
 ] as const;

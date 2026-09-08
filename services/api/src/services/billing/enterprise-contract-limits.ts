@@ -57,6 +57,20 @@ export type EnterpriseContractLimits = {
   collaborationTeams: number | null;
   collaborationTeamMembers: number | null;
   /**
+   * LEGAL HOLD — a contracted CAPABILITY, and the one field here that is not
+   * nullable.
+   *
+   * Every number above uses `null` for "the contract is silent, so the
+   * catalog default governs". A capability has no safe default, so silence is
+   * resolved HERE, once, to `false` — and every consumer reads a plain
+   * boolean rather than deciding for itself what a null grant means. That is
+   * the difference between one authority and several.
+   *
+   * `false` whenever the contract is absent, non-ACTIVE, silent, or
+   * explicitly does not grant it.
+   */
+  legalHoldEnabled: boolean;
+  /**
    * True when this projection came from the legacy fallback rather than a real
    * contract row. Surfaces are required to say "Contract-managed — contact
    * your account manager" instead of publishing a number derived from a guess.
@@ -80,6 +94,10 @@ export const NO_CONTRACT_LIMITS: EnterpriseContractLimits = {
   aiOperationsPerMonth: null,
   collaborationTeams: null,
   collaborationTeamMembers: null,
+  // No contract, no capability. This constant is also what a DRAFT, SUSPENDED
+  // or TERMINATED contract resolves to, so a lapsed agreement stops admitting
+  // NEW holds without any status logic at the call sites.
+  legalHoldEnabled: false,
   legacyDerived: false,
 };
 
@@ -124,6 +142,8 @@ export function resolveEnterpriseContractLimits(
     aiOperationsPerMonth: positiveOrNull(contract.aiOperationsPerMonth),
     collaborationTeams: positiveOrNull(contract.collaborationTeamsMax),
     collaborationTeamMembers: positiveOrNull(contract.collaborationTeamMembersMax),
+    // Silence is NOT a grant: only an explicit true grants the capability.
+    legalHoldEnabled: contract.legalHoldEnabled === true,
     legacyDerived: contract.legacyDerived,
   };
 }

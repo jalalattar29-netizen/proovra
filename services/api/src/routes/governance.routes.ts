@@ -68,6 +68,7 @@ import {
   reconcileRetention,
 } from "../services/governance/retention-sweeper.service.js";
 // Phase 19 — sensitive governance routes require step-up.
+import { assertFeatureEntitlement } from "../services/packaging/entitlement.service.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 
 const ParamsId = z.object({ id: z.string().uuid() });
@@ -426,6 +427,31 @@ export async function governanceRoutes(app: FastifyInstance) {
       const ok = await requireMember(req, reply, body.teamId, "governance.legal_hold.manage");
       if (!ok) return;
 
+      /*
+       * THE COMMERCIAL GATE THIS ROUTE NEVER HAD (2026-09-08).
+       *
+       * `POST /v1/lifecycle/legal-holds` asked whether the workspace is
+       * entitled to Legal Hold. This route reaches the SAME canonical writer
+       * (`placeCanonicalLegalHold`) and asked nothing, so whatever the
+       * commercial answer was, a caller who came through here never heard it.
+       * Permission and step-up are not commercial authority: they establish
+       * that the actor may act, not that the workspace bought the capability.
+       *
+       * `FEATURE_LEGAL_HOLD` resolves from ENTERPRISE plan + ACTIVE Enterprise
+       * contract — one authority, the same one the lifecycle route and the UI
+       * projection read. It gates CREATION only; an existing hold is untouched
+       * by any commercial state.
+       */
+      const entitled = await assertFeatureEntitlement({
+        teamId: body.teamId,
+        key: "FEATURE_LEGAL_HOLD",
+      });
+      if (!entitled.ok) {
+        return reply
+          .code(403)
+          .send({ denial: "ENTITLEMENT_REQUIRED", key: "FEATURE_LEGAL_HOLD" });
+      }
+
       // Step-up is TARGET-BOUND: the challenge is spent against this exact
       // evidence id, so an elevation obtained for another record cannot place
       // a hold here.
@@ -600,6 +626,22 @@ export async function governanceRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ok = await requireMember(req, reply, body.teamId, "governance.legal_hold.manage");
       if (!ok) return;
+
+      /*
+       * Same commercial gate as the evidence-scoped route above, for the same
+       * reason: a CASE hold is placed by the same canonical writer and is
+       * exactly as much a Legal Hold. Gating one scope and not the other would
+       * leave the capability purchasable through a different request body.
+       */
+      const entitled = await assertFeatureEntitlement({
+        teamId: body.teamId,
+        key: "FEATURE_LEGAL_HOLD",
+      });
+      if (!entitled.ok) {
+        return reply
+          .code(403)
+          .send({ denial: "ENTITLEMENT_REQUIRED", key: "FEATURE_LEGAL_HOLD" });
+      }
 
       // Placing a CASE hold is exactly as custody-relevant as an evidence
       // hold, so it carries the SAME step-up purpose, bound to the case id.
