@@ -552,7 +552,37 @@ export async function opsRoutes(app: FastifyInstance) {
     "/v1/ops/health",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const q = TeamIdQuery.parse(req.query ?? {});
+      /*
+       * safeParse, AND THE ROUTE'S OWN REFUSAL.
+       *
+       * This was `TeamIdQuery.parse(req.query ?? {})`. A raw throw is caught
+       * by the central handler, which turns it into a bounded generic
+       * `INVALID_INPUT` carrying a truncated Zod field summary — so the caller
+       * was told "teamId — Invalid input: expected string, received undefined",
+       * a description of the SCHEMA rather than of what they should do.
+       *
+       * The Phase-O pass moved three sibling routes onto the route-specific
+       * refusal — `/v1/ops/metrics`, `/v1/reviewer-ops/queue`,
+       * `/v1/reviewer-ops/console` all answer `INVALID_QUERY` with an
+       * operator-facing sentence — and did not reach this one. An operator
+       * reading a health endpoint mid-incident is the last person who should
+       * have to translate a validator's vocabulary.
+       *
+       * NOTHING ABOUT AUTHORIZATION CHANGES HERE. `requireOpsActor` runs on
+       * exactly the same value, in the same place, and the route still answers
+       * only for a workspace the caller is an active member of.
+       */
+      const parsed = TeamIdQuery.safeParse(req.query ?? {});
+      if (!parsed.success) {
+        return reply.code(400).send({
+          error: {
+            code: "INVALID_QUERY",
+            message: "Name the workspace to report health for (teamId).",
+            requestId: req.id,
+          },
+        });
+      }
+      const q = parsed.data;
       const actor = await requireOpsActor(req, reply, q.teamId);
       if (!actor) return;
       let dbOk = true;

@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "lib": [
+      "DOM",
+      "DOM.Iterable",
+      "ES2022"
+    ],
     "allowJs": false,
     "skipLibCheck": true,
     "strict": true,
@@ -14,9 +18,13 @@
     "jsx": "preserve",
     "incremental": true,
     "isolatedModules": true,
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "paths": {
-      "@proovra/ui": ["../../packages/ui/src/index.ts"]
+      "@proovra/ui": [
+        "../../packages/ui/src/index.ts"
+      ]
     },
     "plugins": [
       {
@@ -25,11 +33,17 @@
     ]
   },
   "include": [
-    "next-env.d.ts",
+    "**/*.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    "**/*.d.ts",
-    ".next/types/**/*.ts"
+    ".next/types/**/*.ts",
+    "next-env.d.ts",
+    "node_modules/.cache/admin-fixture-next/types/**/*.ts"
   ],
-  "exclude": ["node_modules", "e2e", "playwright.config.ts", "playwright-report"]
+  "exclude": [
+    "node_modules",
+    "e2e",
+    "playwright.config.ts",
+    "playwright-report"
+  ]
 }
