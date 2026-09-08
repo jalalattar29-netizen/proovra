@@ -244,7 +244,15 @@ function MembersTab({
             data-at-capacity={atCapacity ? "true" : "false"}
             aria-expanded={addingMember}
           >
-            Add member
+            {/*
+              "Add member" was ambiguous on this page (§15.8): the identical
+              words on Members & Access mean "invite a person to the
+              WORKSPACE". Here they mean "pick someone who is already a member
+              and put them on this team" — a different operation entirely, and
+              the one that never sends an invitation. Naming the source of the
+              choices removes the ambiguity without a tooltip.
+            */}
+            Add workspace members
           </button>
         ) : null}
       </div>
@@ -335,8 +343,16 @@ function MembersTab({
             </span>
             <strong>No members yet</strong>
             <p>
-              Invite people to collaborate on this team&rsquo;s work,
-              assignments, and activity.
+              {/*
+                §15.9 — the empty state teaches the architecture rather than
+                describing a button. It said "Invite people", which names the
+                WORKSPACE invitation operation this surface does not perform
+                and must never grow: a Collaboration Team draws from existing
+                workspace membership, and someone who is not a member yet
+                becomes eligible by being invited to the workspace first.
+              */}
+              Add existing workspace members to this team, then assign cases,
+              evidence and review work to the group.
             </p>
           </div>
         ) : (
@@ -521,11 +537,27 @@ function MemberRow({
   };
 
   const onRemove = async () => {
+    /*
+     * REMOVE FROM TEAM IS NOT REMOVE FROM WORKSPACE (§15.11).
+     *
+     * These are different operations with very different blast radii, and the
+     * wording used to leave the scope to be inferred: "Remove {name}?" with
+     * "Remove member" on a destructive button, on a page about a team, could
+     * reasonably be read as revoking workspace access. A team operator must
+     * not be able to end someone's access to the workspace while intending
+     * only to take them off a group.
+     *
+     * So the title names the scope, the description says what is NOT affected,
+     * and the button repeats the scope rather than the object. Workspace
+     * removal stays where it belongs — a Members & Access governance action.
+     */
     const ok = await confirm({
-      title: `Remove ${displayName}?`,
+      title: `Remove ${displayName} from this team?`,
       description:
-        "They will lose access to this team's work, assignments, and activity.",
-      confirmLabel: "Remove member",
+        "They stop being responsible for this team's assignments, work and activity. " +
+        "Their workspace access, role and evidence are unaffected — this only removes " +
+        "them from this Collaboration Team.",
+      confirmLabel: "Remove from team",
       tone: "danger",
     });
     if (!ok) return;
@@ -636,10 +668,12 @@ function MemberRow({
                 title={
                   isLastLead
                     ? "Cannot remove the last LEAD."
-                    : "Remove member"
+                    // Scope, not object. Workspace removal is a Members &
+                    // Access governance action and never happens from here.
+                    : "Remove from this team (workspace access is unaffected)"
                 }
               >
-                Remove
+                Remove from team
               </button>
             </>
           ) : (

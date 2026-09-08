@@ -187,6 +187,34 @@ const INVITE_ROLE_OPTIONS = ["ADMIN", "MEMBER", "VIEWER"] as const;
  */
 const ROLE_OPTIONS = MANAGEABLE_ROLE_OPTIONS;
 
+/**
+ * WORKSPACE role labels — DISPLAY ONLY (§15.12, §15.33).
+ *
+ * The selector offered raw enum values: ADMIN, MEMBER, VIEWER. Those are the
+ * wire vocabulary, not product language, and shouting them at an operator in a
+ * control that decides someone's access is the kind of detail that makes a
+ * governance surface read like a database console.
+ *
+ * The VALUE stays the enum — the API contract is untouched, and other surfaces
+ * compare against the raw string — so this changes what a person reads and
+ * nothing about what is sent.
+ *
+ * The help line names the SCOPE, which is the distinction §15.12 exists for: a
+ * WORKSPACE role governs access across the whole workspace, while a
+ * Collaboration Team role governs responsibility inside one group. Two
+ * different questions, and the same four words could otherwise answer either.
+ */
+const WORKSPACE_ROLE_LABEL: Record<string, string> = {
+  OWNER: "Owner",
+  ADMIN: "Admin",
+  MEMBER: "Member",
+  VIEWER: "Viewer",
+};
+
+function workspaceRoleLabel(role: string): string {
+  return WORKSPACE_ROLE_LABEL[role] ?? role;
+}
+
 /** A person's display name, never falling back to a raw id in the primary slot. */
 function memberLabel(member: {
   user?: { displayName?: string | null; email?: string | null } | null;
@@ -1352,7 +1380,7 @@ function TeamDetailPageBody() {
                                 value={member.role}
                                 options={ROLE_OPTIONS.map((r) => ({
                                   value: r,
-                                  label: r,
+                                  label: workspaceRoleLabel(r),
                                 }))}
                                 onChange={(next) =>
                                   void handleRoleChange(
@@ -1360,7 +1388,7 @@ function TeamDetailPageBody() {
                                     next as (typeof MANAGEABLE_ROLE_OPTIONS)[number],
                                   )
                                 }
-                                ariaLabel={`Role for ${label}`}
+                                ariaLabel={`Workspace role for ${label}`}
                                 id={`member-role-${member.id ?? member.userId}`}
                                 disabled={
                                   roleSavingKey === (member.id ?? member.userId)
@@ -1852,22 +1880,24 @@ function TeamDetailPageBody() {
             </div>
             <div>
               <label className="app-field-label" htmlFor="people-invite-role">
-                Role
+                Workspace role
               </label>
               <AppListbox
                 value={inviteRole}
                 options={INVITE_ROLE_OPTIONS.map((r) => ({
                   value: r,
-                  label: r,
+                  label: workspaceRoleLabel(r),
                 }))}
                 onChange={(v) =>
                   setInviteRole(v as (typeof INVITE_ROLE_OPTIONS)[number])
                 }
-                ariaLabel="Role"
+                ariaLabel="Workspace role"
                 id="people-invite-role"
               />
               <p className="app-field__help">
-                Ownership is not granted by invitation — it moves by transfer.
+                Access across this whole workspace. Roles inside a Collaboration
+                Team are separate. Ownership is not granted by invitation — it
+                moves by transfer.
               </p>
             </div>
           </div>
