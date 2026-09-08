@@ -49,6 +49,9 @@ const ROUTES = codeOnly(read("routes/collaboration-teams.routes.ts"));
 const AUTHZ = codeOnly(
   read("services/collaboration-team/collaboration-authorization.ts"),
 );
+const COMPLETION = codeOnly(
+  read("routes/collaboration-completion.routes.ts"),
+);
 const SERVICE = codeOnly(
   read("services/collaboration-team/collaboration-team.service.ts"),
 );
@@ -65,10 +68,62 @@ describe("collaboration team domain errors use the canonical envelope", () => {
     );
   });
 
-  it("never sends `error` as a bare string from this router", () => {
-    // The exact shape that made the client take its legacy branch.
-    expect(ROUTES).not.toMatch(/error:\s*err\.code\b/);
-    expect(ROUTES).not.toMatch(/error:\s*"internal_error"/);
+  it("never sends `error` as a bare string from EITHER collaboration router", () => {
+    /*
+     * The first pass at this fixed only the two sites it had traced, and a
+     * later audit found seven more across both routers — a retired-invite 410,
+     * an auth 401, two query-validation 400s, an internal 500, and both
+     * billing guards. Every one of them made the web client take its legacy
+     * branch and throw a plain Error instead of an ApiError.
+     *
+     * The rule is now the SHAPE, not a list of line numbers: `error` is an
+     * object in this domain, never a string. That is what makes the whole
+     * family un-regressable rather than nine individually patched sites.
+     */
+    for (const [name, source] of [
+      ["collaboration-teams.routes.ts", ROUTES],
+      ["collaboration-completion.routes.ts", COMPLETION],
+    ] as const) {
+      const stringErrors = [...source.matchAll(/error:\s*("(?!\s)[^"]*"|err\.code\b)/g)];
+      expect(
+        stringErrors.map((m) => m[0]),
+        `${name} still sends \`error\` as a string`,
+      ).toEqual([]);
+    }
+  });
+
+  it("never puts `message` outside the error object", () => {
+    // `{ error: { code }, message }` — the archived guard's original defect,
+    // which also survived in two retirement stubs. The client reads the
+    // message from `body.error.message` and substitutes `HTTP nnn: API error`
+    // when it is not there.
+    for (const [name, source] of [
+      ["collaboration-teams.routes.ts", ROUTES],
+      ["collaboration-completion.routes.ts", COMPLETION],
+    ] as const) {
+      expect(
+        source,
+        `${name} closes an error object and then adds a sibling message`,
+      ).not.toMatch(/error:\s*\{[^{}]*\}\s*,\s*\n\s*message:/);
+    }
+  });
+
+  it("billing guards use the canonical envelope too", () => {
+    // Both were flat/legacy. They rendered correctly only because the client's
+    // legacy branch recovers a top-level code and the limit codes happen to be
+    // mapped — luck, not contract.
+    for (const [name, source] of [
+      ["collaboration-teams.routes.ts", ROUTES],
+      ["collaboration-completion.routes.ts", COMPLETION],
+    ] as const) {
+      const guard = source.slice(
+        source.indexOf("err instanceof BillingLimitError"),
+        source.indexOf("err instanceof BillingLimitError") + 600,
+      );
+      expect(guard, `${name} billing guard`).toMatch(
+        /error:\s*\{\s*code:\s*err\.code,\s*message:\s*err\.message,\s*requestId,/,
+      );
+    }
   });
 
   it("puts the archived-lifecycle message INSIDE error, where the client reads it", () => {

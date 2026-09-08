@@ -41,10 +41,22 @@ function handleError(
   requestId: string | null,
 ): void {
   if (err instanceof CollaborationTeamError) {
+    /*
+     * THE SAME CANONICAL ENVELOPE AS THE TEAMS ROUTER.
+     *
+     * This sent `error` as a STRING, so every domain refusal from comments,
+     * guests and access reviews — archived-team conflicts included — took the
+     * web client's legacy branch and arrived as a plain Error rather than an
+     * ApiError. The teams router's identical defect was fixed first; this one
+     * was missed because the two handlers are separate functions with the same
+     * job, which is exactly how a shape drifts back.
+     */
     void reply.code(err.httpStatus).send({
-      error: err.code,
-      message: err.message,
-      requestId,
+      error: {
+        code: err.code,
+        message: err.message,
+        requestId,
+      },
     });
     return;
   }
@@ -53,19 +65,24 @@ function handleError(
   // branch a plan/capacity denial surfaced as an opaque 500 and the
   // surface could not tell "not included" from "something broke".
   if (err instanceof BillingLimitError) {
+    // Canonical envelope; the commercial extras keep their existing names.
     void reply.code(err.httpStatus).send({
-      error: err.code,
-      message: err.message,
+      error: {
+        code: err.code,
+        message: err.message,
+        requestId,
+      },
       upgradeCta: err.upgradeCta,
       details: err.details,
-      requestId,
     });
     return;
   }
   void reply.code(500).send({
-    error: "internal_error",
-    message: "Something went wrong.",
-    requestId,
+    error: {
+      code: "internal_error",
+      message: "Something went wrong.",
+      requestId,
+    },
   });
 }
 
@@ -184,7 +201,13 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
         if (!parsed.success)
           return reply
             .code(400)
-            .send({ error: "invalid_body", message: parsed.error.message });
+            .send({
+              error: {
+                code: "invalid_body",
+                message: parsed.error.message,
+                requestId: req.id ?? null,
+              },
+            });
         try {
           const result = await createComment({
             teamId: req.params.teamId,
@@ -232,7 +255,13 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
         if (!parsed.success)
           return reply
             .code(400)
-            .send({ error: "invalid_body", message: parsed.error.message });
+            .send({
+              error: {
+                code: "invalid_body",
+                message: parsed.error.message,
+                requestId: req.id ?? null,
+              },
+            });
         try {
           await editComment({
             teamId: req.params.teamId,
@@ -318,9 +347,18 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
 
   const notificationsRetired = (reply: FastifyReply) =>
     reply.code(410).send({
-      error: { code: "COLLABORATION_TEAM_NOTIFICATIONS_RETIRED" },
-      message:
-        "Team notifications are in your Inbox. This surface was a second view of the same rows and has been retired.",
+      /*
+       * The message belongs INSIDE `error` — it sat beside it, where the web
+       * client does not look, so this 410 arrived as "HTTP 410: API error" and
+       * the pointer to where the data went was lost. `requestId` is omitted
+       * rather than faked: this helper takes only `reply`, and the client
+       * falls back to the `x-request-id` response header.
+       */
+      error: {
+        code: "COLLABORATION_TEAM_NOTIFICATIONS_RETIRED",
+        message:
+          "Team notifications are in your Inbox. This surface was a second view of the same rows and has been retired.",
+      },
       canonical: "/v1/me/inbox",
     });
 
@@ -357,9 +395,12 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
 
   const preferencesRetired = (reply: FastifyReply) =>
     reply.code(410).send({
-      error: { code: "COLLABORATION_TEAM_PREFERENCES_RETIRED" },
-      message:
-        "Notification preferences live in Settings. Per-team preferences were a third store with no stated precedence and have been retired.",
+      // Same correction as the notifications stub above.
+      error: {
+        code: "COLLABORATION_TEAM_PREFERENCES_RETIRED",
+        message:
+          "Notification preferences live in Settings. Per-team preferences were a third store with no stated precedence and have been retired.",
+      },
       canonical: "/settings/notifications",
     });
 
@@ -431,7 +472,13 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
         if (!parsed.success)
           return reply
             .code(400)
-            .send({ error: "invalid_body", message: parsed.error.message });
+            .send({
+              error: {
+                code: "invalid_body",
+                message: parsed.error.message,
+                requestId: req.id ?? null,
+              },
+            });
         try {
           const result = await inviteGuest({
             teamId: req.params.teamId,
@@ -544,7 +591,13 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
         if (!parsed.success)
           return reply
             .code(400)
-            .send({ error: "invalid_body", message: parsed.error.message });
+            .send({
+              error: {
+                code: "invalid_body",
+                message: parsed.error.message,
+                requestId: req.id ?? null,
+              },
+            });
         try {
           const result = await openAccessReview({
             teamId: req.params.teamId,
@@ -587,7 +640,13 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
         if (!parsed.success)
           return reply
             .code(400)
-            .send({ error: "invalid_body", message: parsed.error.message });
+            .send({
+              error: {
+                code: "invalid_body",
+                message: parsed.error.message,
+                requestId: req.id ?? null,
+              },
+            });
         try {
           await decideAccessReviewItem({
             teamId: req.params.teamId,

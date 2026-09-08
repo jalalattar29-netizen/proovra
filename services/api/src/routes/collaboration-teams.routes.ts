@@ -95,12 +95,24 @@ function handleBillingError(
   requestId: string | null,
 ): boolean {
   if (err instanceof BillingLimitError) {
+    /*
+     * THE CANONICAL ENVELOPE, WITH THE COMMERCIAL EXTRAS BESIDE IT.
+     *
+     * This was flat — `{ code, message, details, upgradeHref, requestId }` —
+     * with no `error` key, so the web client took its legacy branch and threw
+     * a plain Error. It happened to still render correctly, because the legacy
+     * branch recovers a top-level `code` and TEAM_MEMBER_LIMIT_REACHED is in
+     * the safe-error map; that is luck, not contract. `upgradeHref` and
+     * `details` stay where consumers already read them.
+     */
     void reply.code(err.httpStatus).send({
-      code: err.code,
-      message: err.message,
+      error: {
+        code: err.code,
+        message: err.message,
+        requestId,
+      },
       details: err.details,
       upgradeHref: err.upgradeCta,
-      requestId,
     });
     return true;
   }
@@ -448,7 +460,13 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
       if (!parsed.success)
         return reply
           .code(400)
-          .send({ error: "invalid_body", message: parsed.error.message });
+          .send({
+              error: {
+                code: "invalid_body",
+                message: parsed.error.message,
+                requestId: req.id ?? null,
+              },
+            });
       try {
         // Phase 10 — billing guards (pre-mutation).
         await assertSubscriptionActiveOrGraceAllowed({ workspaceId: ctx.workspaceId });
@@ -551,7 +569,13 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
         if (!parsed.success)
           return reply
             .code(400)
-            .send({ error: "invalid_body", message: parsed.error.message });
+            .send({
+              error: {
+                code: "invalid_body",
+                message: parsed.error.message,
+                requestId: req.id ?? null,
+              },
+            });
         try {
           // Phase 10 — billing write-gate (no quota for plain updates).
           await assertSubscriptionActiveOrGraceAllowed({ workspaceId: ctx.workspaceId });
@@ -858,7 +882,13 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
         if (!parsed.success) {
           return reply
             .code(400)
-            .send({ error: "invalid_body", message: parsed.error.message });
+            .send({
+              error: {
+                code: "invalid_body",
+                message: parsed.error.message,
+                requestId: req.id ?? null,
+              },
+            });
         }
         try {
           await assertSubscriptionActiveOrGraceAllowed({
@@ -940,7 +970,13 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
         if (!parsed.success)
           return reply
             .code(400)
-            .send({ error: "invalid_body", message: parsed.error.message });
+            .send({
+              error: {
+                code: "invalid_body",
+                message: parsed.error.message,
+                requestId: req.id ?? null,
+              },
+            });
         try {
           // Phase 10 — billing guards (pre-mutation).
           await assertSubscriptionActiveOrGraceAllowed({ workspaceId: ctx.workspaceId });
@@ -997,7 +1033,13 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
         if (!parsed.success)
           return reply
             .code(400)
-            .send({ error: "invalid_body", message: parsed.error.message });
+            .send({
+              error: {
+                code: "invalid_body",
+                message: parsed.error.message,
+                requestId: req.id ?? null,
+              },
+            });
         try {
           // Phase 10 — billing write-gate (no quota for role/status changes).
           await assertSubscriptionActiveOrGraceAllowed({ workspaceId: ctx.workspaceId });
@@ -1184,10 +1226,12 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           requestId: req.id ?? null,
         });
         return reply.code(410).send({
-          code: "COLLABORATION_TEAM_INVITE_RETIRED",
-          error: "COLLABORATION_TEAM_INVITE_RETIRED",
-          message:
-            "Teams are made from people who are already in this workspace. Invite them to the workspace first, then add them to the team.",
+          error: {
+            code: "COLLABORATION_TEAM_INVITE_RETIRED",
+            message:
+              "Teams are made from people who are already in this workspace. Invite them to the workspace first, then add them to the team.",
+            requestId: req.id ?? null,
+          },
           nextSteps: {
             inviteToWorkspace: "/v1/teams/{workspaceId}/invites",
             addExistingMember:
@@ -1276,7 +1320,13 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
       {
         const userId = await getAuthUserId(req);
         if (!userId)
-          return reply.code(401).send({ error: "auth_required" });
+          return reply.code(401).send({
+            error: {
+              code: "auth_required",
+              message: "Sign in to accept this invitation.",
+              requestId: req.id ?? null,
+            },
+          });
         try {
           // No subscription gate here: acceptance is by the invitee,
           // not the team owner. The owner's plan controls the per-team
@@ -1333,7 +1383,13 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
         if (!parsed.success) {
           return reply
             .code(400)
-            .send({ error: "invalid_body", message: "A token is required." });
+            .send({
+              error: {
+                code: "invalid_body",
+                message: "A token is required.",
+                requestId: req.id ?? null,
+              },
+            });
         }
         return acceptInviteHandler(req, reply, parsed.data.token);
       },
@@ -1416,9 +1472,13 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           .enum(["CASE", "EVIDENCE", "REVIEW"])
           .safeParse(q.type);
         if (!parsed.success) {
-          return reply
-            .code(400)
-            .send({ error: "invalid_query", message: "type must be CASE, EVIDENCE or REVIEW." });
+          return reply.code(400).send({
+            error: {
+              code: "invalid_query",
+              message: "type must be CASE, EVIDENCE or REVIEW.",
+              requestId: req.id ?? null,
+            },
+          });
         }
         try {
           const res = await listAssignableTargets({
@@ -1510,9 +1570,12 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           .safeParse({ targetType: q.targetType, targetId: q.targetId });
         if (!parsed.success) {
           return reply.code(400).send({
-            error: "invalid_query",
-            message:
-              "targetType must be CASE, EVIDENCE or REVIEW and targetId must be a uuid.",
+            error: {
+              code: "invalid_query",
+              message:
+                "targetType must be CASE, EVIDENCE or REVIEW and targetId must be a uuid.",
+              requestId: req.id ?? null,
+            },
           });
         }
         try {
@@ -1734,7 +1797,13 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
         if (!parsed.success)
           return reply
             .code(400)
-            .send({ error: "invalid_body", message: parsed.error.message });
+            .send({
+              error: {
+                code: "invalid_body",
+                message: parsed.error.message,
+                requestId: req.id ?? null,
+              },
+            });
         try {
           // Phase 10 — billing write-gate.
           await assertSubscriptionActiveOrGraceAllowed({ workspaceId: ctx.workspaceId });
@@ -1798,7 +1867,13 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
         if (!parsed.success)
           return reply
             .code(400)
-            .send({ error: "invalid_body", message: parsed.error.message });
+            .send({
+              error: {
+                code: "invalid_body",
+                message: parsed.error.message,
+                requestId: req.id ?? null,
+              },
+            });
         try {
           // Phase 10 — billing write-gate.
           await assertSubscriptionActiveOrGraceAllowed({ workspaceId: ctx.workspaceId });
