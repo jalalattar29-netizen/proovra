@@ -291,3 +291,53 @@ test("every navigation entry that names a routeId names a real one", () => {
     );
   }
 });
+
+/**
+ * ADM-P3-002 — EVERY CONTEXTUAL RULE MUST BE REACHABLE.
+ *
+ * `ADMIN_CONTEXTUAL_ROUTES` carried a `/admin/identity/` rule that could never
+ * fire. All seven identity children are registered nav entries with exact
+ * hrefs, so `resolveAdminLocation` always matched a child exactly and
+ * `isDetail` — `Boolean(contextual) && pathname !== best.child.href` — was
+ * always false. The rule was correct when the children were absent from the
+ * nav; promoting them made it dead, and nothing said so.
+ *
+ * A prefix whose every descendant is itself a listed surface has no detail page
+ * to describe. This is the assertion that would have caught it.
+ */
+test("every contextual rule can actually fire for some path", () => {
+  const listed = new Set(allChildren.map(({ child }) => child.href));
+  for (const rule of ADMIN_CONTEXTUAL_ROUTES) {
+    // The rule fires only for a path STRICTLY BELOW a listed surface. If every
+    // href that starts with this prefix is itself listed, nothing is left for
+    // the rule to claim.
+    const descendants = [...listed].filter(
+      (href) => href.startsWith(rule.prefix) && href !== rule.parentHref,
+    );
+    const everyDescendantIsListed =
+      descendants.length > 0 &&
+      descendants.every((href) => listed.has(href));
+    assert.ok(
+      !everyDescendantIsListed,
+      `the contextual rule "${rule.prefix}" cannot fire: every path beneath it ` +
+        `(${descendants.join(", ")}) is itself a listed surface, so ` +
+        `resolveAdminLocation always matches a child exactly and isDetail is ` +
+        `never true. Delete the rule, or register the detail page it describes.`,
+    );
+  }
+});
+
+/**
+ * ADM-P3-003 — the ceiling is NINE, and the file says how many there are.
+ *
+ * The registry's prose claimed nine sections while the array defined eight, so
+ * the count in the comment and the count in the code disagreed and the stated
+ * ceiling was enforced by nothing but that prose.
+ */
+test("the section ceiling is executable, not prose", () => {
+  assert.ok(
+    ADMIN_NAV_SECTIONS.length <= 9,
+    `the primary navigation ceiling is nine sections; found ${ADMIN_NAV_SECTIONS.length}. ` +
+      `A navigation a reader has to scan rather than recognise is a list again.`,
+  );
+});

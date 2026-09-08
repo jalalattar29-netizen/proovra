@@ -104,6 +104,14 @@ function auditAdminAuditAccess(
   }).catch(() => null);
 }
 
+/**
+ * The truthful default source for a manual entry made through the API.
+ *
+ * Exported so the test that proves it asserts the same constant the route
+ * uses, rather than a string the test author remembered.
+ */
+export const ADMIN_MANUAL_AUDIT_API_SOURCE = "admin_api";
+
 export async function adminAuditRoutes(app: FastifyInstance) {
   app.post(
     "/v1/admin/audit-log",
@@ -154,7 +162,23 @@ export async function adminAuditRoutes(app: FastifyInstance) {
           action: parsed.data.action,
           category: parsed.data.category ?? null,
           severity: parsed.data.severity ?? "info",
-          source: parsed.data.source ?? "admin_console",
+          /*
+           * ADM-P2-007 / OWN-5 — "admin_console" was a false statement.
+           *
+           * This endpoint has no console control and never had one: a
+           * repository-wide consumer scan finds no caller in the web app, the
+           * mobile app, the worker or the e2e suites. The Admin activity page
+           * reads the listing, the export and the verify legs, and writes
+           * nothing. So every row this route stored claimed to have come from a
+           * surface that cannot produce it — a defect in the record an auditor
+           * reads, not merely in a label.
+           *
+           * OWN-5 keeps the endpoint API-only, so the default names what
+           * actually happened. A caller that supplies its own source still
+           * has it recorded as `requestedSource` DATA by the canonical facade,
+           * never as authority.
+           */
+          source: parsed.data.source ?? ADMIN_MANUAL_AUDIT_API_SOURCE,
           outcome: parsed.data.outcome ?? "success",
           resourceType: parsed.data.resourceType ?? null,
           resourceId: parsed.data.resourceId ?? null,

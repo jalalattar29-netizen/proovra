@@ -11,7 +11,12 @@
  *   - NEEDS_PERSONAL_OR_ORG  → "Open workspaces" panel (recovery path)
  *   - DENIED_NO_CAPABILITY   → "Request access" panel
  *   - NEEDS_UPGRADE          → "Upgrade" panel
- *   - PLATFORM_ADMIN_ONLY    → renders nothing (matches sidebar hide)
+ *   - PLATFORM_ADMIN_ONLY    → "Platform administration only" panel
+ *
+ * The header used to say this state "renders nothing (matches sidebar hide)",
+ * two lines above the rule that it NEVER renders a blank page. The code renders
+ * a structured panel — see the PRODUCTION FIX note on that branch — and the
+ * summary had not followed it.
  *
  * Hard rules:
  *

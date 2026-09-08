@@ -4,11 +4,17 @@
  * ===========================================================================
  * ONE REGISTRY, FIVE CONSUMERS
  * ===========================================================================
- * The desktop navigation, the mobile drawer, the breadcrumb trail, the
- * active-state resolver and the route-governance tests all read THIS file. The
- * previous list was flat and served two of those; the other three each derived
- * their own answer, so a route could be in the nav and absent from the
- * breadcrumb, or highlighted under the wrong parent, and nothing failed.
+ * The navigation, the breadcrumb trail, the active-state resolver and the
+ * route-governance tests all read THIS file. The previous list was flat and
+ * served two of those; the other two each derived their own answer, so a route
+ * could be in the nav and absent from the breadcrumb, or highlighted under the
+ * wrong parent, and nothing failed.
+ *
+ * There is no mobile drawer, and the earlier version of this list named one as
+ * a fifth consumer. `admin-console.css` explains why there is not: under 60rem
+ * both rows become snapping horizontal scrollers, because "the alternative to
+ * THAT is a hamburger with a second copy of the list in it, which is the drift
+ * this registry exists to prevent".
  *
  * ===========================================================================
  * WHAT WAS WRONG WITH THE WALL OF PILLS
@@ -19,12 +25,12 @@
  * depth had to know that it lives under a page called "Operations" and not the
  * one called "System health", and there was nothing on screen to tell them.
  *
- * Nine primary sections now, each answering ONE operator question, in the
+ * Eight primary sections now, each answering ONE operator question, in the
  * order an operator actually moves: what is happening → who are they → what do
  * they have → who pays → what is broken → is the platform healthy → what did
  * we do. Every surface sits under exactly one of them, and a section's children
  * appear as a second row only when that section is open — so the page shows
- * nine choices, not thirty-seven.
+ * eight choices, not thirty-seven.
  *
  * ===========================================================================
  * SCOPE IS A FIELD, NOT A FOOTNOTE
@@ -84,8 +90,14 @@ export type AdminNavSection = {
 };
 
 /**
- * Nine sections. The number is deliberate and the ceiling is nine: a primary
- * navigation a reader has to scan rather than recognise is a list again.
+ * Eight sections, and NINE is the ceiling rather than the count.
+ *
+ * The prose here said "Nine sections. The number is deliberate and the ceiling
+ * is nine" while the array defined eight, so the file's own description of the
+ * information architecture was wrong by one and the stated ceiling was enforced
+ * by nothing. `ADMIN_NAV_SECTIONS.length <= 9` is now an executable invariant
+ * (see the navigation tests): a primary navigation a reader has to scan rather
+ * than recognise is a list again, and that is the rule worth keeping.
  */
 export const ADMIN_NAV_SECTIONS: ReadonlyArray<AdminNavSection> = [
   {
@@ -583,13 +595,6 @@ export const ADMIN_CONTEXTUAL_ROUTES: ReadonlyArray<{
     parentHref: "/admin/workspaces",
     parentLabel: "Workspace inventory",
     label: "Workspace",
-  },
-  {
-    prefix: "/admin/identity/",
-    sectionId: "identity",
-    parentHref: "/admin/identity",
-    parentLabel: "Identity operations",
-    label: "Identity",
   },
   {
     /*

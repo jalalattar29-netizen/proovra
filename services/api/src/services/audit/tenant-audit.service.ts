@@ -628,6 +628,14 @@ export type AdminManualAuditInput = {
   ipAddress?: string | null;
   userAgent?: string | null;
 };
+/**
+ * The authoritative `source` on a manual platform-audit row.
+ *
+ * Exported so the tests assert the same constant the writer uses rather than a
+ * string an author remembered.
+ */
+export const ADMIN_MANUAL_AUDIT_SOURCE = "admin_api";
+
 export async function emitAdminManualAudit(
   input: AdminManualAuditInput,
   db?: PrismaClient,
@@ -659,7 +667,22 @@ export async function emitAdminManualAudit(
     action: input.action,
     category: "platform_admin_manual", // CLOSED
     severity: resolveSeverity(input.action, outcome, input.severity), // elevate-only
-    source: "admin_console", // fixed
+    /*
+     * ADM-P2-007 / OWN-5 — THE AUTHORITATIVE SOURCE NOW NAMES WHAT HAPPENED.
+     *
+     * This was fixed to "admin_console", and that was a false statement in the
+     * audit record. The only caller is `POST /v1/admin/audit-log`, which has no
+     * console control and never had one: a repository-wide consumer scan finds
+     * no caller in the web app, the mobile app, the worker or the e2e suites.
+     * The Admin activity page reads the listing, the export and the verify
+     * legs, and writes nothing. Every row this arm stored therefore claimed an
+     * origin surface that cannot produce it.
+     *
+     * OWN-5 keeps the capability API-only, so the field names the API. Still
+     * FIXED — the caller's own `source` remains `requestedSource` metadata and
+     * never becomes authority.
+     */
+    source: ADMIN_MANUAL_AUDIT_SOURCE, // fixed
     outcome,
     resourceType: input.resourceType ?? null,
     resourceId: input.resourceId ?? null,
