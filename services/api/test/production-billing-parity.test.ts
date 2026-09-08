@@ -65,7 +65,7 @@ describe("Production fix — entitlement plan resolution parity", () => {
      *
      * Copying a filter between two implementations is the defect one iteration
      * later, and this file's own title says so: PARITY. The overlay is gone.
-     * The workspace plan is now resolved by `resolveCommercialContext`, the one
+     * The workspace plan is now resolved by `resolveCommercialPlan` — the canonical layer's cheap entry point, the one
      * public authority, so there is no second query whose filter could drift —
      * which is a stronger guarantee than the two agreeing by hand.
      *
@@ -73,7 +73,7 @@ describe("Production fix — entitlement plan resolution parity", () => {
      * canonical chain (`ensureEntitlement`), and the account-plan read below is
      * still pinned directly.
      */
-    expect(PLATFORM_CTX).toMatch(/resolveCommercialContext\(\{[\s\S]{0,200}type:\s*"WORKSPACE"/);
+    expect(PLATFORM_CTX).toMatch(/resolveCommercialPlan\(\{[\s\S]{0,200}type:\s*"WORKSPACE"/);
     // And no second, private plan overlay came back.
     const entitlementReads = PLATFORM_CTX.match(/entitlement\.findFirst\(/g) ?? [];
     expect(entitlementReads).toHaveLength(1);

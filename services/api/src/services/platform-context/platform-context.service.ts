@@ -516,24 +516,34 @@ export async function buildPlatformContext(
    * decision is identical either way, because both reach the same function.
    */
   let activeCommercial: Awaited<
-    ReturnType<typeof import("../billing/commercial-context.service.js").resolveCommercialContext>
+    ReturnType<typeof import("../billing/commercial-context.service.js").resolveCommercialPlan>
   > | null = null;
   if (workspace.status === "active" && workspace.id) {
     try {
-      const { resolveCommercialContext } = await import(
+      const { resolveCommercialPlan } = await import(
         "../billing/commercial-context.service.js"
       );
       /*
-       * ONE envelope per request, with an EXPLICIT subject, reused below by the
-       * intake rule. Phase 9 pins the count of files reaching past this
-       * resolver at zero, and this projection is not the place to reopen it —
-       * the scope API is cheaper per call and is exactly the layering that
-       * ratchet holds shut.
+       * ONE resolution per request, with an EXPLICIT subject, reused below by
+       * the intake rule.
+       *
+       * `resolveCommercialPlan` rather than the full envelope, and the
+       * difference matters HERE more than anywhere: this is the boot
+       * projection every authenticated page waits on. The envelope also
+       * computes a usage rollup — five aggregates, including storage sums over
+       * evidence, reports and packages — a subscription-lifecycle verdict and
+       * the Enterprise contract, and this projection reads none of them. Making
+       * the first paint pay for counters nobody on it reads is a real cost for
+       * no answer.
+       *
+       * It is still the canonical layer: Phase 9 pins the count of files
+       * reaching past it at zero, and the cheap entry point lives INSIDE it
+       * precisely so a caller that wants one string does not have to.
        *
        * `WORKSPACE` rather than a declared kind: this path is reached by
        * workspace id before its kind is known, and the resolver classifies it.
        */
-      activeCommercial = await resolveCommercialContext({
+      activeCommercial = await resolveCommercialPlan({
         type: "WORKSPACE",
         teamId: workspace.id,
         requesterUserId: userRow.id,
@@ -701,13 +711,14 @@ export async function buildPlatformContext(
    */
   let intakeIncluded = planCaps.intakeIncluded;
   if (!intakeIncluded && activeCommercial) {
-    // The SAME envelope resolved above — no second commercial resolution on
-    // this boot path. `scope` carries the wallet for a single-occupant subject
-    // and 0 for a shared one, which is what makes the rule safe here.
+    // The SAME resolution as above — no second commercial lookup on this boot
+    // path. `credits` carries the wallet for a single-occupant subject and 0
+    // for a shared one, which is what makes the rule safe here: a member's
+    // personal wallet can never open intake on a workspace nobody pays for.
     intakeIncluded = resolveWorkspaceIntakeEntitlement({
-      plan: activeCommercial.scope.plan,
+      plan: activeCommercial.plan,
       billingShape: activeCommercial.billingShape,
-      availableEvidenceCredits: Math.max(0, activeCommercial.scope.credits ?? 0),
+      availableEvidenceCredits: Math.max(0, activeCommercial.credits ?? 0),
     }).intakeIncluded;
   }
 

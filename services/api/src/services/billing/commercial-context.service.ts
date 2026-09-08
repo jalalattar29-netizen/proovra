@@ -334,6 +334,48 @@ export async function resolveCommercialContext(
   return resolveCommercialContextLegacy(params);
 }
 
+/**
+ * THE PLAN ALONE, from the canonical layer, for callers that need nothing else.
+ *
+ * ---------------------------------------------------------------------------
+ * WHY THIS EXISTS RATHER THAN A SECOND CALLER OF THE SCOPE API
+ * ---------------------------------------------------------------------------
+ * `resolveCommercialContext` resolves an ENVELOPE: the plan, plus a usage
+ * rollup (five aggregates, including storage sums over evidence, reports and
+ * packages), plus a subscription-lifecycle verdict, plus the Enterprise
+ * contract. That is the right shape for a billing page or an enforcement gate,
+ * and it is far too much for a projection that wants one string.
+ *
+ * Three surfaces want exactly one string: the platform-context boot envelope,
+ * the per-record output-eligibility resolver, and the operational-backlog
+ * narrowing. Before this existed they each reached past the resolver to
+ * `resolveWorkspaceScopeForUser` — which is cheap, and which Phase 9 pins at
+ * ZERO callers outside the canonical layer, precisely because a second entry
+ * point to a commercial decision is how two answers come to exist.
+ *
+ * So the cheap path lives HERE, inside the canonical layer, where calling the
+ * scope adapter is composition rather than a bypass. It returns the SAME
+ * decision the envelope's `plan` field carries — same function, same inputs —
+ * and it computes nothing else.
+ *
+ * If you need the allowance, the lifecycle or the contract, use the envelope.
+ */
+export async function resolveCommercialPlan(
+  subject: CommercialSubject,
+): Promise<{ plan: WorkspaceScope["plan"]; ownerUserId: string; billingShape: WorkspaceScope["billingShape"]; credits: number }> {
+  const scope = await resolveWorkspaceScopeForUser(
+    subject.type === "PERSONAL_ACCOUNT"
+      ? { ownerUserId: subject.userId, teamId: null }
+      : { ownerUserId: subject.requesterUserId, teamId: subject.teamId },
+  );
+  return {
+    plan: scope.plan,
+    ownerUserId: scope.ownerUserId,
+    billingShape: scope.billingShape,
+    credits: scope.credits,
+  };
+}
+
 async function resolveCommercialContextLegacy(params: {
   ownerUserId: string;
   teamId?: string | null;

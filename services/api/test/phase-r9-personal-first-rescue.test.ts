@@ -365,7 +365,7 @@ describe("Phase R9 — entitlement projection is user-level (PRO without org)", 
      * There were two because platform context ran a private entitlement query
      * for the WORKSPACE plan beside the one for the ACCOUNT plan. The workspace
      * one was a second implementation of `resolveWorkspaceEffectivePlan` and is
-     * gone: the workspace plan now comes from `resolveCommercialContext`, whose
+     * gone: the workspace plan now comes from `resolveCommercialPlan`, the canonical layer's cheap entry point, whose
      * chain applies the same `active: true` rule internally.
      *
      * R9's intent — a personal-tier lookup must be USER-scoped and must not be
@@ -379,7 +379,7 @@ describe("Phase R9 — entitlement projection is user-level (PRO without org)", 
     expect(matches!.length).toBe(1);
     // The workspace plan is resolved by the canonical authority, not by a
     // second private read.
-    expect(PLATFORM_CTX_SRC).toMatch(/resolveCommercialContext\(/);
+    expect(PLATFORM_CTX_SRC).toMatch(/resolveCommercialPlan\(/);
   });
 
   it("entitlement projection does NOT filter on team.billingStatus or team.billingPlan", () => {

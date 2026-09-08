@@ -105,7 +105,7 @@ describe("effective plan has one authority", () => {
     // The canonical PUBLIC resolver, with an explicit subject. Phase 9 pins the
     // count of files reaching past it at zero, so this projection may not use
     // the lower-level scope adapters even though they are cheaper per call.
-    expect(code).toMatch(/resolveCommercialContext\(/);
+    expect(code).toMatch(/resolveCommercialPlan\(/);
 
     /*
      * The symptom: a private `entitlement.findFirst` overlay onto

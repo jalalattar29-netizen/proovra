@@ -19,8 +19,9 @@
  * This module is the ONE place the two inputs are loaded and handed to that
  * authority. It adds no policy of its own:
  *
- *   plan     ← `resolveCommercialContext` with an EXPLICIT subject, which
- *               delegates the decision to `resolveWorkspaceEffectivePlan`
+ *   plan     ← `resolveCommercialPlan` with an EXPLICIT subject — the cheap
+ *               entry point ON the canonical layer, which delegates the
+ *               decision to `resolveWorkspaceEffectivePlan`
  *   funding  ← `resolveEvidenceFunding` (the credit ledger row, the same one
  *               the worker reads through its own thin adapter)
  *
@@ -42,19 +43,24 @@ import type {
 
 import { prisma } from "../../db.js";
 /**
- * THE canonical public resolver, with an EXPLICIT subject.
+ * THE canonical commercial layer, with an EXPLICIT subject.
  *
  * Not the lower-level scope adapters: Phase 9 converged every production
- * commercial decision onto this envelope and pins the bypass count at zero, so
- * the scope-decision API is reachable only from the canonical layer itself.
- * Reaching past it here would have been cheaper per call and would have
- * reopened the layering the ratchet exists to hold shut.
+ * commercial decision onto this layer and pins the bypass count at ZERO,
+ * because a second entry point to a commercial decision is how two answers come
+ * to exist.
+ *
+ * `resolveCommercialPlan` is the cheap entry point ON that layer — the same
+ * decision the envelope's `plan` field carries, without the usage rollup, the
+ * lifecycle verdict or the Enterprise contract this module has no use for.
+ * Reaching past the layer to the scope adapter would have been equally cheap
+ * and would have reopened the layering the ratchet exists to hold shut.
  *
  * Callers that ALREADY hold a resolved plan pass it in (`plan` below) and this
- * module resolves nothing — which is how the two hot paths, Evidence Detail and
- * the Reports list, avoid paying for the envelope twice.
+ * module resolves nothing at all — which is how Evidence Detail, whose
+ * projection has an envelope in hand, avoids paying twice.
  */
-import { resolveCommercialContext } from "./commercial-context.service.js";
+import { resolveCommercialPlan } from "./commercial-context.service.js";
 import {
   resolveEvidenceFunding,
   resolveEvidenceFundingMany,
@@ -132,7 +138,7 @@ async function resolveSubjectPlan(input: {
 }): Promise<PlanType | null> {
   try {
     if (input.teamId) {
-      const ctx = await resolveCommercialContext({
+      const ctx = await resolveCommercialPlan({
         type: "WORKSPACE",
         teamId: input.teamId,
         requesterUserId: input.ownerUserId ?? "",
@@ -140,7 +146,7 @@ async function resolveSubjectPlan(input: {
       return ctx.plan as PlanType;
     }
     if (!input.ownerUserId) return null;
-    const ctx = await resolveCommercialContext({
+    const ctx = await resolveCommercialPlan({
       type: "PERSONAL_ACCOUNT",
       userId: input.ownerUserId,
     });
@@ -321,13 +327,13 @@ export async function outputEntitledEvidenceWhere(params: {
 }): Promise<{ id: { in: string[] } } | null> {
   try {
     const ctx = params.teamId
-      ? await resolveCommercialContext({
+      ? await resolveCommercialPlan({
           type: "WORKSPACE",
           teamId: params.teamId,
           requesterUserId: params.ownerUserId ?? "",
         })
       : params.ownerUserId
-        ? await resolveCommercialContext({
+        ? await resolveCommercialPlan({
             type: "PERSONAL_ACCOUNT",
             userId: params.ownerUserId,
           })
