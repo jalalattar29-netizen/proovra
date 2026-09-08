@@ -293,7 +293,7 @@ export default function AdminContactSalesDetailPage({
   useAdminEntityCrumb(state.kind === "ok" ? (state.details.organization ?? state.details.fullName ?? null) : null);
 
   return (
-    <PageRouteGate routeId="admin.contactSales">
+    <PageRouteGate routeId="platform.contact_sales_detail">
       <PageShell
         width="full"
         header={

@@ -1,16 +1,38 @@
 /**
  * PHASE 38.6 — Canonical route registry.
  *
- * One canonical record per product route. This is the SOURCE OF TRUTH
- * for:
+ * One canonical record per NAVIGABLE DESTINATION. This is the SOURCE OF
+ * TRUTH for:
  *
- *   - route existence (which routes the app knows about)
+ *   - which routes are navigable destinations, and what unlocks them
  *   - required capabilities (which capability keys unlock the route)
  *   - active-space requirements (PERSONAL_OR_ORG, ORGANIZATION_ONLY,
  *     NONE)
  *   - fallback behavior when access is denied
  *   - workflow tags (drive ordering / emphasis, NOT access)
  *   - All Tools surface visibility
+ *
+ * WHAT IT IS NOT (ADM-P3-011)
+ *
+ * It said "route existence (which routes the app knows about)", which reads as
+ * an enumeration of every page and is not one. Not every page under
+ * `app/(app)` has an entry here, and that is deliberate: thirteen
+ * authenticated children are gated by a PARENT's routeId rather than by an
+ * entry of their own — the six `/evidence-lifecycle/*` sub-pages share
+ * `workspace.evidence_lifecycle`, the five `/governance-platform/*` sub-pages
+ * share `workspace.governance_platform` — and giving each its own record would
+ * put thirteen destinations into All Tools and the command palette that nobody
+ * navigates to.
+ *
+ * Reading the old wording as a complete list is how "77 pages are
+ * unregistered" got mistaken for "77 pages are ungated". The invariants that
+ * ARE enforced, in `__tests__/route-registry-coverage.test.mjs`:
+ *
+ *   1. every `routeId` used anywhere in the tree resolves to an entry here —
+ *      which is what lets `PageRouteGate` fail CLOSED on an unknown id;
+ *   2. every page under `app/(app)` is gated by its own entry, by an
+ *      ancestor's, or renders nothing at all (a redirect shim, whose
+ *      destination is gated).
  *
  * Hard rules pinned by tests:
  *

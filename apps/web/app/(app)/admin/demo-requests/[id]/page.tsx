@@ -244,7 +244,7 @@ export default function AdminDemoRequestDetailPage({
   useAdminEntityCrumb(state.kind === "ok" ? (state.details.organization ?? state.details.fullName ?? null) : null);
 
   return (
-    <PageRouteGate routeId="admin.demoRequests">
+    <PageRouteGate routeId="platform.demo_request_detail">
     <PageShell
       width="full"
       header={

@@ -59,24 +59,49 @@ export function PageRouteGate({
   const workspaceFragment = useWorkspaceFragment();
   const personalSpaceFragment = usePersonalSpaceFragment();
   const route = getRouteDefinition(routeId);
-
-  // Unknown route id → render children. Treating an unregistered route
-  // as a hard 404 would make the gate too dangerous during incremental
-  // migration. Source-contract tests catch unregistered ids separately.
+  /*
+   * ADM-P3-011 — AN UNKNOWN ROUTE ID FAILS CLOSED.
+   *
+   * This rendered `children`. The reasoning was that treating an unregistered
+   * route as a hard denial "would make the gate too dangerous during
+   * incremental migration", with a development-only console warning and a
+   * silent production fallback so a typo could not brick the app.
+   *
+   * The trade was the wrong way round, and it was not hypothetical. Two admin
+   * detail pages gated on `admin.contactSales` and `admin.demoRequests` — ids
+   * that exist nowhere in the registry, which carries
+   * `platform.contact_sales_detail` and `platform.demo_request_detail` for
+   * exactly those pages. Both had been rendering with their page-level gate
+   * doing nothing at all. Nothing broke, nothing was reported, and nobody saw
+   * the console warning, because a warning in a development console is not a
+   * gate.
+   *
+   * A typo that shows a denial to the person who made it is found in minutes.
+   * A typo that renders a protected page to everyone is found by an audit.
+   *
+   * THIS CANNOT BRICK A PAGE, because it cannot reach production:
+   * `__tests__/route-registry-coverage.test.mjs` fails when any `routeId` used
+   * anywhere in the tree has no registry entry. The fallback existed to make
+   * an unregistered id survivable; the test makes it impossible instead, which
+   * is the stronger of the two.
+   */
   if (!route) {
-    // Development-only warning so an unregistered routeId surfaces
-    // immediately in the browser console instead of silently rendering
-    // children unprotected. Production keeps the silent fallback to
-    // avoid bricking the app on a typo.
     if (
       process.env.NODE_ENV !== "production" &&
       typeof console !== "undefined"
     ) {
       console.warn(
-        `[PageRouteGate] Unknown routeId "${routeId}" — no entry in routeRegistry. Children will render unprotected. Register this id in lib/navigation/routeRegistry to enable access gating.`,
+        `[PageRouteGate] Unknown routeId "${routeId}" has no entry in routeRegistry. Access is DENIED. Register this id in lib/navigation/routeRegistry.`,
       );
     }
-    return <>{children}</>;
+    return (
+      <ProovraDenialState
+        kind="forbidden"
+        title="This page is not available"
+        message="This part of the console is not configured for access. Contact support if you expected to reach it."
+        testId="route-gate-unknown-route"
+      />
+    );
   }
 
   const activeSpaceType =
