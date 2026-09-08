@@ -263,7 +263,7 @@ export const RUNBOOK_INDEX: readonly RunbookIndexEntry[] = [
     title: "Workflow intake abuse burst",
     category: "Integrations & notifications",
     subsystems: ["workflow","intake"],
-    summary: "/v1/ops/metrics → workflow_intake_abuse_total counter rising.",
+    summary: "/v1/admin/platform/metrics → workflow_intake_abuse_total counter rising.",
   },
   {
     slug: "workflow-stuck",
