@@ -652,7 +652,53 @@ describe("Recovery — POST /v1/operations/recovery/validate-restore", () => {
 // 3. /admin/platform/media-graph
 // ===========================================================================
 
-const RUN_ID = "mi-extract_exif-1234";
+const RUN_ID = "mi-run-1234";
+
+/**
+ * ADM-P2-003 / ADM-P2-005 — the two identifiers, and why they are seeded to
+ * DIFFERENT values here.
+ *
+ * `POST .../runs/:runId/retry` takes the BullMQ JOB id; `POST
+ * .../runs/:runId/dismiss` takes the `media_intelligence_runs` ROW uuid. Same
+ * path segment name, two namespaces. A fixture where they matched would let a
+ * control that sent the wrong one pass — so the row below carries a row uuid
+ * that is not a substring of its job id and a job id that is not derived from
+ * it in the fixture, and each assertion names the one it expects.
+ *
+ * The run's WORKSPACE is also deliberately not `WS`. Retry and Replay DLQ send
+ * `teamId` as the AUDIT scope, which is the operator's own workspace; dismiss
+ * sends it as a FILTER on the run row, which is the run's. Seeding them the
+ * same would hide a control that sent the operator's workspace to a route that
+ * filters on the run's.
+ */
+const ROW_RUN_UUID = "77777777-0000-4000-8000-000000000001";
+const ROW_JOB_ID = "mi-run-99999999-0000-4000-8000-000000000009";
+const ROW_TEAM_ID = "88888888-0000-4000-8000-000000000002";
+
+function mediaRunRow(over: Record<string, unknown> = {}) {
+  return {
+    runId: ROW_RUN_UUID,
+    jobId: ROW_JOB_ID,
+    teamId: ROW_TEAM_ID,
+    evidenceId: EV1,
+    kind: "extract_exif",
+    status: "FAILED",
+    attemptCount: 3,
+    lastError: "provider timeout",
+    createdAtUtc: ISO,
+    updatedAtUtc: ISO,
+    completedAtUtc: null,
+    ...over,
+  };
+}
+
+/** Overridden per-test to exercise the list's empty and failed states. */
+let mediaRunsReply: () => Reply = () => ({
+  scope: "PLATFORM",
+  limit: 25,
+  hasMore: false,
+  runs: [mediaRunRow()],
+});
 
 function mediaGets(path: string): Reply {
   if (path.startsWith("/v1/admin/platform/metrics")) {
@@ -665,6 +711,9 @@ function mediaGets(path: string): Reply {
       },
     };
   }
+  if (path.startsWith("/v1/ops/media-intelligence/runs?")) {
+    return mediaRunsReply();
+  }
   throw new Error(`unexpected GET ${path}`);
 }
 
@@ -673,10 +722,21 @@ async function mountMediaGraph() {
   await mount(<MediaGraphOpsPage />);
 }
 
+/** The free-text fallback control, not a row's. */
+function fallbackRetryButton(): HTMLElement {
+  const section = document.querySelector(
+    "[data-media-run-list]",
+  ) as HTMLElement | null;
+  const all = screen.getAllByRole("button", { name: "Retry" });
+  const outside = all.filter((b) => !section || !section.contains(b));
+  expect(outside, "the free-text Retry control is missing").toHaveLength(1);
+  return outside[0]!;
+}
+
 describe("Media graph — POST /v1/ops/media-intelligence/runs/:runId/retry", () => {
   it("an empty job id is refused locally — no dialog, no request", async () => {
     await mountMediaGraph();
-    await click(screen.getByRole("button", { name: "Retry" }));
+    await click(fallbackRetryButton());
     expect(anyModal()).toBeNull();
     expect(posts("/v1/ops/media-intelligence/")).toHaveLength(0);
     expect(document.body.textContent).toContain("Provide a job id");
@@ -684,10 +744,10 @@ describe("Media graph — POST /v1/ops/media-intelligence/runs/:runId/retry", ()
 
   it("confirms BEFORE any request naming the job; cancel sends nothing; confirm fires once", async () => {
     await mountMediaGraph();
-    fireEvent.change(screen.getByPlaceholderText("mi-extract_exif-<uuid>"), {
+    fireEvent.change(screen.getByPlaceholderText("mi-run-<uuid>"), {
       target: { value: RUN_ID },
     });
-    await click(screen.getByRole("button", { name: "Retry" }));
+    await click(fallbackRetryButton());
     const dialog = modal("media-graph-retry");
     expect(dialog).not.toBeNull();
     expect(descriptionOf(dialog!)).toContain(RUN_ID);
@@ -696,7 +756,7 @@ describe("Media graph — POST /v1/ops/media-intelligence/runs/:runId/retry", ()
     expect(posts("/v1/ops/media-intelligence/")).toHaveLength(0);
 
     postReply = () => ({ runId: RUN_ID, retried: true });
-    await click(screen.getByRole("button", { name: "Retry" }));
+    await click(fallbackRetryButton());
     await submitModal("media-graph-retry");
 
     const retries = posts(`/v1/ops/media-intelligence/runs/${RUN_ID}/retry`);
@@ -708,14 +768,118 @@ describe("Media graph — POST /v1/ops/media-intelligence/runs/:runId/retry", ()
   it("a 500 is routed through toSafeUserError — bounded copy, never the raw message", async () => {
     await mountMediaGraph();
     postReply = () => apiFailure(500);
-    fireEvent.change(screen.getByPlaceholderText("mi-extract_exif-<uuid>"), {
+    fireEvent.change(screen.getByPlaceholderText("mi-run-<uuid>"), {
       target: { value: RUN_ID },
     });
-    await click(screen.getByRole("button", { name: "Retry" }));
+    await click(fallbackRetryButton());
     await submitModal("media-graph-retry");
     expect(document.body.textContent).toContain(SAFE_500);
     expect(document.body.textContent).not.toContain("request failed");
     expect(document.body.textContent).not.toContain("requeued");
+  });
+});
+
+describe("Media graph — the run list (ADM-P2-005 / ADM-P2-003)", () => {
+  beforeEach(() => {
+    mediaRunsReply = () => ({
+      scope: "PLATFORM",
+      limit: 25,
+      hasMore: false,
+      runs: [mediaRunRow()],
+    });
+  });
+
+  it("lists runs and carries BOTH identifiers on the row", async () => {
+    await mountMediaGraph();
+    const row = q(`[data-media-run-row="${ROW_RUN_UUID}"]`);
+    expect(row, "the run list rendered no row").not.toBeNull();
+    // The row must show the row uuid AND the job id, because the two controls
+    // need different ones and an operator reading the row has to be able to
+    // tell which is which.
+    expect(row!.textContent).toContain(ROW_RUN_UUID);
+    expect(row!.textContent).toContain(ROW_JOB_ID);
+  });
+
+  it("Retry from a row sends that row's JOB id — never its run uuid", async () => {
+    await mountMediaGraph();
+    postReply = () => ({ runId: ROW_JOB_ID, retried: true });
+    await click(
+      q(`[data-media-run-retry="${ROW_JOB_ID}"]`) as HTMLElement,
+    );
+    await submitModal("media-graph-retry");
+
+    const retries = posts("/v1/ops/media-intelligence/runs/");
+    expect(retries).toHaveLength(1);
+    expect(retries[0].path).toBe(
+      `/v1/ops/media-intelligence/runs/${ROW_JOB_ID}/retry`,
+    );
+    expect(
+      retries[0].path,
+      "retry was handed the ROW uuid, which names a different thing",
+    ).not.toContain(ROW_RUN_UUID);
+    // Retry's teamId is the AUDIT scope: the operator's workspace.
+    expect(JSON.parse(retries[0].body as string)).toEqual({ teamId: WS });
+  });
+
+  it("Dismiss from a row sends that row's RUN uuid and the RUN's workspace", async () => {
+    await mountMediaGraph();
+    postReply = () => ({ runId: ROW_RUN_UUID, dismissed: true });
+    await click(
+      q(`[data-media-run-dismiss="${ROW_RUN_UUID}"]`) as HTMLElement,
+    );
+    const dialog = modal("media-graph-dismiss");
+    expect(dialog, "dismiss must confirm before acting").not.toBeNull();
+    expect(descriptionOf(dialog!)).toContain(ROW_RUN_UUID);
+    await submitModal("media-graph-dismiss");
+
+    const dismissals = posts("/v1/ops/media-intelligence/runs/");
+    expect(dismissals).toHaveLength(1);
+    expect(dismissals[0].path).toBe(
+      `/v1/ops/media-intelligence/runs/${ROW_RUN_UUID}/dismiss`,
+    );
+    expect(
+      dismissals[0].path,
+      "dismiss was handed the JOB id, which names a queue entry not a row",
+    ).not.toContain(ROW_JOB_ID);
+    // Dismiss's teamId is a FILTER on the run row, so it is the RUN's
+    // workspace — sending the operator's would match nothing and read as
+    // "already dismissed".
+    expect(JSON.parse(dismissals[0].body as string)).toEqual({
+      teamId: ROW_TEAM_ID,
+    });
+    expect(JSON.parse(dismissals[0].body as string)).not.toEqual({
+      teamId: WS,
+    });
+  });
+
+  it("cancelling the dismiss dialog sends nothing", async () => {
+    await mountMediaGraph();
+    await click(
+      q(`[data-media-run-dismiss="${ROW_RUN_UUID}"]`) as HTMLElement,
+    );
+    await cancelModal("media-graph-dismiss");
+    expect(posts("/v1/ops/media-intelligence/runs/")).toHaveLength(0);
+  });
+
+  it("an empty list says so, and a failed read says something different", async () => {
+    // The page's own history: every tile printed "—" for months because a
+    // failed read was indistinguishable from a missing counter. The list must
+    // not repeat it.
+    mediaRunsReply = () => ({
+      scope: "PLATFORM",
+      limit: 25,
+      hasMore: false,
+      runs: [],
+    });
+    await mountMediaGraph();
+    expect(q("[data-media-run-list-empty]")).not.toBeNull();
+    expect(q("[data-media-run-list-failed]")).toBeNull();
+
+    mediaRunsReply = () => apiFailure(500);
+    await mountMediaGraph();
+    expect(q("[data-media-run-list-failed]")).not.toBeNull();
+    expect(q("[data-media-run-list-empty]")).toBeNull();
+    expect(document.body.textContent).toContain(SAFE_500);
   });
 });
 

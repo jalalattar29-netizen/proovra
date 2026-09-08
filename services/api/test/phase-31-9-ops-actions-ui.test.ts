@@ -69,6 +69,12 @@ describe("Phase 31.9 — ops actions UI: endpoint surface", () => {
       // teamId even though the counters no longer involve one.
       "/v1/admin/platform/metrics",
       "/v1/ops/media-intelligence/runs/${encodeURIComponent(trimmed)}/retry",
+      // ADM-P2-005 / ADM-P2-003 — the run listing, and the dismiss action the
+      // console has been counting since before it offered it. Both spelled in
+      // full: this is an exact-match set, so a fourth endpoint cannot slip in
+      // behind a prefix.
+      "/v1/ops/media-intelligence/runs?status=${encodeURIComponent(runStatus)}&limit=25",
+      "/v1/ops/media-intelligence/runs/${encodeURIComponent(run.runId)}/dismiss",
       "/v1/ops/media-intelligence/dlq/replay",
     ]);
     for (const call of calls) {
@@ -144,20 +150,69 @@ describe("Phase 31.9 — ops actions UI: state machine", () => {
 // =============================================================================
 
 describe("Phase 31.9 — ops actions UI: button disablement", () => {
-  it("retry button disabled while pending OR without teamId", () => {
-    const block = PAGE_SRC.match(
-      /Retry one job[\s\S]*?Retry<\/button>|onClick=\{[\s\S]*?runRetry[\s\S]*?disabled=\{[\s\S]*?\}/,
-    )?.[0];
-    expect(block).toBeTruthy();
-    expect(block!).toMatch(/disabled=\{actionResult\.kind === "pending" \|\| !teamId\}/);
+  /*
+   * EVERY trigger, not the first one the regex happened to find.
+   *
+   * These two cases each matched a single block and asserted a disabled
+   * expression written on one line. ADM-P2-005 added a second Retry control —
+   * one per listed run — and the formatter wrapped its `disabled` across
+   * lines, so the old form failed on a page where every control was correctly
+   * guarded. Matching one block was also the weaker assertion: a second,
+   * unguarded trigger would never have been looked at.
+   *
+   * Collect every `void runRetry(` / `void runReplayDlq(` call site and require
+   * each one's own Button to carry the guard. Whitespace-insensitive, because
+   * the guard is a fact about the code and not about the formatter.
+   */
+  function guardsAround(trigger: string): string[] {
+    const flat = PAGE_SRC.replace(/\s+/g, " ");
+    const out: string[] = [];
+    let from = 0;
+    for (;;) {
+      const at = flat.indexOf(trigger, from);
+      if (at < 0) break;
+      // The Button element runs from its opening tag to the next `>` after the
+      // handler; the guard sits inside that window.
+      const end = flat.indexOf("<", at);
+      out.push(flat.slice(at, end > at ? end : at + 400));
+      from = at + trigger.length;
+    }
+    return out;
+  }
+
+  it("every Retry trigger is disabled while pending OR without teamId", () => {
+    const sites = guardsAround("void runRetry(");
+    expect(sites.length, "no Retry trigger found").toBeGreaterThan(0);
+    for (const site of sites) {
+      expect(site).toMatch(
+        /disabled=\{ ?actionResult\.kind === "pending" \|\| !teamId ?\}/,
+      );
+    }
   });
 
-  it("replay button disabled while pending OR without teamId", () => {
-    const block = PAGE_SRC.match(
-      /Replay DLQ[\s\S]*?Replay DLQ<\/button>|runReplayDlq[\s\S]*?disabled=\{[\s\S]*?\}/,
-    )?.[0];
-    expect(block).toBeTruthy();
-    expect(block!).toMatch(/disabled=\{actionResult\.kind === "pending" \|\| !teamId\}/);
+  it("every Replay DLQ trigger is disabled while pending OR without teamId", () => {
+    const sites = guardsAround("void runReplayDlq(");
+    expect(sites.length, "no Replay DLQ trigger found").toBeGreaterThan(0);
+    for (const site of sites) {
+      expect(site).toMatch(
+        /disabled=\{ ?actionResult\.kind === "pending" \|\| !teamId ?\}/,
+      );
+    }
+  });
+
+  it("every Dismiss trigger is disabled while a request is in flight", () => {
+    /*
+     * Dismiss is NOT gated on `teamId`, and that is deliberate rather than an
+     * omission. Retry and Replay DLQ send the operator's workspace as their
+     * audit scope, so they genuinely need one; dismiss sends the RUN's
+     * workspace, which comes off the row. Requiring the operator's workspace
+     * here would disable a control for a reason that has nothing to do with it.
+     */
+    const sites = guardsAround("void runDismiss(");
+    expect(sites.length, "no Dismiss trigger found").toBeGreaterThan(0);
+    for (const site of sites) {
+      expect(site).toMatch(/disabled=\{ ?actionResult\.kind === "pending" ?\}/);
+    }
   });
 
   it("the action controls are the canonical Button, which owns the disabled treatment", () => {
@@ -201,8 +256,33 @@ describe("Phase 31.9 — ops actions UI: safe wording", () => {
     }
   });
 
-  it("retry job-id placeholder uses the safe deterministic-id pattern", () => {
-    expect(PAGE_SRC).toMatch(/placeholder="mi-extract_exif-<uuid>"/);
+  it("retry job-id placeholder names the id the producer actually emits", () => {
+    /*
+     * THIS ASSERTION WAS PINNING A RETIRED CONTRACT.
+     *
+     * It required `mi-extract_exif-<uuid>`, the pre-Point-5 job id built from
+     * (kind, evidenceId). The producer now builds `mi-run-<runId>` through
+     * `buildCanonicalJobId`, so the placeholder — and the validation message
+     * beside it — were telling an operator to construct an id that matches
+     * nothing, and this test was holding them there.
+     *
+     * The retired form is asserted ABSENT as well as the current one present.
+     * Requiring only the new spelling would let both sit in the file at once,
+     * which is the state that produced the confusion.
+     *
+     * ABSENCE IS ASSERTED AGAINST CODE, PRESENCE AGAINST THE WHOLE FILE. The
+     * page deliberately NAMES the retired form in a comment, so the next
+     * reader learns why it went; a bare `not.toMatch` over the file would fail
+     * on the explanation, and the obvious way to make it pass is to delete the
+     * explanation.
+     */
+    const code = PAGE_SRC.replace(/\/\*[\s\S]*?\*\//g, "").replace(
+      /\/\/[^\n]*/g,
+      "",
+    );
+    expect(PAGE_SRC).toMatch(/placeholder="mi-run-<uuid>"/);
+    expect(code).not.toMatch(/mi-<kind>-<evidenceId>/);
+    expect(code).not.toMatch(/mi-extract_exif-/);
   });
 
   it("footer disclaimer uses safer wording (no 'authenticity/admissibility' even in negation)", () => {

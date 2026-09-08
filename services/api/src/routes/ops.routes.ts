@@ -111,6 +111,7 @@ import {
   suppressIncident,
 } from "../services/observability/incident.service.js";
 import {
+  buildCanonicalJobId,
   INCIDENT_CATEGORIES,
   INCIDENT_SEVERITIES,
   INCIDENT_STATUSES,
@@ -3110,6 +3111,102 @@ export async function opsRoutes(app: FastifyInstance) {
   //     kind only.
   //   - Bounded response shape — no Redis internals leak through.
   // ---------------------------------------------------------------------------
+
+  // ---------------------------------------------------------------------------
+  // GET /v1/ops/media-intelligence/runs — THE RECORDS THE TWO ACTIONS ACT ON.
+  //
+  // ADM-P2-005. Retry and Dismiss both name a run, and this console listed no
+  // run. The only way to retry a failed job was to type its id into a free-text
+  // field, reconstructed from an evidence id obtained somewhere else or read
+  // out of the logs — while the page rendered a "Failed runs" counter it could
+  // not expand. An action that names a record needs a way to choose that
+  // record.
+  //
+  // BOTH IDENTIFIERS, ON THE ROW. `POST .../runs/:runId/retry` takes the BullMQ
+  // JOB id and `POST .../runs/:runId/dismiss` takes the `media_intelligence_runs`
+  // ROW uuid — the same path segment name, two namespaces. Today both derive
+  // from the row (`buildCanonicalJobId` makes the job id `mi-run-<runId>`), but
+  // "they happen to agree" is not something a UI should depend on: the row
+  // carries both, spelled out, so neither control can be handed the other's
+  // identifier. The page's old validation message named the RETIRED
+  // `mi-<kind>-<evidenceId>` form, which is what happens when an id shape lives
+  // in copy.
+  //
+  // TENANT_SCOPE_EXCEPTION: platform_admin_global. The media-intelligence queue
+  // is one global queue and this console is the platform's view of it — the
+  // counters above it are the process-global registry. The listing is therefore
+  // cross-tenant and gated by the platform gate, exactly as the metrics it sits
+  // beneath are. Each row NAMES its workspace so the operator can see whose
+  // work they are looking at, and so the dismiss control can send that
+  // workspace rather than the operator's own.
+  // ---------------------------------------------------------------------------
+  const RunListQuery = z.object({
+    status: z
+      .enum(["PENDING", "PROCESSING", "COMPLETED", "FAILED", "DISMISSED"])
+      .optional(),
+    limit: z.coerce.number().int().min(1).max(100).optional().default(25),
+  });
+
+  app.get(
+    "/v1/ops/media-intelligence/runs",
+    { preHandler: requirePlatformAdmin },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const parsed = RunListQuery.safeParse(req.query ?? {});
+      if (!parsed.success) {
+        return reply.code(400).send({
+          error: {
+            code: "INVALID_QUERY",
+            message: "Query parameters invalid.",
+            requestId: req.id,
+          },
+        });
+      }
+      const q = parsed.data;
+      const rows = await prisma.mediaIntelligenceRun.findMany({
+        where: q.status ? { status: q.status } : undefined,
+        orderBy: { updatedAtUtc: "desc" },
+        take: q.limit,
+        select: {
+          id: true,
+          teamId: true,
+          evidenceId: true,
+          kind: true,
+          status: true,
+          attemptCount: true,
+          lastError: true,
+          createdAtUtc: true,
+          updatedAtUtc: true,
+          completedAtUtc: true,
+        },
+      });
+      return reply.code(200).send({
+        scope: "PLATFORM",
+        // `total` is deliberately absent. A count over a table this console
+        // pages through would be a second, slower query whose answer is stale
+        // by the time it renders; `hasMore` says the one thing the operator
+        // needs, which is whether they are looking at everything.
+        limit: q.limit,
+        hasMore: rows.length === q.limit,
+        runs: rows.map((r) => ({
+          runId: r.id,
+          // Spelled out rather than left for the client to build. The prefix
+          // is owned by the queue registry, not by a page.
+          jobId: buildCanonicalJobId({ jobIdPrefix: "mi-run" }, r.id),
+          teamId: r.teamId,
+          evidenceId: r.evidenceId,
+          kind: r.kind,
+          status: r.status,
+          attemptCount: r.attemptCount,
+          // Bounded. The column allows 400 characters of provider text and an
+          // operator needs the shape of the failure, not a stack trace.
+          lastError: r.lastError ? r.lastError.slice(0, 200) : null,
+          createdAtUtc: r.createdAtUtc.toISOString(),
+          updatedAtUtc: r.updatedAtUtc.toISOString(),
+          completedAtUtc: r.completedAtUtc?.toISOString() ?? null,
+        })),
+      });
+    },
+  );
 
   const RetryRunParams = z.object({ runId: z.string().min(1).max(120) });
   const RetryRunBody = z.object({ teamId: z.string().uuid() }).strict();

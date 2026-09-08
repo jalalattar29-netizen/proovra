@@ -188,7 +188,10 @@ describe("Phase 31.7 + 32.6 — /ops/media-graph page", () => {
       // the compatibility path and takes the next reader with it.
       "/v1/admin/platform/metrics",
       "/v1/users/me",
-      "/v1/ops/media-intelligence/runs/",
+      // ADM-P2-005 — the run LISTING. Without the trailing slash, because the
+      // list is `/runs?status=…` and the two actions are `/runs/<id>/…`; one
+      // prefix covers all three and no other path.
+      "/v1/ops/media-intelligence/runs",
       "/v1/ops/media-intelligence/dlq/replay",
     ];
     for (const call of apiFetchCalls) {

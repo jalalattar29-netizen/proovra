@@ -42,6 +42,7 @@ confident wrong answer with no way to tell.
 | `/admin/platform/automation` | ResultCount — run | `CAP_DISCLOSED` | — | — |
 | `/admin/platform/automation` | inline — rule | `COMPLETE_LIST` | — | — |
 | `/admin/platform/exports` | ResultCount — export | `CAP_DISCLOSED` | — | — |
+| `/admin/platform/media-graph` | ResultCount — run | `SERVER_HAS_MORE` | yes | yes |
 | `/admin/platform/observability` | ResultCount — non-zero signal | `EXACT_TOTAL` | — | — |
 | `/admin/platform/queues` | ResultCount — failed job | `EXACT_TOTAL` | — | yes |
 | `/admin/platform/recovery` | ResultCount — validation report | `CAP_DISCLOSED` | — | — |

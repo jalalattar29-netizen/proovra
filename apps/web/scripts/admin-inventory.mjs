@@ -245,7 +245,41 @@ function readApiRoutes() {
         ];
         const SUGGESTS_FILTER = /\b[a-zA-Z][A-Za-z0-9_]*\s*\(\s*\{\s*teamId\s*[:,}]/;
 
-        if (PROVES_FILTER.some((re) => re.test(body))) teamRole = "FILTER";
+        /*
+         * RETURNING A COLUMN IS NOT NARROWING BY IT.
+         *
+         * Pattern 2 above reads 600 characters after a Prisma verb and calls
+         * any `teamId` inside that window proof of a filter. `select: { …,
+         * teamId: true, … }` sits inside that window and is the opposite fact:
+         * it is the handler PROJECTING the workspace each row belongs to,
+         * which only a CROSS-tenant listing needs to do.
+         *
+         * Found on `GET /v1/ops/media-intelligence/runs` — a platform-admin
+         * listing with no tenant predicate at all, reported as
+         * WORKSPACE_FILTERED because it returns the workspace column so the
+         * console can show whose run each row is. The classification reached
+         * the scope banner, so the page would have told an operator it was
+         * showing one workspace while showing every one of them: the same
+         * class of wrong answer the third pattern above was added to prevent,
+         * in the opposite direction.
+         *
+         * Only `select` and `omit` blocks are blanked, and only for this
+         * question. `where`, `data` and every argument that can actually
+         * narrow or write are left exactly as they are — a `where` nested
+         * inside a `select` (a filtered relation load) survives, because the
+         * blanking keeps the inner `where:` text.
+         */
+        const withoutProjections = body.replace(
+          /\b(select|omit):\s*\{/g,
+          (m) => " ".repeat(m.length),
+        ).replace(
+          // The projected column itself, not any other teamId in the handler.
+          /\bteamId:\s*(true|false)\b/g,
+          (m) => " ".repeat(m.length),
+        );
+
+        if (PROVES_FILTER.some((re) => re.test(withoutProjections)))
+          teamRole = "FILTER";
         else if (SUGGESTS_FILTER.test(body)) teamRole = "FILTER_CANDIDATE";
       }
 

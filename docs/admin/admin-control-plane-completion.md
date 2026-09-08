@@ -13,7 +13,7 @@
   artefact that backs it.
 -->
 
-**47 routes** · 47 completed · 0 pending · 1106 API routes traced
+**47 routes** · 47 completed · 0 pending · 1107 API routes traced
 
 ## Status
 
@@ -100,7 +100,7 @@
 | `/admin/platform/analytics` | WORKSPACE_FILTERED | adminNavigation registry | ANALYTICS_VIEW | AUTH_ONLY, gateAnalyticsRead, requireTeamCapability | platform | /admin/platform |
 | `/admin/platform/automation` | WORKSPACE_FILTERED | adminNavigation registry | AUTOMATION_VIEW | requireTeamCapability | platform | /admin/platform |
 | `/admin/platform/exports` | WORKSPACE_CANDIDATE | adminNavigation registry | OPS_CENTER_VIEW | requirePlatformOpsActor | evidence | /admin/platform |
-| `/admin/platform/media-graph` | WORKSPACE_CANDIDATE | handler trace | PLATFORM_TELEMETRY_VIEW | requirePlatformAdmin, requirePlatformOpsActor | evidence | /admin/platform |
+| `/admin/platform/media-graph` | WORKSPACE_CANDIDATE | handler trace | PLATFORM_TELEMETRY_VIEW | requirePlatformAdmin, requirePlatformOpsActor, requireDomainActionOnOpsSurface | evidence | /admin/platform |
 | `/admin/platform/observability` | PLATFORM | adminNavigation registry | PLATFORM_TELEMETRY_VIEW | requirePlatformAdmin | platform | /admin/platform |
 | `/admin/platform/queues` | WORKSPACE_CANDIDATE | handler trace | OPS_CENTER_VIEW | requirePlatformOpsActor, requireStepUpForSensitiveAction, +STEP_UP | platform | /admin/platform |
 | `/admin/platform/readiness` | PLATFORM | adminNavigation registry | PLATFORM_TELEMETRY_VIEW | requirePlatformAdmin | platform | /admin/platform |
@@ -197,8 +197,10 @@
 | `/admin/platform/exports` | GET | `/v1/operations/exports/object-lock` | requirePlatformOpsActor | FILTER_CANDIDATE |
 | `/admin/platform/exports` | GET | `/v1/operations/exports/:id` | requirePlatformOpsActor | FILTER_CANDIDATE |
 | `/admin/platform/exports` | POST | `/v1/operations/exports/:id/verify` | requirePlatformOpsActor | FILTER_CANDIDATE |
+| `/admin/platform/media-graph` | GET | `/v1/ops/media-intelligence/runs` | requirePlatformAdmin | FILTER_CANDIDATE |
 | `/admin/platform/media-graph` | GET | `/v1/admin/platform/metrics` | requirePlatformAdmin | NONE |
 | `/admin/platform/media-graph` | POST | `/v1/ops/media-intelligence/runs/:runId/retry` | requirePlatformOpsActor | FILTER_CANDIDATE |
+| `/admin/platform/media-graph` | POST | `/v1/ops/media-intelligence/runs/:runId/dismiss` | requireDomainActionOnOpsSurface | AUDIT |
 | `/admin/platform/media-graph` | POST | `/v1/ops/media-intelligence/dlq/replay` | requirePlatformOpsActor | FILTER_CANDIDATE |
 | `/admin/platform/observability` | GET | `/v1/admin/platform/metrics` | requirePlatformAdmin | NONE |
 | `/admin/platform/observability` | GET | `/v1/admin/platform/alerts` | requirePlatformAdmin | NONE |
@@ -335,7 +337,7 @@
 | `/admin/platform/analytics` | 839 | 0c/0t/9s |  |
 | `/admin/platform/automation` | 689 | 0c/2t/5s |  |
 | `/admin/platform/exports` | 844 | 0c/4t/0s |  |
-| `/admin/platform/media-graph` | 818 | 0c/0t/5s |  |
+| `/admin/platform/media-graph` | 1133 | 0c/1t/6s |  |
 | `/admin/platform/observability` | 1663 | 0c/2t/0s |  |
 | `/admin/platform/queues` | 880 | 0c/2t/0s |  |
 | `/admin/platform/readiness` | 624 | 8c/0t/6s |  |

@@ -21,19 +21,19 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | 0ba59d493250ef3950bea4941ff508abff18c5d22ed199463a3ad61c8209ace1 |
+| engineHash    | e3cbe947fe87bb88aac7cd810af7160b00d41fc2e62848e6f834c43f5115408a |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
 
 | counter                       | value |
 | ----------------------------- | ----- |
-| registeredRoutes              | 1143  |
+| registeredRoutes              | 1144  |
 | developmentOnlyRoutes         | 1     |
-| productConsumerRoutes         | 896   |
+| productConsumerRoutes         | 898   |
 | machineOnlyConsumerRoutes     | 4     |
-| noConsumerRoutes              | 243   |
-| dispositionedNonProductRoutes | 245   |
+| noConsumerRoutes              | 242   |
+| dispositionedNonProductRoutes | 244   |
 | undisposedRoutes              | 1     |
 | authorizationUnresolved       | 0     |
 | publicUnguardedRoutes         | 20    |
@@ -204,5 +204,5 @@ _(none — the instrument is sound)_
 
 ### Product closure
 
-- CHECKPOINT: 4 violation(s) — SCALAR_DISAGREES_WITH_FACTS: ProductionRegisteredRoutes: checkpoint says 1141, facts say 1142 | SCALAR_DISAGREES_WITH_FACTS: RegisteredRoutes: checkpoint says 1142, facts say 1143 | SCALAR_DISAGREES_WITH_FACTS: UndisposedRoutes: checkpoint says 0, facts say 1 | SCALAR_DISAGREES_WITH_FACTS: ReleaseBlockingClosure: checkpoint says PASS, facts say OPEN
+- CHECKPOINT: 6 violation(s) — SCALAR_DISAGREES_WITH_FACTS: ProductionRegisteredRoutes: checkpoint says 1141, facts say 1143 | SCALAR_DISAGREES_WITH_FACTS: RegisteredRoutes: checkpoint says 1142, facts say 1144 | SCALAR_DISAGREES_WITH_FACTS: UndisposedRoutes: checkpoint says 0, facts say 1 | SCALAR_DISAGREES_WITH_FACTS: ProductConsumedRoutes: checkpoint says 896, facts say 898 | SCALAR_DISAGREES_WITH_FACTS: NonProductDispositionedRoutes: checkpoint says 245, facts say 244
 - ArchitectureBacklog: UndisposedRoutes = 1 — registered routes with no reviewed product disposition (ARCH-BACKLOG-001, NON-BLOCKING, no security or completeness credit)

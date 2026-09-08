@@ -31,7 +31,7 @@
  *     the tab is hidden.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
@@ -44,6 +44,7 @@ import {
 } from "../../../../../components/ui/PageShell";
 import { Button } from "../../../../../components/ui/Button";
 import { IdentifierText } from "../../../../../components/ui/IdentifierText";
+import { ResultCount } from "../../../../../components/ui/ResultCount";
 import "../admin-platform.css";
 type MetricsSnapshot = {
   uptimeSeconds: number;
@@ -75,6 +76,49 @@ type MetricsEnvelope = {
   countersResetOnRestart?: boolean;
   sampledAtUtc?: string;
 };
+
+/**
+ * One row of `GET /v1/ops/media-intelligence/runs`.
+ *
+ * `runId` and `jobId` are separate fields on purpose — see `runDismiss`. They
+ * happen to be derivable from one another today (`mi-run-<runId>`), and a UI
+ * that relied on that would break silently the day the prefix moved.
+ */
+type MediaRun = {
+  runId: string;
+  jobId: string;
+  teamId: string;
+  evidenceId: string;
+  kind: string;
+  status: string;
+  attemptCount: number;
+  lastError: string | null;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+  completedAtUtc: string | null;
+};
+
+type RunListEnvelope = {
+  scope?: string;
+  limit: number;
+  hasMore: boolean;
+  runs: MediaRun[];
+};
+
+/** What the run list currently knows, which is not the same as what it holds. */
+type RunsState =
+  | { kind: "loading" }
+  | { kind: "ok"; hasMore: boolean }
+  | { kind: "failed"; detail: string };
+
+const RUN_STATUS_FILTERS = [
+  "FAILED",
+  "PENDING",
+  "PROCESSING",
+  "COMPLETED",
+  "DISMISSED",
+] as const;
+type RunStatusFilter = (typeof RUN_STATUS_FILTERS)[number];
 
 type Tile = {
   label: string;
@@ -310,6 +354,46 @@ function MediaGraphOpsPageInner() {
   const [actionResult, setActionResult] = useState<ActionResult>({
     kind: "idle",
   });
+  const [runs, setRuns] = useState<MediaRun[]>([]);
+  const [runsState, setRunsState] = useState<RunsState>({ kind: "loading" });
+  const [runStatus, setRunStatus] = useState<RunStatusFilter>("FAILED");
+
+  /**
+   * Load the run list.
+   *
+   * Declared with `useCallback` because both the status filter effect and
+   * `runDismiss` call it, and a fresh identity on every render would make the
+   * effect below re-fetch on every keystroke in the retry field.
+   *
+   * A FAILED READ IS NOT AN EMPTY LIST. This console already had a page-wide
+   * lesson about the two looking alike — every tile printed "—" for months
+   * because a bad read was indistinguishable from a missing counter — so the
+   * list reports its own failure rather than rendering as "no runs".
+   */
+  const loadRuns = useCallback(async () => {
+    setRunsState({ kind: "loading" });
+    try {
+      const res = (await apiFetch(
+        `/v1/ops/media-intelligence/runs?status=${encodeURIComponent(runStatus)}&limit=25`,
+        { method: "GET" },
+      )) as RunListEnvelope;
+      const rows = Array.isArray(res?.runs) ? res.runs : [];
+      setRuns(rows);
+      setRunsState({ kind: "ok", hasMore: Boolean(res?.hasMore) });
+    } catch (err) {
+      setRuns([]);
+      setRunsState({
+        kind: "failed",
+        detail: toSafeUserError(err, {
+          message: "The run list could not be read.",
+        }).message,
+      });
+    }
+  }, [runStatus]);
+
+  useEffect(() => {
+    void loadRuns();
+  }, [loadRuns]);
 
   
 useEffect(() => {
@@ -362,7 +446,16 @@ useEffect(() => {
   //     ActionResult.error branch with a stable detail string.
   const { confirm } = useConfirmAction();
 
-  const runRetry = async () => {
+  /**
+   * Requeue one job.
+   *
+   * ADM-P2-005 — takes the identifier as an ARGUMENT. It used to read the
+   * free-text field directly, which is why the only way to retry anything was
+   * to type an id. The run list below calls this with the row's own `jobId`;
+   * the field is now the fallback for an id an operator already holds, not the
+   * only route in.
+   */
+  const runRetry = async (jobId?: string) => {
     if (actionResult?.kind === "pending") return;
     if (!teamId) {
       setActionResult({
@@ -372,12 +465,16 @@ useEffect(() => {
       });
       return;
     }
-    const trimmed = retryRunId.trim();
+    const trimmed = (jobId ?? retryRunId).trim();
     if (!trimmed) {
       setActionResult({
         kind: "error",
         label: "Retry",
-        detail: "Provide a job id (deterministic mi-<kind>-<evidenceId> form).",
+        // The old text named `mi-<kind>-<evidenceId>`, which the producer
+        // stopped emitting when the job id became `mi-run-<runId>` — an
+        // operator following it built an id that matches nothing. An id shape
+        // in copy is a copy of a contract, and this is how it drifts.
+        detail: "Provide a job id (mi-run-<runId>), or retry a run from the list.",
       });
       return;
     }
@@ -410,6 +507,62 @@ useEffect(() => {
         kind: "error",
         label: "Retry",
         detail: toSafeUserError(err, { message: "The job was not requeued." }).message,
+      });
+    }
+  };
+
+  /**
+   * Dismiss one run.
+   *
+   * ADM-P2-003 — the console has shown a "Run dismissed (operator)" tile over
+   * `media_intelligence_run_dismissed_total` since before the route that
+   * increments it existed. The route shipped; the control did not, so the
+   * counter could only ever read zero and the page was counting an action it
+   * did not offer.
+   *
+   * TWO IDENTIFIERS, AND THEY ARE NOT INTERCHANGEABLE. Retry above sends the
+   * BullMQ JOB id; this sends the `media_intelligence_runs` ROW uuid. Both come
+   * off the row, separately, so neither control can be handed the other's.
+   *
+   * THE WORKSPACE IS THE RUN'S, NOT THE OPERATOR'S. `dismissRun` filters on
+   * `team_id`, so this must be the workspace that owns the run — unlike Retry
+   * and Replay DLQ, where `teamId` is the audit scope and the operator's own
+   * workspace is correct. Same field name, three routes, two meanings; sending
+   * the operator's workspace here would silently match no row and read as
+   * "already dismissed".
+   */
+  const runDismiss = async (run: MediaRun) => {
+    if (actionResult?.kind === "pending") return;
+    const ok = await confirm({
+      title: "Dismiss this run?",
+      description: `Run ${run.runId} is marked DISMISSED and stops appearing as outstanding work. It is not retried and its evidence is untouched. Only a run that is still PENDING, PROCESSING or FAILED can be dismissed.`,
+      confirmLabel: "Dismiss run",
+      tone: "warning",
+      testId: "media-graph-dismiss",
+    });
+    if (!ok) return;
+    setActionResult({ kind: "pending", label: "Dismiss" });
+    try {
+      await apiFetch(
+        `/v1/ops/media-intelligence/runs/${encodeURIComponent(run.runId)}/dismiss`,
+        {
+          method: "POST",
+          body: JSON.stringify({ teamId: run.teamId }),
+        },
+      );
+      setActionResult({
+        kind: "success",
+        label: "Dismiss",
+        detail: `Run ${run.runId} dismissed.`,
+      });
+      void loadRuns();
+    } catch (err) {
+      setActionResult({
+        kind: "error",
+        label: "Dismiss",
+        detail: toSafeUserError(err, {
+          message: "The run was not dismissed.",
+        }).message,
       });
     }
   };
@@ -517,6 +670,168 @@ useEffect(() => {
         <TileGrid tiles={GRAPH_TILES} snapshot={snapshot} />
       </section>
 
+      {/*
+        ADM-P2-005 — the records the actions act on.
+
+        The counters above say how many runs failed. Until this section existed
+        they were the whole story: the operator could see "Failed runs 7" and
+        had no way to see which seven, so the remediation path documented in the
+        runbooks required an id reconstructed from somewhere else.
+      */}
+      <section className="apf-section" data-media-run-list>
+        <h2 className="apf-section-title">Runs</h2>
+        <div className="apf-row">
+          <div style={{ minWidth: 0 }}>
+            <div className="apf-stat-hint">
+              Media-intelligence runs across every workspace on this
+              deployment, newest first. Each row carries both identifiers the
+              actions need.
+            </div>
+          </div>
+          <div style={actionControlStyle}>
+            <select
+              className="apf-control"
+              aria-label="Run status to list"
+              value={runStatus}
+              data-media-run-status
+              onChange={(e) => setRunStatus(e.target.value as RunStatusFilter)}
+            >
+              {RUN_STATUS_FILTERS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                void loadRuns();
+              }}
+              disabled={runsState.kind === "loading"}
+            >
+              {runsState.kind === "loading" ? "Loading…" : "Refresh"}
+            </Button>
+          </div>
+        </div>
+
+        {/*
+          The count, and whether it is all of them.
+
+          `cap` is the 25 the request asks for and `hasMore` is the server's
+          own answer, so a truncated page cannot render as a total — the
+          failure this component exists to prevent. `filtered` is
+          unconditionally true because a status is always applied: there is no
+          unfiltered view of this list to confuse an empty result with.
+        */}
+        <ResultCount
+          shown={runs.length}
+          cap={25}
+          hasMore={runsState.kind === "ok" ? runsState.hasMore : undefined}
+          noun="run"
+          // Always true: a status is always applied, so there is no unfiltered
+          // view of this list whose emptiness could be confused with this one.
+          // Written as an explicit value rather than the bare shorthand because
+          // the count-truth audit reads `filtered={` — a page can be
+          // filter-aware and recorded as not, which is a worse artifact than a
+          // page that simply is not.
+          filtered={true}
+          loading={runsState.kind === "loading"}
+          failed={runsState.kind === "failed"}
+          data-testid="media-run-count"
+        />
+
+        {runsState.kind === "failed" ? (
+          <div
+            style={actionResultErrorStyle}
+            role="status"
+            data-media-run-list-failed
+          >
+            {runsState.detail}
+          </div>
+        ) : runsState.kind === "loading" ? (
+          <div className="apf-stat-hint">Reading runs…</div>
+        ) : runs.length === 0 ? (
+          <div className="apf-stat-hint" data-media-run-list-empty>
+            No runs match the {runStatus} filter. Other statuses may still have
+            runs — this list was read successfully and is empty, which is not
+            the same as a read that failed.
+          </div>
+        ) : (
+          <>
+            <div className="apf-table-wrap">
+              <table className="apf-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Status</th>
+                    <th scope="col">Kind</th>
+                    <th scope="col">Run</th>
+                    <th scope="col">Job</th>
+                    <th scope="col">Workspace</th>
+                    <th scope="col">Attempts</th>
+                    <th scope="col">Last error</th>
+                    <th scope="col">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {runs.map((run) => (
+                    <tr key={run.runId} data-media-run-row={run.runId}>
+                      <td>{run.status}</td>
+                      <td>{run.kind}</td>
+                      <td>
+                        <IdentifierText value={run.runId} />
+                      </td>
+                      <td>
+                        <IdentifierText value={run.jobId} />
+                      </td>
+                      <td>
+                        <IdentifierText value={run.teamId} />
+                      </td>
+                      <td>{run.attemptCount}</td>
+                      <td>{run.lastError ?? "—"}</td>
+                      <td>
+                        <div style={actionControlStyle}>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            data-media-run-retry={run.jobId}
+                            onClick={() => {
+                              void runRetry(run.jobId);
+                            }}
+                            disabled={
+                              actionResult.kind === "pending" || !teamId
+                            }
+                          >
+                            Retry
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            data-media-run-dismiss={run.runId}
+                            onClick={() => {
+                              void runDismiss(run);
+                            }}
+                            disabled={actionResult.kind === "pending"}
+                          >
+                            Dismiss
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {runsState.hasMore ? (
+              <div className="apf-stat-hint">
+                Showing the 25 most recently updated. Narrow by status to see
+                the rest.
+              </div>
+            ) : null}
+          </>
+        )}
+      </section>
+
       <section className="apf-section">
         <h2 className="apf-section-title">Operator actions</h2>
         <div className="apf-section">
@@ -524,16 +839,16 @@ useEffect(() => {
             <div style={{ minWidth: 0 }}>
               <div className="apf-section-title">Retry one job</div>
               <div className="apf-stat-hint">
-                Requeues a specific failed BullMQ job. The id is the
-                deterministic <code>mi-&lt;kind&gt;-&lt;evidenceId&gt;</code>
-                form emitted by the producer.
+                Requeues a specific failed BullMQ job by id
+                (<code>mi-run-&lt;runId&gt;</code>). Use this for an id you
+                already hold; otherwise retry from the run list above.
               </div>
             </div>
             <div style={actionControlStyle}>
               <input
                 type="text"
                 value={retryRunId}
-                placeholder="mi-extract_exif-<uuid>"
+                placeholder="mi-run-<uuid>"
                 aria-label="Failed job id to retry"
                 onChange={(e) => setRetryRunId(e.target.value)}
                 className="apf-control"

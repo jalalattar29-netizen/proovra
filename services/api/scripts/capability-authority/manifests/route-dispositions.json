@@ -1163,10 +1163,10 @@
     },
     {
       "routeId": "POST /v1/ops/media-intelligence/runs/:runId/dismiss",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "PHASE 13 §4 wiring — the ops console already advertises the OUTCOME of this action but has no control that performs it",
-      "evidence": "reg services/api/src/routes/ops.routes.ts app.post(\"/v1/ops/media-intelligence/runs/:runId/dismiss\", { preHandler: requireAuth }) + requireOpsActorAction(teamId). THE SURFACE THAT PROMISES IT ALREADY SHIPS: apps/web/app/(app)/operations/media-graph/page.tsx renders a metric tile labelled \"Run dismissed (operator)\" over media_intelligence_run_dismissed_total — a registered counter that, before this route existed, no code path in the tree could increment, so the tile displayed a structurally impossible zero. services/worker/src/media-intelligence.processor.ts additionally tells operations that a run left PENDING by an unshipped arm can be \"dismissed manually\". The DISMISSED status and its only writer (packages/shared-runtime/src/media-intelligence/run-tracker.service.ts#dismissRun) were already in the tree and reachable from nothing; this route is the missing leg, not a new feature. 0 call sites in apps/web + apps/mobile — the Dismiss button belongs beside the existing Retry and Replay-DLQ controls on that page and is not part of this pass.",
-      "reviewedAtUtc": "2026-08-17"
+      "disposition": "PRODUCT_CONNECTED",
+      "reason": "ADM-P2-003 — the Dismiss control now ships beside Retry and Replay DLQ on the media-graph console",
+      "evidence": "reg services/api/src/routes/ops.routes.ts app.post(\"/v1/ops/media-intelligence/runs/:runId/dismiss\"). CONSUMER: apps/web/app/(app)/admin/platform/media-graph/page.tsx#runDismiss, driven from the run list added by ADM-P2-005 (GET /v1/ops/media-intelligence/runs). Executed proof: apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx \\\"Dismiss from a row sends that row RUN uuid and the RUN workspace\\\" — which also pins the identifier separation, because this route takes the media_intelligence_runs ROW uuid while its sibling /retry takes the BullMQ JOB id, and the teamId here is a WHERE-clause filter rather than the audit scope its siblings use. The disposition was MISSING_PRODUCT_UI_POST_RELEASE from 2026-08-17, recorded when the route shipped without its control; the control is what changed.",
+      "reviewedAtUtc": "2026-09-08"
     },
     {
       "routeId": "POST /v1/ops/seed/reviewer-ops",
