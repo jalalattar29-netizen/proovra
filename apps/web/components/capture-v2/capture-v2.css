@@ -3729,50 +3729,10 @@ not cards */
   color: #5b21b6 !important;
 }
 
-/* Responsive */
-@media (max-width: 1100px) {
-  .capture-materials-list-header {
-    display: none !important;
-  }
-
-  .capture-material-row {
-    grid-template-columns: 32px minmax(0, 1fr) 96px !important;
-    grid-template-areas:
-      "idx name actions"
-      "idx type status"
-      "idx map map" !important;
-    gap: 8px !important;
-    align-items: start !important;
-  }
-
-  .capture-material-row-index {
-    grid-area: idx !important;
-  }
-
-  .capture-material-row-name {
-    grid-area: name !important;
-  }
-
-  .capture-material-row-type {
-    grid-area: type !important;
-  }
-
-  .capture-material-row-size {
-    display: none !important;
-  }
-
-  .capture-material-row-map-cell {
-    grid-area: map !important;
-  }
-
-  .capture-material-row-status {
-    grid-area: status !important;
-  }
-
-  .capture-material-row-actions {
-    grid-area: actions !important;
-  }
-}
+/* The narrow-width reflow that used to live here is gone: it was overridden
+   by two later unconditional rewrites of the same track list, so it never
+   applied. Its replacement is the single responsive block at the END of this
+   file, which is the only place the tablet and phone layouts are defined. */
 
 /* =========================================================
    FIX — prevent materials table from bleeding into sidebars
@@ -6617,5 +6577,155 @@ body {
   .capture-session-column {
     position: static !important;
     top: auto !important;
+  }
+}
+
+/* ===========================================================================
+   THE EVIDENCE ROW BECOMES A CARD ON A PHONE (§22-§26).
+
+   WHAT WAS WRONG. `.capture-material-row` is an eight-column grid whose track
+   list is written three times in this file, each with `!important`. A
+   `@media (max-width: 1100px)` block above reflows it to a three-area card —
+   but it appears EARLIER in the file than two of those unconditional
+   rewrites, and between rules of equal specificity and equal importance the
+   LAST one wins. A media query adds no specificity. So the phone was served
+   the desktop track list:
+
+       28 + 56 + 150 + 70 + 72 + 180 + 110 + 110  =  776px of minimums
+       + seven 10px gaps                          =  846px
+
+   inside a 360px viewport, in a panel that clips its overflow. The columns
+   collapsed onto their content, which is exactly the reported symptom: a very
+   tall row, a 58px postage-stamp preview, and role and status text breaking
+   one character per line. Nothing overflowed the document, so no geometry
+   check ever saw it.
+
+   THE FIX IS ORDER, NOT MORE FORCE. This block is last, so it wins on the
+   same terms the desktop rewrites won — and it is now the only place the
+   narrow layout is defined, so there is one description of it rather than a
+   rule and its silent successors.
+
+   WHAT IT IS NOT: a change to Capture. No file is uploaded, mapped, validated
+   or finalized differently; every control, the role dropdown included, is the
+   same control in a different place.
+   =========================================================================== */
+
+/* --- Tablet: thumbnail beside the metadata, which is what the width affords. */
+@media (max-width: 1100px) {
+  .capture-materials-list-header {
+    display: none !important;
+  }
+
+  .capture-material-row {
+    grid-template-columns: 26px 96px minmax(0, 1fr) auto !important;
+    grid-template-areas:
+      "idx preview name    actions"
+      "idx preview type    status"
+      "idx preview map     map" !important;
+    gap: 6px 12px !important;
+    align-items: center !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+  }
+
+  .capture-material-row-index { grid-area: idx !important; align-self: start !important; }
+  .capture-material-row-preview {
+    grid-area: preview !important;
+    width: 96px !important;
+    height: 72px !important;
+    min-width: 96px !important;
+    max-width: 96px !important;
+    min-height: 72px !important;
+    max-height: 72px !important;
+    align-self: start !important;
+  }
+  .capture-material-row-name { grid-area: name !important; max-width: none !important; }
+  .capture-material-row-type { grid-area: type !important; }
+  .capture-material-row-size { display: none !important; }
+  .capture-material-row-map-cell { grid-area: map !important; }
+  .capture-material-row-status { grid-area: status !important; justify-self: start !important; }
+  .capture-material-row-actions { grid-area: actions !important; justify-self: end !important; }
+
+  .capture-material-dropdown.compact .capture-material-dropdown-trigger {
+    max-width: none !important;
+  }
+}
+
+/* --- Phone: stack, and let the evidence be the biggest thing on the card.
+   A thumbnail an operator cannot identify the file from is not a thumbnail,
+   so the preview takes the full width at a 16:10 frame. `aspect-ratio` rather
+   than a fixed height keeps it proportionate from 320 to 700px. */
+@media (max-width: 700px) {
+  .capture-material-row {
+    /* Three columns, because the meta line is three facts: the ordinal, what
+       the file IS, and whether it is ready. A two-column version sized its
+       first track from "Photograph" and left the ordinal stranded a hundred
+       pixels from the name it belongs to. */
+    grid-template-columns: auto minmax(0, 1fr) auto !important;
+    grid-template-areas:
+      "preview preview preview"
+      "name    name    name"
+      "idx     type    status"
+      "map     map     map"
+      "actions actions actions" !important;
+    gap: 8px 10px !important;
+    align-items: center !important;
+    padding: 12px !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+  }
+
+  .capture-material-row-preview {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    aspect-ratio: 16 / 10 !important;
+    border-radius: 12px !important;
+  }
+
+  /* A non-visual file gets the canonical type icon, centred in the same frame
+     — no fabricated preview, just the placeholder at a size that reads. */
+  .capture-material-row-file-icon svg {
+    width: 44px !important;
+    height: 44px !important;
+  }
+
+  /* THE FILENAME WRAPS AT WORDS, OR NOT AT ALL.
+     Two lines, then an ellipsis; the untruncated name stays in the element's
+     own `title`, which the row already sets. `break-word` and not `anywhere`
+     is the whole point — `anywhere` is what breaks a name mid-character. */
+  .capture-material-row-name {
+    max-width: none !important;
+    white-space: normal !important;
+    word-break: normal !important;
+    overflow-wrap: break-word !important;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    font-size: 0.9rem !important;
+    line-height: 1.35 !important;
+  }
+
+  .capture-material-row-type,
+  .capture-material-row-status {
+    white-space: nowrap !important;
+  }
+  .capture-material-row-status { justify-self: end !important; }
+  .capture-material-row-actions { justify-self: stretch !important; }
+  .capture-material-row-actions button { flex: 1 1 auto !important; }
+
+  /* Every grid child can shrink. A grid item's default `min-width: auto`
+     refuses to go below its content, which is the other half of how a row like
+     this teaches a page to scroll sideways. */
+  .capture-material-row > * {
+    min-width: 0 !important;
   }
 }
