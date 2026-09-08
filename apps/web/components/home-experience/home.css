@@ -1198,3 +1198,60 @@
 .self-serve-home .home-range-listbox .app-listbox__popup {
   min-inline-size: max-content;
 }
+
+/* ===========================================================================
+   VERIFICATION SUMMARY ON A PHONE (§15).
+
+   `.home-row` is `display: flex` with `space-between`, and `.home-row__value`
+   is `white-space: nowrap`. That pairing is right for a row whose value is one
+   figure and wrong for a row whose value is three segments: at 360px
+   "138 stamped · 34 failed · 4 not stamped" refuses to shrink, so the flex
+   line gives it everything and the label collapses into a sliver that wraps
+   one word — sometimes one syllable — per line. The card became a column of
+   very tall rows.
+
+   Only the multi-segment rows stack, and only below 640px. The single-figure
+   rows (Signed records, Public verification links, Needs attention) keep the
+   label-left / value-right shape, which is what makes them scannable.
+
+   No signal is hidden and no colour changes: failed, pending and not-anchored
+   still render, still in their own tones. This is a line-breaking rule.
+   =========================================================================== */
+@media (max-width: 640px) {
+  .self-serve-home .home-row[data-trust-multi="true"] {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+    padding: 10px 0;
+  }
+
+  .self-serve-home .home-row[data-trust-multi="true"] .home-row__label {
+    font-size: 0.85rem;
+  }
+
+  /* The VALUE may wrap; a SEGMENT may not. Wrapping is therefore forced to
+     happen between "34 failed" and "4 not stamped" rather than inside either,
+     which is the difference between a phrase break and a word break. */
+  .self-serve-home .home-row[data-trust-multi="true"] .home-row__value {
+    white-space: normal;
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+
+  .self-serve-home .home-row__value [data-trust-segment] {
+    white-space: nowrap;
+  }
+
+  /* The single-figure rows keep their shape but stop letting a long label
+     shrink to nothing: the value is content-sized, the label takes the rest. */
+  .self-serve-home .home-row[data-trust-multi="false"] {
+    gap: 12px;
+  }
+  .self-serve-home .home-row[data-trust-multi="false"] .home-row__label {
+    flex: 1 1 auto;
+    font-size: 0.85rem;
+  }
+  .self-serve-home .home-row[data-trust-multi="false"] .home-row__value {
+    flex: 0 0 auto;
+  }
+}

@@ -1360,7 +1360,26 @@ export function TrustStateCard({ trust }: { trust: TrustState }) {
         {rows.map((r) => {
           const ts = trustToneStyle(r.tone);
           return (
-            <li key={r.key} className="home-row" data-trust-key={r.key} style={listItemStyle}>
+            <li
+              key={r.key}
+              className="home-row"
+              data-trust-key={r.key}
+              /*
+                MULTI-SEGMENT ROWS ARE THE ONES THAT BREAK ON A PHONE (§15).
+
+                A row whose value is a single figure — "172 of 176" — fits
+                beside its label at any width. A row whose value is three
+                segments does not: `.home-row__value` is `nowrap`, so on a
+                360px screen the value refused to shrink and the label was
+                squeezed into a sliver that wrapped one word per line.
+
+                The flag is on the ROW rather than resolved in CSS because
+                only the component knows which rows have segments. CSS then
+                stacks exactly those, and only on a phone.
+              */
+              data-trust-multi={r.segments ? "true" : "false"}
+              style={listItemStyle}
+            >
               <span className="home-row__label">{r.label}</span>
               <span className="home-row__value" style={{ color: ts.value }}>
                 {r.segments

@@ -232,6 +232,33 @@
     inline-size: 100%;
     justify-content: center;
   }
+
+  /*
+    ONE OF THE THREE WAS NOT A DIRECT CHILD (§16).
+
+    "Download report PDF" and "Open evidence" are children of the actions row,
+    so `> *` sized them. "Download verification package" is rendered through
+    `GovernedExportAction`, which ALWAYS wraps `renderAction(...)` in a div —
+    so the rule stretched that wrapper and the button inside it kept its
+    content width. Two full-width actions and one short one, on the same
+    stack.
+
+    Sizing the wrapper's own action closes it. The selector is bounded to
+    `.rpt-row__action`, the class the row's buttons already carry, so it
+    reaches the governed download without reaching into anything else the
+    wrapper renders (its explanation panel and denial copy are untouched).
+  */
+  .rpt-row__actions > * > .rpt-row__action,
+  .rpt-row__actions > * > * > .rpt-row__action {
+    inline-size: 100%;
+    justify-content: center;
+  }
+
+  /* A full-width button no longer needs to refuse to wrap, and refusing at
+     320px is what would push a long label past its own edge. */
+  .rpt-row__action {
+    white-space: normal;
+  }
 }
 
 /* The list is the rows themselves — no wrapping panel. A panel around a

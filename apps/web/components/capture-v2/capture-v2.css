@@ -6729,3 +6729,77 @@ body {
     min-width: 0 !important;
   }
 }
+
+/* ===========================================================================
+   EVIDENCE MATERIAL MANAGEMENT — THE HEADER, ON A PHONE (§17, §18).
+
+   A SECOND instance of the defect the evidence rows had, in the card ABOVE
+   them, which is why fixing the rows did not fix this.
+
+   `.capture-materials-header` is rewritten unconditionally, with `!important`,
+   as a two-column grid:
+
+       display: grid !important;
+       grid-template-columns: minmax(0, 1fr) auto !important;
+
+   and its right-hand column carries `min-width: 260px !important`. There IS an
+   earlier `@media (max-width: 640px)` rule that sets `flex-direction: column`
+   on this element — but the element is a GRID by then, so `flex-direction`
+   applies to nothing, and the rule carries no `!important` while the grid
+   does. Source order and importance both went the other way.
+
+   At 360px that leaves the title, the count and the description sharing what
+   is left after a 260px column and a 16px gap — under 70px. Prose in a 70px
+   column wraps to roughly one word per line, which is the reported "extremely
+   tall and narrow" card.
+
+   The fix is the same discipline as the row fix: one block, last in the file,
+   which wins on the same terms the desktop rewrite won.
+
+   NO FONT SIZE IS REDUCED. The columns were the defect, not the type.
+   =========================================================================== */
+@media (max-width: 700px) {
+  /* One column. The heading, the count and the description get the full width
+     of the card; the meta stack sits under them as a wrapping row of chips. */
+  .capture-materials-header {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 12px !important;
+    align-items: start !important;
+  }
+
+  .capture-materials-header > * {
+    min-width: 0 !important;
+  }
+
+  /* The 260px floor is what squeezed the text column. Released, the chips wrap
+     across the full width and align with the heading above them instead of
+     being pushed to a right edge that no longer exists. */
+  .capture-materials-meta-stack {
+    min-width: 0 !important;
+    justify-content: flex-start !important;
+    flex-wrap: wrap !important;
+  }
+
+  /* Prose wraps at WORDS. Explicitly stated because this card sits in a file
+     that sets aggressive breaking elsewhere, and a description broken
+     mid-word is the exact symptom being fixed. */
+  .capture-materials-header p,
+  .capture-materials-header .capture-card-title,
+  .capture-materials-header .capture-section-label {
+    max-width: none !important;
+    overflow-wrap: break-word !important;
+    word-break: normal !important;
+  }
+
+  /* The bulk-action toolbar above the rows has the same problem in miniature:
+     buttons sized for a desktop row, wrapping into a narrow column. Let them
+     wrap as a real row instead. */
+  .capture-bulk-actions {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+  .capture-bulk-actions > * {
+    min-width: 0 !important;
+  }
+}
