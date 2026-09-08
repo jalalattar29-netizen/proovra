@@ -377,6 +377,7 @@ function MembersTab({
                     key={m.id}
                     member={m}
                     canManage={canManage}
+                    isArchived={team.status !== "ACTIVE"}
                     teamId={team.id}
                     activeLeadCount={activeLeadCount}
                     onChanged={async (msg) => {
@@ -481,6 +482,7 @@ function memberStatusTone(status: string): AppTone {
 function MemberRow({
   member,
   canManage,
+  isArchived,
   teamId,
   activeLeadCount,
   onChanged,
@@ -488,6 +490,8 @@ function MemberRow({
 }: {
   member: CollaborationTeamMember;
   canManage: boolean;
+  /** Lifecycle, separate from role — so a refused action can say WHICH. */
+  isArchived: boolean;
   teamId: string;
   activeLeadCount: number;
   onChanged: (msg: string) => void | Promise<void>;
@@ -697,7 +701,32 @@ function MemberRow({
                 Remove from team
               </button>
             </>
+          ) : isArchived ? (
+            /*
+              WHY, NOT JUST NOTHING (§F).
+
+              An archived team collapsed every member's actions to a bare em
+              dash — the same mark a row shows when the viewer simply lacks the
+              role, and the same mark a suspended member's row shows. Three
+              different reasons, one character.
+
+              The banner above states the archived state once for the page;
+              this states it where the action WOULD have been, so a reader
+              scanning the roster does not have to scroll back up to work out
+              why the controls went away.
+
+              It is rendered TEXT, not a `title`: a hover-only explanation is
+              no explanation on a phone or a keyboard. `AppStatusText` keeps it
+              a label rather than reinstating a capsule.
+            */
+            <AppStatusText tone="slate" size="sm" data-member-actions-blocked="archived">
+              Read-only while archived
+            </AppStatusText>
           ) : (
+            /* Role, or a member who is not ACTIVE. Deliberately unexplained:
+               the Status column already says the latter, and spelling out an
+               authority the viewer does not hold discloses the shape of a
+               permission model they cannot use. */
             <span className="app-table__muted">—</span>
           )}
         </div>

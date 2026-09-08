@@ -721,7 +721,13 @@ export async function listAssignments(
     priority?: CollaborationTeamAssignmentPriority | null;
     /** A member's user id, or `ASSIGNEE_UNASSIGNED` for team-level work. */
     assignee?: string | null;
-    overdueOnly?: boolean;
+    /*
+      `overdueOnly` is gone with the Work tab toggle that was its only caller.
+      The SERVER still accepts `?overdue=true` and still computes overdue on
+      every row — the metric, the red marker and the Overview attention count
+      are untouched. What is removed is a client option nothing passes, which
+      the next reader would otherwise have to prove dead before touching it.
+    */
     /** Matches the assignment note or the assigned record's own name. */
     search?: string | null;
     limit?: number;
@@ -740,7 +746,6 @@ export async function listAssignments(
   if (opts?.targetType) qs.set("targetType", opts.targetType);
   if (opts?.priority) qs.set("priority", opts.priority);
   if (opts?.assignee) qs.set("assignee", opts.assignee);
-  if (opts?.overdueOnly) qs.set("overdue", "true");
   if (opts?.search?.trim()) qs.set("q", opts.search.trim());
   if (opts?.limit) qs.set("limit", String(opts.limit));
   if (opts?.cursor) qs.set("cursor", opts.cursor);

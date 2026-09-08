@@ -99,6 +99,7 @@ function OverviewTab({
     };
   }, [load]);
 
+  const isArchived = team.status !== "ACTIVE";
   const permissions = listCollaborationTeamRolePermissions(team.viewerRole);
   const permissionGroups = groupPermissions(permissions);
 
@@ -407,7 +408,7 @@ function OverviewTab({
                     <h3 className="overview-perm-group__title">{group.title}</h3>
                     <ul className="overview-perm-list">
                       {group.items.map((p) => (
-                        <li key={p}>{humanizePermission(p)}</li>
+                        <li key={p}>{humanizePermission(p, isArchived)}</li>
                       ))}
                     </ul>
                   </div>
@@ -513,6 +514,7 @@ const PERMISSION_LABELS: Record<string, string> = {
   "team.read": "See this team and its work",
   "team.update_settings": "Change the team's name and description",
   "team.archive": "Archive or reopen this team",
+  "team.delete": "Permanently delete this team when it holds no records",
   "team.transfer_lead": "Transfer the lead role",
   "team.member.invite": "Add workspace members to the team",
   "team.member.remove": "Remove members from the team",
@@ -527,7 +529,37 @@ const PERMISSION_LABELS: Record<string, string> = {
   "team.activity.read": "See the team's activity history",
 };
 
-function humanizePermission(p: string): string {
+/**
+ * LIFECYCLE CHANGES WHICH HALF OF A CAPABILITY IS AVAILABLE, NOT WHETHER THE
+ * ROLE HOLDS IT.
+ *
+ * `team.archive` is one grant covering two opposite operations, so its label
+ * read "Archive or reopen this team" in both states — telling the reader of an
+ * ARCHIVED team they can archive it, and the reader of an ACTIVE team they can
+ * reopen it. Both halves are false half the time.
+ *
+ * This is PRESENTATION ONLY and adds no authority: the permission list is
+ * still `listCollaborationTeamRolePermissions`, the server still decides, and
+ * nothing is added to or removed from the set. Only the sentence changes.
+ *
+ * Deliberately narrow. Every other permission in the vocabulary means the same
+ * thing in both states — a role that may assign work still may, it is simply
+ * refused while archived, and the banner above already says so once. Rewriting
+ * fifteen labels to say "…when this team is reopened" would be noise.
+ */
+const LIFECYCLE_SENSITIVE_LABELS: Record<
+  string,
+  { active: string; archived: string }
+> = {
+  "team.archive": {
+    active: "Archive this team",
+    archived: "Reopen this team",
+  },
+};
+
+function humanizePermission(p: string, isArchived: boolean): string {
+  const lifecycle = LIFECYCLE_SENSITIVE_LABELS[p];
+  if (lifecycle) return isArchived ? lifecycle.archived : lifecycle.active;
   return PERMISSION_LABELS[p] ?? p;
 }
 
@@ -545,6 +577,7 @@ const PERMISSION_GROUPS: { title: string; match: (p: string) => boolean }[] = [
     match: (p) =>
       p === "team.update_settings" ||
       p === "team.archive" ||
+      p === "team.delete" ||
       p === "team.transfer_lead",
   },
   { title: "Members", match: (p) => p.startsWith("team.member.") },
