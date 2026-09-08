@@ -1417,23 +1417,11 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   {
     id: "workspace.collaboration_teams",
     href: "/collaboration-teams",
-    /**
-     * "Collaboration Teams", not "Teams" (2026-09-08).
-     *
-     * "Teams" was the most overloaded word in this product's navigation: it
-     * sat near "Workspaces" (which the legacy `Team` model actually backs) and
-     * beside the workspace membership surface, and named none of them
-     * distinctly. The full name says which of the four meanings this is, and
-     * pairs with "Members & Access" so the two read as halves of one model:
-     * one decides who can reach the workspace, the other how those members
-     * work together.
-     *
-     * The two live in different sidebar groups on purpose — access governance
-     * and operational collaboration are genuinely different jobs — so the
-     * relationship is carried by naming and by reciprocal contextual links on
-     * both surfaces rather than by forcing an adjacency that would misclassify
-     * one of them.
-     */
+    // "Collaboration Teams", not "Teams" (2026-09-08). "Teams" sat beside
+    // "Workspaces" — which the legacy `Team` model backs — and beside the
+    // membership surface, naming none of them distinctly. The full name pairs
+    // with "Members & Access": one decides who can reach the workspace, the
+    // other how those members work together.
     label: "Collaboration Teams",
     description:
       "Operational groups of workspace members — assignments, cases, evidence and review workload.",

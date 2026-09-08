@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 267,
-    "classifiedMigrations": 267,
+    "filesystemMigrations": 268,
+    "classifiedMigrations": 268,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 267,
+    "productionSnapshotUnknown": 268,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 267,
-    "classifiedMigrations": 267,
+    "filesystemMigrations": 268,
+    "classifiedMigrations": 268,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 267,
+    "productionSnapshotUnknown": 268,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 48,
+      "EXPAND": 49,
       "BACKFILL": 20,
       "CONTRACT_DROP": 10,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 58,
+      "SAFE_TO_APPLY_NOW": 59,
       "WAIT_FOR_BACKFILL_READINESS": 13,
       "CONTRACT_DROP_LATER": 10,
       "WAIT_FOR_RUNTIME_CUTOVER": 1
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 267
+    "ProductionMigrationStateUnknown": 268
   },
   "gateFailures": [],
   "migrations": [
@@ -20690,7 +20690,7 @@
       "checksumSha256": "5145459a33ac1a6902a772fef43d25f660be032e73724eb846dc71a8a50b9b8c",
       "checksumSha256Raw": "5145459a33ac1a6902a772fef43d25f660be032e73724eb846dc71a8a50b9b8c",
       "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
-      "gitTracked": false,
+      "gitTracked": true,
       "gitIntroductionCommit": null,
       "sqlChangedSinceIntroduction": false,
       "classification": "EXPAND",
@@ -20757,7 +20757,7 @@
       "checksumSha256": "9ab6b3641879ff7ddb44346240250e367ef5206cd1732fcf72620ec9c4860b0d",
       "checksumSha256Raw": "9ab6b3641879ff7ddb44346240250e367ef5206cd1732fcf72620ec9c4860b0d",
       "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
-      "gitTracked": false,
+      "gitTracked": true,
       "gitIntroductionCommit": null,
       "sqlChangedSinceIntroduction": false,
       "classification": "EXPAND",
@@ -20809,8 +20809,71 @@
       "evidence": "WCR-14 (2026-09-07) — ONE STATEMENT, CREATE INDEX IF NOT EXISTS on collaboration_team_activity (team_id, created_at DESC, id DESC). No column altered, no row read or written. WHY: listTeamActivity paged on `id` while ordering by `created_at` alone, so two rows sharing a timestamp had no defined order between requests and a page boundary could move — rows repeating or disappearing between pages. That is the NORMAL case here rather than an edge case, because recordActivity writes inside the mutation's own transaction and several events routinely commit together with identical timestamps. The service now orders by the stable pair (created_at DESC, id DESC), which is the same treatment listAssignments received when it was paginated; this index is the other half. The existing (team_id, created_at DESC) index cannot serve it — a keyset walk needs the tiebreaker in the index too, or PostgreSQL must sort the whole team partition on every page to resolve the ties the cursor depends on, which would make the pagination added to keep a busy group readable slower than the truncation it replaced. SAFE BEFORE AND AFTER CODE DEPLOYMENT: an index changes how a query is answered, never what it answers. Idempotent. Written in the Phase O-final pattern — every column the index names is checked for existence first, so it cannot silently create a partial index against a renamed column. NOT APPLIED TO PRODUCTION."
     },
     {
-      "name": "email_password_auth",
+      "name": "20280512000000_enterprise_contract_legal_hold",
       "order": 266,
+      "sqlPresent": true,
+      "byteLength": 4672,
+      "checksumSha256": "a1aed2f83d605b55b41587b6d4d85336e6c20da91271743cc68ccebe4d5a9f1e",
+      "checksumSha256Raw": "a1aed2f83d605b55b41587b6d4d85336e6c20da91271743cc68ccebe4d5a9f1e",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "EXPAND",
+      "sqlShapeEvidence": "additive only — tables:0 columns:1 types:0 extensions:0",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "enterprise_contracts"
+        ],
+        "addedColumns": [
+          "legal_hold_enabled"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20270920300000_enterprise_contract_state"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 1,
+      "guardRaises": 1,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": null,
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "LEGAL HOLD ENTERPRISE CONTRACT CLOSURE (2026-09-08) — ONE STATEMENT: ADD COLUMN IF NOT EXISTS legal_hold_enabled BOOLEAN on enterprise_contracts, behind the Phase-O table-existence guard. No column altered, no index, no constraint, no row read or written. WHY: Legal Hold is an ENTERPRISE governance capability whose ACTIVATION is a contract term, and the contract had nowhere to state it — resolveEnterpriseContractLimits could resolve seats, storage, evidence records, AI operations and collaboration capacity from a contract, but not a capability. SAFE BEFORE CODE: the column is nullable and NULL means NOT GRANTED, which is exactly the behaviour every existing contract has today, so an older image that never selects it is unaffected and a newer image reading it finds the same answer the product gave before this migration. NO BACKFILL is possible or correct: no contract has ever stated this term, and writing true for any row would be inventing a contract nobody signed. ROLLBACK is code-first — revert the API image and leave the column in place; dropping it would be a CONTRACT_DROP requiring its own migration and its own decision. Deliberately NOT following the nullable-numeric convention of its neighbours, where NULL means the catalog default governs: a capability has no safe default, and reading silence as a grant would hand Legal Hold to every Enterprise contract."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 267,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

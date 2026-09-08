@@ -1272,6 +1272,13 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // column, index, enum or mapping is altered by it, which is what this
       // allowlist is about.
       "20280511000000_collaboration_activity_keyset_index",
+      // ENTERPRISE CONTRACT LEGAL HOLD (2026-09-08) — one nullable BOOLEAN,
+      // `legal_hold_enabled`, on `enterprise_contracts`, behind the same
+      // table-existence guard its neighbours use. Legal Hold is an Enterprise
+      // governance capability whose ACTIVATION is a contract term, and the
+      // contract had nowhere to state it. No `security_events` column, index,
+      // enum or mapping is touched, which is what this allowlist is about.
+      "20280512000000_enterprise_contract_legal_hold",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

@@ -346,8 +346,8 @@
       "binding": "CONTENT_ONLY",
       "bindingValue": null,
       "schemaVersion": null,
-      "contentHash": "6317c8763e55a931c9d147c7f03ca809f21c40c1d759815a527e0a96391d874b",
-      "byteLength": 997186,
+      "contentHash": "6f74f83116af4326afac919b14cc37323e6db6f7b4363b86e24305f36d2122cc",
+      "byteLength": 1000846,
       "present": true,
       "freshness": "BOUND_BY_CONTENT",
       "why": "One record per migration directory on disk. The source engine never classifies migrations; this is the database domain's own authority."

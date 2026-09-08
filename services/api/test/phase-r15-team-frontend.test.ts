@@ -191,7 +191,11 @@ describe("Phase R15 — Stage 3: route registry", () => {
     expect(block).toMatch(/requiredActiveSpace:\s*"PERSONAL_OR_ORG"/);
     expect(block).not.toMatch(/requiredActiveSpace:\s*"ORGANIZATION_ONLY"/);
     expect(block).toMatch(/sidebarEligible:\s*true/);
-    expect(block).toMatch(/label:\s*"Teams"/);
+    // "Collaboration Teams" since 2026-09-08. "Teams" named none of the four
+    // things this product calls a team distinctly — it sat beside
+    // "Workspaces", which the legacy Team model backs. The full name is
+    // asserted, so a revert to the bare word fails here.
+    expect(block).toMatch(/label:\s*"Collaboration Teams"/);
   });
 
   it("invite-accept route is NONE active-space (accessible during signup flow)", () => {
@@ -266,7 +270,11 @@ describe("Phase R15 — Stages 4-12: page content", () => {
     // scope positively, so the contract is now the RULE rather than the
     // sentence: the page describes groups inside THIS workspace, never asks
     // for an Organization, and gates nothing on the workspace kind.
-    expect(overview).toMatch(/inside this workspace/i);
+    // The scope is stated positively, and the RULE is pinned rather than one
+    // sentence: the landing describes organising this workspace own members,
+    // and the three negative assertions below are what actually stop an
+    // Organization gate returning.
+    expect(overview).toMatch(/workspace members/i);
     expect(overview).not.toMatch(/Organization is required/i);
     expect(overview).not.toMatch(/create an Organization/i);
     expect(overview).not.toMatch(/workspaceKind === "ORGANIZATION"/);
