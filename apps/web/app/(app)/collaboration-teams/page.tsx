@@ -26,6 +26,10 @@
 "use client";
 
 import Link from "next/link";
+// The canonical Members & Access path. Imported rather than written inline so
+// the route has exactly one definition — the locator is what makes renaming it
+// a one-file change if that ever becomes worth doing.
+import { WORKSPACE_PEOPLE_PATH } from "../../../lib/navigation/workspacePeopleLocator";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -351,11 +355,25 @@ function TeamsOverview() {
           <TeamsGlyph />
         </span>
         <div className="app-page-header__text">
-          <h1 className="app-page-header__title">Teams</h1>
+          <h1 className="app-page-header__title">Collaboration Teams</h1>
           <p className="app-page-header__subtitle">
-            Working groups inside this workspace. Add people who already have
-            access here, then assign cases and evidence to the group and discuss
-            the work in one place.
+            {/*
+              The counterpart sentence to Members &amp; Access. That surface
+              decides WHO can reach this workspace; this one decides HOW those
+              members work together. Saying "members who already have access"
+              rather than "people" is the whole distinction in three words:
+              a Collaboration Team groups existing membership, it never grants
+              it.
+            */}
+            Organise workspace members into operational teams for cases,
+            evidence, assignments, reviews and workload. Teams group members who
+            already have access — they do not grant it.{" "}
+            <Link
+              href={WORKSPACE_PEOPLE_PATH}
+              data-testid="teams-to-members-and-access"
+            >
+              Manage members &amp; access
+            </Link>
           </p>
         </div>
       </div>

@@ -1417,9 +1417,26 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   {
     id: "workspace.collaboration_teams",
     href: "/collaboration-teams",
-    label: "Teams",
+    /**
+     * "Collaboration Teams", not "Teams" (2026-09-08).
+     *
+     * "Teams" was the most overloaded word in this product's navigation: it
+     * sat near "Workspaces" (which the legacy `Team` model actually backs) and
+     * beside the workspace membership surface, and named none of them
+     * distinctly. The full name says which of the four meanings this is, and
+     * pairs with "Members & Access" so the two read as halves of one model:
+     * one decides who can reach the workspace, the other how those members
+     * work together.
+     *
+     * The two live in different sidebar groups on purpose — access governance
+     * and operational collaboration are genuinely different jobs — so the
+     * relationship is carried by naming and by reciprocal contextual links on
+     * both surfaces rather than by forcing an adjacency that would misclassify
+     * one of them.
+     */
+    label: "Collaboration Teams",
     description:
-      "Collaboration teams — coordinate people, assignments, and evidence work.",
+      "Operational groups of workspace members — assignments, cases, evidence and review workload.",
     domain: "PERSONAL_WORKSPACE",
     requiredCapabilities: [],
     navPlanFeature: "teamCollaborationIncluded",
@@ -1905,9 +1922,26 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   {
     id: "workspace.people",
     href: "/people",
-    label: "People",
+    /**
+     * "Members & Access", not "People" (2026-09-08).
+     *
+     * "People" named a population; it did not say what the surface DOES, and
+     * beside "Collaboration Teams" in the sidebar the two read as unrelated
+     * product areas rather than two halves of one model. The distinction a
+     * first-time operator has to grasp without documentation is:
+     *
+     *   Members & Access    decides WHO can reach this workspace
+     *   Collaboration Teams decides HOW those members work together
+     *
+     * The ROUTE stays `/people`. It is canonical, deep-linked, bookmarked and
+     * pinned by tests; renaming a URL for label consistency buys nothing and
+     * costs redirects, analytics fragmentation and broken links. The id stays
+     * `workspace.people` for the same reason — it is a machine identifier, not
+     * a product name.
+     */
+    label: "Members & Access",
     description:
-      "The people in this workspace — members, pending invitations, roles and seats.",
+      "Who can access this workspace — members, pending invitations, roles, status and access governance.",
     domain: "ACCOUNT",
     requiredCapabilities: ["TEAM_VIEW"],
     /**

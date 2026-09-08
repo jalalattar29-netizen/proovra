@@ -899,9 +899,9 @@ function TeamDetailPageBody() {
                 </svg>
               </span>
               <div className="app-page-header__text">
-                <h1 className="app-page-header__title">People</h1>
+                <h1 className="app-page-header__title">Members &amp; Access</h1>
                 <p className="app-page-header__subtitle">
-                  Loading people, invitations and workspace cases…
+                  Loading members, invitations and workspace cases…
                 </p>
               </div>
             </div>
@@ -935,7 +935,7 @@ function TeamDetailPageBody() {
             className="app-table-surface"
             aria-busy="true"
             aria-live="polite"
-            aria-label="Loading people"
+            aria-label="Loading members"
             data-testid="people-table-loading"
           >
             {[0, 1, 2, 3, 4].map((i) => (
@@ -958,7 +958,7 @@ function TeamDetailPageBody() {
                 />
               </div>
             ))}
-            <span className="app-visually-hidden">Loading people…</span>
+            <span className="app-visually-hidden">Loading members…</span>
           </div>
         </div>
       </div>
@@ -989,7 +989,7 @@ function TeamDetailPageBody() {
                 </svg>
               </span>
               <div className="app-page-header__text">
-                <h1 className="app-page-header__title">People</h1>
+                <h1 className="app-page-header__title">Members &amp; Access</h1>
               </div>
             </div>
           </div>
@@ -1099,9 +1099,21 @@ function TeamDetailPageBody() {
               </svg>
             </span>
             <div className="app-page-header__text">
-              <h1 className="app-page-header__title">People</h1>
+              <h1 className="app-page-header__title">Members &amp; Access</h1>
               <p className="app-page-header__subtitle">
-                {team.name} · you are {currentRole}
+                {/*
+                  WHAT THIS SURFACE DECIDES, in one line.
+
+                  The page used to name only the workspace and the reader's
+                  role, which said who was looking rather than what the page
+                  is for. Beside "Collaboration Teams" the two surfaces have to
+                  be tellable apart at a glance: this one governs ACCESS to the
+                  workspace, that one governs how members work once they have
+                  it. Kept to a sentence — the distinction is taught by the
+                  wording and the cross-link below, not by a banner.
+                */}
+                Who can access {team.name} — members, invitations, roles and
+                access governance. You are {currentRole}
                 {effectivePlan ? ` · ${effectivePlan} plan` : ""}
               </p>
             </div>
@@ -1148,7 +1160,7 @@ function TeamDetailPageBody() {
         <div className="app-grid-kpis" data-testid="people-kpis">
           <div className="app-kpi-card">
             <span className="app-kpi-card__value">{activeMemberCount}</span>
-            <span className="app-kpi-card__label">Active people</span>
+            <span className="app-kpi-card__label">Active members</span>
             <span className="app-kpi-card__meta">
               With access to this workspace
             </span>
@@ -1208,10 +1220,10 @@ function TeamDetailPageBody() {
           </div>
         ) : null}
 
-        {/* PEOPLE — the primary object on the page. */}
+        {/* MEMBERS — the primary object on the page. */}
         <div className="app-panel" data-testid="people-roster">
           <div className="app-panel__head app-panel__head-row">
-            <h2 className="app-panel__title">People</h2>
+            <h2 className="app-panel__title">Members</h2>
             <div className="app-search-field">
               <span className="app-search-field__icon" aria-hidden="true">
                 <svg
@@ -1231,8 +1243,8 @@ function TeamDetailPageBody() {
               <input
                 type="search"
                 className="app-search-field__input"
-                placeholder="Search people"
-                aria-label="Search people"
+                placeholder="Search members"
+                aria-label="Search members"
                 value={memberSearch}
                 onChange={(e) => setMemberSearch(e.target.value)}
                 data-testid="people-search"
@@ -1535,6 +1547,38 @@ function TeamDetailPageBody() {
                 .
               </p>
             )}
+          </div>
+        </div>
+
+        {/*
+          THE BRIDGE TO THE OTHER HALF OF THE MODEL (§15.6).
+
+          A contextual path, not a second front door: no KPI, no oversized CTA,
+          and none of the Collaboration Teams page's own primary actions
+          duplicated here. Its whole job is to teach the relationship at the
+          moment the operator has just finished thinking about membership —
+          these people HAVE access, and organising how they work is the next
+          question, answered somewhere else.
+
+          The sentence states the architecture plainly because that is the
+          thing a first-time operator cannot infer: Collaboration Teams group
+          people who are ALREADY members. They confer no access of their own.
+        */}
+        <div className="app-panel" data-testid="people-collaboration-bridge">
+          <div className="app-panel__body">
+            <p className="app-table__muted" style={{ margin: "0 0 10px" }}>
+              Members can be organised into <strong>Collaboration Teams</strong>{" "}
+              — operational groups for cases, evidence, assignments and review
+              workload. Teams group people who already have access here; they
+              do not grant it.
+            </p>
+            <Link
+              href="/collaboration-teams"
+              className="app-secondary-action"
+              data-testid="people-to-collaboration-teams"
+            >
+              Organise members into Collaboration Teams
+            </Link>
           </div>
         </div>
 
