@@ -485,11 +485,30 @@ for (const role of SELECTED_ROLES) {
         test(`${dir} ${vp.id}`, async ({ browser }) => {
           test.setTimeout(20 * 60_000);
 
+          /*
+           * THE CONTEXT IS RELEASED EVEN WHEN THE TEST THROWS.
+           *
+           * `await context.close()` was the last statement of the test body,
+           * so it was unreachable on any failure path. Each case loads all 47
+           * admin routes; a case that threw — a 90s `page.goto` timeout, say —
+           * leaked a context holding that many loaded pages for the remainder
+           * of a ~1.5 hour serial run.
+           *
+           * That is a cascade, not an isolated flake, and it matches what was
+           * measured: two runs each stalled a navigation on a DIFFERENT route
+           * and role while the server answered that route in under a second
+           * with nothing in its log, and each failing case passed on its own
+           * when re-run.
+           *
+           * This changes no assertion, adds no retry and raises no timeout. It
+           * makes the cleanup the spec already intended actually run.
+           */
           const context = await browser.newContext({
             viewport: { width: vp.width, height: vp.height },
             deviceScaleFactor: vp.scale,
             reducedMotion: "reduce",
           });
+          try {
           await seedNecessaryOnlyConsent(context);
           const page = await context.newPage();
 
@@ -601,7 +620,9 @@ for (const role of SELECTED_ROLES) {
             });
           }
 
-          await context.close();
+          } finally {
+            await context.close();
+          }
         });
       }
     }

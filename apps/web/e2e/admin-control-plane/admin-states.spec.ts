@@ -101,7 +101,26 @@ const FAMILIES: Array<{
     route: "/admin/contact-sales",
     dataUrl: "**/v1/admin/contact-sales?*",
     emptyCopy: [ADMIN_EMPTY_COPY["/admin/contact-sales"].title],
-    emptyBody: { items: [], total: 0, summary: {} },
+    /*
+     * THE ENVELOPE THE SERVER ACTUALLY SENDS.
+     *
+     * This was `{ items: [], total: 0, summary: {} }` — a body
+     * `GET /v1/admin/contact-sales` has never returned. The handler answers
+     * `{ ok: true, data: { items, total, summary } }`
+     * (admin-contact-sales.routes.ts:144).
+     *
+     * The stub passed anyway, and the reason it passed is the defect it was
+     * meant to be testing around: the page read `res.data.items` only
+     * `if (res.ok)`, so a body with no `ok` skipped every branch silently,
+     * left `items` at `[]`, and rendered "No contact-sales inquiries yet".
+     * The fixture and the page were wrong in the same direction, so the pair
+     * agreed and the case looked green.
+     *
+     * Corrected to the real envelope. The assertion either side of it is
+     * unchanged and just as strict — this only stops the "successful empty"
+     * case being expressed as a body the server cannot produce.
+     */
+    emptyBody: { ok: true, data: { items: [], total: 0, summary: {} } },
     filteredEmpty: async (page) => {
       await page
         .locator("input[placeholder*='Search'], input[type='search']")
