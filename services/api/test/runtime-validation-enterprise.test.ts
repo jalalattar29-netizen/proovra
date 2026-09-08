@@ -227,15 +227,27 @@ describe("Migration drift detector [source contract]", () => {
 describe("Runtime readiness routes [registration]", () => {
   const src = readSource("../src/routes/runtime-readiness.routes.ts");
 
-  it("registers all four endpoints", () => {
-    expect(src).toContain('"/admin/runtime/readiness"');
-    expect(src).toContain('"/admin/runtime/queues"');
-    expect(src).toContain('"/admin/runtime/workers"');
-    expect(src).toContain('"/admin/runtime/migrations"');
+  it("registers all four endpoints under the versioned admin namespace", () => {
+    expect(src).toContain('"/v1/admin/runtime/readiness"');
+    expect(src).toContain('"/v1/admin/runtime/queues"');
+    expect(src).toContain('"/v1/admin/runtime/workers"');
+    expect(src).toContain('"/v1/admin/runtime/migrations"');
   });
 
-  it("every endpoint requires audit.read", () => {
-    expect(src).toMatch(/permission:\s*"audit\.read"/);
+  it("every endpoint requires PLATFORM ADMIN, not a tenant permission", () => {
+    /*
+     * ADM-P1-003 / OWN-1. This asserted `permission: "audit.read"` — a tenant
+     * permission held by OWNER, ADMIN and REVIEWER of any workspace, deciding
+     * access to a payload that answers for the whole deployment. Measured
+     * before the change, a FREE personal-plan owner using their own workspace
+     * id read all four, migration inventory included.
+     */
+    expect(src).not.toMatch(/permission:\s*"audit\.read"/);
+    expect(src.match(/preHandler:\s*requirePlatformAdmin/g)?.length).toBe(4);
+    expect(
+      src,
+      "the unversioned paths must not remain as aliases",
+    ).not.toMatch(/"\/admin\/runtime\//);
   });
 
   it("server.ts registers runtime-readiness routes", () => {
@@ -255,9 +267,20 @@ describe("Runtime readiness routes [registration]", () => {
     expect(src).toContain("runtime_readiness_critical_total");
   });
 
-  it("anti-enum 404 on non-member tenants", () => {
-    expect(src).toMatch(/reply\.code\(404\)/);
-    expect(src).toMatch(/code:\s*"not_found"/);
+  it("accepts no workspace identifier at all, so there is nothing to enumerate", () => {
+    /*
+     * ADM-P1-003 / OWN-1. This asserted the anti-enumeration 404 that
+     * `requireReadinessActor` returned for a non-member. That behaviour existed
+     * because the route took a `teamId` — and taking one was the defect: a
+     * caller-supplied field beside an authorization decision, on a payload that
+     * answers for the whole deployment and filters by nothing.
+     *
+     * There is no tenant identifier to enumerate now. The gate is
+     * `requirePlatformAdmin`, whose refusal is proved live across the persona
+     * matrix in admin-authorization-matrix.integration.test.ts.
+     */
+    expect(src, "no teamId schema is parsed").not.toMatch(/TeamIdQuery/);
+    expect(src, "no teamId is read from the query").not.toMatch(/q\.teamId/);
   });
 });
 

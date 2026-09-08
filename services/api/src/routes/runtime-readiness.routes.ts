@@ -1,16 +1,45 @@
 /**
- * Phase 28-F — Runtime readiness routes.
+ * Phase 28-F — Runtime readiness routes. PLATFORM ADMIN ONLY.
  *
- *   GET /admin/runtime/readiness  — full aggregator
- *   GET /admin/runtime/queues     — queue health subset
- *   GET /admin/runtime/workers    — worker subset
- *   GET /admin/runtime/migrations — migration drift detail
+ *   GET /v1/admin/runtime/readiness  — full aggregator
+ *   GET /v1/admin/runtime/queues     — queue health subset
+ *   GET /v1/admin/runtime/workers    — worker subset
+ *   GET /v1/admin/runtime/migrations — migration drift detail
  *
- * (The existing GET /admin/runtime/schema-status from Phase 28-A
- * remains its own endpoint in ops.routes.ts.)
+ * (GET /v1/admin/runtime/schema-status is the same family, in ops.routes.ts.)
  *
- * All endpoints require session auth + team membership +
- * `audit.read` permission. 404 on non-member (anti-enum).
+ * =============================================================================
+ * WHY THE PATHS AND THE GATE BOTH CHANGED (ADM-P1-003)
+ * =============================================================================
+ * These four were served UNVERSIONED at `/admin/runtime/*` and authorised by
+ * `requireReadinessActor` — team membership plus the `audit.read` permission.
+ * That is a TENANT permission, and none of the payloads is tenant data:
+ * `runReadinessCheck` and `runMigrationDriftCheck` take no teamId and answer
+ * for the whole deployment. The `teamId` on the query string selected which
+ * membership authorised the call and filtered nothing.
+ *
+ * Measured against a seeded fixture before this change, with real tokens:
+ *
+ *   workspace ADMIN, org OWNER      200 on all four
+ *   FREE personal-plan owner,       200 on all four — including the migration
+ *   using their OWN workspace id         inventory, which named four unapplied
+ *                                        migrations by title
+ *   workspace VIEWER                403 here, 200 on schema-status
+ *
+ * So a self-registered free account could read which migrations were unapplied,
+ * that S3 Object Lock was disabled, how many WORKER incidents were open at
+ * HIGH/CRITICAL, and whether the cron secrets and Sentry DSN were configured.
+ * No secret VALUE was ever emitted; the deployment's posture was.
+ *
+ * OWN-1 settles it: full platform runtime, migrations, schema drift, worker
+ * state and global queue detail are PLATFORM-ADMIN ONLY. The gate is now the
+ * canonical `requirePlatformAdmin` and the paths sit under the versioned admin
+ * namespace with the rest of the platform surface.
+ *
+ * The application shell still needs to colour an operational pill. It does not
+ * get this payload to do it — see `GET /v1/platform/runtime-status` in
+ * platform-context.routes.ts, which answers a three-value enum and nothing else.
+ *
  * Read-only. Safe to poll.
  */
 
@@ -21,51 +50,27 @@ import type {
 } from "fastify";
 import { z } from "zod";
 
-import { getAuthUserId } from "../auth.js";
-import { requireAuth } from "../middleware/auth.js";
+import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
 import { prisma } from "../db.js";
-import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
 import { bump } from "../services/ops/metrics.service.js";
 import { runReadinessCheck } from "../runtime/runtime-readiness.js";
 import { runMigrationDriftCheck } from "../runtime/migration-drift.js";
 
-const TeamIdQuery = z.object({ teamId: z.string().uuid() });
-
-async function requireReadinessActor(
-  req: FastifyRequest,
-  reply: FastifyReply,
-  teamId: string,
-): Promise<{ userId: string } | null> {
-  const userId = getAuthUserId(req);
-  const member = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
-    select: { id: true },
-  });
-  if (!member) {
-    reply.code(404).send({ error: { code: "not_found" } });
-    return null;
-  }
-  const decision = await evaluateMemberAccess({
-    teamId,
-    userId,
-    permission: "audit.read",
-  });
-  if (!decision.allowed) {
-    reply.code(403).send({
-      error: {
-        code: "permission_denied",
-        reason: decision.reason,
-        detail: decision.detail ?? null,
-      },
-    });
-    return null;
-  }
-  return { userId };
-}
+/**
+ * `teamId` IS NO LONGER AN INPUT.
+ *
+ * It used to be required, and it decided which membership authorised the call.
+ * Nothing downstream ever read it: the readiness aggregator and the migration
+ * drift checker both answer for the process and the database, not for a tenant.
+ * Accepting it now would invite a caller to believe this payload is scoped, and
+ * would leave a caller-supplied field sitting next to an authorization
+ * decision — the shape ADM-P1-003 is about. The platform-admin gate IS the
+ * boundary, exactly as it is for the rest of /v1/admin.
+ */
 
 export async function runtimeReadinessRoutes(app: FastifyInstance) {
   // ---------------------------------------------------------------------------
-  // GET /admin/runtime/readiness
+  // GET /v1/admin/runtime/readiness
   //
   // Phase O — Sentry NODE-1Q (chain_transfers.updated_at) + NODE-1J
   // (subprocessors.{category,country,description}). The repair
@@ -90,12 +95,9 @@ export async function runtimeReadinessRoutes(app: FastifyInstance) {
   // crash on the degraded branch.
   // ---------------------------------------------------------------------------
   app.get(
-    "/admin/runtime/readiness",
-    { preHandler: requireAuth },
+    "/v1/admin/runtime/readiness",
+    { preHandler: requirePlatformAdmin },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const q = TeamIdQuery.parse(req.query ?? {});
-      const actor = await requireReadinessActor(req, reply, q.teamId);
-      if (!actor) return;
       bump("runtime_readiness_check_total");
       try {
         const report = await runReadinessCheck(prisma, req.id ?? null);
@@ -125,15 +127,12 @@ export async function runtimeReadinessRoutes(app: FastifyInstance) {
   );
 
   // ---------------------------------------------------------------------------
-  // GET /admin/runtime/queues — queue subset of readiness.
+  // GET /v1/admin/runtime/queues — queue subset of readiness.
   // ---------------------------------------------------------------------------
   app.get(
-    "/admin/runtime/queues",
-    { preHandler: requireAuth },
+    "/v1/admin/runtime/queues",
+    { preHandler: requirePlatformAdmin },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const q = TeamIdQuery.parse(req.query ?? {});
-      const actor = await requireReadinessActor(req, reply, q.teamId);
-      if (!actor) return;
       bump("runtime_queue_health_check_total");
       try {
         const report = await runReadinessCheck(prisma, req.id ?? null);
@@ -166,15 +165,12 @@ export async function runtimeReadinessRoutes(app: FastifyInstance) {
   );
 
   // ---------------------------------------------------------------------------
-  // GET /admin/runtime/workers — worker subset of readiness.
+  // GET /v1/admin/runtime/workers — worker subset of readiness.
   // ---------------------------------------------------------------------------
   app.get(
-    "/admin/runtime/workers",
-    { preHandler: requireAuth },
+    "/v1/admin/runtime/workers",
+    { preHandler: requirePlatformAdmin },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const q = TeamIdQuery.parse(req.query ?? {});
-      const actor = await requireReadinessActor(req, reply, q.teamId);
-      if (!actor) return;
       try {
         const report = await runReadinessCheck(prisma, req.id ?? null);
         const workers = report.subsystems.find((s) => s.id === "workers");
@@ -206,15 +202,12 @@ export async function runtimeReadinessRoutes(app: FastifyInstance) {
   );
 
   // ---------------------------------------------------------------------------
-  // GET /admin/runtime/migrations — migration drift detail.
+  // GET /v1/admin/runtime/migrations — migration drift detail.
   // ---------------------------------------------------------------------------
   app.get(
-    "/admin/runtime/migrations",
-    { preHandler: requireAuth },
+    "/v1/admin/runtime/migrations",
+    { preHandler: requirePlatformAdmin },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const q = TeamIdQuery.parse(req.query ?? {});
-      const actor = await requireReadinessActor(req, reply, q.teamId);
-      if (!actor) return;
       try {
         const report = await runMigrationDriftCheck(prisma);
         if (report.drift.length > 0) {

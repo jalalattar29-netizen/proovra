@@ -215,7 +215,7 @@ function EscalationsConsolePageInner() {
       ) : null}
 
       {teamId ? (
-        <RuntimeStatusBanner teamId={teamId} forDomains={["reviewer_ops"]} />
+        <RuntimeStatusBanner />
       ) : null}
 
       <DataTable

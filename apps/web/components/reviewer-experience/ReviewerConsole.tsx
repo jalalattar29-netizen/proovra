@@ -851,7 +851,7 @@ export function ReviewerConsole({
           operator view. The reviewer sub-routes (SLA, escalations)
           already carry it; the canonical console must too. */}
       {teamId ? (
-        <RuntimeStatusBanner teamId={teamId} forDomains={["reviewer_ops"]} />
+        <RuntimeStatusBanner />
       ) : null}
 
       {/* Phase Final-Hidden-Feature-Surfacing — routing recommendations

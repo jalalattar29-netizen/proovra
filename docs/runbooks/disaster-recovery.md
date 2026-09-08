@@ -105,7 +105,7 @@ exist in `services/api/scripts/`.
    hand-edit the schema.
 
 5. **Confirm runtime readiness.**
-   Hit `GET /admin/runtime/readiness` and `GET /admin/runtime/schema-status`,
+   Hit `GET /v1/admin/runtime/readiness` and `GET /v1/admin/runtime/schema-status`,
    or view `/operations/readiness`. All load-bearing subsystems should
    report `HEALTHY`; `DEGRADED`/`CRITICAL` items carry remediation
    hints.

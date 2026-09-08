@@ -6,7 +6,7 @@
 > uptime or SLA target.
 
 Live readiness for the whole platform: `/operations/readiness`
-(platform-admin) and `GET /admin/runtime/readiness` (per-subsystem).
+(platform-admin) and `GET /v1/admin/runtime/readiness` (per-subsystem).
 
 ---
 
@@ -19,7 +19,7 @@ completing; queue depth climbing.
 - `GET /v1/operations/queues` (route:
   `services/api/src/routes/operations-queues.routes.ts`) — queue depth,
   active/failed/delayed counts, and replay safety.
-- The `queues` subsystem in `GET /admin/runtime/readiness` derives a
+- The `queues` subsystem in `GET /v1/admin/runtime/readiness` derives a
   coarse signal from open `WORKER`-category `OperationalIncident` rows
   (`services/api/src/runtime/runtime-readiness.ts`, `checkQueues`).
 
@@ -112,5 +112,5 @@ reconciliation heartbeat observed.
 If a load-bearing subsystem (`database`, `schema`, `s3_object_lock`,
 `redis`) is `CRITICAL` and the steps above do not clear it, escalate
 per your incident policy. Capture the full
-`GET /admin/runtime/readiness` payload — every subsystem carries a
+`GET /v1/admin/runtime/readiness` payload — every subsystem carries a
 bounded `reasonCode`, `detail`, and `remediationHint` for triage.

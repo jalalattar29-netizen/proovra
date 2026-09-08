@@ -22,7 +22,7 @@
  *              returns { status: null, degraded: true, reason:
  *              "SCHEMA_NOT_READY" } on drift)
  *
- *   NODE-1Q + NODE-1J → GET /admin/runtime/readiness (+ /queues,
+ *   NODE-1Q + NODE-1J → GET /v1/admin/runtime/readiness (+ /queues,
  *             /workers, /migrations)
  *             (chainTransfer.updated_at + subprocessor.{category,
  *              country, description} drift — readiness aggregator
@@ -173,12 +173,12 @@ describe("Phase O Stream C — Sentry NODE-1E /v1/trust/status", () => {
 });
 
 // ===========================================================================
-// NODE-1Q + NODE-1J — GET /admin/runtime/readiness (+ siblings)
+// NODE-1Q + NODE-1J — GET /v1/admin/runtime/readiness (+ siblings)
 // ===========================================================================
 
-describe("Phase O Stream C — Sentry NODE-1Q + NODE-1J /admin/runtime/readiness", () => {
-  it("GET /admin/runtime/readiness wraps runReadinessCheck in try/catch", () => {
-    const idx = RUNTIME_READINESS_ROUTES.indexOf('"/admin/runtime/readiness"');
+describe("Phase O Stream C — Sentry NODE-1Q + NODE-1J /v1/admin/runtime/readiness", () => {
+  it("GET /v1/admin/runtime/readiness wraps runReadinessCheck in try/catch", () => {
+    const idx = RUNTIME_READINESS_ROUTES.indexOf('"/v1/admin/runtime/readiness"');
     expect(idx).toBeGreaterThan(-1);
     const after = RUNTIME_READINESS_ROUTES.slice(idx + 1);
     const nextRoute = after.search(/\n\s{0,4}app\.(post|get|patch|delete)\(/);
@@ -192,8 +192,8 @@ describe("Phase O Stream C — Sentry NODE-1Q + NODE-1J /admin/runtime/readiness
     expect(slice).toMatch(/reason:\s*"SCHEMA_NOT_READY"/);
   });
 
-  it("GET /admin/runtime/queues wraps runReadinessCheck in try/catch", () => {
-    const idx = RUNTIME_READINESS_ROUTES.indexOf('"/admin/runtime/queues"');
+  it("GET /v1/admin/runtime/queues wraps runReadinessCheck in try/catch", () => {
+    const idx = RUNTIME_READINESS_ROUTES.indexOf('"/v1/admin/runtime/queues"');
     expect(idx).toBeGreaterThan(-1);
     const after = RUNTIME_READINESS_ROUTES.slice(idx + 1);
     const nextRoute = after.search(/\n\s{0,4}app\.(post|get|patch|delete)\(/);
@@ -205,8 +205,8 @@ describe("Phase O Stream C — Sentry NODE-1Q + NODE-1J /admin/runtime/readiness
     expect(slice).toMatch(/code === "P2022"\s*\|\|\s*code === "P2021"/);
   });
 
-  it("GET /admin/runtime/workers wraps runReadinessCheck in try/catch", () => {
-    const idx = RUNTIME_READINESS_ROUTES.indexOf('"/admin/runtime/workers"');
+  it("GET /v1/admin/runtime/workers wraps runReadinessCheck in try/catch", () => {
+    const idx = RUNTIME_READINESS_ROUTES.indexOf('"/v1/admin/runtime/workers"');
     expect(idx).toBeGreaterThan(-1);
     const after = RUNTIME_READINESS_ROUTES.slice(idx + 1);
     const nextRoute = after.search(/\n\s{0,4}app\.(post|get|patch|delete)\(/);
@@ -218,21 +218,51 @@ describe("Phase O Stream C — Sentry NODE-1Q + NODE-1J /admin/runtime/readiness
     expect(slice).toMatch(/code === "P2022"\s*\|\|\s*code === "P2021"/);
   });
 
-  it("GET /admin/runtime/migrations wraps runMigrationDriftCheck in try/catch", () => {
-    const idx = RUNTIME_READINESS_ROUTES.indexOf('"/admin/runtime/migrations"');
+  it("GET /v1/admin/runtime/migrations wraps runMigrationDriftCheck in try/catch", () => {
+    const idx = RUNTIME_READINESS_ROUTES.indexOf('"/v1/admin/runtime/migrations"');
     expect(idx).toBeGreaterThan(-1);
     const slice = RUNTIME_READINESS_ROUTES.slice(idx, idx + 1500);
     expect(slice).toMatch(/try\s*\{[\s\S]{0,400}runMigrationDriftCheck/);
     expect(slice).toMatch(/code === "P2022"\s*\|\|\s*code === "P2021"/);
   });
 
-  it("the auth gate (requireReadinessActor) is preserved (auth not weakened)", () => {
-    // Every readiness endpoint must still 404 non-members and 403
-    // members lacking audit.read.
-    expect(RUNTIME_READINESS_ROUTES).toMatch(/permission:\s*"audit\.read"/);
-    expect(RUNTIME_READINESS_ROUTES).toMatch(
-      /requireReadinessActor\(req, reply, q\.teamId\)/,
+  it("the auth gate is STRENGTHENED, not weakened (ADM-P1-003 / OWN-1)", () => {
+    /*
+     * This used to assert `permission: "audit.read"` and a
+     * `requireReadinessActor(req, reply, q.teamId)` call — a TENANT permission
+     * deciding access to a payload that answers for the whole deployment. It
+     * held for exactly as long as the defect did.
+     *
+     * Measured against a seeded fixture before the change: a FREE personal-plan
+     * owner, passing their OWN workspace id, received 200 on all four of these,
+     * including a migration inventory that named four unapplied migrations.
+     * OWN-1 makes the family platform-admin only.
+     *
+     * The assertion is INVERTED rather than dropped. The tenant gate must be
+     * absent, and the canonical platform gate must be on every registration.
+     * Live status codes across the whole persona matrix are proved in
+     * admin-authorization-matrix.integration.test.ts.
+     */
+    expect(
+      RUNTIME_READINESS_ROUTES,
+      "the tenant permission must no longer authorise the platform aggregator",
+    ).not.toMatch(/permission:\s*"audit\.read"/);
+    expect(
+      RUNTIME_READINESS_ROUTES,
+      "the tenant membership helper must be gone, not merely unused",
+    ).not.toMatch(/requireReadinessActor\(/);
+
+    const registrations = RUNTIME_READINESS_ROUTES.match(
+      /"\/v1\/admin\/runtime\/[\w-]+"/g,
     );
+    expect(registrations?.length, "all four legs are registered").toBe(4);
+    const gates = RUNTIME_READINESS_ROUTES.match(
+      /preHandler:\s*requirePlatformAdmin/g,
+    );
+    expect(
+      gates?.length,
+      "every leg carries the canonical platform-admin gate",
+    ).toBe(4);
   });
 });
 
@@ -261,7 +291,7 @@ describe("Phase O Stream C — bounded guards", () => {
       { src: REVIEWER_WORKSPACE_ROUTES, routePath: '"/v1/coding/schemas/seed-defaults"' },
       { src: PRODUCT_LIFECYCLE_ROUTES, routePath: '"/v1/packaging/entitlements/apply-product-line"' },
       { src: TRUST_ROUTES, routePath: '"/v1/trust/status"' },
-      { src: RUNTIME_READINESS_ROUTES, routePath: '"/admin/runtime/readiness"' },
+      { src: RUNTIME_READINESS_ROUTES, routePath: '"/v1/admin/runtime/readiness"' },
     ];
     for (const { src, routePath } of streamCSnippets) {
       const idx = src.indexOf(routePath);

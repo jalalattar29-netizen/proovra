@@ -776,7 +776,7 @@ export async function opsRoutes(app: FastifyInstance) {
     },
   );
 
-  // GET /admin/runtime/schema-status — runtime schema drift probe.
+  // GET /v1/admin/runtime/schema-status — runtime schema drift probe.
   //
   // Inspects the live database against the runtime's expected-schema
   // catalog (`services/api/src/runtime/schema-validation.ts`) and
@@ -788,16 +788,23 @@ export async function opsRoutes(app: FastifyInstance) {
   //   - the Sentry-tagged on-call to verify which subsystems are
   //     degraded without inspecting the DB by hand.
   //
-  // Authenticated like the other /v1/ops/* operator endpoints — same
-  // teamId/identity.member.read gate. Returns a snapshot, never
-  // mutates. Safe to poll.
+  // PLATFORM ADMIN ONLY (ADM-P1-003 / OWN-1).
+  //
+  // The comment here used to read "same teamId/identity.member.read gate",
+  // and it was wrong twice. The handler called `requireOpsActor`, which is
+  // `operations.view` — a permission EVERY workspace role holds, VIEWER
+  // included. And the payload is the live database schema measured against the
+  // runtime's expected catalogue: named missing tables, columns, enum values
+  // and indexes, with severity and subsystem. Measured against a seeded
+  // fixture, a workspace VIEWER received 200 and the full posture.
+  //
+  // Deployment schema state is not tenant data at any role. It moves to the
+  // versioned admin namespace behind the canonical platform gate, with the
+  // rest of its family. Returns a snapshot, never mutates. Safe to poll.
   app.get(
-    "/admin/runtime/schema-status",
-    { preHandler: requireAuth },
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      const q = TeamIdQuery.parse(req.query ?? {});
-      const actor = await requireOpsActor(req, reply, q.teamId);
-      if (!actor) return;
+    "/v1/admin/runtime/schema-status",
+    { preHandler: requirePlatformAdmin },
+    async (_req: FastifyRequest, reply: FastifyReply) => {
       const report = await runSchemaValidation();
       // Project a JSON-safe shape. Failures are flattened into
       // `kind|name` rows so the dashboard can render them as a list.

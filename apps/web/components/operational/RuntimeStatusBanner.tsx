@@ -3,136 +3,98 @@
 /**
  * Phase 28-G — Runtime Status Banner.
  *
- * Consumes `GET /admin/runtime/readiness` (Phase 28-F) and renders a
- * concise top-of-page banner when the runtime is in DEGRADED /
- * CRITICAL / UNKNOWN state. When everything is HEALTHY the component
- * renders nothing — operational pages stay uncluttered.
+ * A concise top-of-page banner shown on TENANT pages when the platform runtime
+ * is not serving normally. When everything is healthy it renders nothing, so
+ * operational pages stay uncluttered.
  *
- * FAIL-CLOSED:
- *   - When the readiness endpoint itself fails, we render an UNKNOWN
- *     banner. Never imply HEALTHY when we couldn't ask.
- *   - The banner exposes only operator-safe reason codes + bounded
- *     subsystem ids. No secret values, no env values, no privileged
- *     text.
+ * =============================================================================
+ * WHAT IT USED TO READ, AND WHY THAT WAS THE DEFECT (ADM-P1-003 / OWN-1)
+ * =============================================================================
+ * It consumed `GET /admin/runtime/readiness` — the full platform aggregator,
+ * authorised by workspace membership plus `audit.read` — and rendered, to
+ * ordinary tenant users on `/evidence/:id`, `/governance/policy`,
+ * `/reviewer-ops/*` and the command centre:
+ *
+ *   - the ids of failing platform subsystems,
+ *   - their `reasonCode` and operator `detail`,
+ *   - their `remediationHint`.
+ *
+ * Those are instructions for repairing PROOVRA's deployment, and the tenant
+ * pages showing them belong to customers. OWN-1 settles the boundary: full
+ * runtime, migrations, schema drift, worker state and global queue detail are
+ * platform-admin only.
+ *
+ * =============================================================================
+ * WHAT IT READS NOW
+ * =============================================================================
+ * `GET /v1/platform/runtime-status`, whose entire body is:
+ *
+ *     { "status": "HEALTHY" | "DEGRADED" | "UNAVAILABLE" }
+ *
+ * That is enough for the only thing this banner is for — telling a customer
+ * that what they are looking at may be incomplete — and it carries none of the
+ * detail above.
+ *
+ * THE `forDomains` PROP IS GONE, not left inert. It scoped the banner to
+ * subsystems affecting a named domain (`reviewer_ops`, `search_discovery`, …).
+ * That mapping lives in the platform payload, and the domain names are internal
+ * service topology, which the tenant-safe projection deliberately withholds. A
+ * prop that silently stopped filtering would be a permanently-true condition
+ * dressed as a control, so the callers lost it too. The consequence is stated
+ * plainly: a degraded platform now shows this banner on every page that mounts
+ * it, rather than only on the pages whose domain was affected.
+ *
+ * FAIL-CLOSED: when the status read itself fails, an UNKNOWN banner renders.
+ * Rendering nothing would be visually indistinguishable from HEALTHY.
  */
 
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
-import { useCan } from "../../lib/platform-context";
 import { useHealthDestination } from "../../lib/navigation/healthDestination";
 import { RuntimeDegradedNotice } from "./OperationalEmptyState";
 import { OPS_TONES } from "./tokens";
 
-type ReadinessStatus =
-  | "HEALTHY"
-  | "DEGRADED"
-  | "CRITICAL"
-  | "STALE"
-  | "UNKNOWN";
-
-/**
- * Phase 32.7 — bounded operational domain enum mirrored from the
- * api-side `OPERATIONAL_DOMAINS` catalog in
- * packages/shared-runtime/src/operations/canonical-events.ts. Pages bind a
- * banner instance to one or more domains; the banner ONLY renders
- * when at least one failing subsystem maps to a relevant domain.
- */
-export type RuntimeOperationalDomain =
-  | "core_evidence"
-  | "reviewer_ops"
-  | "governance_lifecycle"
-  | "workflow_engine"
-  | "integrations"
-  | "identity"
-  | "operational_incidents"
-  | "search_discovery"
-  | "media_intelligence"
-  | "platform_telemetry";
-
-type SubsystemReadiness = {
-  id: string;
-  status: ReadinessStatus;
-  reasonCode: string;
-  detail: string;
-  remediationHint: string | null;
-  /**
-   * Phase 32.7 — present on every readiness payload from the api.
-   * Optional on this client-side type to remain forward-compatible
-   * with older readiness responses (older deploys would simply
-   * fall back to the legacy "render banner for any failing
-   * subsystem" behavior).
-   */
-  affectedDomain?: RuntimeOperationalDomain;
-};
-
-type RuntimeReadinessReport = {
-  status: ReadinessStatus;
-  ranAtUtc: string;
-  durationMs: number;
-  requestId: string | null;
-  subsystems: ReadonlyArray<SubsystemReadiness>;
-};
+/** Exactly the three values the tenant-safe projection can answer. */
+type TenantRuntimeStatus = "HEALTHY" | "DEGRADED" | "UNAVAILABLE";
 
 export type RuntimeStatusBannerProps = {
-  teamId: string;
-  /** Poll interval in ms. Defaults to 60s. Set to 0 to disable polling. */
+  /** Poll interval in ms. 0 disables polling (single read on mount). */
   pollMs?: number;
-  /**
-   * Phase 32.7 — scope the banner to a set of operational domains.
-   *
-   * When provided, the banner ONLY renders if at least one failing
-   * subsystem's `affectedDomain` is in this list. Pages should pass
-   * the domains they functionally depend on (e.g. the governance
-   * page passes `["governance_lifecycle"]`); a degraded `workers`
-   * subsystem will then NOT poison the governance page.
-   *
-   * When omitted, the banner renders for ANY failing subsystem
-   * (legacy behavior, used by the topbar / ops/observability page).
-   */
-  forDomains?: ReadonlyArray<RuntimeOperationalDomain>;
 };
 
-export function RuntimeStatusBanner({
-  teamId,
-  pollMs = 60_000,
-  forDomains,
-}: RuntimeStatusBannerProps) {
-  const [report, setReport] = useState<RuntimeReadinessReport | null>(null);
+export function RuntimeStatusBanner({ pollMs = 60_000 }: RuntimeStatusBannerProps) {
+  const [status, setStatus] = useState<TenantRuntimeStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // STAGE 2 — Capability-gated pivot links. Personal/non-operator users
-  // still SEE the banner (it's a degradation signal that matters to
-  // anyone), but the deep-link into observability/runbooks is hidden
-  // for actors who could not USE those surfaces. The banner text
-  // degrades gracefully to a plain description.
   // ADM-013 PHASE 1 — `useHealthDestination()` is the ONE authority for where
   // "check the health" goes for THIS actor. It returns the label with the href,
   // so a link can never name a scope it does not open, and null when the actor
   // holds neither authority — in which case no link is rendered at all.
   const healthDestination = useHealthDestination();
-  const canRunbooks = useCan("RUNBOOKS_VIEW");
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
-        const data = (await apiFetch(
-          `/admin/runtime/readiness?teamId=${encodeURIComponent(teamId)}`,
-        )) as RuntimeReadinessReport;
+        const data = (await apiFetch("/v1/platform/runtime-status")) as {
+          status: TenantRuntimeStatus;
+        };
         if (!cancelled) {
-          setReport(data);
+          setStatus(data?.status ?? "UNAVAILABLE");
           setError(null);
         }
       } catch (err) {
         if (!cancelled) {
-          setReport(null);
-          const e = err as { message?: string };
-          setError(toSafeUserError(e, { message: "readiness_unavailable" }).message);
+          setStatus(null);
+          setError(
+            toSafeUserError(err, { message: "readiness_unavailable" }).message,
+          );
         }
       }
     }
     void load();
+
     if (pollMs > 0) {
       const interval = setInterval(() => void load(), pollMs);
       return () => {
@@ -143,11 +105,10 @@ export function RuntimeStatusBanner({
     return () => {
       cancelled = true;
     };
-  }, [teamId, pollMs]);
+  }, [pollMs]);
 
-  // FAIL-CLOSED: readiness endpoint failed → show UNKNOWN banner.
-  // Never render nothing here, because nothing-rendered would be
-  // visually indistinguishable from HEALTHY.
+  // FAIL-CLOSED: the status read failed → show UNKNOWN. Rendering nothing here
+  // would be visually indistinguishable from HEALTHY.
   if (error) {
     return (
       <div
@@ -187,129 +148,55 @@ export function RuntimeStatusBanner({
   }
 
   // HEALTHY → render nothing (operational pages stay clean).
-  if (!report || report.status === "HEALTHY") {
+  if (!status || status === "HEALTHY") {
     return null;
   }
 
-  const failingSubsystems = report.subsystems.filter(
-    (s) => s.status !== "HEALTHY",
-  );
-
-  // Phase 32.7 — degradation boundary. When the page has scoped the
-  // banner to specific domains via `forDomains`, ONLY render if at
-  // least one failing subsystem's `affectedDomain` matches. If a
-  // failing subsystem has no `affectedDomain` (older readiness
-  // payload), fall through to the unscoped behavior so we never
-  // silently HIDE a real signal because of a schema change.
-  if (forDomains && forDomains.length > 0) {
-    const someFailureIsRelevant = failingSubsystems.some((s) => {
-      if (!s.affectedDomain) return true; // forward-compat: render
-      return forDomains.includes(s.affectedDomain);
-    });
-    if (!someFailureIsRelevant) {
-      return null;
-    }
+  if (status === "DEGRADED") {
+    /*
+     * NO SUBSYSTEM IDS. `RuntimeDegradedNotice` takes a list and names it; the
+     * tenant projection has none to give, and inventing one would be the leak
+     * this change removed, restated. An empty list makes the notice say that
+     * the platform is degraded without saying which part of it.
+     */
+    return <RuntimeDegradedNotice failingSubsystems={[]} />;
   }
 
-  const failing = failingSubsystems.map((s) => s.id);
-
-  // DEGRADED → use the canonical degraded notice from the empty-state
-  // component library. CRITICAL → render the same notice but with the
-  // CRITICAL severity color override below.
-  if (report.status === "DEGRADED") {
-    return <RuntimeDegradedNotice failingSubsystems={failing} />;
-  }
-  if (report.status === "UNKNOWN") {
-    return (
-      <div
-        role="status"
-        data-runtime-status="UNKNOWN"
-        style={{
-          border: `1px solid ${OPS_TONES.warning.border}`,
-          background: OPS_TONES.warning.bg,
-          borderRadius: 6,
-          padding: "10px 14px",
-          fontSize: 13,
-          color: OPS_TONES.warning.ink,
-          fontWeight: 500,
-          marginBottom: 12,
-        }}
-      >
-        Runtime status is unknown for {failing.length || "some"} subsystem(s).
-        {healthDestination ? (
-          <>
-            {" "}
-            <a
-              href={healthDestination.href}
-              style={{
-                color: OPS_TONES.warning.link,
-                fontWeight: 700,
-                textDecoration: "underline",
-              }}
-            >
-              {healthDestination.label}
-            </a>{" "}
-            for detail.
-          </>
-        ) : null}
-      </div>
-    );
-  }
-  // CRITICAL: stronger styling than DEGRADED.
+  // UNAVAILABLE — the platform could not measure its own readiness.
   return (
     <div
-      role="alert"
-      data-runtime-status="CRITICAL"
+      role="status"
+      data-runtime-status="UNKNOWN"
       style={{
-        border: `1px solid ${OPS_TONES.critical.border}`,
-        background: OPS_TONES.critical.bg,
+        border: `1px solid ${OPS_TONES.warning.border}`,
+        background: OPS_TONES.warning.bg,
         borderRadius: 6,
-        padding: "12px 14px",
+        padding: "10px 14px",
         fontSize: 13,
-        color: OPS_TONES.critical.ink,
-        display: "flex",
-        flexDirection: "column",
-        gap: 6,
+        color: OPS_TONES.warning.ink,
+        fontWeight: 500,
         marginBottom: 12,
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between" }}>
-        <span style={{ fontWeight: 700 }}>
-          Runtime CRITICAL — operational paths may fail
-        </span>
-        <span
-          style={{
-            fontSize: 10,
-            letterSpacing: 0.5,
-            fontWeight: 700,
-            color: OPS_TONES.critical.kicker,
-          }}
-        >
-          CRITICAL
-        </span>
-      </div>
-      <div style={{ fontSize: 12, color: OPS_TONES.critical.inkMuted }}>
-        Failing subsystems: {failing.join(", ") || "unknown"}.
-        {canRunbooks ? (
-          <>
-            {" "}
-            Review the{" "}
-            <a
-              href="/admin/platform/runbooks"
-              style={{
-                color: OPS_TONES.critical.link,
-                fontWeight: 700,
-                textDecoration: "underline",
-              }}
-            >
-              runbooks
-            </a>{" "}
-            before continuing destructive operations.
-          </>
-        ) : (
-          <> Avoid destructive operations until the runtime recovers.</>
-        )}
-      </div>
+      Runtime status is currently unknown.
+      {healthDestination ? (
+        <>
+          {" "}
+          <a
+            href={healthDestination.href}
+            style={{
+              color: OPS_TONES.warning.link,
+              fontWeight: 700,
+              textDecoration: "underline",
+            }}
+          >
+            {healthDestination.label}
+          </a>{" "}
+          for detail.
+        </>
+      ) : null}
     </div>
   );
 }
+
+export default RuntimeStatusBanner;

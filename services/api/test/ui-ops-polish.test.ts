@@ -186,13 +186,29 @@ describe("Operational component contrast (Phase 28-I)", () => {
     }
   });
 
-  it("RuntimeStatusBanner CRITICAL banner uses red-100 background + red-900 ink", () => {
+  it("RuntimeStatusBanner uses light-surface tones on every branch it can reach", () => {
+    /*
+     * ADM-P1-003 / OWN-1 — this asserted the CRITICAL branch's tones. CRITICAL
+     * is no longer reachable here: the tenant-safe projection answers
+     * HEALTHY | DEGRADED | UNAVAILABLE, and a platform CRITICAL collapses into
+     * DEGRADED because a customer cannot act on the difference. Asserting the
+     * styling of a branch that cannot run would be asserting nothing.
+     *
+     * The property this test protects — light-surface tones, never the dark
+     * shell's white-on-transparent — still applies to the branches that DO run,
+     * so it is asserted against those.
+     */
     const src = readSource(
       "../../../apps/web/components/operational/RuntimeStatusBanner.tsx",
     );
-    // Must import the light-surface tones and use them on the CRITICAL path.
-    expect(src).toMatch(/OPS_TONES\.critical\.bg/);
-    expect(src).toMatch(/OPS_TONES\.critical\.ink/);
+    expect(src).toMatch(/OPS_TONES\.unknown\.bg/);
+    expect(src).toMatch(/OPS_TONES\.unknown\.ink/);
+    expect(src).toMatch(/OPS_TONES\.warning\.bg/);
+    expect(src).toMatch(/OPS_TONES\.warning\.ink/);
+    expect(
+      src,
+      "no branch may paint the dark shell's white-on-transparent",
+    ).not.toMatch(/rgba\(\s*255\s*,\s*255\s*,\s*255\s*,/);
   });
 
   it("OperationalEmptyState renders Link with underlined readable color (no invisible text)", () => {

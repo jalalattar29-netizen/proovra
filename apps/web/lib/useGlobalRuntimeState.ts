@@ -9,7 +9,7 @@
  *   - Any future operator-facing chrome that needs a unified snapshot
  *
  * The hook polls THREE real endpoints (no fake counters, ever):
- *   - GET /admin/runtime/readiness?teamId=…
+ *   - GET /v1/platform/runtime-status   (tenant-safe status enum only)
  *   - GET /v1/ops/incidents?teamId=…&status=OPEN
  *   - GET /v1/reviewer-ops/escalations?teamId=…&status=OPEN
  *
@@ -98,6 +98,12 @@ export type GlobalRuntimeState = {
   /** Derived severity rollup — most-severe-wins across all three sources. */
   severity: GlobalRuntimeSeverity;
   /** Raw readiness snapshot (or null if the read failed). */
+  /**
+   * Tenant-safe runtime status. `subsystems` is retained in the type and is
+   * always empty: the shell reads a three-value enum now (ADM-P1-003), and a
+   * consumer that still asks for the breakdown must get nothing rather than a
+   * plausible-looking guess.
+   */
   readiness: {
     status: "HEALTHY" | "DEGRADED" | "CRITICAL" | "UNKNOWN";
     ranAtUtc: string | null;
@@ -328,17 +334,32 @@ export function useGlobalRuntimeState(
         (async () => {
           if (!access.readiness || refusedRef.current.has("readiness")) return;
           try {
-            const r = (await apiFetch(
-              `/admin/runtime/readiness?teamId=${enc}`,
-            )) as {
-              status: "HEALTHY" | "DEGRADED" | "CRITICAL" | "UNKNOWN";
-              ranAtUtc: string;
-              subsystems: ReadonlyArray<GlobalRuntimeReadinessSubsystem>;
+            /*
+             * THE TENANT-SAFE PROJECTION (ADM-P1-003 / OWN-1).
+             *
+             * This used to read `/admin/runtime/readiness?teamId=…` — the full
+             * platform aggregator, authorised by tenant membership plus
+             * `audit.read`. Fourteen subsystems with reason codes, remediation
+             * hints and the deployment's configuration posture, delivered to
+             * anyone who could hold a workspace. The shell needed exactly one
+             * thing from all of it: whether to colour the pill.
+             *
+             * `/v1/platform/runtime-status` answers that and nothing else. The
+             * full payload is platform-admin only at `/v1/admin/runtime/*`.
+             *
+             * No `teamId`: the answer is identical for every caller, so there
+             * is nothing for a workspace to scope and no caller-supplied field
+             * sitting beside an authorization decision.
+             */
+            const r = (await apiFetch("/v1/platform/runtime-status")) as {
+              status: "HEALTHY" | "DEGRADED" | "UNAVAILABLE";
             };
             nextReadiness = {
-              status: r.status,
-              ranAtUtc: r.ranAtUtc,
-              subsystems: r.subsystems,
+              // UNAVAILABLE is "we could not measure", which is what this
+              // shell has always called UNKNOWN.
+              status: r.status === "UNAVAILABLE" ? "UNKNOWN" : r.status,
+              ranAtUtc: null,
+              subsystems: [],
             };
           } catch (err) {
             nextErrors.readiness = true;
@@ -469,8 +490,18 @@ export function useGlobalRuntimeState(
   }, [teamId, silent, loading, readiness, incidents, errors]);
 
   const counts = useMemo(() => {
-    const degradedSubsystems =
-      readiness?.subsystems.filter((s) => s.status !== "HEALTHY").length ?? 0;
+    /*
+     * NOT DERIVABLE FROM A TENANT-SAFE PROJECTION, AND NOT GUESSED.
+     *
+     * This counted non-healthy subsystems out of the platform payload the
+     * shell no longer receives. Reporting 1 for "DEGRADED" would be inventing
+     * a figure, and reporting a real count would mean re-exposing the detail
+     * OWN-1 withheld. The pill is driven by `severity`, which still reflects
+     * a degraded platform; this counter reads 0 because the shell has nothing
+     * to count. Platform administrators see the real subsystem breakdown on
+     * /admin/platform/observability, which reads the platform-gated route.
+     */
+    const degradedSubsystems = 0;
     const incidentsCritical = incidents.filter(
       (i) => i.severity === "CRITICAL",
     ).length;

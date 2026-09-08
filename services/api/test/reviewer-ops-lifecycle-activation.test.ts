@@ -118,13 +118,31 @@ describe("Reviewer Ops activation [schema-validation] — EXPECTED_SCHEMA catalo
 // ---------------------------------------------------------------------------
 
 describe("Reviewer Ops activation [schema-status route]", () => {
-  it("registers GET /admin/runtime/schema-status with requireAuth", () => {
+  it("registers GET /v1/admin/runtime/schema-status behind the platform gate", () => {
+    /*
+     * ADM-P1-003 / OWN-1 — this asserted `preHandler: requireAuth` plus
+     * `requireOpsActor(req, reply, q.teamId)`. `requireOpsActor` is
+     * `operations.view`, which EVERY workspace role holds, VIEWER included, and
+     * the payload is the live database schema measured against the runtime's
+     * expected catalogue: named missing tables, columns, enum values and
+     * indexes. Measured against a seeded fixture, a workspace VIEWER received
+     * 200 and the full posture.
+     *
+     * Deployment schema state is not tenant data at any role.
+     */
     const src = readSource("../src/routes/ops.routes.ts");
-    const routeIdx = src.indexOf('"/admin/runtime/schema-status"');
+    const routeIdx = src.indexOf('"/v1/admin/runtime/schema-status"');
     expect(routeIdx).toBeGreaterThan(0);
     const slice = src.slice(routeIdx, routeIdx + 600);
-    expect(slice).toContain("preHandler: requireAuth");
-    expect(slice).toMatch(/requireOpsActor\(req, reply, q\.teamId\)/);
+    expect(slice).toContain("preHandler: requirePlatformAdmin");
+    expect(
+      slice,
+      "the tenant actor gate must be gone, not merely supplemented",
+    ).not.toMatch(/requireOpsActor\(/);
+    expect(
+      src,
+      "the unversioned path must not remain as an alias",
+    ).not.toContain('"/admin/runtime/schema-status"');
   });
 
   it("imports runSchemaValidation from the runtime module", () => {

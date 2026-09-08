@@ -537,8 +537,9 @@ function respond(path: string): unknown {
   if (path.includes("/review-workspace")) return makeWorkspace();
   if (path.startsWith("/v1/cases?")) return { items: [] };
   if (path.includes("/reviewer-workflow/events")) return { items: [] };
-  if (path.includes("/admin/runtime/readiness")) {
-    return { status: "HEALTHY", subsystems: [], generatedAtUtc: "2026-07-04T05:23:22Z" };
+  // ADM-P1-003 / OWN-1 — the shell reads the tenant-safe status enum.
+  if (path.includes("/v1/platform/runtime-status")) {
+    return { status: "HEALTHY" };
   }
   if (path.includes("/governance-snapshot")) {
     return {

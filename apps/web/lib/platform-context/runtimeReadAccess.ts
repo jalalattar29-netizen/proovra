@@ -49,7 +49,7 @@ import type { CapabilityKey, PlatformContextEnvelope } from "./types";
 
 /** Which of the shell's three runtime sources this context may read. */
 export type RuntimeReadAccess = {
-  /** `GET /admin/runtime/readiness` */
+  /** `GET /v1/platform/runtime-status` — the tenant-safe status enum. */
   readiness: boolean;
   /** `GET /v1/ops/incidents` */
   incidents: boolean;
@@ -154,11 +154,18 @@ export function resolveRuntimeReadAccess(
   // shares it — never from a plan name.
   const operational = can("OPERATIONS_VIEW");
 
-  // Readiness rides the operational surface. There is no tenant capability
-  // meaning "may read runtime readiness" — the route is member-gated on
-  // `audit.read` — and the only reason the shell reads it is to colour the
-  // operational severity pill. A context with no operational surface has
-  // nothing for that pill to point at.
+  // Readiness rides the operational surface. The shell reads it only to
+  // colour the operational severity pill, and a context with no operational
+  // surface has nothing for that pill to point at.
+  //
+  // ADM-P1-003 — the sentence that used to be here said there was no tenant
+  // capability meaning "may read runtime readiness" because the route was
+  // member-gated on `audit.read`. That was true, and it was the finding: a
+  // tenant permission unlocking the platform aggregator. The shell now reads
+  // `/v1/platform/runtime-status`, which answers a three-value enum to any
+  // authenticated caller, so this gate is what it always should have been —
+  // a decision about whether the pill has anything to point at, not an
+  // authorization boundary.
   const readiness = operational;
 
   // Escalations are a REVIEW-domain authority with its own key, granted only

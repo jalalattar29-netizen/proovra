@@ -216,7 +216,7 @@ function GovernancePolicyPageInner() {
       }
     >
       {teamId ? (
-        <RuntimeStatusBanner teamId={teamId} forDomains={["reviewer_ops"]} />
+        <RuntimeStatusBanner />
       ) : null}
 
       {error ? (

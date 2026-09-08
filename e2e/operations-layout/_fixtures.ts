@@ -1037,9 +1037,13 @@ export async function installApi(
     return route.fulfill(json({}));
   });
 
-  // `/admin/runtime/readiness` is the shell's third runtime source and does
-  // not match the `**/v1/**` pattern above.
-  await page.route("**/admin/runtime/**", async (route) => {
+  // The shell's third runtime source. It USED to be `/admin/runtime/readiness`,
+  // which carried no `/v1/` and so needed its own pattern; ADM-P1-003 moved the
+  // full aggregator behind the platform-admin gate and gave the shell
+  // `/v1/platform/runtime-status`, a three-value enum. The pattern is kept
+  // explicit rather than folded into the `**/v1/**` handler above so this
+  // source stays individually observable in `shellRuntimeCalls`.
+  await page.route("**/v1/platform/runtime-status*", async (route) => {
     shellRuntimeCalls.push({
       source: "readiness",
       path: new URL(route.request().url()).pathname,

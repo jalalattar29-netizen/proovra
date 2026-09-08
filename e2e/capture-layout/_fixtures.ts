@@ -108,9 +108,15 @@ export async function installCaptureApi(
 
   // NOTHING REACHES THE REAL API HOST. The web bundle inlines
   // NEXT_PUBLIC_API_BASE at build time and it defaults to production, so a
-  // probe that slips past the `/v1/` pattern — `/admin/runtime/readiness`
-  // has no `/v1/` in it — would otherwise leave this machine. Registered
-  // first so the specific handlers below take precedence over it.
+  // probe that slips past the `/v1/` pattern would otherwise leave this
+  // machine. Registered first so the specific handlers below take precedence.
+  //
+  // The unversioned probe this guard was written for — `/admin/runtime/readiness`,
+  // which carried no `/v1/` — is gone: ADM-P1-003 moved the aggregator to
+  // `/v1/admin/runtime/readiness` behind the platform-admin gate and gave the
+  // shell `/v1/platform/runtime-status`. The host-level catch-all stays anyway,
+  // because "every shell probe happens to match `/v1/`" is a property of today's
+  // route table, not a guarantee, and this is the layer that makes the promise.
   //
   // The body is the SHELL-WIDE superset, not a bare envelope.
   // `useGlobalRuntimeState` reads `readiness.subsystems.filter(...)` with no

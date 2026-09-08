@@ -997,10 +997,7 @@ function EvidenceDetailPageInner() {
     <div className="evidence-detail-page">
       <div className="evidence-detail-shell">
         {workspace.reviewWorkflow?.teamId ? (
-          <RuntimeStatusBanner
-            teamId={workspace.reviewWorkflow.teamId}
-            forDomains={["core_evidence"]}
-          />
+          <RuntimeStatusBanner />
         ) : null}
         {workspace.reviewWorkflow?.teamId ? (
           <div className="evidence-detail-presence-row">

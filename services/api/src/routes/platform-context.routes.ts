@@ -24,6 +24,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { getAuthUserId } from "../auth.js";
 import { isDomainError } from "../errors.js";
 import { buildPlatformContext } from "../services/platform-context/platform-context.service.js";
+import { runReadinessCheck } from "../runtime/runtime-readiness.js";
 // P0 remediation (2026-07-21) — tenant-scoped context-switch audit events.
 // NOTE: the GET route remains strictly read-only/no-audit; only the
 // switch MUTATION below emits.
@@ -91,6 +92,67 @@ export async function platformContextRoutes(app: FastifyInstance) {
       }
 
       return reply.code(200).send(result.envelope);
+    },
+  );
+
+
+  /**
+   * GET /v1/platform/runtime-status — THE TENANT-SAFE PROJECTION.
+   *
+   * =========================================================================
+   * WHY THIS EXISTS AND WHY IT IS SO SMALL
+   * =========================================================================
+   * The application shell colours an operational severity pill, and it used to
+   * do that by reading `/admin/runtime/readiness` — the full platform
+   * aggregator, authorised by tenant membership plus `audit.read`. That is
+   * ADM-P1-003: fourteen subsystems with reason codes and remediation detail,
+   * the migration inventory beside it, readable by a free personal-plan owner.
+   *
+   * OWN-1 makes the full payload platform-admin only. The pill still needs to
+   * know whether the platform is serving, so this answers that question and
+   * refuses to answer any other. The response is exactly one field:
+   *
+   *     { "status": "HEALTHY" | "DEGRADED" | "UNAVAILABLE" }
+   *
+   * It deliberately does NOT carry — and no future edit should add — migration
+   * names or counts, unapplied migrations, missing tables/columns/enums/
+   * indexes, worker identities or heartbeats, global queue depths,
+   * platform-wide incidents, storage configuration, Object Lock state,
+   * secret or configuration names, remediation instructions, or any part of
+   * the internal service topology. A caller who needs those is a platform
+   * administrator and has `/v1/admin/runtime/*`.
+   *
+   * CRITICAL COLLAPSES TO DEGRADED on purpose. A tenant cannot act on platform
+   * criticality, and the distinction is the kind of operational detail this
+   * projection exists to withhold. The shell's CRITICAL pill still comes from
+   * the tenant's OWN incidents, which are genuinely theirs.
+   *
+   * A probe that throws answers UNAVAILABLE rather than 500, because "we could
+   * not measure" is a state the pill must be able to show — and an error body
+   * is one more place platform detail could leak.
+   *
+   * Authenticated, and nothing more: the answer is identical for every caller,
+   * so there is nothing for a membership check to protect and no `teamId` to
+   * accept. A caller-supplied workspace next to an authorization decision is
+   * the shape this whole finding is about.
+   */
+  app.get(
+    "/v1/platform/runtime-status",
+    { preHandler: requireAuth },
+    async (_req: FastifyRequest, reply) => {
+      let status: "HEALTHY" | "DEGRADED" | "UNAVAILABLE" = "UNAVAILABLE";
+      try {
+        const report = await runReadinessCheck(prisma, null);
+        status =
+          report.status === "HEALTHY"
+            ? "HEALTHY"
+            : report.status === "DEGRADED" || report.status === "CRITICAL"
+              ? "DEGRADED"
+              : "UNAVAILABLE";
+      } catch {
+        status = "UNAVAILABLE";
+      }
+      return reply.code(200).send({ status });
     },
   );
 

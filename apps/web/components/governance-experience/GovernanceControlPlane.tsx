@@ -161,10 +161,7 @@ export function GovernanceControlPlane() {
 
       {/* Phase 32.7 — runtime banner scoped to governance_lifecycle so
           platform-internal degradations don't poison the operator view. */}
-      <RuntimeStatusBanner
-        teamId={env.workspace.id}
-        forDomains={["governance_lifecycle"]}
-      />
+      <RuntimeStatusBanner />
 
       {/* Phase 32.8C FINAL-3 — capability degradation, not page hiding.
           Personal workspace renders an enterprise-lite governance surface.

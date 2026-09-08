@@ -130,15 +130,39 @@ describe("RuntimeStatusBanner", () => {
   const src = readSource(
     "../../../apps/web/components/operational/RuntimeStatusBanner.tsx",
   );
+  /**
+   * The same source with comments removed.
+   *
+   * The docblock records what this component USED to read and why that was the
+   * defect (ADM-P1-003). A guard matching raw source would fail on its own
+   * explanation, and the fix for that failure would be deleting the
+   * explanation — so the assertions below that forbid a string run against the
+   * CODE, and the assertions that require one run against either.
+   */
+  const code = src
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "");
 
-  it("consumes /admin/runtime/readiness", () => {
-    expect(src).toMatch(/\/admin\/runtime\/readiness\?teamId=/);
+  it("consumes the TENANT-SAFE projection, not the platform aggregator", () => {
+    /*
+     * ADM-P1-003 / OWN-1. This asserted `/admin/runtime/readiness?teamId=` —
+     * the full platform aggregator, on a component mounted on tenant pages
+     * (`/evidence/:id`, `/governance/policy`, `/reviewer-ops/*`, the command
+     * centre). It rendered failing subsystem ids, their reason codes, their
+     * operator detail and their remediation hints to customers.
+     */
+    expect(src).toContain("/v1/platform/runtime-status");
+    // Comments stripped: the docblock EXPLAINS what this component used to
+    // read, and a guard that fails on its own explanation would push the next
+    // author to delete the explanation.
+    expect(
+      code,
+      "the platform aggregator must not be reachable from a tenant surface",
+    ).not.toMatch(/\/admin\/runtime\//);
   });
 
   it("HEALTHY renders nothing (operational pages stay clean)", () => {
-    expect(src).toMatch(
-      /report\.status === "HEALTHY"[\s\S]*?return null/,
-    );
+    expect(src).toMatch(/status === "HEALTHY"[\s\S]*?return null/);
   });
 
   it("API failure renders UNKNOWN, never silently HEALTHY", () => {
@@ -146,9 +170,25 @@ describe("RuntimeStatusBanner", () => {
     expect(src).toMatch(/error/);
   });
 
-  it("CRITICAL severity gets stronger styling than DEGRADED", () => {
-    expect(src).toContain('role="alert"');
-    expect(src).toMatch(/CRITICAL[\s\S]*?operational paths may fail/);
+  it("renders no platform detail a tenant must not see", () => {
+    /*
+     * REPLACES "CRITICAL severity gets stronger styling than DEGRADED".
+     *
+     * CRITICAL is not a state this component can reach any more: the
+     * tenant-safe projection answers HEALTHY | DEGRADED | UNAVAILABLE, and a
+     * platform CRITICAL collapses into DEGRADED because a customer cannot act
+     * on the difference. Asserting the styling of an unreachable state would be
+     * testing a branch that cannot run.
+     *
+     * What matters on a tenant surface is the opposite property, so that is
+     * what is asserted: the component names no subsystem, no reason code, no
+     * remediation hint, and passes an EMPTY list to the degraded notice.
+     */
+    expect(code).not.toMatch(/reasonCode/);
+    expect(code).not.toMatch(/remediationHint/);
+    expect(code).not.toMatch(/affectedDomain/);
+    expect(code).not.toMatch(/failingSubsystems\.map/);
+    expect(code).toMatch(/failingSubsystems=\{\[\]\}/);
   });
 
   it("never exposes env values or secret content", () => {
@@ -287,7 +327,12 @@ describe("Escalations page (proof-point wiring)", () => {
   it("renders the runtime banner above the main escalations table", () => {
     // P7 — the raw <section> table wrapper was replaced by the shared
     // <DataTable>. The banner still renders above the table (the DataTable).
-    const bannerIdx = src.indexOf("RuntimeStatusBanner teamId");
+    // ADM-P1-003 — the banner no longer takes `teamId`. The tenant-safe
+    // projection answers the same for every caller, so a workspace id would be
+    // a parameter with nothing to parameterise. The page still gates the
+    // banner on being IN a workspace, which is a placement decision, not a
+    // scope one — see the next test.
+    const bannerIdx = src.indexOf("<RuntimeStatusBanner");
     const tableIdx = src.indexOf("<DataTable");
     expect(bannerIdx).toBeGreaterThan(0);
     expect(tableIdx).toBeGreaterThan(0);

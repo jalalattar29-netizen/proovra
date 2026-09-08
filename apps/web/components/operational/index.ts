@@ -6,7 +6,7 @@
  *
  *   - GovernanceSnapshotPanel  → /v1/evidence/:id/governance-snapshot
  *   - OperationalTimelinePanel → /v1/evidence/:id/operational-timeline
- *   - RuntimeStatusBanner      → /admin/runtime/readiness
+ *   - RuntimeStatusBanner      → /v1/platform/runtime-status (tenant-safe)
  *   - ExportPackageEligibilityBadge → fail-closed snapshot-driven badge
  *   - OperationalEmptyState    + 7 bounded presets + 2 fail-closed variants
  *

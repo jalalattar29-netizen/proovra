@@ -469,17 +469,10 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
         />
       ) : null}
 
-      {/* Platform impact banner — scoped to evidence/governance/reviewer */}
-      <RuntimeStatusBanner
-        teamId={workspace.id}
-        forDomains={[
-          "core_evidence",
-          "governance_lifecycle",
-          "reviewer_ops",
-          "workflow_engine",
-          "operational_incidents",
-        ]}
-      />
+      {/* Platform impact banner. No longer scoped to domains: the
+          subsystem→domain mapping lives in the platform-admin runtime payload,
+          and this is a tenant surface (ADM-P1-003 / OWN-1). */}
+      <RuntimeStatusBanner />
 
       {/* CRITICAL OPERATIONS BAR — top-of-page health distillation */}
       <CriticalOperationsBar envelope={envelope} />

@@ -57,7 +57,7 @@ describe("the global runtime badge asks its three questions together", () => {
       tick.indexOf("if (cancelled || !mountedRef.current) return;"),
     );
     for (const path of [
-      "/admin/runtime/readiness",
+      "/v1/platform/runtime-status",
       "/v1/ops/incidents",
       "/v1/reviewer-ops/escalations",
     ]) {

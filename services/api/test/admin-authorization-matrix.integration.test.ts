@@ -69,6 +69,66 @@ const PLATFORM_ADMIN_READS: ReadonlyArray<{ method: "GET"; url: string }> = [
   { method: "GET", url: "/v1/admin/contact-sales" },
   { method: "GET", url: "/v1/admin/lifecycle-requests" },
   { method: "GET", url: "/v1/admin/analytics/dashboard" },
+
+  /*
+   * ADM-P1-003 / OWN-1 — THE RUNTIME FAMILY, NOW WHERE IT BELONGS.
+   *
+   * These five were served UNVERSIONED at `/admin/runtime/*` and authorised by
+   * tenant permissions: `audit.read` for four of them, `operations.view` — held
+   * by EVERY workspace role including VIEWER — for schema-status. None of the
+   * payloads is tenant data; `runReadinessCheck`, `runMigrationDriftCheck` and
+   * `runSchemaValidation` all answer for the whole deployment, and the `teamId`
+   * on the query string selected which membership authorised the call while
+   * filtering nothing.
+   *
+   * Measured against the seeded fixture before the change, with real tokens: a
+   * FREE personal-plan owner passing their OWN workspace id received 200 on all
+   * five, including a migration inventory that named four unapplied migrations
+   * and a readiness report stating that S3 Object Lock was disabled.
+   *
+   * Listing them here puts them through this suite's whole persona matrix —
+   * anonymous, ordinary user, tenant organization owner, stale admin claim,
+   * deleted actor — and admits only a current platform admin.
+   */
+  { method: "GET", url: "/v1/admin/runtime/readiness" },
+  { method: "GET", url: "/v1/admin/runtime/queues" },
+  { method: "GET", url: "/v1/admin/runtime/workers" },
+  { method: "GET", url: "/v1/admin/runtime/migrations" },
+  { method: "GET", url: "/v1/admin/runtime/schema-status" },
+];
+
+/**
+ * The fields the TENANT-SAFE projection must never carry.
+ *
+ * OWN-1 names them: migration names or counts, unapplied migrations, missing
+ * schema objects, worker identities or heartbeats, global queue depths,
+ * platform-wide incidents, storage configuration, Object Lock state, secret or
+ * configuration names, remediation instructions, internal service topology.
+ *
+ * Matched against the serialised body, so a nested occurrence fails too.
+ */
+const FORBIDDEN_IN_TENANT_PROJECTION: ReadonlyArray<string> = [
+  "migration",
+  "subsystem",
+  "remediation",
+  "reasonCode",
+  "objectLock",
+  "object_lock",
+  "OBJECT_LOCK",
+  "queue",
+  "worker",
+  "heartbeat",
+  "incident",
+  "DATABASE_URL",
+  "REDIS_URL",
+  "SENTRY",
+  "CRON",
+  "SECRET",
+  "TOKEN",
+  "detail",
+  "diskCount",
+  "dbCount",
+  "drift",
 ];
 
 /** Platform-scoped MUTATIONS. Refusal must happen before any state changes. */
@@ -399,6 +459,103 @@ describe("PLATFORM ADMIN — authorization matrix (live PostgreSQL 16)", () => {
       });
       expect(res.statusCode).toBeGreaterThanOrEqual(401);
       expect(res.statusCode).toBeLessThan(500);
+    });
+  });
+
+  // =========================================================================
+  // ADM-P1-003 / OWN-1 — the tenant-safe projection, and what it withholds.
+  // =========================================================================
+
+  describe("the tenant-safe runtime projection", () => {
+    it("answers a bounded status enum to an ordinary user, and nothing else", async () => {
+      const res = await inject({
+        method: "GET",
+        url: "/v1/platform/runtime-status",
+        token: normalUser.token,
+      });
+      expect(res.statusCode).toBe(200);
+
+      const body = JSON.parse(res.body) as Record<string, unknown>;
+      expect(
+        Object.keys(body).sort(),
+        "the projection must carry exactly one field",
+      ).toEqual(["status"]);
+      expect(["HEALTHY", "DEGRADED", "UNAVAILABLE"]).toContain(body.status);
+    });
+
+    it("carries none of the platform detail OWN-1 withholds", async () => {
+      const res = await inject({
+        method: "GET",
+        url: "/v1/platform/runtime-status",
+        token: normalUser.token,
+      });
+      const lowered = res.body.toLowerCase();
+      for (const forbidden of FORBIDDEN_IN_TENANT_PROJECTION) {
+        expect(
+          lowered.includes(forbidden.toLowerCase()),
+          `the tenant projection leaked "${forbidden}": ${res.body.slice(0, 300)}`,
+        ).toBe(false);
+      }
+    });
+
+    it("refuses an anonymous caller", async () => {
+      const res = await inject({
+        method: "GET",
+        url: "/v1/platform/runtime-status",
+      });
+      expect(res.statusCode).toBe(401);
+    });
+
+    it("does not accept a caller-supplied workspace as scope", async () => {
+      /*
+       * The answer is identical for every caller, so there is nothing a
+       * teamId could scope. Passing one must not change the body — a
+       * caller-supplied field sitting beside an authorization decision is the
+       * shape this finding is about.
+       */
+      const plain = await inject({
+        method: "GET",
+        url: "/v1/platform/runtime-status",
+        token: normalUser.token,
+      });
+      const withTeam = await inject({
+        method: "GET",
+        url: `/v1/platform/runtime-status?teamId=${randomUUID()}`,
+        token: normalUser.token,
+      });
+      expect(withTeam.statusCode).toBe(200);
+      expect(withTeam.body).toBe(plain.body);
+    });
+  });
+
+  // =========================================================================
+  // The unversioned paths must be GONE, not merely superseded.
+  // =========================================================================
+
+  describe("the retired unversioned runtime paths", () => {
+    const RETIRED = [
+      "/admin/runtime/readiness",
+      "/admin/runtime/queues",
+      "/admin/runtime/workers",
+      "/admin/runtime/migrations",
+      "/admin/runtime/schema-status",
+    ];
+
+    it("are not registered for anyone, platform admin included", async () => {
+      for (const url of RETIRED) {
+        for (const token of [
+          undefined,
+          normalUser.token,
+          tenantAdmin.token,
+          platformAdmin.token,
+        ]) {
+          const res = await inject({ method: "GET", url, token });
+          expect(
+            res.statusCode,
+            `${url} must no longer be routable (kept as an alias, it would be the finding again)`,
+          ).toBe(404);
+        }
+      }
     });
   });
 });

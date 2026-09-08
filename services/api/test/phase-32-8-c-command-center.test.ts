@@ -287,12 +287,33 @@ describe("Phase 32.8C — frontend command center renders all 8 mandatory operat
     }
   });
 
-  it("Platform Impact Banner reuses the canonical RuntimeStatusBanner with bounded forDomains scoping (not a duplicate runtime view)", () => {
+  it("Platform Impact Banner reuses the canonical RuntimeStatusBanner (not a duplicate runtime view)", () => {
+    /*
+     * ADM-P1-003 / OWN-1 — the `forDomains` scoping is gone, and the reason is
+     * the point of this test rather than a weakening of it.
+     *
+     * The prop filtered the banner by which platform SUBSYSTEM was failing.
+     * That mapping lives in the platform aggregator, which the Command Center —
+     * a tenant surface — no longer reads: it reads a three-value status enum,
+     * because the aggregator carried failing subsystem ids, reason codes,
+     * operator detail and remediation hints, and this page shows them to
+     * customers.
+     *
+     * A prop that silently stopped filtering would be a permanently-true
+     * condition dressed as a control, so it was removed rather than left inert.
+     * What this test exists for — that the Command Center reuses the canonical
+     * banner instead of building a second runtime view — is unchanged, and is
+     * now stated more strictly.
+     */
     expect(CC).toMatch(/RuntimeStatusBanner/);
-    expect(CC).toMatch(/forDomains=\{\[/);
-    expect(CC).toMatch(/"core_evidence"/);
-    expect(CC).toMatch(/"governance_lifecycle"/);
-    expect(CC).toMatch(/"reviewer_ops"/);
+    expect(
+      CC,
+      "the domain filter cannot be reconstructed from a tenant-safe projection",
+    ).not.toMatch(/forDomains=\{\[/);
+    expect(
+      CC,
+      "the Command Center must not read the platform aggregator directly",
+    ).not.toMatch(/\/admin\/runtime\//);
   });
 
   it("fetches from `/v1/dashboard/command-center` with the active workspace id", () => {
