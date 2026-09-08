@@ -1251,6 +1251,17 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // No `security_events` column, index, enum or mapping is altered by it,
       // which is what this allowlist is about.
       "20280501000000_workspace_invite_lifecycle_hardening",
+      // WORKSPACE INVITE RAW-TOKEN DROP (2026-09-06, Release B) — drops the
+      // plaintext `team_invites.token` and its unique index, behind a DO-block
+      // that refuses if any row lacks a `token_hash`. It was moved to
+      // `prisma/migrations-held/` on 2026-09-07 and PROMOTED BACK into the
+      // chain on 2026-09-08, which is why it appears on disk again: production
+      // had already applied it, so withholding it only left `schema.prisma`
+      // declaring a column no deployed database has. Its bytes are unchanged,
+      // so the recorded checksum still matches. It touches `team_invites`
+      // alone. No `security_events` column, index, enum or mapping is altered
+      // by it, which is what this allowlist is about.
+      "20280502000000_workspace_invite_raw_token_drop",
       // COLLABORATION SCALE INDEXES (2026-09-06) — two keyset-pagination
       // indexes, on `team_members` and `collaboration_team_assignments`, each
       // matching its query's ORDER BY so a page is a walk rather than a sort of

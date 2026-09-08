@@ -2099,37 +2099,29 @@ model TeamInvite {
   teamId          String    @map("team_id") @db.Uuid
   email           String    @db.VarChar(320)
   role            TeamRole
-  /// `tokenHash` is the sole lookup authority. The raw value exists only long
-  /// enough to be put in an email and is never persisted: every writer sets
-  /// this and no writer sets `token`.
+  /// `tokenHash` is the SOLE lookup authority. The raw value exists only long
+  /// enough to be put in an email and is never persisted.
+  ///
+  /// WCR-28 (2026-09-08) — THE RAW COLUMN IS GONE, AND THE MODEL SAYS SO.
+  ///
+  /// A `token String?` was declared here to describe the Release-A shape while
+  /// Release B (`20280502000000`, the plaintext drop) sat held out of the
+  /// chain. That declaration was wrong about the only database that matters:
+  /// production had ALREADY applied Release B — Release A and Release B shipped
+  /// in one chain and one `migrate deploy` applied both, which is the very
+  /// defect the hold was introduced to prevent, discovered one deploy too late.
+  ///
+  /// So the model declared a column production does not have. Prisma projects
+  /// every scalar unless a query narrows itself, so each unnarrowed
+  /// `teamInvite` read emitted `"token"` and PostgreSQL answered P2022 — which
+  /// the API maps to 503 SCHEMA_NOT_READY. That is the whole production
+  /// "Invite person" outage: not a missing migration, an over-declared model.
+  ///
+  /// Release B is now promoted into the chain (its bytes are unchanged, so the
+  /// ledger checksum still matches and re-applying it is a no-op on a database
+  /// that already has it). Hashed-token lookup is the canonical architecture;
+  /// the plaintext column is not coming back.
   tokenHash       String    @unique @map("token_hash") @db.VarChar(64)
-  /// WCR-27 (2026-09-07) — RELEASE-A SHAPE, DECLARED HONESTLY.
-  ///
-  /// This field was already deleted from the model while the migration that
-  /// drops the column (Release B, `20280502000000`) sat in the same
-  /// deployable chain as the migration that merely makes it nullable
-  /// (Release A, `20280501000000`). One `prisma migrate deploy` applied both,
-  /// so the rollback window Release A retains the column FOR did not exist.
-  ///
-  /// Release B is now held out of the chain — see
-  /// `prisma/migrations-held/README.md`. After Release A the column is still
-  /// there and nullable, so the model says so. A schema that under-describes
-  /// the deployed database is a permanent drift report, and a permanent drift
-  /// report is one nobody reads.
-  ///
-  /// NOTHING READS THIS. `acceptWorkspaceInvitation` resolves by `tokenHash`,
-  /// `createWorkspaceInvitation` omits the column entirely (it is nullable
-  /// after Release A), and `release:b-readiness` fails if that stops being
-  /// true. The field disappears in the same commit that promotes Release B.
-  ///
-  /// DECLARED EXACTLY as Release A leaves it — `varchar(128)` and still
-  /// carrying `team_invites_token_key`, because Release B is the migration
-  /// that drops both and it is held. A first pass wrote a bare `String?`,
-  /// which reads as `text` with no unique index, and `prisma migrate diff`
-  /// against a clean boot named the difference immediately. That is the whole
-  /// reason to declare the column at all: an approximate declaration produces
-  /// a permanent drift report, which is worse than the omission it replaced.
-  token           String?   @unique @db.VarChar(128)
   invitedByUserId String    @map("invited_by_user_id")
   expiresAt       DateTime  @map("expires_at") @db.Timestamptz(6)
   acceptedAt      DateTime? @map("accepted_at") @db.Timestamptz(6)

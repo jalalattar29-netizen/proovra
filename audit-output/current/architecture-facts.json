@@ -77,7 +77,7 @@
       "machineOnlyConsumerRoutes": 4,
       "noConsumerRoutes": 242,
       "wrongOriginConsumers": 0,
-      "consumerInventoryHash": "871c1de869670e056023c7352889a00a7805b5896d060992decb9d3eff5a9e4f"
+      "consumerInventoryHash": "c3b9b249c33a26cd98160604bd71fd3c8a4b1ed8f577af7cee7a15099769b8ce"
     },
     "capabilities": {
       "totalRoutes": 1140,
@@ -346,8 +346,8 @@
       "binding": "CONTENT_ONLY",
       "bindingValue": null,
       "schemaVersion": null,
-      "contentHash": "6f74f83116af4326afac919b14cc37323e6db6f7b4363b86e24305f36d2122cc",
-      "byteLength": 1000846,
+      "contentHash": "4fc06bbd71e5d208e3c5e1129d2e7ae83fe6d5a8e7b19b5679af58bf8b1f0ea7",
+      "byteLength": 1006872,
       "present": true,
       "freshness": "BOUND_BY_CONTENT",
       "why": "One record per migration directory on disk. The source engine never classifies migrations; this is the database domain's own authority."

@@ -55,6 +55,10 @@ export const PROPOSED_ADDITIONS = {
   // these bring the workspace table to the same design.
   "20280501000000_workspace_invite_lifecycle_hardening":
     "REQUIRED_RELEASE_MIGRATION — BACKFILL, SAFE_TO_APPLY_NOW, and it must be applied BEFORE the image that reads it. Adds token_hash (backfilled from every stored token, then NOT NULL + UNIQUE), makes token nullable, adds revoked_at, revoked_by_user_id, accepted_by_user_id, last_resent_at, resend_count, and one PARTIAL UNIQUE index on (team_id, lower(email)) WHERE not accepted and not revoked — which moves the duplicate-pending check off a read-then-write in the route and into the database. Both backfill statements are conditioned on token_hash IS NULL, so re-running is a no-op. The previous image neither reads nor writes any new column and token still holds its value, so applying early is safe; the new image reads token_hash, so deploying it first would fail every invitation lookup.",
+  // WCR-28 (2026-09-08) — Release B, promoted. See PROPOSED_EXCLUSIONS below
+  // for why it was held and why holding it stopped being true.
+  "20280502000000_workspace_invite_raw_token_drop":
+    "REQUIRED_RELEASE_MIGRATION — CONTRACT_DROP, and the ordering condition it waited for is MET rather than assumed: production has already applied it. DROP INDEX team_invites_token_key and DROP COLUMN IF EXISTS team_invites.token, behind a DO-block that RAISEs if any row has a NULL token_hash and would lose its only lookup key. Its bytes are unchanged from the chain it originally shipped in, so the recorded checksum still matches and re-applying it against a database that already has it is a no-op. Promoting it is what makes schema.prisma stop declaring a column the deployed database does not have — the over-declaration that made every unnarrowed teamInvite projection emit \"token\", answer P2022, and surface as 503 SCHEMA_NOT_READY on POST /v1/teams/:id/invites.",
   // Two keyset-pagination indexes, for the two collaboration reads that grew
   // a cursor in the same pass.
   "20280503000000_collaboration_scale_indexes":
@@ -224,27 +228,24 @@ export const PROPOSED_ADDITIONS = {
  * hand-maintained snapshot, not a property of the migrations.
  */
 
-/** Nothing is excluded. Recorded explicitly so conservation is provable. */
-export const PROPOSED_EXCLUSIONS = {
-  /**
-   * WCR-27 (2026-09-07) — RELEASE B IS HELD OUT OF THIS RELEASE.
-   *
-   * It was a PROPOSED_ADDITION alongside the Release A that makes it possible,
-   * which meant one `prisma migrate deploy` applied both and the rollback
-   * window Release A retains the plaintext column FOR did not exist. Its own
-   * header says "apply ONLY after the Release-A image is live everywhere"; a
-   * header is not a mechanism.
-   *
-   * The migration now lives in `prisma/migrations-held/`, which Prisma does
-   * not scan, so it cannot be applied early by ANY runner — not
-   * `migrate deploy`, not `safe-migrate`, not the raw escape hatch. Excluding
-   * it here keeps the release artifact honest about that: the chain this
-   * release ships is Release A plus the indexes, and the drop is a separate,
-   * later decision gated on `release:b-readiness`.
-   */
-  "20280502000000_workspace_invite_raw_token_drop":
-    "HELD — CONTRACT_DROP whose safety depends on a DEPLOYED APPLICATION STATE, not on the database. It is physically outside prisma/migrations/ (see prisma/migrations-held/README.md) so it cannot be applied by any runner until it is promoted, which requires the Release-A image live everywhere and a green release:b-readiness. Shipping it in the same chain as Release A defeated the staged transition Release A exists to provide.",
-};
+/**
+ * Nothing is excluded. Recorded explicitly so conservation is provable.
+ *
+ * WCR-28 (2026-09-08) — RELEASE B IS NO LONGER HELD.
+ *
+ * `20280502000000_workspace_invite_raw_token_drop` was excluded here on
+ * 2026-09-07 so the plaintext-token drop could not be applied before the
+ * Release-A image was live everywhere. The hold was correct in principle and
+ * one deploy too late in practice: Release A and Release B had already shipped
+ * in the same chain, so a single `prisma migrate deploy` applied both, and
+ * production's `team_invites` has had no `token` column since.
+ *
+ * Withholding a migration the database has already run does not restore the
+ * ordering it was meant to protect — it only makes `schema.prisma` describe a
+ * database that no longer exists anywhere, which is what broke invitations.
+ * The migration is back in the chain and back in the ledger above.
+ */
+export const PROPOSED_EXCLUSIONS = {};
 
 function git(...args) {
   return execFileSync("git", args, { cwd: REPO, encoding: "utf8", maxBuffer: 512 * 1024 * 1024 });
