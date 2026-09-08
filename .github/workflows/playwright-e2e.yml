@@ -333,3 +333,153 @@ jobs:
           name: web-e2e-log
           path: /tmp/web-e2e.log
           if-no-files-found: ignore
+
+  # ===========================================================================
+  # ADMIN CONTROL PLANE — the suite that existed and ran nowhere (ADM-P2-004).
+  # ===========================================================================
+  #
+  # `apps/web/e2e/admin-control-plane/` is nine spec files, 3,460 lines, 97
+  # runtime-expanded tests and 132 assertions, with its own Playwright config.
+  # No workflow, package script or runner invoked it. The only references in the
+  # repository were two generator scripts that PRINT the command for a human to
+  # paste. It carried the acceptance evidence for a 47-page operator console
+  # that governs customer suspension, break-glass, signer custody and queue
+  # replay, and none of it was evidence of anything currently true.
+  #
+  # It needs a seeded fixture rather than the critical-flow stack: the specs
+  # sign in as named personas (platform-admin, org-owner, workspace-admin,
+  # read-only, free-personal, pro-personal) and open dynamic detail routes that
+  # cannot exist without real rows. That is why it is a SEPARATE job with its
+  # own seed rather than another step on the job above — and why the config
+  # deliberately starts no servers of its own.
+  #
+  # The fixture launchers build their environment from an allowlist and refuse
+  # to start if any value resolves off the machine, so this job cannot reach
+  # anything but its own service containers.
+  admin-control-plane:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: pv
+          POSTGRES_PASSWORD: pv
+          POSTGRES_DB: proovra_admin_cp_fixture
+        ports:
+          - 55533:5432
+        options: >-
+          --health-cmd="pg_isready -U pv -d proovra_admin_cp_fixture"
+          --health-interval=2s
+          --health-timeout=3s
+          --health-retries=20
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 56479:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=2s
+          --health-timeout=3s
+          --health-retries=20
+
+    env:
+      # The fixture launchers own the API and web environments. These two are
+      # for the migrate + seed steps, which run before either launcher.
+      DATABASE_URL: postgresql://pv:pv@localhost:55533/proovra_admin_cp_fixture
+      DIRECT_URL: postgresql://pv:pv@localhost:55533/proovra_admin_cp_fixture
+      NODE_ENV: development
+      LOG_LEVEL: warn
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "10.28.2"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared packages
+        run: pnpm run build:shared
+
+      - name: Migrate + seed the admin fixture
+        working-directory: services/api
+        run: |
+          pnpm prisma migrate deploy
+          pnpm exec tsx scripts/seed-admin-fixture.ts
+
+      - name: Install Playwright browser
+        run: pnpm test:e2e:playwright:install
+
+      - name: Start the fixture API (background)
+        run: |
+          nohup node services/api/scripts/dev-admin-fixture-api.mjs \
+            --api-port=8191 \
+            --database-url="postgresql://pv:pv@localhost:55533/proovra_admin_cp_fixture" \
+            --redis-url="redis://localhost:56479/0" \
+            > /tmp/admin-fixture-api.log 2>&1 &
+          for _ in $(seq 1 90); do
+            curl -sSf -m 2 http://localhost:8191/healthz > /dev/null 2>&1 && break
+            sleep 1
+          done
+          curl -sSf -m 5 http://localhost:8191/healthz || {
+            echo "fixture API did not become healthy:"; tail -60 /tmp/admin-fixture-api.log; exit 1;
+          }
+
+      - name: Start the fixture web app (background)
+        run: |
+          nohup node apps/web/scripts/dev-admin-fixture.mjs \
+            --port=3311 --api=http://localhost:8191 \
+            > /tmp/admin-fixture-web.log 2>&1 &
+          for _ in $(seq 1 120); do
+            curl -sSf -m 2 http://localhost:3311/login > /dev/null 2>&1 && break
+            sleep 1
+          done
+          curl -sSf -m 5 http://localhost:3311/login > /dev/null || {
+            echo "fixture web did not become ready:"; tail -60 /tmp/admin-fixture-web.log; exit 1;
+          }
+
+      # A SUITE THAT DISCOVERS NOTHING IS NOT A PASSING SUITE.
+      #
+      # `--list` output is not coverage and is never reported as such — this
+      # step exists only so a config change that silently stops collecting
+      # fails the build instead of turning the job green in four seconds.
+      - name: Assert the suite discovers tests
+        env:
+          PROOVRA_FIXTURE_WEB_BASE: http://localhost:3311
+        run: |
+          # Playwright's own "Total: N tests in M files" line, not a grep over
+          # spec names — the specs are not all named `admin-*` (phase5-, phase6-)
+          # and a pattern that happens to miss some of them would under-report
+          # the very number this step exists to check.
+          COUNT=$(pnpm -s test:e2e:admin:list 2>/dev/null | sed -n 's/^Total: \([0-9]\{1,\}\) test.*/\1/p' | tail -1)
+          COUNT=${COUNT:-0}
+          echo "discovered admin control-plane tests: ${COUNT}"
+          if [ "${COUNT}" -lt 1 ]; then
+            echo "the admin control-plane suite discovered ZERO tests — refusing to report green"
+            pnpm -s test:e2e:admin:list || true
+            exit 1
+          fi
+
+      - name: Run the admin control-plane suite
+        env:
+          PROOVRA_FIXTURE_WEB_BASE: http://localhost:3311
+        run: pnpm test:e2e:admin
+
+      - name: Upload fixture logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-control-plane-logs
+          path: |
+            /tmp/admin-fixture-api.log
+            /tmp/admin-fixture-web.log
+          if-no-files-found: ignore

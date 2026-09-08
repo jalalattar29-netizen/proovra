@@ -45,8 +45,16 @@ const EVIDENCE_LAYOUT_BASE = `http://127.0.0.1:${EVIDENCE_LAYOUT_PORT}`;
  * The Attention Architecture responsive / a11y / RTL gate serves its own
  * production build here, on its own port, for the same reason the three
  * projects above do.
+ *
+ * IT WAS 3013, WHICH IS EVIDENCE-DETAIL'S PORT (ADM-P2-006). Both entries then
+ * carried `reuseExistingServer: true`, so with both flags set one server started
+ * and the other silently attached to it. Nothing broke loudly — they serve the
+ * same bundle — but the invariant these constants exist to state was false, and
+ * any per-project server configuration added later would have been silently
+ * ineffective. The two projects also could not be reasoned about independently,
+ * which is the thing a separate port buys.
  */
-const ATTENTION_LAYOUT_PORT = 3013;
+const ATTENTION_LAYOUT_PORT = 3018;
 const ATTENTION_LAYOUT_BASE = `http://127.0.0.1:${ATTENTION_LAYOUT_PORT}`;
 
 /**
