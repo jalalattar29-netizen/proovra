@@ -4,11 +4,11 @@
 
 ## Symptoms
 - `operational_incidents` row with `fingerprint` containing `communication_message_failed` or `verification_check_failed`.
-- `/v1/ops/metrics` → `communication_message_failed` counter rising; `communications_retry_scheduled` gauge climbing.
+- `/v1/admin/platform/metrics` → `communication_message_failed` counter rising; `communications_retry_scheduled` gauge climbing.
 - /communications UI shows messages stuck in `RETRY_SCHEDULED` or `FAILED`.
 
 ## Dashboards / metrics
-- `/v1/ops/metrics` → `communication_message_failed`, `verification_check_failed`, gauge `communications_retry_scheduled`.
+- `/v1/admin/platform/metrics` → `communication_message_failed`, `verification_check_failed`, gauge `communications_retry_scheduled`.
 - /communications UI provider-health card → should show `Twilio` + `ready`. If shown `noop`, config violation.
 
 ## Safe commands / routes

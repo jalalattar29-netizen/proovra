@@ -4,7 +4,7 @@
 
 ## What this means
 
-`/v1/ops/metrics` is silent, Sentry isn't receiving captures, or the
+`/metrics` is silent, Sentry isn't receiving captures, or the
 worker heartbeat gauge is flat. The platform's invariant is that
 observability NEVER crashes business logic; if the metrics surface
 itself goes silent, business logic should continue normally.
@@ -12,13 +12,15 @@ itself goes silent, business logic should continue normally.
 ## First action (under 60s)
 
 ```bash
-# /metrics should always return non-empty Prometheus exposition.
-curl -fsS -H "X-Metrics-Scrape-Token: $METRICS_SCRAPE_TOKEN" \
-  "$API_BASE/v1/ops/metrics" | head -50
+# The Prometheus exposition is /metrics — NOT a /v1 route, and gated by a
+# bearer scrape token rather than a session. It should always return
+# non-empty text.
+curl -fsS -H "Authorization: Bearer $METRICS_SCRAPE_TOKEN" \
+  "$API_BASE/metrics" | head -50
 
 # Worker heartbeat should be in the exposition.
-curl -fsS -H "X-Metrics-Scrape-Token: $METRICS_SCRAPE_TOKEN" \
-  "$API_BASE/v1/ops/metrics" | grep -E "worker_heartbeat|queue_backlog"
+curl -fsS -H "Authorization: Bearer $METRICS_SCRAPE_TOKEN" \
+  "$API_BASE/metrics" | grep -E "worker_heartbeat|queue_backlog"
 ```
 
 If `/metrics` returns 401, the scrape token in the env doesn't match.
@@ -29,8 +31,14 @@ the worker isn't writing heartbeats.
 ## Triage
 
 The platform's observability surface is:
-- `/v1/ops/metrics` — Prometheus exposition, token-gated.
-- `/v1/ops/alerts` — alert evaluation (uses `evaluateAlerts`).
+- `/metrics` — the Prometheus exposition. Token-gated by
+  `METRICS_SCRAPE_TOKEN` (`Authorization: Bearer`), or open when that variable
+  is unset; a token shorter than sixteen characters fails CLOSED with 503.
+  This is the surface a scraper reads, and it carries no `/v1` prefix.
+- `/v1/admin/platform/metrics` — the same registry as JSON, for a human with a
+  platform-admin session. `/v1/ops/metrics` is a deprecated alias of it.
+- `/v1/admin/platform/alerts` — alert evaluation (uses `evaluateAlerts`).
+  `/v1/ops/alerts` is a deprecated alias of it.
 - Sentry capture — `captureException` in worker + api routes.
 - Worker heartbeat — `startObservabilityHeartbeat` (interval-based).
 - Queue health sampler — `startQueueHealthSampler` (interval-based).

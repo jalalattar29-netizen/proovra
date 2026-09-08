@@ -4,12 +4,12 @@
 
 ## Symptoms
 - `operational_incidents` row with `category=UPLOAD` and `fingerprint` starting `upload:` is open.
-- `stalled_uploads` gauge is non-zero on `/v1/ops/metrics`.
+- `stalled_uploads` gauge is non-zero on `/v1/admin/platform/metrics`.
 - Phase 12 `upload_stalled` SecurityEvents are visible in the /security UI.
 - Operator user reports "upload spinner stuck" for an evidence item.
 
 ## Dashboards / metrics
-- `/v1/ops/metrics` → `gauges.stalled_uploads`, `counters.upload_stalled`, `counters.upload_abandoned`.
+- `/v1/admin/platform/metrics` → `gauges.stalled_uploads`, `counters.upload_stalled`, `counters.upload_abandoned`.
 - `/v1/ops/incidents?status=OPEN&category=UPLOAD`.
 - /security UI → events `upload_stalled`, `upload_abandoned`, `recovery_review_required`.
 

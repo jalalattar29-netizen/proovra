@@ -8,7 +8,7 @@
 - Report / verification-package generation downstream failures (the job can't read source assets).
 
 ## Dashboards / metrics
-- `/v1/ops/metrics` → `jobs_failed_total` rising.
+- `/v1/admin/platform/metrics` → `jobs_failed_total` rising.
 - S3 / R2 dashboard — bucket-level error rate, throttle count.
 
 ## Safe commands / routes

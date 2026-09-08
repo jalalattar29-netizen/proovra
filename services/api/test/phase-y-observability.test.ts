@@ -431,12 +431,41 @@ describe("Phase Y — Route wiring", () => {
 
   it("exposes /v1/ops/alerts authenticated endpoint", () => {
     expect(src).toContain('"/v1/ops/alerts"');
-    expect(src).toContain("evaluateAlerts");
+  });
+
+  /*
+   * WHERE THE ALERT EVALUATION LIVES — and why these two assertions moved.
+   *
+   * They used to read `evaluateAlerts` and the two `setGauge` calls out of
+   * `ops.routes.ts`, because that file held a SECOND implementation of the
+   * alert evaluation beside the canonical one in
+   * `admin-platform-telemetry.routes.ts`. ADM-P3-006 collapsed the two into
+   * one exported handler, registered on both paths; `/v1/ops/alerts` is now a
+   * deprecated alias.
+   *
+   * The invariant is unchanged and is asserted here in full — the endpoint
+   * still evaluates alerts and still writes both firing gauges. What changed
+   * is only which module to read it out of, and asserting it against the
+   * canonical module is strictly stronger: the previous form would have gone
+   * on passing against a duplicate that had drifted.
+   */
+  const telemetrySrc = readSource(
+    "../src/routes/admin-platform-telemetry.routes.ts",
+  );
+
+  it("the alerts handler is THE canonical one, shared by both paths", () => {
+    expect(telemetrySrc).toContain("export const platformAlertsHandler");
+    expect(telemetrySrc).toContain("evaluateAlerts");
+    // The alias must register that exported handler, not a copy of it.
+    expect(src).toContain("platformAlertsHandler");
+    expect(src).not.toContain("evaluateAlerts(");
   });
 
   it("alerts endpoint updates firing gauges so the dashboard ribbon reflects state", () => {
-    expect(src).toContain('setGauge("observability_alerts_firing"');
-    expect(src).toContain('setGauge("observability_alerts_firing_critical"');
+    expect(telemetrySrc).toContain('setGauge("observability_alerts_firing"');
+    expect(telemetrySrc).toContain(
+      'setGauge("observability_alerts_firing_critical"',
+    );
   });
 });
 

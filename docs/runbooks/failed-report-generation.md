@@ -9,7 +9,7 @@
 - Operator sees stale "Generating report…" status in the evidence UI.
 
 ## Dashboards / metrics
-- `/v1/ops/metrics` → `counters.jobs_started_total`, `jobs_failed_total`, `jobs_retry_exhausted_total`.
+- `/v1/admin/platform/metrics` → `counters.jobs_started_total`, `jobs_failed_total`, `jobs_retry_exhausted_total`.
 - BullMQ admin (if connected) → reportQueue + reportDlqQueue lengths.
 
 ## Safe commands / routes

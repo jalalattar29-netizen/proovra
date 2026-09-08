@@ -4,11 +4,11 @@
 
 ## Symptoms
 - `EvidenceWorkflowInstance` rows in `SUBMITTED` or `NEEDS_REVIEW` for an unusually long period (configurable; default operator-facing threshold: 7 days).
-- `/v1/ops/metrics` → `workflows_submitted_total` rising faster than `workflows_approved_total`.
+- `/v1/admin/platform/metrics` → `workflows_submitted_total` rising faster than `workflows_approved_total`.
 - Operator user reports "my submission is still pending review" in the workspace.
 
 ## Dashboards / metrics
-- `/v1/ops/metrics` → counters `workflows_created_total`, `workflows_submitted_total`, `workflows_approved_total`, `workflows_blocked_total`.
+- `/v1/admin/platform/metrics` → counters `workflows_created_total`, `workflows_submitted_total`, `workflows_approved_total`, `workflows_blocked_total`.
 - `/v1/workflows/instances?teamId=...&status=SUBMITTED` — list current backlog.
 - `/v1/workflows/instances?teamId=...&status=NEEDS_REVIEW` — list rows awaiting reviewer action.
 

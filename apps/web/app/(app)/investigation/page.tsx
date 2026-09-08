@@ -9,8 +9,12 @@
  *     /v1/investigation/overview endpoint.
  *   * Recent non-dismissed signals — bounded list, severity-ordered.
  *   * Recent graph activity — bounded list of new nodes + edges.
- *   * Queue health — gauges from the existing /v1/ops/metrics
- *     endpoint (reused from /admin/platform/media-graph).
+ *   * Queue health — gauges from /v1/ops/metrics (a deprecated alias of
+ *     /v1/admin/platform/metrics). PLATFORM-ADMIN ONLY: it projects the
+ *     process-global registry, so this panel is unavailable to an ordinary
+ *     workspace member and says so rather than showing empty tiles. Read
+ *     independently of the workspace overview above — see the note on
+ *     `metricsState`.
  *
  * Phase 7C — VISUAL redesign only. The page now composes the shared
  * PageShell / PageHeader / PageSection foundation with token-driven
@@ -198,6 +202,25 @@ function InvestigationOverviewPageInner() {
   const canMutate = useCan("EVIDENCE_MANAGE");
   const [overview, setOverview] = useState<OverviewResponse | null>(null);
   const [metrics, setMetrics] = useState<MetricsSnapshot | null>(null);
+  /**
+   * Why the grid needs a STATE and not just a nullable snapshot.
+   *
+   * Queue health reads `/v1/ops/metrics`, which is a PLATFORM-ADMIN route:
+   * it projects the process-global registry, so no tenant permission can
+   * unlock it. Every non-platform caller therefore gets a 403 here — and this
+   * read used to sit inside the same `Promise.all` as the workspace
+   * overview, so that 403 rejected the pair and put the ENTIRE page into
+   * "overview_unavailable". The workspace data was fine; it was never
+   * displayed.
+   *
+   * Splitting the read fixes the outage. The state fixes the second half:
+   * `metrics = null` rendered six "—" tiles, which reads as "the queue is
+   * quiet" when it means "you were refused". Those are different facts and
+   * they get different surfaces.
+   */
+  const [metricsState, setMetricsState] = useState<
+    "idle" | "ok" | "unavailable"
+  >("idle");
   const [error, setError] = useState<string | null>(null);
   // Wave 2 Phase 4 — capture the underlying fetch error so the classifier
   // can resolve API_ERROR instead of misclassifying as TRUE_EMPTY.
@@ -233,35 +256,12 @@ function InvestigationOverviewPageInner() {
 
     const load = async () => {
       try {
-        const [ov, metEnvelope] = await Promise.all([
-          apiFetch(
-            `/v1/investigation/overview?teamId=${encodeURIComponent(teamId)}`,
-            { method: "GET" },
-          ) as Promise<OverviewResponse>,
-          // `/v1/ops/metrics` returns `{ metrics: MetricsSnapshot }` —
-          // ops.routes.ts wraps the snapshot in an envelope. Unwrap
-          // here so QueueHealthGrid sees the bare MetricsSnapshot
-          // shape (counters/gauges directly accessible). Defensive:
-          // if the server ever omits the envelope or returns null,
-          // fall back to undefined so the grid renders the bounded
-          // empty state instead of crashing on `t.metric in undefined`.
-          apiFetch("/v1/ops/metrics", { method: "GET" }) as Promise<
-            { metrics?: MetricsSnapshot } | MetricsSnapshot | null
-          >,
-        ]);
+        const ov = (await apiFetch(
+          `/v1/investigation/overview?teamId=${encodeURIComponent(teamId)}`,
+          { method: "GET" },
+        )) as OverviewResponse;
         if (cancelled) return;
         setOverview(ov);
-        const metUnwrapped: MetricsSnapshot | null =
-          metEnvelope == null
-            ? null
-            : "metrics" in metEnvelope &&
-                (metEnvelope as { metrics?: MetricsSnapshot }).metrics != null
-              ? (metEnvelope as { metrics: MetricsSnapshot }).metrics
-              : ((metEnvelope as MetricsSnapshot).counters != null ||
-                    (metEnvelope as MetricsSnapshot).gauges != null
-                  ? (metEnvelope as MetricsSnapshot)
-                  : null);
-        setMetrics(metUnwrapped);
         setLastFetchAt(Date.now());
         setError(null);
         setFetchError(null);
@@ -275,6 +275,44 @@ function InvestigationOverviewPageInner() {
           );
         }
       }
+      // Queue health — a PLATFORM read, fetched on its own for exactly the
+      // reason the reviewer summary below is: a permission-denied here must
+      // not poison the workspace overview. Attempted only when the operator
+      // holds platform telemetry, and still guarded, because the client-side
+      // capability is a projection and the server is the authority.
+      if (canPlatformTelemetry) {
+        try {
+          // The route answers `{ metrics: MetricsSnapshot }`. Unwrap so the
+          // grid sees counters/gauges directly; tolerate a bare snapshot and a
+          // null body rather than crashing on `t.metric in undefined`.
+          const envelope = (await apiFetch("/v1/ops/metrics", {
+            method: "GET",
+          })) as { metrics?: MetricsSnapshot } | MetricsSnapshot | null;
+          const snapshot: MetricsSnapshot | null =
+            envelope == null
+              ? null
+              : "metrics" in envelope &&
+                  (envelope as { metrics?: MetricsSnapshot }).metrics != null
+                ? (envelope as { metrics: MetricsSnapshot }).metrics
+                : ((envelope as MetricsSnapshot).counters != null ||
+                      (envelope as MetricsSnapshot).gauges != null
+                    ? (envelope as MetricsSnapshot)
+                    : null);
+          if (!cancelled) {
+            setMetrics(snapshot);
+            setMetricsState(snapshot == null ? "unavailable" : "ok");
+          }
+        } catch {
+          if (!cancelled) {
+            setMetrics(null);
+            setMetricsState("unavailable");
+          }
+        }
+      } else if (!cancelled) {
+        setMetrics(null);
+        setMetricsState("unavailable");
+      }
+
       // Phase 12 — reviewer activity summary is a second, independent
       // fetch so a permission-denied here doesn't poison the rest of
       // the overview page.
@@ -498,7 +536,7 @@ function InvestigationOverviewPageInner() {
       </PageSection>
 
       <PageSection title="Queue health">
-        <QueueHealthGrid metrics={metrics} />
+        <QueueHealthGrid metrics={metrics} state={metricsState} />
         {canPlatformTelemetry ? (
           <div style={pivotsStyle}>
             <Link href="/admin/platform/media-graph" style={pivotLinkStyle}>
@@ -961,6 +999,13 @@ function CrossEvidenceFindingsCard({
   );
 }
 
+const queueUnavailableStyle: React.CSSProperties = {
+  fontSize: 13,
+  lineHeight: 1.5,
+  margin: 0,
+  color: "var(--ink-secondary, #475569)",
+};
+
 const crossEvidenceValueStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
@@ -968,7 +1013,13 @@ const crossEvidenceValueStyle: React.CSSProperties = {
   wordBreak: "break-all",
 };
 
-function QueueHealthGrid({ metrics }: { metrics: MetricsSnapshot | null }) {
+function QueueHealthGrid({
+  metrics,
+  state,
+}: {
+  metrics: MetricsSnapshot | null;
+  state: "idle" | "ok" | "unavailable";
+}) {
   const tiles: Array<{
     label: string;
     metric: string;
@@ -1015,6 +1066,23 @@ function QueueHealthGrid({ metrics }: { metrics: MetricsSnapshot | null }) {
   // partial snapshot) used to crash this grid with "cannot use 'in'
   // operator on undefined". Resolve to {} so a missing bag renders
   // bounded "—" tiles instead.
+  /*
+   * A REFUSED READ IS NOT A QUIET QUEUE.
+   *
+   * Six "—" tiles is what this rendered for everyone who could not read
+   * platform telemetry, and "—" is the same glyph the grid uses for a metric
+   * the registry genuinely does not carry. One representation for two facts is
+   * how a page tells an operator the queue is fine when it has told them
+   * nothing at all. Say which one it is.
+   */
+  if (state === "unavailable") {
+    return (
+      <p style={queueUnavailableStyle} data-queue-health-unavailable>
+        Queue health is platform runtime data and is not available with your
+        access. Workspace activity above is unaffected.
+      </p>
+    );
+  }
   const counters: Record<string, number> = metrics?.counters ?? {};
   const gauges: Record<string, number> = metrics?.gauges ?? {};
   return (

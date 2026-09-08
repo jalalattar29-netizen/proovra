@@ -27,6 +27,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
 import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
+import { deprecatedAlias } from "./deprecated-alias.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import {
   getAdminOrganizationDetail,
@@ -94,13 +95,16 @@ export async function adminOrganizationsRoutes(app: FastifyInstance) {
     listCustomers,
   );
 
-  // Compatibility alias — same handler, same gate, same payload. Retained so
-  // this remediation does not break a consumer mid-flight; the web console now
-  // calls `/v1/admin/customers`.
+  // DEPRECATED THIN ALIAS of GET /v1/admin/customers — same handler value, same
+  // gate, same payload, plus the deprecation signals. The audit recommended
+  // deleting it on the strength of "zero consumers", which was a repository
+  // search result; this repository publishes no API document and keeps no
+  // access log, so nothing here can speak for callers outside it. Marked with a
+  // bounded removal date instead. See deprecated-alias.ts.
   app.get(
     "/v1/admin/organizations",
     { preHandler: requirePlatformAdmin },
-    listCustomers,
+    deprecatedAlias("/v1/admin/customers", listCustomers),
   );
 
   // ---------------------------------------------------------------------------
@@ -154,10 +158,10 @@ export async function adminOrganizationsRoutes(app: FastifyInstance) {
     customerDetail,
   );
 
-  // Compatibility alias for the pre-rename path.
+  // DEPRECATED THIN ALIAS of GET /v1/admin/customers/:id. See above.
   app.get(
     "/v1/admin/organizations/:id",
     { preHandler: requirePlatformAdmin },
-    customerDetail,
+    deprecatedAlias("/v1/admin/customers/:id", customerDetail),
   );
 }

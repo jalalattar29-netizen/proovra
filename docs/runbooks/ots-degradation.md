@@ -22,7 +22,7 @@ anchored state. The degrade rule is:
 ## First action (under 60s)
 
 ```bash
-curl -s "$API_BASE/v1/ops/metrics" | grep ots_upgrade
+curl -s "$API_BASE/v1/admin/platform/metrics" | grep ots_upgrade
 ```
 
 Expected metrics:

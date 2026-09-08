@@ -3,14 +3,14 @@
 **Incident slug**: `workflow-intake-abuse` · **Category**: `WORKER` (operational) · **Default severity**: `HIGH`
 
 ## Symptoms
-- `/v1/ops/metrics` → `workflow_intake_abuse_total` counter rising.
+- `/v1/admin/platform/metrics` → `workflow_intake_abuse_total` counter rising.
 - Phase 22 SecurityEvent `workflow_intake_abuse_detected` rows visible in the /security UI.
 - Phase 18 SecurityEvent `communication_webhook_invalid_signature` rising (if abuse is hitting the intake endpoint via spoofed callbacks).
 - Phase 19 risk signal `CONTRIBUTOR_TOKEN_FAILURE_BURST` on contributor sessions.
 
 ## Dashboards / metrics
 - `/v1/ops/incidents?status=OPEN&category=WORKER` (or `WEBHOOK`).
-- `/v1/ops/metrics` → counters `workflow_intake_abuse_total`, `contributor_risk_detected`.
+- `/v1/admin/platform/metrics` → counters `workflow_intake_abuse_total`, `contributor_risk_detected`.
 - `/v1/identity-security/risk/user/:id?teamId=...` for any actor with elevated risk.
 
 ## Safe commands / routes

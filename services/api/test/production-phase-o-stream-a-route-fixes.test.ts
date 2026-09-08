@@ -35,31 +35,81 @@ const REVIEWER_CONSOLE_ROUTES = readApi(
 );
 const ORGANIZATIONS_ROUTES = readApi("src/routes/organizations.routes.ts");
 
-describe("Phase O Stream A — Sentry NODE-W /v1/ops/metrics", () => {
-  it("resolves teamId from currentWorkspaceId before parsing", () => {
-    // The handler must look up the active workspace from the user
-    // record when the query lacks teamId, BEFORE running Zod.
-    expect(OPS_ROUTES).toMatch(
-      /\/v1\/ops\/metrics[\s\S]{0,2400}currentWorkspaceId: true/,
+/*
+ * Sentry NODE-W — SUPERSEDED, and by a stronger fix.
+ *
+ * WHAT NODE-W WAS
+ * ---------------------------------------------------------------------------
+ * `GET /v1/ops/metrics` ran `TeamIdQuery.parse(req.query)`. An operator who
+ * called it without `?teamId=` — which every operator dashboard did, because
+ * the payload never used the parameter — raised a ZodError that the central
+ * error handler served as a 500 and Sentry captured. The Phase-O fix resolved
+ * the caller's `currentWorkspaceId` first, ran `safeParse` on the RESOLVED
+ * object, and returned a bounded 400 WORKSPACE_CONTEXT_REQUIRED when there was
+ * no workspace to resolve. The four assertions below pinned exactly that.
+ *
+ * WHY THEY ARE NOT PINNED ANY MORE
+ * ---------------------------------------------------------------------------
+ * The bounded 400 was an improvement on a 500 and still the wrong answer.
+ * `/v1/ops/metrics` projects the PROCESS-GLOBAL metric registry; the workspace
+ * id never filtered anything, and after `1afd5e0f` moved the gate to
+ * `requirePlatformAdmin` it did not authorize anything either. It was a
+ * parameter with no remaining job, and it had a cost: a platform admin with no
+ * `currentWorkspaceId` was refused a platform-wide read with "Select a
+ * workspace to view operational metrics."
+ *
+ * ADM-P3-006 removed the parameter instead of handling it. The route is now a
+ * deprecated alias registered against the canonical
+ * `/v1/admin/platform/metrics` handler, which reads no query at all.
+ *
+ * THIS IS NOT A RELAXED ASSERTION. The original defect was "an absent teamId
+ * produces an unhandled throw". The replacement below asserts something the
+ * original could not: the handler cannot throw on the query, because it never
+ * touches it. `expect(...).not.toMatch` on the parse call is the same defect
+ * closed at its root, and the executed proof — a platform admin receiving 200
+ * with no `?teamId=` — is in `test/deprecated-aliases.integration.test.ts`.
+ */
+describe("Sentry NODE-W /v1/ops/metrics — the query parameter is gone", () => {
+  /** The alias registration, isolated so neighbouring routes cannot satisfy it. */
+  const METRICS_ALIAS = (() => {
+    const start = OPS_ROUTES.indexOf('"/v1/ops/metrics"');
+    expect(start, "the /v1/ops/metrics registration is missing").toBeGreaterThan(
+      -1,
+    );
+    return OPS_ROUTES.slice(start, start + 400);
+  })();
+
+  it("registers the canonical platform handler, not a second implementation", () => {
+    expect(METRICS_ALIAS).toContain("platformMetricsHandler");
+    expect(METRICS_ALIAS).toContain("requirePlatformAdmin");
+  });
+
+  it("neither parses nor resolves a workspace", () => {
+    // The three things the old handler did, none of which can be reached now.
+    expect(METRICS_ALIAS).not.toMatch(/TeamIdQuery\./);
+    expect(METRICS_ALIAS).not.toMatch(/currentWorkspaceId/);
+    expect(METRICS_ALIAS).not.toMatch(/requireOpsActor/);
+  });
+
+  it("no longer refuses a platform read for want of a workspace", () => {
+    // The bounded 400 was correct for a route that needed a workspace. This
+    // one never did, so the message must be gone from the file entirely — a
+    // stray copy would mean a second handler had grown back.
+    expect(OPS_ROUTES).not.toContain(
+      "Select a workspace to view operational metrics",
     );
   });
 
-  it("returns bounded 400 WORKSPACE_CONTEXT_REQUIRED when no workspace", () => {
-    expect(OPS_ROUTES).toMatch(
-      /code: "WORKSPACE_CONTEXT_REQUIRED"[\s\S]{0,400}Select a workspace to view operational metrics/,
+  it("the canonical handler it delegates to reads no query", () => {
+    const telemetry = readApi(
+      "src/routes/admin-platform-telemetry.routes.ts",
     );
-  });
-
-  it("uses safeParse (never .parse) for the resolved object", () => {
-    expect(OPS_ROUTES).toMatch(
-      /\/v1\/ops\/metrics[\s\S]{0,2800}TeamIdQuery\.safeParse/,
+    const handler = telemetry.slice(
+      telemetry.indexOf("export const platformMetricsHandler"),
     );
-  });
-
-  it("emits requestId on the bounded error response", () => {
-    expect(OPS_ROUTES).toMatch(
-      /code: "WORKSPACE_CONTEXT_REQUIRED"[\s\S]{0,400}requestId: req\.id/,
-    );
+    const body = handler.slice(0, handler.indexOf("\n};"));
+    expect(body).not.toMatch(/req\.query/);
+    expect(body).toContain("snapshotMetrics()");
   });
 });
 

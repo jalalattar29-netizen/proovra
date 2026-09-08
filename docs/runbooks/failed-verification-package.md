@@ -7,7 +7,7 @@
 - Operator sees stale "Building package…" state for an evidence item.
 
 ## Dashboards / metrics
-- `/v1/ops/metrics` → `jobs_failed_total`.
+- `/v1/admin/platform/metrics` → `jobs_failed_total`.
 - Worker logs grep `verification-package` + `evidenceId`.
 
 ## Safe commands / routes

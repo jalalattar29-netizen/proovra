@@ -20,8 +20,8 @@ the worker is crash-looping. Possible drivers:
 docker compose ps proovra-worker
 
 # Worker heartbeat health (Phase Y)
-curl -s "$API_BASE/v1/ops/metrics" | grep worker_heartbeat
-curl -s "$API_BASE/v1/ops/metrics" | grep queue_oldest_pending_age
+curl -s "$API_BASE/v1/admin/platform/metrics" | grep worker_heartbeat
+curl -s "$API_BASE/v1/admin/platform/metrics" | grep queue_oldest_pending_age
 ```
 
 If `worker_heartbeat_total` is not incrementing, the worker is dead.

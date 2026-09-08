@@ -4,11 +4,11 @@
 
 ## Symptoms
 - Operational incident with `fingerprint` containing `webhook:security_event:communication_webhook_invalid_signature`.
-- `/v1/ops/metrics` → `webhook_invalid_signature_total` counter rising.
+- `/v1/admin/platform/metrics` → `webhook_invalid_signature_total` counter rising.
 - Phase 18 SecurityEvent `communication_webhook_invalid_signature` (HIGH).
 
 ## Dashboards / metrics
-- `/v1/ops/metrics` → counters `webhook_invalid_signature`, `webhook_invalid_signature_total`.
+- `/v1/admin/platform/metrics` → counters `webhook_invalid_signature`, `webhook_invalid_signature_total`.
 - /security UI → filter by event type `communication_webhook_invalid_signature`.
 
 ## Safe commands / routes

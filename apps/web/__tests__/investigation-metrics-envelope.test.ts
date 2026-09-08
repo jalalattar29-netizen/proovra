@@ -75,10 +75,67 @@ test("page.tsx unwraps the `.metrics` envelope before setMetrics()", () => {
   // before setMetrics() is called.
   assert.match(
     PAGE_SOURCE,
-    /\(metEnvelope as \{\s*metrics:\s*MetricsSnapshot\s*\}\)\.metrics/,
+    /\(envelope as \{\s*metrics:\s*MetricsSnapshot\s*\}\)\.metrics/,
     "The fetcher must unwrap `.metrics` from the envelope before " +
       "calling setMetrics(). Otherwise QueueHealthGrid receives the " +
       "envelope and crashes on `t.metric in metrics.gauges`.",
+  );
+});
+
+test("the platform metrics read is NOT bundled with the workspace overview", () => {
+  /*
+   * ADM-P3-006, second defect.
+   *
+   * `/v1/ops/metrics` is a PLATFORM-ADMIN route — it projects the process-global
+   * registry, so no tenant permission unlocks it and every non-platform caller
+   * gets a 403. This read used to sit inside the same `Promise.all` as
+   * `/v1/investigation/overview`, and `Promise.all` rejects as a unit: one 403
+   * on a decorative queue-health panel put the ENTIRE page into
+   * "overview_unavailable" for every ordinary member of every workspace. The
+   * workspace data had loaded; it was thrown away.
+   *
+   * Asserted structurally rather than by name, because the failure mode is the
+   * BUNDLING, not the identifier: whatever the array is called, the overview
+   * fetch and the metrics fetch must not be settled together.
+   */
+  const promiseAllBlocks = PAGE_SOURCE.match(
+    /Promise\.all\(\[[\s\S]*?\]\)/g,
+  ) ?? [];
+  for (const block of promiseAllBlocks) {
+    const hasOverview = block.includes("/v1/investigation/overview");
+    const hasMetrics = block.includes("/v1/ops/metrics");
+    assert.equal(
+      hasOverview && hasMetrics,
+      false,
+      "the workspace overview and the platform metrics read are settled " +
+        "together — a 403 on the platform read will take the whole page down",
+    );
+  }
+});
+
+test("a refused platform read is not rendered as an empty queue", () => {
+  /*
+   * The other half of the same defect. `metrics === null` rendered six "—"
+   * tiles, and "—" is the same glyph the grid uses for a metric the registry
+   * genuinely does not carry. A caller who was REFUSED then reads the page as
+   * "the queue is quiet". The grid must distinguish the two.
+   */
+  assert.match(
+    PAGE_SOURCE,
+    /state\s*===\s*["']unavailable["']/,
+    "QueueHealthGrid must branch on an explicit unavailable state, not " +
+      "infer it from a null snapshot",
+  );
+  assert.match(
+    PAGE_SOURCE,
+    /data-queue-health-unavailable/,
+    "the refused state needs a stable hook so a browser test can assert it",
+  );
+  assert.match(
+    PAGE_SOURCE,
+    /not available with your\s*\n?\s*\*?\s*access/,
+    "the refused state must say the caller lacks access, in the product's " +
+      "own words",
   );
 });
 

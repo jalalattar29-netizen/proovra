@@ -6,9 +6,14 @@
  * READ-ONLY platform-admin surface. Wrapped in the admin console layout
  * (which inherits the `platform.admin` PageRouteGate from admin/layout.tsx
  * — no conflicting gate is added here). Every field comes from the
- * /v1/admin/organizations endpoint; null fields render "—" / "Not
- * measured". Errors surface via toSafeUserError. No app-hero/cc-page/btn-
- * classes.
+ * /v1/admin/customers endpoint; null fields render "—" / "Not measured".
+ * Errors surface via toSafeUserError. No app-hero/cc-page/btn- classes.
+ *
+ * This paragraph named /v1/admin/organizations long after the page stopped
+ * calling it. That path still exists as a deprecated alias of
+ * /v1/admin/customers, which is exactly why a stale reference here was cheap
+ * to leave and expensive to trust: it reads as documentation of a live
+ * dependency this page does not have.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";

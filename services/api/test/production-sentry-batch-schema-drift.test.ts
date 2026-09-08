@@ -232,38 +232,55 @@ describe("Phase O — repair migration covers every Sentry schema-drift item", (
 });
 
 // =============================================================================
-// (10) — /v1/ops/metrics resolves workspace context + emits WORKSPACE_CONTEXT_REQUIRED
+// (10) — /v1/ops/metrics takes no query at all
+//
+// NODE-W was `TeamIdQuery.parse(req.query)` throwing a ZodError as a 500 when
+// an operator omitted `?teamId=`. Phase O made that a bounded 400 by resolving
+// the caller's `currentWorkspaceId` first. ADM-P3-006 went further and deleted
+// the parameter: the route projects the process-global metric registry, so the
+// workspace id filtered nothing, and once `1afd5e0f` moved the gate to
+// `requirePlatformAdmin` it authorized nothing either — while still refusing a
+// platform admin who happened to have no current workspace.
+//
+// The assertions here therefore changed target, not strength. "The parse is
+// safe" is superseded by "there is no parse", which closes the same failure
+// mode at its root and cannot be satisfied by a second handler that reads the
+// query correctly today. The executed counterpart — a platform admin getting
+// 200 with no `?teamId=`, on both the alias and its successor — is in
+// `test/deprecated-aliases.integration.test.ts`.
 // =============================================================================
 
-describe("Phase O Stream A — /v1/ops/metrics (NODE-W)", () => {
-  it("resolves teamId from currentWorkspaceId BEFORE running Zod", () => {
-    expect(OPS_ROUTES).toMatch(
-      /\/v1\/ops\/metrics[\s\S]{0,2400}currentWorkspaceId: true/,
-    );
-  });
-
-  it("emits bounded 400 WORKSPACE_CONTEXT_REQUIRED with requestId when no workspace", () => {
-    expect(OPS_ROUTES).toMatch(
-      /code:\s*"WORKSPACE_CONTEXT_REQUIRED"[\s\S]{0,400}Select a workspace to view operational metrics[\s\S]{0,400}requestId:\s*req\.id/,
-    );
-  });
-
-  it("uses safeParse for query (no unhandled .parse(req.query) leak inside the handler)", () => {
-    // Negative grep — pull the entire /v1/ops/metrics handler slice and
-    // assert no `TeamIdQuery.parse(req.query` appears in the body. The
-    // canonical pattern is `safeParse({ teamId: resolvedTeamId })`.
+describe("/v1/ops/metrics — no query, no workspace, one handler (NODE-W)", () => {
+  /** The alias registration only, so a neighbouring route cannot satisfy it. */
+  const SLICE = (() => {
     const idx = OPS_ROUTES.indexOf('"/v1/ops/metrics"');
-    expect(idx).toBeGreaterThan(-1);
-    // Slice from the route literal until the next route declaration —
-    // any `.parse(req.query)` inside that slice is a regression.
-    const after = OPS_ROUTES.slice(idx + 1);
-    const nextRoute = after.search(/\n\s{0,4}app\.(get|post|patch|delete|put)\(/);
-    const slice = OPS_ROUTES.slice(
-      idx,
-      idx + 1 + (nextRoute > 0 ? nextRoute : 3000),
+    expect(idx, "the /v1/ops/metrics registration is missing").toBeGreaterThan(
+      -1,
     );
-    expect(slice).not.toMatch(/TeamIdQuery\.parse\(\s*req\.query/);
-    expect(slice).toMatch(/TeamIdQuery\.safeParse\(/);
+    const after = OPS_ROUTES.slice(idx + 1);
+    const nextRoute = after.search(
+      /\n\s{0,4}app\.(get|post|patch|delete|put)\(/,
+    );
+    return OPS_ROUTES.slice(idx, idx + 1 + (nextRoute > 0 ? nextRoute : 3000));
+  })();
+
+  it("does not parse req.query, safely or otherwise", () => {
+    expect(SLICE).not.toMatch(/TeamIdQuery\.parse\(\s*req\.query/);
+    expect(SLICE).not.toMatch(/TeamIdQuery\./);
+    expect(SLICE).not.toMatch(/req\.query/);
+  });
+
+  it("does not resolve a workspace for a platform-wide read", () => {
+    expect(SLICE).not.toMatch(/currentWorkspaceId/);
+    expect(OPS_ROUTES).not.toContain(
+      "Select a workspace to view operational metrics",
+    );
+  });
+
+  it("delegates to the canonical platform handler behind the platform gate", () => {
+    expect(SLICE).toContain("requirePlatformAdmin");
+    expect(SLICE).toContain("platformMetricsHandler");
+    expect(SLICE).toContain("deprecatedAlias");
   });
 });
 

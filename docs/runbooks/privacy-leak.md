@@ -7,7 +7,7 @@
 An operator (or compliance reviewer) reports that privileged legal
 text, PII, or secret material appears in a surface where it should
 not — most likely:
-- Prometheus metric labels (`/v1/ops/metrics`).
+- Prometheus metric labels (`/v1/admin/platform/metrics`).
 - Sentry capture payload.
 - `EvidenceLifecycleEvent.metadata` ledger.
 - `GovernanceNotification.metadata`.
@@ -25,7 +25,7 @@ in the dashboard).
 ```bash
 # For metrics leakage:
 curl -fsS -H "X-Metrics-Scrape-Token: $METRICS_SCRAPE_TOKEN" \
-  "$API_BASE/v1/ops/metrics" | grep -i '<offending key>'
+  "$API_BASE/v1/admin/platform/metrics" | grep -i '<offending key>'
 ```
 
 For ledger leakage:

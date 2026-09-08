@@ -48,6 +48,11 @@ import {
   listAssignableOperators,
 } from "../services/operations/assignable-operators.service.js";
 import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
+import {
+  platformAlertsHandler,
+  platformMetricsHandler,
+} from "./admin-platform-telemetry.routes.js";
+import { deprecatedAlias } from "./deprecated-alias.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requirePlatformOpsActor } from "./require-platform-ops-actor.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
@@ -62,9 +67,7 @@ import {
   bump,
   buildPrometheusExposition,
   setGauge,
-  snapshotMetrics,
 } from "../services/ops/metrics.service.js";
-import { evaluateAlerts } from "@proovra/shared";
 import { buildObservabilityHealth } from "../services/observability/registry.js";
 import { buildAlertHealth } from "../services/alerts/alert.service.js";
 import {
@@ -609,77 +612,37 @@ export async function opsRoutes(app: FastifyInstance) {
     },
   );
 
-  // /v1/ops/metrics — authenticated metrics snapshot. Same auth gate
-  // as /v1/ops/health. Returns the in-process counter + gauge values.
+  // GET /v1/ops/metrics — DEPRECATED THIN ALIAS of GET /v1/admin/platform/metrics.
   //
-  // Phase O Stage 3 (Sentry NODE-W repair):
-  //   - Operators previously hit ZodError when calling this endpoint
-  //     without a `teamId` query param (the operator dashboard never
-  //     adds one; it relies on the user's current workspace). The
-  //     ZodError leaked through the central error handler as a 500
-  //     and was captured by Sentry. We now resolve the teamId from
-  //     the canonical workspace context (`user.currentWorkspaceId`,
-  //     the same pattern used by intelligence-platform.routes.ts,
-  //     product-and-lifecycle.routes.ts, and trust-and-governance.
-  //     routes.ts) BEFORE running Zod against the resolved object.
-  //   - If the user has no active workspace, return a bounded 400
-  //     instead of a ZodError 500. Anti-enumeration is preserved —
-  //     `requireOpsActor` still 404s non-members of the resolved team.
-  // DEPRECATED + HARD-GATED (security fix).
+  // WHAT THIS USED TO BE
+  // ---------------------------------------------------------------------------
+  // A second implementation of the same read. It resolved a workspace id from
+  // the caller's context, ran `TeamIdQuery`, called `requireOpsActor` against
+  // that workspace, and then returned `snapshotMetrics()` — the PROCESS-GLOBAL
+  // registry, unfiltered. The workspace id was an authorization TICKET, never a
+  // filter; `1afd5e0f` closed the disclosure by moving the gate to
+  // `requirePlatformAdmin` and leaving the ticket logic in place.
   //
-  // This returned `snapshotMetrics()` — the PROCESS-GLOBAL registry — to any
-  // ACTIVE member of the workspace named in `?teamId=`. The workspace id was
-  // an authorization TICKET, never a FILTER, so a FREE personal-space user
-  // could read platform-wide incident counts, `secrets_fallback_total` and
-  // every other runtime counter.
+  // WHAT WAS STILL WRONG
+  // ---------------------------------------------------------------------------
+  // The ticket logic outlived its purpose and became a defect of its own: a
+  // platform admin with no `currentWorkspaceId` received `400
+  // WORKSPACE_CONTEXT_REQUIRED` on a read that has nothing to do with a
+  // workspace. And two handlers projecting one registry is two things to keep in
+  // agreement — the audit already recorded them as DUPLICATE_MEANING.
   //
-  // The gate is now the platform gate, because the DATA is platform-wide.
-  // Callers that legitimately want workspace health use
-  // GET /v1/workspaces/:workspaceId/operations/health, which reads durable
-  // tenant rows and cannot reach the registry at all.
+  // WHY IT IS NOT DELETED
+  // ---------------------------------------------------------------------------
+  // The audit recorded "no product consumer" from a repository search. That was
+  // wrong: `apps/web/app/(app)/investigation/page.tsx` calls it on every poll.
+  // A search that missed an in-repository caller is not evidence about callers
+  // outside the repository either, and this repository publishes no API
+  // document and keeps no access log that could settle it. So the path stays,
+  // registered against THE canonical handler, and says so on the wire.
   app.get(
     "/v1/ops/metrics",
     { preHandler: requirePlatformAdmin },
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      const rawQuery = (req.query ?? {}) as { teamId?: string };
-      let resolvedTeamId = rawQuery.teamId;
-      if (!resolvedTeamId) {
-        const userId = getAuthUserId(req);
-        const user = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { currentWorkspaceId: true },
-        });
-        if (!user?.currentWorkspaceId) {
-          return reply.code(400).send({
-            error: {
-              code: "WORKSPACE_CONTEXT_REQUIRED",
-              message:
-                "Select a workspace to view operational metrics.",
-              requestId: req.id,
-            },
-          });
-        }
-        resolvedTeamId = user.currentWorkspaceId;
-      }
-      // Zod parse runs AFTER context resolution, on the resolved
-      // object — never on raw input that might lack teamId. Failure
-      // here means the resolved teamId is not a UUID (a real data
-      // integrity issue), which deserves a bounded 400.
-      const parsed = TeamIdQuery.safeParse({ teamId: resolvedTeamId });
-      if (!parsed.success) {
-        return reply.code(400).send({
-          error: {
-            code: "INVALID_QUERY",
-            message: "Workspace context invalid.",
-            requestId: req.id,
-          },
-        });
-      }
-      const q = parsed.data;
-      const actor = await requireOpsActor(req, reply, q.teamId);
-      if (!actor) return;
-      return reply.code(200).send({ metrics: snapshotMetrics() });
-    },
+    deprecatedAlias("/v1/admin/platform/metrics", platformMetricsHandler),
   );
 
   // Phase Y — Prometheus exposition endpoint.
@@ -734,46 +697,20 @@ export async function opsRoutes(app: FastifyInstance) {
       .send(body);
   });
 
-  // Phase Y — Alert evaluation endpoint.
+  // GET /v1/ops/alerts — DEPRECATED THIN ALIAS of GET /v1/admin/platform/alerts.
   //
-  // Reads the current metrics snapshot and runs it against the shared
-  // OPERATIONAL_ALERT_THRESHOLDS catalog. Returns the alerts that are
-  // currently firing. Authenticated; the operator dashboard polls
-  // this to render the alert ribbon. Updates two gauges so a scraper
-  // can also tell at a glance how many alerts are open.
-  // DEPRECATED + HARD-GATED (security fix). See /v1/ops/metrics above.
+  // Same history as `/v1/ops/metrics` above, and one defect further along: this
+  // one called `TeamIdQuery.parse` — not `safeParse` — so a platform admin who
+  // omitted `?teamId=` got a ZodError through the central error handler as a
+  // 500. The fix applied to the metrics route in `1afd5e0f` was never applied
+  // here. Registering the canonical handler removes the parameter entirely.
   //
-  // This one also WROTE the shared registry (`setGauge`/`bump`), so every
-  // tenant poll rewrote the alert gauges that the platform dashboards and every
-  // other tenant were reading.
+  // It also WROTE the shared alert gauges from a second call site. There is now
+  // one writer, reachable by two paths.
   app.get(
     "/v1/ops/alerts",
     { preHandler: requirePlatformAdmin },
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      const q = TeamIdQuery.parse(req.query ?? {});
-      const actor = await requireOpsActor(req, reply, q.teamId);
-      if (!actor) return;
-      const snap = snapshotMetrics();
-      const merged: Record<string, number | undefined> = {
-        ...snap.counters,
-        ...snap.gauges,
-      };
-      const firing = evaluateAlerts(merged);
-      const critical = firing.filter((a) => a.severity === "CRITICAL").length;
-      setGauge("observability_alerts_firing", firing.length);
-      setGauge("observability_alerts_firing_critical", critical);
-      bump("observability_alert_evaluations_total");
-      return reply.code(200).send({
-        firing,
-        counts: {
-          total: firing.length,
-          critical,
-          high: firing.filter((a) => a.severity === "HIGH").length,
-          warning: firing.filter((a) => a.severity === "WARNING").length,
-        },
-        evaluatedAtUtc: new Date().toISOString(),
-      });
-    },
+    deprecatedAlias("/v1/admin/platform/alerts", platformAlertsHandler),
   );
 
   // GET /v1/admin/runtime/schema-status — runtime schema drift probe.

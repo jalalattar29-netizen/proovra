@@ -43,6 +43,66 @@ import {
 } from "@proovra/shared-runtime";
 import { evaluateAlerts } from "@proovra/shared";
 
+/**
+ * THE canonical platform metrics handler.
+ *
+ * Hoisted to module scope and exported because `GET /v1/ops/metrics` is a
+ * deprecated alias of this route and must run THIS function, not a second
+ * implementation that agrees with it today. See `deprecated-alias.ts`.
+ */
+export const platformMetricsHandler = async (
+  _req: FastifyRequest,
+  reply: FastifyReply,
+) => {
+  const snap = snapshotMetrics();
+  return reply.code(200).send({
+    scope: "PLATFORM",
+    metrics: snap,
+    // Counters are monotonic SINCE PROCESS START and reset on restart.
+    // Saying so here means a reader never has to infer it from a small
+    // number, which is how "7m uptime, all counters low" got read as
+    // "quiet platform" instead of "recently deployed".
+    uptimeSeconds: snap.uptimeSeconds,
+    countersResetOnRestart: true,
+    sampledAtUtc: new Date().toISOString(),
+  });
+};
+
+/**
+ * THE canonical platform alerts handler. Exported for the same reason as
+ * `platformMetricsHandler`: `GET /v1/ops/alerts` is a deprecated alias and
+ * runs this exact function.
+ *
+ * This is the ONLY writer of the alert gauges. Reaching it requires the
+ * platform gate, on both of its registered paths.
+ */
+export const platformAlertsHandler = async (
+  _req: FastifyRequest,
+  reply: FastifyReply,
+) => {
+  const snap = snapshotMetrics();
+  const merged: Record<string, number | undefined> = {
+    ...snap.counters,
+    ...snap.gauges,
+  };
+  const firing = evaluateAlerts(merged);
+  const critical = firing.filter((a) => a.severity === "CRITICAL").length;
+  setGauge("observability_alerts_firing", firing.length);
+  setGauge("observability_alerts_firing_critical", critical);
+  bump("observability_alert_evaluations_total");
+  return reply.code(200).send({
+    scope: "PLATFORM",
+    firing,
+    counts: {
+      total: firing.length,
+      critical,
+      high: firing.filter((a) => a.severity === "HIGH").length,
+      warning: firing.filter((a) => a.severity === "WARNING").length,
+    },
+    evaluatedAtUtc: new Date().toISOString(),
+  });
+};
+
 export async function adminPlatformTelemetryRoutes(
   app: FastifyInstance,
 ): Promise<void> {
@@ -56,20 +116,7 @@ export async function adminPlatformTelemetryRoutes(
   app.get(
     "/v1/admin/platform/metrics",
     { preHandler: requirePlatformAdmin },
-    async (_req: FastifyRequest, reply: FastifyReply) => {
-      const snap = snapshotMetrics();
-      return reply.code(200).send({
-        scope: "PLATFORM",
-        metrics: snap,
-        // Counters are monotonic SINCE PROCESS START and reset on restart.
-        // Saying so here means a reader never has to infer it from a small
-        // number, which is how "7m uptime, all counters low" got read as
-        // "quiet platform" instead of "recently deployed".
-        uptimeSeconds: snap.uptimeSeconds,
-        countersResetOnRestart: true,
-        sampledAtUtc: new Date().toISOString(),
-      });
-    },
+    platformMetricsHandler,
   );
 
   /**
@@ -84,29 +131,7 @@ export async function adminPlatformTelemetryRoutes(
   app.get(
     "/v1/admin/platform/alerts",
     { preHandler: requirePlatformAdmin },
-    async (_req: FastifyRequest, reply: FastifyReply) => {
-      const snap = snapshotMetrics();
-      const merged: Record<string, number | undefined> = {
-        ...snap.counters,
-        ...snap.gauges,
-      };
-      const firing = evaluateAlerts(merged);
-      const critical = firing.filter((a) => a.severity === "CRITICAL").length;
-      setGauge("observability_alerts_firing", firing.length);
-      setGauge("observability_alerts_firing_critical", critical);
-      bump("observability_alert_evaluations_total");
-      return reply.code(200).send({
-        scope: "PLATFORM",
-        firing,
-        counts: {
-          total: firing.length,
-          critical,
-          high: firing.filter((a) => a.severity === "HIGH").length,
-          warning: firing.filter((a) => a.severity === "WARNING").length,
-        },
-        evaluatedAtUtc: new Date().toISOString(),
-      });
-    },
+    platformAlertsHandler,
   );
 
   /**

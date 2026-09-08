@@ -314,7 +314,7 @@
 | `/admin/contact-sales` | 802 | 3c/1t/0s |  |
 | `/admin/contact-sales/:id` | 676 | 5c/0t/0s |  |
 | `/admin/costs` | 670 | 8c/3t/10s |  |
-| `/admin/customers` | 548 | 0c/1t/0s |  |
+| `/admin/customers` | 553 | 0c/1t/0s |  |
 | `/admin/customers/:id` | 1214 | 12c/1t/0s |  |
 | `/admin/dashboard` | 946 | 9c/3t/9s |  |
 | `/admin/demo-requests` | 1340 | 3c/0t/2s |  |

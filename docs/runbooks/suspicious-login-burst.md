@@ -8,7 +8,7 @@
 - /security-center UI shows elevated risk score for the actor.
 
 ## Dashboards / metrics
-- `/v1/ops/metrics` → `step_up_denied`, `high_risk_action_blocked`, `verification_check_failed`.
+- `/v1/admin/platform/metrics` → `step_up_denied`, `high_risk_action_blocked`, `verification_check_failed`.
 - /security-center → risk snapshot for the actor.
 
 ## Safe commands / routes
