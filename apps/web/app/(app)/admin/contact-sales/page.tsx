@@ -1,5 +1,11 @@
 "use client";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
+import { AdmReadFailure } from "../../../../components/admin/AdminSurfaces";
+import {
+  ADMIN_FAILURE_COPY,
+  classifyAdminReadFailure,
+  type AdminReadFailure,
+} from "../../../../lib/admin/read-state";
 
 // Minimal read-only admin surface for Contact Sales submissions.
 // Mirrors /admin/demo-requests structure but intentionally focused:
@@ -141,6 +147,22 @@ export default function AdminContactSalesPage() {
   // so the return link can restore it.
   const listParams = useSearchParams();
   const [loading, setLoading] = useState(true);
+  /**
+   * ADM-P2-002 — the roster read either answered or it did not.
+   *
+   * The catch showed a toast and left `items` at its previous value (an empty
+   * array on first load), so an aborted read rendered the empty state: "No
+   * contact-sales inquiries yet — new enquiries from the public site appear
+   * here as they are submitted." That sentence asserts the pipeline is empty,
+   * which is the one thing this page cannot know when the read failed, and the
+   * toast that carried the difference is gone in seconds.
+   *
+   * There is a second, quieter half: the handler answers `{ ok, data }` and the
+   * old code only acted `if (res.ok)`. A response with `ok: false` fell
+   * through every branch — no rows, no toast, no failure — so the most
+   * explicit refusal the API can give was the one the page said nothing about.
+   */
+  const [failure, setFailure] = useState<AdminReadFailure | null>(null);
   const [items, setItems] = useState<ListItem[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [total, setTotal] = useState<number | null>(null);
@@ -185,19 +207,25 @@ export default function AdminContactSalesPage() {
         ok: boolean;
         data: { items: ListItem[]; total: number; summary: Summary };
       };
-      if (res.ok) {
-        setItems(res.data.items);
-        // `total` is a server COUNT over the same filter as the rows, not the
-        // length of what came back — so "Showing 50 of 214" is a fact rather
-        // than an inference from a full page.
-        setTotal(res.data.total ?? null);
-        setSummary(res.data.summary);
+      if (!res.ok) {
+        // An explicit refusal is a failure, not an empty pipeline.
+        throw new Error("contact_sales_read_refused");
       }
+      setItems(res.data.items);
+      // `total` is a server COUNT over the same filter as the rows, not the
+      // length of what came back — so "Showing 50 of 214" is a fact rather
+      // than an inference from a full page.
+      setTotal(res.data.total ?? null);
+      setSummary(res.data.summary);
+      setFailure(null);
     } catch (err) {
-      addToast(
-        toSafeUserError(err, { message: "Failed to load" }).message,
-        "error"
+      const classified = classifyAdminReadFailure(
+        err,
+        ADMIN_FAILURE_COPY["/admin/contact-sales"],
+        toSafeUserError,
       );
+      setFailure(classified);
+      addToast(classified.message, "error");
     } finally {
       setLoading(false);
     }
@@ -504,7 +532,15 @@ export default function AdminContactSalesPage() {
               filters were hiding something. The first case has nothing to
               clear; the second says what to clear and offers it.
             */
-            isFiltered ? (
+            /*
+              A FAILED READ IS NEITHER OF THOSE TWO SENTENCES, so it is tested
+              first. Both branches below assert something about the pipeline —
+              that it is empty, or that a filter hid everything — and neither is
+              knowable when the read did not answer.
+            */
+            failure ? (
+              <AdmReadFailure failure={failure} onRetry={() => void load()} />
+            ) : isFiltered ? (
               <EmptyState
                 variant="inline"
                 title="No inquiry matches these filters"

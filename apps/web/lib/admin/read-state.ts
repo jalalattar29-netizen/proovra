@@ -201,6 +201,8 @@ export type AdminEmptyCopyRoute = keyof typeof ADMIN_EMPTY_COPY;
  * so a reviewer can see at a glance that no failure sentence claims absence.
  */
 export const ADMIN_FAILURE_COPY = {
+  "/admin/contact-sales":
+    "The contact-sales list could not be read. This is not an empty pipeline — enquiries may exist that this console cannot see right now.",
   "/admin": "The platform overview could not be loaded. This is a not-connected state, not an empty platform.",
   "/admin/alerts":
     "The alert list could not be read. This is not an all-clear — the platform may have active signals this console cannot see right now.",
