@@ -349,7 +349,20 @@ function AssignmentsTab({
           row + translucent `.cases-segments` control tray + `.cases-search-
           field`/`.cases-filter-search` search. No new/duplicate styles. */}
       <div className="cases-toolbar">
-        <div className="cases-segments" role="group" aria-label="Filter work">
+        {/*
+          A FILTER GROUP, NOT A SEGMENTED CONTROL.
+
+          These five controls sat in `.cases-segments` — a 6px-gap, 4px-padded
+          tray that caps itself at `max-content` and scrolls internally,
+          because it was built for adjacent pill CHIPS. Four listboxes at
+          160-190px plus a toggle cannot fit that, so the tray squeezed them
+          until "Overdue only" collided with the selector beside it.
+
+          `.app-filter-group` wraps rather than shrinking, so a label is never
+          clipped to make room, and it gives the toggle the same height and
+          baseline as the selectors instead of leaving it as loose text.
+        */}
+        <div className="app-filter-group" role="group" aria-label="Filter work">
           <div style={{ width: 168 }} data-testid="assignment-status-filter">
             <AppListbox
               value={statusFilter ?? ""}

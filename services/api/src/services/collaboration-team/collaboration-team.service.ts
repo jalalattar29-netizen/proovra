@@ -722,6 +722,15 @@ export async function listCollaborationTeams(
      * participation with it. Seeing a group is not being in it.
      */
     scope?: "PARTICIPATING" | "ALL";
+    /**
+     * May this caller see the WORKSPACE-WIDE rollup?
+     *
+     * Decided by the route from `canGovernWorkspace` and passed down, never
+     * re-derived here. It is deliberately independent of `scope`: which rows
+     * you asked for is a view preference, whether you may survey the workspace
+     * is an authorization decision.
+     */
+    canSurveyWorkspace?: boolean;
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<{
@@ -858,18 +867,34 @@ export async function listCollaborationTeams(
   );
   const urgentByTeam = new Map(urgentRows.map((r) => [r.teamId, r._count._all]));
 
-  // Workspace-wide, and only for a caller the route granted the ALL scope to.
-  // Computed from `workspaceId`, never from `pageIds` — the whole point is
-  // that it does not move when the operator pages or narrows their search.
-  const rollup =
-    scope === "ALL"
-      ? await computeWorkspaceRollup(
-          input.workspaceId,
-          workspaceTotalActive,
-          now,
-          client,
-        )
-      : null;
+  /*
+   * WORKSPACE-WIDE, AND GATED ON GOVERNANCE — NOT ON THE LIST SCOPE.
+   *
+   * This was gated on the GRANTED list scope, which conflated two different
+   * questions. "Which rows do I want to see?" is a view preference; "may I
+   * survey this workspace?" is an authorization decision the route has already
+   * made as `canGovernWorkspace`. Tying the rollup to the former meant a
+   * governor looking at their own teams saw no operational summary at all, and
+   * had to switch the list to All Teams to discover that open work,
+   * unassigned work and workload figures existed — supervision hidden behind a
+   * toggle nobody would think to press.
+   *
+   * `canSurveyWorkspace` is passed down explicitly rather than re-derived, so
+   * there is exactly one place that decides who qualifies — the route binding
+   * — and this function cannot disagree with it. A caller without it still
+   * gets `null`, and the workspace-wide counts are never computed at all.
+   *
+   * Still computed from `workspaceId`, never from `pageIds`: the whole point is
+   * that it does not move when the operator pages or narrows their search.
+   */
+  const rollup = input.canSurveyWorkspace
+    ? await computeWorkspaceRollup(
+        input.workspaceId,
+        workspaceTotalActive,
+        now,
+        client,
+      )
+    : null;
 
   return {
     nextCursor: teams.length > take ? page[page.length - 1]?.id ?? null : null,

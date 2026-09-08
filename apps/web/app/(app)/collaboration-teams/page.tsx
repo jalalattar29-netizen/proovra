@@ -443,68 +443,20 @@ function TeamsOverview() {
           requestId={error.requestId}
           onRetry={() => void refresh()}
         />
-      ) : teams.length === 0 ? (
+      ) : teams.length === 0 && planLocked ? (
+        /*
+          THE ONLY STATE THAT MAY HIDE THE CONTROLS.
+          A plan that includes zero Teams has nothing to filter, so the
+          honest landing is the upgrade one with no affordances at all.
+        */
         <TeamsEmptyState
           onCreate={() => setCreateOpen(true)}
-          requiresUpgrade={planLocked}
+          requiresUpgrade
           plan={planForCapacity}
         />
       ) : (
         <>
           {planLocked ? <PlanRestrictedNotice /> : null}
-          {/*
-            * WCR-6A — PARTICIPATION AND GOVERNANCE ARE DIFFERENT QUESTIONS.
-            *
-            * The list answers "which Teams am I in?", which is right for doing
-            * the work and wrong for governing it: a workspace OWNER could not
-            * enumerate the Teams in their own tenant, and no other surface
-            * could either.
-            *
-            * The switch appears ONLY for an actor the SERVER says holds the
-            * workspace governance capability (`canGovernWorkspace`), and asking
-            * for the workspace-wide view grants no participation: seeing a Team
-            * is not being in it, so Discussion and Assignments stay closed
-            * unless the viewer is actually a member.
-            */}
-          {canGovern ? (
-            <div
-              className="cases-segments"
-              role="group"
-              aria-label="Which Teams to show"
-              data-testid="teams-scope-switch"
-              style={{ marginBottom: "0.75rem" }}
-            >
-              <button
-                type="button"
-                aria-pressed={scope === "PARTICIPATING"}
-                data-active={scope === "PARTICIPATING" ? "true" : "false"}
-                onClick={() => setScope("PARTICIPATING")}
-              >
-                Teams I&rsquo;m in
-              </button>
-              <button
-                type="button"
-                aria-pressed={scope === "ALL"}
-                data-active={scope === "ALL" ? "true" : "false"}
-                onClick={() => setScope("ALL")}
-                data-testid="teams-scope-all"
-              >
-                All Teams in this workspace
-                {entitlement ? ` (${entitlement.governance.allTeamsCount})` : ""}
-              </button>
-            </div>
-          ) : null}
-          {grantedScope === "ALL" ? (
-            <p
-              className="app-panel__hint"
-              data-testid="teams-governance-notice"
-              style={{ margin: "0 0 0.75rem", fontSize: "0.85rem" }}
-            >
-              Showing every Team in this workspace. You can see them because you
-              administer this workspace; you are not a member of the ones
-              without a role below, and opening one does not join it.
-            </p>
-          ) : null}
 
           {/*
             CROSS-GROUP POSITION — the workspace, not the page.
@@ -579,6 +531,59 @@ function TeamsOverview() {
               </div>
             </div>
           ) : null}
+          {/*
+            * WCR-6A — PARTICIPATION AND GOVERNANCE ARE DIFFERENT QUESTIONS.
+            *
+            * The list answers "which Teams am I in?", which is right for doing
+            * the work and wrong for governing it: a workspace OWNER could not
+            * enumerate the Teams in their own tenant, and no other surface
+            * could either.
+            *
+            * The switch appears ONLY for an actor the SERVER says holds the
+            * workspace governance capability (`canGovernWorkspace`), and asking
+            * for the workspace-wide view grants no participation: seeing a Team
+            * is not being in it, so Discussion and Assignments stay closed
+            * unless the viewer is actually a member.
+            */}
+          {canGovern ? (
+            <div
+              className="cases-segments"
+              role="group"
+              aria-label="Which Teams to show"
+              data-testid="teams-scope-switch"
+              style={{ marginBottom: "0.75rem" }}
+            >
+              <button
+                type="button"
+                aria-pressed={scope === "PARTICIPATING"}
+                data-active={scope === "PARTICIPATING" ? "true" : "false"}
+                onClick={() => setScope("PARTICIPATING")}
+              >
+                Teams I&rsquo;m in
+              </button>
+              <button
+                type="button"
+                aria-pressed={scope === "ALL"}
+                data-active={scope === "ALL" ? "true" : "false"}
+                onClick={() => setScope("ALL")}
+                data-testid="teams-scope-all"
+              >
+                All Teams in this workspace
+                {entitlement ? ` (${entitlement.governance.allTeamsCount})` : ""}
+              </button>
+            </div>
+          ) : null}
+          {grantedScope === "ALL" ? (
+            <p
+              className="app-panel__hint"
+              data-testid="teams-governance-notice"
+              style={{ margin: "0 0 0.75rem", fontSize: "0.85rem" }}
+            >
+              Showing every Team in this workspace. You can see them because you
+              administer this workspace; you are not a member of the ones
+              without a role below, and opening one does not join it.
+            </p>
+          ) : null}
           <TeamsToolbar
             search={search}
             onSearch={setSearch}
@@ -590,11 +595,26 @@ function TeamsOverview() {
             onSort={setSortKey}
           />
           {visibleTeams.length === 0 ? (
+            /*
+              THE PAGE MUST NEVER GO BLANK, AND MUST NEVER LIE (§9, §10).
+
+              This branch used to be unreachable in the case that mattered:
+              when the SERVER returned zero rows the whole block above —
+              toolbar included — was replaced by "No teams yet". So archiving
+              the last active team could leave an operator on a page that said
+              no team had ever existed, with the status filter that would have
+              revealed the archived one no longer on screen.
+
+              The toolbar now always renders (except under a plan that
+              includes zero Teams, which has nothing to filter), so the way out
+              is always reachable, and the empty state below distinguishes
+              "nothing matches what you asked for" from "nothing exists".
+            */
             <NoMatchesState onReset={() => {
               setSearch("");
               setStatusFilter("ALL");
               setTypeFilter("ALL");
-            }} controlsActive={controlsActive} />
+            }} controlsActive={controlsActive} onCreate={() => setCreateOpen(true)} />
           ) : (
             <>
               <TeamsTable teams={visibleTeams} />
@@ -1203,30 +1223,66 @@ function TeamsEmptyState({
   );
 }
 
+/**
+ * The one empty state, which must say which kind of empty this is (§10).
+ *
+ * With a search or filter narrowing the list, "no teams yet" would be false:
+ * teams may well exist, including ARCHIVED ones the status filter is currently
+ * excluding. Saying so — and offering the reset that reveals them — is the
+ * difference between a dead end and a page an operator can get out of.
+ *
+ * With nothing narrowing it, the workspace genuinely has none, and the
+ * onboarding invitation to create the first one is the honest content.
+ */
 function NoMatchesState({
   onReset,
   controlsActive,
+  onCreate,
 }: {
   onReset: () => void;
   controlsActive: boolean;
+  onCreate: () => void;
 }) {
+  if (!controlsActive) {
+    return (
+      <div className="app-empty" data-testid="teams-empty-state">
+        <span className="app-empty__icon" aria-hidden="true">
+          <TeamsGlyph />
+        </span>
+        <strong>No teams yet</strong>
+        <p>
+          A team is worth creating once more than one person is working the same
+          cases: it gives that work one place to be assigned and discussed.
+        </p>
+        <button
+          type="button"
+          className="app-primary-action"
+          onClick={onCreate}
+          style={{ marginTop: 4 }}
+        >
+          Create team
+        </button>
+      </div>
+    );
+  }
   return (
     <div className="app-empty" data-testid="teams-no-matches">
       <span className="app-empty__icon" aria-hidden="true">
         <TeamsGlyph />
       </span>
-      <strong>No teams match your filters</strong>
-      <p>Try a different search term or clear the active filters.</p>
-      {controlsActive ? (
-        <button
-          type="button"
-          className="app-secondary-action"
-          onClick={onReset}
-          style={{ marginTop: 4 }}
-        >
-          Clear filters
-        </button>
-      ) : null}
+      <strong>No teams match the current filters</strong>
+      <p>
+        Archived teams are excluded unless the status filter includes them — an
+        archived team still exists, and still holds its history.
+      </p>
+      <button
+        type="button"
+        className="app-secondary-action"
+        onClick={onReset}
+        style={{ marginTop: 4 }}
+      >
+        Show all teams
+      </button>
     </div>
   );
 }

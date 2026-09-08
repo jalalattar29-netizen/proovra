@@ -404,6 +404,9 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           limit: q.limit ? parseInt(q.limit, 10) : undefined,
           cursor: q.cursor ?? null,
           scope,
+          // The rollup follows GOVERNANCE, not the list scope. A governor
+          // viewing only their own teams still supervises the workspace.
+          canSurveyWorkspace: ctx.canGovernWorkspace,
         });
         return reply.send({
           ...res,

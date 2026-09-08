@@ -137,13 +137,14 @@ const GROUP_BY_RESULTS = [
 ];
 
 describe("cross-group rollup — the workspace's position, not the page's", () => {
-  it("a participation-scoped caller gets no rollup at all", async () => {
+  it("a NON-GOVERNOR gets no rollup at all", async () => {
     const { client, recorded } = makeClient({
       assignmentCounts: ROLLUP_COUNTS,
       groupByResults: GROUP_BY_RESULTS,
     });
 
     const res = await listCollaborationTeams(
+      // No `canSurveyWorkspace`. Absent must mean refused, not defaulted.
       { workspaceId: WORKSPACE, actorUserId: ACTOR, scope: "PARTICIPATING" },
       client,
     );
@@ -164,6 +165,41 @@ describe("cross-group rollup — the workspace's position, not the page's", () =
     expect(workspaceWideCounts).toHaveLength(0);
   });
 
+  it("a GOVERNOR gets the rollup even while viewing only their own teams", async () => {
+    /*
+     * THE REVEAL DEFECT THIS CLOSES.
+     *
+     * The rollup used to be gated on the GRANTED LIST SCOPE, which conflated a
+     * view preference with an authorization decision. A governor looking at
+     * "Teams I'm in" saw no operational summary at all, and had to switch the
+     * list to All Teams to discover that open work, unassigned work and
+     * workload figures existed — supervision hidden behind a toggle nobody
+     * would think to press.
+     *
+     * Which ROWS you asked for and whether you may SURVEY the workspace are
+     * different questions, and they are answered separately now.
+     */
+    const { client } = makeClient({
+      assignmentCounts: ROLLUP_COUNTS,
+      groupByResults: GROUP_BY_RESULTS,
+    });
+
+    const res = await listCollaborationTeams(
+      {
+        workspaceId: WORKSPACE,
+        actorUserId: ACTOR,
+        scope: "PARTICIPATING",
+        canSurveyWorkspace: true,
+      },
+      client,
+    );
+
+    // The narrow list, and the whole workspace's position beside it.
+    expect(res.scope).toBe("PARTICIPATING");
+    expect(res.rollup).not.toBeNull();
+    expect(res.rollup!.work.open).toBe(40);
+  });
+
   it("a governor gets a rollup keyed on the WORKSPACE, never on the page", async () => {
     const { client, recorded } = makeClient({
       assignmentCounts: ROLLUP_COUNTS,
@@ -171,7 +207,7 @@ describe("cross-group rollup — the workspace's position, not the page's", () =
     });
 
     const res = await listCollaborationTeams(
-      { workspaceId: WORKSPACE, actorUserId: ACTOR, scope: "ALL" },
+      { workspaceId: WORKSPACE, actorUserId: ACTOR, scope: "ALL", canSurveyWorkspace: true },
       client,
     );
 
@@ -216,7 +252,7 @@ describe("cross-group rollup — the workspace's position, not the page's", () =
     });
 
     const res = await listCollaborationTeams(
-      { workspaceId: WORKSPACE, actorUserId: ACTOR, scope: "ALL" },
+      { workspaceId: WORKSPACE, actorUserId: ACTOR, scope: "ALL", canSurveyWorkspace: true },
       client,
     );
     const rollup = res.rollup!;
@@ -252,7 +288,7 @@ describe("cross-group rollup — the workspace's position, not the page's", () =
     });
 
     const res = await listCollaborationTeams(
-      { workspaceId: WORKSPACE, actorUserId: ACTOR, scope: "ALL" },
+      { workspaceId: WORKSPACE, actorUserId: ACTOR, scope: "ALL", canSurveyWorkspace: true },
       client,
     );
     const rollup = res.rollup!;
@@ -280,7 +316,7 @@ describe("cross-group rollup — the workspace's position, not the page's", () =
     });
 
     const res = await listCollaborationTeams(
-      { workspaceId: WORKSPACE, actorUserId: ACTOR, scope: "ALL" },
+      { workspaceId: WORKSPACE, actorUserId: ACTOR, scope: "ALL", canSurveyWorkspace: true },
       client,
     );
     const rollup = res.rollup!;
@@ -298,7 +334,7 @@ describe("cross-group rollup — the workspace's position, not the page's", () =
     });
 
     await listCollaborationTeams(
-      { workspaceId: WORKSPACE, actorUserId: ACTOR, scope: "ALL" },
+      { workspaceId: WORKSPACE, actorUserId: ACTOR, scope: "ALL", canSurveyWorkspace: true },
       client,
     );
 

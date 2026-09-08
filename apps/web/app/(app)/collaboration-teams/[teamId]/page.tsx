@@ -658,7 +658,19 @@ function TeamDetail() {
               type="button"
               onClick={() => goTab("discussion")}
               data-testid="collaboration-hub-link"
-              className="home-exec-action"
+              /*
+                THE CANONICAL SECONDARY, not the shell glass button.
+
+                `home-exec-action` is a translucent overlay treatment built for
+                the Home executive banner — 16% white on a dark ground. Beside
+                "Add people", which is the canonical `app-primary-action`, it
+                read as unfinished rather than as the second action: the eye
+                could not tell a real control from a decorative one. The
+                canonical secondary is a solid light surface with dark-neutral
+                label text, which is exactly the contrast this dark header needs
+                and the same treatment every other polished surface uses.
+              */
+              className="app-secondary-action"
             >
               Discussion
             </button>
@@ -667,7 +679,8 @@ function TeamDetail() {
                 href="/review/external"
                 data-testid="external-reviewers-link"
                 title="Invite and manage external reviewers via the External Review console"
-                className="home-exec-action"
+                // Same hierarchy — a peer secondary action, not a third style.
+                className="app-secondary-action"
               >
                 External reviewers
               </Link>
