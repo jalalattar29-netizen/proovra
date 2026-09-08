@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "350df28cd1b3592fbce302d87d8037fa4ec1ea078f008fcbdfae86936dbafd59",
   "routeInventoryHash": "2ed0cf93ea10458d4e9be585c80099e6ea668aded9f78a061f5831653ad69065",
-  "consumerInventoryHash": "06667fb5b1031eef80f5af89eefbbb1c75b048746337c484d86c2d396730d21b",
+  "consumerInventoryHash": "e4034a34017c3fa75c46b809b95e1419f7ab4dea1cef8ae6b61caab6cb03739d",
   "dispositionsHash": "4119c38e004ff938320c7d5c32cb3815429e7916dca9ffc67899ae23072f06c3",
   "totals": {
     "RegisteredRoutes": 1144,
@@ -11271,7 +11271,7 @@
       "method": "POST",
       "route": "/v1/investigation/media-intelligence/refresh",
       "registeringFile": "services/api/src/routes/media-intelligence.routes.ts",
-      "productConsumer": "apps/web/app/(app)/investigation/page.tsx:362",
+      "productConsumer": "apps/web/app/(app)/investigation/page.tsx:366",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -11511,7 +11511,7 @@
       "method": "POST",
       "route": "/v1/media-intelligence/signals/:signalId/action",
       "registeringFile": "services/api/src/routes/media-intelligence.routes.ts",
-      "productConsumer": "apps/web/app/(app)/investigation/page.tsx:394",
+      "productConsumer": "apps/web/app/(app)/investigation/page.tsx:398",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -89378,7 +89378,7 @@
       "method": "GET",
       "path": "/v1/admin/runtime/migrations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/runtime-readiness.routes.ts:207",
+      "registrationEvidence": "services/api/src/routes/runtime-readiness.routes.ts:206",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -89421,7 +89421,7 @@
       "method": "GET",
       "path": "/v1/admin/runtime/queues",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/runtime-readiness.routes.ts:132",
+      "registrationEvidence": "services/api/src/routes/runtime-readiness.routes.ts:131",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -89469,7 +89469,7 @@
       "method": "GET",
       "path": "/v1/admin/runtime/readiness",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/runtime-readiness.routes.ts:97",
+      "registrationEvidence": "services/api/src/routes/runtime-readiness.routes.ts:96",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -89560,7 +89560,7 @@
       "method": "GET",
       "path": "/v1/admin/runtime/workers",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/runtime-readiness.routes.ts:170",
+      "registrationEvidence": "services/api/src/routes/runtime-readiness.routes.ts:169",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -144550,7 +144550,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/investigation/page.tsx",
-          "line": 362,
+          "line": 366,
           "caller": "handleRefresh",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -144560,7 +144560,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/investigation/page.tsx:362 (handleRefresh, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/investigation/page.tsx:366 (handleRefresh, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -145930,7 +145930,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/investigation/page.tsx",
-          "line": 394,
+          "line": 398,
           "caller": "handleSignalAction",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -145956,7 +145956,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/investigation/page.tsx:394 (handleSignalAction, WEB); apps/web/app/(app)/investigation/reviewers/page.tsx:207 (performSignalAction, WEB); apps/web/lib/media-intelligence/useMediaIntelligence.ts:153 (useMediaIntelligence, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/investigation/page.tsx:398 (handleSignalAction, WEB); apps/web/app/(app)/investigation/reviewers/page.tsx:207 (performSignalAction, WEB); apps/web/lib/media-intelligence/useMediaIntelligence.ts:153 (useMediaIntelligence, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
