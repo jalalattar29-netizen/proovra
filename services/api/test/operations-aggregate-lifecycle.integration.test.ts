@@ -85,6 +85,45 @@ describe("Aggregate Operations conditions (live PostgreSQL 16)", () => {
       ownerUserId: harness.fixtures.personal.userId,
     };
     otherOwnerUserId = harness.fixtures.teamB.ownerUserId;
+
+    /*
+     * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — the fixtures state
+     * their plan, because the report backlog now asks about entitlement.
+     *
+     * THIS SUITE IS ABOUT THE CONDITION LIFECYCLE — a backlog opening ONE
+     * condition, its metric moving with the live value, ACKNOWLEDGED surviving
+     * re-observation, SUPPRESSED staying suppressed, a failed observation
+     * refusing to resolve, and a personal workspace's legacy NULL-team records
+     * being counted while another owner's are not. Every one of those needs a
+     * backlog that genuinely exists.
+     *
+     * The backlog population is now narrowed to records the product was ever
+     * going to produce a report for; a plan that excludes reports enqueues
+     * nothing, so counting its records as a stalled pipeline was a permanent
+     * false alarm. The harness seeds FREE, so without this the conditions would
+     * simply never open and every assertion here would fail for a reason that
+     * has nothing to do with what it tests.
+     *
+     * TWO SUBJECTS, TWO DIFFERENT WRITES, because the effective plan of a
+     * workspace is resolved from its KIND:
+     *
+     *   PERSONAL      the owner's entitlement governs. Written through
+     *                 `setPersonalPlan`, the one writer of a personal plan,
+     *                 which creates the row on its way through — a bare
+     *                 `updateMany` matches nothing, because `Entitlement` is
+     *                 created lazily and the harness seeds none.
+     *   ORGANIZATION  the workspace's OWN commercial columns govern, and the
+     *                 owner's personal plan never covers it. The harness
+     *                 creates these workspaces with the default FREE/INACTIVE
+     *                 columns, which is not a state Enterprise provisioning
+     *                 ever leaves behind; ACTIVE/ENTERPRISE is.
+     */
+    const { setPersonalPlan } = await import("../src/services/billing.service.js");
+    await setPersonalPlan(personal.ownerUserId, "PRO");
+    await prisma.team.updateMany({
+      where: { id: { in: [team.teamId] } },
+      data: { billingPlan: "ENTERPRISE", billingStatus: "ACTIVE" },
+    });
   }, 900_000);
 
   afterAll(async () => {
