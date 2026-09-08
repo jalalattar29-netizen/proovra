@@ -633,13 +633,28 @@ export default function MarketingPricingPage() {
       ],
     },
     {
-      label: "Legal hold",
+      /*
+       * LEGAL HOLD IS CONTRACT-BASED, NOT AUTOMATIC (2026-09-08).
+       *
+       * This row said "Included" on Enterprise, which promised every
+       * Enterprise subscription an active capability. It is not: Legal Hold is
+       * an Enterprise governance capability whose ACTIVATION is a term of the
+       * Enterprise contract, resolved at runtime from `FEATURE_LEGAL_HOLD`
+       * (ENTERPRISE plan + an ACTIVE contract stating the term). An Enterprise
+       * customer whose contract does not state it is refused — so "Included"
+       * was a promise the product would not keep.
+       *
+       * No number is published, because none is sold: there is no contracted
+       * ceiling on how many holds an agreement buys, and inventing one here
+       * would be inventing a contract term.
+       */
+      label: "Advanced Legal Hold & retention controls",
       values: [
         "Not included",
         "Not included",
         "Not included",
         "Not included",
-        "Included",
+        "Contract-based",
       ],
     },
     {

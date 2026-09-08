@@ -341,6 +341,22 @@ describe("public pricing UI vs catalog parity", () => {
   it("Pro card no longer says 'Unlimited evidence records'", () => {
     expect(page).not.toContain("Unlimited evidence records");
   });
+
+  it("Legal Hold is advertised as CONTRACT-BASED, never as automatically included", () => {
+    /*
+     * The matrix said "Included" on Enterprise, which promised every
+     * Enterprise subscription an active capability. Legal Hold activation is a
+     * term of the Enterprise CONTRACT — an Enterprise customer whose contract
+     * does not state it is refused at runtime by `FEATURE_LEGAL_HOLD` — so
+     * "Included" was a promise the product would not keep.
+     */
+    expect(page).toContain("Advanced Legal Hold & retention controls");
+    expect(page).toContain("Contract-based");
+    // And no published number: no contracted ceiling on holds is sold, so
+    // advertising one would be inventing a contract term.
+    expect(page).not.toMatch(/[Uu]nlimited\s+[Ll]egal\s+[Hh]old/);
+    expect(page).not.toMatch(/\d+\s+[Ll]egal\s+[Hh]olds/);
+  });
   it("Pro card shows 100 evidence records included", () => {
     expect(page).toContain("evidence records included");
   });

@@ -139,6 +139,13 @@ function Shell() {
   const [expiresAtUtc, setExpiresAtUtc] = useState("");
   const [scopeTargetId, setScopeTargetId] = useState("");
   const [creating, setCreating] = useState(false);
+  /**
+   * SERVER-PROJECTED Legal Hold creation entitlement.
+   *   true   the contract grants it — the control works
+   *   false  Enterprise without the contract term, or a non-Enterprise plan
+   *   null   UNKNOWN (backend sent no projection) — behave as before
+   */
+  const [creationEntitled, setCreationEntitled] = useState<boolean | null>(null);
 
   // PHASE 7 §10.1/§10.3 — unsaved create-form content is dirty work
   // (blocks silent workspace switch); guard create against a mid-flight
@@ -164,6 +171,41 @@ function Shell() {
       applyDenial(err, setDenial);
     } finally {
       setBusy(false);
+    }
+  }, []);
+
+  /**
+   * THE COMMERCIAL TRUTH COMES FROM THE SERVER, NEVER FROM THE PLAN NAME.
+   *
+   * Legal Hold is an Enterprise capability whose ACTIVATION is a term of the
+   * Enterprise contract, so `plan === "ENTERPRISE"` is not the answer and
+   * inferring it here would be a second commercial authority living in the
+   * browser. `capabilities.legalHolds` on the lifecycle dashboard is the
+   * SERVER's projection of the same `FEATURE_LEGAL_HOLD` entitlement the
+   * creation route enforces — one truth, read rather than re-derived.
+   *
+   * Absence-tolerant on purpose: `undefined` means the backend did not send a
+   * projection, and the page then behaves exactly as it did before this
+   * existed. A missing projection must never be read as a refusal, or a
+   * degraded dashboard would take the controls away from an entitled customer.
+   */
+  const loadCapability = useCallback(async () => {
+    try {
+      const res = (await apiFetch("/v1/lifecycle/dashboard", { method: "GET" })) as {
+        dashboard?: { capabilities?: { legalHolds?: { status?: string } } };
+        capabilities?: { legalHolds?: { status?: string } };
+      } | null;
+      const caps = res?.dashboard?.capabilities ?? res?.capabilities;
+      const status = caps?.legalHolds?.status;
+      setCreationEntitled(
+        status === undefined
+          ? null
+          : status !== "DISABLED" && status !== "WRITES_BUT_NOT_ENFORCED",
+      );
+    } catch {
+      // The dashboard is a neighbouring read. If it fails, say nothing about
+      // entitlement rather than guessing in either direction.
+      setCreationEntitled(null);
     }
   }, []);
 
@@ -286,8 +328,12 @@ function Shell() {
   // list is tenant-bound and must not linger across a switch).
   useEffect(() => {
     setHolds([]);
+    // Keyed on `teamId`: entitlement is a property of the ACTIVE workspace, so
+    // a switch must re-ask rather than carry the previous tenant's answer.
+    setCreationEntitled(null);
     void refresh();
-  }, [refresh, teamId]);
+    void loadCapability();
+  }, [refresh, loadCapability, teamId]);
 
   const columns: DataTableColumn<LegalHold>[] = [
     {
@@ -412,12 +458,40 @@ function Shell() {
             type="button"
             variant="primary"
             loading={creating}
-            disabled={creating || !name || !reason}
+            disabled={creating || !name || !reason || creationEntitled === false}
             onClick={() => void create()}
           >
             {creating ? "Creating…" : "Create"}
           </Button>
         </div>
+
+        {/*
+          THE CONTRACT-CONTROLLED STATE, SAID PLAINLY.
+
+          Rendered only when the SERVER says the capability is not active — not
+          when it is unknown. The distinction matters: a degraded dashboard must
+          never take the controls away from an entitled customer, so `null`
+          leaves the form exactly as it was.
+
+          It does not claim the feature is missing or broken, because it is
+          neither: Legal Hold is an Enterprise capability whose activation is a
+          term of the agreement, and the honest sentence is that this workspace's
+          contract does not currently include it.
+        */}
+        {creationEntitled === false ? (
+          <p
+            className="app-alert"
+            role="status"
+            data-legal-hold-creation-unavailable
+            style={{ marginTop: 12 }}
+          >
+            <strong>New legal holds are not enabled for this workspace.</strong>{" "}
+            Legal Hold is an Enterprise governance capability activated through
+            your Enterprise agreement. Existing holds below remain in force and
+            continue to prevent deletion — losing the capability never releases
+            a hold. Contact your account manager to add it.
+          </p>
+        ) : null}
       </Card>
 
       {createError ? (
