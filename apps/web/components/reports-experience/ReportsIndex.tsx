@@ -53,6 +53,9 @@ import { AccessGate } from "../access/AccessGate";
 // evidence detail page already consumes; blocked verdicts disable the
 // button + surface the reason inline.
 import { GovernedExportAction } from "../governance/GovernedExportAction";
+// COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — the shared state
+// vocabulary. This page maps it onto its own row states; it never invents one.
+import type { EvidenceOutputState } from "@proovra/shared";
 import type {
   ArtifactRow,
   LifecycleFilter,
@@ -115,6 +118,9 @@ type UserReportRow = {
   caseTitle?: string | null;
   intakeCustomerId?: string | null;
   createdAt: string;
+  /** The server's canonical output lifecycle. Rendered; never re-derived. */
+  reportLifecycle: EvidenceOutputState;
+  packageLifecycle: EvidenceOutputState;
   report: {
     available: boolean;
     version: number | null;
@@ -130,6 +136,49 @@ type UserReportsEnvelope = {
   items: UserReportRow[];
   nextCursor: string | null;
 };
+
+/**
+ * The canonical output state, mapped onto this page's row vocabulary.
+ *
+ * The same mapping the workspace aggregator applies server-side, so the two
+ * envelopes this page can receive describe a record identically. Total over
+ * `EvidenceOutputState`: a new state is a compile error, not a silent default.
+ */
+function toReportLifecycle(state: EvidenceOutputState): ReportLifecycle {
+  switch (state) {
+    case "READY":
+      return "ready";
+    case "QUEUED":
+    case "GENERATING":
+      return "pending";
+    case "RETRYABLE_FAILURE":
+    case "TERMINAL_FAILURE":
+      return "failed";
+    case "NOT_INCLUDED":
+      return "unavailable";
+    case "ELIGIBLE_NOT_GENERATED":
+    case "BLOCKED":
+      return "not_requested";
+  }
+}
+
+function toPackageLifecycle(state: EvidenceOutputState): PackageLifecycle {
+  switch (state) {
+    case "READY":
+      return "ready";
+    case "QUEUED":
+    case "GENERATING":
+      return "pending";
+    case "RETRYABLE_FAILURE":
+    case "TERMINAL_FAILURE":
+      return "failed";
+    case "NOT_INCLUDED":
+      return "unavailable";
+    case "ELIGIBLE_NOT_GENERATED":
+    case "BLOCKED":
+      return "not_requested";
+  }
+}
 
 /**
  * Phase IA-self-serve-regression-fix — call the user-scoped reports
@@ -169,13 +218,17 @@ async function tryUserScopedReports(): Promise<ReportsArtifactsEnvelope | null> 
       caseTitle: row.caseTitle ?? null,
       intakeCustomerId: row.intakeCustomerId ?? null,
       createdAt: row.createdAt,
+      // COMMERCIAL CLOSURE (2026-09-08) — the SERVER's lifecycle, not
+      // `available ? ready : not_requested`. That inference is what made a
+      // Free record read "Report not requested" here while the workspace
+      // aggregator called the same record "generating" forever.
       report: {
-        state: row.report.available ? "ready" : "not_requested",
+        state: toReportLifecycle(row.reportLifecycle),
         version: row.report.version,
         generatedAtUtc: row.report.generatedAtUtc,
       },
       package: {
-        state: row.package.available ? "ready" : "not_requested",
+        state: toPackageLifecycle(row.packageLifecycle),
         version: row.package.version,
         generatedAtUtc: row.package.generatedAtUtc,
         blockedReason: null,
@@ -950,21 +1003,28 @@ function ArtifactRowActions({
       )) as { enqueued?: boolean; message?: string; reason?: string | null };
       if (resp.enqueued) {
         setRegenNotice(
-          "Report regeneration enqueued. Refresh shortly for updated state.",
+          "Generation requested. Refresh shortly for updated state.",
+        );
+      } else if (resp.reason === "not_included_in_plan") {
+        // COMMERCIAL CLOSURE (2026-09-08) — the honest commercial answer. This
+        // used to render the raw reason string after "Regeneration not
+        // enqueued:", which put an internal code in front of a customer.
+        setRegenNotice(
+          "This record is not entitled to a report on its current plan.",
         );
       } else {
         setRegenNotice(
-          resp.message ??
-            (resp.reason
-              ? `Regeneration not enqueued: ${resp.reason}`
-              : "An active job already exists; no new job enqueued."),
+          resp.message ?? "Generation is already under way for this record.",
         );
       }
     } catch (err) {
       const e = err as { statusCode?: number; message?: string };
       if (e.statusCode === 403) {
+        // The gate is the DOMAIN permission `evidence.generate_report`, which
+        // OWNER, ADMIN and MEMBER hold — not owner-only, whatever the older
+        // copy claimed.
         setError(
-          "Only the evidence owner can regenerate this report. Ask the owner to retry.",
+          "You do not have permission to generate reports in this workspace.",
         );
       } else if (e.statusCode === 404) {
         setError("Evidence not found.");
@@ -978,11 +1038,37 @@ function ArtifactRowActions({
 
   const reportReady = row.report.state === "ready";
   const packageReady = row.package.state === "ready";
-  // Phase A.1D — operational signal: regenerate is offered when either
-  // artifact failed. The endpoint refreshes BOTH so one button covers
-  // both failures.
-  const canRegenerate =
-    row.report.state === "failed" || row.package.state === "failed";
+
+  /**
+   * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — THE ACTION, FROM THE
+   * SERVER'S LIFECYCLE.
+   *
+   * This was `report.state === "failed" || package.state === "failed"`, and the
+   * server derivation could not return `"failed"` — its own source said so:
+   * "No persisted failure state exists for a report; the derivation can never
+   * return it inside this population." So the `Retry generation` control had
+   * never rendered for any customer since it shipped.
+   *
+   * Both halves are fixed: the aggregator now derives its lifecycle from the
+   * durable `ReportGenerationRequest`, so `failed` is real, and this reads the
+   * lifecycle rather than inferring from absence.
+   *
+   *   failed         → Retry, for a pipeline failure that can be re-driven.
+   *   not_requested  → Generate. Inside this population (SIGNED/REPORTED, and
+   *                    entitled — `unavailable` is its own state) it means
+   *                    "eligible, nothing produced yet", which is exactly the
+   *                    record an upgraded customer is looking for.
+   *   unavailable    → nothing. The plan does not include it; a button here
+   *                    would be an advertisement with a refusal behind it.
+   *   pending/ready  → nothing. Work is in flight, or done.
+   */
+  const generationVerb: "GENERATE" | "RETRY" | null =
+    row.report.state === "failed" || row.package.state === "failed"
+      ? "RETRY"
+      : row.report.state === "not_requested" ||
+          row.package.state === "not_requested"
+        ? "GENERATE"
+        : null;
 
   return (
     <div
@@ -1029,13 +1115,18 @@ function ArtifactRowActions({
           data-reports-report-action-status={row.report.state}
           style={{ opacity: 0.7 }}
         >
+          {/* COMMERCIAL CLOSURE (2026-09-08) — the copy follows the server's
+              lifecycle. "Report not requested" used to be the label a Free
+              record got from the user-scoped fallback while the workspace
+              aggregator called the same record "generating" forever; both
+              described an absence rather than a state. */}
           {row.report.state === "pending"
-            ? "Report generating — refresh later"
+            ? "Report generating — refresh shortly"
             : row.report.state === "failed"
-              ? "Report generation failed — see evidence detail"
+              ? "Report generation failed"
               : row.report.state === "not_requested"
-                ? "Report not requested for this evidence"
-                : "Report unavailable on this plan"}
+                ? "Report not generated yet"
+                : "Report not included for this record"}
         </span>
       )}
       {packageReady ? (
@@ -1081,28 +1172,32 @@ function ArtifactRowActions({
           style={{ opacity: 0.7 }}
         >
           {row.package.state === "pending"
-            ? "Package generating — refresh later"
+            ? "Package generating — refresh shortly"
             : row.package.state === "failed"
-              ? "Package generation failed — see evidence detail"
+              ? "Package generation failed"
               : row.package.state === "not_requested"
-                ? "Package not yet generated"
-                : "Package unavailable"}
+                ? "Package not generated yet"
+                : "Package not included for this record"}
         </span>
       )}
-      {/* Phase A.1D — operational retry CTA. Fires the new audited
-          POST /v1/evidence/:id/reports/regenerate endpoint. Visible
-          only for failed report OR failed package states. */}
-      {canRegenerate ? (
+      {/* The audited POST /v1/evidence/:id/reports/regenerate endpoint. One
+          request produces BOTH artifacts, so one control covers both. */}
+      {generationVerb ? (
         <Button
           variant="secondary"
           size="sm"
           data-reports-regenerate={row.evidenceId}
+          data-reports-generate-verb={generationVerb}
           data-reports-regenerate-trigger-report-state={row.report.state}
           data-reports-regenerate-trigger-package-state={row.package.state}
           onClick={triggerRegenerate}
           disabled={busy !== null}
         >
-          {busy === "regen" ? "Enqueuing…" : "Retry generation"}
+          {busy === "regen"
+            ? "Requesting…"
+            : generationVerb === "RETRY"
+              ? "Retry generation"
+              : "Generate report & package"}
         </Button>
       ) : null}
       <Link

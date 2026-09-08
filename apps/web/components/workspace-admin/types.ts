@@ -29,7 +29,10 @@ export type WorkspaceAdminEnvelope = {
     memberCount: number;
     adminCount: number;
     pendingInviteCount: number;
-    plan: string;
+    /** Server-resolved effective commercial plan. The ONLY plan to render. */
+    effectivePlan: string;
+    /** Raw persisted column — diagnostics only. Never label it "Plan". */
+    persistedBillingPlan: string;
     billingStatus: string;
     createdAt: string;
   };
@@ -86,7 +89,10 @@ export type WorkspaceAdminEnvelope = {
     billing: {
       status: SectionStatus;
       data: {
+        /** Effective commercial plan — same value as `workspace.effectivePlan`. */
         plan: string;
+        /** Raw persisted column — diagnostics only. */
+        persistedBillingPlan: string;
         status: string;
         includedSeats: number;
         activeMembers: number;

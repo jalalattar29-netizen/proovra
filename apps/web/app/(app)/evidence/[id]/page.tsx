@@ -611,12 +611,28 @@ function EvidenceDetailPageInner() {
     }
   };
 
+  /**
+   * COMMERCIAL CLOSURE (2026-09-08) — DOWNLOADING AN ARTIFACT THAT EXISTS IS
+   * NOT A COMMERCIAL QUESTION.
+   *
+   * This began with `if (!workspaceCaps.reportsIncluded) return`, and that
+   * flag was the workspace PLAN's. Two customers were refused their own paid
+   * artifacts by their own browser:
+   *
+   *   * an evidence-credit buyer, who sits on the FREE plan by design and
+   *     whose €5 bought exactly this report;
+   *   * anyone who downgraded, whose already-generated reports stopped opening
+   *     even though the platform had preserved every version and the server
+   *     would have served them — `GET /v1/evidence/:id/report/latest` has no
+   *     commercial gate at all.
+   *
+   * The precheck is gone. The SERVER is the download authority; it enforces
+   * read access, governance, legal hold and export eligibility, and it does not
+   * ask the plan whether an artifact that already exists may be opened. The UI
+   * decides only whether to OFFER the control, from the canonical output state.
+   */
   const downloadReport = async () => {
-    if (!evidenceId || !workspaceCaps) return;
-    if (!workspaceCaps.reportsIncluded) {
-      addToast("PDF reports are not included on the current workspace plan", "info");
-      return;
-    }
+    if (!evidenceId) return;
     try {
       const data = (await apiFetch(`/v1/evidence/${evidenceId}/report/latest`)) as {
         url?: string | null;
@@ -635,15 +651,10 @@ function EvidenceDetailPageInner() {
     }
   };
 
+  // Same correction as `downloadReport`: an artifact that exists is served by
+  // the server's own authority, never gated client-side on the current plan.
   const downloadVerificationPackage = async () => {
-    if (!evidenceId || !workspaceCaps) return;
-    if (!workspaceCaps.verificationPackageIncluded) {
-      addToast(
-        "Verification packages are not included on the current workspace plan",
-        "info",
-      );
-      return;
-    }
+    if (!evidenceId) return;
     try {
       const data = (await apiFetch(
         `/v1/evidence/${evidenceId}/verification-package`,
@@ -693,6 +704,14 @@ function EvidenceDetailPageInner() {
             "Verification package is unavailable for this workspace context.";
           tone = "info";
           break;
+        // COMMERCIAL CLOSURE (2026-09-08) — the honest commercial answer,
+        // replacing the 202 "being generated" this endpoint used to return for
+        // a package that would never be built.
+        case "verification_package_not_included":
+          userMessage =
+            "Verification packages are not included for this evidence record.";
+          tone = "info";
+          break;
         case "verification_package_not_found":
           userMessage = "Verification package was not found.";
           tone = "info";
@@ -740,6 +759,7 @@ function EvidenceDetailPageInner() {
         e?.code === "verification_package_pending" ||
         e?.code === "verification_package_blocked" ||
         e?.code === "verification_package_unavailable" ||
+        e?.code === "verification_package_not_included" ||
         e?.code === "verification_package_not_found" ||
         e?.code === "PACKAGE_BLOCKED_BY_POLICY" ||
         e?.code === "GOVERNANCE_CHECK_FAILED" ||
@@ -755,6 +775,63 @@ function EvidenceDetailPageInner() {
           evidenceId,
         });
       }
+    }
+  };
+
+  /**
+   * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — THE ACTION THE PRODUCT
+   * DID NOT HAVE.
+   *
+   * Before this, a record that was entitled to a report but had none could not
+   * be given one by anything a customer could reach: the completion fan-out was
+   * the only first-generation path, the Reports page's retry control was gated
+   * on a state the server could not produce, and the Operations remediation
+   * needed an incident that a never-enqueued record never had.
+   *
+   * ONE request for BOTH artifacts, because the verification package is built
+   * inside the report job. The endpoint is the existing audited
+   * `POST /v1/evidence/:id/reports/regenerate`, which gates on the domain
+   * permission `evidence.generate_report` and records who asked and why. The
+   * verb the button shows is the server's; this handler is identical for all
+   * three.
+   */
+  const [generateOutputsBusy, setGenerateOutputsBusy] = useState(false);
+  const generateOutputs = async () => {
+    if (!evidenceId || generateOutputsBusy) return;
+    setGenerateOutputsBusy(true);
+    try {
+      const res = (await apiFetch(
+        `/v1/evidence/${evidenceId}/reports/regenerate`,
+        { method: "POST" },
+      )) as { enqueued?: boolean; reason?: string | null };
+      if (res.enqueued) {
+        addToast(
+          "Generation requested. The report and verification package will appear here when they complete.",
+          "success",
+        );
+      } else if (res.reason === "not_included_in_plan") {
+        // The server re-checked entitlement and it does not hold. Say so
+        // plainly rather than reporting a generic failure.
+        addToast(
+          "This record is not entitled to a report on its current plan.",
+          "info",
+        );
+      } else {
+        addToast(
+          "Generation is already under way for this record.",
+          "info",
+        );
+      }
+      await loadWorkspace();
+    } catch (err) {
+      addToast(
+        toSafeUserError(err, {
+          message: "Could not request generation.",
+        }).message,
+        "error",
+      );
+    } finally {
+      setGenerateOutputsBusy(false);
     }
   };
 
@@ -1057,6 +1134,8 @@ function EvidenceDetailPageInner() {
     downloadOriginal,
     downloadReport,
     downloadVerificationPackage,
+    generateOutputs,
+    generateOutputsBusy,
     runRecordAction,
     restoreTrash,
     removeCase,

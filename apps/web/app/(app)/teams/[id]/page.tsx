@@ -143,7 +143,13 @@ type Team = {
   canManageWorkspace?: boolean;
   stats?: TeamStats;
   members?: TeamMember[];
+  /**
+   * RAW persisted column, ADMIN-only on the wire. Declared so the shape
+   * matches the response, NOT so it can be rendered: it is meaningless on a
+   * Personal Workspace. Render `effectivePlan`.
+   */
   billingPlan?: string | null;
+  /** The server-resolved effective commercial plan. The ONLY plan to render. */
   effectivePlan?: string | null;
   billingStatus?: string | null;
   billingOwnerUserId?: string | null;
@@ -430,9 +436,21 @@ function ActivityIcon({ glyph }: { glyph: ActivityGlyph }) {
   }
 }
 
-function normalizePlanLabel(value?: string | null, fallback = "FREE"): string {
+/**
+ * COMMERCIAL TRUTH CLOSURE (2026-09-08) — NO FABRICATED PLAN.
+ *
+ * This took a `fallback = "FREE"`, and the call site passed the raw
+ * `billingPlan` column as its input. On a Personal Workspace that column is
+ * always FREE (its only writer is Enterprise provisioning), and when the
+ * server withheld it entirely — a VIEWER, or a response that predates
+ * `effectivePlan` — the fallback invented FREE anyway. Two independent routes
+ * to the same wrong sentence.
+ *
+ * A plan we were not told is `null`, and the caller renders nothing.
+ */
+function normalizePlanLabel(value?: string | null): string | null {
   const normalized = String(value ?? "").trim().toUpperCase();
-  return normalized || fallback;
+  return normalized || null;
 }
 
 function TeamDetailPageBody() {

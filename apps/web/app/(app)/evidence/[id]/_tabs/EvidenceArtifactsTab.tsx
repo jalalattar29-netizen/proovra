@@ -29,11 +29,180 @@
 
 "use client";
 
+import { useState } from "react";
 import { ChevronRight, Globe, ShieldCheck } from "lucide-react";
+import type {
+  EvidenceOutputState,
+  OutputAction,
+  OutputTerminalReasonClass,
+} from "@proovra/shared";
 import { formatValue, type EvidenceDetailCtx } from "./_lib";
 import { formatUserDateTime } from "../../../../../lib/date";
 import { ArtifactHistorySection } from "../components/ArtifactHistorySection";
 import { formatBytes } from "./_lib";
+
+/**
+ * THE ONE COPY TABLE for a disabled download control, keyed by the server's
+ * canonical state.
+ *
+ * Total over `EvidenceOutputState` so a new state is a compile error here
+ * rather than a card that silently says nothing.
+ */
+const OUTPUT_STATE_COPY: Record<
+  EvidenceOutputState,
+  { reason: (noun: string) => string }
+> = {
+  READY: { reason: () => "" },
+  NOT_INCLUDED: {
+    reason: (noun) => `A ${noun} is not included for this evidence record.`,
+  },
+  ELIGIBLE_NOT_GENERATED: {
+    reason: (noun) =>
+      `No ${noun} has been generated for this record yet. Generate one to download it.`,
+  },
+  QUEUED: {
+    reason: (noun) => `The ${noun} is queued for generation. Re-check shortly.`,
+  },
+  GENERATING: {
+    reason: (noun) =>
+      `The ${noun} is being generated. Re-check status once it completes.`,
+  },
+  RETRYABLE_FAILURE: {
+    reason: (noun) => `The last attempt to build the ${noun} failed.`,
+  },
+  TERMINAL_FAILURE: {
+    reason: (noun) => `The ${noun} could not be produced for this record.`,
+  },
+  BLOCKED: {
+    reason: (noun) => `${noun} generation is blocked by a policy decision.`,
+  },
+};
+
+/**
+ * What a terminal failure MEANS, per class — never the raw reason code.
+ *
+ * The code is a worker branch name; the class is the part a person can act on,
+ * and it is what decides whether an action is offered at all.
+ */
+function terminalFailureCopy(
+  reasonClass: OutputTerminalReasonClass | null,
+): string {
+  switch (reasonClass) {
+    case "COMMERCIAL":
+      return "The attempt ran while this record was not entitled to the output. Your current plan includes it, so it can be generated now.";
+    case "INTEGRITY":
+      return "This record cannot produce a truthful artifact — its recorded integrity state does not permit it. The record itself is preserved; re-capture the source material as a new record if a fixed artifact is required.";
+    case "POLICY":
+      return "A governance policy refused the generation. It becomes possible again when that policy decision changes.";
+    case "TECHNICAL":
+    default:
+      return "The pipeline could not produce it and has stopped retrying. Support can investigate; the evidence record and its integrity state are unaffected.";
+  }
+}
+
+/**
+ * The generate / retry control.
+ *
+ * ONE button for both artifacts, because the report and the verification
+ * package are produced by ONE job — offering two would be two controls for one
+ * pipeline, and one of them would describe work it does not start.
+ *
+ * The VERB comes from the server's `action`, never from the presence of a
+ * version: inferring it locally is how a first generation came to be called a
+ * regeneration.
+ */
+function GenerateOutputsButton({
+  ctx,
+  action,
+}: {
+  ctx: EvidenceDetailCtx;
+  action: OutputAction;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  if (action === "NONE") return null;
+
+  const label =
+    action === "GENERATE"
+      ? "Generate report & verification package"
+      : action === "RETRY"
+        ? "Retry generation"
+        : "Regenerate report & verification package";
+
+  /*
+   * Only a REGENERATION needs confirming. It creates a new immutable version
+   * beside one that already exists and consumes storage that cannot be
+   * reclaimed; a first generation and a retry produce the artifact the customer
+   * is already owed, and putting a dialog in front of those is friction with
+   * nothing to decide.
+   */
+  if (action !== "REGENERATE") {
+    return (
+      <button
+        type="button"
+        className="app-secondary-action"
+        onClick={() => void ctx.generateOutputs()}
+        disabled={ctx.generateOutputsBusy}
+        data-evidence-action="generate-outputs"
+        data-evidence-generate-verb={action}
+      >
+        {ctx.generateOutputsBusy ? "Requesting…" : label}
+      </button>
+    );
+  }
+
+  if (!confirming) {
+    return (
+      <button
+        type="button"
+        className="app-secondary-action"
+        onClick={() => setConfirming(true)}
+        disabled={ctx.generateOutputsBusy}
+        data-evidence-action="generate-outputs"
+        data-evidence-generate-verb={action}
+      >
+        {label}
+      </button>
+    );
+  }
+
+  return (
+    <div
+      className="app-inner-surface app-panel__body"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Confirm regeneration"
+      data-evidence-section="regenerate-confirm"
+    >
+      <p>
+        This creates a <strong>new immutable version</strong>. Previous versions
+        are retained and remain downloadable, and the new one uses additional
+        workspace storage. No evidence credit is charged.
+      </p>
+      <div className="app-page-header__actions">
+        <button
+          type="button"
+          className="app-secondary-action app-secondary-action--filled"
+          onClick={() => {
+            setConfirming(false);
+            void ctx.generateOutputs();
+          }}
+          disabled={ctx.generateOutputsBusy}
+          data-evidence-action="generate-outputs-confirm"
+        >
+          {ctx.generateOutputsBusy ? "Requesting…" : "Create a new version"}
+        </button>
+        <button
+          type="button"
+          className="app-secondary-action"
+          onClick={() => setConfirming(false)}
+          data-evidence-action="generate-outputs-cancel"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
   const {
@@ -53,34 +222,36 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
   const summary = workspace.publicVerificationSummary;
   const reportStatus = workspace.artifactStatus.report;
   const packageStatus = workspace.artifactStatus.verificationPackage;
-  const reportsIncluded = workspaceCaps?.reportsIncluded !== false;
-  const packageIncluded = workspaceCaps?.verificationPackageIncluded !== false;
 
-  // The download control is enabled only when the CURRENT artifact is
-  // available; each blocked state carries the reason the server gave.
+  /**
+   * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — ONE state, ONE
+   * sentence, per output.
+   *
+   * The chain that stood here asked `pending` FIRST and the plan flag second,
+   * and `pending` meant "no artifact row exists". So a record on a plan without
+   * reports rendered the banner "Reports are not included in this plan"
+   * directly above a control whose reason read "The report is still being
+   * generated" — two contradictory statements on one card, both produced from
+   * the same absence.
+   *
+   * The server now sends the canonical state and the action, and this file
+   * renders them. No plan name, no absence, no precedence puzzle.
+   */
+  const reportOutput = workspace.artifactStatus.outputs.report;
+  const packageOutput = workspace.artifactStatus.outputs.verificationPackage;
+
   const reportDownloadable = reportStatus.available === true;
   const reportDisabledReason = reportDownloadable
     ? null
-    : reportStatus.pending
-      ? "The report is still being generated. Re-check status once it completes."
-      : !reportsIncluded
-        ? "Report PDFs are not included in the current plan."
-        : "No report has been generated for this record yet.";
+    : OUTPUT_STATE_COPY[reportOutput.state].reason("report");
 
   const packageDownloadable = packageStatus.available === true;
   const packageDisabledReason = packageDownloadable
     ? null
-    : packageStatus.pending
-      ? "The verification package is still being generated. Re-check status once it completes."
-      : packageStatus.blocked
-        ? (packageStatus.blockedReason ??
-          "Verification package export is blocked by an export-governance gate.")
-        : packageStatus.unavailable
-          ? (packageStatus.unavailableReason ??
-            "The verification package is unavailable for this record.")
-          : !packageIncluded
-            ? "Verification packages are not included in the current plan."
-            : "No verification package has been generated for this record yet.";
+    : packageStatus.blocked
+      ? (packageStatus.blockedReason ??
+        "Verification package export is blocked by an export-governance gate.")
+      : OUTPUT_STATE_COPY[packageOutput.state].reason("verification package");
 
   // A counter is a real number only when analytics are actually available.
   // Otherwise the honest answer is that we do not know — never "0".
@@ -117,19 +288,71 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
         </div>
       ) : null}
 
-      {workspaceCaps && !workspaceCaps.reportsIncluded && !reportStatus.available ? (
+      {/* THE ONE COMMERCIAL / LIFECYCLE STATEMENT, from the server's state.
+          Suppressed once an artifact exists: a downloadable report is not a
+          conversation about entitlement, and a downgrade never takes one away. */}
+      {reportOutput.state === "NOT_INCLUDED" ? (
         <div
           className="app-alert app-alert--warn"
           role="status"
           data-evidence-section="reports-plan-gated"
+          data-evidence-output-state={reportOutput.state}
         >
-          <strong>Reports are not included in this plan</strong>
+          <strong>Reports are not included for this record</strong>
           <p>
-            Report PDFs and verification packages are part of Pay-Per-Evidence,
-            Pro, and Team plans. Your evidence record itself is signed and
-            preserved — the chain-of-custody chain remains intact — but no
-            downloadable report artifact will be generated on your current plan.
+            Report PDFs and verification packages are included with
+            Pay-per-evidence credits and with the Pro, Team and Enterprise
+            plans. Your evidence record itself is signed and preserved — the
+            chain of custody is intact, and public verification still works —
+            but no downloadable report artifact is produced for it.
           </p>
+        </div>
+      ) : reportOutput.state === "ELIGIBLE_NOT_GENERATED" ? (
+        <div
+          className="app-alert"
+          role="status"
+          data-evidence-section="reports-eligible-not-generated"
+          data-evidence-output-state={reportOutput.state}
+        >
+          <strong>
+            Your current plan includes a report and verification package for
+            this record
+          </strong>
+          <p>
+            Nothing has been generated for it yet — records captured before this
+            entitlement applied are not produced automatically. Generating uses
+            no evidence credit; it does use workspace storage.
+          </p>
+          <GenerateOutputsButton ctx={ctx} action={reportOutput.action} />
+        </div>
+      ) : reportOutput.state === "RETRYABLE_FAILURE" ? (
+        <div
+          className="app-alert app-alert--warn"
+          role="status"
+          data-evidence-section="reports-retryable-failure"
+          data-evidence-output-state={reportOutput.state}
+        >
+          <strong>Report generation failed</strong>
+          <p>
+            The last attempt did not complete
+            {reportOutput.attemptCount
+              ? ` (attempt ${reportOutput.attemptCount})`
+              : ""}
+            . The evidence record and its integrity state are unaffected.
+          </p>
+          <GenerateOutputsButton ctx={ctx} action={reportOutput.action} />
+        </div>
+      ) : reportOutput.state === "TERMINAL_FAILURE" ? (
+        <div
+          className="app-alert app-alert--warn"
+          role="status"
+          data-evidence-section="reports-terminal-failure"
+          data-evidence-output-state={reportOutput.state}
+          data-evidence-terminal-class={reportOutput.terminalReasonClass ?? ""}
+        >
+          <strong>Report generation stopped</strong>
+          <p>{terminalFailureCopy(reportOutput.terminalReasonClass)}</p>
+          <GenerateOutputsButton ctx={ctx} action={reportOutput.action} />
         </div>
       ) : null}
 

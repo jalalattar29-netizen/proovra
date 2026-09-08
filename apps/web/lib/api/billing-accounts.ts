@@ -230,6 +230,18 @@ export type BillingAccountProjection = {
   };
   /** PERSONAL accounts only; a contract-managed Organization has no wallet. */
   evidenceAdmission?: EvidenceAdmission;
+  /**
+   * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — how many existing
+   * records this plan now covers that have no outputs yet.
+   *
+   * A COUNT and a link. Nothing on this page generates anything: an automatic
+   * backfill would spend storage and work on a decision the customer has not
+   * made. `0` renders nothing.
+   */
+  historicalOutputEligibility?: {
+    eligibleWithoutOutputs: number;
+    reviewHref: string;
+  };
   collaboration?: CollaborationUsage;
   contract?: EnterpriseContractSummary;
   planOffers?: PlanOffer[];

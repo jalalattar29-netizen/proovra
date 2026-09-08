@@ -155,8 +155,12 @@ export function WorkspaceAdminPanel() {
           </p>
         </div>
         <div className="cc-meta">
-          <span data-workspace-plan={env.workspace.plan}>
-            Plan: {env.workspace.plan}
+          {/* COMMERCIAL TRUTH CLOSURE — the SERVER-resolved effective plan.
+              `persistedBillingPlan` is on the envelope for diagnostics and is
+              deliberately not rendered: on a Personal Workspace it is always
+              FREE regardless of what the owner pays. */}
+          <span data-workspace-plan={env.workspace.effectivePlan}>
+            Plan: {env.workspace.effectivePlan}
           </span>
           <span data-workspace-billing-status={env.workspace.billingStatus}>
             Billing: {env.workspace.billingStatus}

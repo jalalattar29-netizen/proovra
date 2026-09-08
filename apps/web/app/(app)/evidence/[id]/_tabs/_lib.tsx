@@ -121,6 +121,17 @@ export type EvidenceDetailCtx = {
   downloadOriginal: () => Promise<void> | void;
   downloadReport: () => Promise<void> | void;
   downloadVerificationPackage: () => Promise<void> | void;
+  /**
+   * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — request generation of
+   * this record's report AND verification package.
+   *
+   * ONE callback for both, because they are produced by ONE job. The verb the
+   * button shows (Generate / Retry / Regenerate) comes from the server's
+   * `outputs.*.action`; this callback is the same audited request in every
+   * case.
+   */
+  generateOutputs: () => Promise<void> | void;
+  generateOutputsBusy: boolean;
   runRecordAction: (path: string, successMessage: string) => Promise<void> | void;
   restoreTrash: () => Promise<void> | void;
   removeCase: () => Promise<void> | void;

@@ -1,4 +1,36 @@
-import type { EvidenceIntelligence, TrustDecision } from "@proovra/shared";
+import type {
+  EvidenceIntelligence,
+  EvidenceOutputState,
+  OutputAction,
+  OutputArtifactAvailability,
+  OutputCommercialEligibility,
+  OutputGenerationState,
+  OutputIneligibilityReason,
+  OutputTerminalReasonClass,
+  TrustDecision,
+} from "@proovra/shared";
+
+/**
+ * The server's canonical per-output projection. Mirrors
+ * `EvidenceOutputProjection` in
+ * services/api/src/services/evidence-artifact-status.service.ts.
+ *
+ * The browser NEVER re-derives any of these: `state` decides what is shown and
+ * `action` decides which control, if any, is offered.
+ */
+export type EvidenceOutputProjection = {
+  eligibility: OutputCommercialEligibility;
+  ineligibilityReason: OutputIneligibilityReason | null;
+  generation: OutputGenerationState;
+  terminalReasonClass: OutputTerminalReasonClass | null;
+  terminalReasonCode: string | null;
+  attemptCount: number | null;
+  requestedAtUtc: string | null;
+  completedAtUtc: string | null;
+  availability: OutputArtifactAvailability;
+  state: EvidenceOutputState;
+  action: OutputAction;
+};
 import type {
   EvidenceAnnotation,
   EvidenceAiCategorization,
@@ -356,6 +388,20 @@ export type ReviewWorkspaceResponse = {
     evidenceId: string;
     status: string | null;
     finalized: boolean;
+    /**
+     * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — the canonical
+     * three-axis projection. THE thing the UI renders.
+     *
+     * The legacy `report`/`verificationPackage` blocks below are kept in
+     * agreement with it by the server, but they cannot express "not included"
+     * for a report or distinguish a failure from an absence, which is why the
+     * Artifacts tab used to show "Reports are not included in this plan" and
+     * "The report is still being generated" on the same card.
+     */
+    outputs: {
+      report: EvidenceOutputProjection;
+      verificationPackage: EvidenceOutputProjection;
+    };
     report:
       | {
           available: true;

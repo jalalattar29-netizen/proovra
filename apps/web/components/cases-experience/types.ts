@@ -56,6 +56,16 @@ export type MatterQueueItem = {
   status: string;
   priority: string;
   ownerUserId: string;
+  /**
+   * IDENTITY CLOSURE (2026-09-08) — the owner AS A PERSON, projected by the
+   * server. Optional on the wire so an older envelope still parses; the Owner
+   * column falls back to the short id only when it is genuinely absent.
+   */
+  owner?: {
+    userId: string;
+    displayName: string | null;
+    email: string | null;
+  } | null;
   teamId: string | null;
   createdAt: string;
   updatedAt: string;

@@ -1239,7 +1239,7 @@ function MatterQueueRow({
         </span>
         {/* Owner */}
         <span className="cases-cell cases-cell-owner">
-          <OwnerCell ownerUserId={row.ownerUserId} />
+          <OwnerCell ownerUserId={row.ownerUserId} owner={row.owner ?? null} />
         </span>
         {/* Evidence */}
         <span
@@ -1328,14 +1328,31 @@ function MatterQueueRow({
 }
 
 /**
- * §7 Owner column. The matter-queue envelope exposes only
- * `ownerUserId` — never a display name — so we NEVER invent a person.
- * We render a neutral avatar (two initials derived from the id) plus a
- * shortened owner reference. `ownerUserId` is always present on the
- * envelope; the "Unassigned" branch is defensive for any future
- * nullable shape.
+ * §7 Owner column.
+ *
+ * IDENTITY CLOSURE (2026-09-08). This rendered `Owner · abd21a3a` — eight hex
+ * characters of a `gen_random_uuid()` primary key — as a primary column, for
+ * every row, to every user. The note that stood here explained why, and it was
+ * the right instinct for the wrong reason: "the matter-queue envelope exposes
+ * only `ownerUserId` — never a display name — so we NEVER invent a person."
+ *
+ * The refusal to invent a person is kept. What changed is that the envelope no
+ * longer withholds one: `buildMatterQueue` already loaded `displayName` and
+ * `email` to power the owner arm of its own search and threw them away, and it
+ * now projects them.
+ *
+ * The cascade is display name → email → short id, and the short id survives ONLY
+ * as the last resort, for an owner whose account no longer resolves. No new
+ * public identifier is introduced: the id in `title` and `data-*` is the same
+ * one that was always there, kept for support and for the existing selectors.
  */
-function OwnerCell({ ownerUserId }: { ownerUserId: string | null }) {
+function OwnerCell({
+  ownerUserId,
+  owner,
+}: {
+  ownerUserId: string | null;
+  owner: { userId: string; displayName: string | null; email: string | null } | null;
+}) {
   if (!ownerUserId) {
     return (
       <span className="cases-row-owner" data-matter-queue-row-owner="unassigned">
@@ -1346,14 +1363,37 @@ function OwnerCell({ ownerUserId }: { ownerUserId: string | null }) {
       </span>
     );
   }
-  const initials = ownerUserId.replace(/[^a-zA-Z0-9]/g, "").slice(0, 2).toUpperCase();
+
+  const displayName = owner?.displayName?.trim() || null;
+  const email = owner?.email?.trim() || null;
+  const label = displayName ?? email ?? `Owner · ${ownerUserId.slice(0, 8)}`;
+
+  /*
+   * Initials from the NAME when there is one — two letters of a person, not two
+   * characters of a UUID. The id remains the fallback so a row never loses its
+   * avatar.
+   */
+  const initialsSource = displayName ?? email ?? ownerUserId;
+  const initials = displayName
+    ? displayName
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0])
+        .join("")
+        .toUpperCase()
+    : initialsSource.replace(/[^a-zA-Z0-9]/g, "").slice(0, 2).toUpperCase();
+
   return (
     <span className="cases-row-owner" data-matter-queue-row-owner={ownerUserId}>
       <span className="cases-row-owner-avatar" aria-hidden>
         {initials || "?"}
       </span>
-      <span className="cases-row-owner-label" title={ownerUserId}>
-        Owner · {ownerUserId.slice(0, 8)}
+      <span
+        className="cases-row-owner-label"
+        title={displayName && email ? `${displayName} · ${email}` : ownerUserId}
+      >
+        {label}
       </span>
     </span>
   );

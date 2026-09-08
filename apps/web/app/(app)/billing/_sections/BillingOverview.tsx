@@ -25,6 +25,8 @@
  * statements and only one of them is ever true.
  */
 
+import Link from "next/link";
+
 import { Button } from "../../../../components/ui/Button";
 import {
   AppStatusText,
@@ -580,6 +582,13 @@ export function EvidenceDetailCard({
   const action: "BUY_CREDITS" | "SEE_PLANS" | null =
     offered?.action ?? (wallet && canBuyCredits ? "BUY_CREDITS" : null);
 
+  /*
+   * Records the current plan covers that have no outputs yet. Server-counted:
+   * "eligible" is a commercial verdict and the browser must not compute one.
+   */
+  const historicalEligible =
+    projection.historicalOutputEligibility?.eligibleWithoutOutputs ?? 0;
+
   return (
     <section className="bill-panel" data-billing-evidence-detail>
       <h3 className="bill-panel__title">Evidence</h3>
@@ -660,6 +669,27 @@ export function EvidenceDetailCard({
       {offered?.next ?? described?.detail ? (
         <p className="bill-panel__note" data-billing-evidence-next>
           {offered?.next ?? described?.detail}
+        </p>
+      ) : null}
+
+      {/* COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — what an upgrade
+          means for work the customer already has.
+
+          A COUNT and a link, never a "generate all" button. Producing N
+          artifacts from a billing page would spend storage and work on a
+          decision nobody made, and it is the automatic backfill this program
+          deliberately did not build. Absent when the number is zero. */}
+      {historicalEligible > 0 ? (
+        <p
+          className="bill-panel__note"
+          data-billing-historical-eligibility={historicalEligible}
+        >
+          {historicalEligible.toLocaleString()} existing evidence{" "}
+          {historicalEligible === 1 ? "record is" : "records are"} now eligible
+          for a report and verification package.{" "}
+          <Link href={projection.historicalOutputEligibility!.reviewHref}>
+            Open Reports
+          </Link>
         </p>
       ) : null}
 

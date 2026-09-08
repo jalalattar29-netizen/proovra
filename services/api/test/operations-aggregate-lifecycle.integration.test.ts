@@ -488,6 +488,11 @@ describe("Aggregate Operations conditions (live PostgreSQL 16)", () => {
       client: brokenClient,
       now: new Date(),
       evidenceWhere: await authority.workspaceEvidenceWhere(team.teamId, prisma),
+      // COMMERCIAL CLOSURE (2026-09-08) — `null` is "the plan includes reports,
+      // count the whole population", which is what this test's fixture is and
+      // what the probe did before the narrowing existed. The assertion below is
+      // about a BROKEN client, not about eligibility.
+      outputEntitledWhere: null,
     });
     // NOT zero, NOT recovered, NOT active.
     expect(observation.activity).toBe("UNKNOWN");
