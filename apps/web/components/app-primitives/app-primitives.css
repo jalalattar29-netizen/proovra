@@ -1278,6 +1278,145 @@ textarea.app-form-input {
   }
 }
 
+/* ===========================================================================
+   STATIC METRIC CARDS, AND THE SHARED SEMANTIC TONE VOCABULARY.
+
+   `.app-metric-card` was born as the Notifications FILTER card: every instance
+   was a <button> that selected a view, so it carries a pointer cursor, a hover
+   lift and an `aria-pressed` selected state. Members & Access and Collaboration
+   Teams need the same CARD — white surface, 3px semantic rail, semantic number,
+   dark label, muted caption — for figures that are read, not clicked.
+
+   Two things follow, and both are here rather than copied per route:
+
+   1. A card that is not a control must not dress as one. Anything that is not
+      a <button> or <a> loses the pointer cursor and the hover shift; the rail,
+      the surface and the typography are untouched, because THAT is the shared
+      grammar and it is the whole reason not to build a second card.
+
+   2. The tone vocabulary is SEMANTIC and app-wide — success / warning / danger
+      / info / accent / neutral — resolved from the canonical scale in
+      `tokens.css`. Notifications keeps its own route-owned mapping
+      (`.ops-metric[data-ops-metric-tone]`) because its tones are its severity
+      names, not semantics; this is the vocabulary every other surface speaks.
+
+   WHAT THIS DELIBERATELY IS NOT: a tinted card. An earlier pass painted the
+   whole surface with the 050 step of each family and called it the
+   Notifications language. It is not — Notifications puts the colour in the
+   RAIL and the NUMBER and leaves the surface white. Four pastel rectangles
+   read as decoration and flatten the very ranking the colour exists to give.
+   =========================================================================== */
+.app-metric-card:not(button):not(a) {
+  cursor: default;
+}
+.app-metric-card:not(button):not(a):hover {
+  background: rgba(255, 255, 255, 0.5);
+  border-color: rgba(255, 255, 255, 0.6);
+}
+.app-metric-card[data-app-metric-tone="success"] { --app-metric-tone: var(--success-standard, #15803D); }
+.app-metric-card[data-app-metric-tone="warning"] { --app-metric-tone: var(--orange-500, #D97706); }
+.app-metric-card[data-app-metric-tone="danger"]  { --app-metric-tone: var(--error, #DC2626); }
+.app-metric-card[data-app-metric-tone="info"]    { --app-metric-tone: var(--info, #2563EB); }
+.app-metric-card[data-app-metric-tone="accent"]  { --app-metric-tone: var(--accent-600, #6D28D9); }
+.app-metric-card[data-app-metric-tone="neutral"] { --app-metric-tone: var(--app-ink-secondary); }
+
+/* ===========================================================================
+   COMPACT KEY/VALUE ROWS.
+
+   For the short factual summaries that kept being built as full-width panels
+   with one sentence in them — a workspace's plan, owner, seat usage, where its
+   billing lives. Each fact is one row, so five of them cost the height a
+   single paragraph used to, and a real <dl> keeps the pairing in the
+   accessibility tree instead of relying on visual adjacency.
+   =========================================================================== */
+.app-kv-list {
+  margin: 0;
+  display: grid;
+  gap: 0;
+}
+.app-kv-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-block-end: 1px solid rgba(15, 23, 42, 0.06);
+  min-width: 0;
+}
+.app-kv-row:last-child {
+  border-block-end: none;
+  padding-block-end: 0;
+}
+.app-kv-row:first-child {
+  padding-block-start: 0;
+}
+.app-kv-key {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--app-ink-secondary);
+  flex: 0 0 auto;
+}
+.app-kv-value {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--app-ink-heading);
+  text-align: end;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ===========================================================================
+   COMPACT ACTIVITY LIST.
+
+   An event is a marker, a sentence and a time. Rendered as a flex row with the
+   time pushed right, one event occupied a full panel width and a single event
+   made that panel look broken. The marker column gives the list a spine, the
+   time drops under the sentence rather than fighting it for the same line, and
+   the whole thing keeps its shape at one row or at twelve.
+   =========================================================================== */
+.app-activity-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+.app-activity-item {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  gap: 10px;
+  padding: 7px 0;
+  border-block-end: 1px solid rgba(15, 23, 42, 0.05);
+}
+.app-activity-item:last-child {
+  border-block-end: none;
+}
+.app-activity-item__marker {
+  margin-block-start: 6px;
+  inline-size: 7px;
+  block-size: 7px;
+  border-radius: 50%;
+  background: var(--app-activity-tone, var(--app-ink-placeholder));
+  justify-self: center;
+}
+.app-activity-item__text {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--app-ink-heading);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.app-activity-item__time {
+  display: block;
+  margin-block-start: 1px;
+  font-size: 11.5px;
+  color: var(--app-ink-secondary);
+}
+.app-activity-item[data-activity-tone="success"] { --app-activity-tone: var(--success-standard, #15803D); }
+.app-activity-item[data-activity-tone="danger"]  { --app-activity-tone: var(--error, #DC2626); }
+.app-activity-item[data-activity-tone="accent"]  { --app-activity-tone: var(--accent-600, #6D28D9); }
+
 /* Chip rows are LISTS — adjacent chips must never run together into one
    accessible name. Reset the list affordances and keep a real gap. */
 .app-chip-row {
@@ -1319,49 +1458,11 @@ textarea.app-form-input {
 .app-kpi-card__value[data-tone="danger"] { color: var(--error); }
 .app-kpi-card__value[data-tone="accent"] { color: var(--accent-500); }
 
-/* SEMANTIC KPI TONES — the card, not just the number.
-
-   The value already tinted on `data-tone`, but a tinted digit on a plain
-   white card reads as an accident rather than a signal: four identical white
-   slabs in a row give the eye nothing to rank. Tinting the SURFACE at the same
-   time is the grammar Notifications and Operations already use, and it is what
-   makes "needs attention" legible before the number is read.
-
-   Every value comes from the canonical status scale in tokens.css — no
-   one-off colours, no gradients. The tint is the 050 step (barely there) with
-   the 200 step as the border, so the cards stay quiet on a page that is mostly
-   data, and the number keeps the contrast.
-
-   Applied to the CARD, so height, radius and padding are untouched: this is a
-   tone, not a second card component. */
-.app-kpi-card[data-tone="success"] {
-  background: var(--success-050, #F0FDF4);
-  border-color: var(--success-200, #BBF7D0);
-}
-.app-kpi-card[data-tone="success"] .app-kpi-card__value { color: var(--success-standard, #15803D); }
-.app-kpi-card[data-tone="warning"] {
-  background: var(--warning-050, #FFFBEB);
-  border-color: var(--warning-200, #FDE68A);
-}
-.app-kpi-card[data-tone="warning"] .app-kpi-card__value { color: var(--warning-ink, #B45309); }
-.app-kpi-card[data-tone="danger"] {
-  background: var(--error-050, #FEF2F2);
-  border-color: var(--error-200, #FECACA);
-}
-.app-kpi-card[data-tone="danger"] .app-kpi-card__value { color: var(--error, #DC2626); }
-.app-kpi-card[data-tone="info"] {
-  background: var(--info-050, #EFF6FF);
-  border-color: var(--info-border, #BFDBFE);
-}
-.app-kpi-card[data-tone="info"] .app-kpi-card__value { color: var(--info, #2563EB); }
-.app-kpi-card[data-tone="accent"] {
-  background: var(--accent-050, #F2ECFE);
-  border-color: var(--accent-200, #D9C7FB);
-}
-.app-kpi-card[data-tone="accent"] .app-kpi-card__value { color: var(--accent-500, #7C3AED); }
 /* Equal height regardless of how long a meta line runs — an uneven row of
    cards is the single most visible sign of an unfinished surface. */
 .app-grid-kpis > .app-kpi-card { height: 100%; }
+.app-grid-kpis > li { min-width: 0; }
+.app-grid-kpis > li > .app-metric-card { height: 100%; }
 .app-kpi-card__meta {
   font-size: 11.5px;
   color: var(--app-ink-secondary);
@@ -1729,6 +1830,53 @@ textarea.app-form-input {
   align-items: start;
 }
 
+/* Equal-height variant. For a row of PEER panels — three lifecycle operations,
+   say — where a ragged bottom edge reads as an unfinished layout rather than
+   as a difference in content. Not the default: a rail of unrelated panels
+   should keep its natural heights instead of stretching to match the tallest. */
+.app-grid-panels--stretch {
+  align-items: stretch;
+}
+.app-grid-panels--stretch > * {
+  display: flex;
+  flex-direction: column;
+}
+.app-grid-panels--stretch > * > .app-panel__body {
+  flex: 1 1 auto;
+}
+
+/* ===========================================================================
+   PRIMARY SURFACE + RAIL.
+
+   The asymmetric working layout: one dominant panel — a roster, a queue, a
+   table somebody actually works in — and a narrower rail of things they reach
+   for while reading it. Roughly 73/27, which is wide enough for the rail to
+   hold a real action and narrow enough that it never competes with the work.
+
+   It collapses in ONE step, at 1100px, and the rail goes UNDER the primary
+   panel rather than beside it in a squeezed column. Two panels at 380px each
+   is not a two-column layout, it is a table that has to scroll sideways.
+   =========================================================================== */
+.app-grid-primary {
+  display: grid;
+  grid-template-columns: minmax(0, 2.7fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .app-grid-primary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* The rail is a COLUMN of panels, not one panel: its children stack with the
+   same rhythm the page uses between sections. */
+.app-rail {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  min-width: 0;
+}
+
 /* Inline notice — non-blocking status message inside a panel (AI provider
    unavailable, policy denial, validation failure). Neutral by default, amber
    for a warning. Also emitted, previously undefined, by the ai-copilot
@@ -1897,6 +2045,12 @@ textarea.app-form-input {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
+  /* A KPI strip is a LIST of figures, so consumers may render it as <ul>/<li>
+     — adjacent cards must not run together into one accessible name. Resetting
+     the list affordances here means using the semantic element costs nothing. */
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 /* Dense variant — information-dense surfaces (matter overview) fit more
    tiles per row without changing the CARD. Density is a layout decision,

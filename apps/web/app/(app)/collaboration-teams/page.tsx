@@ -489,71 +489,88 @@ function TeamsOverview() {
             on. The server counts the distinct rows.
           */}
           {rollup ? (
-            <div
+            <ul
               className="app-grid-kpis"
               data-testid="teams-rollup"
               style={{ marginBottom: "0.75rem" }}
             >
               {/*
-                SEMANTIC TONES (§D) — the same canonical status scale the
-                Members KPIs use. Conditional where the condition is the
-                point: unassigned tints amber only when work is actually
-                unowned, attention red only when something is late or urgent.
-                A permanent red card on a healthy workspace teaches an
-                operator to ignore red.
+                THE SAME CARD FAMILY AS NOTIFICATIONS AND MEMBERS (§11) —
+                `.app-metric-card`: near-white surface, 3px semantic rail, the
+                colour in the number rather than in the background.
+
+                Tones are conditional where the condition is the point:
+                unassigned goes amber only when work is actually unowned,
+                attention red only when something is late or urgent. A
+                permanent red card on a healthy workspace teaches an operator
+                to ignore red.
               */}
-              <div className="app-kpi-card" data-tone="info">
-                <div className="app-kpi-card__value">{rollup.work.open}</div>
-                <div className="app-kpi-card__label">Open work</div>
-                <div className="app-kpi-card__meta">
-                  across {rollup.groups.withOpenWork} of {rollup.groups.active}{" "}
-                  {rollup.groups.active === 1 ? "Team" : "Teams"}
+              <li>
+                <div className="app-metric-card" data-app-metric-tone="info">
+                  <div className="app-metric-card__value">{rollup.work.open}</div>
+                  <div className="app-metric-card__label">Open work</div>
+                  <div className="app-metric-card__meta">
+                    across {rollup.groups.withOpenWork} of {rollup.groups.active}{" "}
+                    {rollup.groups.active === 1 ? "Team" : "Teams"}
+                  </div>
                 </div>
-              </div>
+              </li>
               {/*
-                `accent`, not `danger`: unowned work needs picking up, it is
-                not yet a failure. `danger` is reserved for the attention card
-                beside it, which counts work that is already late or already
-                urgent. And the meta line says what "unassigned" actually
-                means here — a group holding work is not a person doing it.
+                Amber, not red: unowned work needs picking up, it is not yet a
+                failure. Red is reserved for the attention card beside it,
+                which counts work that is already late or already urgent. And
+                the meta line says what "unassigned" actually means here — a
+                group holding work is not a person doing it.
               */}
-              <div
-                className="app-kpi-card"
-                data-tone={rollup.work.unassigned > 0 ? "warning" : undefined}
-              >
-                <div className="app-kpi-card__value">
-                  {rollup.work.unassigned}
+              <li>
+                <div
+                  className="app-metric-card"
+                  data-app-metric-tone={
+                    rollup.work.unassigned > 0 ? "warning" : "neutral"
+                  }
+                >
+                  <div className="app-metric-card__value">
+                    {rollup.work.unassigned}
+                  </div>
+                  <div className="app-metric-card__label">Unassigned</div>
+                  <div className="app-metric-card__meta">
+                    held by a Team, not by a person
+                  </div>
                 </div>
-                <div className="app-kpi-card__label">Unassigned</div>
-                <div className="app-kpi-card__meta">
-                  held by a Team, not by a person
+              </li>
+              <li>
+                <div
+                  className="app-metric-card"
+                  data-app-metric-tone={
+                    rollup.work.attention > 0 ? "danger" : "neutral"
+                  }
+                >
+                  <div className="app-metric-card__value">
+                    {rollup.work.attention}
+                  </div>
+                  <div className="app-metric-card__label">Needs attention</div>
+                  <div className="app-metric-card__meta">
+                    {rollup.work.overdue} overdue · {rollup.work.highPriority} high
+                    priority
+                  </div>
                 </div>
-              </div>
-              <div
-                className="app-kpi-card"
-                data-tone={rollup.work.attention > 0 ? "danger" : undefined}
-              >
-                <div className="app-kpi-card__value">
-                  {rollup.work.attention}
+              </li>
+              <li>
+                <div className="app-metric-card" data-app-metric-tone="success">
+                  <div className="app-metric-card__value">
+                    {rollup.workload.people}
+                  </div>
+                  <div className="app-metric-card__label">
+                    People carrying work
+                  </div>
+                  <div className="app-metric-card__meta">
+                    {rollup.workload.busiest
+                      ? `heaviest load ${rollup.workload.busiest.open} open`
+                      : "nothing assigned to an individual"}
+                  </div>
                 </div>
-                <div className="app-kpi-card__label">Needs attention</div>
-                <div className="app-kpi-card__meta">
-                  {rollup.work.overdue} overdue · {rollup.work.highPriority} high
-                  priority
-                </div>
-              </div>
-              <div className="app-kpi-card" data-tone="success">
-                <div className="app-kpi-card__value">
-                  {rollup.workload.people}
-                </div>
-                <div className="app-kpi-card__label">People carrying work</div>
-                <div className="app-kpi-card__meta">
-                  {rollup.workload.busiest
-                    ? `heaviest load ${rollup.workload.busiest.open} open`
-                    : "nothing assigned to an individual"}
-                </div>
-              </div>
-            </div>
+              </li>
+            </ul>
           ) : null}
           {grantedScope === "ALL" ? (
             <p

@@ -261,6 +261,31 @@ function humanizeActivity(activity: {
   return who ? `${what} — ${who}` : what;
 }
 
+/**
+ * The marker colour beside an activity row.
+ *
+ * DELIBERATELY COARSE, and never the only carrier of meaning — the sentence
+ * beside it always says what happened. Green is access GAINED, red is access
+ * REMOVED, purple is a change to the workspace itself, and anything unmapped
+ * stays neutral rather than being guessed at. Colouring every row differently
+ * would turn a history into a chart nobody asked for.
+ */
+function activityTone(eventType: string): "success" | "danger" | "accent" | undefined {
+  switch (eventType) {
+    case "member_added":
+    case "invite_accepted":
+      return "success";
+    case "member_removed":
+    case "invite_revoked":
+      return "danger";
+    case "member_role_changed":
+    case "team_renamed":
+      return "accent";
+    default:
+      return undefined;
+  }
+}
+
 function normalizePlanLabel(value?: string | null, fallback = "FREE"): string {
   const normalized = String(value ?? "").trim().toUpperCase();
   return normalized || fallback;
@@ -476,6 +501,24 @@ function TeamDetailPageBody() {
   const effectivePlan = useMemo(() => {
     return normalizePlanLabel(team?.effectivePlan ?? team?.billingPlan, "FREE");
   }, [team?.effectivePlan, team?.billingPlan]);
+
+  /**
+   * The owner's name for the Workspace overview, RESOLVED rather than assumed.
+   *
+   * `ownerUserId` is an id, and an id is not a fact a reader can use. The
+   * roster already carries the display name and email for everyone with
+   * access, so the owner is looked up there. If the owner is not in the loaded
+   * roster — a paged roster is a page — this returns null and the row is not
+   * rendered at all. An "Owner: unknown" row would be worse than no row.
+   */
+  const ownerLabel = useMemo(() => {
+    const ownerId = team?.ownerUserId;
+    if (!ownerId) return null;
+    const owner = (team?.members ?? []).find((m) => m.userId === ownerId);
+    return (
+      owner?.user?.displayName?.trim() || owner?.user?.email?.trim() || null
+    );
+  }, [team?.ownerUserId, team?.members]);
 
   /**
    * SEATS COME FROM THE SERVER, NOT FROM RAW COLUMNS.
@@ -1185,65 +1228,89 @@ function TeamDetailPageBody() {
             come from the SERVER's projection (`team.stats`), never counted
             from the rows on screen: the roster is a page, and a capacity claim
             derived from a page is wrong the moment there is a second one. */}
-        <div className="app-grid-kpis" data-testid="people-kpis">
-          {/*
-            SEMANTIC TONE ON THE CARD (§B1) — the same grammar Notifications
-            uses. Four identical white slabs gave the eye nothing to rank; the
-            tint says what KIND of number each one is before it is read. Every
-            colour is a canonical status token, and the tone is CONDITIONAL
-            where the condition is what matters: seats tint red only when there
-            are none left, invitations amber only when some are waiting. A
-            permanent warning tint on a healthy workspace is noise.
-          */}
-          <div className="app-kpi-card" data-tone="success">
-            <span className="app-kpi-card__value">{activeMemberCount}</span>
-            <span className="app-kpi-card__label">Active members</span>
-            <span className="app-kpi-card__meta">
-              With access to this workspace
-            </span>
-          </div>
-          <div
-            className="app-kpi-card"
-            data-tone={pendingInvites.length > 0 ? "warning" : undefined}
-          >
-            <span className="app-kpi-card__value">
-              {pendingInvites.length}
-            </span>
-            <span className="app-kpi-card__label">Pending invitations</span>
-            <span className="app-kpi-card__meta">
-              Sent, not yet accepted
-            </span>
-          </div>
-          <div
-            className="app-kpi-card"
-            data-tone={
-              seatsAvailable === 0
-                ? "danger"
-                : seatsAvailable === null
-                  ? undefined
-                  : "info"
-            }
-          >
-            <span className="app-kpi-card__value">
-              {seatsAvailable === null ? "—" : seatsAvailable}
-            </span>
-            <span className="app-kpi-card__label">Seats available</span>
-            <span className="app-kpi-card__meta">
-              {seatLimit === null
-                ? "Capacity unavailable"
-                : `${seatUsed ?? activeMemberCount} of ${seatLimit} used`}
-            </span>
-          </div>
-          <div className="app-kpi-card" data-tone="accent">
-            <span className="app-kpi-card__value">{teamCases.length}</span>
-            <span className="app-kpi-card__label">Cases in this workspace</span>
-            <span className="app-kpi-card__meta">
-              <Link href="/cases" className="app-table__link">
-                Open Cases
-              </Link>
-            </span>
-          </div>
-        </div>
+        {/*
+          THE NOTIFICATIONS CARD ITSELF (§10), NOT AN APPROXIMATION OF IT.
+
+          A previous pass read "use the Notifications card language" as "tint
+          the card" and painted four pastel rectangles. That is the opposite of
+          what Notifications does. Its summary strip is `.app-metric-card`: a
+          near-white translucent surface, a 3px semantic rail down the inline
+          start, the NUMBER carrying the colour, a dark label and a muted
+          caption. The colour is in the accent and the figure; the surface stays
+          out of the way. These cards are that component — the same class, the
+          same rail, the same typography — not a second design that resembles it.
+
+          They are <div>s inside a <ul>, because unlike Notifications these
+          figures are read rather than clicked; the primitive drops its pointer
+          affordances for anything that is not a control.
+
+          TONE IS CONDITIONAL WHERE THE CONDITION IS THE POINT: seats go red
+          only at zero, invitations amber only while some are waiting. A
+          permanent warning colour on a healthy workspace is decoration, and
+          decoration is what makes a real warning unreadable.
+        */}
+        <ul className="app-grid-kpis" data-testid="people-kpis">
+          <li>
+            <div className="app-metric-card" data-app-metric-tone="success">
+              <span className="app-metric-card__value">{activeMemberCount}</span>
+              <span className="app-metric-card__label">Active members</span>
+              <span className="app-metric-card__meta">
+                With access to this workspace
+              </span>
+            </div>
+          </li>
+          <li>
+            <div
+              className="app-metric-card"
+              data-app-metric-tone={
+                pendingInvites.length > 0 ? "warning" : "neutral"
+              }
+            >
+              <span className="app-metric-card__value">
+                {pendingInvites.length}
+              </span>
+              <span className="app-metric-card__label">Pending invitations</span>
+              <span className="app-metric-card__meta">
+                Sent, not yet accepted
+              </span>
+            </div>
+          </li>
+          <li>
+            <div
+              className="app-metric-card"
+              data-app-metric-tone={
+                seatsAvailable === 0
+                  ? "danger"
+                  : seatsAvailable === null
+                    ? "neutral"
+                    : "info"
+              }
+            >
+              <span className="app-metric-card__value">
+                {seatsAvailable === null ? "—" : seatsAvailable}
+              </span>
+              <span className="app-metric-card__label">Seats available</span>
+              <span className="app-metric-card__meta">
+                {seatLimit === null
+                  ? "Capacity unavailable"
+                  : `${seatUsed ?? activeMemberCount} of ${seatLimit} used`}
+              </span>
+            </div>
+          </li>
+          <li>
+            <div className="app-metric-card" data-app-metric-tone="accent">
+              <span className="app-metric-card__value">{teamCases.length}</span>
+              <span className="app-metric-card__label">
+                Cases in this workspace
+              </span>
+              <span className="app-metric-card__meta">
+                <Link href="/cases" className="app-table__link">
+                  Open Cases
+                </Link>
+              </span>
+            </div>
+          </li>
+        </ul>
 
         {/* A seat-full workspace says so once, here, rather than letting the
             operator discover it from a refusal after composing an invitation. */}
@@ -1263,6 +1330,25 @@ function TeamDetailPageBody() {
           </div>
         ) : null}
 
+        {/*
+          THE ASYMMETRIC WORKING GRID (§3).
+
+          Every panel on this page used to be full-page-width, stacked, in a
+          single column — which is why a workspace with four members read as a
+          long administration form with a great deal of nothing in it. The
+          roster is the primary working surface and keeps roughly three
+          quarters of the row; the rail beside it carries the two things an
+          operator reaches for WHILE reading the roster, at a size that says
+          they are secondary.
+
+          The rail holds only capabilities this page already has. There is no
+          "Copy invite link" (the canonical invitation flow delivers by email
+          and mints no shareable link), no export, no access-request queue and
+          no permission matrix — none of those exist behind this surface, and a
+          control that looks real and does nothing is worse than an empty
+          column.
+        */}
+        <div className="app-grid-primary">
         {/* MEMBERS — the primary object on the page. */}
         <div className="app-panel" data-testid="people-roster">
           <div className="app-panel__head app-panel__head-row">
@@ -1462,6 +1548,94 @@ function TeamDetailPageBody() {
           </div>
         </div>
 
+        {/* THE RAIL. */}
+        <div className="app-rail">
+          {/*
+            INVITE PEOPLE — one purpose, stated, with the one action.
+
+            The delivery channel is the fact worth the space: invitations go out
+            by EMAIL and by nothing else. That is not a limitation being
+            apologised for, it is the thing an operator needs to know before
+            they wonder where the link is. There is no SMS path and no copyable
+            link, so neither is offered.
+          */}
+          {canManageTeam ? (
+            <div className="app-panel" data-testid="people-rail-invite">
+              <div className="app-panel__head">
+                <h2 className="app-panel__title">Invite people</h2>
+              </div>
+              <div className="app-panel__body">
+                <p
+                  className="app-table__muted"
+                  style={{ margin: "0 0 12px", fontSize: 12.5 }}
+                >
+                  Send someone an invitation to join this workspace. They are
+                  delivered <strong>by email</strong>, and the recipient joins
+                  by following the link in that message.
+                </p>
+                <button
+                  type="button"
+                  className="app-primary-action app-primary-action--block"
+                  onClick={() => setInviteOpen(true)}
+                  data-testid="people-rail-invite-open"
+                >
+                  Invite person
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {/*
+            MEMBER ROLES — the REAL workspace vocabulary.
+
+            Four roles, because four is what the product has. OWNER is listed
+            and is deliberately not offered by the role selector: ownership
+            moves through transfer-ownership with step-up, never through a
+            dropdown. Each line says what the role can do in terms this page
+            can back up, and none of it is a permission matrix — there is no
+            granular permission editor behind this surface to link to.
+          */}
+          <div className="app-panel" data-testid="people-rail-roles">
+            <div className="app-panel__head">
+              <h2 className="app-panel__title">Member roles</h2>
+            </div>
+            <div className="app-panel__body">
+              <dl className="app-kv-list">
+                <div className="app-kv-row">
+                  <dt className="app-kv-key">Owner</dt>
+                  <dd className="app-kv-value">
+                    Full control, including transfer and deletion
+                  </dd>
+                </div>
+                <div className="app-kv-row">
+                  <dt className="app-kv-key">Admin</dt>
+                  <dd className="app-kv-value">
+                    Manages members, invitations and cases
+                  </dd>
+                </div>
+                <div className="app-kv-row">
+                  <dt className="app-kv-key">Member</dt>
+                  <dd className="app-kv-value">
+                    Works on cases and evidence in this workspace
+                  </dd>
+                </div>
+                <div className="app-kv-row">
+                  <dt className="app-kv-key">Viewer</dt>
+                  <dd className="app-kv-value">Read-only access</dd>
+                </div>
+              </dl>
+              <p
+                className="app-table__muted"
+                style={{ margin: "10px 0 0", fontSize: 11.5 }}
+              >
+                A workspace role governs access across the whole workspace. A
+                Collaboration Team role governs responsibility inside one group.
+              </p>
+            </div>
+          </div>
+        </div>
+        </div>
+
         {/* PENDING INVITATIONS — only rendered when there are any, or when the
             viewer can create one. An empty panel on a one-person workspace is
             noise. */}
@@ -1470,16 +1644,33 @@ function TeamDetailPageBody() {
             <div className="app-panel__head">
               <h2 className="app-panel__title">Pending invitations</h2>
             </div>
-            <div className="app-table-surface">
-              {pendingInvites.length === 0 ? (
-                <div className="app-empty" data-testid="people-invites-empty">
-                  <strong>No invitations outstanding</strong>
-                  <p>
-                    Everyone who was invited has either joined or had their
-                    invitation withdrawn.
-                  </p>
-                </div>
-              ) : (
+            {/*
+              ZERO IS A SENTENCE, NOT A SLAB (§6).
+
+              The empty case used to render `.app-empty` inside a table
+              surface — a centred illustration-scale empty state, at full page
+              width, for the most common state this panel has. It said nothing
+              a single line could not, and it pushed everything below it most
+              of a screen down.
+
+              The panel is still here at zero, on purpose: it is where an
+              operator looks to confirm nothing is outstanding, and a section
+              that vanishes when empty cannot answer that question. It just
+              costs one row now. The delivery channel is stated because it is
+              the thing an operator needs to know and cannot see — invitations
+              go out by EMAIL, and there is no other channel.
+            */}
+            {pendingInvites.length === 0 ? (
+              <div className="app-panel__body" data-testid="people-invites-empty">
+                <p className="app-table__muted" style={{ margin: 0 }}>
+                  No invitations outstanding — everyone invited has either
+                  joined or had their invitation withdrawn. New invitations are
+                  delivered by email.
+                </p>
+              </div>
+            ) : (
+              <div className="app-table-surface">
+                {(
                 <table className="app-table" data-responsive>
                   <thead>
                     <tr>
@@ -1536,62 +1727,23 @@ function TeamDetailPageBody() {
                     ))}
                   </tbody>
                 </table>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </div>
         ) : null}
 
-        {/* WORKSPACE ADMINISTRATION — subordinate to people, and grouped so it
-            reads as a different job rather than more of the same one. */}
-        <div className="app-panel" data-testid="people-workspace-admin">
-          <div className="app-panel__head app-panel__head-row">
-            <h2 className="app-panel__title">Workspace</h2>
-            {canManageTeam ? (
-              <button
-                type="button"
-                className="app-secondary-action"
-                onClick={() =>
-                  isEditingName ? handleCancelEditName() : handleStartEditName()
-                }
-                data-testid="workspace-rename-toggle"
-              >
-                {isEditingName ? "Cancel" : "Rename"}
-              </button>
-            ) : null}
-          </div>
-          <div className="app-panel__body">
-            {isEditingName ? (
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <input
-                  className="app-form-input"
-                  style={{ maxWidth: 340 }}
-                  value={teamName}
-                  onChange={(e) => setTeamName(e.target.value)}
-                  aria-label="Workspace name"
-                  data-testid="workspace-name-input"
-                />
-                <button
-                  type="button"
-                  className="app-secondary-action app-secondary-action--filled"
-                  onClick={() => void handleSaveTeamName()}
-                  disabled={savingName}
-                  data-testid="workspace-name-save"
-                >
-                  {savingName ? "Saving…" : "Save name"}
-                </button>
-              </div>
-            ) : (
-              <p className="app-table__muted" style={{ margin: 0 }}>
-                Storage, subscription and payment for this workspace are managed
-                in{" "}
-                <Link href={billingHref} className="app-table__link">
-                  Billing
-                </Link>
-                .
-              </p>
-            )}
-          </div>
-        </div>
+        {/*
+          THE GIANT "WORKSPACE" CARD IS GONE (§5).
+
+          It was a full-width panel carrying a Rename button and one sentence
+          saying billing lives somewhere else. That is two facts, and it claimed
+          the same footprint as the roster. Neither fact was lost: Rename is now
+          an action on the Workspace overview below, where the name it renames
+          is actually displayed, and the billing sentence is one row of that
+          overview with a link out. A panel earns its width from what is inside
+          it, and this one never had anything to put there.
+        */}
 
         {/*
           ACCESS & ORGANISATION — two columns, not four stacked slabs (§4C).
@@ -1753,30 +1905,159 @@ function TeamDetailPageBody() {
 
         </div>
 
-        {/* Recent activity — membership and access history, compact. */}
-        {activities.length > 0 ? (
-          <div className="app-panel" data-testid="people-activity">
-            <div className="app-panel__head">
-              <h2 className="app-panel__title">Recent activity</h2>
+        {/*
+          ACTIVITY AND WORKSPACE FACTS, SIDE BY SIDE (§4, §7).
+
+          Both used to be full-width panels holding a single line — one event
+          stretched across the page, and one sentence about billing. Neither
+          filled the width it claimed, and the two of them together were most of
+          a screen of empty panel. They share a row now.
+        */}
+        <div className="app-grid-panels">
+          {/*
+            RECENT ACTIVITY — a marker, a sentence, a time (§7).
+
+            The events themselves are unchanged and still come from the server;
+            nothing is invented to pad the list. What changed is that an event
+            is now a two-line entry with a semantic dot rather than a full-width
+            flex row whose timestamp was pushed to the far edge of the page. The
+            list keeps its shape whether it holds one event or twelve, which is
+            the case that made the old panel look broken.
+          */}
+          {activities.length > 0 ? (
+            <div className="app-panel" data-testid="people-activity">
+              <div className="app-panel__head">
+                <h2 className="app-panel__title">Recent activity</h2>
+              </div>
+              <div className="app-panel__body">
+                <ul className="app-activity-list">
+                  {activities.slice(0, 12).map((a) => (
+                    <li
+                      key={a.id}
+                      className="app-activity-item"
+                      data-activity-tone={activityTone(a.eventType)}
+                    >
+                      <span
+                        className="app-activity-item__marker"
+                        aria-hidden="true"
+                      />
+                      <span className="app-activity-item__text">
+                        {humanizeActivity(a)}
+                        <span className="app-activity-item__time">
+                          {a.createdAt ? formatUserDateTime(a.createdAt) : ""}
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          ) : null}
+
+          {/*
+            WORKSPACE OVERVIEW — the facts the removed giant card never showed.
+
+            Every row is a value the server already sends. Nothing is displayed
+            that this page cannot answer truthfully: there is no created date on
+            the wire, so there is no Created row. Seats read from the SERVER's
+            projection, the same numbers the invitation gate enforces.
+
+            Rename lives here, next to the name it changes, instead of being a
+            button on a panel that did not display the name at all.
+          */}
+          <div className="app-panel" data-testid="people-workspace-overview">
+            <div className="app-panel__head app-panel__head-row">
+              <h2 className="app-panel__title">Workspace overview</h2>
+              {canManageTeam ? (
+                <button
+                  type="button"
+                  className="app-secondary-action"
+                  onClick={() =>
+                    isEditingName
+                      ? handleCancelEditName()
+                      : handleStartEditName()
+                  }
+                  data-testid="workspace-rename-toggle"
+                >
+                  {isEditingName ? "Cancel" : "Rename"}
+                </button>
+              ) : null}
             </div>
             <div className="app-panel__body">
-              <ul
-                style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}
+              {isEditingName ? (
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    flexWrap: "wrap",
+                    marginBottom: 12,
+                  }}
+                >
+                  <input
+                    className="app-form-input"
+                    style={{ maxWidth: 340, flex: "1 1 200px" }}
+                    value={teamName}
+                    onChange={(e) => setTeamName(e.target.value)}
+                    aria-label="Workspace name"
+                    data-testid="workspace-name-input"
+                  />
+                  <button
+                    type="button"
+                    className="app-secondary-action app-secondary-action--filled"
+                    onClick={() => void handleSaveTeamName()}
+                    disabled={savingName}
+                    data-testid="workspace-name-save"
+                  >
+                    {savingName ? "Saving…" : "Save name"}
+                  </button>
+                </div>
+              ) : null}
+              <dl className="app-kv-list">
+                <div className="app-kv-row">
+                  <dt className="app-kv-key">Name</dt>
+                  <dd className="app-kv-value" data-testid="overview-name">
+                    {team?.name ?? "—"}
+                  </dd>
+                </div>
+                {effectivePlan ? (
+                  <div className="app-kv-row">
+                    <dt className="app-kv-key">Plan</dt>
+                    <dd className="app-kv-value">{effectivePlan}</dd>
+                  </div>
+                ) : null}
+                {ownerLabel ? (
+                  <div className="app-kv-row">
+                    <dt className="app-kv-key">Owner</dt>
+                    <dd className="app-kv-value">{ownerLabel}</dd>
+                  </div>
+                ) : null}
+                <div className="app-kv-row">
+                  <dt className="app-kv-key">Members</dt>
+                  <dd className="app-kv-value">
+                    {seatLimit === null
+                      ? `${activeMemberCount} active`
+                      : `${seatUsed ?? activeMemberCount} of ${seatLimit} seats used`}
+                  </dd>
+                </div>
+                <div className="app-kv-row">
+                  <dt className="app-kv-key">Billing</dt>
+                  <dd className="app-kv-value">
+                    <Link href={billingHref} className="app-table__link">
+                      Open billing
+                    </Link>
+                  </dd>
+                </div>
+              </dl>
+              <p
+                className="app-table__muted"
+                style={{ margin: "10px 0 0", fontSize: 11.5 }}
               >
-                {activities.slice(0, 12).map((a) => (
-                  <li key={a.id} style={{ display: "flex", gap: 10 }}>
-                    <span style={{ flex: 1, minWidth: 0 }}>
-                      {humanizeActivity(a)}
-                    </span>
-                    <span className="app-table__muted">
-                      {a.createdAt ? formatUserDateTime(a.createdAt) : ""}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+                Storage, subscription and payment for this workspace are managed
+                in Billing.
+              </p>
             </div>
           </div>
-        ) : null}
+        </div>
 
         {/*
           LIFECYCLE — separated on purpose.
@@ -1836,7 +2117,7 @@ function TeamDetailPageBody() {
               a card is owner-only from the card's own line rather than by
               walking up the tree to find out.
             */}
-            <div className="app-grid-panels">
+            <div className="app-grid-panels app-grid-panels--stretch">
             {isOwner && teamId ? (
               <WorkspaceOwnershipTransferCard
                 teamId={teamId}

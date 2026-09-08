@@ -107,20 +107,26 @@ export function DangerConfirmModal({
       footer={
         <>
           {/*
-            THE CANONICAL ACTION PAIR (§B4).
+            THE CANONICAL ACTION PAIR FOR AN IRREVERSIBLE DIALOG (§9).
 
-            These were the legacy `Button` component — `variant="secondary"`
-            rendering the old silver/green treatment, and a default-variant
-            confirm. Neither belonged to the action hierarchy every current
-            surface uses, so the most consequential dialog in the product
-            looked like the oldest thing in it.
+            Cancel is the canonical white secondary: white surface, dark
+            neutral label, subtle border — the safe way out, and the one a
+            reader should be able to hit without reading twice.
 
-            Cancel is the canonical white secondary with dark-neutral label
-            text; confirm is the canonical filled purple primary. The DIALOG
-            carries the destructive weight — its copy, its typed confirmation
-            and its warning — rather than a red button doing that work alone,
-            which is why the affirmative action is the product's primary and
-            not a danger button.
+            Confirm is `.app-danger-action`: RED FILLED, white text. Two
+            earlier treatments were wrong in the same way, from opposite ends.
+            The legacy `Button` rendered a silver/green confirm that looked
+            like a save. Replacing it with the purple primary was no better:
+            purple is the colour of every ordinary affirmative action in the
+            product, so the button that destroys a workspace looked exactly
+            like the button that creates one.
+
+            The dialog's copy and its typed confirmation carry the argument;
+            the button carries the CONSEQUENCE, and at the final irreversible
+            step the consequence has a colour. A white-with-red-text button is
+            the right treatment for the TRIGGER out on the page — where the
+            reader has not yet committed — and the wrong one here, where they
+            are one click from the deletion.
           */}
           <button
             type="button"
@@ -133,7 +139,7 @@ export function DangerConfirmModal({
           </button>
           <button
             type="button"
-            className="app-primary-action"
+            className="app-danger-action"
             onClick={() => void handleConfirm()}
             disabled={pending}
             data-danger-confirm-submit
