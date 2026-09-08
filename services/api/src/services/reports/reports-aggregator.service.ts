@@ -573,24 +573,53 @@ export async function listWorkspaceArtifacts(input: {
          * derivation could not return it before, and the page's own retry
          * control was gated on it.
          */
-        prisma.reportGenerationRequest
-          .findMany({
-            where: { evidenceId: { in: evidenceIds } },
-            orderBy: [{ evidenceId: "asc" }, { createdAtUtc: "desc" }],
-            distinct: ["evidenceId"],
-            select: { evidenceId: true, state: true },
-          })
-          .catch(() => []),
+        /*
+         * WRAPPED IN AN ASYNC IIFE, NOT `.catch()`.
+         *
+         * `.catch()` only handles a REJECTION. A missing or unavailable Prisma
+         * delegate throws SYNCHRONOUSLY at the property access, before any
+         * promise exists, so the throw escapes past the handler and takes the
+         * whole artifact list with it — the page would render "unavailable"
+         * rather than degrading one axis. These two reads are enrichment: the
+         * list must survive losing either of them.
+         */
+        (async () => {
+          try {
+            return await prisma.reportGenerationRequest.findMany({
+              where: { evidenceId: { in: evidenceIds } },
+              orderBy: [{ evidenceId: "asc" }, { createdAtUtc: "desc" }],
+              distinct: ["evidenceId"],
+              select: { evidenceId: true, state: true },
+            });
+          } catch {
+            return [] as Array<{ evidenceId: string; state: string }>;
+          }
+        })(),
         /*
          * AXIS 1 for the page. One scope resolution and one ledger read for
          * the whole page — never per row.
          */
-        resolveEvidenceOutputEligibilityMany({
-          evidenceIds,
-          // Workspace-scoped list: the commercial subject is the workspace,
-          // and the by-team branch resolves it from the workspace row.
-          teamId: input.teamId,
-        }).catch(() => new Map()),
+        (async () => {
+          try {
+            return await resolveEvidenceOutputEligibilityMany({
+              evidenceIds,
+              // Workspace-scoped list: the commercial subject is the
+              // workspace, and the by-team branch resolves it from the
+              // workspace row.
+              teamId: input.teamId,
+            });
+          } catch {
+            return new Map<
+              string,
+              Awaited<ReturnType<typeof resolveEvidenceOutputEligibilityMany>> extends Map<
+                string,
+                infer V
+              >
+                ? V
+                : never
+            >();
+          }
+        })(),
       ]);
       const reportByEvidence = new Map(
         reportRows.map((r) => [r.evidenceId, r]),

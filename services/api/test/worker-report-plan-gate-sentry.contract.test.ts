@@ -1,23 +1,43 @@
 /**
  * Phase CAPTURE-PLAN-GATE-FIX — P0 Bug 2 + P0 Bug 4 regression lock.
  *
- * The report worker can throw `REPORT_NOT_INCLUDED_IN_PLAN` if a plan
- * downgrade or stale entitlement read happens between API enqueue
- * and worker execution. This is a BUSINESS outcome, not an unhandled
- * server error:
+ * The report worker can throw a commercial denial if a plan downgrade or a
+ * stale entitlement read happens between API enqueue and worker execution.
+ * This is a BUSINESS outcome, not an unhandled server error:
  *
  *   - It MUST NOT call captureException (Sentry alerts).
  *   - It MUST still log at warn so operators can spot the divergence.
- *   - It MUST still discard the job + DLQ so it doesn't retry forever.
+ *   - It MUST still discard the job so it does not retry forever.
  *
- * Source-level contract on services/worker/src/processor.ts:
+ * ---------------------------------------------------------------------------
+ * COMMERCIAL + EVIDENCE OUTPUT LIFECYCLE CLOSURE (2026-09-08) — TWO CHANGES
+ * ---------------------------------------------------------------------------
+ * 1. THE DLQ + INCIDENT REQUIREMENT IS WITHDRAWN, deliberately.
  *
- *   The catch block must branch on `error.message === "REPORT_NOT_
- *   INCLUDED_IN_PLAN"` and skip captureException in that branch only.
- *   Every other failure path keeps reporting to Sentry.
+ *    "Still DLQs the job (so the failure is visible to operators)" was the
+ *    half of this contract that did not survive contact with production. The
+ *    DLQ move carried `recordReportFailureIncident({ severity: "CRITICAL" })`
+ *    with it, so every workspace on a plan without reports acquired a
+ *    permanent critical incident titled "Report generation failure" — for the
+ *    product working exactly as sold — offering a Regenerate remediation that
+ *    would fail identically. The visibility this asked for was real; the place
+ *    it was taken from was wrong. The DURABLE REQUEST ROW records
+ *    FAILED_TERMINAL with the bounded reason, the artifact projection turns
+ *    that into NOT_INCLUDED for the customer, and the generation authority
+ *    treats it as commercially obsolete so a later upgrade supersedes it.
  *
- * This file locks the contract by reading the source and asserting
- * the branch is present in the exact shape that achieves it.
+ * 2. THE CLASSIFIER IS SHARED, not a literal message comparison.
+ *
+ *    `error.message === "REPORT_NOT_INCLUDED_IN_PLAN"` matched exactly one
+ *    code and missed `VERIFICATION_PACKAGE_NOT_INCLUDED`, which the package
+ *    gate throws with no `retriable` flag — so a package denial was classified
+ *    RETRYABLE and burned the whole retry budget on a decision that cannot
+ *    change. The set now lives in `isCommerciallyObsoleteTerminalReason`
+ *    (@proovra/shared), so the worker's idea of a commercial denial and the
+ *    API's — which decides what may be superseded after an upgrade — cannot
+ *    drift.
+ *
+ * The Sentry contract itself is UNCHANGED and still locked below.
  */
 
 import { readFileSync } from "node:fs";
@@ -42,28 +62,55 @@ const PROCESSOR_SRC = readFileSync(
 );
 
 describe("worker report plan-gate — Sentry classifier", () => {
-  it("source: `isPlanDenial` branch exists in the report-job catch", () => {
-    expect(PROCESSOR_SRC).toMatch(
-      /const isPlanDenial\s*=\s*error instanceof Error\s*&&\s*error\.message\s*===\s*"REPORT_NOT_INCLUDED_IN_PLAN"/,
+  it("source: the denial branch exists in the report-job catch", () => {
+    expect(PROCESSOR_SRC).toMatch(/const isPlanDenial\s*=\s*isCommercialDenialError\(error\)/);
+    expect(PROCESSOR_SRC).toMatch(/if \(isPlanDenial\) \{/);
+  });
+
+  it("source: the classifier is the SHARED one, so it cannot drift from the API's", () => {
+    // A literal message comparison matched one code and missed the package
+    // denial entirely, which was then classified retryable.
+    expect(PROCESSOR_SRC).toMatch(/isCommerciallyObsoleteTerminalReason/);
+    expect(PROCESSOR_SRC).not.toMatch(
+      /error\.message\s*===\s*"REPORT_NOT_INCLUDED_IN_PLAN"/,
     );
   });
 
-  it("source: captureException is GUARDED by `!isPlanDenial`", () => {
-    expect(PROCESSOR_SRC).toMatch(
-      /if\s*\(\s*!isPlanDenial\s*\)\s*\{\s*captureException\(error,/,
-    );
+  it("source: captureException is NOT reached by the denial branch", () => {
+    const denialAt = PROCESSOR_SRC.indexOf("if (isPlanDenial) {");
+    const captureAt = PROCESSOR_SRC.indexOf("captureException(error", denialAt);
+    expect(denialAt).toBeGreaterThan(-1);
+    expect(captureAt).toBeGreaterThan(denialAt);
+    // The branch returns control before the failure path begins.
+    expect(PROCESSOR_SRC.slice(denialAt, captureAt)).toMatch(/throw error/);
   });
 
   it("source: plan-denial branch logs at WARN, not error", () => {
     expect(PROCESSOR_SRC).toMatch(
-      /logger\.warn\([\s\S]{0,300}?status:\s*"plan_gate_denied"/,
+      /logger\.warn\([\s\S]{0,400}?status:\s*"plan_gate_denied"/,
     );
   });
 
-  it("source: still DLQs the job (so the failure is visible to operators)", () => {
-    // The DLQ insert lives in the same catch but AFTER the
-    // classifier. We just assert it still exists in the same handler.
+  it("source: the denial discards the job so it cannot retry a decision that will not change", () => {
+    const denialAt = PROCESSOR_SRC.indexOf("if (isPlanDenial) {");
+    const captureAt = PROCESSOR_SRC.indexOf("captureException(error", denialAt);
+    const branch = PROCESSOR_SRC.slice(denialAt, captureAt);
+    expect(branch).toMatch(/job\.discard\(\)/);
+  });
+
+  it("source: the denial does NOT DLQ and does NOT open an operational incident", () => {
+    // The withdrawn half of the old contract — see the header. A commercial
+    // decision is not an outage, and an operator has nothing to acknowledge.
+    const denialAt = PROCESSOR_SRC.indexOf("if (isPlanDenial) {");
+    const captureAt = PROCESSOR_SRC.indexOf("captureException(error", denialAt);
+    const branch = PROCESSOR_SRC.slice(denialAt, captureAt);
+    expect(branch).not.toMatch(/reportDlqQueue/);
+    expect(branch).not.toMatch(/recordReportFailureIncident/);
+  });
+
+  it("source: OTHER failures still DLQ (the DLQ path is intact for real faults)", () => {
     expect(PROCESSOR_SRC).toMatch(/reportDlqQueue\.add\(\s*"ReportDLQ"/);
+    expect(PROCESSOR_SRC).toMatch(/recordReportFailureIncident\(\{/);
   });
 
   it("source: catch block still calls captureException for OTHER errors (regression guard)", () => {

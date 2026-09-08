@@ -269,8 +269,21 @@ export default function MarketingPricingPage() {
       ctaLabel: buildCtaLabel("payg"),
       ctaHref: buildCtaHref("payg"),
       features: [
-        "One credit records one evidence item",
+        /*
+         * COMMERCIAL CLOSURE (2026-09-08) — "one NEW evidence item".
+         *
+         * The line read "One credit records one evidence item", and the
+         * implementation has always been forward-funding: a credit is spent at
+         * the moment a record COMPLETES, and there is no path — by design — that
+         * attaches one to a record already finished. Read against a Free account
+         * holding three bare records, the old sentence invited exactly the
+         * wrong conclusion: buy a credit to unlock a report on one of them.
+         * The word NEW is the whole correction; nothing about the product
+         * changed to accommodate it.
+         */
+        "One credit records one new evidence item",
         "Report and verification package for each paid record",
+        "Intake links for collecting evidence you fund with credits",
         "Credits never expire",
         "No subscription — your account stays on Free",
       ],

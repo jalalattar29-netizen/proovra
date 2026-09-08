@@ -375,8 +375,21 @@ describe("E10.2 Test 6 — zero code changes by E10.2", () => {
       // them per keystroke is what made the page feel like it reloaded.
       // Sanctioned, audited growth — the pin moves so it keeps catching
       // UNAUDITED drift.
+      // Rebaselined 2026-09-08 (COMMERCIAL + OUTPUT LIFECYCLE CLOSURE). The
+      // lifecycle was `available ? "ready" : finalized ? "pending" :
+      // "not_requested"` — absence read as pending, with no commercial input
+      // and no reference to whether generation had ever been requested. Three
+      // live consequences: every finalized record on a plan without reports
+      // read "generating" forever; `failed` was unreachable, so the page's own
+      // Retry control had never rendered for anybody; and `unavailable` was
+      // declared and unreachable, so the page could not say the honest thing.
+      // The derivation now consumes the shared three-axis state machine, and
+      // the page fetches the durable generation request and the record-aware
+      // eligibility in the SAME batch it already ran for reports and packages.
+      // Sanctioned, audited growth — the pin moves to the current size so it
+      // keeps catching UNAUDITED drift.
       rel: "src/services/reports/reports-aggregator.service.ts",
-        expected: 22464,
+        expected: 29360,
       },
     ];
     for (const { rel, expected } of PINS) {

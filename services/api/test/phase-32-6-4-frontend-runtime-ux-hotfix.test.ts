@@ -175,12 +175,31 @@ describe("Phase 32.6.4 — Ops page resilience", () => {
 });
 
 describe("Phase 32.6.4 — Verification-package status-code handling", () => {
-  const src = readWebSource("app/(app)/evidence/[id]/page.tsx");
+  /*
+   * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — the handler MOVED; the
+   * contract did not.
+   *
+   * `page.tsx` is held under an 80 KB byte guard whose failure message states
+   * the remedy: extract, do not grow. The three artifact ACTIONS — download the
+   * report, download the verification package, request generation of both —
+   * moved into `_hooks/useEvidenceArtifactActions.ts` together, because they
+   * are one behaviour answering one commercial contract.
+   *
+   * Every assertion below is unchanged and now reads the file the handler
+   * actually lives in.
+   */
+  const src = readWebSource(
+    "app/(app)/evidence/[id]/_hooks/useEvidenceArtifactActions.ts",
+  );
 
   it("downloadVerificationPackage inspects bounded error codes", () => {
     // The handler must distinguish at least these bounded backend
     // signals.
     expect(src).toContain("verification_package_pending");
+    // COMMERCIAL CLOSURE — the honest commercial answer, which replaced the
+    // 202 "being generated" this endpoint used to return for a package that
+    // would never be built.
+    expect(src).toContain("verification_package_not_included");
     expect(src).toContain("verification_package_blocked");
     expect(src).toContain("verification_package_unavailable");
     expect(src).toContain("verification_package_not_found");

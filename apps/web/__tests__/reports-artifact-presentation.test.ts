@@ -312,13 +312,45 @@ test("SERVER: every lifecycle filter is a DATABASE predicate", () => {
   const block = AGGREGATOR.slice(AGGREGATOR.indexOf("function lifecycleWhere"));
   const cases: Array<[string, string]> = [
     ["report_ready", "{ reports: { some: {} } }"],
-    ["report_pending", "{ reports: { none: {} } }"],
+    /*
+     * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — `report_pending` is
+     * no longer "no report row".
+     *
+     * Absence is not pendingness. On a plan that excludes reports nothing is
+     * ever enqueued, so `{ reports: { none: {} } }` alone selected every
+     * finalized record on such a workspace and called it pending — the same
+     * defect the row-level derivation had. The filter now ALSO requires a
+     * durable generation request in a live state, so the population it selects
+     * is the one the word describes.
+     *
+     * The request arm is an id set rather than a relation test because
+     * `ReportGenerationRequest` carries `evidence_id` as a plain column with no
+     * Prisma relation from `Evidence`, and a read filter is not a reason to add
+     * a foreign key.
+     */
+    ["report_pending", "{ reports: { none: {} }, id: { in: ids } }"],
     ["package_ready", "{ verificationPackages: { some: {} } }"],
   ];
   for (const [key, predicate] of cases) {
     assert.match(block, new RegExp(`case "${key}":`), `${key} has no branch`);
     assert.ok(block.includes(predicate), `${key} must filter on ${predicate}`);
   }
+
+  // `report_failed` is REACHABLE now. It was `{ id: { in: [] } }` — a branch
+  // that matched nothing, beside a page control gated on the state it could
+  // never produce.
+  const failed = block.slice(
+    block.indexOf('case "report_failed":'),
+    block.indexOf('case "package_ready":'),
+  );
+  assert.ok(
+    failed.includes("FAILED_RETRYABLE") && failed.includes("FAILED_TERMINAL"),
+    "report_failed must select the persisted failure states",
+  );
+  assert.ok(
+    !failed.includes("id: { in: [] }"),
+    "report_failed must no longer be a branch that matches nothing",
+  );
 
   // The two that share a relation test and are separated by the JSON column.
   // Asserted as a PAIR, because the whole risk is that they collapse into each
@@ -341,13 +373,27 @@ test("SERVER: every lifecycle filter is a DATABASE predicate", () => {
 
   // `all` widens to no predicate rather than filtering to nothing…
   assert.match(block, /case "all":\s*\n\s*return null;/);
-  // …and `report_failed` stays TOTAL while matching nothing, because no
-  // persisted failure state exists inside this population. Returning null
-  // there would silently widen it to everything.
-  assert.ok(
-    block.includes('case "report_failed":') && block.includes("id: { in: [] }"),
-    "report_failed must match nothing rather than widen",
+  /*
+   * …and NO branch may widen to everything by returning null.
+   *
+   * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08). This used to pin
+   * `report_failed` to `{ id: { in: [] } }` — match nothing — on the stated
+   * ground that "no persisted failure state exists inside this population".
+   * That was true of the DERIVATION and false of the database: the durable
+   * `ReportGenerationRequest` has carried FAILED_RETRYABLE and FAILED_TERMINAL
+   * since Point 5, and nothing outside the worker read them. The page's own
+   * Retry control was gated on this state, so it had never rendered.
+   *
+   * The property that mattered survives and is what is asserted now: `all` is
+   * the ONLY branch that may return null. Every other branch narrows.
+   */
+  const nullReturns = block.match(/case "[a-z_]+":\s*\n?\s*return null;/g) ?? [];
+  assert.equal(
+    nullReturns.length,
+    1,
+    "only `all` may widen to no predicate; every other lifecycle branch must narrow",
   );
+  assert.ok(nullReturns[0].includes('case "all":'));
 });
 
 test("there is exactly ONE clear control on the search field", () => {

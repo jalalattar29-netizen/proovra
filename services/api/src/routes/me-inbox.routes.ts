@@ -1701,7 +1701,7 @@ export async function buildInboxAggregation(
       // Source 3: unacknowledged governance notifications for teams
       // the caller is a member of.
       // -----------------------------------------------------------------
-      const governanceRows =
+      const governanceCandidates =
         teamIds.length === 0
           ? []
           : await prisma.governanceNotification.findMany({
@@ -1717,6 +1717,7 @@ export async function buildInboxAggregation(
                 lastSeenAtUtc: true,
                 occurrenceCount: true,
                 metadata: true,
+                relatedIncidentId: true,
               },
               orderBy: [
                 { severity: "desc" },
@@ -1724,6 +1725,61 @@ export async function buildInboxAggregation(
               ],
               take: 100,
             });
+
+      /**
+       * ACTIVE ATTENTION vs IMMUTABLE HISTORY.
+       *
+       * NOTIFICATION SEMANTICS CLOSURE (2026-09-08). `GovernanceNotification`
+       * has no resolved state — deliberately: it is an append-and-acknowledge
+       * audit record, and mutating history to fake a resolution would destroy
+       * the thing it exists to preserve. But the inbox selected on
+       * `acknowledgedAtUtc: null` alone, so a notification about a condition
+       * that had since HEALED stayed in a person's active attention list until
+       * somebody clicked it away. The domain was fixed and the product still
+       * said it was not.
+       *
+       * A notification that points at an operational condition is active
+       * exactly while that condition is: the incident lifecycle is the
+       * canonical resolver — `resolveConditionFromSourceRecovery` and the
+       * evidence-integrity resolver already close conditions from domain truth
+       * — and reading its status here is reading THAT authority, not building a
+       * second one. Nothing is written; the row is untouched and remains in the
+       * workspace's history.
+       *
+       * A notification with no incident link has no domain condition to consult
+       * and stays active until acknowledged, which is the behaviour it always
+       * had.
+       */
+      const resolvedIncidentIds = new Set<string>();
+      {
+        const linkedIncidentIds = [
+          ...new Set(
+            governanceCandidates
+              .map((g) => g.relatedIncidentId)
+              .filter((v): v is string => typeof v === "string" && v.length > 0),
+          ),
+        ];
+        if (linkedIncidentIds.length > 0) {
+          try {
+            const closed = await prisma.operationalIncident.findMany({
+              where: {
+                id: { in: linkedIncidentIds },
+                status: { notIn: ["OPEN", "ACKNOWLEDGED"] },
+              },
+              select: { id: true },
+            });
+            for (const row of closed) resolvedIncidentIds.add(row.id);
+          } catch {
+            // Unreadable is NOT proof of recovery. Every candidate stays
+            // active, which is the conservative direction: a stale item is
+            // noise, a hidden live one is a missed problem.
+          }
+        }
+      }
+
+      const governanceRows = governanceCandidates.filter(
+        (g) => !g.relatedIncidentId || !resolvedIncidentIds.has(g.relatedIncidentId),
+      );
 
       // -----------------------------------------------------------------
       // Source 4: Phase C2 — unread discussion mentions for the caller.

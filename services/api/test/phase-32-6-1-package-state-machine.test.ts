@@ -38,6 +38,11 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+// COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — the pure state machine
+// the projection now derives from, so the exclusions this file protects can be
+// asserted as behaviour rather than as a shape of source.
+import { deriveEvidenceOutputState } from "@proovra/shared";
+
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 }
@@ -149,9 +154,46 @@ describe("Phase 32.6.1 — artifact status `blocked` projection", () => {
     expect(code).toMatch(
       /packageBlocked = finalized && !latestPackage && blockedMeta !== null/,
     );
+
+    /*
+     * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — the ASSERTION moved
+     * with the implementation, and the property it protects got stronger.
+     *
+     * This pinned the literal conjunction
+     * `packagePending = finalized && !latestPackage && !unavailable && !blocked`.
+     * That expression is gone because it was the defect: "no package row" is
+     * not "pending", and on a plan that excludes packages nothing was ever
+     * enqueued, so every finalized record on such a plan reported pending
+     * forever.
+     *
+     * `pending` is now derived from the canonical output STATE, which is
+     * strictly narrower: only QUEUED and GENERATING. Blocked is excluded
+     * because `packageGeneration` folds it in above; not-included is excluded
+     * because it is its own state. Both exclusions the old regex asserted are
+     * preserved, and a third — a terminal failure is no longer pending either.
+     */
     expect(code).toMatch(
-      /packagePending\s*=\s*finalized &&\s*!latestPackage &&\s*!packageUnavailableForPersonalWorkspace &&\s*!packageBlocked/,
+      /packageGeneration\s*(:[^=]*)?=\s*packageBlocked\s*\?\s*"BLOCKED"/,
     );
+    expect(code).toMatch(
+      /packagePending\s*=\s*\n?\s*packageOutput\.state === "QUEUED" \|\| packageOutput\.state === "GENERATING"/,
+    );
+    // The exclusions, restated as behaviour rather than as syntax.
+    for (const excluded of ["NOT_INCLUDED", "BLOCKED", "TERMINAL_FAILURE"] as const) {
+      expect(
+        deriveEvidenceOutputState({
+          eligibility: excluded === "NOT_INCLUDED" ? "NOT_INCLUDED" : "ELIGIBLE",
+          generation:
+            excluded === "BLOCKED"
+              ? "BLOCKED"
+              : excluded === "TERMINAL_FAILURE"
+                ? "TERMINAL_FAILURE"
+                : "NOT_REQUESTED",
+          availability: "NO_ARTIFACT",
+          finalized: true,
+        }),
+      ).not.toBe("QUEUED");
+    }
   });
 
   it("when a package row EXISTS, blocked is forced to false regardless of metadata", () => {

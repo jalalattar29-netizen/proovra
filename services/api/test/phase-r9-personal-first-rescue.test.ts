@@ -358,11 +358,28 @@ describe("Phase R9 — entitlement projection is user-level (PRO without org)", 
     // The R9 intent is preserved (no team-billing filter — see next
     // assertion); the extra `active: true` is the production fix and
     // is pinned by `production-billing-parity.test.ts`.
+    /*
+     * COMMERCIAL TRUTH CLOSURE (2026-09-08) — TWO reads became ONE, and R9's
+     * intent is better served by the one that remains.
+     *
+     * There were two because platform context ran a private entitlement query
+     * for the WORKSPACE plan beside the one for the ACCOUNT plan. The workspace
+     * one was a second implementation of `resolveWorkspaceEffectivePlan` and is
+     * gone: the workspace plan now comes from `resolveCommercialContext`, whose
+     * chain applies the same `active: true` rule internally.
+     *
+     * R9's intent — a personal-tier lookup must be USER-scoped and must not be
+     * gated on org-tier billing columns — is unchanged and is asserted on the
+     * read that survives, plus by the next test in this file.
+     */
     const matches = PLATFORM_CTX_SRC.match(
       /entitlement\.findFirst\(\{\s*where:\s*\{\s*userId:\s*userRow\.id,\s*active:\s*true\s*\}/g,
     );
     expect(matches).not.toBeNull();
-    expect(matches!.length).toBeGreaterThanOrEqual(2);
+    expect(matches!.length).toBe(1);
+    // The workspace plan is resolved by the canonical authority, not by a
+    // second private read.
+    expect(PLATFORM_CTX_SRC).toMatch(/resolveCommercialContext\(/);
   });
 
   it("entitlement projection does NOT filter on team.billingStatus or team.billingPlan", () => {

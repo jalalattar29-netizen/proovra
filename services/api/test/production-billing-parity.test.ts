@@ -52,15 +52,31 @@ describe("Production fix — entitlement plan resolution parity", () => {
     );
   });
 
-  it("platform-context.service.ts personal-workspace plan read uses active:true", () => {
-    // The PERSONAL workspace plan overlay must apply the SAME filter as
-    // the authoritative guard. Drift here caused the 2025 production
-    // mismatch where PRO users saw "FREE plan: 0 of 1 teams used".
-    const personalBranch = PLATFORM_CTX.match(
-      /workspace\.scope === "PERSONAL"[\s\S]{0,1500}?entitlement\.findFirst\([\s\S]{0,400}?\}\)/,
-    );
-    expect(personalBranch).toBeTruthy();
-    expect(personalBranch![0]).toMatch(/active:\s*true/);
+  it("platform-context.service.ts resolves the workspace plan through the canonical resolver", () => {
+    /*
+     * COMMERCIAL TRUTH CLOSURE (2026-09-08) — the PROPERTY this protects is
+     * unchanged; the mechanism that guarantees it is stronger.
+     *
+     * The 2025 production mismatch — PRO users seeing "FREE plan: 0 of 1 teams
+     * used" — happened because platform context ran its OWN entitlement query
+     * beside the authoritative guard's, and the two picked different rows. The
+     * fix at the time was to copy the guard's filter into the second query, and
+     * this assertion pinned that copy.
+     *
+     * Copying a filter between two implementations is the defect one iteration
+     * later, and this file's own title says so: PARITY. The overlay is gone.
+     * The workspace plan is now resolved by `resolveCommercialContext`, the one
+     * public authority, so there is no second query whose filter could drift —
+     * which is a stronger guarantee than the two agreeing by hand.
+     *
+     * The `active: true` requirement did not disappear: it lives inside the
+     * canonical chain (`ensureEntitlement`), and the account-plan read below is
+     * still pinned directly.
+     */
+    expect(PLATFORM_CTX).toMatch(/resolveCommercialContext\(\{[\s\S]{0,200}type:\s*"WORKSPACE"/);
+    // And no second, private plan overlay came back.
+    const entitlementReads = PLATFORM_CTX.match(/entitlement\.findFirst\(/g) ?? [];
+    expect(entitlementReads).toHaveLength(1);
   });
 
   it("platform-context.service.ts account-plan read uses active:true", () => {

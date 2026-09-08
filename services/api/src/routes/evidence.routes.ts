@@ -4247,6 +4247,10 @@ async function resolveWorkspaceCapabilitySnapshot(params: {
       evidenceId: params.evidence.id,
       ownerUserId: params.evidence.ownerUserId ?? params.ownerUserId,
       teamId,
+      // The envelope for this exact subject was resolved a few lines above.
+      // Handing its plan along is the SAME answer, not a second one, and it
+      // keeps this projection to one commercial resolution per request.
+      plan: scope.plan,
     }).catch(() => null),
   ]);
 
@@ -10289,15 +10293,25 @@ if (
    * call refreshes BOTH artifacts. There is no separate package-only
    * regenerate endpoint by design.
    *
-   * RBAC:
-   *   - Owner-only. The caller must be the evidence owner. We use the
-   *     same `getEvidenceWithOwnerAccess` helper the existing
-   *     owner-only mutations use (label, archive, restore, etc.).
-   *   - Team admins on collaborative content do NOT yet get a
-   *     regenerate path through this endpoint. That is a deliberate
-   *     scoping decision; a Team-level "regenerate as admin" would
-   *     require a new policy decision about cross-owner overrides
-   *     and is intentionally deferred.
+   * RBAC (docblock corrected 2026-09-08 — the code was already right):
+   *   - The DOMAIN permission `evidence.generate_report`, checked through
+   *     `getEvidenceWithRecordAccess`. OWNER, ADMIN and MEMBER hold it; VIEWER
+   *     and REVIEWER do not.
+   *   - This block used to claim "Owner-only … Team admins do NOT yet get a
+   *     regenerate path", describing an earlier implementation that used an
+   *     owner helper. The route moved to the canonical permission model and the
+   *     note did not follow, so the documentation and the source disagreed
+   *     about who may act. The SOURCE is right and stays as it is: a
+   *     workspace's members are the people who need a report regenerated, and
+   *     `packages/shared/src/permissions.ts` already decides which of them may.
+   *     Only the note changes; no role's rights were altered to make a comment
+   *     true.
+   *
+   * COMMERCIAL:
+   *   - Deliberately NOT gated on the plan here. Eligibility is a per-RECORD
+   *     question (plan AND funding), and `requestReportGeneration` asks the one
+   *     authority before creating anything — returning `not_included_in_plan`
+   *     rather than opening a job that could only be refused.
    *
    * Audit:
    *   - Emits a platform audit log row with action
@@ -10370,12 +10384,19 @@ if (
         });
       }
 
-      // Enqueue with `forceRegenerate: true`. The enqueue helper
-      // handles existing-job dedup; if an active job already exists it
-      // returns `{ enqueued: false, reason }` and we surface that.
-      // PHASE 12 — POINT 5. The ownership gate above IS the authorization for
-      // a force-regeneration, and its outcome is now persisted on the request
-      // row rather than asserted as a boolean on a queue message.
+      /*
+       * PHASE 12 — POINT 5. The permission gate above IS the authorization for
+       * a force-regeneration, and its outcome is persisted on the request row
+       * rather than asserted as a boolean on a queue message.
+       *
+       * COMMERCIAL CLOSURE (2026-09-08) — `forceRegenerate: true` is what
+       * permits REPLACING a finalised artifact, and it is right for this route:
+       * an authorized human asked for a new version. It also means that for a
+       * record with NO report the key is `REPORT:<id>:v0:force`, which is
+       * exactly the key a previous commercial refusal would have burned — so
+       * the supersession rule in `createReportGenerationRequest` is what keeps
+       * this endpoint usable after an upgrade.
+       */
       let result: { enqueued: boolean; reason?: string };
       try {
         const requested = await requestReportGeneration({

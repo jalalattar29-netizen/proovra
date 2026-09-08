@@ -65,21 +65,43 @@ test("the download control disables and carries the reason", () => {
   assert.match(HISTORY, /data-evidence-artifact-reason=\{testid\}/);
 });
 
-test("every blocked artifact state produces its own reason", () => {
-  for (const reason of [
-    /The report is still being generated/,
-    /Report PDFs are not included in the current plan/,
-    /No report has been generated for this record yet/,
-    /The verification package is still being generated/,
-    /blocked by an export-governance gate/,
-    /Verification packages are not included in the current plan/,
-    /No verification package has been generated for this record yet/,
+test("every artifact state produces its own reason", () => {
+  /*
+   * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — the PROPERTY is
+   * unchanged: no state may fall through to a shared or empty sentence. What
+   * changed is that the states are now the server's canonical ones rather than
+   * a locally-derived chain, and the chain was the defect.
+   *
+   * The old chain asked `pending` FIRST and the plan flag second, and `pending`
+   * meant "no artifact row exists" — so a record on a plan without reports
+   * rendered "Reports are not included in this plan" as a banner and "The
+   * report is still being generated" as the control's reason, at the same
+   * time, from the same absence.
+   *
+   * Asserted over the TOTAL copy table, which the type system already forces to
+   * cover every `EvidenceOutputState`, so a new state cannot be added without a
+   * sentence.
+   */
+  const table = TAB.match(/OUTPUT_STATE_COPY[\s\S]*?\n\};/);
+  assert.ok(table, "the state->copy table must exist");
+  for (const state of [
+    "READY",
+    "NOT_INCLUDED",
+    "ELIGIBLE_NOT_GENERATED",
+    "QUEUED",
+    "GENERATING",
+    "RETRYABLE_FAILURE",
+    "TERMINAL_FAILURE",
+    "BLOCKED",
   ]) {
-    assert.match(TAB, reason);
+    assert.match(table[0], new RegExp(`${state}:\\s*\\{`), `no copy for ${state}`);
   }
-  // Server-supplied reasons win over our fallbacks.
+  // Every terminal reason CLASS explains itself rather than showing a code.
+  for (const cls of ["COMMERCIAL", "INTEGRITY", "POLICY", "TECHNICAL"]) {
+    assert.match(TAB, new RegExp(`case "${cls}":`), `no terminal copy for ${cls}`);
+  }
+  // A server-supplied governance reason still wins over our fallback.
   assert.match(TAB, /packageStatus\.blockedReason \?\?/);
-  assert.match(TAB, /packageStatus\.unavailableReason \?\?/);
 });
 
 test("the export-governance preflight still wraps both downloads", () => {
@@ -235,9 +257,22 @@ test("the rail is reused once and Artifacts does not fork it", () => {
 test("Personal and Enterprise render the same Artifacts component", () => {
   assert.doesNotMatch(TAB_CODE, /workspaceKind|isPersonal|orgKind/i);
   assert.match(PAGE, /activeTab === "artifacts" \? <EvidenceArtifactsTab ctx=\{ctx\} \/> : null/);
-  // Plan differences are expressed as truthful reasons, not a second layout.
-  assert.match(TAB, /workspaceCaps\?\.reportsIncluded !== false/);
-  assert.match(TAB, /workspaceCaps\?\.verificationPackageIncluded !== false/);
+  /*
+   * Commercial differences are expressed as truthful reasons, not a second
+   * layout — the property this test protects, unchanged.
+   *
+   * The SOURCE moved (2026-09-08): `workspaceCaps.reportsIncluded` was the
+   * workspace PLAN's flag, and eligibility is a per-RECORD question. Reading
+   * the plan refused an evidence-credit buyer the report their credit paid
+   * for, and refused a downgraded customer artifacts the platform had
+   * preserved. The tab now renders `outputs.*.state`, which is resolved from
+   * the plan AND the record's funding.
+   */
+  assert.match(TAB, /workspace\.artifactStatus\.outputs\.report/);
+  assert.match(TAB, /workspace\.artifactStatus\.outputs\.verificationPackage/);
+  // And no plan-shaped branch came back in its place.
+  assert.doesNotMatch(TAB_CODE, /workspaceCaps\?\.reportsIncluded/);
+  assert.doesNotMatch(TAB_CODE, /workspaceCaps\?\.verificationPackageIncluded/);
 });
 
 test("no legacy primitive, inline palette or italic survives in the Artifacts surfaces", () => {

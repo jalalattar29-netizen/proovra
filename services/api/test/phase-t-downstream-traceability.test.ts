@@ -497,6 +497,23 @@ describe("Phase 6 Part B — Report envelope provenance", () => {
       report: {
         findMany: vi.fn().mockResolvedValue([]),
       },
+      /*
+       * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — the aggregator's
+       * lifecycle now comes from the durable generation request, so the stub
+       * set grows with it. The comment above says this block stubs "all of
+       * them"; keeping that true is the point.
+       *
+       * Empty is the right fixture for THIS test, which is about template
+       * provenance travelling on the row: with no request and no artifact the
+       * lifecycle resolves to a non-ready state, and provenance is asserted
+       * independently of it.
+       */
+      reportGenerationRequest: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      evidenceCreditLedgerEntry: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
     });
 
     // Two rows: one Phase-T stamped, one legacy NULL trio.

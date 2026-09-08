@@ -447,20 +447,37 @@ export async function assertWorkspaceAllowsStorageGrowth(params: {
   return assertWorkspaceStorageAvailable(params);
 }
 
-export async function assertWorkspaceAllowsReport(scope: WorkspaceScope) {
-  // §9.5 — bounded-lifecycle gate (fail closed when grace expired/cancelled/ambiguous).
-  assertCommercialLifecycleAllowsPaidMutation(scope);
-  const caps = getPlanCapabilities(scope.plan);
-
-  if (!caps.reportsIncluded) {
-    const err: Error & { statusCode?: number; code?: string } = new Error(
-      "Report generation is not included in the current plan"
-    );
-    err.statusCode = 409;
-    err.code = "REPORT_NOT_INCLUDED";
-    throw err;
-  }
-}
+/*
+ * =============================================================================
+ * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — FOUR PLAN-ONLY OUTPUT
+ * GATES WERE DELETED HERE, WITH ZERO-CONSUMER PROOF.
+ * =============================================================================
+ *
+ *   assertWorkspaceAllowsReport
+ *   assertWorkspaceAllowsVerificationPackage
+ *   assertWorkspaceAllowsReportStorage
+ *   assertWorkspaceAllowsVerificationPackageStorage
+ *
+ * They asked `getPlanCapabilities(scope.plan).reportsIncluded` — the PLAN
+ * alone — and a repo-wide search proved no production route, service, worker
+ * path or test ever reached any of them: the outer two called the inner two,
+ * and nothing called the outer two. The real enforcement has always been the
+ * funding-aware pair in the worker
+ * (`assertWorkspaceAllowsReportArtifact` / `...VerificationPackageArtifact`),
+ * which asks `resolveEvidenceOutputEntitlements` with plan AND the record's
+ * funding.
+ *
+ * They are removed rather than left dormant because a dormant plan-only gate is
+ * the exact thing a future change reaches for by name. Reusing one would have
+ * refused an evidence-credit buyer their paid report — the same defect this
+ * program closed everywhere else — and it would have looked like the canonical
+ * check while doing it.
+ *
+ * The question they were meant to answer has one authority:
+ * `resolveEvidenceOutputEligibility` (services/api/src/services/billing/
+ * evidence-output-eligibility.service.ts), and it is per RECORD, which is what
+ * the question actually is.
+ */
 
 /**
  * Secure-intake plan gate (Teams Entitlement Alignment follow-up,
@@ -533,44 +550,9 @@ export async function assertWorkspaceAllowsCases(scope: WorkspaceScope) {
   }
 }
 
-export async function assertWorkspaceAllowsVerificationPackage(
-  scope: WorkspaceScope
-) {
-  // §9.5 — bounded-lifecycle gate (fail closed when grace expired/cancelled/ambiguous).
-  assertCommercialLifecycleAllowsPaidMutation(scope);
-  const caps = getPlanCapabilities(scope.plan);
-
-  if (!caps.verificationPackageIncluded) {
-    const err: Error & { statusCode?: number; code?: string } = new Error(
-      "Verification package is not included in the current plan"
-    );
-    err.statusCode = 409;
-    err.code = "VERIFICATION_PACKAGE_NOT_INCLUDED";
-    throw err;
-  }
-}
-
-export async function assertWorkspaceAllowsReportStorage(params: {
-  scope: WorkspaceScope;
-  incomingBytes?: bigint | number | null;
-}) {
-  await assertWorkspaceAllowsReport(params.scope);
-  return assertWorkspaceStorageAvailable({
-    scope: params.scope,
-    incomingBytes: params.incomingBytes ?? 0n,
-  });
-}
-
-export async function assertWorkspaceAllowsVerificationPackageStorage(params: {
-  scope: WorkspaceScope;
-  incomingBytes?: bigint | number | null;
-}) {
-  await assertWorkspaceAllowsVerificationPackage(params.scope);
-  return assertWorkspaceStorageAvailable({
-    scope: params.scope,
-    incomingBytes: params.incomingBytes ?? 0n,
-  });
-}
+// See the deletion note above `assertWorkspaceAllowsIntake`: the two
+// verification-package gates that stood here, and their storage wrappers, were
+// removed with the same zero-consumer proof and for the same reason.
 
 export async function getWorkspaceAvailableStorageBytes(
   scope: WorkspaceScope

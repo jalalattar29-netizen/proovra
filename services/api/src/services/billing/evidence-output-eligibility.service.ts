@@ -19,10 +19,8 @@
  * This module is the ONE place the two inputs are loaded and handed to that
  * authority. It adds no policy of its own:
  *
- *   plan     ← `resolveWorkspaceScopeForEvidenceRecord` (the canonical
- *               effective-plan chain: `resolveWorkspaceScopeForUser` →
- *               `getTeamWorkspaceScope`/`getPersonalWorkspaceScope` →
- *               `resolveWorkspaceEffectivePlan`)
+ *   plan     ← `resolveCommercialContext` with an EXPLICIT subject, which
+ *               delegates the decision to `resolveWorkspaceEffectivePlan`
  *   funding  ← `resolveEvidenceFunding` (the credit ledger row, the same one
  *               the worker reads through its own thin adapter)
  *
@@ -43,7 +41,20 @@ import type {
 } from "@proovra/shared";
 
 import { prisma } from "../../db.js";
-import { resolveEvidenceWorkspaceScope } from "../workspace-billing.service.js";
+/**
+ * THE canonical public resolver, with an EXPLICIT subject.
+ *
+ * Not the lower-level scope adapters: Phase 9 converged every production
+ * commercial decision onto this envelope and pins the bypass count at zero, so
+ * the scope-decision API is reachable only from the canonical layer itself.
+ * Reaching past it here would have been cheaper per call and would have
+ * reopened the layering the ratchet exists to hold shut.
+ *
+ * Callers that ALREADY hold a resolved plan pass it in (`plan` below) and this
+ * module resolves nothing — which is how the two hot paths, Evidence Detail and
+ * the Reports list, avoid paying for the envelope twice.
+ */
+import { resolveCommercialContext } from "./commercial-context.service.js";
 import {
   resolveEvidenceFunding,
   resolveEvidenceFundingMany,
@@ -108,6 +119,38 @@ function fallbackPlan(): PlanType {
 }
 
 /**
+ * The effective plan for the subject that OWNS a record, through the canonical
+ * envelope with an explicit subject.
+ *
+ * `WORKSPACE` when the record carries one — the commercial subject of a record
+ * in a workspace is that workspace, whoever created the row — and
+ * `PERSONAL_ACCOUNT` otherwise.
+ */
+async function resolveSubjectPlan(input: {
+  ownerUserId?: string | null;
+  teamId: string | null;
+}): Promise<PlanType | null> {
+  try {
+    if (input.teamId) {
+      const ctx = await resolveCommercialContext({
+        type: "WORKSPACE",
+        teamId: input.teamId,
+        requesterUserId: input.ownerUserId ?? "",
+      });
+      return ctx.plan as PlanType;
+    }
+    if (!input.ownerUserId) return null;
+    const ctx = await resolveCommercialContext({
+      type: "PERSONAL_ACCOUNT",
+      userId: input.ownerUserId,
+    });
+    return ctx.plan as PlanType;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Resolve output eligibility for ONE evidence record.
  *
  * `ownerUserId`/`teamId` are the record's own, never the requester's: the
@@ -117,21 +160,29 @@ export async function resolveEvidenceOutputEligibility(input: {
   evidenceId: string;
   ownerUserId: string;
   teamId: string | null;
+  /**
+   * An ALREADY-RESOLVED effective plan, when the caller has one.
+   *
+   * The Evidence Detail projection resolves a commercial context for this very
+   * record a few lines away; making it resolve a second one would double the
+   * cost of the page to learn a number it is already holding. Passing it is not
+   * a second authority — it IS the envelope's answer, handed along.
+   */
+  plan?: PlanType | null;
 }): Promise<EvidenceOutputEligibility> {
-  const [scope, funding] = await Promise.all([
-    resolveEvidenceWorkspaceScope({
-      ownerUserId: input.ownerUserId,
-      teamId: input.teamId,
-    }).catch(() => null),
+  const [plan, funding] = await Promise.all([
+    input.plan
+      ? Promise.resolve(input.plan)
+      : resolveSubjectPlan({
+          ownerUserId: input.ownerUserId,
+          teamId: input.teamId,
+        }),
     resolveEvidenceFunding(input.evidenceId).catch(
       (): EvidenceFundingSource => "PLAN",
     ),
   ]);
 
-  return project({
-    plan: (scope?.plan as PlanType | undefined) ?? fallbackPlan(),
-    funding,
-  });
+  return project({ plan: plan ?? fallbackPlan(), funding });
 }
 
 /**
@@ -146,29 +197,31 @@ export async function resolveEvidenceOutputEligibilityMany(input: {
   evidenceIds: readonly string[];
   /**
    * The workspace OWNER. Optional when `teamId` is set, because the by-team
-   * branch of `resolveEvidenceWorkspaceScope` resolves the subject from the
+   * branch of the canonical resolver takes the subject from the
    * workspace row and never consults an owner — a shared workspace's records
    * may belong to many people and the commercial subject is the workspace.
    * Required when `teamId` is null: a personal subject IS its owner.
    */
   ownerUserId?: string | null;
   teamId: string | null;
+  /** An already-resolved effective plan. See the single-record variant. */
+  plan?: PlanType | null;
 }): Promise<Map<string, EvidenceOutputEligibility>> {
   const out = new Map<string, EvidenceOutputEligibility>();
   if (input.evidenceIds.length === 0) return out;
 
-  const [scope, fundingById] = await Promise.all([
-    input.teamId || input.ownerUserId
-      ? resolveEvidenceWorkspaceScope({
-          ownerUserId: input.ownerUserId ?? "",
+  const [resolvedPlan, fundingById] = await Promise.all([
+    input.plan
+      ? Promise.resolve(input.plan)
+      : resolveSubjectPlan({
+          ownerUserId: input.ownerUserId,
           teamId: input.teamId,
-        }).catch(() => null)
-      : Promise.resolve(null),
+        }),
     resolveEvidenceFundingMany(input.evidenceIds).catch(
       () => new Map<string, EvidenceFundingSource>(),
     ),
   ]);
-  const plan = (scope?.plan as PlanType | undefined) ?? fallbackPlan();
+  const plan = resolvedPlan ?? fallbackPlan();
 
   for (const evidenceId of input.evidenceIds) {
     out.set(
@@ -267,14 +320,23 @@ export async function outputEntitledEvidenceWhere(params: {
   teamId: string | null;
 }): Promise<{ id: { in: string[] } } | null> {
   try {
-    const scope = await resolveEvidenceWorkspaceScope({
-      ownerUserId: params.ownerUserId ?? "",
-      teamId: params.teamId,
-    });
-    if (getPlanCapabilities(scope.plan as PlanType).reportsIncluded) return null;
+    const ctx = params.teamId
+      ? await resolveCommercialContext({
+          type: "WORKSPACE",
+          teamId: params.teamId,
+          requesterUserId: params.ownerUserId ?? "",
+        })
+      : params.ownerUserId
+        ? await resolveCommercialContext({
+            type: "PERSONAL_ACCOUNT",
+            userId: params.ownerUserId,
+          })
+        : null;
+    if (!ctx) return null;
+    if (getPlanCapabilities(ctx.plan as PlanType).reportsIncluded) return null;
 
     const rows = await prisma.evidenceCreditLedgerEntry.findMany({
-      where: { userId: scope.ownerUserId, entryType: "CONSUMPTION" },
+      where: { userId: ctx.ownerUserId, entryType: "CONSUMPTION" },
       select: { evidenceId: true },
     });
     const ids = rows

@@ -108,23 +108,43 @@ describe("Phase 32.5 → 32.6.6 — artifact status projection", () => {
     );
   });
 
-  it("Phase 32.6.6 — packagePending derivation still excludes blocked + unavailable", () => {
+  it("Phase 32.6.6 — packagePending still excludes blocked and not-included", () => {
+    /*
+     * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — the property is
+     * kept and strengthened; the expression it was pinned to is gone.
+     *
+     * `packagePending = finalized && !latestPackage && …` read absence as
+     * pending, which is why a plan that excludes packages reported "still
+     * being generated" for the life of every record. `pending` is now derived
+     * from the canonical state and is only QUEUED or GENERATING — which
+     * excludes blocked and not-included as before, and additionally excludes a
+     * terminal failure that the old conjunction reported as pending.
+     */
     const code = stripComments(SERVICE_SRC);
     expect(code).toMatch(
-      /packagePending\s*=\s*finalized\s*&&\s*\n?\s*!latestPackage\s*&&\s*\n?\s*!packageUnavailableForPersonalWorkspace\s*&&\s*\n?\s*!packageBlocked/,
+      /packagePending\s*=\s*\n?\s*packageOutput\.state === "QUEUED" \|\| packageOutput\.state === "GENERATING"/,
     );
+    expect(code).toMatch(/packageGeneration[\s\S]{0,80}packageBlocked\s*\?\s*"BLOCKED"/);
   });
 
-  it("Phase 32.6.6 — `unavailableReason` enum no longer emits a value (reserved for future cases)", () => {
-    // The historical enum was a single bounded value. The new declaration
-    // is `never` (no values currently produced). Match either the
-    // historical or the new shape.
+  it("Phase 32.6.6 — the retired PERSONAL-WORKSPACE unavailable reason is never emitted", () => {
+    /*
+     * Narrowed to what 32.6.6 decided. It retired ONE reason — personal
+     * evidence is first class and generates a BASIC package — and the enum was
+     * left `never` with its own note reserving it for "a workspace plan that
+     * genuinely excludes packages". That plan is FREE, it is the most common
+     * plan in production, and it now populates the field. Asserting `never`
+     * pinned the reserved-and-unreachable state and would have failed the
+     * moment the reserved case was built.
+     */
     expect(SERVICE_SRC).toMatch(
-      /export type VerificationPackageUnavailableReason\s*=\s*(never|\|\s*"[^"]+")\s*;/,
+      /export type VerificationPackageUnavailableReason\s*=/,
     );
-    // The personal-workspace reason string is no longer emitted as a
-    // live value in the helper response payload.
-    expect(SERVICE_SRC).toMatch(/unavailableReason:\s*null/);
+    expect(SERVICE_SRC).not.toMatch(/personal_workspace_no_team_governance_context/);
+    // The only reason that may be emitted is the bounded commercial one.
+    expect(SERVICE_SRC).toMatch(
+      /unavailableReason:\s*packageNotIncluded \? ineligibilityReason : null/,
+    );
   });
 
   it("route passes evidenceTeamId through to the helper", () => {

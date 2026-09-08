@@ -251,13 +251,29 @@ describe("Phase 32.6.6 — artifact-status helper personal-workspace unavailable
     );
   });
 
-  it("unavailableReason is always `null` (no enum value emitted)", () => {
-    // Find the verificationPackage shape literal in the response and
-    // confirm `unavailableReason: null` (no conditional).
-    expect(SRC).toMatch(/unavailableReason:\s*null/);
+  it("the retired PERSONAL-WORKSPACE reason is never emitted", () => {
+    /*
+     * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — narrowed from
+     * "unavailableReason is always null" to what Phase 32.6.6 actually
+     * decided.
+     *
+     * 32.6.6 retired ONE reason: personal-workspace evidence is first class and
+     * generates a BASIC package, so a personal record is never "unavailable"
+     * for lacking a governance context. It did not — and could not — decide
+     * that no reason may ever exist; the field's own comment reserved it for
+     * "a workspace plan that genuinely excludes packages", which is the most
+     * common plan in production and now populates it.
+     *
+     * Asserting `always null` pinned the reserved-and-unreachable state, so it
+     * would have failed the moment the reserved case was implemented. The
+     * retirement is asserted directly instead.
+     */
+    expect(SRC).not.toMatch(/personal_workspace_no_team_governance_context/);
     expect(SRC).not.toMatch(
-      /unavailableReason:\s*packageUnavailableForPersonalWorkspace\s*\?\s*"personal_workspace_no_team_governance_context"/,
+      /unavailableReason:\s*packageUnavailableForPersonalWorkspace\s*\?/,
     );
+    // The only reason that may be emitted is the bounded commercial one.
+    expect(SRC).toMatch(/unavailableReason:\s*packageNotIncluded \? ineligibilityReason : null/);
   });
 
   it("blocked / blockedOutcome / blockedReason fields preserved", () => {
@@ -267,10 +283,19 @@ describe("Phase 32.6.6 — artifact-status helper personal-workspace unavailable
     expect(SRC).toMatch(/blockedAtUtc:/);
   });
 
-  it("packagePending derivation still excludes blocked + unavailable", () => {
+  it("packagePending still excludes blocked and not-included", () => {
+    /*
+     * The property survives; the expression it was pinned to does not.
+     *
+     * `pending` is derived from the canonical output state now — QUEUED or
+     * GENERATING and nothing else — which excludes blocked and not-included as
+     * the old conjunction did, and additionally excludes a terminal failure,
+     * which the old one silently reported as pending.
+     */
     expect(SRC).toMatch(
-      /packagePending\s*=\s*\n?\s*finalized\s*&&\s*\n?\s*!latestPackage\s*&&\s*\n?\s*!packageUnavailableForPersonalWorkspace\s*&&\s*\n?\s*!packageBlocked/,
+      /packagePending\s*=\s*\n?\s*packageOutput\.state === "QUEUED" \|\| packageOutput\.state === "GENERATING"/,
     );
+    expect(SRC).toMatch(/packageGeneration[\s\S]{0,80}packageBlocked\s*\?\s*"BLOCKED"/);
   });
 });
 

@@ -503,34 +503,49 @@ export async function buildPlatformContext(
    * produced the right answer for a personal space and was nonetheless a
    * SECOND implementation of a decision that already has exactly one
    * (`resolveWorkspaceEffectivePlan`, reached through
-   * `resolveWorkspaceScopeForUser`). Its own comment records the production
+   * the canonical resolver). Its own comment records the production
    * incident that came from the two copies disagreeing about which entitlement
    * row was live; the fix then was to copy the other implementation's filter,
    * which is the same class of defect one iteration later.
    *
-   * `resolveWorkspaceScopeForUser` is the canonical input adapter: it loads
+   * `resolveCommercialContext` is the canonical public resolver: it loads
    * the persisted workspace fields and delegates the DECISION. It is used here
    * rather than the full `resolveCommercialContext` envelope deliberately —
    * this is a hot boot-path projection and it needs the plan, not the usage
    * counters, the lifecycle verdict or the enterprise contract. The plan
    * decision is identical either way, because both reach the same function.
    */
+  let activeCommercial: Awaited<
+    ReturnType<typeof import("../billing/commercial-context.service.js").resolveCommercialContext>
+  > | null = null;
   if (workspace.status === "active" && workspace.id) {
     try {
-      const { resolveWorkspaceScopeForUser } = await import(
-        "../workspace-billing.service.js"
+      const { resolveCommercialContext } = await import(
+        "../billing/commercial-context.service.js"
       );
-      const activeScope = await resolveWorkspaceScopeForUser({
-        ownerUserId: userRow.id,
+      /*
+       * ONE envelope per request, with an EXPLICIT subject, reused below by the
+       * intake rule. Phase 9 pins the count of files reaching past this
+       * resolver at zero, and this projection is not the place to reopen it —
+       * the scope API is cheaper per call and is exactly the layering that
+       * ratchet holds shut.
+       *
+       * `WORKSPACE` rather than a declared kind: this path is reached by
+       * workspace id before its kind is known, and the resolver classifies it.
+       */
+      activeCommercial = await resolveCommercialContext({
+        type: "WORKSPACE",
         teamId: workspace.id,
+        requesterUserId: userRow.id,
       });
-      const resolvedPlan = coercePlan(activeScope.plan as unknown as string);
+      const resolvedPlan = coercePlan(activeCommercial.plan as unknown as string);
       if (resolvedPlan) {
         workspace = { ...workspace, plan: resolvedPlan };
       }
     } catch {
       // Resolution degraded — the workspace keeps whatever plan it already
       // carried (the raw column, or null). Reported, never fabricated.
+      activeCommercial = null;
       workspaceStatus = workspaceStatus === "ok" ? "degraded" : workspaceStatus;
     }
   }
@@ -685,23 +700,15 @@ export async function buildPlatformContext(
    * to the catalog value if the wallet cannot be read.
    */
   let intakeIncluded = planCaps.intakeIncluded;
-  if (!intakeIncluded && workspace.status === "active" && workspace.id) {
-    try {
-      const { resolveWorkspaceScopeForUser } = await import(
-        "../workspace-billing.service.js"
-      );
-      const intakeScope = await resolveWorkspaceScopeForUser({
-        ownerUserId: userRow.id,
-        teamId: workspace.id,
-      });
-      intakeIncluded = resolveWorkspaceIntakeEntitlement({
-        plan: intakeScope.plan,
-        billingShape: intakeScope.billingShape,
-        availableEvidenceCredits: Math.max(0, intakeScope.credits ?? 0),
-      }).intakeIncluded;
-    } catch {
-      intakeIncluded = planCaps.intakeIncluded;
-    }
+  if (!intakeIncluded && activeCommercial) {
+    // The SAME envelope resolved above — no second commercial resolution on
+    // this boot path. `scope` carries the wallet for a single-occupant subject
+    // and 0 for a shared one, which is what makes the rule safe here.
+    intakeIncluded = resolveWorkspaceIntakeEntitlement({
+      plan: activeCommercial.scope.plan,
+      billingShape: activeCommercial.billingShape,
+      availableEvidenceCredits: Math.max(0, activeCommercial.scope.credits ?? 0),
+    }).intakeIncluded;
   }
 
   const planFeatures = {
