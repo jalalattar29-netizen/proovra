@@ -375,6 +375,33 @@ describe("Operations production signature (live PostgreSQL 16)", () => {
       teamId: harness.fixtures.personal.teamId,
     };
 
+    /*
+     * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — the fixture states
+     * its plan, because the two pipeline sources now ask about entitlement.
+     *
+     * THIS TEST IS ABOUT A WRITE PATH. Its subject is a hybrid schema drift
+     * under which `recordIncident` can READ but not CREATE, and its signature
+     * is exactly which sources fail when they try to record. `EXPECTED_FAILED`
+     * contains `pipeline.report_backlog` and `pipeline.package_backlog`
+     * because both genuinely open a condition on this population.
+     *
+     * The artifact backlogs are now narrowed to records the product was ever
+     * going to produce an output for. The harness's personal fixture is FREE,
+     * so without this the two sources would find nothing to record, trivially
+     * "succeed", and drop out of the signature — the test would go green while
+     * proving strictly less than it did before. That is the failure mode this
+     * whole program exists to prevent, and it applies to a test as much as to
+     * a counter.
+     *
+     * PRO is the smallest change that keeps the twenty backlog records genuinely
+     * owed a report, which is the state in which "can this source write?" is a
+     * question at all.
+     */
+    await prisma.entitlement.updateMany({
+      where: { userId: personal.userId, active: true },
+      data: { plan: "PRO" },
+    });
+
     // -----------------------------------------------------------------
     // The production-shaped population.
     //

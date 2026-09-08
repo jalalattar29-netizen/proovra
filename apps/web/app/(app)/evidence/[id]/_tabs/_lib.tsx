@@ -27,6 +27,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { getReviewerArtifactRoleLabel } from "@proovra/shared";
+import type { EvidenceOutputState } from "@proovra/shared";
 import type { AppTone } from "../../../../../components/app-primitives/AppStatusBadge";
 import { formatUserDateTime } from "../../../../../lib/date";
 import type {
@@ -396,12 +397,34 @@ export function describeClientSignalState(
   }
 }
 
+/**
+ * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — ONE label per canonical
+ * state.
+ *
+ * These read `available` then `pending` then fell through to "Not generated",
+ * and `pending` meant "no artifact row exists". So a record on a plan without
+ * reports read "Pending" forever, and once that was corrected server-side the
+ * fallback would have called it "Not generated" — true, and still not the fact
+ * the reader needs, which is that nothing is coming.
+ *
+ * Total over `EvidenceOutputState`, so a new state cannot be added without a
+ * label.
+ */
+const OUTPUT_STATE_LABEL: Record<EvidenceOutputState, string> = {
+  READY: "Available",
+  QUEUED: "Queued",
+  GENERATING: "Generating",
+  ELIGIBLE_NOT_GENERATED: "Not generated yet",
+  RETRYABLE_FAILURE: "Generation failed",
+  TERMINAL_FAILURE: "Generation stopped",
+  BLOCKED: "Blocked",
+  NOT_INCLUDED: "Not included for this record",
+};
+
 export function describeReportArtifactStatus(
   artifactStatus: ReviewWorkspaceResponse["artifactStatus"]
 ): string {
-  if (artifactStatus.report.available) return "Available";
-  if (artifactStatus.report.pending) return "Pending";
-  return "Not generated";
+  return OUTPUT_STATE_LABEL[artifactStatus.outputs.report.state];
 }
 
 export function describeReportPdfSignature(
@@ -429,13 +452,14 @@ export function describeReportPdfSignature(
 
 export function describeVerificationPackageStatus(
   artifactStatus: ReviewWorkspaceResponse["artifactStatus"],
-  included: boolean
+  /**
+   * RETAINED for the call sites that still pass it, and DELIBERATELY unused:
+   * the canonical state already carries the commercial answer, and taking it
+   * from a separate boolean is how a caller comes to hold one that disagrees.
+   */
+  _included?: boolean,
 ): string {
-  if (artifactStatus.verificationPackage.available) return "Available";
-  if (artifactStatus.verificationPackage.blocked) return "Blocked";
-  if (artifactStatus.verificationPackage.pending) return "Pending";
-  if (artifactStatus.verificationPackage.unavailable) return "Unavailable";
-  return included ? "Not generated" : "Not included on plan";
+  return OUTPUT_STATE_LABEL[artifactStatus.outputs.verificationPackage.state];
 }
 
 export function describePackageManifestStatus(

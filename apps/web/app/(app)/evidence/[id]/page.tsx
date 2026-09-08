@@ -1852,14 +1852,21 @@ function WhatNeedsAttentionStrip({
     canSeeReviewerOps &&
     (!workspace.reviewWorkflow?.status ||
       workspace.reviewWorkflow.status === "NOT_STARTED");
+  /*
+   * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — "missing" is a
+   * canonical STATE, not a plan flag beside an absence.
+   *
+   * This combined `reportsIncluded !== false` with `!available`, which said
+   * "the plan allows it and there is no row" — so a Free record was excluded
+   * only because the plan flag caught it, and every OTHER absence, including
+   * one that is queued right now or one that terminally failed, read the same.
+   * A reviewer summary is exactly where those must differ.
+   */
   const missingReport =
-    workspaceCaps?.reportsIncluded !== false &&
-    !workspace.artifactStatus.report.available;
+    workspace.artifactStatus.outputs.report.state === "ELIGIBLE_NOT_GENERATED";
   const missingPackage =
-    workspaceCaps?.verificationPackageIncluded !== false &&
-    !workspace.artifactStatus.verificationPackage.available &&
-    !workspace.artifactStatus.verificationPackage.blocked &&
-    !workspace.artifactStatus.verificationPackage.unavailable;
+    workspace.artifactStatus.outputs.verificationPackage.state ===
+    "ELIGIBLE_NOT_GENERATED";
 
   const topRisks = reviewSignals.slice(0, 3);
 

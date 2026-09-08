@@ -23,6 +23,9 @@ import type { Prisma } from "@prisma/client";
 
 import { prisma } from "../../db.js";
 import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
+// COMMERCIAL CLOSURE (2026-09-08) — the ONE narrowing that keeps a commercial
+// product decision out of the operational "stuck" counters.
+import { outputEntitledEvidenceWhere } from "../billing/evidence-output-eligibility.service.js";
 
 export type TrustSummary = {
   /** Total non-deleted evidence in the workspace. */
@@ -133,6 +136,21 @@ export async function buildTrustSummary(input: {
     AND: [scopeWhere, { deletedAt: null }],
   };
 
+  /*
+   * COMMERCIAL CLOSURE (2026-09-08) — the entitlement narrowing for the two
+   * STUCK counters below, resolved once. `null` on a plan that includes the
+   * outputs, which is the common case and adds nothing to the query.
+   *
+   * Applied ONLY to the two operational-backlog counts. `endToEndReady` above
+   * is a DELIVERABLE-chain measure, not a fault measure, and narrowing it here
+   * would change a headline KPI's population as a side effect of a fault-count
+   * fix — a different decision, on a different surface, that deserves to be
+   * made on purpose.
+   */
+  const outputEntitledWhere = await outputEntitledEvidenceWhere({
+    teamId: input.teamId,
+  });
+
   // GROUP BY on the real columns. Each call is a single aggregate query;
   // the numbers are direct counts, never derived.
   //
@@ -194,18 +212,31 @@ export async function buildTrustSummary(input: {
           NOT: { publicVerifyState: "SUSPENDED" as never },
         },
       }),
-      // Stuck-SIGNED — operational issue surfaced on Home.
+      /*
+       * Stuck-SIGNED — an OPERATIONAL issue surfaced on Home.
+       *
+       * COMMERCIAL CLOSURE (2026-09-08) — narrowed to records the product was
+       * ever going to produce a report for. "Stuck" means the pipeline owes
+       * something and has not delivered it; on a plan that does not include
+       * reports nothing is ever enqueued, so every finalized record counted as
+       * stuck, permanently, and Home told those customers their pipeline was
+       * broken. `outputEntitledWhere` is null on a plan that DOES include them,
+       * which is the common case and adds nothing to the query.
+       */
       prisma.evidence.count({
         where: {
           ...baseWhere,
+          ...(outputEntitledWhere ?? {}),
           status: "SIGNED" as never,
           reports: { none: {} },
         },
       }),
-      // Stuck-REPORTED — package builder never produced a row.
+      // Stuck-REPORTED — package builder never produced a row. Same narrowing,
+      // same reason.
       prisma.evidence.count({
         where: {
           ...baseWhere,
+          ...(outputEntitledWhere ?? {}),
           status: "REPORTED" as never,
           verificationPackages: { none: {} },
         },

@@ -304,6 +304,33 @@ describe("Operations convergence (live PostgreSQL 16)", () => {
   // =========================================================================
 
   it("4/12. the report-backlog scan also sees a personal workspace's records", async () => {
+    /*
+     * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — the fixture now
+     * states the plan, because the scan asks about entitlement as well as
+     * scope.
+     *
+     * THIS TEST IS ABOUT SCOPE. Its recorded intent is that a strict `teamId`
+     * filter misses a personal workspace's legacy `team_id NULL` rows, so the
+     * backlog "counted 0 personal records and opened nothing". That is what it
+     * must keep proving.
+     *
+     * The backlog population is now narrowed to records the product was ever
+     * going to produce a report for — a plan that excludes reports enqueues
+     * nothing, so counting its records as a stalled pipeline was a permanent
+     * false alarm. The harness's personal fixture is FREE, so without this the
+     * test would have started passing-by-accident for the WRONG reason: an
+     * empty backlog because nothing is owed, dressed up as an empty backlog
+     * because the scope was wrong.
+     *
+     * Putting the owner on PRO makes the twenty records genuinely owed a
+     * report, which is the only state in which "is the scan seeing them?" is a
+     * question with an answer.
+     */
+    await prisma.entitlement.updateMany({
+      where: { userId: personal.userId, active: true },
+      data: { plan: "PRO" },
+    });
+
     // 20 SIGNED-without-report personal records (the HIGH threshold).
     const ids: string[] = [];
     for (let i = 0; i < 20; i += 1) {
