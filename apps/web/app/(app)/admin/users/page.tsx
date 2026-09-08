@@ -41,6 +41,13 @@ import { LifecycleRequestQueue } from "./_sections/LifecycleRequestQueue";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDate, formatUserDateTime } from "../../../../lib/date";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
+import {
+  ADMIN_EMPTY_COPY,
+  ADMIN_FAILURE_COPY,
+  classifyAdminReadFailure,
+  type AdminReadFailure,
+} from "../../../../lib/admin/read-state";
+import { AdmReadFailure } from "../../../../components/admin/AdminSurfaces";
 // PHASE 6 §7 — carry the list state onto the detail URL so the return link
 // can put the operator back on the page they filtered, not on page one of
 // everything. Only the OWNING collection does this: a link from Billing to
@@ -119,6 +126,11 @@ export default function AdminPeoplePage() {
   const [platformRole, setPlatformRole] = useState(params.get("platformRole") ?? "");
 
   const [loading, setLoading] = useState(true);
+  /**
+   * ADM-P2-002 — a failed read used to share its representation, and its render
+   * branch, with a successful empty response, whose copy asserts absence.
+   */
+  const [failure, setFailure] = useState<AdminReadFailure | null>(null);
   const [data, setData] = useState<Response | null>(null);
   const [page, setPage] = useState(1);
 
@@ -138,13 +150,17 @@ export default function AdminPeoplePage() {
 
         const res = (await apiFetch(`/v1/admin/users?${qs.toString()}`)) as Response;
         setData(res ?? null);
+        setFailure(null);
         setPage(res?.page ?? targetPage);
       } catch (err) {
-        addToast(
-          toSafeUserError(err, { message: "Failed to load platform people" }).message,
-          "error",
+        const classified = classifyAdminReadFailure(
+          err,
+          ADMIN_FAILURE_COPY["/admin/users"],
+          toSafeUserError,
         );
+        addToast(classified.message, "error");
         setData(null);
+        setFailure(classified);
       } finally {
         setLoading(false);
       }
@@ -430,10 +446,14 @@ export default function AdminPeoplePage() {
             ),
           )}
           emptyState={
-            <EmptyState variant="inline"
-              title="No people found"
-              purpose="No platform user matches the current filters. Adjust the search or filters above."
-            />
+            failure ? (
+              <AdmReadFailure failure={failure} onRetry={() => void load(page)} />
+            ) : (
+              <EmptyState variant="inline"
+                title={ADMIN_EMPTY_COPY["/admin/users"].title}
+                purpose={ADMIN_EMPTY_COPY["/admin/users"].body}
+              />
+            )
           }
         />
 

@@ -34,6 +34,13 @@ import { useToast } from "../../../../components/ui";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../../lib/api";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
+import {
+  ADMIN_EMPTY_COPY,
+  ADMIN_FAILURE_COPY,
+  classifyAdminReadFailure,
+  type AdminReadFailure,
+} from "../../../../lib/admin/read-state";
+import { AdmReadFailure } from "../../../../components/admin/AdminSurfaces";
 import { formatUserDateTime } from "../../../../lib/date";
 
 type ProviderCost = {
@@ -231,6 +238,13 @@ function AdminCostsInner() {
   const { addToast } = useToast();
   const [data, setData] = useState<CostDashboard | null>(null);
   const [loading, setLoading] = useState(true);
+  /**
+   * ADM-P2-002 — a failed read used to be stored as the same value a
+   * successful empty response produces, and both rendered through the branch
+   * below, whose copy asserts absence. Measured live against an aborted read,
+   * this page claimed the platform had no records.
+   */
+  const [failure, setFailure] = useState<AdminReadFailure | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -238,10 +252,13 @@ function AdminCostsInner() {
       const res = await apiFetch(`/v1/admin/costs?windowDays=30`);
       setData(res ?? null);
     } catch (err) {
-      const message = toSafeUserError(err, {
-        message: "We couldn't load the cost dashboard.",
-      }).message;
-      addToast(message, "error");
+      const classified = classifyAdminReadFailure(
+        err,
+        ADMIN_FAILURE_COPY["/admin/costs"],
+        toSafeUserError,
+      );
+      setFailure(classified);
+      addToast(classified.message, "error");
     } finally {
       setLoading(false);
     }
@@ -395,13 +412,19 @@ function AdminCostsInner() {
             ))}
           </div>
         </PageSection>
+      ) : failure ? (
+        <PageSection>
+          <Card variant="empty" padding="none">
+            <AdmReadFailure failure={failure} onRetry={() => void load()} />
+          </Card>
+        </PageSection>
       ) : !data ? (
         <PageSection>
           <Card variant="empty" padding="none">
             <EmptyState variant="inline"
               framed
-              title="No cost data"
-              purpose="No cost aggregate was returned. Once provider usage events exist, estimated costs, per-provider breakdown, budgets and embeddings spend appear here."
+              title={ADMIN_EMPTY_COPY["/admin/costs"].title}
+              purpose={ADMIN_EMPTY_COPY["/admin/costs"].body}
               data-testid="admin-costs-empty"
             />
           </Card>

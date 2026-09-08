@@ -94,13 +94,47 @@ test("platform operations console renders honest empty states", () => {
   const src = readOperations();
   assert.match(src, /EmptyState/, "must render EmptyState");
   assert.match(src, /No security events/i, "honest empty state for events");
-  assert.match(src, /No conditions match/i, "honest empty state for incidents");
-  // The empty state must distinguish "nothing is open" from "nothing was
-  // measured" — an empty incident table under a status filter is a real zero.
+
+  /*
+   * THE INCIDENT COPY MOVED, AND THE REASON IT MOVED IS THE POINT.
+   *
+   * This used to grep the page source for the literals "No conditions match"
+   * and "not that nothing was measured". Both are still the copy this page
+   * renders — they now live in `lib/admin/read-state`, because the browser
+   * test that proves a FAILED read does not render them has to read them from
+   * somewhere the product owns. A test that spells the product's copy out
+   * itself is asserting its author's memory, which is exactly how the
+   * "all clear" assertion in admin-states.spec.ts came to be unfailable.
+   *
+   * So the literals are asserted at their source, and the page is asserted to
+   * consume that source. Same two facts, one of them now impossible to drift.
+   */
+  const readState = read("lib/admin/read-state.ts");
+  assert.match(readState, /No conditions match/i, "honest empty state for incidents");
   assert.match(
-    src,
+    readState,
     /not that nothing was measured/i,
     "empty state must say an empty table is a real zero, not an unmeasured signal",
+  );
+  assert.ok(
+    src.includes('ADMIN_EMPTY_COPY["/admin/operations"]'),
+    "the page must render that copy rather than a second copy of it",
+  );
+
+  /*
+   * AND THE HALF THAT WAS MISSING (ADM-P1-002).
+   *
+   * The sentence above is correct for a SUCCESSFUL empty response and was a
+   * false all-clear for a failed one, because both took this branch. The page
+   * must now carry a classified failure and render the canonical failure
+   * surface instead.
+   */
+  assert.match(src, /classifyAdminReadFailure/, "a failed read must be classified");
+  assert.match(src, /<AdmReadFailure/, "a failed read must render the failure surface");
+  assert.match(
+    src,
+    /failed={failure !== null}/,
+    "the ResultCount must report failure rather than a zero",
   );
 });
 

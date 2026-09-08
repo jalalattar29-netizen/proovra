@@ -77,7 +77,28 @@ test("adoption console shows honest 'Not measured' + empty states", () => {
   const src = read(ADOPTION);
   assert.match(src, /Not measured/i, "honest 'Not measured' for absent backing model");
   assert.match(src, /EmptyState/, "must render an EmptyState");
-  assert.match(src, /No adoption data/i, "honest empty state");
+  /*
+   * THE COPY MOVED TO ITS OWN AUTHORITY (ADM-P2-002).
+   *
+   * "No adoption data …" is still what this page renders when the server
+   * successfully returns nothing. It now lives in `lib/admin/read-state`,
+   * because the browser test that proves a FAILED read does NOT render it has
+   * to read the sentence from somewhere the product owns rather than spell it
+   * out itself. So the literal is asserted at its source and the page is
+   * asserted to consume it — same fact, one fewer place it can drift.
+   */
+  assert.match(
+    read("lib/admin/read-state.ts"),
+    /No adoption data/i,
+    "honest empty state",
+  );
+  assert.ok(
+    src.includes('ADMIN_EMPTY_COPY["/admin/adoption"]'),
+    "the page must render that copy rather than a second copy of it",
+  );
+  // And the half that was missing: a failed read must not take the branch above.
+  assert.match(src, /classifyAdminReadFailure/, "a failed read must be classified");
+  assert.match(src, /<AdmReadFailure/, "a failed read must render the failure surface");
 });
 
 test("adoption console routes errors through toSafeUserError (sanctioned path)", () => {

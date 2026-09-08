@@ -48,6 +48,13 @@ import { PlatformSecurityEvents } from "./_sections/PlatformSecurityEvents";
 import { apiFetch } from "../../../../lib/api";
 import { formatRelativeTime, formatUserDateTime } from "../../../../lib/date";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
+import {
+  ADMIN_EMPTY_COPY,
+  ADMIN_FAILURE_COPY,
+  classifyAdminReadFailure,
+  type AdminReadFailure,
+} from "../../../../lib/admin/read-state";
+import { AdmReadFailure } from "../../../../components/admin/AdminSurfaces";
 import { hasRunbook, resolveRunbookSlug } from "../../../../lib/runbooks/slugs.generated";
 import { ResultCount } from "../../../../components/ui/ResultCount";
 import { shortId } from "../../../../lib/short-id";
@@ -181,6 +188,17 @@ export default function AdminOperationsPage() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [data, setData] = useState<IncidentsResponse | null>(null);
+  /**
+   * ADM-P1-002 — the state that made the empty table lie.
+   *
+   * The catch set `data` to null and the table fell through to an EmptyState
+   * reading "…an empty table means nothing is currently open — not that nothing
+   * was measured." That sentence was written for a SUCCESSFUL empty response
+   * and it actively pre-empts the correct reading of a failed one. Measured
+   * live, it rendered directly above a Security-events section that had loaded
+   * real rows — so the page looked healthy while its primary source was gone.
+   */
+  const [failure, setFailure] = useState<AdminReadFailure | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -195,13 +213,16 @@ export default function AdminOperationsPage() {
         `/v1/admin/incidents?${qs.toString()}`,
       )) as IncidentsResponse;
       setData(res ?? null);
+      setFailure(null);
     } catch (err) {
-      addToast(
-        toSafeUserError(err, { message: "We couldn't load platform operations." })
-          .message,
-        "error",
+      const classified = classifyAdminReadFailure(
+        err,
+        ADMIN_FAILURE_COPY["/admin/operations"],
+        toSafeUserError,
       );
+      addToast(classified.message, "error");
       setData(null);
+      setFailure(classified);
     } finally {
       setLoading(false);
     }
@@ -567,25 +588,36 @@ export default function AdminOperationsPage() {
       </FilterBar>
 
       <Card>
-        <DataTable<IncidentRow>
-          ariaLabel="Platform operational incidents"
-          columns={columns}
-          rows={data?.items ?? []}
-          getRowId={(r) => r.id}
-          loading={loading}
-          emptyState={
-            <EmptyState variant="inline"
-              title="No conditions match"
-              purpose="No operational condition matches the current filters. With the Status filter on Open, an empty table means nothing is currently open — not that nothing was measured."
-            />
-          }
-        />
+        {failure ? (
+          /* THE FAILURE GOES WHERE THE TABLE GOES.
+             Rendering it above the table and leaving the table's empty state
+             underneath would put both claims on screen at once, which is the
+             defect with an extra sentence attached. The independent Security
+             events section below is untouched: one failed source must not
+             blank a page that has two. */
+          <AdmReadFailure failure={failure} onRetry={() => void load()} />
+        ) : (
+          <DataTable<IncidentRow>
+            ariaLabel="Platform operational incidents"
+            columns={columns}
+            rows={data?.items ?? []}
+            getRowId={(r) => r.id}
+            loading={loading}
+            emptyState={
+              <EmptyState variant="inline"
+                title={ADMIN_EMPTY_COPY["/admin/operations"].title}
+                purpose={ADMIN_EMPTY_COPY["/admin/operations"].body}
+              />
+            }
+          />
+        )}
         {/* The request caps at 200. Without saying so, "200 incidents" reads
             as the total, and somebody counting open conditions during a
             review gets a confident wrong answer. */}
         <ResultCount
           shown={data?.items?.length ?? 0}
           cap={200}
+          failed={failure !== null}
           noun="condition"
           filtered={status !== "" || severity !== ""}
           loading={loading}

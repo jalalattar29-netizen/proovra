@@ -400,13 +400,36 @@ test("three primary actions are not a finding", () => {
 // The same properties, removed from REAL pages.
 // ---------------------------------------------------------------------------
 
+
+/**
+ * A FIXTURE ROOT MUST CONTAIN WHAT THE SCANNER READS.
+ *
+ * The contract now follows `ADMIN_EMPTY_COPY[...]` into
+ * `lib/admin/read-state.ts`, because ten surfaces moved their empty-state
+ * sentences there so the browser suite could assert a FAILED read does not
+ * render them (ADM-P2-002, ADM-P2-008). A throwaway root holding only the
+ * admin tree therefore sees a page that references copy it cannot resolve, and
+ * reports LIST_NO_FILTERED_EMPTY against pages whose wording is intact.
+ *
+ * That would be an artefact of the fixture, which is precisely what the
+ * "unmutated copy is clean" test exists to rule out. So the copy carries the
+ * module too.
+ */
+function seedRoot(dir) {
+  const dest = join(dir, "app", "(app)", "admin");
+  mkdirSync(dirname(dest), { recursive: true });
+  cpSync(REAL_ADMIN, dest, { recursive: true });
+  const readState = join(dir, "lib", "admin", "read-state.ts");
+  mkdirSync(dirname(readState), { recursive: true });
+  cpSync(join(REAL_ADMIN, "..", "..", "..", "lib", "admin", "read-state.ts"), readState);
+  return dest;
+}
+
 /** Copies the real admin tree, applies `edit`, and scans the copy. */
 function mutateReal(routeDir, edit) {
   const dir = mkdtempSync(join(tmpdir(), "admin-contract-real-"));
   try {
-    const dest = join(dir, "app", "(app)", "admin");
-    mkdirSync(dirname(dest), { recursive: true });
-    cpSync(REAL_ADMIN, dest, { recursive: true });
+    const dest = seedRoot(dir);
     const page = join(dest, ...routeDir.split("/"), "page.tsx");
     const before = readFileSync(page, "utf8");
     const after = edit(before);
@@ -423,9 +446,7 @@ test("an unmutated copy of the real tree is clean", () => {
   // below could be an artefact of the copy rather than of the mutation.
   const dir = mkdtempSync(join(tmpdir(), "admin-contract-copy-"));
   try {
-    const dest = join(dir, "app", "(app)", "admin");
-    mkdirSync(dirname(dest), { recursive: true });
-    cpSync(REAL_ADMIN, dest, { recursive: true });
+    seedRoot(dir);
     const rows = findingsIn(dir);
     assert.equal(rows.length, 47, "all 47 routes were scanned");
     assert.deepEqual(

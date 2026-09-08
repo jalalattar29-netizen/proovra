@@ -30,6 +30,13 @@ import { Button } from "../../../../components/ui/Button";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../../lib/api";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
+import {
+  ADMIN_EMPTY_COPY,
+  ADMIN_FAILURE_COPY,
+  classifyAdminReadFailure,
+  type AdminReadFailure,
+} from "../../../../lib/admin/read-state";
+import { AdmReadFailure } from "../../../../components/admin/AdminSurfaces";
 import { formatUserDateTime } from "../../../../lib/date";
 
 
@@ -80,17 +87,28 @@ function AdminAdoptionInner() {
   const { addToast } = useToast();
   const [report, setReport] = useState<AdoptionReport | null>(null);
   const [loading, setLoading] = useState(true);
+  /**
+   * ADM-P2-002 — a failed read used to share its representation, and its render
+   * branch, with a successful empty response. The branch's copy asserts absence,
+   * so a read that never completed told the operator the platform was empty.
+   */
+  const [failure, setFailure] = useState<AdminReadFailure | null>(null);
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
       const data: AdoptionReport = await apiFetch("/v1/admin/adoption");
       setReport(data ?? null);
+      setFailure(null);
     } catch (err) {
-      const message = toSafeUserError(err, {
-        message: "We couldn't load the feature-adoption aggregate.",
-      }).message;
-      addToast(message, "error");
+      const classified = classifyAdminReadFailure(
+        err,
+        ADMIN_FAILURE_COPY["/admin/adoption"],
+        toSafeUserError,
+      );
+      setReport(null);
+      setFailure(classified);
+      addToast(classified.message, "error");
     } finally {
       setLoading(false);
     }
@@ -234,12 +252,16 @@ function AdminAdoptionInner() {
           getRowId={(row) => row.key}
           loading={loading}
           emptyState={
-            <EmptyState variant="inline"
-              framed
-              title="No adoption data"
-              purpose="Feature adoption is derived from live records. Once workspaces configure capabilities and capture evidence, each capability's real counts appear here. Nothing on this page is estimated."
-              data-testid="admin-adoption-empty"
-            />
+            failure ? (
+              <AdmReadFailure failure={failure} onRetry={() => void load()} />
+            ) : (
+              <EmptyState variant="inline"
+                framed
+                title={ADMIN_EMPTY_COPY["/admin/adoption"].title}
+                purpose={ADMIN_EMPTY_COPY["/admin/adoption"].body}
+                data-testid="admin-adoption-empty"
+              />
+            )
           }
         />
         {/* One row per KNOWN capability — a compiled-in catalogue, not a
@@ -247,6 +269,7 @@ function AdminAdoptionInner() {
             proved API-side, which is what earns the bare length here. */}
         <ResultCount
           shown={report?.capabilities.length ?? 0}
+          failed={failure !== null}
           complete
           noun="capability"
           pluralNoun="capabilities"

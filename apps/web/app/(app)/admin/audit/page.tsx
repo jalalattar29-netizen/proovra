@@ -9,6 +9,7 @@ import { Button } from "../../../../components/ui/Button";
 import { Badge } from "../../../../components/ui/Badge";
 import type { BadgeTone } from "../../../../components/ui/Badge";
 import { DataTable, type DataTableColumn } from "../../../../components/ui/DataTable";
+import { AdmReadFailure } from "../../../../components/admin/AdminSurfaces";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { ResultCount } from "../../../../components/ui/ResultCount";
 import { apiFetch } from "../../../../lib/api";
@@ -1043,14 +1044,30 @@ export default function AdminAuditPage() {
           getRowId={(entry) => entry.id}
           loading={loading}
           emptyState={
-            <EmptyState variant="inline"
-              title="No audit entries"
-              purpose={
-                filtered
-                  ? "No audit entries match the current filters. Clear them to see the whole log."
-                  : "No privileged admin actions have been recorded yet."
-              }
-            />
+            /* `loadFailed` already reached the ResultCount; it never reached
+               the table, so a failed read still rendered "No privileged admin
+               actions have been recorded yet" — an absence claim about the
+               audit log itself. */
+            loadFailed ? (
+              <AdmReadFailure
+                failure={{
+                  kind: "error",
+                  message:
+                    "The admin audit log could not be read. This is a not-connected state — it does not mean no privileged actions were taken.",
+                  retryable: true,
+                }}
+                onRetry={() => void loadAudit(currentCursor)}
+              />
+            ) : (
+              <EmptyState variant="inline"
+                title="No audit entries"
+                purpose={
+                  filtered
+                    ? "No audit entries match the current filters. Clear them to see the whole log."
+                    : "No privileged admin actions have been recorded yet."
+                }
+              />
+            )
           }
           rowActions={(entry) => (
             <Button

@@ -46,7 +46,26 @@ test("roster uses FilterBar + DataTable + EmptyState primitives", () => {
   assert.match(src, /FilterBar/, "must use FilterBar");
   assert.match(src, /DataTable/, "must use DataTable");
   assert.match(src, /EmptyState/, "must use an honest EmptyState");
-  assert.match(src, /No customers yet/, "honest empty title");
+  /*
+   * THE COPY MOVED TO ITS OWN AUTHORITY (ADM-P2-002).
+   *
+   * "No customers yet" is still the successful-empty title. It now lives in
+   * `lib/admin/read-state` so the browser test that proves a FAILED read does
+   * not render it can read the sentence from the product rather than restate
+   * it. Asserted at the source, and asserted to be consumed here.
+   */
+  assert.match(
+    read("lib/admin/read-state.ts"),
+    /No customers yet/,
+    "honest empty title",
+  );
+  assert.ok(
+    src.includes('ADMIN_EMPTY_COPY["/admin/customers"]'),
+    "the roster must render that copy rather than a second copy of it",
+  );
+  // A failed read must not reach that branch at all.
+  assert.match(src, /classifyAdminReadFailure/, "a failed read must be classified");
+  assert.match(src, /<AdmReadFailure/, "a failed read must render the failure surface");
 });
 
 test("pages do NOT use marketing hero or legacy chrome", () => {
@@ -102,7 +121,17 @@ test("roster SEEDS its filters from the incoming URL", () => {
 test("pages surface errors through toSafeUserError (no raw message)", () => {
   for (const p of [ROSTER, DETAIL]) {
     const src = read(p);
-    assert.match(src, /toSafeUserError\(/, `${p} must sanitise errors`);
+    /*
+     * TWO SANCTIONED SPELLINGS, ONE SANCTIONED PATH. The roster now routes its
+     * read failure through `classifyAdminReadFailure(err, fallback,
+     * toSafeUserError)`, which takes the sanitiser as an argument, so every
+     * `error` message it produces is still built by `toSafeUserError`. The raw
+     * `err.message` assertion below is untouched.
+     */
+    const direct = /toSafeUserError\(/.test(src);
+    const viaClassifier =
+      /classifyAdminReadFailure\(/.test(src) && /\btoSafeUserError\b/.test(src);
+    assert.ok(direct || viaClassifier, `${p} must sanitise errors`);
     assert.doesNotMatch(
       src,
       /addToast\(\s*err\.message/,

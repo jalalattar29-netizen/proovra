@@ -1,5 +1,11 @@
 "use client";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
+import {
+  ADMIN_FAILURE_COPY,
+  classifyAdminReadFailure,
+  type AdminReadFailure,
+} from "../../../../lib/admin/read-state";
+import { AdmReadFailure } from "../../../../components/admin/AdminSurfaces";
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -309,6 +315,13 @@ export default function AdminDashboardPage() {
   );
   useUrlFilterSync("/admin/dashboard", { dateRange });
   const [bundle, setBundle] = useState<AdminBundle | null>(null);
+  /**
+   * ADM-P2-002 — "Analytics not connected … once product events are recorded"
+   * hedges better than its siblings but still tells the operator the window
+   * held no events, on a read that never completed.
+   */
+  const [failure, setFailure] = useState<AdminReadFailure | null>(null);
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   useEffect(() => {
     const run = async () => {
@@ -318,17 +331,23 @@ export default function AdminDashboardPage() {
           `/v1/admin/analytics/dashboard?dateRange=${dateRange}`,
         );
         setBundle(data ?? null);
+        setFailure(null);
       } catch (err) {
-        const message =
-          toSafeUserError(err, { message: "Failed to load admin dashboard" }).message;
-        addToast(message, "error");
+        const classified = classifyAdminReadFailure(
+          err,
+          ADMIN_FAILURE_COPY["/admin/dashboard"],
+          toSafeUserError,
+        );
+        setBundle(null);
+        setFailure(classified);
+        addToast(classified.message, "error");
       } finally {
         setLoading(false);
       }
     };
 
     void run();
-  }, [addToast, dateRange]);
+  }, [addToast, dateRange, reloadNonce]);
 
   // -------------------------------------------------------------------------
   // Top-line metrics — every value below is REAL, read directly from
@@ -537,6 +556,15 @@ export default function AdminDashboardPage() {
               </Card>
             ))}
           </div>
+        </PageSection>
+      ) : failure ? (
+        <PageSection>
+          <Card variant="empty" padding="none">
+            <AdmReadFailure
+              failure={failure}
+              onRetry={() => setReloadNonce((n) => n + 1)}
+            />
+          </Card>
         </PageSection>
       ) : !bundle ? (
         <PageSection>

@@ -93,6 +93,35 @@ function routeOf(file) {
   );
 }
 
+/**
+ * THE COPY A PAGE RENDERS FROM A SHARED AUTHORITY.
+ *
+ * Ten surfaces moved their empty-state sentences into `lib/admin/read-state`
+ * so the browser suite could assert a FAILED read does not render them without
+ * the test restating the product's own words (ADM-P2-002, ADM-P2-008).
+ *
+ * This scanner reads page source. Without following that reference it would
+ * report a page as having lost its filtered-empty wording the moment the
+ * wording moved somewhere a reviewer can actually keep in one place — a
+ * false finding, and one that would push the next author back to inlining
+ * copy. So a page that consumes `ADMIN_EMPTY_COPY[...]` gets the constants
+ * appended to what the checks see. The check itself is untouched.
+ */
+let READ_STATE_COPY = null;
+function readStateCopy() {
+  if (READ_STATE_COPY === null) {
+    try {
+      READ_STATE_COPY = readFileSync(
+        join(WEB_ROOT, "lib", "admin", "read-state.ts"),
+        "utf8",
+      );
+    } catch {
+      READ_STATE_COPY = "";
+    }
+  }
+  return READ_STATE_COPY;
+}
+
 /** The page plus the local components it renders from. */
 function sourceFor(file) {
   const parts = [readFileSync(file, "utf8")];
@@ -108,7 +137,10 @@ function sourceFor(file) {
       if (/\.tsx?$/.test(n)) parts.push(readFileSync(join(d, n), "utf8"));
     }
   }
-  return parts.join("\n");
+  const joined = parts.join("\n");
+  return /ADMIN_EMPTY_COPY\s*\[/.test(joined)
+    ? joined + "\n" + readStateCopy()
+    : joined;
 }
 
 /** Comments stripped — a page that DISCUSSES pagination must not pass on that. */

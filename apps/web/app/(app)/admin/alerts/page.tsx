@@ -37,6 +37,13 @@ import { apiFetch } from "../../../../lib/api";
 import { useToast } from "../../../../components/ui";
 import { severityTone } from "../../../../components/ui/StatusBadge";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
+import {
+  ADMIN_EMPTY_COPY,
+  ADMIN_FAILURE_COPY,
+  classifyAdminReadFailure,
+  type AdminReadFailure,
+} from "../../../../lib/admin/read-state";
+import { AdmReadFailure } from "../../../../components/admin/AdminSurfaces";
 import { formatUserDateTime } from "../../../../lib/date";
 
 type AlertSeverity = "critical" | "high" | "medium" | "low";
@@ -113,17 +120,34 @@ export default function AdminAlertsPage() {
   const { addToast } = useToast();
   const [data, setData] = useState<AlertsResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  /**
+   * THE STATE THIS PAGE DID NOT HAVE.
+   *
+   * A failed read left `data` null, `total` fell to `?? 0`, `hasAlerts` went
+   * false, and the page printed "…right now there are none." on the one surface
+   * whose entire job is to say what is wrong. The toast that carried the real
+   * news had already gone. Measured live against an aborted read, that sentence
+   * was on screen with no other indication anything had failed.
+   */
+  const [failure, setFailure] = useState<AdminReadFailure | null>(null);
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
+      setFailure(null);
       const res: AlertsResponse = await apiFetch(`/v1/admin/alerts`);
       setData(res ?? null);
     } catch (err) {
-      const message = toSafeUserError(err, {
-        message: "We couldn't load the platform alerts.",
-      }).message;
-      addToast(message, "error");
+      const classified = classifyAdminReadFailure(
+        err,
+        ADMIN_FAILURE_COPY["/admin/alerts"],
+        toSafeUserError,
+      );
+      // The list is dropped as well as flagged: showing the previous snapshot
+      // beside a failure notice would be a second way of implying currency.
+      setData(null);
+      setFailure(classified);
+      addToast(classified.message, "error");
     } finally {
       setLoading(false);
     }
@@ -168,11 +192,15 @@ export default function AdminAlertsPage() {
           title="Active alerts"
           description="This list is a read-only point-in-time snapshot. There is no per-alert acknowledge / resolve workflow — resolve an alert at its source (resolve the incident, drain the failed job, fix the SSO connection) and it clears on the next refresh. Each alert links to the surface that owns it."
         >
-          {!loading && !hasAlerts ? (
+          {failure ? (
+            /* A read that did not complete is not an all-clear, and it does not
+               get to borrow the empty state's sentence. */
+            <AdmReadFailure failure={failure} onRetry={() => void load()} />
+          ) : !loading && !hasAlerts ? (
             <EmptyState variant="inline"
               framed
-              title="No active alerts"
-              purpose="No alert-worthy platform signals are currently active. Open incidents, recent high/critical security events, failed jobs, failed payments, and SSO outages would appear here — right now there are none."
+              title={ADMIN_EMPTY_COPY["/admin/alerts"].title}
+              purpose={ADMIN_EMPTY_COPY["/admin/alerts"].body}
               data-testid="admin-alerts-empty"
             />
           ) : (

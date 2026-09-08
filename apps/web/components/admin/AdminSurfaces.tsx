@@ -948,3 +948,88 @@ export function AdmOverlay({
     </div>
   );
 }
+
+/* ==========================================================================
+ * READ FAILURE
+ * ========================================================================== */
+
+/**
+ * THE ONE SURFACE A FAILED ADMIN READ RENDERS.
+ *
+ * ---------------------------------------------------------------------------
+ * WHY IT IS A COMPONENT AND NOT TEN `error ? …` BRANCHES
+ * ---------------------------------------------------------------------------
+ * Before this, four admin pages rendered a failure honestly and ten rendered
+ * the EmptyState — whose copy asserts absence — over a read that never
+ * completed. Measured live, `/admin/alerts` printed "right now there are none"
+ * and `/admin/operations` printed "an empty table means nothing is currently
+ * open" while their sources were unreachable.
+ *
+ * The four that were right were right in three DIFFERENT ways: an inline
+ * EmptyState with different words, a tone="risk" Card, and a bespoke pair of
+ * headings. Three correct shapes is how the fourth page ends up with a fourth
+ * shape and the fifth ends up with none. So there is one surface, and the
+ * pages pass it a classified failure rather than a boolean.
+ *
+ * It renders through `AdmInline`, which already owns the console's non-data
+ * states and already sets `role="alert"` for the two that are alarming. This
+ * adds no colour, no spacing and no second vocabulary — only the decision
+ * about which inline state a classified failure maps onto, and the guarantee
+ * that a refusal is never dressed as an outage.
+ *
+ * ---------------------------------------------------------------------------
+ * RETRY IS A PROPERTY OF THE FAILURE, NOT OF THE PAGE
+ * ---------------------------------------------------------------------------
+ * A 403 and a 500 both leave the operator without data, and only one of them
+ * is worth pressing again. `AdminReadFailure.retryable` carries that decision
+ * from the classifier, so a page cannot offer a Retry that is guaranteed to
+ * return the same refusal.
+ *
+ * ---------------------------------------------------------------------------
+ * THE TEST CONTRACT
+ * ---------------------------------------------------------------------------
+ * `data-admin-read-failure` is the semantic locator the control-plane browser
+ * suite asserts on. It exists so the test can ask "is the failure surface on
+ * screen" without matching a sentence — which is precisely the mistake the
+ * assertion it replaced was made of.
+ */
+export function AdmReadFailure({
+  failure,
+  onRetry,
+  retryLabel = "Try again",
+}: {
+  failure: { kind: string; message: string; retryable: boolean };
+  onRetry?: () => void;
+  retryLabel?: string;
+}) {
+  // A refusal is not an outage. `unavailable` reads as "the platform declined
+  // or cannot serve this", `error` reads as "something broke" — and AdmInline
+  // gives both role="alert", which is right for both.
+  const state: AdmInlineState = failure.kind === "error" ? "error" : "unavailable";
+  const showRetry = failure.retryable && typeof onRetry === "function";
+  return (
+    <div
+      data-admin-read-failure
+      data-admin-read-failure-kind={failure.kind}
+      data-admin-read-failure-retryable={failure.retryable ? "true" : "false"}
+    >
+      <AdmInline
+        state={state}
+        action={
+          showRetry ? (
+            <button
+              type="button"
+              className="adm-action"
+              data-admin-read-retry
+              onClick={onRetry}
+            >
+              {retryLabel}
+            </button>
+          ) : null
+        }
+      >
+        {failure.message}
+      </AdmInline>
+    </div>
+  );
+}

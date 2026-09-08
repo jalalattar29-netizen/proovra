@@ -130,7 +130,23 @@ test("/admin/users rows open the person detail route", () => {
 
 test("/admin/users surfaces errors through toSafeUserError (no raw message)", () => {
   const src = read(USERS);
-  assert.match(src, /toSafeUserError\(/, "must sanitise errors");
+  /*
+   * TWO SANCTIONED SPELLINGS, ONE SANCTIONED PATH.
+   *
+   * This asserted the direct call `toSafeUserError(`. The page now routes its
+   * read failure through `classifyAdminReadFailure(err, fallback,
+   * toSafeUserError)`, which takes the sanitiser as an ARGUMENT so the
+   * classifier cannot invent a message path of its own: every `error` it
+   * returns is built by `toSafeUserError`. The invariant is unchanged, and the
+   * `doesNotMatch` below — no raw `err.message` reaching a toast — is untouched.
+   */
+  const direct = /toSafeUserError\(/.test(src);
+  const viaClassifier =
+    /classifyAdminReadFailure\(/.test(src) && /\btoSafeUserError\b/.test(src);
+  assert.ok(
+    direct || viaClassifier,
+    "must sanitise errors, directly or through the canonical read classifier",
+  );
   assert.doesNotMatch(
     src,
     /addToast\(\s*err\.message/,

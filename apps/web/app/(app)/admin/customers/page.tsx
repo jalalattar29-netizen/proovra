@@ -27,6 +27,13 @@ import { EmptyState } from "../../../../components/ui/EmptyState";
 import { Button } from "../../../../components/ui/Button";
 import { apiFetch } from "../../../../lib/api";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
+import {
+  ADMIN_EMPTY_COPY,
+  ADMIN_FAILURE_COPY,
+  classifyAdminReadFailure,
+  type AdminReadFailure,
+} from "../../../../lib/admin/read-state";
+import { AdmReadFailure } from "../../../../components/admin/AdminSurfaces";
 import { formatUserDate } from "../../../../lib/date";
 // PHASE 6 §7 — carry the list state onto the detail URL so the return link
 // can put the operator back on the page they filtered, not on page one of
@@ -148,6 +155,12 @@ export default function AdminOrganizationsPage() {
 
   const [items, setItems] = useState<OrgListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  /**
+   * ADM-P2-002 — a failed read used to share its representation, and its render
+   * branch, with a successful empty response. The branch's copy asserts absence,
+   * so a read that never completed told the operator the platform was empty.
+   */
+  const [failure, setFailure] = useState<AdminReadFailure | null>(null);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -188,11 +201,16 @@ export default function AdminOrganizationsPage() {
         setPage(data?.page ?? targetPage);
         setTotal(data?.total ?? 0);
         setTotalPages(data?.totalPages ?? 1);
+        setFailure(null);
       } catch (err) {
-        const message = toSafeUserError(err, {
-          message: "We couldn't load the organizations roster.",
-        }).message;
-        addToast(message, "error");
+        const classified = classifyAdminReadFailure(
+          err,
+          ADMIN_FAILURE_COPY["/admin/customers"],
+          toSafeUserError,
+        );
+        setItems([]);
+        setFailure(classified);
+        addToast(classified.message, "error");
       } finally {
         setLoading(false);
       }
@@ -474,10 +492,14 @@ export default function AdminOrganizationsPage() {
           )
         }
         emptyState={
-          <EmptyState variant="inline"
-            title="No customers yet"
-            purpose="Customer organizations appear here once they exist. This roster is read-only and reflects live records."
-          />
+          failure ? (
+            <AdmReadFailure failure={failure} onRetry={() => void load(page)} />
+          ) : (
+            <EmptyState variant="inline"
+              title={ADMIN_EMPTY_COPY["/admin/customers"].title}
+              purpose={ADMIN_EMPTY_COPY["/admin/customers"].body}
+            />
+          )
         }
       />
 

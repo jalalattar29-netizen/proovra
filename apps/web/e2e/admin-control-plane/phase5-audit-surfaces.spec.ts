@@ -22,6 +22,9 @@
 
 import { expect, test, type Page } from "@playwright/test";
 
+/** The canonical Admin read-failure surface — a semantic locator, not a phrase. */
+const FAILURE_SURFACE = "[data-admin-read-failure]";
+
 const WEB = process.env.PROOVRA_FIXTURE_WEB_BASE ?? "http://localhost:3325";
 const PASSWORD = "fixture-local-only-password";
 const PLATFORM_ADMIN = "platform-admin@fixture.local";
@@ -265,16 +268,52 @@ test.describe("PHASE 5 — Admin audit and history surfaces", () => {
     await signIn(page, PLATFORM_ADMIN);
     await page.goto(`${WEB}/admin/audit`, { waitUntil: "networkidle", timeout: 90_000 });
 
-    // A filter value that certainly matches nothing. The page must say the
-    // filter matched nothing, not that there are no audit records at all and
-    // not fail silently.
+    // THIS TEST USED TO ASSERT ONLY `body.length > 200`, INSIDE AN `if` THAT
+    // SILENTLY SKIPPED WHEN THE SEARCH INPUT WAS NOT FOUND.
+    //
+    // Its name and its own comment claim it proves an empty result is
+    // distinguishable from an error. A page length is not that proof: an
+    // errored page and a filtered-empty page are both well over 200 characters,
+    // and the guard meant a missing control produced a pass rather than a
+    // failure. Both halves are now asserted, and the control must exist.
     const search = page.locator('input[type="search"], input[placeholder*="earch"]').first();
-    if ((await search.count()) > 0) {
-      await search.fill("p5-certainly-no-such-action-xyzzy");
-      await page.waitForTimeout(1_500);
-      const body = await page.locator("body").innerText();
-      expect(body.length, "the page went blank under a filter").toBeGreaterThan(200);
-    }
+    expect(
+      await search.count(),
+      "the audit surface offers no server-side search control to filter with",
+    ).toBeGreaterThan(0);
+
+    // --- side one: a SUCCESSFUL filter that matches nothing ----------------
+    await search.fill("p5-certainly-no-such-action-xyzzy");
+    await page.waitForTimeout(1_500);
+    const filteredText = await page.locator("main").first().innerText();
+    expect(
+      await page.locator(FAILURE_SURFACE).count(),
+      "a successful empty filter rendered the FAILURE surface",
+    ).toBe(0);
+    expect(
+      filteredText,
+      "a successful empty filter did not say the filter matched nothing",
+    ).toMatch(/no .*match|no results|clearing the filter|adjust the/i);
+
+    // --- side two: the SAME view with the read failing ---------------------
+    await page.route("**/v1/admin/audit-log?*", (route) =>
+      route.abort("connectionrefused"),
+    );
+    await page.reload({ waitUntil: "domcontentloaded", timeout: 90_000 });
+    await page.locator("h1:visible").first().waitFor({ state: "visible", timeout: 45_000 }).catch(() => {});
+    await page.waitForTimeout(2_000);
+    const failedText = await page.locator("main").first().innerText();
+    expect(
+      await page.locator(FAILURE_SURFACE).count(),
+      "a failed audit read rendered no failure surface",
+    ).toBeGreaterThan(0);
+
+    // The two states must not make the same claim to the operator.
+    expect(
+      failedText,
+      "a FAILED read reuses the successful-empty claim, which is the defect this test exists for",
+    ).not.toMatch(/no .*match|no results/i);
+    await page.unroute("**/v1/admin/audit-log?*");
   });
 
   test("the surfaces hold together at a phone width", async ({ page }) => {

@@ -41,6 +41,13 @@ import {
 } from "../../../../lib/audit/auditPresentation";
 import { useToast } from "../../../../components/ui";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
+import {
+  ADMIN_EMPTY_COPY,
+  ADMIN_FAILURE_COPY,
+  classifyAdminReadFailure,
+  type AdminReadFailure,
+} from "../../../../lib/admin/read-state";
+import { AdmReadFailure } from "../../../../components/admin/AdminSurfaces";
 import { formatUserDateTime } from "../../../../lib/date";
 
 type TimelineSeverity = "critical" | "high" | "medium" | "low";
@@ -129,6 +136,11 @@ export default function AdminTimelinePage() {
   const [items, setItems] = useState<TimelineEntry[]>([]);
   const [loading, setLoading] = useState(true);
   /**
+   * ADM-P2-002 — a failed read used to share its representation, and its render
+   * branch, with a successful empty response, whose copy asserts absence.
+   */
+  const [failure, setFailure] = useState<AdminReadFailure | null>(null);
+  /**
    * The cursor the API already returns and this page has been ignoring.
    *
    * `TimelineResponse` has declared `nextCursor` since it was written, and
@@ -165,11 +177,16 @@ export default function AdminTimelinePage() {
       );
       setItems(Array.isArray(data?.items) ? data.items : []);
       setNextCursor(data?.nextCursor ?? null);
+      setFailure(null);
     } catch (err) {
-      const message = toSafeUserError(err, {
-        message: "We couldn't load the platform timeline.",
-      }).message;
-      addToast(message, "error");
+      const classified = classifyAdminReadFailure(
+        err,
+        ADMIN_FAILURE_COPY["/admin/timeline"],
+        toSafeUserError,
+      );
+      setItems([]);
+      setFailure(classified);
+      addToast(classified.message, "error");
     } finally {
       setLoading(false);
     }
@@ -378,12 +395,16 @@ export default function AdminTimelinePage() {
             loading={loading}
             ariaLabel="Platform operational timeline"
             emptyState={
-              <EmptyState variant="inline"
-                framed
-                title="No platform events"
-                purpose="No platform-operational events match the current filters. As admin actions, organization lifecycle events, security events, incidents, or billing/team events are recorded, they appear here — evidence custody events are never included."
-                data-testid="admin-timeline-empty"
-              />
+              failure ? (
+                <AdmReadFailure failure={failure} onRetry={() => void load()} />
+              ) : (
+                <EmptyState variant="inline"
+                  framed
+                  title={ADMIN_EMPTY_COPY["/admin/timeline"].title}
+                  purpose={ADMIN_EMPTY_COPY["/admin/timeline"].body}
+                  data-testid="admin-timeline-empty"
+                />
+              )
             }
             rowActions={(r, index) => (
               <Button

@@ -50,6 +50,13 @@ import {
 } from "../../../../components/admin/AdminSurfaces";
 import { apiFetch } from "../../../../lib/api";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
+import {
+  ADMIN_EMPTY_COPY,
+  ADMIN_FAILURE_COPY,
+  classifyAdminReadFailure,
+  type AdminReadFailure,
+} from "../../../../lib/admin/read-state";
+import { AdmReadFailure } from "../../../../components/admin/AdminSurfaces";
 
 type NotMeasured = { value: null; notMeasured: string };
 
@@ -242,17 +249,28 @@ function ExecutiveDashboardBody() {
   const { addToast } = useToast();
   const [data, setData] = useState<ExecutiveDashboard | null>(null);
   const [loading, setLoading] = useState(true);
+  /**
+   * ADM-P2-002 — a failed read used to be stored as the same value a
+   * successful empty response produces, and both rendered through the branch
+   * below, whose copy asserts absence. Measured live against an aborted read,
+   * this page claimed the platform had no records.
+   */
+  const [failure, setFailure] = useState<AdminReadFailure | null>(null);
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
       const res = await apiFetch(`/v1/admin/executive`);
       setData(res ?? null);
+      setFailure(null);
     } catch (err) {
-      const message = toSafeUserError(err, {
-        message: "We couldn't load the executive dashboard.",
-      }).message;
-      addToast(message, "error");
+      const classified = classifyAdminReadFailure(
+        err,
+        ADMIN_FAILURE_COPY["/admin/executive"],
+        toSafeUserError,
+      );
+      setFailure(classified);
+      addToast(classified.message, "error");
     } finally {
       setLoading(false);
     }
@@ -522,13 +540,19 @@ function ExecutiveDashboardBody() {
             ))}
           </div>
         </PageSection>
+      ) : failure ? (
+        <PageSection>
+          <Card variant="empty" padding="none">
+            <AdmReadFailure failure={failure} onRetry={() => void load()} />
+          </Card>
+        </PageSection>
       ) : !data ? (
         <PageSection>
           <Card variant="empty" padding="none">
             <EmptyState variant="inline"
               framed
-              title="Executive dashboard not available"
-              purpose="No aggregate was returned. Once revenue, customers, leads and usage records exist, the honest platform KPIs appear here."
+              title={ADMIN_EMPTY_COPY["/admin/executive"].title}
+              purpose={ADMIN_EMPTY_COPY["/admin/executive"].body}
               data-testid="admin-executive-empty"
             />
           </Card>
