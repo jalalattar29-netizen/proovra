@@ -248,9 +248,27 @@ describe("Phase IA-self-serve-audit-fixes — Teams landing + renames", () => {
     expect(SRC).not.toMatch(/>\s*Permission matrix\s*</);
   });
 
-  it("TeamAccessReviewCard renamed 'Access review' → 'Member roles'", () => {
+  it("TeamAccessReviewCard is named for what it shows, not 'Access review'", () => {
+    /*
+     * PRE-EXISTING RED ON main, corrected 2026-09-08 while passing through.
+     *
+     * Phase IA renamed this card 'Access review' → 'Member roles', and this
+     * assertion pinned that. A LATER commit — 89f34523, "finish the Members &
+     * Access hierarchy" — renamed it again to 'External collaborators', and
+     * said why in the component: it listed members, invitations AND external
+     * grants while the first two already have their own panels on the same
+     * page, so the card now shows only external collaborators and is named for
+     * them. That commit did not update this test, so the suite has been red on
+     * main since it landed.
+     *
+     * The INTENT survives both renames and is what is asserted now: the card is
+     * named for what it shows, and the original 'Access review' — the name Phase
+     * IA removed — has not come back. Neither this test nor the component is
+     * part of the commercial/output-lifecycle work; the correction is here
+     * because a standing red teaches everyone to ignore the suite.
+     */
     const SRC = readWeb("app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx");
-    expect(SRC).toMatch(/>\s*Member roles\s*</);
+    expect(SRC).toMatch(/>\s*External collaborators\s*</);
     expect(SRC).not.toMatch(/>\s*Access review\s*</);
   });
 });
