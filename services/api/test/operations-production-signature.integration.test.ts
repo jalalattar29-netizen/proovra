@@ -397,10 +397,12 @@ describe("Operations production signature (live PostgreSQL 16)", () => {
      * owed a report, which is the state in which "can this source write?" is a
      * question at all.
      */
-    await prisma.entitlement.updateMany({
-      where: { userId: personal.userId, active: true },
-      data: { plan: "PRO" },
-    });
+    // Through the ONE writer of a personal plan, which creates the entitlement
+    // row if the harness has not caused one yet. A bare `updateMany` matched
+    // zero rows — `Entitlement` is created lazily by `ensureEntitlement` — and
+    // left the fixture on FREE while looking like it had set PRO.
+    const { setPersonalPlan } = await import("../src/services/billing.service.js");
+    await setPersonalPlan(personal.userId, "PRO");
 
     // -----------------------------------------------------------------
     // The production-shaped population.

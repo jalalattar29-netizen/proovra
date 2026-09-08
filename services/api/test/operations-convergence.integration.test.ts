@@ -326,10 +326,12 @@ describe("Operations convergence (live PostgreSQL 16)", () => {
      * report, which is the only state in which "is the scan seeing them?" is a
      * question with an answer.
      */
-    await prisma.entitlement.updateMany({
-      where: { userId: personal.userId, active: true },
-      data: { plan: "PRO" },
-    });
+    // Through the ONE writer of a personal plan, which creates the entitlement
+    // row if the harness has not caused one yet. A bare `updateMany` matched
+    // zero rows — `Entitlement` is created lazily by `ensureEntitlement` — and
+    // left the fixture on FREE while looking like it had set PRO.
+    const { setPersonalPlan } = await import("../src/services/billing.service.js");
+    await setPersonalPlan(personal.userId, "PRO");
 
     // 20 SIGNED-without-report personal records (the HIGH threshold).
     const ids: string[] = [];
