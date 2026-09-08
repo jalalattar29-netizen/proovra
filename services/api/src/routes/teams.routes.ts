@@ -1356,6 +1356,28 @@ export async function teamsRoutes(app: FastifyInstance) {
        * resend counter records that the address was chased — which is exactly
        * what happened.
        */
+      /*
+       * SELECT ONLY THE ID — the one field this read actually uses.
+       *
+       * It had no `select`, so Prisma asked for every scalar on the model:
+       * `token_hash`, `revoked_by_user_id`, `accepted_by_user_id`,
+       * `last_resent_at`, `resend_count` AND the retired raw `token`, none of
+       * which is read here. The row is used for exactly one thing — its id,
+       * handed to `resendWorkspaceInvitation` below.
+       *
+       * The sibling listing was narrowed for the same reason; this writer was
+       * missed. Beyond the credential hygiene, a projection naming columns the
+       * statement does not need is a column the statement can fail on: against
+       * a database still missing Release A (`20280501000000`) this read is one
+       * of the places that cannot be planned at all, and the request answers
+       * 503 SCHEMA_NOT_READY.
+       *
+       * `revokedAt` stays in the WHERE. It is load-bearing — a revoked
+       * invitation must not be adopted and resent — so narrowing the
+       * projection reduces the failure surface without pretending the
+       * migration is optional. Release A is still required for invitations to
+       * work; see the deployment note in the migration plan.
+       */
       const existingPendingInvite = await prisma.teamInvite.findFirst({
         where: {
           teamId,
@@ -1364,6 +1386,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           revokedAt: null,
         },
         orderBy: { createdAt: "desc" },
+        select: { id: true },
       });
 
       if (existingPendingInvite) {
