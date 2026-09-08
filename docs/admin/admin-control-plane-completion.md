@@ -308,7 +308,7 @@
 
 | Route | Lines | cards/tables/sections | Open findings |
 | --- | --- | --- | --- |
-| `/admin` | 966 | 0c/0t/9s |  |
+| `/admin` | 999 | 0c/0t/10s |  |
 | `/admin/adoption` | 283 | 0c/1t/1s |  |
 | `/admin/alerts` | 318 | 1c/0t/1s |  |
 | `/admin/audit` | 1104 | 3c/1t/2s |  |

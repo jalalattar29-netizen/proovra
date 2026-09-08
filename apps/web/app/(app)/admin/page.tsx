@@ -19,8 +19,14 @@ import {
   AdmAttention,
   AdmCard,
   AdmFacts,
+  AdmReadFailure,
   type AdmSeverity,
 } from "../../../components/admin/AdminSurfaces";
+import {
+  ADMIN_FAILURE_COPY,
+  classifyAdminReadFailure,
+  type AdminReadFailure,
+} from "../../../lib/admin/read-state";
 import "./admin-overview.css";
 
 import { apiFetch } from "../../../lib/api";
@@ -442,18 +448,38 @@ export default function AdminOverviewPage() {
   const { addToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [ov, setOv] = useState<PlatformOverview | null>(null);
+  /**
+   * ADM-P2-002, ON THE CONSOLE'S FRONT PAGE.
+   *
+   * The failure path was a toast plus `setOv(null)`, and `ov == null` renders
+   * "Overview unavailable — an honest not-connected state, not an empty
+   * platform". That copy is honest about ONE of the two things that reach it:
+   * it is also what a successful read returning nothing renders, so a refusal,
+   * an aborted read and a genuinely empty platform were one surface. The toast
+   * that carried the difference is gone in seconds and never comes back on a
+   * reload.
+   *
+   * This is the same fix the other ten admin consoles took, and this page needed
+   * it most: it is the first screen a platform operator opens, and the header
+   * two lines below promises that "anything the platform cannot measure says so
+   * rather than showing a zero".
+   */
+  const [failure, setFailure] = useState<AdminReadFailure | null>(null);
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
       const data = (await apiFetch("/v1/admin/overview")) as PlatformOverview;
       setOv(data ?? null);
+      setFailure(null);
     } catch (err) {
-      addToast(
-        toSafeUserError(err, { message: "Failed to load the platform overview" })
-          .message,
-        "error",
+      const classified = classifyAdminReadFailure(
+        err,
+        ADMIN_FAILURE_COPY["/admin"],
+        toSafeUserError,
       );
+      setFailure(classified);
+      addToast(classified.message, "error");
       setOv(null);
     } finally {
       setLoading(false);
@@ -502,6 +528,13 @@ export default function AdminOverviewPage() {
               </div>
             ))}
           </AdminStatGrid>
+        </PageSection>
+      ) : failure ? (
+        /* THE READ FAILED. Distinct from the branch below, which is what a
+           SUCCESSFUL read returning nothing looks like — and carries a retry,
+           because a transient failure is the common case. */
+        <PageSection title="Platform status">
+          <AdmReadFailure failure={failure} onRetry={() => void load()} />
         </PageSection>
       ) : ov == null ? (
         <PageSection title="Platform status">
