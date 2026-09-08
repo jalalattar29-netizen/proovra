@@ -42,6 +42,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Card } from "../../../../../components/ui";
 import { apiFetch } from "../../../../../lib/api";
 import { formatUserDate } from "../../../../../lib/date";
+import { AppListbox } from "../../../../../components/app-primitives/AppListbox";
 import { AccessGate } from "../../../../../components/access/AccessGate";
 
 type RoleId = "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
@@ -382,37 +383,63 @@ function Ready({
         />
       </div>
 
+      {/*
+        THE CANONICAL CONTROLS, NOT PAGE-LOCAL ONES.
+
+        This row held two hand-styled pills: a bare `<input>` and a native
+        `<select>`, both `cases-form-input` with inline `borderRadius: 999` and
+        their own padding and font size. The `<select>` is where the reported
+        blue came from — a native select paints its selected and focus states
+        from the browser/OS, so no amount of styling the closed control reaches
+        the open menu, and it could never match the accent hierarchy every
+        other current surface uses.
+
+        `AppListbox` is that hierarchy, and `.app-search-field` /
+        `.app-search-icon` / `.app-search-input` are the same search primitive
+        Evidence, Intake Links and Operations use. Both `data-*` hooks are
+        preserved verbatim, and the filter values are unchanged.
+      */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <input
-          type="text"
-          placeholder="Search by name or email"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          data-team-access-review-search
-          className="cases-form-input"
-          style={{
-            flex: "1 1 200px",
-            padding: "6px 10px",
-            borderRadius: 999,
-            fontSize: 13,
-          }}
-        />
-        <select
-          value={filter}
-          onChange={(e) => setFilter(e.target.value as typeof filter)}
-          data-team-access-review-filter
-          className="cases-form-input"
-          style={{
-            padding: "6px 10px",
-            borderRadius: 999,
-            fontSize: 13,
-          }}
-        >
-          <option value="all">All ({rows.length})</option>
-          <option value="internal">Members only</option>
-          <option value="external">External only</option>
-          <option value="pending">Pending invites only</option>
-        </select>
+        <div className="app-search-field">
+          <span className="app-search-icon" aria-hidden="true">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+          </span>
+          <input
+            type="search"
+            className="app-search-input"
+            placeholder="Search by name or email"
+            aria-label="Search access review by name or email"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            data-team-access-review-search
+          />
+        </div>
+        <div style={{ minWidth: 200 }} data-team-access-review-filter>
+          <AppListbox
+            value={filter}
+            options={[
+              { value: "all", label: `All (${rows.length})` },
+              { value: "internal", label: "Members only" },
+              { value: "external", label: "External only" },
+              { value: "pending", label: "Pending invites only" },
+            ]}
+            onChange={(v) => setFilter(v as typeof filter)}
+            ariaLabel="Filter access review"
+            id="team-access-review-filter"
+          />
+        </div>
       </div>
 
       {visible.length === 0 ? (

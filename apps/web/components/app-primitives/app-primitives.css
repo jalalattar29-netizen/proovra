@@ -1630,6 +1630,61 @@ textarea.app-form-input {
 }
 .app-skeleton-row:last-of-type { border-bottom: 0; }
 
+/* A row of FILTER CONTROLS — selectors, toggles and chips side by side.
+   Distinct from a segmented control (`.cases-segments`), which is a tray for
+   adjacent pill buttons and caps itself at `max-content`: putting four
+   180px-wide listboxes and a checkbox in one squeezed them until the last
+   control collided with its neighbour. This wraps instead of shrinking, so a
+   label is never clipped to make room, and every child keeps a consistent
+   gap and baseline. */
+.app-filter-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+/* The toggle sits on the same baseline as the selectors beside it rather than
+   reading as loose text jammed against one. */
+.app-filter-group .app-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--app-inline-surface-border, rgba(15, 23, 42, 0.1));
+  background: var(--app-inline-surface-bg, rgba(255, 255, 255, 0.7));
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--app-ink-label);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.app-filter-group .app-checkbox:hover {
+  background: rgba(255, 255, 255, 0.92);
+}
+.app-filter-group .app-checkbox input {
+  accent-color: #7C3AED;
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  cursor: pointer;
+}
+
+/* A row of PANELS that do not each deserve the full width.
+   Density is a layout decision, not a second design system — the panels are
+   unchanged `.app-panel`s, they simply stop being stacked full-width slabs
+   when their content is a paragraph and a button. `auto-fit` with a real
+   minimum means a panel whose copy needs the room still gets a full row on a
+   narrow viewport rather than being squeezed to fit a column count. */
+.app-grid-panels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
 /* Inline notice — non-blocking status message inside a panel (AI provider
    unavailable, policy denial, validation failure). Neutral by default, amber
    for a warning. Also emitted, previously undefined, by the ai-copilot

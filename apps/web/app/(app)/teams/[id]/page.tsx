@@ -1253,7 +1253,7 @@ function TeamDetailPageBody() {
           <div className="app-panel__head app-panel__head-row">
             <h2 className="app-panel__title">Members</h2>
             <div className="app-search-field">
-              <span className="app-search-field__icon" aria-hidden="true">
+              <span className="app-search-icon" aria-hidden="true">
                 <svg
                   width="16"
                   height="16"
@@ -1270,7 +1270,7 @@ function TeamDetailPageBody() {
               </span>
               <input
                 type="search"
-                className="app-search-field__input"
+                className="app-search-input"
                 placeholder="Search members"
                 aria-label="Search members"
                 value={memberSearch}
@@ -1579,6 +1579,16 @@ function TeamDetailPageBody() {
         </div>
 
         {/*
+          ACCESS & ORGANISATION — two columns, not four stacked slabs (§4C).
+
+          The bridge, the member-roles review and the case linkage are all
+          secondary context beside the roster: each is a short panel, and each
+          used to claim the full page width, which is what made this surface
+          read as a long administration form. They keep their content and their
+          order; they simply share the row where the viewport allows it.
+        */}
+        <div className="app-grid-panels">
+        {/*
           THE BRIDGE TO THE OTHER HALF OF THE MODEL (§15.6).
 
           A contextual path, not a second front door: no KPI, no oversized CTA,
@@ -1726,6 +1736,8 @@ function TeamDetailPageBody() {
           </div>
         </div>
 
+        </div>
+
         {/* Recent activity — membership and access history, compact. */}
         {activities.length > 0 ? (
           <div className="app-panel" data-testid="people-activity">
@@ -1789,12 +1801,27 @@ function TeamDetailPageBody() {
               Workspace lifecycle
             </h2>
             {/*
+              THREE FULL-WIDTH SLABS BECAME A GRID (§5).
+
+              Transfer, close and delete each held a paragraph and one button
+              and each took the whole page width, so the most consequential
+              region on the surface was also the emptiest — an operator scrolled
+              past several hundred pixels of white to reach three short
+              controls. They are the same panels with the same copy and the
+              same canonical danger treatment; only the layout changed.
+
+              The region STAYS separated at the bottom under its own heading,
+              because these are the operations that end things. Compact is not
+              the same as hidden.
+            */}
+            {/*
               Each card repeats the `isOwner` condition the region already
               applies. That redundancy is deliberate: these are the page's
               authorization boundaries, and a reader should be able to see that
               a card is owner-only from the card's own line rather than by
               walking up the tree to find out.
             */}
+            <div className="app-grid-panels">
             {isOwner && teamId ? (
               <WorkspaceOwnershipTransferCard
                 teamId={teamId}
@@ -1827,6 +1854,7 @@ function TeamDetailPageBody() {
                   {deletingTeam ? "Deleting…" : "Delete workspace"}
                 </button>
               </div>
+            </div>
             </div>
           </div>
         ) : null}
