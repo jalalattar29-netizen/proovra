@@ -86,7 +86,7 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 350,
+    "AuditFilesInventoried": 352,
     "AuditFilesUnclassified": 0,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
@@ -139,7 +139,7 @@
     "ProductionRuntimeFilesModifiedByPhase0": 0,
     "ProductBehaviorTestsRemoved": 0,
     "HistoricalMigrationsModifiedByPhase0": 0,
-    "ProductBehaviorTestsInventoried": 202
+    "ProductBehaviorTestsInventoried": 204
   },
   "reportRoles": {
     "counts": {
@@ -158,7 +158,7 @@
     }
   },
   "byRole": {
-    "PRODUCT_BEHAVIOR_TEST": 202,
+    "PRODUCT_BEHAVIOR_TEST": 204,
     "CONTINUATION_CHECKPOINT": 1,
     "GENERATED_CURRENT_ARTIFACT": 3,
     "LEDGER_VALIDATOR_OR_GENERATOR": 1,
@@ -3260,6 +3260,36 @@
     },
     {
       "path": "services/api/test/capture-finalize-checklist-gate.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/commercial-output-lifecycle-closure.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/commercial-plan-authority-drift.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],
