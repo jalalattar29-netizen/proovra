@@ -642,9 +642,32 @@ function TeamDetailPageBody() {
     );
   }, [team?.members, memberSearch]);
 
+  /**
+   * THE SERVER'S RESOLVED PLAN, OR NOTHING. UNKNOWN IS NOT FREE.
+   *
+   * This read `effectivePlan ?? billingPlan` and defaulted to `"FREE"`. Both
+   * halves were wrong. `effectivePlan` was not projected by any route, so the
+   * first operand was always undefined; `billingPlan` is the ADMIN-only raw
+   * column the API itself documents as NOT the effective plan (meaningless on
+   * a PERSONAL workspace). The result was that a MEMBER or VIEWER on a PRO
+   * workspace read "FREE" — a commercial claim the page invented.
+   *
+   * `effectivePlan` is now projected by `GET /v1/teams/:id` from
+   * `resolveCommercialContext`, the canonical authority. `billingPlan` is NOT
+   * a fallback: a raw column that disagrees with the resolver must never win,
+   * and a caller who cannot see it must not silently get a different answer
+   * from one who can.
+   *
+   * `null` means UNKNOWN — loading, degraded, or an older server. Every
+   * consumer below renders that as absence or an em dash. Nothing here may
+   * substitute a plan name for a plan we do not have.
+   */
   const effectivePlan = useMemo(() => {
-    return normalizePlanLabel(team?.effectivePlan ?? team?.billingPlan, "FREE");
-  }, [team?.effectivePlan, team?.billingPlan]);
+    const resolved = team?.effectivePlan;
+    return typeof resolved === "string" && resolved.trim()
+      ? normalizePlanLabel(resolved)
+      : null;
+  }, [team?.effectivePlan]);
 
   /**
    * The owner's name for the Workspace overview, RESOLVED rather than assumed.
@@ -2114,12 +2137,19 @@ function TeamDetailPageBody() {
                       {team?.name ?? "—"}
                     </dd>
                   </div>
-                  {effectivePlan ? (
-                    <div className="app-kv-row">
-                      <dt className="app-kv-key">Plan</dt>
-                      <dd className="app-kv-value">{effectivePlan}</dd>
-                    </div>
-                  ) : null}
+                  {/*
+                    The row STAYS when the plan is unknown, and says so with an
+                    em dash. Hiding it would be the quieter version of the same
+                    defect: a reader who saw "Plan: FREE" yesterday and no Plan
+                    row today has no way to tell that the answer is missing
+                    rather than that the workspace changed.
+                  */}
+                  <div className="app-kv-row">
+                    <dt className="app-kv-key">Plan</dt>
+                    <dd className="app-kv-value" data-testid="overview-plan">
+                      {effectivePlan ?? "—"}
+                    </dd>
+                  </div>
                   {ownerLabel ? (
                     <div className="app-kv-row">
                       <dt className="app-kv-key">Owner</dt>

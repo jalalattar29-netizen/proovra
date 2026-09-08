@@ -768,6 +768,31 @@ export async function teamsRoutes(app: FastifyInstance) {
               overSeatLimit: team.overSeatLimit,
             }
           : {}),
+        /**
+         * THE EFFECTIVE PLAN — RESOLVED, AND FOR EVERYONE WHO CAN READ THE
+         * WORKSPACE.
+         *
+         * The console displayed a plan for this workspace and had nothing
+         * truthful to build it from. It read `effectivePlan ?? billingPlan`
+         * and defaulted to `"FREE"`: `effectivePlan` was never projected by
+         * any route, and `billingPlan` is the ADMIN-only raw column the block
+         * above explains is NOT the effective plan. So a MEMBER or VIEWER on a
+         * PRO workspace was shown "FREE" — a manufactured commercial claim,
+         * stated with the same confidence as a real one.
+         *
+         * `workspaceScope` is already resolved a few lines above for the seat
+         * figures, by `resolveCommercialContext` — the canonical authority,
+         * contract-first for Enterprise. Projecting its plan costs nothing and
+         * introduces no second resolver. The field name matches the precedent
+         * in `evidence.routes.ts` (`effectivePlan: scope.plan`).
+         *
+         * NOT ADMIN-GATED, deliberately, and this is the one judgement here:
+         * the plan NAME is the label a workspace already shows its members in
+         * the switcher and the platform envelope. What stays gated is the
+         * commercial detail beside it — payment status, contracted seats,
+         * over-limit state — none of which appears here.
+         */
+        effectivePlan: workspaceScope.plan,
         currentUserRole: actorMembership.role,
         canManageMembers: hasRole(actorMembership.role, prismaPkg.TeamRole.ADMIN),
         // PHASE 12 POINT 4 STEP 1 — OWNER-level workspace authority, projected
