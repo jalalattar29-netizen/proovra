@@ -810,11 +810,19 @@ function TeamsTable({
         <thead>
           <tr>
             <th scope="col">Team</th>
+            {/* LIFECYCLE IS A COLUMN (§9A). The filter defaults to All, so
+                active and archived teams interleave — and until now nothing in
+                a row said which was which. */}
+            <th scope="col">Status</th>
             <th scope="col">Type</th>
             <th scope="col">Members</th>
             <th scope="col">Open work</th>
             <th scope="col">Overdue</th>
-            <th scope="col">High priority</th>
+            {/* HIGH **AND** URGENT (§17). The predicate is
+                `priority IN ('HIGH','URGENT')` — the column always counted
+                both and the header named one. The calculation is unchanged;
+                the label stopped under-reporting it. */}
+            <th scope="col">High / urgent</th>
             <th scope="col">Your role</th>
             <th scope="col">Last activity</th>
             <th scope="col" style={{ textAlign: "right" }}>Actions</th>
@@ -869,10 +877,13 @@ function TeamRow({ team }: { team: CollaborationTeamSummary }) {
             >
               {team.description}
             </span>
-          ) : (
-            <span className="app-table__muted">No description</span>
-          )}
+          ) : null}
         </div>
+      </td>
+      <td data-label="Status">
+        <AppStatusText tone={team.status === "ACTIVE" ? "green" : "amber"}>
+          {team.status === "ACTIVE" ? "Active" : "Archived"}
+        </AppStatusText>
       </td>
       {/*
         TYPE, ROLE AND THE THREE COUNTS ARE TEXT NOW (§3, §20).
@@ -917,7 +928,7 @@ function TeamRow({ team }: { team: CollaborationTeamSummary }) {
           <span className="app-table__muted" aria-label="Nothing overdue">—</span>
         )}
       </td>
-      <td data-label="High priority">
+      <td data-label="High / urgent">
         {team.highPriorityAssignmentCount > 0 ? (
           <AppStatusText tone="amber">
             {team.highPriorityAssignmentCount}

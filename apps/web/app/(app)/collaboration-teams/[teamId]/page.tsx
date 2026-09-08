@@ -30,6 +30,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { PageShell, useToast } from "../../../../components/ui";
+import type { SafeErrorFallback } from "../../../../lib/feedback/toSafeUserError";
 import { notifyApiError } from "../../../../lib/feedback/notify";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import {
@@ -259,8 +260,18 @@ function TeamDetail() {
   // One error path for every tab panel: the sanctioned safe-feedback helper,
   // never a raw message.
   const { addToast } = useToast();
+  /*
+   * ONE SAFE-ERROR BOUNDARY FOR EVERY TAB, AND IT NOW RECEIVES THE ERROR.
+   *
+   * The tabs used to hand this a rebuilt `{ message, requestId }`, so by the
+   * time it arrived `toSafeUserError` had no code and no status to resolve and
+   * answered GENERIC for every refusal. They pass the error itself now; the
+   * optional `fallback` is the per-action sentence, used only when nothing
+   * recognises the failure.
+   */
   const onTabError = useCallback(
-    (err: unknown) => notifyApiError(addToast, err),
+    (err: unknown, fallback?: SafeErrorFallback) =>
+      notifyApiError(addToast, err, fallback),
     [addToast],
   );
 
@@ -382,18 +393,47 @@ function TeamDetail() {
     );
   }
 
-  const canManage = collaborationTeamRoleHasPermission(
+  /*
+   * A CAPABILITY IS A ROLE **AND** A LIFECYCLE STATE (§11).
+   *
+   * These were role-only, so on an archived team every member, work and
+   * settings control rendered fully enabled and the server refused each one.
+   * The operator discovered the team was archived by failing at it — the page
+   * had `team.status` the whole time and never asked.
+   *
+   * `isArchived` is folded in HERE, once, rather than in each tab: the tabs
+   * receive a capability that is already true or already false, so no tab can
+   * forget the lifecycle half. What remains available on an archived team is
+   * exactly what the server still accepts — reopening it, and deleting a
+   * group that carries no record.
+   *
+   * THIS IS NOT AUTHORIZATION. Every one of these mutations is still gated
+   * server-side by `authorizeCollaborationTeam` with `requireActiveTeam`, and
+   * that gate remains the only thing that decides. This stops the console
+   * offering an action that cannot succeed, and says why instead.
+   */
+  const isArchived = team.status !== "ACTIVE";
+  const canManage =
+    !isArchived &&
+    collaborationTeamRoleHasPermission(team.viewerRole, "team.update_settings");
+  const canInvite =
+    !isArchived &&
+    collaborationTeamRoleHasPermission(team.viewerRole, "team.member.invite");
+  const canAssign =
+    !isArchived &&
+    collaborationTeamRoleHasPermission(team.viewerRole, "team.assignment.create");
+  /** Reopen and delete are the two writes an archived team still accepts. */
+  const canArchive = collaborationTeamRoleHasPermission(
     team.viewerRole,
-    "team.update_settings",
+    "team.archive",
   );
-  const canInvite = collaborationTeamRoleHasPermission(
+  const canDelete = collaborationTeamRoleHasPermission(
     team.viewerRole,
-    "team.member.invite",
+    "team.delete",
   );
-  const canAssign = collaborationTeamRoleHasPermission(
-    team.viewerRole,
-    "team.assignment.create",
-  );
+  const canTransferLead =
+    !isArchived &&
+    collaborationTeamRoleHasPermission(team.viewerRole, "team.transfer_lead");
 
   // PROOVRA Phase 10 — header-level MEMBERS_USED chip + SMS_STATUS chip.
   // Read the same canonical envelope helper used across collaboration-teams
@@ -545,6 +585,38 @@ function TeamDetail() {
               >
                 {templateLabel(team.teamType)}
               </span>
+              {/*
+                LIFECYCLE, BESIDE THE NAME (§9B).
+
+                `data-team-status` was on the page shell for tests and nowhere a
+                person could see it, so the only visible signal that a team was
+                archived lived on the Settings tab — and an operator normally
+                met it as a failed action instead.
+
+                ACTIVE is deliberately not labelled. A chip on every team would
+                be a badge that means nothing on the overwhelming majority of
+                them; the state worth interrupting for is the exceptional one.
+              */}
+              {isArchived ? (
+                <span
+                  data-testid="team-detail-status"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    height: 22,
+                    padding: "0 10px",
+                    borderRadius: 999,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    letterSpacing: "0.02em",
+                    background: "rgba(234,88,12,0.20)",
+                    border: "1px solid rgba(253,186,116,0.45)",
+                    color: "#FFD9BE",
+                  }}
+                >
+                  Archived
+                </span>
+              ) : null}
             </div>
 
             {team.description ? (
@@ -757,6 +829,50 @@ function TeamDetail() {
         </div>
       ) : null}
 
+      {/*
+        THE ARCHIVED STATE, SAID ONCE, ABOVE EVERY TAB (§10).
+
+        It says three things in the order an operator needs them: what the
+        state is, that nothing was lost, and what to do about it. "Archived"
+        alone reads as "deleted" to somebody who did not archive it, which is
+        the reading that makes people panic about evidence.
+
+        It appears on every tab because every tab's writes are refused, and it
+        is a single compact row rather than a slab — the tabs below it are
+        still the page.
+      */}
+      {isArchived ? (
+        <div
+          className="app-alert app-alert--warn"
+          data-testid="team-archived-banner"
+          role="status"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            flexWrap: "wrap",
+            marginBottom: 12,
+          }}
+        >
+          <span>
+            <strong>This team is archived.</strong> Its members, work and
+            history stay readable, but changes are disabled.
+            {canArchive ? " Reopen it to make changes." : ""}
+          </span>
+          {canArchive ? (
+            <button
+              type="button"
+              className="app-secondary-action"
+              data-testid="team-archived-banner-reopen"
+              onClick={() => goTab("settings")}
+            >
+              Reopen in Settings
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
       <div>
         {activeTab === "overview" ? (
           <OverviewTab team={team} onJumpTab={goTab} />
@@ -789,10 +905,10 @@ function TeamDetail() {
               team={team}
               onChange={refresh}
               canManage={canManage}
-              canArchive={collaborationTeamRoleHasPermission(
-                team.viewerRole,
-                "team.archive",
-              )}
+              canArchive={canArchive}
+              canDelete={canDelete}
+              canTransferLead={canTransferLead}
+              onError={onTabError}
             />
             {/*
               ACTIVITY IS PRESERVED, NOT PROMOTED.

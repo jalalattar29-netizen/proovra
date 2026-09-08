@@ -11,8 +11,8 @@ import {
   AppStatusBadge,
   type AppTone,
 } from "../../../../../components/app-primitives/AppStatusBadge";
-import { ApiError } from "../../../../../lib/api";
 import { notifyApiError } from "../../../../../lib/feedback/notify";
+import type { SafeErrorFallback } from "../../../../../lib/feedback/toSafeUserError";
 import { formatUserDate } from "../../../../../lib/date";
 import {
   addExistingMember,
@@ -491,7 +491,22 @@ function MemberRow({
   teamId: string;
   activeLeadCount: number;
   onChanged: (msg: string) => void | Promise<void>;
-  onError: (err: { message: string; requestId?: string }) => void;
+  /**
+   * THE ERROR ITSELF, NOT A COPY OF TWO OF ITS FIELDS (§5).
+   *
+   * This was `(err: { message: string; requestId?: string }) => void`, and the
+   * TYPE was the defect: it cannot carry `code` or `statusCode`, so every
+   * handler below rebuilt the error as an object literal and the domain
+   * identity was gone before it reached the safe-error boundary. A
+   * `team_conflict` explaining that the last Lead cannot be suspended arrived
+   * as `{ message: "Couldn't suspend member." }` and rendered as the generic
+   * "We couldn't complete that action".
+   *
+   * The error travels whole now. `fallback` supplies the per-action sentence
+   * for a failure nothing recognises — which is the only case it was ever
+   * useful for, and the case `toSafeUserError` already reserves it for.
+   */
+  onError: (err: unknown, fallback?: SafeErrorFallback) => void;
 }) {
   const displayName =
     member.user.displayName ||
@@ -511,11 +526,7 @@ function MemberRow({
       await updateMember(teamId, member.id, { role });
       await onChanged(`Role updated to ${role}.`);
     } catch (err) {
-      if (err instanceof ApiError) {
-        onError({ message: err.message, requestId: err.requestId });
-      } else {
-        onError({ message: "Couldn't update role." });
-      }
+      onError(err, { message: "Couldn't update this member's role." });
     } finally {
       setBusy(false);
     }
@@ -527,11 +538,7 @@ function MemberRow({
       await updateMember(teamId, member.id, { status: "SUSPENDED" });
       await onChanged("Member suspended.");
     } catch (err) {
-      if (err instanceof ApiError) {
-        onError({ message: err.message, requestId: err.requestId });
-      } else {
-        onError({ message: "Couldn't suspend member." });
-      }
+      onError(err, { message: "Couldn't suspend this member." });
     } finally {
       setBusy(false);
     }
@@ -567,11 +574,7 @@ function MemberRow({
       await removeMember(teamId, member.id);
       await onChanged("Member removed.");
     } catch (err) {
-      if (err instanceof ApiError) {
-        onError({ message: err.message, requestId: err.requestId });
-      } else {
-        onError({ message: "Couldn't remove member." });
-      }
+      onError(err, { message: "Couldn't remove this member." });
     } finally {
       setBusy(false);
     }
@@ -651,12 +654,29 @@ function MemberRow({
         <div className="app-table__actions">
           {canManage && member.status === "ACTIVE" ? (
             <>
+              {/*
+                SUSPEND IS PRE-EMPTED TOO (§13).
+
+                Remove already carried `isLastLead`; Suspend did not — so the
+                one action a reader would reach for first was the one that
+                offered itself and then failed. The server invariant is
+                identical for both (`suspendMember` counts remaining ACTIVE
+                LEADs inside its transaction and refuses at zero), and it
+                REMAINS the decision: this only stops the console proposing a
+                mutation that is already known to be refused, and says what to
+                do instead.
+              */}
               <button
                 type="button"
                 onClick={() => void onSuspend()}
-                disabled={busy}
+                disabled={busy || isLastLead}
                 className="app-ghost-action"
                 data-testid={`member-suspend-${member.id}`}
+                title={
+                  isLastLead
+                    ? "Transfer leadership before suspending the last Lead."
+                    : "Suspend participation in this team (workspace access is unaffected)"
+                }
               >
                 Suspend
               </button>
@@ -668,7 +688,7 @@ function MemberRow({
                 data-testid={`member-remove-${member.id}`}
                 title={
                   isLastLead
-                    ? "Cannot remove the last LEAD."
+                    ? "Transfer leadership before removing the last Lead."
                     // Scope, not object. Workspace removal is a Members &
                     // Access governance action and never happens from here.
                     : "Remove from this team (workspace access is unaffected)"

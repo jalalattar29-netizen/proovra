@@ -32,6 +32,13 @@ interface ErrorLike {
   status?: unknown;
   requestId?: unknown;
   name?: unknown;
+  /**
+   * Read ONLY for the codes on `SERVER_MESSAGE_CODES`. Declared here so that
+   * reading it is a typed, greppable decision rather than a cast at the point
+   * of use — the whole risk in this file is a backend string reaching a user,
+   * and the one place it may is worth naming.
+   */
+  message?: unknown;
 }
 
 function readString(v: unknown): string | undefined {
@@ -172,6 +179,20 @@ const CODE_MAP: Record<
     severity: "warning",
     actionLabel: "View billing",
     actionHref: "/billing",
+  },
+  /*
+   * A COLLABORATION TEAM'S LIFECYCLE REFUSAL.
+   *
+   * Every member, work, invitation, comment, guest and access-review mutation
+   * on an archived team answers 409 with this code. The reason is always the
+   * same sentence, so it is written here rather than trusted from the wire —
+   * and it says what to DO, because "archived" alone leaves the operator
+   * looking for a control they cannot find.
+   */
+  COLLABORATION_TEAM_ARCHIVED: {
+    title: "This team is archived",
+    message: "Reopen this team before making changes. Its history stays available either way.",
+    severity: "warning",
   },
   TEAM_MEMBER_LIMIT_REACHED: {
     title: "This Team is at capacity",
@@ -644,6 +665,53 @@ const GENERIC: Omit<SafeUserError, "supportReference"> = {
 };
 
 /**
+ * CODES WHOSE SERVER MESSAGE IS THE ANSWER.
+ *
+ * `CODE_MAP` answers "what does this code always mean?", which is the right
+ * question for a code with one outcome. Some domain refusals do not have one:
+ * `team_conflict` is raised for the last-LEAD invariant on suspend, on remove
+ * and on demote, and each carries a different, already user-safe sentence
+ * naming the operation and the way out. Writing one of those here would be
+ * wrong for the other two; writing a sentence vague enough to cover all three
+ * would say less than the server already said.
+ *
+ * So for these codes — and ONLY these — the server's message is rendered. That
+ * is a deliberate, bounded exception to "never show a backend message", and it
+ * is safe precisely because these are authored refusals from our own domain
+ * layer, not exception text: each is a fixed literal in
+ * `collaboration-team.service.ts`, none interpolates user input, a database
+ * error or an internal path, and the API's own 500 handler never uses these
+ * codes.
+ *
+ * Everything that keeps it honest:
+ *   - the code must be on this list; nothing else may reach it;
+ *   - the message must exist and must not be the client's synthetic
+ *     `HTTP nnn: API error` placeholder;
+ *   - it is length-bounded, so a pathological body cannot fill the toast;
+ *   - anything failing those checks falls through to the normal resolution.
+ */
+const SERVER_MESSAGE_CODES: Record<
+  string,
+  Pick<SafeUserError, "title" | "severity">
+> = {
+  TEAM_CONFLICT: {
+    title: "That change isn't possible yet",
+    severity: "warning",
+  },
+};
+
+/** The placeholder `apps/web/lib/api.ts` substitutes when a body carries no message. */
+const SYNTHETIC_MESSAGE = /^HTTP \d{3}: API error$/;
+const SERVER_MESSAGE_MAX = 240;
+
+function trustedServerMessage(code: string, e: ErrorLike): string | undefined {
+  if (!SERVER_MESSAGE_CODES[code]) return undefined;
+  const message = readString(e.message);
+  if (!message || SYNTHETIC_MESSAGE.test(message)) return undefined;
+  return message.slice(0, SERVER_MESSAGE_MAX);
+}
+
+/**
  * Does this repository have DELIBERATE copy for the error's code?
  *
  * The question a client-side error reporter should be asking before it files
@@ -713,7 +781,13 @@ export function toSafeUserError(
   const supportReference = readString(e.requestId);
 
   let base: Omit<SafeUserError, "supportReference"> | undefined;
-  if (code && CODE_MAP[code]) {
+  const serverMessage = code ? trustedServerMessage(code, e) : undefined;
+  if (code && serverMessage) {
+    // Ahead of the status branch on purpose: `fromStatus` would answer a 409
+    // with "Please review your input and try again", which is exactly the
+    // generic sentence the server took the trouble to replace.
+    base = { ...SERVER_MESSAGE_CODES[code], message: serverMessage };
+  } else if (code && CODE_MAP[code]) {
     base = CODE_MAP[code];
   } else if (typeof status === "number") {
     base = fromStatus(status);

@@ -13,6 +13,7 @@ import { AppListbox } from "../../../../../components/app-primitives/AppListbox"
 import { AppStatusBadge, type AppTone } from "../../../../../components/app-primitives/AppStatusBadge";
 import { ApiError } from "../../../../../lib/api";
 import { notifyApiError } from "../../../../../lib/feedback/notify";
+import type { SafeErrorFallback } from "../../../../../lib/feedback/toSafeUserError";
 import { formatUserDate, formatUserDateTime } from "../../../../../lib/date";
 import {
   ASSIGNEE_UNASSIGNED,
@@ -547,13 +548,15 @@ function AssignmentsTab({
                     addToast(msg, "success");
                     await refresh();
                   }}
+                  /* Through the safe-error boundary like every other mutation
+                     on this page. This called `addToast(err.message)` directly,
+                     which bypassed `toSafeUserError` entirely — the one path
+                     that could have put a raw backend string in front of a
+                     user. */
                   onError={(err) =>
-                    addToast(
-                      err.message,
-                      "error",
-                      undefined,
-                      err.requestId ? { supportReference: err.requestId } : undefined,
-                    )
+                    notifyApiError(addToast, err, {
+                      message: "Couldn't update this work item.",
+                    })
                   }
                 />
               ))}
@@ -608,7 +611,8 @@ function AssignmentRow({
   canAssign: boolean;
   members: ReadonlyArray<CollaborationTeamMember>;
   onChanged: (msg: string) => void | Promise<void>;
-  onError: (err: { message: string; requestId?: string }) => void;
+  /** The error itself — see the note on MembersTab's identical prop (§5). */
+  onError: (err: unknown, fallback?: SafeErrorFallback) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -650,11 +654,7 @@ function AssignmentRow({
       await updateAssignment(teamId, assignment.id, patch);
       await onChanged(msg);
     } catch (err) {
-      if (err instanceof ApiError) {
-        onError({ message: err.message, requestId: err.requestId });
-      } else {
-        onError({ message: "Couldn't update assignment." });
-      }
+      onError(err, { message: "Couldn't update assignment." });
     } finally {
       setBusy(false);
     }
@@ -912,7 +912,8 @@ function EditAssignmentModal({
   teamId: string;
   onClose: () => void;
   onSaved: (msg: string) => void | Promise<void>;
-  onError: (err: { message: string; requestId?: string }) => void;
+  /** The error itself — see the note on MembersTab's identical prop (§5). */
+  onError: (err: unknown, fallback?: SafeErrorFallback) => void;
 }) {
   const [assigneeUserId, setAssigneeUserId] = useState<string>(
     assignment.assigneeUserId ?? "",
@@ -947,11 +948,7 @@ function EditAssignmentModal({
       });
       await onSaved("Work updated.");
     } catch (err) {
-      if (err instanceof ApiError) {
-        onError({ message: err.message, requestId: err.requestId });
-      } else {
-        onError({ message: "Couldn't update this work." });
-      }
+      onError(err, { message: "Couldn't update this work." });
     } finally {
       setBusy(false);
     }
