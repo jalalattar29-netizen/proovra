@@ -110,20 +110,50 @@ describe("HOME-TRUTH-FIX — TrustSummary exposes operationally-truthful counts"
     expect(tail).toMatch(/publicVerifyState:\s*"SUSPENDED"/);
   });
 
-  it("signedWithoutReport requires status=SIGNED AND no Report row", () => {
+  /*
+   * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — a third clause, and a
+   * wider window.
+   *
+   * The two predicates are unchanged and still asserted. What is added is the
+   * entitlement narrowing: "stuck" means the pipeline OWES something and has
+   * not delivered it, and on a plan that does not include reports nothing is
+   * ever enqueued — so every finalized record counted as stuck, permanently,
+   * and Home told those customers their pipeline was broken.
+   *
+   * The window grew from 400 characters because the reason is now written down
+   * beside the query. A slice bound tight enough to exclude an explanation is a
+   * slice that fails when somebody explains themselves.
+   */
+  it("signedWithoutReport requires status=SIGNED, no Report row, and entitlement", () => {
     const start = TRUST_SUMMARY.indexOf("Stuck-SIGNED");
     expect(start).toBeGreaterThan(0);
-    const tail = TRUST_SUMMARY.slice(start, start + 400);
+    const tail = TRUST_SUMMARY.slice(start, start + 1600);
     expect(tail).toMatch(/status:\s*"SIGNED"/);
     expect(tail).toMatch(/reports:\s*\{\s*none:\s*\{\s*\}\s*\}/);
+    expect(tail).toMatch(/outputEntitledWhere/);
   });
 
-  it("reportedWithoutPackage requires status=REPORTED AND no Package row", () => {
+  it("reportedWithoutPackage requires status=REPORTED, no Package row, and entitlement", () => {
     const start = TRUST_SUMMARY.indexOf("Stuck-REPORTED");
     expect(start).toBeGreaterThan(0);
-    const tail = TRUST_SUMMARY.slice(start, start + 400);
+    const tail = TRUST_SUMMARY.slice(start, start + 1600);
     expect(tail).toMatch(/status:\s*"REPORTED"/);
     expect(tail).toMatch(/verificationPackages:\s*\{\s*none:\s*\{\s*\}\s*\}/);
+    expect(tail).toMatch(/outputEntitledWhere/);
+  });
+
+  it("endToEndReady is DELIBERATELY not narrowed — it measures a chain, not a fault", () => {
+    // Stated as a decision rather than left as an omission: narrowing a
+    // headline KPI's population as a side effect of a fault-count fix is a
+    // different call, on a different surface.
+    // Anchored on the QUERY's own comment, not on the type doc that shares the
+    // phrase — the resolution of the narrowing sits between them.
+    const start = TRUST_SUMMARY.indexOf(
+      "End-to-end ready — every link in the deliverable chain",
+    );
+    expect(start).toBeGreaterThan(0);
+    const tail = TRUST_SUMMARY.slice(start, TRUST_SUMMARY.indexOf("Stuck-SIGNED"));
+    expect(tail).not.toMatch(/outputEntitledWhere/);
   });
 
   it("`signed` is kept on the response (documented as NOT a readiness signal)", () => {
