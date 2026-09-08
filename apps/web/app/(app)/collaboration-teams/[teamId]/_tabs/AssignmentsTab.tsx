@@ -195,7 +195,13 @@ function AssignmentsTab({
   const [assigneeFilter, setAssigneeFilter] = useState<string>("");
   const [priorityFilter, setPriorityFilter] = useState<string>("");
   const [targetTypeFilter, setTargetTypeFilter] = useState<string>("");
-  const [overdueOnly, setOverdueOnly] = useState(false);
+  /*
+    `overdueOnly` state is gone with the toggle that set it (§8). It could only
+    ever be `false` once the control was removed, and a filter permanently
+    pinned to its own default is dead weight the next reader has to disprove.
+    `listAssignments` still ACCEPTS the option and the API still answers it —
+    the capability is intact, this surface simply no longer asks for it.
+  */
   const [cursor, setCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
 
@@ -221,7 +227,6 @@ function AssignmentsTab({
         targetType: (targetTypeFilter || null) as never,
         priority: (priorityFilter || null) as never,
         assignee: assigneeFilter || null,
-        overdueOnly,
         search: debouncedQuery,
       });
       if (isStale?.()) return;
@@ -243,7 +248,6 @@ function AssignmentsTab({
     targetTypeFilter,
     priorityFilter,
     assigneeFilter,
-    overdueOnly,
     debouncedQuery,
     addToast,
   ]);
@@ -270,7 +274,6 @@ function AssignmentsTab({
         targetType: (targetTypeFilter || null) as never,
         priority: (priorityFilter || null) as never,
         assignee: assigneeFilter || null,
-        overdueOnly,
         search: debouncedQuery,
         cursor,
       });
@@ -292,7 +295,6 @@ function AssignmentsTab({
     targetTypeFilter,
     priorityFilter,
     assigneeFilter,
-    overdueOnly,
     debouncedQuery,
     addToast,
   ]);
@@ -350,17 +352,20 @@ function AssignmentsTab({
           field`/`.cases-filter-search` search. No new/duplicate styles. */}
       <div className="cases-toolbar">
         {/*
-          A FILTER GROUP, NOT A SEGMENTED CONTROL.
+          A FILTER GROUP, NOT A SEGMENTED CONTROL (§9).
 
-          These five controls sat in `.cases-segments` — a 6px-gap, 4px-padded
-          tray that caps itself at `max-content` and scrolls internally,
-          because it was built for adjacent pill CHIPS. Four listboxes at
-          160-190px plus a toggle cannot fit that, so the tray squeezed them
-          until "Overdue only" collided with the selector beside it.
+          These controls sat in `.cases-segments` — a 6px-gap, 4px-padded tray
+          that caps itself at `max-content` and scrolls internally, because it
+          was built for adjacent pill CHIPS. Four listboxes at 160-190px could
+          not fit that, so the tray squeezed them until their labels collided.
 
           `.app-filter-group` wraps rather than shrinking, so a label is never
-          clipped to make room, and it gives the toggle the same height and
-          baseline as the selectors instead of leaving it as loose text.
+          clipped to make room: one row on a desktop, cleanly wrapped below it.
+
+          FOUR CONTROLS, ALL THE SAME SHAPE. The row used to end in a checkbox
+          — a fifth control of a different height, radius and interaction, so
+          the toolbar read as four selectors plus an afterthought. Every filter
+          here is now an `AppListbox`, which is what makes them line up.
         */}
         <div className="app-filter-group" role="group" aria-label="Filter work">
           <div style={{ width: 168 }} data-testid="assignment-status-filter">
@@ -407,23 +412,13 @@ function AssignmentsTab({
           </div>
 
           {/*
-            Overdue is the one filter an operator reaches for without thinking,
-            so it is a toggle rather than a value buried in a list. It is
-            server-derived: the row's own `overdue` and this filter are decided
-            by the same clock, so the badge and the count cannot disagree.
+            THE "OVERDUE ONLY" TOGGLE IS GONE (§8) — the CONTROL, not the
+            concept. Overdue remains server-derived, still returned per row and
+            still rendered as the red marker on a late assignment, so a reader
+            can see which work is late; there is simply no longer a fifth
+            control of a different SHAPE sitting at the end of a row of four
+            selectors. Nothing in the overdue or SLA computation changed.
           */}
-          <label
-            className="app-checkbox"
-            style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
-          >
-            <input
-              type="checkbox"
-              checked={overdueOnly}
-              onChange={(e) => setOverdueOnly(e.target.checked)}
-              data-testid="assignment-overdue-filter"
-            />
-            <span>Overdue only</span>
-          </label>
         </div>
 
         <div className="cases-toolbar-right">

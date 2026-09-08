@@ -42,6 +42,7 @@ import {
 import { Button } from "../../../components/ui/Button";
 import { AppListbox } from "../../../components/app-primitives/AppListbox";
 import { AppStatusBadge } from "../../../components/app-primitives/AppStatusBadge";
+import { AppStatusText } from "../../../components/app-primitives/AppStatusText";
 import { PlanLimitBadge } from "../../../components/billing/PlanLimitBadge";
 import { ApiError } from "../../../lib/api";
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
@@ -495,15 +496,22 @@ function TeamsOverview() {
               style={{ marginBottom: "0.75rem" }}
             >
               {/*
-                THE SAME CARD FAMILY AS NOTIFICATIONS AND MEMBERS (§11) —
+                THE SAME CARD FAMILY AS NOTIFICATIONS AND MEMBERS (§21) —
                 `.app-metric-card`: near-white surface, 3px semantic rail, the
                 colour in the number rather than in the background.
 
-                Tones are conditional where the condition is the point:
-                unassigned goes amber only when work is actually unowned,
-                attention red only when something is late or urgent. A
-                permanent red card on a healthy workspace teaches an operator
-                to ignore red.
+                TONES ARE THE CARD'S SUBJECT, NOT ITS CURRENT VALUE. An earlier
+                pass made them conditional, so a healthy workspace showed four
+                grey cards and the strip lost the ranking colour exists to
+                give. What a card is ABOUT does not change when its number
+                reaches zero: unassigned work is an amber KIND of number at 0
+                and at 40.
+
+                Attention keeps a real severity escalation, which is the one
+                place the value legitimately changes the tone: it reads as the
+                canonical `--orange-500` "High" orange normally and escalates
+                to red only when something is actually LATE. That is a
+                severity step, not a zero check.
               */}
               <li>
                 <div className="app-metric-card" data-app-metric-tone="info">
@@ -523,12 +531,7 @@ function TeamsOverview() {
                 group holding work is not a person doing it.
               */}
               <li>
-                <div
-                  className="app-metric-card"
-                  data-app-metric-tone={
-                    rollup.work.unassigned > 0 ? "warning" : "neutral"
-                  }
-                >
+                <div className="app-metric-card" data-app-metric-tone="warning">
                   <div className="app-metric-card__value">
                     {rollup.work.unassigned}
                   </div>
@@ -542,7 +545,7 @@ function TeamsOverview() {
                 <div
                   className="app-metric-card"
                   data-app-metric-tone={
-                    rollup.work.attention > 0 ? "danger" : "neutral"
+                    rollup.work.overdue > 0 ? "danger" : "warning"
                   }
                 >
                   <div className="app-metric-card__value">
@@ -871,8 +874,18 @@ function TeamRow({ team }: { team: CollaborationTeamSummary }) {
           )}
         </div>
       </td>
+      {/*
+        TYPE, ROLE AND THE THREE COUNTS ARE TEXT NOW (§3, §20).
+
+        Seven of this row's nine cells rendered a filled capsule, so a list of
+        groups read as a wall of chips and nothing in it was primary. The
+        SEMANTICS are unchanged — `AppStatusText` takes the same `AppTone`
+        vocabulary, so red still means overdue and amber still means high
+        priority — the capsule is simply gone, which is what an operational
+        table is supposed to look like.
+      */}
       <td data-label="Type">
-        <AppStatusBadge tone="slate">{TEAM_TYPE_LABELS[team.teamType]}</AppStatusBadge>
+        <AppStatusText tone="slate">{TEAM_TYPE_LABELS[team.teamType]}</AppStatusText>
       </td>
       <td data-label="Members">
         <strong style={{ color: "#172033", fontWeight: 650 }}>
@@ -890,25 +903,25 @@ function TeamRow({ team }: { team: CollaborationTeamSummary }) {
       */}
       <td data-label="Open work">
         {team.openAssignmentCount > 0 ? (
-          <AppStatusBadge tone="indigo">{team.openAssignmentCount}</AppStatusBadge>
+          <AppStatusText tone="indigo">{team.openAssignmentCount}</AppStatusText>
         ) : (
           <span className="app-table__muted" aria-label="No open work">—</span>
         )}
       </td>
       <td data-label="Overdue">
         {team.overdueAssignmentCount > 0 ? (
-          <AppStatusBadge tone="red">
+          <AppStatusText tone="red">
             {team.overdueAssignmentCount}
-          </AppStatusBadge>
+          </AppStatusText>
         ) : (
           <span className="app-table__muted" aria-label="Nothing overdue">—</span>
         )}
       </td>
       <td data-label="High priority">
         {team.highPriorityAssignmentCount > 0 ? (
-          <AppStatusBadge tone="amber">
+          <AppStatusText tone="amber">
             {team.highPriorityAssignmentCount}
-          </AppStatusBadge>
+          </AppStatusText>
         ) : (
           <span className="app-table__muted" aria-label="No high priority work">
             —
@@ -917,7 +930,7 @@ function TeamRow({ team }: { team: CollaborationTeamSummary }) {
       </td>
       <td data-label="Your role">
         {team.viewerRole ? (
-          <AppStatusBadge tone="indigo">{team.viewerRole}</AppStatusBadge>
+          <AppStatusText tone="indigo">{team.viewerRole}</AppStatusText>
         ) : (
           <span className="app-table__muted">—</span>
         )}

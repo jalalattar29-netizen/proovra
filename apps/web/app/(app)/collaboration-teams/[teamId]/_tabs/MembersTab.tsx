@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useToast } from "../../../../../components/ui";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
 import { AppListbox } from "../../../../../components/app-primitives/AppListbox";
+import { AppStatusText } from "../../../../../components/app-primitives/AppStatusText";
 import {
   AppStatusBadge,
   type AppTone,
@@ -435,7 +436,7 @@ function MemberCapacityBadge({
   const label = `${memberCount} of ${maxMembersPerTeam} members`;
   const planLabel = plan ? ` on plan ${plan}` : "";
   return (
-    <AppStatusBadge
+    <AppStatusText
       tone={atCapacity ? "red" : "green"}
       title={
         atCapacity
@@ -456,7 +457,7 @@ function MemberCapacityBadge({
       >
         {label}
       </span>
-    </AppStatusBadge>
+    </AppStatusText>
   );
 }
 
@@ -633,13 +634,13 @@ function MemberRow({
             />
           </div>
         ) : (
-          <AppStatusBadge tone="slate">{member.role}</AppStatusBadge>
+          <AppStatusText tone="slate">{member.role}</AppStatusText>
         )}
       </td>
       <td data-label="Status">
-        <AppStatusBadge tone={memberStatusTone(member.status)}>
+        <AppStatusText tone={memberStatusTone(member.status)}>
           {member.status}
-        </AppStatusBadge>
+        </AppStatusText>
       </td>
       <td data-label="Joined">
         <span className="app-table__muted">
