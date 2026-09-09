@@ -256,7 +256,10 @@ export function WorkspaceClosureCard({ teamId }: { teamId: string }) {
    * every branch below is unchanged.
    */
   return (
-    <div className="app-panel" data-workspace-closure-card>
+    <div
+      className="app-panel app-panel--actions-bottom"
+      data-workspace-closure-card
+    >
       <div className="app-panel__head">
         <h3 className="app-panel__title">Close workspace</h3>
       </div>

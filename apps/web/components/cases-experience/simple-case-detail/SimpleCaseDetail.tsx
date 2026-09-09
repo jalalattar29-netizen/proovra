@@ -763,26 +763,51 @@ function OverviewTab({
   // three-record case; the values below stay derived from the live
   // envelope, so a workspace with different data renders its own truth.
   const verificationLinks = deliverables.packagesReady;
-  const kpis: Array<{ label: string; value: string; hint: string }> = [
+  /*
+   * UI POLISH (2026-09-09) — the Notifications/Operations metric grammar.
+   *
+   * These were `.app-kpi-card`, the older KPI anatomy. The metric card is what
+   * the operational surfaces use now: neutral surface, a semantic side rail and
+   * a semantic number, with the label staying ordinary dark text.
+   *
+   * The tone describes the SUBJECT, not the value, so it is fixed per card and
+   * a zero does not grey anything out — "no records are end-to-end ready yet"
+   * is still a readiness metric. Tones come from the canonical set in
+   * app-primitives.css; none is invented here.
+   */
+  const kpis: Array<{
+    label: string;
+    value: string;
+    hint: string;
+    tone: "neutral" | "success" | "accent" | "info";
+  }> = [
     {
       label: "Evidence records",
       value: String(evidenceCount),
       hint: "Linked to this case",
+      // The population itself — a count, not a judgement about it.
+      tone: "neutral",
     },
     {
       label: "End-to-end ready",
       value: `${deliverables.reportsReady + deliverables.packagesReady === 0 ? 0 : Math.min(deliverables.reportsReady, deliverables.packagesReady)} of ${evidenceCount}`,
       hint: "Report + package present",
+      // Readiness is the one genuinely good outcome on this row.
+      tone: "success",
     },
     {
       label: "Reports",
       value: `${deliverables.reportsReady} of ${evidenceCount}`,
       hint: "Records with a report",
+      // The commercial output, carrying the product accent it carries elsewhere.
+      tone: "accent",
     },
     {
       label: "Verification links",
       value: `${verificationLinks} of ${evidenceCount}`,
       hint: "Records with a package",
+      // Verification is informational, and blue is what it means product-wide.
+      tone: "info",
     },
   ];
 
@@ -816,23 +841,25 @@ function OverviewTab({
       {/* [ KPI row + case summary ] | [ action rail ] */}
       <div className="case-detail-split">
         <div className="case-detail-split-main">
-          {/* CANONICAL KPI GRID + CARD — `.app-grid-kpis` / `.app-kpi-card`
-              from app-primitives.css, the same pair the operational
-              dashboards use. */}
+          {/* CANONICAL METRIC GRID + CARD — `.app-grid-kpis` / `.app-metric-card`
+              from app-primitives.css, the same pair Notifications and
+              Operations use. */}
           <div data-simple-case-summary>
-            <div className="app-grid-kpis">
+            <ul className="app-grid-kpis">
               {kpis.map((kpi) => (
-                <div
-                  className="app-kpi-card"
-                  key={kpi.label}
-                  data-simple-case-kpi={kpi.label}
-                >
-                  <span className="app-kpi-card__label">{kpi.label}</span>
-                  <span className="app-kpi-card__value">{kpi.value}</span>
-                  <span className="app-kpi-card__meta">{kpi.hint}</span>
-                </div>
+                <li key={kpi.label}>
+                  <div
+                    className="app-metric-card"
+                    data-app-metric-tone={kpi.tone}
+                    data-simple-case-kpi={kpi.label}
+                  >
+                    <span className="app-metric-card__value">{kpi.value}</span>
+                    <span className="app-metric-card__label">{kpi.label}</span>
+                    <span className="app-metric-card__meta">{kpi.hint}</span>
+                  </div>
+                </li>
               ))}
-            </div>
+            </ul>
           </div>
 
           {/* Case summary — canonical panel, page-specific definition list. */}

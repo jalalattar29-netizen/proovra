@@ -7,10 +7,7 @@ import { useToast } from "../../../../../components/ui";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
 import { AppListbox } from "../../../../../components/app-primitives/AppListbox";
 import { AppStatusText } from "../../../../../components/app-primitives/AppStatusText";
-import {
-  AppStatusBadge,
-  type AppTone,
-} from "../../../../../components/app-primitives/AppStatusBadge";
+import type { AppTone } from "../../../../../components/app-primitives/AppStatusBadge";
 import { notifyApiError } from "../../../../../lib/feedback/notify";
 import type { SafeErrorFallback } from "../../../../../lib/feedback/toSafeUserError";
 import { formatUserDate } from "../../../../../lib/date";
@@ -994,9 +991,12 @@ function AddMemberPanel({
                     <span className="app-table__muted app-identity">{candidate.email}</span>
                   ) : null}
                 </span>
-                <AppStatusBadge tone="slate">
+                {/* A ROLE is a plain fact about a person, not an exception
+                    state, so it reads as text. The badge stays for the states
+                    that are genuinely exceptional. */}
+                <AppStatusText tone="slate">
                   {candidate.workspaceRole}
-                </AppStatusBadge>
+                </AppStatusText>
               </label>
             </li>
           ))}

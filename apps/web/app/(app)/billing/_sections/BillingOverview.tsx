@@ -697,7 +697,7 @@ export function EvidenceDetailCard({
         <div className="bill-panel__actions">
           <button
             type="button"
-            className="app-secondary-action app-secondary-action--lg"
+            className="app-secondary-action app-secondary-action--lg app-secondary-action--filled"
             onClick={onBuyCredits}
             data-billing-buy-credits
             data-billing-evidence-action="BUY_CREDITS"

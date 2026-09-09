@@ -1447,9 +1447,17 @@ function TeamDetailPageBody() {
           <li>
             <div
               className="app-metric-card"
-              data-app-metric-tone={
-                pendingInvites.length > 0 ? "warning" : "neutral"
-              }
+              /*
+               * UI POLISH (2026-09-09) — the tone is the SUBJECT, not the count.
+               *
+               * This flipped to neutral at zero, so the card changed colour
+               * depending on its own value. The metric is "invitations sent and
+               * not yet accepted" either way, and greying it at zero makes a
+               * reader look twice to work out whether the card means something
+               * different today. Notifications uses the same canonical warning
+               * tone for its High metric and does not grey it at zero.
+               */
+              data-app-metric-tone="warning"
             >
               <span className="app-metric-card__value">
                 {pendingInvites.length}
@@ -2013,7 +2021,10 @@ function TeamDetailPageBody() {
               />
             ) : null}
             {isOwner && teamId ? <WorkspaceClosureCard teamId={teamId} /> : null}
-            <div className="app-panel" data-testid="people-delete-workspace">
+            <div
+              className="app-panel app-panel--actions-bottom"
+              data-testid="people-delete-workspace"
+            >
               <div className="app-panel__head">
                 <h3 className="app-panel__title">Delete this workspace</h3>
               </div>
@@ -2185,7 +2196,11 @@ function TeamDetailPageBody() {
                   <div className="app-kv-row">
                     <dt className="app-kv-key">Billing</dt>
                     <dd className="app-kv-value">
-                      <Link href={billingHref} className="app-table__link">
+                      <Link
+                        href={billingHref}
+                        className="app-secondary-action"
+                        data-testid="people-open-billing"
+                      >
                         Open billing
                       </Link>
                     </dd>
@@ -2243,7 +2258,7 @@ function TeamDetailPageBody() {
             </p>
             <Link
               href="/collaboration-teams"
-              className="app-secondary-action app-secondary-action--block"
+              className="app-secondary-action app-secondary-action--block app-secondary-action--filled"
               data-testid="people-to-collaboration-teams"
             >
               Organise members

@@ -11,6 +11,16 @@ import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModa
 import { Modal } from "../../../../../components/cases-experience/matter-modals/Modal";
 import { AppListbox } from "../../../../../components/app-primitives/AppListbox";
 import { AppStatusBadge, type AppTone } from "../../../../../components/app-primitives/AppStatusBadge";
+/*
+ * UI POLISH (2026-09-09) — Priority and Status are ordinary column VALUES, and
+ * a capsule behind every one of them turns a scannable table into a wall of
+ * lozenges. They move to the no-capsule sibling of the badge: same canonical
+ * tone table, same accessible meaning, no filled pill.
+ *
+ * The Overdue badge below deliberately STAYS a badge. It is an exception state
+ * rather than a value every row carries, which is the case the badge exists for.
+ */
+import { AppStatusText } from "../../../../../components/app-primitives/AppStatusText";
 import { ApiError } from "../../../../../lib/api";
 import { notifyApiError } from "../../../../../lib/feedback/notify";
 import type { SafeErrorFallback } from "../../../../../lib/feedback/toSafeUserError";
@@ -738,14 +748,14 @@ function AssignmentRow({
         </span>
       </td>
       <td data-label="Priority">
-        <AppStatusBadge tone={priorityTone(assignment.priority)}>
+        <AppStatusText tone={priorityTone(assignment.priority)}>
           {priorityLabel(assignment.priority)}
-        </AppStatusBadge>
+        </AppStatusText>
       </td>
       <td data-label="Status">
-        <AppStatusBadge tone={statusTone(assignment.status)}>
+        <AppStatusText tone={statusTone(assignment.status)}>
           {statusLabel(assignment.status)}
-        </AppStatusBadge>
+        </AppStatusText>
       </td>
       <td data-label="Due date">
         {assignment.dueAtUtc ? (
@@ -1061,6 +1071,21 @@ function CreateAssignmentModal({
     useState<CollaborationTeamAssignmentTarget>("CASE");
   const [targetId, setTargetId] = useState("");
   const [targetSearch, setTargetSearch] = useState("");
+  /*
+   * UI POLISH (2026-09-09) — the options are not dumped before they are asked for.
+   *
+   * The listbox rendered unconditionally, so opening the form showed every case
+   * in the workspace stacked under an empty search box. That is noise standing
+   * where the answer goes, and it gets worse the more real data a workspace has.
+   *
+   * It opens on focus or on the first character, and deliberately does NOT close
+   * on blur: a blur-to-close races the click that selects an option, which is
+   * the classic way a picker becomes unusable with a mouse. Nothing here filters
+   * locally — the search is still the server's.
+   */
+  const [targetPickerOpen, setTargetPickerOpen] = useState(false);
+  const targetPickerVisible =
+    targetPickerOpen || targetSearch.trim().length > 0;
   const [targetOptions, setTargetOptions] = useState<
     ReadonlyArray<AssignableTarget>
   >([]);
@@ -1218,12 +1243,19 @@ function CreateAssignmentModal({
               id="assignment-target-search"
               value={targetSearch}
               onChange={(e) => setTargetSearch(e.target.value)}
+              onFocus={() => setTargetPickerOpen(true)}
+              role="combobox"
+              aria-expanded={targetPickerVisible}
+              aria-controls="assignment-target-options"
+              aria-autocomplete="list"
               placeholder={`Search ${targetLabel(targetType).toLowerCase()}s in this workspace`}
               data-testid="assignment-target-search"
               className="app-form-input"
               autoComplete="off"
             />
+            {targetPickerVisible ? (
             <div
+              id="assignment-target-options"
               role="listbox"
               aria-label={`${targetLabel(targetType)} results`}
               data-testid="assignment-target-options"
@@ -1267,6 +1299,7 @@ function CreateAssignmentModal({
                 ))
               )}
             </div>
+            ) : null}
           </div>
 
           <div data-testid="assignment-assignee">

@@ -349,12 +349,32 @@ test("the four Overview metrics keep their canonical labels and hints", () => {
   ]) {
     assert.ok(SIMPLE_DETAIL.includes(hint), `missing KPI hint ${hint}`);
   }
-  // Rendered by the canonical KPI grid + card, label above value.
+  /*
+   * UI POLISH (2026-09-09) — the metric-card grammar, not the older KPI card.
+   *
+   * These moved from `.app-kpi-card` to `.app-metric-card`, the anatomy
+   * Notifications and Operations use: value first, then label, then the muted
+   * hint, with a semantic side rail driven by `data-app-metric-tone`. The order
+   * asserted below changed with it — the number leads on a metric card.
+   *
+   * The labels and hints above are untouched, and deliberately still asserted:
+   * a restyle must not quietly reword what a metric claims to measure.
+   */
   assert.match(SIMPLE_DETAIL, /className="app-grid-kpis"/);
   assert.match(
     SIMPLE_DETAIL,
-    /app-kpi-card__label">\{kpi\.label\}[\s\S]{0,200}?app-kpi-card__value">\{kpi\.value\}[\s\S]{0,200}?app-kpi-card__meta">\{kpi\.hint\}/,
+    /app-metric-card__value">\{kpi\.value\}[\s\S]{0,200}?app-metric-card__label">\{kpi\.label\}[\s\S]{0,200}?app-metric-card__meta">\{kpi\.hint\}/,
   );
+  // Every card carries a tone, and every tone is one the canonical set defines.
+  // A card with no tone renders no side rail, which is the whole point of the
+  // change; an invented tone renders nothing at all.
+  assert.match(SIMPLE_DETAIL, /data-app-metric-tone=\{kpi\.tone\}/);
+  for (const tone of ["neutral", "success", "accent", "info"]) {
+    assert.ok(
+      SIMPLE_DETAIL.includes(`tone: "${tone}"`),
+      `missing canonical metric tone ${tone}`,
+    );
+  }
 });
 
 test("the case summary panel still surfaces every existing field", () => {

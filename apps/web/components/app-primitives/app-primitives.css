@@ -1878,6 +1878,27 @@ textarea.app-form-input {
   flex: 1 1 auto;
 }
 
+/* Peer panels whose ACTION should share a baseline.
+
+   `--stretch` already equalises panel HEIGHT, which is why a row of lifecycle
+   cards has a straight bottom edge. It does not equalise where the action sits
+   INSIDE each card, so two cards with different amounts of explanatory text put
+   their buttons at different heights and the row reads as misaligned even
+   though the panels match.
+
+   Opt-in rather than applied to every stretched panel: making every stretched
+   body a flex column would change child stacking everywhere the variant is
+   used, and the panels that want a shared action baseline are the ones that
+   say so. The last child is pushed down, so the markup needs no footer
+   wrapper — both lifecycle cards already end with their action. */
+.app-panel--actions-bottom > .app-panel__body {
+  display: flex;
+  flex-direction: column;
+}
+.app-panel--actions-bottom > .app-panel__body > :last-child {
+  margin-top: auto;
+}
+
 /* ===========================================================================
    PRIMARY SURFACE + RAIL.
 

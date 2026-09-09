@@ -269,7 +269,7 @@ export function StorageAddonsSection({
              * card and an afterthought. The page's single filled CTA is the
              * plan action in the overview above.
              */
-            className="app-secondary-action app-secondary-action--lg"
+            className="app-secondary-action app-secondary-action--lg app-secondary-action--filled"
             onClick={onManageStorage}
             data-billing-manage-storage
           >
@@ -410,7 +410,7 @@ export function BillingHistorySection({
         providerBacked ? (
           <button
             type="button"
-            className="app-secondary-action app-secondary-action--lg"
+            className="app-secondary-action app-secondary-action--lg app-secondary-action--filled"
             onClick={onRecheck}
             disabled={recheckBusy}
             aria-busy={recheckBusy || undefined}

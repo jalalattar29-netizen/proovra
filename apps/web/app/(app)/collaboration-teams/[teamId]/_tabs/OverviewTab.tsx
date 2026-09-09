@@ -258,8 +258,16 @@ function OverviewTab({
         comparison they are, and the Overview stops being a single column of
         half-empty slabs. `.app-grid-panels` collapses them back to one column
         on a narrow viewport.
+
+        UI POLISH (2026-09-09) — `--stretch` added. The base grid is
+        `align-items: start`, so two cards holding different numbers of rows sat
+        at different heights and the pair read as unfinished rather than as a
+        comparison. The stretch variant equalises them without any hardcoded
+        height, and the auto-fit columns still collapse to one on a narrow
+        viewport, so a card that grows on real data reflows instead of forcing
+        a tall empty sibling.
       */}
-      <div className="app-grid-panels">
+      <div className="app-grid-panels app-grid-panels--stretch">
       {/* Member workload -------------------------------------------------- */}
       <div className="app-panel" data-testid="overview-workload">
         <div className="app-panel__head">
