@@ -239,13 +239,49 @@ describe("SCENARIO 5 — a commercial FAILED_TERMINAL cannot lock a now-eligible
       "utf8",
     );
     const code = strip(writer);
-    expect(code).toMatch(/priorAtBaseKey/);
     expect(code).toMatch(/isCommerciallyObsoleteTerminalReason/);
+    /*
+     * RELIABILITY CLOSURE (2026-09-09) — this pinned `priorAtBaseKey`, the
+     * variable holding the row at the BASE key. The decision now belongs to the
+     * HEAD of the supersession chain instead, and that is a strictly stronger
+     * invariant rather than a looser one: reading only the base row meant that
+     * once `:s1` existed, the base row was still terminal, so a second click
+     * computed `:s2` and created a SECOND live request while the first was
+     * running. Two runnable requests for one record at one baseline is exactly
+     * the pair that can race for an artifact version.
+     */
+    expect(code).toMatch(/headOrdinal/);
     // A supersession ordinal derived from DB state, not a clock: two concurrent
     // callers compute the same key and the unique index still elects one.
-    expect(code).toMatch(/\$\{baseKey\}:s\$\{supersessions \+ 1\}/);
+    expect(code).toMatch(/\$\{baseKey\}:s\$\{headOrdinal \+ 1\}/);
     // The old row is never rewritten and never deleted.
     expect(code).not.toMatch(/reportGenerationRequest\.(update|delete)/);
+  });
+
+  it("WIRING: a recoverable BLOCKED terminal is superseded only after the blocker is re-read", () => {
+    const writer = readFileSync(
+      fileURLToPath(
+        new URL(
+          "../../../packages/shared-runtime/src/reports/report-generation-request.ts",
+          import.meta.url,
+        ),
+      ),
+      "utf8",
+    );
+    const code = strip(writer);
+    // Two conditions, not one. The reason code says the blocker COULD have
+    // ended; the revalidation read says whether it actually has.
+    expect(code).toMatch(/isRecoverableBlockedTerminalReason/);
+    expect(code).toMatch(/blockerStillActive/);
+    expect(code).toMatch(/blockedButRecoverable\s*&&/);
+    // The revalidation reads the same rows the worker's claim path reads.
+    expect(code).toMatch(/evidenceLegalHold\.findFirst/);
+    expect(code).toMatch(/organization\.findUnique/);
+    // And it fails closed twice over: an unclassified reason keeps the blocker
+    // standing, and so does any error while reading it. (`strip` removes
+    // comments, so these match the code alone.)
+    expect(code).toMatch(/default:\s*return true;/);
+    expect(code).toMatch(/catch\s*\{\s*return true;\s*\}/);
   });
 });
 

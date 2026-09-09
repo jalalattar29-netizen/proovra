@@ -25,7 +25,14 @@ import { Prisma } from "@prisma/client";
 // terminal reason is one that a change of entitlement makes obsolete". Shared
 // so the writer here, the worker's denial path and the customer projection
 // cannot each hold their own list.
-import { isCommerciallyObsoleteTerminalReason } from "@proovra/shared";
+import {
+  isCommerciallyObsoleteTerminalReason,
+  // RELIABILITY CLOSURE (2026-09-09) — the SHARED classifier for "this blocked
+  // terminal names a condition that can end". Shared for the same reason as the
+  // commercial one: the writer here, the worker's claim path and the customer
+  // projection must not each hold their own list.
+  isRecoverableBlockedTerminalReason,
+} from "@proovra/shared";
 
 /**
  * Artifact kinds a request may name. Bounded because the processor branches on
@@ -77,8 +84,26 @@ export type CreateReportGenerationRequestResult =
       teamId: string;
       /** True when an equivalent request already existed and was reused. */
       deduplicated: boolean;
+      /**
+       * True when this row SUPERSEDED an earlier terminal one whose blocker has
+       * since gone away. Distinct from `deduplicated`, which says the opposite —
+       * that no new row was needed. Callers report the two differently: a
+       * supersession is the click that finally worked.
+       */
+      superseded: boolean;
     }
-  | { created: false; reason: string };
+  | {
+      created: false;
+      reason: string;
+      /**
+       * Set when the refusal is "a terminal row already stands here". Carries
+       * whether that terminal names a condition that COULD end, so the caller
+       * can tell a customer "this is blocked" apart from "this is over".
+       */
+      terminalState?: string;
+      terminalReasonCode?: string | null;
+      terminalIsRecoverable?: boolean;
+    };
 
 /**
  * The key that collapses duplicate intent.
@@ -198,19 +223,107 @@ export async function createReportGenerationRequest(
    * block or an exhausted technical budget stays terminal, because none of them
    * is resolved by buying something.
    */
-  let idempotencyKey = baseKey;
-  const priorAtBaseKey = await prisma.reportGenerationRequest.findUnique({
-    where: { idempotencyKey: baseKey },
-    select: { state: true, terminalReasonCode: true },
+  /*
+   * ---------------------------------------------------------------------------
+   * RELIABILITY CLOSURE (2026-09-09) — THE SAME LOCKOUT, THREE MORE WAYS IN.
+   * ---------------------------------------------------------------------------
+   * The commercial rule above closed one class and left the identical dead end
+   * open for every BLOCKED terminal. `BLOCKED_STALE` and `BLOCKED_POLICY` are
+   * terminal states too, they also produce no artifact, so `baselineVersion`
+   * also stays 0 — and the three reasons the worker writes there are all
+   * conditions that END:
+   *
+   *   policy_version_changed   a governance policy was edited mid-flight. That
+   *                            is a RACE. The next request would have carried
+   *                            the new version and simply run.
+   *   legal_hold_active        holds are released.
+   *   organization_not_active  suspensions are lifted.
+   *
+   * A workspace admin editing their governance policy at the wrong moment could
+   * therefore permanently deny one of their own records a report, with no path
+   * out for the customer, the Reports page or the operator console.
+   *
+   * TWO CONDITIONS, NOT ONE. A reason code records what was true once; it is
+   * never permission to act now. So supersession here requires BOTH:
+   *
+   *   1. the reason is classified recoverable by the shared authority, AND
+   *   2. `blockerStillActive()` confirms, against the CURRENT row, that the
+   *      blocker has actually gone away.
+   *
+   * The revalidation predicates are deliberately the SAME reads the worker's
+   * claim path performs, so a request this writer mints is one the worker will
+   * accept rather than block again a second later.
+   */
+  /*
+   * THE SUPERSESSION HEAD, not the base row.
+   *
+   * The commercial rule read only the row at `baseKey` and then counted the
+   * `:s` rows to pick the next ordinal. That is right the first time and wrong
+   * every time after: once `:s1` exists, the base row is still terminal, so a
+   * SECOND click computed `:s2` and created a second live request — even while
+   * `:s1` was queued and running. Two runnable requests for one record at one
+   * baseline is exactly the pair that can race for an artifact version.
+   *
+   * The decision therefore belongs to the HEAD of the chain — the highest
+   * ordinal that exists — because that row is the one describing what is
+   * happening now. A non-terminal head means work is already live and the
+   * caller collapses onto it.
+   */
+  const chain = await prisma.reportGenerationRequest.findMany({
+    where: {
+      evidenceId,
+      artifactType,
+      OR: [
+        { idempotencyKey: baseKey },
+        { idempotencyKey: { startsWith: `${baseKey}:s` } },
+      ],
+    },
+    select: { idempotencyKey: true, state: true, terminalReasonCode: true },
   });
-  if (
-    priorAtBaseKey?.state === "FAILED_TERMINAL" &&
-    isCommerciallyObsoleteTerminalReason(priorAtBaseKey.terminalReasonCode)
-  ) {
-    const supersessions = await prisma.reportGenerationRequest.count({
-      where: { evidenceId, artifactType, idempotencyKey: { startsWith: `${baseKey}:s` } },
-    });
-    idempotencyKey = `${baseKey}:s${supersessions + 1}`.slice(0, 160);
+
+  /** `baseKey` is ordinal 0; `baseKey:s<n>` is ordinal n. */
+  const ordinalOf = (key: string): number => {
+    if (key === baseKey) return 0;
+    const suffix = key.slice(baseKey.length + 2); // drop `${baseKey}:s`
+    const n = Number.parseInt(suffix, 10);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  };
+
+  let headOrdinal = 0;
+  let head: { state: string; terminalReasonCode: string | null } | null = null;
+  for (const row of chain) {
+    const ordinal = ordinalOf(row.idempotencyKey);
+    if (head === null || ordinal >= headOrdinal) {
+      headOrdinal = ordinal;
+      head = { state: row.state, terminalReasonCode: row.terminalReasonCode };
+    }
+  }
+
+  let idempotencyKey =
+    headOrdinal === 0 ? baseKey : `${baseKey}:s${headOrdinal}`.slice(0, 160);
+  let superseded = false;
+
+  const commerciallyObsolete =
+    head?.state === "FAILED_TERMINAL" &&
+    isCommerciallyObsoleteTerminalReason(head.terminalReasonCode);
+
+  const blockedButRecoverable =
+    (head?.state === "BLOCKED_STALE" || head?.state === "BLOCKED_POLICY") &&
+    isRecoverableBlockedTerminalReason(head.terminalReasonCode);
+
+  // The second condition, and the one that makes this safe: the reason says the
+  // blocker COULD have ended; this read says whether it actually has.
+  const blockerCleared =
+    blockedButRecoverable &&
+    !(await blockerStillActive(prisma, {
+      evidenceId,
+      teamId: evidence.teamId,
+      terminalReasonCode: head!.terminalReasonCode,
+    }));
+
+  if (commerciallyObsolete || blockerCleared) {
+    idempotencyKey = `${baseKey}:s${headOrdinal + 1}`.slice(0, 160);
+    superseded = true;
   }
 
   try {
@@ -237,6 +350,7 @@ export async function createReportGenerationRequest(
       state: created.state,
       teamId: evidence.teamId,
       deduplicated: false,
+      superseded,
     };
   } catch (err) {
     // A unique violation on `idempotency_key` is the race resolving itself:
@@ -249,7 +363,12 @@ export async function createReportGenerationRequest(
     }
     const existing = await prisma.reportGenerationRequest.findUnique({
       where: { idempotencyKey },
-      select: { id: true, state: true, teamId: true },
+      select: {
+        id: true,
+        state: true,
+        teamId: true,
+        terminalReasonCode: true,
+      },
     });
     if (!existing) return { created: false, reason: "request_persist_failed" };
     return {
@@ -258,6 +377,94 @@ export async function createReportGenerationRequest(
       state: existing.state,
       teamId: existing.teamId,
       deduplicated: true,
+      // The loser of a supersession race did not create the row, but the row it
+      // reuses IS the supersession the caller asked for.
+      superseded,
     };
+  }
+}
+
+/**
+ * IS THE BLOCKER THIS TERMINAL ROW NAMES STILL IN FORCE?
+ *
+ * ---------------------------------------------------------------------------
+ * WHY THIS IS A READ AND NOT A RULE
+ * ---------------------------------------------------------------------------
+ * `isRecoverableBlockedTerminalReason` answers a question about a VOCABULARY —
+ * can this kind of blocker end? This answers a question about the WORLD — has
+ * this one ended? Supersession needs both, and separating them is what stops a
+ * stale reason code from becoming permission to act.
+ *
+ * Each predicate is deliberately the same read the worker's own claim path
+ * performs in `resolveAndClaimReportRequest`. If it were even slightly wider,
+ * this writer would mint requests the worker immediately blocks again, and the
+ * customer would watch a button do nothing on every press.
+ *
+ * FAILS CLOSED. Any unknown reason, and any error, answers `true` — the blocker
+ * is treated as still active and nothing is superseded. Refusing to supersede
+ * leaves the product exactly as it was; superseding wrongly starts work that
+ * governance had refused.
+ */
+async function blockerStillActive(
+  prisma: PrismaClient,
+  input: {
+    evidenceId: string;
+    teamId: string;
+    terminalReasonCode: string | null;
+  },
+): Promise<boolean> {
+  const code = (input.terminalReasonCode ?? "").trim().toUpperCase();
+  try {
+    switch (code) {
+      /*
+       * A STALE POLICY VERSION IS NEVER STILL ACTIVE.
+       *
+       * The block was "the policy moved under this request", and the new request
+       * captures `policy.version` as it is right now — so the condition that
+       * blocked the old one cannot, by construction, block the new one for the
+       * same reason. If the policy moves again mid-flight the worker will block
+       * again, correctly, and that new terminal will itself be recoverable.
+       */
+      case "POLICY_VERSION_CHANGED":
+        return false;
+
+      /*
+       * THE SAME PREDICATE THE CLAIM PATH USES. `resolveAndClaimReportRequest`
+       * blocks on `EvidenceLegalHold(evidenceId, status: ACTIVE)`, and this asks
+       * exactly that. It deliberately does NOT consult case-scoped holds: those
+       * govern EXPORT (`checkExportEligibility`), not generation, and widening
+       * the rule here would invent a second hold policy.
+       */
+      case "LEGAL_HOLD_ACTIVE": {
+        const hold = await prisma.evidenceLegalHold.findFirst({
+          where: { evidenceId: input.evidenceId, status: "ACTIVE" },
+          select: { id: true },
+        });
+        return hold !== null;
+      }
+
+      /*
+       * Lifecycle lives on the Organization, not the workspace — a Team has no
+       * status column of its own. Same resolution the claim path performs.
+       */
+      case "ORGANIZATION_NOT_ACTIVE": {
+        const workspace = await prisma.team.findUnique({
+          where: { id: input.teamId },
+          select: { organizationId: true },
+        });
+        if (!workspace) return true;
+        const organization = await prisma.organization.findUnique({
+          where: { id: workspace.organizationId },
+          select: { status: true },
+        });
+        return !organization || organization.status !== "ACTIVE";
+      }
+
+      default:
+        // Unclassified. Treat the blocker as still standing.
+        return true;
+    }
+  } catch {
+    return true;
   }
 }
