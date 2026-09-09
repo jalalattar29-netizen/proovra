@@ -67,6 +67,30 @@ import {
   type EmailDeliveryOutcome,
 } from "@proovra/shared-runtime";
 
+/**
+ * THE WORK THIS MODULE RECOVERS.
+ *
+ * Declared here so the canonical work registry's `reconciler` field can be
+ * checked against the module it names rather than merely against the
+ * filesystem. The topology gate proves the two agree in both directions: a
+ * registry entry pointing at a module that does not claim its work fails, and
+ * a module claiming work no entry assigns it fails.
+ *
+ * That check exists because the weaker one — "the declared file exists" —
+ * passed three false declarations in a row: UPGRADE_OTS and
+ * PURGE_DELETED_EVIDENCE both named a module containing no such code, and
+ * EMBED_SEMANTIC_CHUNKS named one whose every scan keyed on a table the embed
+ * chain never writes. All three resolved to a real file. None of them was true.
+ *
+ * Keys, not values: the registry addresses work through `JOB_NAMES` /
+ * `SWEEP_NAMES`, and a literal string here would be a second spelling of a
+ * name the shared authority already owns.
+ */
+export const RECOVERED_WORK_TYPES = [
+  "MFA_RECOVERY_DIGEST",
+] as const;
+
+
 /** Requests in PENDING_ADMIN_REVIEW older than this many seconds
  *  qualify for digest inclusion. 24 hours per the spec. */
 /**

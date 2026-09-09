@@ -126,6 +126,26 @@ import {
   snapshotQueueHealth,
 } from "./observability.js";
 
+/**
+ * THE WORK THIS MODULE RECOVERS.
+ *
+ * The worker bootstrap is an unusual owner and a truthful one: the redaction
+ * reconciler and the demo follow-up sweep are IMPLEMENTED here, beside the
+ * timers that drive them, rather than in a module of their own. The registry
+ * has always named this file for all three.
+ *
+ * Declared so the topology gate can check the registry against the module it
+ * names instead of against the filesystem. See the ownership cases in
+ * services/api/test/phase-12-point5-topology-gate.test.ts for why file
+ * existence turned out not to be enough.
+ */
+export const RECOVERED_WORK_TYPES = [
+  "RENDER_REDACTION_DERIVATIVE",
+  "REDACTION_RECONCILER",
+  "DEMO_FOLLOW_UP",
+] as const;
+
+
 type JobData = { evidenceId?: string };
 
 function envString(name: string): string | undefined {

@@ -44,6 +44,7 @@ import {
   DLQ_SINKS,
   JOB_NAMES,
   QUEUE_NAMES,
+  SWEEP_NAMES,
   getBullMqEntries,
   isDlqQueueName,
 } from "@proovra/shared";
@@ -57,6 +58,20 @@ function read(rel: string): string {
 /** Comments stripped: a queue described in prose is not a queue. */
 function code(text: string): string {
   return text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+}
+
+
+/**
+ * A work NAME back to the registry KEY that addresses it.
+ *
+ * The registry stores the wire VALUE; the ownership declarations
+ * use the JOB_NAMES / SWEEP_NAMES key, because a literal string in a reconciler
+ * would be a second spelling of a name the shared authority already owns.
+ */
+function registryKeyFor(workName: string): string | null {
+  for (const [k, v] of Object.entries(JOB_NAMES)) if (v === workName) return k;
+  for (const [k, v] of Object.entries(SWEEP_NAMES)) if (v === workName) return k;
+  return null;
 }
 
 const QUEUE_SRC = code(read("services/worker/src/queue.ts"));
@@ -396,6 +411,153 @@ describe("Point 5 — independent topology discovery", () => {
     expect(
       reconcilerPending,
       `RECONCILER_PENDING:\n${reconcilerPending.join("\n")}`,
+    ).toEqual([]);
+  });
+});
+
+/*
+ * ===========================================================================
+ * SEMANTIC RECOVERY OWNERSHIP
+ * ===========================================================================
+ * The check above proves a declared reconciler path RESOLVES. That is the
+ * whole of it, and it is why this gate passed three false declarations:
+ *
+ *   * UPGRADE_OTS -> lifecycle-recovery.ts, when that module held no OTS code;
+ *   * PURGE_DELETED_EVIDENCE -> lifecycle-recovery.ts, no purge code;
+ *   * EMBED_SEMANTIC_CHUNKS -> intelligence-run-reconciler.ts, whose every scan
+ *     keyed on a table the embed chain never writes.
+ *
+ * All three named a real file. None of them was true, and an operator reading
+ * the registry to find the code that recovers a stranded chain would have been
+ * sent to a module that could not see it.
+ *
+ * A text search for the work name does not fix this — reconcilers reference
+ * DOMAIN TABLES, not job names, so any such heuristic reports a dozen honest
+ * modules and gets weakened the first time someone hits it. What follows is a
+ * DECLARATION instead: each reconciler exports `RECOVERED_WORK_TYPES`, and the
+ * two are checked against each other in BOTH directions.
+ *
+ * The declaration is READ, not imported. Importing a worker module opens a
+ * Redis connection at module load, which is exactly why the reconcilers are
+ * mocked everywhere else in the suite.
+ */
+describe("Point 5 — semantic recovery ownership", () => {
+  /** Parse `export const RECOVERED_WORK_TYPES = [...] as const;` from source. */
+  function declaredWorkTypes(relPath: string): string[] | null {
+    const abs = resolve(REPO, relPath);
+    if (!existsSync(abs)) return null;
+    const src = readFileSync(abs, "utf8");
+    const m = src.match(
+      /export const RECOVERED_WORK_TYPES\s*=\s*\[([\s\S]*?)\]\s*as const;/,
+    );
+    if (!m) return null;
+    return [...m[1]!.matchAll(/"([A-Z_]+)"/g)].map((x) => x[1]!);
+  }
+
+  /** The registry's own view: reconciler path -> the work it assigns there. */
+  const assigned = new Map<string, string[]>();
+  for (const entry of CANONICAL_WORK_REGISTRY) {
+    if (!entry.reconciler?.trim()) continue;
+    const key = registryKeyFor(entry.workName);
+    if (!key) continue;
+    const list = assigned.get(entry.reconciler) ?? [];
+    list.push(key);
+    assigned.set(entry.reconciler, list);
+  }
+
+  it("every module the registry names DECLARES the work it is given", () => {
+    const undeclared: string[] = [];
+    for (const [path, keys] of assigned) {
+      const declared = declaredWorkTypes(path);
+      if (declared === null) {
+        undeclared.push(`${path} exports no RECOVERED_WORK_TYPES (assigned: ${keys.join(", ")})`);
+        continue;
+      }
+      for (const key of keys) {
+        if (!declared.includes(key)) {
+          undeclared.push(`${path} does not declare ${key}`);
+        }
+      }
+    }
+    expect(
+      undeclared,
+      `RECONCILER_DOES_NOT_CLAIM_ITS_WORK:\n${undeclared.join("\n")}`,
+    ).toEqual([]);
+  });
+
+  it("no module claims work the registry did not assign it", () => {
+    const overclaimed: string[] = [];
+    for (const [path, keys] of assigned) {
+      const declared = declaredWorkTypes(path) ?? [];
+      for (const key of declared) {
+        if (!keys.includes(key)) {
+          overclaimed.push(`${path} claims ${key}, which the registry assigns elsewhere or not at all`);
+        }
+      }
+    }
+    expect(
+      overclaimed,
+      `RECONCILER_OVERCLAIMS:\n${overclaimed.join("\n")}`,
+    ).toEqual([]);
+  });
+
+  it("a wrong-but-existing reconciler mapping FAILS the ownership check", () => {
+    // THE NEGATIVE CONTROL. Each pair below is a mapping that shipped, resolved
+    // to a real file, and was false. If any of them now reads as a valid claim,
+    // this gate has not learned what it was written for.
+    const historicallyFalse: Array<[string, string]> = [
+      ["UPGRADE_OTS", "services/worker/src/search-index-reconciler.ts"],
+      ["PURGE_DELETED_EVIDENCE", "services/worker/src/lifecycle-recovery.ts"],
+      ["EMBED_SEMANTIC_CHUNKS", "services/worker/src/search-index-reconciler.ts"],
+    ];
+    for (const [workKey, wrongModule] of historicallyFalse) {
+      expect(
+        existsSync(resolve(REPO, wrongModule)),
+        `${wrongModule} must exist — the point is that existence is not enough`,
+      ).toBe(true);
+      const declared = declaredWorkTypes(wrongModule) ?? [];
+      expect(
+        declared.includes(workKey),
+        `${workKey} -> ${wrongModule} must NOT read as a valid claim`,
+      ).toBe(false);
+    }
+  });
+
+  it("the three previously-false mappings are now truthful", () => {
+    const truthful: Array<[string, string]> = [
+      ["UPGRADE_OTS", "services/worker/src/lifecycle-recovery.ts"],
+      ["PURGE_DELETED_EVIDENCE", "services/worker/src/governance/trash-grace-reconciler.ts"],
+      ["EMBED_SEMANTIC_CHUNKS", "services/worker/src/intelligence-run-reconciler.ts"],
+    ];
+    for (const [workKey, owner] of truthful) {
+      const declared = declaredWorkTypes(owner) ?? [];
+      expect(declared, `${owner} must declare ${workKey}`).toContain(workKey);
+      const entry = CANONICAL_WORK_REGISTRY.find(
+        (e) => registryKeyFor(e.workName) === workKey,
+      );
+      expect(entry?.reconciler, `${workKey} registry reconciler`).toBe(owner);
+    }
+  });
+
+  it("every declared reconciler that owns a SWEEP is started by the worker", () => {
+    // A reconciler nobody schedules recovers nothing. Sweeps are the ones with
+    // no producer of their own — they run only because the worker's boot path
+    // starts them — so their scheduling is the property worth proving.
+    const unscheduled: string[] = [];
+    for (const [path, keys] of assigned) {
+      const sweepKeys = keys.filter((k) =>
+        Object.prototype.hasOwnProperty.call(SWEEP_NAMES, k),
+      );
+      if (sweepKeys.length === 0) continue;
+      if (!path.startsWith("services/worker/")) continue;
+      const moduleName = path.split("/").pop()!.replace(/\.ts$/, "");
+      if (!INDEX_SRC.includes(moduleName)) {
+        unscheduled.push(`${path} owns ${sweepKeys.join(", ")} but the worker index never references it`);
+      }
+    }
+    expect(
+      unscheduled,
+      `SWEEP_OWNER_NOT_SCHEDULED:\n${unscheduled.join("\n")}`,
     ).toEqual([]);
   });
 
