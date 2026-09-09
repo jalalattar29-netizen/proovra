@@ -28,7 +28,8 @@
     "test:prod": "node scripts/smoke-prod.mjs",
     "eas-build-post-install": "pnpm -r --filter @proovra/shared --filter @proovra/shared-evidence-presentation --filter @proovra/shared-billing --filter @proovra/ui build",
     "test:e2e:admin": "playwright test --config apps/web/e2e/admin-control-plane/playwright.config.ts",
-    "test:e2e:admin:list": "playwright test --config apps/web/e2e/admin-control-plane/playwright.config.ts --list"
+    "test:e2e:admin:list": "playwright test --config apps/web/e2e/admin-control-plane/playwright.config.ts --list",
+    "test:e2e:admin:build": "node apps/web/scripts/dev-admin-fixture.mjs --mode=production --build-only"
   },
   "keywords": [],
   "author": "",

@@ -434,18 +434,24 @@ jobs:
             echo "fixture API did not become healthy:"; tail -60 /tmp/admin-fixture-api.log; exit 1;
           }
 
-      - name: Start the fixture web app (background)
-        run: |
-          nohup node apps/web/scripts/dev-admin-fixture.mjs \
-            --port=3311 --api=http://localhost:8191 \
-            > /tmp/admin-fixture-web.log 2>&1 &
-          for _ in $(seq 1 120); do
-            curl -sSf -m 2 http://localhost:3311/login > /dev/null 2>&1 && break
-            sleep 1
-          done
-          curl -sSf -m 5 http://localhost:3311/login > /dev/null || {
-            echo "fixture web did not become ready:"; tail -60 /tmp/admin-fixture-web.log; exit 1;
-          }
+      # ADM-P2-004 — BUILD THE WEB APP ONCE, HERE.
+      #
+      # This step used to start `next dev` in the background. The suite could
+      # not be asserted green against it: across five runs the failure moved
+      # between four unrelated routes, every failing route passed when re-run
+      # alone, and the server answered each stalled route in tens of
+      # milliseconds while logging 3,363 on-demand compiles for 47 routes, with
+      # individual compiles reaching 23.3s. A navigation's chunk requests queue
+      # behind an unrelated route's compilation and the 90s budget goes.
+      #
+      # The server is no longer started here at all. Playwright's `webServer`
+      # owns it, so there is exactly one, it waits on a real page rather than a
+      # sleep loop, and it is torn down when the run ends — including when a
+      # test fails, which a backgrounded `nohup` never was.
+      - name: Build the fixture web app (production, once)
+        run: pnpm test:e2e:admin:build
+        env:
+          PROOVRA_FIXTURE_API_BASE: http://localhost:8191
 
       # A SUITE THAT DISCOVERS NOTHING IS NOT A PASSING SUITE.
       #
@@ -455,6 +461,7 @@ jobs:
       - name: Assert the suite discovers tests
         env:
           PROOVRA_FIXTURE_WEB_BASE: http://localhost:3311
+          PROOVRA_FIXTURE_API_BASE: http://localhost:8191
         run: |
           # Playwright's own "Total: N tests in M files" line, not a grep over
           # spec names — the specs are not all named `admin-*` (phase5-, phase6-)
@@ -472,6 +479,7 @@ jobs:
       - name: Run the admin control-plane suite
         env:
           PROOVRA_FIXTURE_WEB_BASE: http://localhost:3311
+          PROOVRA_FIXTURE_API_BASE: http://localhost:8191
         run: pnpm test:e2e:admin
 
       - name: Upload fixture logs on failure
@@ -481,5 +489,4 @@ jobs:
           name: admin-control-plane-logs
           path: |
             /tmp/admin-fixture-api.log
-            /tmp/admin-fixture-web.log
           if-no-files-found: ignore
