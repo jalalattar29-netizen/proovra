@@ -217,9 +217,9 @@
         "ots.tenant.workspace_reloaded",
         "ots.terminal.stale_cannot_overwrite"
       ],
-      "runId": "9db53b34-ebb6-4f65-9ee3-653688ff769d",
+      "runId": "e8f99337-49ed-491a-8cc5-fbaae16287a0",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-09-08T17:29:08.223Z"
+      "recordedAtUtc": "2026-09-09T00:33:44.958Z"
     },
     "test/point5/family-intelligence-operations.integration.test.ts": {
       "sha256": "5cb1f4b32023939063997087d289affde9a058d34497ed2fa35588700c0d8ab5",

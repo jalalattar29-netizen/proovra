@@ -77,7 +77,7 @@
       "machineOnlyConsumerRoutes": 4,
       "noConsumerRoutes": 242,
       "wrongOriginConsumers": 0,
-      "consumerInventoryHash": "3f5335b571515808d0c81f617a31f33ba70dbbf4ab59d73aececcb6f9e672495"
+      "consumerInventoryHash": "0195006a278fb20977761f9461a0c31c0e7aaf403a33addf53221e3d29624a57"
     },
     "capabilities": {
       "totalRoutes": 1140,
@@ -156,9 +156,9 @@
       "QueueRegistryProblems": 0
     },
     "mutations": {
-      "terminalWriters": 1255,
-      "reachable": 1247,
-      "classified": 1247,
+      "terminalWriters": 1253,
+      "reachable": 1245,
+      "classified": 1245,
       "unclassified": 0,
       "moduleScopedAttribution": 0,
       "nonRequest": 8,
@@ -175,7 +175,7 @@
       "writerConservationHolds": true,
       "byWriterBucket": {
         "ROUTE_ATTRIBUTED_REACHABLE": 1131,
-        "JOB_ATTRIBUTED_REACHABLE": 106,
+        "JOB_ATTRIBUTED_REACHABLE": 104,
         "MODULE_SCOPED_REACHABLE": 0,
         "REGISTERED_CLI": 3,
         "STARTUP_OR_SCHEDULED": 13,
@@ -197,7 +197,7 @@
         "WORKSPACE": 55,
         "WORKSPACE_MEMBERSHIP_INVITATION": 59,
         "CASE": 85,
-        "EVIDENCE_CUSTODY_FINALIZATION": 280,
+        "EVIDENCE_CUSTODY_FINALIZATION": 278,
         "LEGAL_HOLD_RETENTION_DELETION": 51,
         "EXTERNAL_REVIEW_INTAKE_SHARE": 78,
         "BILLING_SUBSCRIPTION_SEAT": 62,
@@ -214,8 +214,8 @@
         "UnclassifiedUnreachableProductionModules": 0,
         "ConnectedButUnreachable": 0,
         "RemovedButPresent": 0,
-        "ProductionModules": 864,
-        "ReachableProductionModules": 863,
+        "ProductionModules": 867,
+        "ReachableProductionModules": 866,
         "UnreachableProductionModules": 1,
         "UnfollowableModuleSpecifiers": 0
       },

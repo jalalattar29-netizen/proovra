@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "350df28cd1b3592fbce302d87d8037fa4ec1ea078f008fcbdfae86936dbafd59",
   "routeInventoryHash": "bd39fa6dd72aba4108620d1ef989ba16a6f14da7995ac0c67e2279d47bf2af54",
-  "consumerInventoryHash": "3f5335b571515808d0c81f617a31f33ba70dbbf4ab59d73aececcb6f9e672495",
+  "consumerInventoryHash": "0195006a278fb20977761f9461a0c31c0e7aaf403a33addf53221e3d29624a57",
   "dispositionsHash": "9e6e9532752cfd33dfd556e66587a473271144aa2d1c41662c0c4c91e70ec02c",
   "totals": {
     "RegisteredRoutes": 1140,
@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 133
     },
-    "TerminalWriters": 1255,
-    "ReachableSensitiveMutations": 1247,
-    "ClassifiedSensitiveMutations": 1247,
+    "TerminalWriters": 1253,
+    "ReachableSensitiveMutations": 1245,
+    "ClassifiedSensitiveMutations": 1245,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 0,
     "NonRequestWriters": 8,
@@ -77,7 +77,7 @@
       "WORKSPACE": 55,
       "WORKSPACE_MEMBERSHIP_INVITATION": 59,
       "CASE": 85,
-      "EVIDENCE_CUSTODY_FINALIZATION": 280,
+      "EVIDENCE_CUSTODY_FINALIZATION": 278,
       "LEGAL_HOLD_RETENTION_DELETION": 51,
       "EXTERNAL_REVIEW_INTAKE_SHARE": 78,
       "BILLING_SUBSCRIPTION_SEAT": 62,
@@ -101,7 +101,7 @@
     "MutationConservationHolds": true,
     "byWriterBucket": {
       "ROUTE_ATTRIBUTED_REACHABLE": 1131,
-      "JOB_ATTRIBUTED_REACHABLE": 106,
+      "JOB_ATTRIBUTED_REACHABLE": 104,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 3,
       "STARTUP_OR_SCHEDULED": 13,
@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 8484,
+      "METHOD_ON_VALUE": 8496,
       "UNRESOLVED_IDENTIFIER": 1059
     },
     "MutationFixpointRounds": 9,
@@ -9195,7 +9195,7 @@
       "method": "POST",
       "route": "/v1/evidence/:id/archive",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:1702",
+      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:1715",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -9279,7 +9279,7 @@
       "method": "POST",
       "route": "/v1/evidence/:id/lock",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:1590",
+      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:1603",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -9351,7 +9351,7 @@
       "method": "POST",
       "route": "/v1/evidence/:id/unlock",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:1636",
+      "productConsumer": "apps/web/app/(app)/evidence/[id]/page.tsx:1649",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -13954,7 +13954,7 @@
         "services/api/src/services/reports/report-generation-authority.service.ts:183"
       ],
       "UPGRADE_OTS": [
-        "services/api/src/services/operations/remediation-executor.ts:232"
+        "services/api/src/services/integrity/ots-anchoring-authority.service.ts:85"
       ],
       "UNRESOLVED_WORK_NAME": [
         "services/api/src/queue/canonical-queue-client.ts:162",
@@ -35594,8 +35594,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence-complete.service.ts#evidence.update@1166",
-      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1166",
+      "writerId": "services/api/src/services/evidence-complete.service.ts#evidence.update@1167",
+      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1167",
       "file": "services/api/src/services/evidence-complete.service.ts",
       "enclosingDeclaration": "completeEvidence",
       "kind": "DATABASE",
@@ -35631,8 +35631,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence-complete.service.ts#evidence.updateMany@985",
-      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:985",
+      "writerId": "services/api/src/services/evidence-complete.service.ts#evidence.updateMany@986",
+      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:986",
       "file": "services/api/src/services/evidence-complete.service.ts",
       "enclosingDeclaration": "completeEvidence",
       "kind": "DATABASE",
@@ -35668,8 +35668,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence-complete.service.ts#evidencePart.update@1191",
-      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1191",
+      "writerId": "services/api/src/services/evidence-complete.service.ts#evidencePart.update@1192",
+      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1192",
       "file": "services/api/src/services/evidence-complete.service.ts",
       "enclosingDeclaration": "completeEvidence",
       "kind": "DATABASE",
@@ -35705,8 +35705,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence-complete.service.ts#evidencePart.update@790",
-      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:790",
+      "writerId": "services/api/src/services/evidence-complete.service.ts#evidencePart.update@791",
+      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:791",
       "file": "services/api/src/services/evidence-complete.service.ts",
       "enclosingDeclaration": "completeEvidence",
       "kind": "DATABASE",
@@ -44498,6 +44498,45 @@
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/integrity/ots-anchoring-authority.service.ts#UPGRADE_OTS.enqueueCanonicalWork@85",
+      "terminalLocation": "services/api/src/services/integrity/ots-anchoring-authority.service.ts:85",
+      "file": "services/api/src/services/integrity/ots-anchoring-authority.service.ts",
+      "enclosingDeclaration": "requestEvidenceOtsAnchoring",
+      "kind": "QUEUE",
+      "target": "UPGRADE_OTS",
+      "mutationKind": "enqueueCanonicalWork",
+      "primaryFamily": "AUTOMATION_QUEUE_WEBHOOK",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/evidence/:id/complete",
+        "POST /v1/external-intake/:token/sessions/:sid/submit",
+        "POST /v1/intake/citizen/sessions/:id/capture",
+        "POST /v1/ops/incidents/:id/remediate"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/citizen-capture.routes.ts",
+        "MODULE services/api/src/routes/evidence.routes.ts",
+        "MODULE services/api/src/routes/external-intake.routes.ts",
+        "MODULE services/api/src/routes/ops.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "CANONICAL_JOB_ID",
+        "retrySemantics": "REGISTRY",
         "payloadVersionAuthority": "NOT_APPLICABLE",
         "canonicalOrLegacy": "UNREGISTERED"
       }
@@ -66323,8 +66362,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/operations/remediation-executor.ts#operationalIncidentEvent.create@195",
-      "terminalLocation": "services/api/src/services/operations/remediation-executor.ts:195",
+      "writerId": "services/api/src/services/operations/remediation-executor.ts#operationalIncidentEvent.create@194",
+      "terminalLocation": "services/api/src/services/operations/remediation-executor.ts:194",
       "file": "services/api/src/services/operations/remediation-executor.ts",
       "enclosingDeclaration": "executeRemediation",
       "kind": "DATABASE",
@@ -66351,39 +66390,6 @@
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/services/operations/remediation-executor.ts#UPGRADE_OTS.enqueueCanonicalWork@232",
-      "terminalLocation": "services/api/src/services/operations/remediation-executor.ts:232",
-      "file": "services/api/src/services/operations/remediation-executor.ts",
-      "enclosingDeclaration": "resumeOtsAnchoring",
-      "kind": "QUEUE",
-      "target": "UPGRADE_OTS",
-      "mutationKind": "enqueueCanonicalWork",
-      "primaryFamily": "AUTOMATION_QUEUE_WEBHOOK",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "POST /v1/ops/incidents/:id/remediate"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/ops.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NAMED_AUTHORITY",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "CANONICAL_JOB_ID",
-        "retrySemantics": "REGISTRY",
         "payloadVersionAuthority": "NOT_APPLICABLE",
         "canonicalOrLegacy": "UNREGISTERED"
       }
@@ -80955,8 +80961,39 @@
       }
     },
     {
-      "writerId": "services/worker/src/ots-upgrade.processor.ts#evidence.update@312",
-      "terminalLocation": "services/worker/src/ots-upgrade.processor.ts:312",
+      "writerId": "services/worker/src/ots-lifecycle.ts#evidence.updateMany@197",
+      "terminalLocation": "services/worker/src/ots-lifecycle.ts:197",
+      "file": "services/worker/src/ots-lifecycle.ts",
+      "enclosingDeclaration": "ensureEvidenceOtsInitialized",
+      "kind": "DATABASE",
+      "target": "evidence",
+      "mutationKind": "updateMany",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": true,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/ots-upgrade.processor.ts#processOtsUpgrade"
+      ],
+      "entryModules": [],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/worker/src/ots-upgrade.processor.ts#evidence.update@369",
+      "terminalLocation": "services/worker/src/ots-upgrade.processor.ts:369",
       "file": "services/worker/src/ots-upgrade.processor.ts",
       "enclosingDeclaration": "processOtsUpgrade",
       "kind": "DATABASE",
@@ -80986,8 +81023,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/ots-upgrade.processor.ts#evidence.update@426",
-      "terminalLocation": "services/worker/src/ots-upgrade.processor.ts:426",
+      "writerId": "services/worker/src/ots-upgrade.processor.ts#evidence.update@483",
+      "terminalLocation": "services/worker/src/ots-upgrade.processor.ts:483",
       "file": "services/worker/src/ots-upgrade.processor.ts",
       "enclosingDeclaration": "processOtsUpgrade",
       "kind": "DATABASE",
@@ -81017,8 +81054,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/ots-upgrade.processor.ts#evidence.update@518",
-      "terminalLocation": "services/worker/src/ots-upgrade.processor.ts:518",
+      "writerId": "services/worker/src/ots-upgrade.processor.ts#evidence.update@575",
+      "terminalLocation": "services/worker/src/ots-upgrade.processor.ts:575",
       "file": "services/worker/src/ots-upgrade.processor.ts",
       "enclosingDeclaration": "processOtsUpgrade",
       "kind": "DATABASE",
@@ -81048,8 +81085,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/ots-upgrade.processor.ts#evidence.update@619",
-      "terminalLocation": "services/worker/src/ots-upgrade.processor.ts:619",
+      "writerId": "services/worker/src/ots-upgrade.processor.ts#evidence.update@676",
+      "terminalLocation": "services/worker/src/ots-upgrade.processor.ts:676",
       "file": "services/worker/src/ots-upgrade.processor.ts",
       "enclosingDeclaration": "processOtsUpgrade",
       "kind": "DATABASE",
@@ -81114,8 +81151,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#evidence.update@3162",
-      "terminalLocation": "services/worker/src/processor.ts:3162",
+      "writerId": "services/worker/src/processor.ts#evidence.update@3229",
+      "terminalLocation": "services/worker/src/processor.ts:3229",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -81145,101 +81182,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#evidence.update@3195",
-      "terminalLocation": "services/worker/src/processor.ts:3195",
-      "file": "services/worker/src/processor.ts",
-      "enclosingDeclaration": "runReportGeneration",
-      "kind": "DATABASE",
-      "target": "evidence",
-      "mutationKind": "update",
-      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
-      "insideTransaction": true,
-      "entryRoutes": [],
-      "entryJobs": [
-        "SWEEP services/worker/src/processor.ts#processGenerateReport"
-      ],
-      "entryModules": [],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "INSIDE_TRANSACTION",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/worker/src/processor.ts#evidence.update@3214",
-      "terminalLocation": "services/worker/src/processor.ts:3214",
-      "file": "services/worker/src/processor.ts",
-      "enclosingDeclaration": "runReportGeneration",
-      "kind": "DATABASE",
-      "target": "evidence",
-      "mutationKind": "update",
-      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
-      "insideTransaction": true,
-      "entryRoutes": [],
-      "entryJobs": [
-        "SWEEP services/worker/src/processor.ts#processGenerateReport"
-      ],
-      "entryModules": [],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "INSIDE_TRANSACTION",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/worker/src/processor.ts#evidence.update@3319",
-      "terminalLocation": "services/worker/src/processor.ts:3319",
-      "file": "services/worker/src/processor.ts",
-      "enclosingDeclaration": "runReportGeneration",
-      "kind": "DATABASE",
-      "target": "evidence",
-      "mutationKind": "update",
-      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
-      "insideTransaction": true,
-      "entryRoutes": [],
-      "entryJobs": [
-        "SWEEP services/worker/src/processor.ts#processGenerateReport"
-      ],
-      "entryModules": [],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "INSIDE_TRANSACTION",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/worker/src/processor.ts#evidence.update@4075",
-      "terminalLocation": "services/worker/src/processor.ts:4075",
+      "writerId": "services/worker/src/processor.ts#evidence.update@3984",
+      "terminalLocation": "services/worker/src/processor.ts:3984",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -81269,8 +81213,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#evidence.update@4196",
-      "terminalLocation": "services/worker/src/processor.ts:4196",
+      "writerId": "services/worker/src/processor.ts#evidence.update@4105",
+      "terminalLocation": "services/worker/src/processor.ts:4105",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -81300,8 +81244,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#report.create@3503",
-      "terminalLocation": "services/worker/src/processor.ts:3503",
+      "writerId": "services/worker/src/processor.ts#report.create@3413",
+      "terminalLocation": "services/worker/src/processor.ts:3413",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -81331,8 +81275,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#report.updateMany@4221",
-      "terminalLocation": "services/worker/src/processor.ts:4221",
+      "writerId": "services/worker/src/processor.ts#report.updateMany@4130",
+      "terminalLocation": "services/worker/src/processor.ts:4130",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -81362,8 +81306,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#verificationPackage.create@4172",
-      "terminalLocation": "services/worker/src/processor.ts:4172",
+      "writerId": "services/worker/src/processor.ts#verificationPackage.create@4081",
+      "terminalLocation": "services/worker/src/processor.ts:4081",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -81454,8 +81398,7 @@
       "insideTransaction": false,
       "entryRoutes": [],
       "entryJobs": [
-        "SWEEP services/worker/src/ots-upgrade.processor.ts#processOtsUpgrade",
-        "SWEEP services/worker/src/processor.ts#processGenerateReport"
+        "SWEEP services/worker/src/ots-upgrade.processor.ts#processOtsUpgrade"
       ],
       "entryModules": [],
       "entrySchedules": [],
@@ -131111,7 +131054,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
-          "line": 1702,
+          "line": 1715,
           "caller": "EvidenceDetailPageInner",
           "class": "WEB",
           "primitive": "runRecordAction",
@@ -131121,7 +131064,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:1702 (EvidenceDetailPageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:1715 (EvidenceDetailPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -131610,7 +131553,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
-          "line": 1590,
+          "line": 1603,
           "caller": "EvidenceDetailPageInner",
           "class": "WEB",
           "primitive": "runRecordAction",
@@ -131620,7 +131563,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:1590 (EvidenceDetailPageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:1603 (EvidenceDetailPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -131993,7 +131936,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
-          "line": 1745,
+          "line": 1758,
           "caller": "EvidenceDetailPageInner",
           "class": "WEB",
           "primitive": "runRecordAction",
@@ -132003,7 +131946,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(tabs)/archive.tsx:100 (ArchiveScreen, MOBILE); apps/web/app/(app)/evidence/[id]/page.tsx:1745 (EvidenceDetailPageInner, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(tabs)/archive.tsx:100 (ArchiveScreen, MOBILE); apps/web/app/(app)/evidence/[id]/page.tsx:1758 (EvidenceDetailPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -132061,7 +132004,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
-          "line": 1636,
+          "line": 1649,
           "caller": "EvidenceDetailPageInner",
           "class": "WEB",
           "primitive": "runRecordAction",
@@ -132071,7 +132014,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:1636 (EvidenceDetailPageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/page.tsx:1649 (EvidenceDetailPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
