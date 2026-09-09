@@ -698,12 +698,27 @@ async function observeOtsPendingAged(
       integrity.parseOtsPendingAgedFingerprint(ctx.fingerprint),
     );
     if (!evidenceId) return { ...base, activity: "NOT_APPLICABLE" };
-    const record = await ctx.client.evidence.findUnique({
-      where: { id: evidenceId },
+    const record = await ctx.client.evidence.findFirst({
+      // RELIABILITY CLOSURE (2026-09-09) — bound to the workspace as well as
+      // the id, matching every sibling probe in this file.
+      //
+      // This was a findUnique on the id alone. It was not a leak: the incident
+      // whose fingerprint supplies the id is already tenant-scoped, so the row
+      // it names is this workspace's row, and the observation returns an
+      // activity enum rather than any of the columns it read. The defect was
+      // that the safety rested entirely on that upstream fact.
+      //
+      // The rule this file states about itself is "a fingerprint is not an
+      // authorization", and one probe here was trusting one. Binding the
+      // predicate costs nothing and makes the rule true everywhere it is
+      // claimed, so a future caller that reaches a probe by some other route
+      // cannot turn an inconsistency into a leak.
+      where: { AND: [{ id: evidenceId }, ctx.evidenceWhere] },
       select: { otsStatus: true, otsAnchoredAtUtc: true, createdAt: true },
     });
-    // The record is gone. It can never be observed aged again, so it must stay
-    // closable rather than becoming a permanent row nobody can clear.
+    // The record is gone, or is not this workspace's. It can never be observed
+    // aged again, so it must stay closable rather than becoming a permanent row
+    // nobody can clear.
     if (!record) return { ...base, activity: "NOT_APPLICABLE" };
     return {
       ...base,
