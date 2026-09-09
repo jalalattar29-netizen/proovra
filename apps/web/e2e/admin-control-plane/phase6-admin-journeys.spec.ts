@@ -11,39 +11,26 @@
  */
 
 import { expect, test, type Page } from "@playwright/test";
+import { signInAsFixtureUser } from "./_fixture-login";
 
 const WEB = process.env.PROOVRA_FIXTURE_WEB_BASE ?? "http://localhost:3331";
 const PASSWORD = "fixture-local-only-password";
 const PLATFORM_ADMIN = "platform-admin@fixture.local";
 
-async function hideConsentBanner(page: Page) {
-  await page.addInitScript(() => {
-    const style = document.createElement("style");
-    style.textContent = "#cc-main{display:none!important;pointer-events:none!important}";
-    const attach = () => document.head?.appendChild(style);
-    if (document.head) attach();
-    else document.addEventListener("DOMContentLoaded", attach, { once: true });
-  });
-}
-
+/**
+ * This file kept its own sign-in, and it was the weakest of the eight copies in
+ * this suite: it read back only the email after filling, clicked the submit
+ * button that the matrix specs abandoned as unstable at narrow widths, and then
+ * waited sixty seconds for a URL change without ever looking at the
+ * authentication response. In CI it produced a mute timeout — 96 of 97 tests
+ * passed and this one said only that a navigation had not happened.
+ *
+ * It now uses the shared helper, which waits for the auth response, arms that
+ * wait before submitting, and fails immediately with the status and stable
+ * error code when sign-in is refused. See _fixture-login.ts.
+ */
 async function signIn(page: Page, email: string) {
-  await hideConsentBanner(page);
-  await page.goto(`${WEB}/login`, { waitUntil: "networkidle", timeout: 90_000 });
-  const box = page.locator('input[type="email"]:visible').first();
-  const pass = page.locator('input[type="password"]:visible').first();
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
-    await box.fill(email);
-    await pass.fill(PASSWORD);
-    const checks = page.locator('input[type="checkbox"]:visible');
-    for (let i = 0; i < (await checks.count()); i += 1) {
-      await checks.nth(i).check().catch(() => {});
-    }
-    if ((await box.inputValue()) === email) break;
-    if (attempt === 3) throw new Error("the login form kept clearing itself");
-    await page.waitForTimeout(1_000);
-  }
-  await page.locator('button[type="submit"]:visible').first().click();
-  await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 60_000 });
+  await signInAsFixtureUser(page, email, { web: WEB, password: PASSWORD });
 }
 
 function collectConsole(page: Page) {

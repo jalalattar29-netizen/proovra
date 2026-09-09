@@ -703,10 +703,23 @@ export const CHANGED_PATH_CLASSES = Object.freeze([
   },
   {
     class: "PRODUCT_BEHAVIOR_TEST",
+    /*
+     * `e2e/` ANYWHERE, not only at the repository root.
+     *
+     * This tested `p.startsWith("e2e/")`, which covers the root suite but not
+     * `apps/web/e2e/`. Every file that lived there happened to be a `.spec.ts`,
+     * so the first clause classified them and the gap stayed invisible — until
+     * a shared, non-spec helper was added beside them
+     * (`apps/web/e2e/admin-control-plane/_fixture-login.ts`) and the engine
+     * correctly refused it as a changed path with no classification.
+     *
+     * A test helper is part of the behaviour suite whichever directory the
+     * suite happens to live in.
+     */
     test: (p) =>
       /\.(test|spec)\.[cm]?[jt]sx?$/.test(p) ||
       /(^|\/)(test|tests|__tests__)\//.test(p) ||
-      p.startsWith("e2e/"),
+      /(^|\/)e2e\//.test(p),
   },
   { class: "PRODUCTION_RUNTIME", test: (p) => PRODUCTION_RUNTIME_ROOTS.some((r) => p.startsWith(r)) },
   /**

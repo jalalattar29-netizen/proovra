@@ -52,6 +52,8 @@ function arg(name, fallback) {
 }
 const KEEP = process.argv.includes("--keep");
 const GREP = arg("grep", null);
+/** e.g. --shard=5/5, so a single CI shard can be reproduced exactly. */
+const SHARD = arg("shard", null);
 
 const TAG = arg("tag", "p10");
 const PG_PORT = Number(arg("pg-port", 55610));
@@ -264,9 +266,25 @@ async function main() {
   });
 
   // ---- 5. the suite ------------------------------------------------------
-  const args = ["-s", "test:e2e:admin"];
-  if (GREP) args.push("--", "-g", JSON.stringify(GREP));
-  console.log(`[suite] run${GREP ? ` (grep ${GREP})` : ""}`);
+  /*
+   * `pnpm exec playwright`, NOT the package script.
+   *
+   * This built `pnpm -s test:e2e:admin -- -g <pattern>`, and pnpm 10.28.2
+   * forwards the `--` separator itself into the script, so Playwright received
+   * a bare `--` and read it as a positional test-file regex: "No tests found",
+   * with nothing executed. That is the same defect that made all five CI shards
+   * exit instantly, and this harness had it too.
+   */
+  const args = [
+    "exec",
+    "playwright",
+    "test",
+    "--config",
+    "apps/web/e2e/admin-control-plane/playwright.config.ts",
+  ];
+  if (SHARD) args.push(`--shard=${SHARD}`);
+  if (GREP) args.push("-g", GREP);
+  console.log(`[suite] run${GREP ? ` (grep ${GREP})` : ""}${SHARD ? ` (shard ${SHARD})` : ""}`);
   const r = run("pnpm", args, {
     env: {
       PROOVRA_FIXTURE_WEB_BASE: WEB_BASE,
