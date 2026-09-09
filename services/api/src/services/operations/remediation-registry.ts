@@ -207,7 +207,31 @@ const REGENERATE_ARTIFACTS: RemediationAction = {
  * opposite dispositions — which is the clearest possible demonstration that
  * disposition is a property of the CONDITION and not of its category.
  */
-export type IntegrityClass = "tsa_failure" | "ots_failure";
+/**
+ * GOVERNANCE CLOSURE (2026-09-09) — the two OTS RECOVERY conditions get their
+ * own guidance instead of the category fallback.
+ *
+ * They were never actionless: `entryForIncident` falls through to
+ * `CATEGORY_ENTRIES.EVIDENCE_INTEGRITY`, so both already returned
+ * READ_ONLY_GUIDANCE with a deep link. What they inherited was the GENERIC
+ * sentence — "open the record to see which proof is missing" — and for these
+ * two that is the wrong thing to tell an operator.
+ *
+ * Nothing is missing that the platform is not already repairing. A stalled
+ * initialization is picked up by the scheduled lifecycle-recovery sweep; an
+ * aged PENDING anchor is still inside the 30-day upgrade budget and the ladder
+ * is still running. Sending someone to hunt for a missing proof invites a
+ * manual "fix" for a condition that resolves itself, and the only manual fix
+ * available for a timestamp would be the one thing this platform must never do.
+ *
+ * So both are stated as what they are: automatic, in progress, no action
+ * required. Neither offers an action, because offering one would be a lie.
+ */
+export type IntegrityClass =
+  | "tsa_failure"
+  | "ots_failure"
+  | "ots_pending_aged"
+  | "ots_initialization_stalled";
 
 const TSA_UNSAFE_REASON =
   "A timestamp proves a record existed at a moment. Re-contacting the authority now would mint a token whose genTime is later than the evidence it certifies, and presenting that as the record's timestamp would assert something untrue. The provider is therefore never re-contacted for finalized evidence: `tsaStatus` is written once, inside the finalize claim, and there is no TSA queue or job in the canonical registry to re-run.";
@@ -217,6 +241,26 @@ const INTEGRITY_ENTRIES: Readonly<Record<IntegrityClass, RemediationEntry>> =
     ots_failure: {
       disposition: "DIRECT_REMEDIATION",
       action: RESUME_OTS,
+      deepLink: {
+        href: "/evidence",
+        label: "Open evidence record",
+        requiredPermission: "evidence.read",
+      },
+    },
+    ots_initialization_stalled: {
+      disposition: "READ_ONLY_GUIDANCE",
+      guidance:
+        "OpenTimestamps initialization has not started successfully for this record. PROOVRA retries this automatically on a scheduled sweep; no manual timestamp creation is required and none is offered. The evidence, its signature and its RFC 3161 timestamp are unaffected.",
+      deepLink: {
+        href: "/evidence",
+        label: "Open evidence record",
+        requiredPermission: "evidence.read",
+      },
+    },
+    ots_pending_aged: {
+      disposition: "READ_ONLY_GUIDANCE",
+      guidance:
+        "OpenTimestamps anchoring is taking longer than expected. Bitcoin anchoring is inherently slow and the upgrade ladder is still running inside its budget, so this resolves on its own. No manual action is available and none is required.",
       deepLink: {
         href: "/evidence",
         label: "Open evidence record",
@@ -363,7 +407,12 @@ export function integrityClassOf(fingerprint: string): IntegrityClass | null {
   const colon = fingerprint.indexOf(":");
   if (colon < 1) return null;
   const head = fingerprint.slice(0, colon);
-  return head === "tsa_failure" || head === "ots_failure" ? head : null;
+  return head === "tsa_failure" ||
+    head === "ots_failure" ||
+    head === "ots_pending_aged" ||
+    head === "ots_initialization_stalled"
+    ? head
+    : null;
 }
 
 /** The registry entry governing one incident. Never throws; never guesses. */
