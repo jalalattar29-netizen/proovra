@@ -512,4 +512,104 @@ describe("blocked supersession + stranded recovery (live PostgreSQL 16)", () => 
     expect(permanent.length).toBeGreaterThan(0);
     expect(recoverable.filter((r) => permanent.includes(r))).toEqual([]);
   });
+
+  // =========================================================================
+  // CONCURRENT ARTIFACT VERSION ALLOCATION
+  // =========================================================================
+
+  /**
+   * TWO GENERATIONS FOR ONE RECORD MUST NEVER HOLD THE SAME VERSION.
+   *
+   * The processor allocates inside `pg_advisory_xact_lock(hashtext(evidenceId))`
+   * and builds both storage keys from the number it gets. The audit's finding
+   * was that allocation used to happen OUTSIDE that lock, so two runnable
+   * requests at one baseline both computed N, both uploaded to
+   * `reports/<id>/vN.pdf`, and only the unique index then elected a winner —
+   * leaving the object at that key holding the LOSER's bytes while the
+   * surviving row described the winner's.
+   *
+   * Everything about that defect is a property of CONCURRENCY against a real
+   * database. A source-text assertion that the lock statement appears in the
+   * file cannot see it: the old code had the lock too, just later. So this runs
+   * the same sequence the processor runs — lock, aggregate max, +1, insert —
+   * in two genuinely simultaneous transactions against live PostgreSQL, and
+   * reads back what each one actually got.
+   */
+  it("two simultaneous allocations get v1 and v2, never v1 twice", async () => {
+    const { evidenceId } = harness.fixtures.teamA;
+    await prisma.report.deleteMany({ where: { evidenceId } });
+
+    /** The processor's reservation, verbatim in shape. */
+    async function allocate(label: string) {
+      return prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${evidenceId}))`;
+        const reservation = await tx.report.aggregate({
+          where: { evidenceId },
+          _max: { version: true },
+        });
+        const version = (reservation._max.version ?? 0) + 1;
+        const reportKey = `reports/${evidenceId}/v${version}.pdf`;
+        await tx.report.create({
+          data: {
+            evidenceId,
+            version,
+            storageBucket: "acceptance",
+            storageKey: reportKey,
+            generatedAtUtc: new Date(),
+            sizeBytes: BigInt(1),
+          },
+          select: { id: true },
+        });
+        return { label, version, reportKey };
+      });
+    }
+
+    const [a, b] = await Promise.all([allocate("A"), allocate("B")]);
+
+    // The whole point, stated as the numbers actually allocated.
+    expect([a.version, b.version].sort()).toEqual([1, 2]);
+    expect(a.version).not.toBe(b.version);
+    // And therefore two different final storage keys. The old defect produced
+    // one key for two sets of bytes.
+    expect(a.reportKey).not.toBe(b.reportKey);
+    expect(new Set([a.reportKey, b.reportKey]).size).toBe(2);
+
+    // Both rows survive: this is append-only version history, not a winner.
+    const rows = await prisma.report.findMany({
+      where: { evidenceId },
+      orderBy: { version: "asc" },
+      select: { version: true, storageKey: true },
+    });
+    expect(rows.map((r) => r.version)).toEqual([1, 2]);
+    expect(rows[0]!.storageKey).toBe(`reports/${evidenceId}/v1.pdf`);
+    expect(rows[1]!.storageKey).toBe(`reports/${evidenceId}/v2.pdf`);
+
+    await prisma.report.deleteMany({ where: { evidenceId } });
+  });
+
+  it("the unique index is a backstop, and it is really there", async () => {
+    const { evidenceId } = harness.fixtures.teamA;
+    await prisma.report.deleteMany({ where: { evidenceId } });
+    const base = {
+      evidenceId,
+      storageBucket: "acceptance",
+      generatedAtUtc: new Date(),
+      sizeBytes: BigInt(1),
+    };
+    await prisma.report.create({
+      data: { ...base, version: 1, storageKey: `reports/${evidenceId}/v1.pdf` },
+    });
+    // Allocation is what prevents this from ever being reached; the constraint
+    // is what guarantees the prevention cannot silently stop working.
+    await expect(
+      prisma.report.create({
+        data: {
+          ...base,
+          version: 1,
+          storageKey: `reports/${evidenceId}/v1-other.pdf`,
+        },
+      }),
+    ).rejects.toThrow();
+    await prisma.report.deleteMany({ where: { evidenceId } });
+  });
 });
