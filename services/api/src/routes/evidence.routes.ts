@@ -59,7 +59,45 @@ import {
   type VerificationPackageMetadata,
   type CanonicalOutputContext,
   parseEvidenceIdNeedle,
+  // RELIABILITY CLOSURE (2026-09-09) — the generation intent vocabulary and the
+  // typed outcome every surface must render instead of a boolean.
+  GENERATION_INTENTS,
+  generationOutcomeAcceptedWork,
+  type GenerationIntent,
+  type GenerationRequestOutcome,
 } from "@proovra/shared";
+/**
+ * THE SAFE SENTENCE FOR EACH GENERATION OUTCOME.
+ *
+ * RELIABILITY CLOSURE (2026-09-09). One table, server-side, so the API and
+ * every browser surface say the same true thing. Previously the route sent one
+ * sentence for every non-enqueued outcome — "An active report job already
+ * exists for this evidence" — and the browser sent a second, equally wrong one.
+ *
+ * Every string here is safe to show any authorized reader of the record: none
+ * names an internal code, a queue, a tenant, or the existence of anything the
+ * reader cannot already see.
+ */
+const GENERATION_OUTCOME_MESSAGE: Record<GenerationRequestOutcome, string> = {
+  ENQUEUED:
+    "Generation requested. The report and verification package will appear here when they complete.",
+  SUPERSEDED:
+    "Generation requested. The earlier attempt is kept as history; this is a new request.",
+  ALREADY_ACTIVE: "Generation is already under way for this record.",
+  QUEUE_UNAVAILABLE:
+    "We could not schedule generation right now. The request is saved and will be picked up automatically; the record is unaffected.",
+  NOT_INCLUDED:
+    "Reports and verification packages are not included for this evidence record.",
+  RECOVERABLE_BLOCKED:
+    "Generation is currently blocked for this record. It becomes possible again when the block is lifted.",
+  TERMINAL:
+    "The previous generation attempt stopped and cannot be retried in its current state.",
+  REQUEST_PERSIST_FAILED:
+    "We could not record the request. Please try again; the record is unaffected.",
+  EVIDENCE_NOT_FOUND: "This evidence record is not available.",
+  REQUESTER_REQUIRED: "This request could not be attributed and was not made.",
+};
+
 import {
   type EvidenceAssetKind as PublicEvidenceAssetKind,
   type EvidenceContentSummary as PublicEvidenceContentSummary,
@@ -2680,6 +2718,212 @@ function mapEvidenceListItem(item: SelectedEvidenceListItem) {
       createdAt: item.createdAt,
     }),
   };
+}
+
+/**
+ * THE ONE ARTIFACT-DOWNLOAD GATE.
+ *
+ * ===========================================================================
+ * RELIABILITY CLOSURE (2026-09-09)
+ * ===========================================================================
+ * The `/report/latest` and `/verification-package` routes each carried their
+ * own copy of this sequence, and the historical-version routes added below
+ * needed the same one. Three copies of an authorization chain is three places
+ * for it to drift, and the requirement on the new routes — that they be NO
+ * WEAKER than `/latest` — is only provable if they are literally the same code.
+ *
+ * THE SEQUENCE, and why each step is here:
+ *
+ *   1. READ ACCESS. `getEvidenceWithReadAccess` resolves ownership, case-linked
+ *      access and ACTIVE workspace membership, and answers 404 for every denial
+ *      class — missing, cross-tenant, inactive membership — so none of them can
+ *      be told apart by an outsider probing ids.
+ *
+ *   2. WORKSPACE GOVERNANCE. `enforceSensitiveAction` applies the role
+ *      permission (`evidence.download_report` / `evidence.download_package`),
+ *      the workspace policy and, with `consultTemplatePolicy`, the workflow
+ *      template's export overlay — which may only tighten an allowed decision.
+ *      A governance lookup that FAILS answers 503, not 200: the export is
+ *      blocked rather than leaked.
+ *
+ *   3. PACKAGE PUBLISH GATE (packages only). The Phase 4A VERIFICATION policy
+ *      kind, distinct from step 2's role-and-retention gate.
+ *
+ *   4. EXPORT ELIGIBILITY. Legal hold — direct or on any linked case — and the
+ *      lifecycle states that forbid export. This is the step that makes a held
+ *      record's history exactly as unreachable as its latest version, which is
+ *      the existing product decision and is NOT changed here.
+ *
+ * COMMERCIAL STATE IS DELIBERATELY ABSENT, and its absence is the point.
+ * Downloading an artifact that EXISTS is not a commercial question: a
+ * credit-funded record sits on the FREE plan by design, and a customer who
+ * downgraded still owns every version they generated. This gate asks who you
+ * are and what governance says — never what you currently pay.
+ *
+ * Every denial writes the same `EXPORT_BLOCKED_BY_POLICY` custody event the
+ * per-route copies wrote, so the forensic trail is unchanged.
+ */
+type ArtifactDownloadGateResult =
+  | { allowed: true; teamId: string | null }
+  | { allowed: false; reply: unknown; teamId: string | null };
+
+async function assertArtifactDownloadAllowed(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  input: {
+    evidenceId: string;
+    actorUserId: string;
+    kind: "report" | "package";
+  },
+): Promise<ArtifactDownloadGateResult> {
+  const { evidenceId, actorUserId, kind } = input;
+  const action = kind === "report" ? "report_download" : "verification_package_download";
+
+  try {
+    await getEvidenceWithReadAccess(actorUserId, evidenceId);
+  } catch (err) {
+    const statusCode =
+      err instanceof Error && "statusCode" in err
+        ? ((err as Error & { statusCode?: number }).statusCode ?? 500)
+        : 500;
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    return {
+      allowed: false,
+      teamId: null,
+      reply: reply.code(statusCode).send({ message }),
+    };
+  }
+
+  const evidenceForGate = await prisma.evidence.findUnique({
+    where: { id: evidenceId },
+    select: { id: true, teamId: true, retentionUntilUtc: true },
+  });
+  const teamId = evidenceForGate?.teamId ?? null;
+
+  /*
+   * LEGACY ROWS WITH NO WORKSPACE.
+   *
+   * Both governance gates below are workspace-scoped, and a row written before
+   * every Evidence carried a real team id has nothing for them to evaluate
+   * against. Read access above has already established that the caller owns it
+   * — that helper's personal branch is ownership — so the download proceeds on
+   * ownership alone, exactly as it did before this refactor. Nothing is widened:
+   * a null-workspace row was never reachable by anyone but its owner.
+   */
+  if (!teamId || !evidenceForGate) return { allowed: true, teamId };
+
+  const { enforceSensitiveAction } = await import(
+    "../services/governance.service.js"
+  );
+  // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
+  const membership = await prisma.teamMember.findUnique({
+    where: { teamId_userId: { teamId, userId: actorUserId } },
+    select: { role: true, status: true },
+  });
+  const decision = await enforceSensitiveAction(
+    kind === "report" ? "download_report" : "download_package",
+    {
+      teamId,
+      role: membership?.status === "ACTIVE" ? membership.role : undefined,
+      evidence: {
+        id: evidenceForGate.id,
+        teamId,
+        retentionUntilUtc: evidenceForGate.retentionUntilUtc ?? null,
+      },
+      consultTemplatePolicy: true,
+    },
+  );
+  if (!decision.allowed) {
+    await appendCustodyEvent({
+      evidenceId,
+      eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,
+      payload: { action, reason: decision.reason, actorUserId },
+      ip: req.ip,
+      userAgent: req.headers["user-agent"],
+    }).catch(noteCustodyFailure);
+    return {
+      allowed: false,
+      teamId,
+      reply: reply
+        .code(decision.code === "GOVERNANCE_CHECK_FAILED" ? 503 : 403)
+        .send({
+          code: decision.code,
+          reason: decision.reason,
+          message:
+            kind === "report"
+              ? "Report download is blocked by workspace governance policy."
+              : "Verification package download is blocked by workspace governance policy.",
+        }),
+    };
+  }
+
+  if (kind === "package") {
+    const { gateVerificationAction } = await import(
+      "../services/governance/policy-runtime-gates.service.js"
+    );
+    const verifyGate = await gateVerificationAction({
+      teamId,
+      evidenceId,
+      action: "PUBLISH_PACKAGE",
+    });
+    if (!verifyGate.ok) {
+      await appendCustodyEvent({
+        evidenceId,
+        eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,
+        payload: {
+          action: "verification_package_publish_gate",
+          denial: verifyGate.denial,
+          reason: verifyGate.reason,
+          actorUserId,
+        },
+        ip: req.ip,
+        userAgent: req.headers["user-agent"],
+      }).catch(noteCustodyFailure);
+      return {
+        allowed: false,
+        teamId,
+        reply: reply.code(403).send({
+          code: "VERIFICATION_POLICY_BLOCKED",
+          denial: verifyGate.denial,
+          reason: verifyGate.reason,
+          message:
+            "Verification package download is blocked by a verification policy.",
+        }),
+      };
+    }
+  }
+
+  const { checkExportEligibility } = await import(
+    "../services/governance-lifecycle/export-governance.service.js"
+  );
+  const eligibility = await checkExportEligibility({
+    teamId,
+    evidenceId,
+    actorUserId,
+  });
+  if (eligibility.outcome !== "ALLOWED") {
+    await appendCustodyEvent({
+      evidenceId,
+      eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,
+      payload: { action, reason: eligibility.outcome, actorUserId },
+      ip: req.ip,
+      userAgent: req.headers["user-agent"],
+    }).catch(noteCustodyFailure);
+    return {
+      allowed: false,
+      teamId,
+      reply: reply.code(403).send({
+        code: eligibility.outcome,
+        reason: eligibility.reason,
+        message:
+          kind === "report"
+            ? "Report download is blocked by evidence export eligibility."
+            : "Verification package download is blocked by evidence export eligibility.",
+      }),
+    };
+  }
+
+  return { allowed: true, teamId };
 }
 
 async function getEvidenceWithReadAccess(
@@ -10354,6 +10598,25 @@ if (
         return reply.code(statusCode).send({ message });
       }
 
+      /*
+       * The actor's stated verb. OPTIONAL, BOUNDED, AND NOT AN AUTHORITY.
+       *
+       * It is recorded on the audit row so a reviewer can see what the person
+       * believed they were doing, and it is used for nothing else: the server
+       * derives `forceRegenerate` from whether an artifact exists. A client that
+       * sends REGENERATE for a record with no report gets a first generation,
+       * not an error — its belief was stale, and the truth is cheap to read.
+       */
+      const bodyIntent = (() => {
+        const raw = (req.body as { intent?: unknown } | null | undefined)
+          ?.intent;
+        if (typeof raw !== "string") return undefined;
+        const upper = raw.trim().toUpperCase();
+        return (GENERATION_INTENTS as readonly string[]).includes(upper)
+          ? (upper as GenerationIntent)
+          : undefined;
+      })();
+
       // Phase A0 — integrity hard-gate. A record whose recomputed
       // SHA-256 disagreed with the value stored at completion cannot
       // be re-promoted into a Report or Verification Package by
@@ -10397,18 +10660,49 @@ if (
        * the supersession rule in `createReportGenerationRequest` is what keeps
        * this endpoint usable after an upgrade.
        */
-      let result: { enqueued: boolean; reason?: string };
+      let result: {
+        enqueued: boolean;
+        reason?: string;
+        outcome: GenerationRequestOutcome;
+        forceRegenerate?: boolean;
+      };
       try {
         const requested = await requestReportGeneration({
           evidenceId: id,
           purpose: "operator_regenerate",
-          forceRegenerate: true,
+          /*
+           * RELIABILITY CLOSURE (2026-09-09) — `forceRegenerate: true` IS GONE
+           * FROM THIS CALL.
+           *
+           * One endpoint serves all three verbs, and it asserted the strongest
+           * of them unconditionally. For a FIRST generation that meant entering
+           * the worker's regeneration-only legal-hold branch — refusing a record
+           * that had no artifact to preserve — and writing a terminal row at the
+           * exact idempotency key every future Generate click would compute.
+           * Releasing the hold did not restore the action, because a policy
+           * terminal is not commercially obsolete.
+           *
+           * The authority now DERIVES the flag from whether an artifact exists,
+           * which is the fact it was always supposed to express. The client's
+           * stated intent travels alongside for the audit trail; it authorizes
+           * nothing.
+           */
+          intent: bodyIntent,
           regenerateReason: "operator_requested",
           requestedByUserId: userId,
         });
         result = requested.requested
-          ? { enqueued: requested.enqueued, reason: requested.reason }
-          : { enqueued: false, reason: requested.reason };
+          ? {
+              enqueued: requested.enqueued,
+              reason: requested.reason,
+              outcome: requested.outcome,
+              forceRegenerate: requested.forceRegenerate,
+            }
+          : {
+              enqueued: false,
+              reason: requested.reason,
+              outcome: requested.outcome,
+            };
       } catch (err: unknown) {
         const message =
           err instanceof Error
@@ -10429,24 +10723,41 @@ if (
       auditEvidenceAction(req, {
         userId,
         action: "evidence.report.regenerate_requested",
-        outcome: result.enqueued ? "success" : "blocked",
+        outcome: generationOutcomeAcceptedWork(result.outcome)
+          ? "success"
+          : "blocked",
         resourceId: id,
         teamId: evidenceRecord.teamId ?? null,
         metadata: {
           enqueued: result.enqueued,
           reason: result.reason ?? null,
+          generationOutcome: result.outcome,
+          requestedIntent: bodyIntent ?? null,
+          // The flag the SERVER derived, not the one a client asserted.
+          forceRegenerate: result.forceRegenerate ?? null,
           evidenceStatus: evidenceRecord.status ?? null,
           evidenceTeamId: evidenceRecord.teamId ?? null,
         },
       });
 
+      /*
+       * RELIABILITY CLOSURE (2026-09-09) — THE OUTCOME, NOT A BOOLEAN.
+       *
+       * `enqueued: false` was rendered by every caller as "an active report job
+       * already exists". That sentence was true for exactly one of the six
+       * reasons it was shown for: a customer whose request was lost to a Redis
+       * outage, and one whose record was permanently blocked, were both told the
+       * work was in progress.
+       *
+       * `enqueued` is RETAINED for compatibility and still means what it says.
+       * `outcome` is the field to read.
+       */
       return reply.code(202).send({
         evidenceId: id,
         enqueued: result.enqueued,
         reason: result.reason ?? null,
-        message: result.enqueued
-          ? "Report regeneration enqueued. Poll /v1/evidence/:id/artifacts/status for progress."
-          : "An active report job already exists for this evidence. No new job enqueued.",
+        outcome: result.outcome,
+        message: GENERATION_OUTCOME_MESSAGE[result.outcome],
       });
     }
   );
@@ -10731,6 +11042,260 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
         },
       });
     }
+  );
+
+
+  /**
+   * ===========================================================================
+   * RELIABILITY CLOSURE (2026-09-09) — HISTORICAL VERSION DOWNLOADS.
+   * ===========================================================================
+   * The product retains every version, lists them (`v1`, `v2`, …) on Evidence
+   * Detail, marks one "Latest" and one "Immutable recorded", stores each under
+   * its own Object-Locked key, and told the operator in the regeneration
+   * confirmation that "previous versions are retained and remain downloadable".
+   *
+   * The first half of that sentence was true and the second was not. Both
+   * download endpoints were hard-coded to `orderBy: { version: "desc" }`, and no
+   * route anywhere accepted a version — so a listed v1 beside a current v2 was
+   * unreachable through the product. A version list with no way to open its
+   * entries is a promise the API could not keep.
+   *
+   * THE AUTHORIZATION IS NOT RE-IMPLEMENTED. These two routes call the SAME
+   * gate function the `/latest` routes call, which is the only way to make
+   * "no weaker than latest" a fact rather than an intention: read access,
+   * tenant containment (a cross-tenant record is a 404 indistinguishable from
+   * a missing one), the sensitive-action permission, the workflow-template
+   * export overlay, export eligibility — legal hold and lifecycle included —
+   * and, for packages, the verification publish gate.
+   *
+   * WHAT THEY DELIBERATELY DO NOT DO. They do not bypass the legal-hold export
+   * policy: a held record's history is exactly as unreachable as its latest
+   * version, which is the existing product decision and is not this closure's
+   * to change. They expose no storage key. They accept only a positive integer,
+   * and a version that does not exist answers 404 in the same shape as a record
+   * that does not exist, so neither can be used to enumerate the other.
+   */
+  const VersionParamSchema = z.object({
+    id: z.string().uuid(),
+    version: z
+      .string()
+      .regex(/^[1-9][0-9]{0,6}$/, "version must be a positive integer"),
+  });
+
+  app.get(
+    "/v1/evidence/:id/reports/:version",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply) => {
+      const ownerUserId = getAuthUserId(req);
+      const parsed = VersionParamSchema.safeParse(req.params);
+      if (!parsed.success) {
+        // Same shape as "no such version". A malformed version must not be
+        // distinguishable from an absent one.
+        return reply.code(404).send({ message: "Report not found" });
+      }
+      const { id } = parsed.data;
+      const version = Number.parseInt(parsed.data.version, 10);
+
+      (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
+      req.log = req.log.child({ evidenceId: id });
+
+      const gate = await assertArtifactDownloadAllowed(req, reply, {
+        evidenceId: id,
+        actorUserId: ownerUserId,
+        kind: "report",
+      });
+      if (!gate.allowed) return gate.reply;
+
+      const row = await prisma.report.findFirst({
+        where: { evidenceId: id, version },
+        select: {
+          version: true,
+          storageBucket: true,
+          storageKey: true,
+          storageRegion: true,
+          storageObjectLockMode: true,
+          storageObjectLockRetainUntilUtc: true,
+          storageObjectLockLegalHoldStatus: true,
+          generatedAtUtc: true,
+        },
+      });
+      if (!row) return reply.code(404).send({ message: "Report not found" });
+
+      try {
+        const meta = await headObject({
+          bucket: row.storageBucket,
+          key: row.storageKey,
+        });
+        if (!meta.sizeBytes || meta.sizeBytes <= 0) {
+          return reply.code(404).send({ message: "Report not found" });
+        }
+      } catch {
+        return reply.code(404).send({ message: "Report not found" });
+      }
+
+      await appendCustodyEvent({
+        evidenceId: id,
+        eventType: prismaPkg.CustodyEventType.REPORT_DOWNLOADED,
+        payload: { reportVersion: row.version, historicalVersion: true },
+        ip: req.ip,
+        userAgent: req.headers["user-agent"],
+      }).catch(noteCustodyFailure);
+
+      auditEvidenceAction(req, {
+        userId: ownerUserId,
+        action: "evidence.report.downloaded",
+        outcome: "success",
+        resourceId: id,
+        teamId: gate.teamId,
+        metadata: { reportVersion: row.version, historicalVersion: true },
+      });
+
+      const url = await presignGetObject({
+        bucket: row.storageBucket,
+        key: row.storageKey,
+        expiresInSeconds: 600,
+      });
+
+      const latest = await prisma.report.findFirst({
+        where: { evidenceId: id },
+        orderBy: { version: "desc" },
+        select: { version: true },
+      });
+
+      return reply.code(200).send({
+        evidenceId: id,
+        version: row.version,
+        // Stated rather than inferred: a client holding an older version should
+        // not have to compare numbers to learn it is looking at history.
+        isLatest: latest?.version === row.version,
+        latestVersion: latest?.version ?? row.version,
+        url,
+        generatedAtUtc: row.generatedAtUtc.toISOString(),
+        storage: await getStorageProtectionSummary(
+          row.storageBucket,
+          row.storageKey,
+          {
+            storageRegion: row.storageRegion,
+            storageObjectLockMode: row.storageObjectLockMode,
+            storageObjectLockRetainUntilUtc: row.storageObjectLockRetainUntilUtc,
+            storageObjectLockLegalHoldStatus:
+              row.storageObjectLockLegalHoldStatus,
+          },
+        ),
+      });
+    },
+  );
+
+  app.get(
+    "/v1/evidence/:id/verification-packages/:version",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply) => {
+      const ownerUserId = getAuthUserId(req);
+      const parsed = VersionParamSchema.safeParse(req.params);
+      if (!parsed.success) {
+        return reply
+          .code(404)
+          .send({ message: "Verification package not found" });
+      }
+      const { id } = parsed.data;
+      const version = Number.parseInt(parsed.data.version, 10);
+
+      (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
+      req.log = req.log.child({ evidenceId: id });
+
+      const gate = await assertArtifactDownloadAllowed(req, reply, {
+        evidenceId: id,
+        actorUserId: ownerUserId,
+        kind: "package",
+      });
+      if (!gate.allowed) return gate.reply;
+
+      const row = await prisma.verificationPackage.findFirst({
+        where: { evidenceId: id, version },
+        select: {
+          version: true,
+          storageBucket: true,
+          storageKey: true,
+          storageRegion: true,
+          storageObjectLockMode: true,
+          storageObjectLockRetainUntilUtc: true,
+          storageObjectLockLegalHoldStatus: true,
+          generatedAtUtc: true,
+          packageType: true,
+        },
+      });
+      if (!row) {
+        return reply
+          .code(404)
+          .send({ message: "Verification package not found" });
+      }
+
+      try {
+        const meta = await headObject({
+          bucket: row.storageBucket,
+          key: row.storageKey,
+        });
+        if (!meta.sizeBytes || meta.sizeBytes <= 0) {
+          return reply
+            .code(404)
+            .send({ message: "Verification package not found" });
+        }
+      } catch {
+        return reply
+          .code(404)
+          .send({ message: "Verification package not found" });
+      }
+
+      await appendCustodyEvent({
+        evidenceId: id,
+        eventType: prismaPkg.CustodyEventType.VERIFICATION_PACKAGE_DOWNLOADED,
+        payload: { version: row.version, historicalVersion: true },
+        ip: req.ip,
+        userAgent: req.headers["user-agent"],
+      }).catch(noteCustodyFailure);
+
+      auditEvidenceAction(req, {
+        userId: ownerUserId,
+        action: "evidence.verification_package.downloaded",
+        outcome: "success",
+        resourceId: id,
+        teamId: gate.teamId,
+        metadata: { version: row.version, historicalVersion: true },
+      });
+
+      const url = await presignGetObject({
+        bucket: row.storageBucket,
+        key: row.storageKey,
+        expiresInSeconds: 600,
+      });
+
+      const latest = await prisma.verificationPackage.findFirst({
+        where: { evidenceId: id },
+        orderBy: { version: "desc" },
+        select: { version: true },
+      });
+
+      return reply.code(200).send({
+        evidenceId: id,
+        version: row.version,
+        isLatest: latest?.version === row.version,
+        latestVersion: latest?.version ?? row.version,
+        packageType: row.packageType ?? null,
+        url,
+        generatedAtUtc: row.generatedAtUtc.toISOString(),
+        storage: await getStorageProtectionSummary(
+          row.storageBucket,
+          row.storageKey,
+          {
+            storageRegion: row.storageRegion,
+            storageObjectLockMode: row.storageObjectLockMode,
+            storageObjectLockRetainUntilUtc: row.storageObjectLockRetainUntilUtc,
+            storageObjectLockLegalHoldStatus:
+              row.storageObjectLockLegalHoldStatus,
+          },
+        ),
+      });
+    },
   );
 
   app.get(
@@ -11167,9 +11732,9 @@ displayName: resolvedDisplayName,
             verificationPackageMetadata: true,
           },
         });
-        const finalized =
-          evidenceForState?.status === prismaPkg.EvidenceStatus.SIGNED ||
-          evidenceForState?.status === prismaPkg.EvidenceStatus.REPORTED;
+        // The finalization test moved INTO the canonical projection below, which
+        // derives it from the same statuses and then answers the whole question
+        // rather than one third of it.
         const meta = evidenceForState?.verificationPackageMetadata as
           | { blocked?: unknown; outcome?: unknown; reason?: unknown; blockedAtUtc?: unknown }
           | null
@@ -11198,47 +11763,108 @@ displayName: resolvedDisplayName,
           });
         }
         /*
-         * COMMERCIAL CLOSURE (2026-09-08) — a package that will never be built
-         * is not "pending".
+         * =====================================================================
+         * RELIABILITY CLOSURE (2026-09-09) — THE CANONICAL STATE, NOT AN
+         * ABSENCE PLUS A GUESS.
+         * =====================================================================
+         * The 2026-09-08 pass added the commercial answer and left the rest of
+         * the chain deriving "pending" from "no package row + finalized". That
+         * is still an absence, and it was still wrong for two states the server
+         * can produce: a generation that FAILED (retryably or terminally) was
+         * reported to the customer as "being generated", forever, on the same
+         * endpoint whose whole job is to say what is happening.
          *
-         * This branch answered `202 verification_package_pending — being
-         * generated` for every finalized record with no package row. On a plan
-         * that does not include verification packages nothing was ever
-         * enqueued, so that response was a permanent falsehood, and the
-         * comment above this block had already named the state ("intentionally
-         * never generated") without any branch able to produce it.
+         * The three-axis projection already answers this exactly, and it is the
+         * SAME projection Evidence Detail renders — so the download endpoint and
+         * the page describing it can no longer disagree. Every branch below is a
+         * member of `EvidenceOutputState`, so a new state is a compile error
+         * here rather than a silent fall-through to "pending".
          *
-         * `409` is the status the rest of the commercial vocabulary uses for a
-         * refusal that is about the state of the resource rather than the
-         * request. Eligibility is asked per RECORD, so a credit-funded record
-         * on a FREE account is correctly still pending, not excluded.
+         * STATUS CODES follow the conventions already in this file: 409 for a
+         * refusal about the state of the resource, 202 for work in flight, 404
+         * for a record that has nothing and has been asked for nothing.
          */
-        if (finalized && evidenceForState?.ownerUserId) {
-          const outputEligibility = await resolveEvidenceOutputEligibility({
-            evidenceId: id,
-            ownerUserId: evidenceForState.ownerUserId,
-            teamId: evidenceForState.teamId ?? null,
-          }).catch(() => null);
-          if (outputEligibility?.verificationPackageIncluded === false) {
-            return reply.code(409).send({
-              code: "verification_package_not_included",
-              reason: outputEligibility.ineligibilityReason,
-              message:
-                "Verification packages are not included for this evidence record on its current plan.",
-            });
+        const projected = await buildEvidenceArtifactStatus({
+          evidenceId: id,
+          evidenceStatus: evidenceForState?.status ?? null,
+          evidenceTeamId: evidenceForState?.teamId ?? null,
+          evidenceOwnerUserId: evidenceForState?.ownerUserId ?? null,
+          evidenceVerificationPackageMetadata:
+            evidenceForState?.verificationPackageMetadata ?? null,
+        }).catch(() => null);
+        const packageOutput = projected?.outputs.verificationPackage ?? null;
+
+        if (packageOutput) {
+          switch (packageOutput.state) {
+            case "NOT_INCLUDED":
+              return reply.code(409).send({
+                code: "verification_package_not_included",
+                state: packageOutput.state,
+                reason: packageOutput.ineligibilityReason,
+                action: packageOutput.action,
+                message:
+                  "Verification packages are not included for this evidence record.",
+              });
+            case "BLOCKED":
+              return reply.code(409).send({
+                code: "verification_package_blocked",
+                state: packageOutput.state,
+                action: packageOutput.action,
+                message:
+                  "Verification package generation is blocked by a policy decision.",
+              });
+            case "RETRYABLE_FAILURE":
+              return reply.code(409).send({
+                code: "verification_package_generation_failed",
+                state: packageOutput.state,
+                action: packageOutput.action,
+                attemptCount: packageOutput.attemptCount,
+                message:
+                  "The last attempt to build the verification package failed. The evidence record and its integrity state are unaffected.",
+              });
+            case "TERMINAL_FAILURE":
+              return reply.code(409).send({
+                code: "verification_package_generation_stopped",
+                state: packageOutput.state,
+                action: packageOutput.action,
+                // The CLASS, never the raw worker branch name.
+                terminalReasonClass: packageOutput.terminalReasonClass,
+                message:
+                  "The verification package could not be produced for this record and generation has stopped.",
+              });
+            case "ELIGIBLE_NOT_GENERATED":
+              return reply.code(409).send({
+                code: "verification_package_not_generated",
+                state: packageOutput.state,
+                action: packageOutput.action,
+                message:
+                  "No verification package has been generated for this record yet.",
+              });
+            case "QUEUED":
+            case "GENERATING":
+              // Genuinely in flight. Poll the side-effect-free status endpoint.
+              reply.header("retry-after", "5");
+              return reply.code(202).send({
+                code: "verification_package_pending",
+                state: packageOutput.state,
+                action: packageOutput.action,
+                message:
+                  "Verification package is being generated. Poll /v1/evidence/:id/artifacts/status for completion.",
+              });
+            case "READY":
+              /*
+               * The projection says an artifact exists and the query above found
+               * none. That is a reconciliation problem, not a projection one,
+               * and it must not be reported as either "ready" or "pending".
+               */
+              return reply.code(404).send({
+                code: "verification_package_not_found",
+                state: packageOutput.state,
+                message: "Verification package not found.",
+              });
           }
         }
-        if (finalized) {
-          // Worker is still building it. Tell the client to poll the
-          // side-effect-free /artifacts/status endpoint and retry in
-          // a few seconds.
-          reply.header("retry-after", "5");
-          return reply.code(202).send({
-            code: "verification_package_pending",
-            message:
-              "Verification package is being generated. Poll /v1/evidence/:id/artifacts/status for completion.",
-          });
-        }
+
         return reply
           .code(404)
           .send({

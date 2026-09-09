@@ -91,6 +91,12 @@ export type CreateReportGenerationRequestResult =
        * supersession is the click that finally worked.
        */
       superseded: boolean;
+      /**
+       * The terminal reason when `state` is a terminal one, so the caller can
+       * tell a still-standing recoverable blocker apart from a dead terminal
+       * without re-reading the row it was just handed.
+       */
+      terminalReasonCode?: string | null;
     }
   | {
       created: false;
@@ -351,6 +357,7 @@ export async function createReportGenerationRequest(
       teamId: evidence.teamId,
       deduplicated: false,
       superseded,
+      terminalReasonCode: null,
     };
   } catch (err) {
     // A unique violation on `idempotency_key` is the race resolving itself:

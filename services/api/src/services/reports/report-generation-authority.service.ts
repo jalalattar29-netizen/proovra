@@ -42,7 +42,17 @@ import {
   type ReportGenerationPurpose,
 } from "@proovra/shared-runtime/reports";
 import { bump } from "@proovra/shared-runtime/ops";
-import { JOB_NAMES, isTerminalJobExecutionState } from "@proovra/shared";
+import {
+  JOB_NAMES,
+  isTerminalJobExecutionState,
+  // RELIABILITY CLOSURE (2026-09-09) — the intent vocabulary, the one rule that
+  // derives forceRegenerate from artifact availability, and the classifier that
+  // tells a still-standing blocker apart from a dead terminal.
+  isRecoverableBlockedTerminalReason,
+  resolveForceRegenerate,
+  type GenerationIntent,
+  type GenerationRequestOutcome,
+} from "@proovra/shared";
 import { triggerEvidenceReported } from "../automation/automation-triggers.js";
 
 import { prisma } from "../../db.js";
@@ -62,7 +72,30 @@ export type RequestReportGenerationInput = {
   evidenceId: string;
   purpose: ReportGenerationPurpose;
   artifactType?: ReportArtifactType;
+  /**
+   * RELIABILITY CLOSURE (2026-09-09) — DELIBERATELY NO LONGER A CALLER'S
+   * BOOLEAN FOR THE SYNCHRONOUS PATH.
+   *
+   * `forceRegenerate` authorizes REPLACING a finalised artifact. Every caller
+   * that took it from a request body hard-coded `true`, because one endpoint
+   * serves all three verbs — so a FIRST generation entered the
+   * regeneration-only legal-hold branch and burned its own idempotency key on a
+   * record that had nothing to preserve.
+   *
+   * Callers that hold the fact themselves (the worker's OTS-anchored
+   * regeneration, which knows an artifact exists because it just anchored the
+   * timestamp inside it) may still state it. Callers acting on behalf of a
+   * person must NOT: they pass an INTENT instead, and this module derives the
+   * flag from persistence.
+   */
   forceRegenerate?: boolean;
+  /**
+   * What the actor asked for. When present, `forceRegenerate` is DERIVED from
+   * the record's own artifact availability and this value is used only to
+   * detect that the browser was looking at a different state than the one that
+   * is true now.
+   */
+  intent?: GenerationIntent;
   regenerateReason?: string | null;
   requestedByUserId?: string | null;
   requestedByMachineId?: string | null;
@@ -78,8 +111,23 @@ export type RequestReportGenerationResult =
       reason?: string;
       deduplicated: boolean;
       terminalState?: string;
+      /**
+       * THE ANSWER EVERY SURFACE WAS GETTING WRONG.
+       *
+       * Callers rendered `enqueued: false` as "generation is already under way"
+       * — true for one of the six reasons it was shown for. A customer whose
+       * request was lost to a Redis outage, and one whose record was
+       * permanently blocked, were both told the work was in progress.
+       */
+      outcome: GenerationRequestOutcome;
+      /** The flag this module DERIVED, for the caller's audit row. */
+      forceRegenerate: boolean;
     }
-  | { requested: false; reason: string };
+  | {
+      requested: false;
+      reason: string;
+      outcome: GenerationRequestOutcome;
+    };
 
 /**
  * Persist the intent, then enqueue its id.
@@ -126,13 +174,66 @@ export async function requestReportGeneration(
     }).catch(() => null);
     if (eligibility && !eligibility.reportsIncluded) {
       bump("report_generation_not_included_total");
-      return { requested: false, reason: "not_included_in_plan" };
+      return {
+        requested: false,
+        reason: "not_included_in_plan",
+        outcome: "NOT_INCLUDED",
+      };
     }
   }
 
-  const persisted = await createReportGenerationRequest(prisma, input);
+  /*
+   * ---------------------------------------------------------------------------
+   * FORCE-REGENERATE IS DERIVED, NOT DECLARED.
+   * ---------------------------------------------------------------------------
+   * `POST /v1/evidence/:id/reports/regenerate` is one endpoint for three verbs,
+   * and it hard-coded `forceRegenerate: true` for all of them. For a FIRST
+   * generation that had two consequences, both bad:
+   *
+   *   1. the worker's claim path runs its legal-hold branch under
+   *      `if (request.forceRegenerate)` and refused with `legal_hold_active` —
+   *      even though the branch's own comment says a first generation is not
+   *      refused "because there is nothing yet to preserve". The code had no
+   *      artifact-existence test, so the comment described an intent the
+   *      implementation did not hold.
+   *   2. the refusal wrote a terminal row at the exact key every future Generate
+   *      click would compute.
+   *
+   * The fact that decides it is whether an artifact EXISTS, and that fact lives
+   * in the database. A caller that supplies an explicit `forceRegenerate` (the
+   * worker's OTS-anchored regeneration, which just anchored the timestamp inside
+   * an existing report) is trusted; a caller acting for a person supplies an
+   * INTENT and gets the truth instead of their own belief.
+   */
+  let forceRegenerate = input.forceRegenerate === true;
+  if (input.forceRegenerate === undefined) {
+    const latestReport = await prisma.report
+      .findFirst({
+        where: { evidenceId: input.evidenceId },
+        select: { id: true },
+      })
+      .catch(() => null);
+    forceRegenerate = resolveForceRegenerate({
+      availability: latestReport ? "READY" : "NO_ARTIFACT",
+    });
+  }
+
+  const persisted = await createReportGenerationRequest(prisma, {
+    ...input,
+    forceRegenerate,
+  });
   if (!persisted.created) {
-    return { requested: false, reason: persisted.reason };
+    return {
+      requested: false,
+      reason: persisted.reason,
+      outcome:
+        persisted.reason === "evidence_not_found" ||
+        persisted.reason === "evidence_workspace_unresolved"
+          ? "EVIDENCE_NOT_FOUND"
+          : persisted.reason === "requester_required"
+            ? "REQUESTER_REQUIRED"
+            : "REQUEST_PERSIST_FAILED",
+    };
   }
   bump("report_generation_request_created_total");
 
@@ -170,6 +271,19 @@ export async function requestReportGeneration(
   // Re-enqueuing it would make the worker's replay path do the work of
   // deciding not to act, on every duplicate click.
   if (isTerminalJobExecutionState(persisted.state)) {
+    /*
+     * A BLOCKED TERMINAL AND A DEAD ONE ARE DIFFERENT ANSWERS.
+     *
+     * The writer supersedes a recoverable blocked terminal whose blocker has
+     * actually ended, so reaching this branch with one means the blocker is
+     * STILL standing — which is a state the customer can do something about
+     * (release the hold, wait for the suspension to lift) and must not be told
+     * is "already under way".
+     */
+    const blockedButRecoverable =
+      (persisted.state === "BLOCKED_STALE" ||
+        persisted.state === "BLOCKED_POLICY") &&
+      isRecoverableBlockedTerminalReason(persisted.terminalReasonCode ?? null);
     return {
       requested: true,
       requestId: persisted.requestId,
@@ -177,6 +291,8 @@ export async function requestReportGeneration(
       reason: "already_terminal",
       deduplicated: persisted.deduplicated,
       terminalState: persisted.state,
+      outcome: blockedButRecoverable ? "RECOVERABLE_BLOCKED" : "TERMINAL",
+      forceRegenerate,
     };
   }
 
@@ -194,6 +310,18 @@ export async function requestReportGeneration(
       enqueued: true,
       reason: outcome.collapsed ? "collapsed_onto_live_job" : undefined,
       deduplicated: persisted.deduplicated,
+      /*
+       * SUPERSEDED counts as accepted work and is reported separately, because
+       * it is the click that finally worked for a customer whose record had
+       * been locked out. `collapsed` is the one case that genuinely IS "already
+       * under way", and it is now the only one that says so.
+       */
+      outcome: persisted.superseded
+        ? "SUPERSEDED"
+        : outcome.collapsed
+          ? "ALREADY_ACTIVE"
+          : "ENQUEUED",
+      forceRegenerate,
     };
   }
 
@@ -206,5 +334,7 @@ export async function requestReportGeneration(
     enqueued: false,
     reason: outcome.reason,
     deduplicated: persisted.deduplicated,
+    outcome: "QUEUE_UNAVAILABLE",
+    forceRegenerate,
   };
 }
