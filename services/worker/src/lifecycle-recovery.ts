@@ -46,6 +46,7 @@ import {
   reconcileStrandedReportRequests,
   requestReportGenerationFromWorker,
 } from "./report-generation-authority.js";
+import { runOtsInitializationReconciler } from "./ots-initialization-reconciler.js";
 import {
   resolveEffectivePlanForEvidence,
   resolveEvidenceFundingSource,
@@ -81,6 +82,12 @@ export interface LifecycleRecoveryResult {
   requestsReenqueued: number;
   requestLeasesReleased: number;
   requestsRetired: number;
+  /**
+   * The OTS half of the same recovery. See `runLifecycleRecovery` for why
+   * finalization's two follow-ups are recovered by one sweep.
+   */
+  otsScanned: number;
+  otsReenqueued: number;
 }
 
 const DEFAULT_MIN_SIGNED_AGE_MS = 15 * 60 * 1000;
@@ -214,6 +221,44 @@ export async function runLifecycleRecovery(
     logger.error({ err, trigger }, "lifecycle.recovery.request_sweep_failed");
   }
 
+  /*
+   * ===========================================================================
+   * THE OTS HALF OF THE SAME RECOVERY.
+   * ===========================================================================
+   * RELIABILITY CLOSURE (2026-09-09). Evidence finalization fans out TWO pieces
+   * of follow-up work after its transaction commits: a report generation
+   * request, and OpenTimestamps anchoring. This module exists to close the
+   * commit-to-enqueue window for finalization — its own header says so — and it
+   * knew about only one of them.
+   *
+   * The OTS side failed the same way and worse. `requestEvidenceOtsAnchoring`
+   * never throws, by design, because refusing a completion for an unreachable
+   * queue would trade a durable signature for a timestamp; its result was
+   * discarded, and no durable record of the intent was written anywhere. So a
+   * Redis blip left a signed record owing an anchor with nothing aware of it —
+   * and `otsStatus = NULL` is excluded from the integrity scan, so Operations
+   * could not see it either. The canonical work registry named THIS MODULE as
+   * the reconciler for UPGRADE_OTS, and that was simply false until now.
+   *
+   * ONE SWEEP, because it is one responsibility: a finalized record whose
+   * follow-up work never got scheduled. Two sweeps would be two authorities
+   * over that question, free to disagree about which records are owed what.
+   *
+   * IT WRITES NO OTS COLUMN. `ots-state.ts` remains the only writer, reached
+   * through the initializer, reached through the `ots-upgrade` queue. It
+   * touches no TSA column, and it asks nothing commercial — integrity is not
+   * sold, and the call below has no plan, entitlement or funding input.
+   *
+   * FAIL-ISOLATED, like the request half above.
+   */
+  let otsSummary = { scanned: 0, enqueued: 0 };
+  try {
+    const summary = await runOtsInitializationReconciler({ trigger });
+    otsSummary = { scanned: summary.scanned, enqueued: summary.enqueued };
+  } catch (err) {
+    logger.error({ err, trigger }, "lifecycle.recovery.ots_sweep_failed");
+  }
+
   const result: LifecycleRecoveryResult = {
     scanned: candidates.length,
     reenqueued,
@@ -223,6 +268,8 @@ export async function runLifecycleRecovery(
     requestsReenqueued: requestSummary.reenqueued,
     requestLeasesReleased: requestSummary.leasesReleased,
     requestsRetired: requestSummary.terminalRepaired,
+    otsScanned: otsSummary.scanned,
+    otsReenqueued: otsSummary.enqueued,
   };
   logger.info({ ...result, trigger }, "lifecycle.recovery.completed");
   return result;

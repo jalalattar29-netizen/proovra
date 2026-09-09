@@ -478,7 +478,7 @@ describe("POINT 5 FAMILY — evidence finalization / OTS (live PostgreSQL 16)", 
     return id;
   }
 
-  it("OtsInitializationReconciliationSweep: the finalized record is the durable intent, and a record with no digest is not one", async () => {
+  it("finalization recovery: the finalized record is the durable intent, and a record with no digest is not one", async () => {
     fanout.reset();
     const owed = await neverAttempted(own);
     // No canonical fingerprint = the digest OTS stamps does not exist yet, so
@@ -499,10 +499,10 @@ describe("POINT 5 FAMILY — evidence finalization / OTS (live PostgreSQL 16)", 
     const after = await readOts(owed);
     expect(after!.otsStatus).toBeNull();
     expect(after!.otsProofBase64).toBeNull();
-    provenCase("otsinit.durable.intent_before_work");
+    provenCase("ots.recovery.durable.intent_before_work");
   });
 
-  it("OtsInitializationReconciliationSweep: a record still inside the handoff window is left alone", async () => {
+  it("finalization recovery: a record still inside the handoff window is left alone", async () => {
     fanout.reset();
     // Created now: between the finalize commit and the first stamp is the
     // NORMAL state of a record, not a failure. A sweep that acted on it would
@@ -517,10 +517,10 @@ describe("POINT 5 FAMILY — evidence finalization / OTS (live PostgreSQL 16)", 
     await reconciler.runOtsInitializationReconciler({ trigger: "point5" });
 
     expect(fanout.otsReschedules).not.toContain(fresh);
-    provenCase("otsinit.claim.active_not_stolen");
+    provenCase("ots.recovery.claim.active_not_stolen");
   });
 
-  it("OtsInitializationReconciliationSweep: the workspace is read from the record, never carried by the sweep", async () => {
+  it("finalization recovery: the workspace is read from the record, never carried by the sweep", async () => {
     fanout.reset();
     const owed = await neverAttempted(own);
     const before = await readOts(owed);
@@ -533,10 +533,10 @@ describe("POINT 5 FAMILY — evidence finalization / OTS (live PostgreSQL 16)", 
     const after = await readOts(owed);
     expect(after!.teamId).toBe(own.teamId);
     expect(after!.organizationId).toBe(before!.organizationId);
-    provenCase("otsinit.tenant.workspace_reloaded");
+    provenCase("ots.recovery.tenant.workspace_reloaded");
   });
 
-  it("OtsInitializationReconciliationSweep: a foreign workspace's record keeps its own tenancy through recovery", async () => {
+  it("finalization recovery: a foreign workspace's record keeps its own tenancy through recovery", async () => {
     fanout.reset();
     const mine = await neverAttempted(own);
     const theirs = await neverAttempted(foreign);
@@ -549,10 +549,10 @@ describe("POINT 5 FAMILY — evidence finalization / OTS (live PostgreSQL 16)", 
     const other = await readOts(theirs);
     expect(other!.teamId).toBe(foreign.teamId);
     expect((await readOts(mine))!.teamId).toBe(own.teamId);
-    provenCase("otsinit.tenant.cross_workspace_denied");
+    provenCase("ots.recovery.tenant.cross_workspace_denied");
   });
 
-  it("OtsInitializationReconciliationSweep: two concurrent initializations write ONE proof and ONE custody event", async () => {
+  it("finalization recovery: two concurrent initializations write ONE proof and ONE custody event", async () => {
     fanout.reset();
     ots.stamp = "pending";
     const owed = await neverAttempted(own);
@@ -568,10 +568,10 @@ describe("POINT 5 FAMILY — evidence finalization / OTS (live PostgreSQL 16)", 
     const after = await readOts(owed);
     expect(after!.otsProofBase64).toBeTruthy();
     expect(await custodyCount(owed)).toBe(1);
-    provenCase("otsinit.claim.one_winner");
+    provenCase("ots.recovery.claim.one_winner");
   });
 
-  it("OtsInitializationReconciliationSweep: a second sweep over an initialized record is a no-op", async () => {
+  it("finalization recovery: a second sweep over an initialized record is a no-op", async () => {
     ots.stamp = "pending";
     const owed = await neverAttempted(own);
     await runUpgrade(otsJob(owed));
@@ -587,10 +587,10 @@ describe("POINT 5 FAMILY — evidence finalization / OTS (live PostgreSQL 16)", 
     const again = await readOts(owed);
     expect(again!.otsProofBase64).toBe(initialized!.otsProofBase64);
     expect(await custodyCount(owed)).toBe(1);
-    provenCase("otsinit.idempotency.duplicate_is_noop");
+    provenCase("ots.recovery.idempotency.duplicate_is_noop");
   });
 
-  it("OtsInitializationReconciliationSweep: a settled record is never reset by a late initialization", async () => {
+  it("finalization recovery: a settled record is never reset by a late initialization", async () => {
     ots.stamp = "pending";
     const owed = await neverAttempted(own);
     // It anchored while the late job was in flight.
@@ -611,7 +611,7 @@ describe("POINT 5 FAMILY — evidence finalization / OTS (live PostgreSQL 16)", 
     expect(after!.otsStatus).toBe("ANCHORED");
     expect(after!.otsProofBase64).toBe(settled!.otsProofBase64);
     expect(after!.otsBitcoinTxid).toBe(settled!.otsBitcoinTxid);
-    provenCase("otsinit.terminal.stale_cannot_overwrite");
+    provenCase("ots.recovery.terminal.stale_cannot_overwrite");
   });
 
   it("a transient stamp failure consumes an attempt instead of reporting success", async () => {

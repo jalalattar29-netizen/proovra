@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "5ed058805558999585e841a2cb95ea5fe6e11219d63af300ee9319dda79d2fa6",
-  "capabilityRouteInventoryHash": "bd39fa6dd72aba4108620d1ef989ba16a6f14da7995ac0c67e2279d47bf2af54",
+  "capabilityRouteInventoryHash": "94bae9e9a75446a261eef36bd59b5071bb33b3bb494b086def9f95f2609a77b7",
   "totals": {
-    "routes": 1140,
+    "routes": 1142,
     "routesWithAnyTestCaller": 39,
     "testOnlyRoutes": 5,
     "testCallSites": 67,
@@ -1298,6 +1298,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "GET /v1/evidence/:id/reports/:version",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "GET /v1/evidence/:id/review-workspace",
       "testCallerCount": 0,
       "testOnly": false,
@@ -1328,6 +1334,12 @@
       "testCallerFiles": [
         "services/api/test/phase-37-95-cross-tenant-runtime-probe.integration.test.ts"
       ]
+    },
+    {
+      "routeId": "GET /v1/evidence/:id/verification-packages/:version",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
     },
     {
       "routeId": "GET /v1/evidence/library-summary",
@@ -6937,5 +6949,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "894022014d655f8eed93233bf3df24189d2518bc79569332e6caed55eb91c7c2"
+  "contentHash": "e752d1d433176fbcaa89e70a20f3066b5b7bfe1dd73cc943acf358177d7b791a"
 }

@@ -261,13 +261,19 @@ const BULLMQ_JOBS: ReadonlyArray<WorkRegistryEntry> = [
       "conditional_state_claim",
       "upsert_by_natural_key",
     ],
-    // RELIABILITY CLOSURE (2026-09-09) — this named lifecycle-recovery, which
-    // recovers only a FIRST generation for a record with no Report row at all.
-    // The request-shaped failures — a stranded regeneration, an expired
-    // PROCESSING lease, an exhausted attempt ceiling — belong to the sweep
-    // written for them, which until now had no scheduler.
-    reconciler:
-      "services/worker/src/report-generation-authority.ts#reconcileStrandedReportRequests",
+    // RELIABILITY CLOSURE (2026-09-09) — the field was already right; the
+    // MODULE was not.
+    //
+    // lifecycle-recovery recovered only a FIRST generation, by scanning
+    // EVIDENCE for records SIGNED with no Report row. The request-shaped
+    // failures — a stranded regeneration, an expired PROCESSING lease, an
+    // exhausted attempt ceiling — were covered by `reconcileStrandedReportRequests`,
+    // which was written for exactly them and had NO production caller: its
+    // only reference was a test that invoked it directly. It now runs inside
+    // this sweep, so the claim below is true rather than half true, and there
+    // is one authority over "does every record owed a report have scheduled
+    // work" instead of two free to disagree.
+    reconciler: "services/worker/src/lifecycle-recovery.ts",
     retry: RETRY_POLICIES.ARTIFACT,
     recovery: RECOVERY_POLICIES.ARTIFACT,
     externalBoundary: "storage",
@@ -310,7 +316,22 @@ const BULLMQ_JOBS: ReadonlyArray<WorkRegistryEntry> = [
     // population itself was invisible to Operations because the integrity scan
     // selects only FAILED and the PENDING family. Governance metadata that
     // claims coverage nobody wrote is worse than none.
-    reconciler: "services/worker/src/ots-initialization-reconciler.ts",
+    // RELIABILITY CLOSURE (2026-09-09) — THIS FIELD WAS FALSE AND IS NOW TRUE.
+    //
+    // It named lifecycle-recovery, and that module contained no OTS code
+    // whatsoever: a grep for "ots" returned nothing. So the registry asserted a
+    // recovery authority for the never-attempted population that did not exist,
+    // and the population itself was invisible to Operations because the
+    // integrity scan selects only FAILED and the PENDING family.
+    //
+    // The claim was not repointed — the module was made to keep it. Evidence
+    // finalization fans out TWO pieces of follow-up work, a report request and
+    // OTS anchoring, and this sweep exists to close the commit-to-enqueue
+    // window for finalization. It now recovers both, through
+    // `ots-initialization-reconciler.ts`, because "a finalized record whose
+    // follow-up work never got scheduled" is one responsibility and must not
+    // have two authorities.
+    reconciler: "services/worker/src/lifecycle-recovery.ts",
     retry: RETRY_POLICIES.TIMESTAMP_AUTHORITY,
     recovery: RECOVERY_POLICIES.ARTIFACT,
     externalBoundary: "timestamp_authority",
@@ -1163,70 +1184,6 @@ const DB_SWEEPS: ReadonlyArray<WorkRegistryEntry> = [
     externalBoundary: "webhook_http",
     auditFamily: "automation.run_execution",
     projection: "GET /v1/teams/:teamId/automation/runs",
-  },
-  {
-    /**
-     * RELIABILITY CLOSURE (2026-09-09) — the OTS never-attempted sweep.
-     *
-     * Evidence finalization commits, then asks for anchoring; the request
-     * authority never throws, by design, because refusing a completion for an
-     * unreachable queue would trade a durable signature for a timestamp. Its
-     * result was discarded and no durable record of the intent was written, so
-     * a Redis blip left a signed record owing an anchor with nothing aware of
-     * it — and `otsStatus = NULL` is excluded from the integrity scan, so
-     * Operations could not see it either.
-     *
-     * It writes NO OTS column: `ots-state.ts` remains the only writer, reached
-     * through the initializer, reached through the `ots-upgrade` queue. It
-     * touches no TSA column, and it asks nothing commercial — integrity is not
-     * sold, and this sweep has no plan, entitlement or funding input.
-     *
-     * DISTINCT FROM the operator-gated historical backfill script, which
-     * anchors records that predate the OTS decoupling and needs a human to
-     * decide it should happen at all. This repairs a handoff that was supposed
-     * to happen minutes ago and needs no decision from anybody.
-     */
-    workName: SWEEP_NAMES.OTS_INITIALIZATION_RECONCILER,
-    family: "evidence_finalization",
-    familyReason:
-      "Finds finalized evidence that never entered the OpenTimestamps lifecycle and re-enters the canonical anchoring producer for it. It completes the record's integrity state rather than deriving anything new from it.",
-    transport: "db_outbox_sweep",
-    queueName: null,
-    implementation: "CURRENT_RUNTIME",
-    schemaVersion: CANONICAL_PAYLOAD_SCHEMA_VERSION,
-    jobIdPrefix: null,
-    durableAuthority: {
-      model: "Evidence",
-      tenantSource: "Evidence.teamId (loaded by id; the sweep is tenant-blind)",
-      createdBySynchronousPath: true,
-    },
-    canonicalProducer: "services/worker/src/queue.ts#enqueueOtsUpgradeJob",
-    canonicalProcessor: "services/worker/src/ots-initialization-reconciler.ts",
-    workerRegistration: WORKER_INDEX,
-    claim: {
-      // No claim, and no lease. The sweep mutates nothing: the deterministic
-      // job id is the mutual exclusion, and the initializer's own conditional
-      // write (`otsProofBase64 IS NULL`) is what makes a duplicate harmless.
-      // The sweep mutates nothing, so there is no state to claim. The
-      // deterministic job id is the mutual exclusion, and the initializer's own
-      // conditional write (`otsProofBase64 IS NULL`) makes a duplicate
-      // harmless. `conditional_update_many` names that write.
-      from: "NULL",
-      to: "PENDING",
-      mechanism: "conditional_update_many",
-      leaseField: null,
-      leaseMs: null,
-    },
-    terminalWriter: "services/worker/src/ots-state.ts",
-    idempotency: ["deterministic_job_id", "upsert_by_natural_key"],
-    reconciler: "services/worker/src/ots-initialization-reconciler.ts",
-    retry: RETRY_POLICIES.TIMESTAMP_AUTHORITY,
-    recovery: RECOVERY_POLICIES.ARTIFACT,
-    // The calendar call belongs to the OTS job this sweep schedules; the sweep
-    // itself contacts nothing.
-    externalBoundary: null,
-    auditFamily: "evidence.ots_upgrade",
-    projection: "GET /v1/evidence/:id",
   },
   {
     workName: SWEEP_NAMES.WEBHOOK_DISPATCHER,

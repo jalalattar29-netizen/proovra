@@ -88,8 +88,6 @@ import { runOrphanArtifactScan } from "./orphan-scan.js";
 import { runSearchIndexReconciler } from "./search-index-reconciler.js";
 import { runIntelligenceRunReconciler } from "./intelligence-run-reconciler.js";
 import { runLifecycleRecovery } from "./lifecycle-recovery.js";
-// RELIABILITY CLOSURE (2026-09-09) — the two scheduled reconcilers.
-import { runOtsInitializationReconciler } from "./ots-initialization-reconciler.js";
 import { withCronLock } from "./cron-lock.js";
 // Phase 27.5 — Governance operationalization workers.
 import {
@@ -777,62 +775,6 @@ function stopLifecycleRecoveryScheduler() {
 // deterministic in the request id, so the second enqueue collapses onto the
 // first.
 // -----------------------------------------------------------------------------
-
-const otsInitializationReconcilerEnabled = envBoolean(
-  "OTS_INITIALIZATION_RECONCILER_ENABLED",
-  true,
-);
-const otsInitializationReconcilerIntervalMs = envNumber(
-  "OTS_INITIALIZATION_RECONCILER_INTERVAL_MS",
-  15 * 60 * 1000,
-);
-const otsInitializationReconcilerMinAgeMs = envNumber(
-  "OTS_INITIALIZATION_RECONCILER_MIN_AGE_MS",
-  30 * 60 * 1000,
-);
-let otsInitializationReconcilerTimer: ReturnType<typeof setInterval> | null =
-  null;
-let otsInitializationReconcilerRunning = false;
-
-async function runOtsInitializationReconcilerTick(trigger: string) {
-  if (otsInitializationReconcilerRunning) return;
-  otsInitializationReconcilerRunning = true;
-  try {
-    await runOtsInitializationReconciler({
-      trigger,
-      minAgeMs: otsInitializationReconcilerMinAgeMs,
-    });
-  } catch (err) {
-    logger.error({ err, trigger }, "ots.initialization.reconciler.failed");
-    captureException(err, { kind: "worker.ots_initialization_reconciler" });
-  } finally {
-    otsInitializationReconcilerRunning = false;
-  }
-}
-
-function startOtsInitializationReconcilerScheduler() {
-  if (!otsInitializationReconcilerEnabled) {
-    logger.info({}, "ots.initialization.reconciler.scheduler.disabled");
-    return;
-  }
-  otsInitializationReconcilerTimer = setInterval(() => {
-    void runOtsInitializationReconcilerTick("interval");
-  }, otsInitializationReconcilerIntervalMs);
-  logger.info(
-    {
-      intervalMs: otsInitializationReconcilerIntervalMs,
-      minAgeMs: otsInitializationReconcilerMinAgeMs,
-    },
-    "ots.initialization.reconciler.scheduler.started",
-  );
-}
-
-function stopOtsInitializationReconcilerScheduler() {
-  if (otsInitializationReconcilerTimer) {
-    clearInterval(otsInitializationReconcilerTimer);
-    otsInitializationReconcilerTimer = null;
-  }
-}
 
 // -----------------------------------------------------------------------------
 // Phase R8.1.4 — MFA pending challenge / recovery-request GC scheduler.
@@ -2390,7 +2332,6 @@ async function shutdown(exitCode: number) {
   stopSearchIndexReconcilerScheduler();
   stopIntelligenceRunReconcilerScheduler();
   stopLifecycleRecoveryScheduler();
-  stopOtsInitializationReconcilerScheduler();
   stopMfaChallengeGcScheduler();
   stopMfaRecoveryDigestScheduler();
   // Phase 27.5 — Governance schedulers.
@@ -2652,7 +2593,6 @@ initSecretsAuthority(logger)
     // RELIABILITY CLOSURE (2026-09-09) — the two reconcilers that existed in
     // source and were never started. See their declarations for why they are
     // distinct from lifecycle-recovery above.
-    startOtsInitializationReconcilerScheduler();
     startMfaChallengeGcScheduler();
     startMfaRecoveryDigestScheduler();
     // Phase 27.5 — Governance schedulers.

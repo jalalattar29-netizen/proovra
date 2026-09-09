@@ -32,16 +32,16 @@
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "apps/web/app/(app)/evidence/[id]/page.tsx:603",
+      "site": "apps/web/app/(app)/evidence/[id]/page.tsx:604",
       "class": "OBJECT_STORE",
-      "evidence": "tryDownloadFile(url, originalFileName) — url is the signed download URL returned by GET /v1/evidence/:id/original; the storage provider serves it. Both arguments are hoisted identifiers, so the analyzer resolves the call shape and reports precisely why the value is not static: it is a runtime signed URL and cannot be. | Re-anchored :602 -> :603 on 2026-09-08. One line, from the import added for the extracted artifact-actions hook. The call itself is untouched.",
-      "reviewedAtUtc": "2026-09-08"
+      "evidence": "tryDownloadFile(url, originalFileName) — url is the signed download URL returned by GET /v1/evidence/:id/original; the storage provider serves it. Both arguments are hoisted identifiers, so the analyzer resolves the call shape and reports precisely why the value is not static: it is a runtime signed URL and cannot be. | Re-anchored :602 -> :603 on 2026-09-08. One line, from the import added for the extracted artifact-actions hook. The call itself is untouched. | Re-anchored :603 -> :604 on 2026-09-09 (RELIABILITY CLOSURE). One line, from the artifact-availability terms added to the header download gate above it. The call itself is untouched.",
+      "reviewedAtUtc": "2026-09-09"
     },
     {
-      "site": "apps/web/app/(app)/evidence/[id]/_hooks/useEvidenceArtifactActions.ts:133",
+      "site": "apps/web/app/(app)/evidence/[id]/_hooks/useEvidenceArtifactActions.ts:141",
       "class": "OBJECT_STORE",
-      "evidence": "tryDownloadFile(packageUrl, packageFileName) — packageUrl is the signed verification-package URL returned by GET /v1/evidence/:id/verification-package; the storage provider serves it. Hoisted to an identifier so the analyzer resolves the call shape. | Re-anchored on 2026-09-08 (COMMERCIAL + OUTPUT LIFECYCLE CLOSURE) from apps/web/app/(app)/evidence/[id]/page.tsx:660 to its new file. Verified BY READING the site: the handler moved WHOLE into _hooks/useEvidenceArtifactActions.ts because page.tsx is held under an 80 KB orchestrator byte guard whose failure message states the remedy is extraction. The call is byte-identical and still hoists both arguments.",
-      "reviewedAtUtc": "2026-09-08"
+      "evidence": "tryDownloadFile(packageUrl, packageFileName) — packageUrl is the signed verification-package URL returned by GET /v1/evidence/:id/verification-package; the storage provider serves it. Hoisted to an identifier so the analyzer resolves the call shape. | Re-anchored on 2026-09-08 (COMMERCIAL + OUTPUT LIFECYCLE CLOSURE) from apps/web/app/(app)/evidence/[id]/page.tsx:660 to its new file. Verified BY READING the site: the handler moved WHOLE into _hooks/useEvidenceArtifactActions.ts because page.tsx is held under an 80 KB orchestrator byte guard whose failure message states the remedy is extraction. The call is byte-identical and still hoists both arguments. | Re-anchored :133 -> :141 on 2026-09-09 (RELIABILITY CLOSURE). Eight lines, from the import of the shared typed-outcome reader added above it. The call itself is untouched.",
+      "reviewedAtUtc": "2026-09-09"
     },
     {
       "site": "apps/web/components/contact-sales-form.tsx:70",
@@ -156,6 +156,12 @@
       "class": "OPERATOR_TOOL",
       "evidence": "The smoke script's own api() wrapper: `${API_BASE}${path}` where path is supplied per call by the script. It drives the API but is not a product consumer.",
       "reviewedAtUtc": "2026-08-16"
+    },
+    {
+      "site": "apps/web/app/(app)/evidence/[id]/_hooks/useEvidenceArtifactActions.ts:376",
+      "class": "OBJECT_STORE",
+      "evidence": "tryDownloadFile(data.url, `verification-package-${evidenceId}-v${version}.zip`) — data.url is the signed URL returned by GET /v1/evidence/:id/verification-packages/:version; the storage provider serves it, and it is a runtime presigned value that cannot be static. Added 2026-09-09 (RELIABILITY CLOSURE): the product retained every version, listed them, and told the operator they \"remain downloadable\" while no route served any but the newest. This is the handler for the versioned route, and its API call — the apiFetch immediately above — is resolved by the analyzer on its own.",
+      "reviewedAtUtc": "2026-09-09"
     }
   ]
 }
