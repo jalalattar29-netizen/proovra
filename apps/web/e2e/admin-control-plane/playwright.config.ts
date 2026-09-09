@@ -65,10 +65,40 @@ export default defineConfig({
    * end — so two workers would race the same rows. Raising this needs the
    * fixtures proven isolated per worker first, which they are not.
    */
-  fullyParallel: false,
+  /*
+   * `fullyParallel` GOVERNS GROUPING FOR SHARDING, NOT CONCURRENCY HERE.
+   *
+   * With it false, Playwright treats each FILE as one group, and a 71-case file
+   * cannot be divided — `--shard=N/4` put 72 cases on shard 1 and 0 on shard 2,
+   * so the job was cancelled at 45 minutes exactly as before. True lets each
+   * serial describe be its own group, which is what makes four shards balance.
+   *
+   * It does NOT make anything run at once: `workers: 1` below is unchanged, so
+   * a shard still executes one case at a time. The specs share one seeded
+   * fixture database and admin-mutations drives contact-sales transitions end
+   * to end, so concurrency inside a shard is still forbidden — and across
+   * shards it is moot, because every shard gets its own database.
+   */
+  fullyParallel: true,
+  // UNCHANGED. One case at a time within a shard.
   workers: 1,
   retries: 0,
-  reporter: [["list"]],
+  /*
+   * The JSON report is the durable accounting input: the aggregate job reads
+   * the four shard reports and proves 97 unique tests ran with no index missing
+   * and none run twice. `list` stays so a human reading the log sees no change.
+   */
+  reporter: [
+    ["list"],
+    [
+      "json",
+      {
+        outputFile:
+          process.env.PROOVRA_ADMIN_JSON_REPORT ??
+          "../../../../artifacts/admin-matrix/report.json",
+      },
+    ],
+  ],
   // Four levels up: this file sits in apps/web/e2e/admin-control-plane, so
   // three landed in apps/ and scattered artifacts into the wrong tree.
   outputDir: "../../../../artifacts/admin-matrix/playwright",

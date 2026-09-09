@@ -451,7 +451,29 @@ async function inspect(page: Page) {
   });
 }
 
-test.describe.configure({ mode: "serial" });
+/*
+ * SERIAL IS DECLARED PER ROLE, NOT PER FILE, SO CI CAN SHARD THIS.
+ *
+ * It used to sit here at file scope. Playwright shards by GROUP, and a
+ * file-scope serial declaration makes all 71 cases in this file one group, so
+ * `--shard=N/4` could not divide it. Measured with `--list`:
+ *
+ *   shard 1/4 -> 72 tests (this whole file, ~1.3h)
+ *   shard 2/4 ->  0 tests
+ *   shard 3/4 ->  1 test
+ *   shard 4/4 -> 24 tests
+ *
+ * which is why the Admin job was cancelled at its 45-minute limit: sharding it
+ * four ways left shard 1 carrying everything. Declaring serial inside each role
+ * makes each ROLE a group, which is the boundary that actually matters — a
+ * role's viewports share a persona and are asserted in order — while letting
+ * the seven roles be distributed.
+ *
+ * Nothing about execution inside a role changes, and `workers: 1` still means
+ * one case at a time within a shard. Roles do not depend on each other: every
+ * case opens its own browser context, signs in for itself, and closes it in a
+ * `finally`.
+ */
 
 test("the fixture stack is up", async ({ page }) => {
   // FAIL, not skip. A verification suite that quietly skips is how "37 of 47"
@@ -475,6 +497,9 @@ const SELECTED_ROLES = process.env.PROOVRA_MATRIX_ROLES
 
 for (const role of SELECTED_ROLES) {
   test.describe(`role ${role.id}`, () => {
+    // The group boundary. See the note above the fixture-stack test.
+    test.describe.configure({ mode: "serial" });
+
     for (const dir of ["ltr", "rtl"] as const) {
       for (const vp of SELECTED_VIEWPORTS) {
         // RTL is checked at the two widths that matter, not at all eight: the
