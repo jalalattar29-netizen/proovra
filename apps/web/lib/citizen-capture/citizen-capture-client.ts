@@ -34,17 +34,33 @@ import {
 // reached the API. The origin now comes from the ONE authority in lib/api.
 import { apiBaseUrl } from "../api";
 
-// Inject SHA-512 (noble/ed25519 dependency).
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const ed: any = ed25519;
-if (ed.etc) {
-  ed.etc.sha512Sync = (...m: Uint8Array[]) => {
-    const h = sha512.create();
-    for (const part of m) h.update(part);
-    return h.digest();
-  };
-  ed.etc.sha512Async = async (...m: Uint8Array[]) => ed.etc.sha512Sync(...m);
-}
+/**
+ * SHA-512 IS INJECTED THROUGH `hashes`, WHICH IS v3's INJECTION POINT.
+ *
+ * This used to assign `ed.etc.sha512Sync` / `ed.etc.sha512Async`, the
+ * @noble/ed25519 v1–v2 API. The package here is v3, where `etc` is
+ * `Object.freeze`d — so the assignment threw, in strict-mode ESM, at module
+ * evaluation:
+ *
+ *   TypeError: Cannot add property sha512Sync, object is not extensible
+ *
+ * That surfaced as an unhandled rejection when the fixture server evaluated
+ * this module, because Next imports it while rendering the intake capture
+ * route. The `if (ed.etc)` guard did not prevent it: `etc` still EXISTS in v3,
+ * so the guard tested the wrong property — presence, not extensibility.
+ *
+ * Measured against the installed 3.1.0:
+ *
+ *   Object.isFrozen(ed.etc)      -> true   (assignment throws)
+ *   Object.isFrozen(ed.hashes)   -> false  (assignment is how you inject)
+ *   ed.hashes -> { sha512, sha512Async }
+ *
+ * and without any hash set, `getPublicKey` throws `hashes.sha512 not set` —
+ * so the injection is still REQUIRED, it simply moved. Both entries are set
+ * because the async signing path reads the async one.
+ */
+ed25519.hashes.sha512 = sha512;
+ed25519.hashes.sha512Async = async (message) => sha512(message);
 
 export type CitizenSession = {
   descriptor: {

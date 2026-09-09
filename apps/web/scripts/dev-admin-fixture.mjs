@@ -144,11 +144,21 @@ const BUILD_ONLY = process.argv.includes("--build-only");
  * removes the directory first. Nothing can be inherited from a previous
  * fixture build, another worktree, or a dev cache.
  */
+/*
+ * The environment is read as well as the flag, so the BUILD and the SERVER
+ * cannot disagree. They are separate invocations of this script — `--build-only`
+ * and then Playwright's `webServer` — and a flag passed to one is not passed to
+ * the other. That is exactly how the API origin came apart once already. With
+ * `PROOVRA_FIXTURE_DIST` set once in the job environment, both inherit the same
+ * value by construction, which is what CI sharding needs: one output directory
+ * per shard, never shared.
+ */
 const DIST_DIR = arg(
   "dist",
-  MODE === "production"
-    ? "node_modules/.cache/admin-fixture-next-prod"
-    : "node_modules/.cache/admin-fixture-next",
+  process.env.PROOVRA_FIXTURE_DIST ??
+    (MODE === "production"
+      ? "node_modules/.cache/admin-fixture-next-prod"
+      : "node_modules/.cache/admin-fixture-next"),
 );
 
 let host;
@@ -315,7 +325,9 @@ const child = spawn("npx", MODE === "production"
   : ["next", "dev", "-p", PORT], {
   cwd: WEB_ROOT,
   shell: true,
-  stdio: "inherit",
+  // PIPED, NOT INHERITED, SO THE SERVER'S OWN FAILURES CAN FAIL THE RUN.
+  // See watchForUnhandledRejection below; output is forwarded verbatim.
+  stdio: ["ignore", "pipe", "pipe"],
   /**
    * The environment comes from the ONE canonical builder, not from this file.
    *
@@ -331,6 +343,58 @@ const child = spawn("npx", MODE === "production"
       ? { ...CHILD_ENV, NODE_ENV: "production" }
       : CHILD_ENV,
 });
+
+/**
+ * AN UNHANDLED REJECTION IN THE FIXTURE SERVER FAILS THE RUN.
+ *
+ * ADM-P2-005. The server logged
+ *
+ *   TypeError: Cannot add property sha512Sync, object is not extensible
+ *
+ * as an unhandled rejection, and the suite went green anyway: the output was
+ * `inherit`ed straight to the console, so nothing read it. A server that
+ * throws during module evaluation is serving a partly-initialised application,
+ * and every assertion made against it is worth less than it looks.
+ *
+ * The alternative — asserting on it inside a spec — only catches it if a spec
+ * happens to touch the broken route. This catches it wherever it happens, for
+ * the whole life of the server, without weakening any existing assertion.
+ *
+ * Output is still forwarded verbatim, so the log is unchanged for a reader.
+ */
+const REJECTION_SIGNATURES = [
+  /unhandledRejection/i,
+  /UnhandledPromiseRejection/i,
+  /Unhandled Promise Rejection/i,
+  /\[unhandled\]/i,
+];
+let rejectionSeen = false;
+
+function watchForUnhandledRejection(stream, sink) {
+  let carry = "";
+  stream.on("data", (chunk) => {
+    sink.write(chunk);
+    if (rejectionSeen) return;
+    carry = (carry + String(chunk)).slice(-8192);
+    if (!REJECTION_SIGNATURES.some((re) => re.test(carry))) return;
+    rejectionSeen = true;
+    console.error(
+      "\nREFUSED — the fixture web server emitted an unhandled rejection.\n" +
+        "  A server that throws while evaluating a module is serving a partly\n" +
+        "  initialised application. Fix the rejection; do not silence it.\n" +
+        "  The offending output is immediately above this line.\n",
+    );
+    restoreTsconfig();
+    try {
+      child.kill("SIGTERM");
+    } catch {
+      /* already gone */
+    }
+    process.exit(1);
+  });
+}
+watchForUnhandledRejection(child.stdout, process.stdout);
+watchForUnhandledRejection(child.stderr, process.stderr);
 
 /**
  * PROVE the served bundle talks to the local API before anyone signs in.
