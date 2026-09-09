@@ -268,7 +268,7 @@ deployments do not force a KMS region migration.
   not region-specific).
 - No application code hardcodes a customer-facing domain. All
   CORS origins come from `CORS_ORIGINS`; the public verify URL comes
-  from `ANCHOR_PUBLIC_BASE_URL`.
+  from `REPORT_VERIFY_BASE_URL`.
 
 ### What is READY FOR INFRA (not implemented here)
 
@@ -295,7 +295,7 @@ region spun up**. The verdict is honest:
 - ☑ KMS signer is region-aware via `AWS_REGION`.
 - ☑ OTEL is per-environment-tagged so region telemetry can carry a
   bounded `service.namespace=proovra-region-X` resource attribute.
-- ☑ Public anchor URLs use `ANCHOR_PUBLIC_BASE_URL` — region-agnostic.
+- ☑ Public verify URLs use `REPORT_VERIFY_BASE_URL` — region-agnostic.
 
 ### What we explicitly DO NOT claim
 

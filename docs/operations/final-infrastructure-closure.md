@@ -322,7 +322,12 @@ migration.
   (intentional; not region-specific).
 - No application code hardcodes a customer-facing domain.
 - All CORS origins via `CORS_ORIGINS`; public verify URL via
-  `ANCHOR_PUBLIC_BASE_URL`.
+  `REPORT_VERIFY_BASE_URL`.
+
+  > **Corrected 2026-09-09.** This said `ANCHOR_PUBLIC_BASE_URL`, which nothing
+  > reads. The verify URL is resolved from `REPORT_VERIFY_BASE_URL`
+  > (`services/worker/src/report-v2/build-view-model.ts`,
+  > `services/worker/src/processor.ts`). See the anchor note below.
 
 ### Code-side prerequisites already satisfied
 
@@ -455,3 +460,42 @@ Justification:
 - ✅ No invented cloud resources.
 - ✅ The low-RAM deployment runbook is real (preferred CI/image-pull
   path + fallback per-service build sequence).
+
+## Anchor subsystem — current source truth (2026-09-09)
+
+The anchor **publisher** is RETIRED. `services/worker/src/anchor-publisher.ts` does
+not exist in this tree, and no file under `services/`, `packages/`, `apps/` or
+`scripts/` reads the variables it used to consume.
+
+**Live optional inputs — the only two:**
+
+| Variable | Consumers | Unset behaviour |
+|---|---|---|
+| `ANCHOR_MODE` | `worker/src/config.ts`, `worker/src/processor.ts`, `api/src/routes/evidence.routes.ts` | `anchorModeSchema` maps `""` → undefined → `"ready"`; `normalizeAnchorMode` returns `"ready"` for both |
+| `ANCHOR_PROVIDER` | same three modules | `optionalTrimmedString` maps `""` → undefined; consumers read `?.trim() \|\| null` |
+
+Empty string and unset are therefore **identical** for both, which is why the
+production compose file passes them as `${ANCHOR_MODE:-}` / `${ANCHOR_PROVIDER:-}`
+rather than leaving Compose to warn about an unset variable.
+
+**Removed from `infra/docker/docker-compose.prod.yml`** — no runtime reads them:
+
+- `ANCHOR_PUBLISH_URL`
+- `ANCHOR_API_KEY`
+- `ANCHOR_PUBLIC_BASE_URL`
+
+They are not retained "in case". A variable named for an API key that nothing
+consumes implies a credential the deployment must supply, and the Compose warning
+was the only thing saying otherwise.
+
+**Anchor is not TSA and not OpenTimestamps.** Anchor is its own layer over the
+`EvidenceAnchor` table with modes `off` / `ready` / `active`. The `anchorMode`
+appearing in `worker/src/verification-package.ts` is a *different* type — an
+OTS-derived display vocabulary (`not_configured`, `anchored`,
+`bitcoin_anchoring_pending`, `failed`) — and shares only a name. RFC 3161
+timestamping and OpenTimestamps are unchanged by this cleanup.
+
+**If a publisher is reintroduced**, its environment contract returns *with* it:
+implementation, config-schema validation, documentation and tests in the same
+change. Wiring environment variables ahead of the code that reads them is what
+produced this drift.

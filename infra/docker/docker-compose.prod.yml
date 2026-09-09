@@ -1,4 +1,3 @@
-version: "3.9"
 
 services:
   redis:
@@ -140,11 +139,27 @@ services:
       OTS_BIN: ots
       OTS_CALENDAR_URL: https://a.pool.opentimestamps.org
       OTS_TIMEOUT_MS: "30000"
-      ANCHOR_MODE: ${ANCHOR_MODE}
-      ANCHOR_PROVIDER: ${ANCHOR_PROVIDER}
-      ANCHOR_PUBLISH_URL: ${ANCHOR_PUBLISH_URL}
-      ANCHOR_API_KEY: ${ANCHOR_API_KEY}
-      ANCHOR_PUBLIC_BASE_URL: ${ANCHOR_PUBLIC_BASE_URL}
+      # ANCHOR — the independent anchoring layer, NOT TSA and NOT OpenTimestamps.
+      #
+      # Both are optional and both treat an empty string exactly as unset, so an
+      # explicit empty default is the honest way to say "not configured here"
+      # rather than something Compose has to warn about:
+      #
+      #   ANCHOR_MODE     `anchorModeSchema` maps "" -> undefined -> "ready",
+      #                   and `normalizeAnchorMode` returns "ready" for both.
+      #   ANCHOR_PROVIDER `optionalTrimmedString` maps "" -> undefined, and every
+      #                   consumer reads it as `?.trim() || null`.
+      #
+      # ANCHOR_PUBLISH_URL, ANCHOR_API_KEY and ANCHOR_PUBLIC_BASE_URL were
+      # REMOVED rather than defaulted. Their only consumer was
+      # `services/worker/src/anchor-publisher.ts`, which no longer exists in this
+      # tree; nothing in services, packages, apps or scripts reads them today.
+      # Passing three variables no runtime reads — one of them named for an API
+      # key — is worse than not passing them: it implies a credential the
+      # deployment must supply, and the warning was the only thing saying
+      # otherwise. Restore them WITH their consumer if the publisher returns.
+      ANCHOR_MODE: ${ANCHOR_MODE:-}
+      ANCHOR_PROVIDER: ${ANCHOR_PROVIDER:-}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY}
       INTERNAL_API_BASE_URL: ${INTERNAL_API_BASE_URL}
       DEMO_FOLLOW_UP_ENABLED: ${DEMO_FOLLOW_UP_ENABLED}
