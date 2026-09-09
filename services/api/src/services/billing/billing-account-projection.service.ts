@@ -31,6 +31,7 @@
  */
 
 import * as prismaPkg from "@prisma/client";
+import { IN_FLIGHT_REPORT_REQUEST_STATES } from "@proovra/shared";
 import {
   EVIDENCE_CREDIT_PRODUCT,
   formatBytesHuman,
@@ -1345,11 +1346,64 @@ export async function buildBillingAccountProjection(input: {
               ],
             };
           })();
+      /*
+       * RELIABILITY CLOSURE (2026-09-09) — a record the system is CURRENTLY
+       * working on is not a record the customer has failed to generate.
+       *
+       * The predicate was `status: SIGNED` plus `reports: { none: {} }`. Both
+       * halves are true of a record whose generation is queued, claimed by a
+       * worker this second, or waiting on a retry — there is no report row
+       * until the worker writes one — so the number told a customer they had
+       * N records "eligible without outputs" while the product was in the
+       * middle of producing them. Clicking through to /reports would show them
+       * generating, which is a worse experience than a smaller number.
+       *
+       * The third clause excludes records with a LIVE generation request. It
+       * does not exclude a record whose request settled without producing an
+       * artifact — a terminal failure or a policy block still leaves the
+       * customer with a finalized record and no report, which is exactly what
+       * this count is for, and hiding it would be hiding the cases that most
+       * need attention.
+       *
+       * Legal-hold-blocked records stay counted, deliberately. A held record
+       * is commercially eligible; what it cannot do is leave the workspace.
+       * That is an export policy and this is an eligibility count, and
+       * conflating them here would quietly restate a Legal decision as a
+       * billing number.
+       */
+      /*
+       * ReportGenerationRequest carries `evidenceId` as a plain column with no
+       * Prisma relation back to Evidence, so the exclusion cannot be a nested
+       * `none`. It is read as a bounded id list instead.
+       *
+       * BOUNDED, AND THE BOUND DEGRADES THE RIGHT WAY. If a workspace somehow
+       * has more than this many live requests at once, the list truncates and
+       * the count reverts toward its previous, slightly-too-large value. That
+       * is the correct direction to fail for a best-effort billing number:
+       * over-counting shows the customer work they can act on, whereas
+       * under-counting would hide records that genuinely have no output.
+       */
+      const inFlightEvidenceIds = (
+        await prisma.reportGenerationRequest.findMany({
+          where: {
+            artifactType: "REPORT",
+            state: { in: [...IN_FLIGHT_REPORT_REQUEST_STATES] },
+            ...(scope.teamId ? { teamId: scope.teamId } : {}),
+          },
+          select: { evidenceId: true },
+          distinct: ["evidenceId"],
+          take: 5000,
+        })
+      ).map((row) => row.evidenceId);
+
       const eligibleWithoutOutputs = await prisma.evidence.count({
         where: {
           ...(evidenceScope as Record<string, unknown>),
           status: "SIGNED",
           reports: { none: {} },
+          ...(inFlightEvidenceIds.length > 0
+            ? { id: { notIn: inFlightEvidenceIds } }
+            : {}),
         } as never,
       });
       historicalOutputEligibility = {

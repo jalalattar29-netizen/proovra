@@ -270,6 +270,8 @@ export {
   intentForOutputAction,
   GENERATION_REQUEST_OUTCOMES,
   generationOutcomeAcceptedWork,
+  IN_FLIGHT_REPORT_REQUEST_STATES,
+  SETTLED_REPORT_REQUEST_STATES,
 } from "./evidence-output-lifecycle.js";
 export type {
   OutputCommercialEligibility,

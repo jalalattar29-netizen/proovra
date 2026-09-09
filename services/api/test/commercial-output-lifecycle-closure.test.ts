@@ -26,6 +26,8 @@ import {
   isCommerciallyObsoleteTerminalReason,
   outputActionFor,
   projectReportRequestState,
+  IN_FLIGHT_REPORT_REQUEST_STATES,
+  SETTLED_REPORT_REQUEST_STATES,
 } from "@proovra/shared";
 import {
   getPlanCapabilities,
@@ -551,5 +553,79 @@ describe("artifact versioning is append-only", () => {
     expect(code).toMatch(/verification\/\$\{evidence\.id\}\/v\$\{provisionalVersion\}\.zip/);
     expect(code).toMatch(/tx\.report\.create\(|tx\.verificationPackage\.create\(/);
     expect(code).not.toMatch(/tx\.report\.update\(\{\s*where:\s*\{\s*evidenceId/);
+  });
+});
+
+// ===========================================================================
+// I. THE REQUEST-STATE PARTITION — one vocabulary, two readings
+// ===========================================================================
+
+/**
+ * RELIABILITY CLOSURE (2026-09-09).
+ *
+ * Billing's "eligible without outputs" count now excludes records with a LIVE
+ * generation request, and it decides which states are live by importing
+ * `IN_FLIGHT_REPORT_REQUEST_STATES`. The worker decides what it may claim by
+ * the complement, written as a literal `notIn` array in its claim predicate.
+ *
+ * Two readings of one vocabulary, in two packages, is exactly the shape that
+ * drifts: someone adds a persisted state, updates the claim predicate because
+ * the worker breaks visibly, and never touches the billing list because a
+ * wrong count breaks nothing. These assertions make that a test failure.
+ */
+describe("in-flight and settled request states partition the persisted union", () => {
+  const SETTLED_IN_WORKER_CLAIM = [
+    "SUCCEEDED",
+    "FAILED_TERMINAL",
+    "BLOCKED_STALE",
+    "BLOCKED_POLICY",
+  ];
+
+  it("the two exported lists are disjoint and cover every persisted state", () => {
+    const inFlight: string[] = [...IN_FLIGHT_REPORT_REQUEST_STATES];
+    const settled: string[] = [...SETTLED_REPORT_REQUEST_STATES];
+    // Disjoint.
+    expect(inFlight.filter((s) => settled.includes(s))).toEqual([]);
+    // Total over the union the projector is written against.
+    const union = [...inFlight, ...settled].sort();
+    expect(union).toEqual(
+      [
+        "BLOCKED_POLICY",
+        "BLOCKED_STALE",
+        "FAILED_RETRYABLE",
+        "FAILED_TERMINAL",
+        "PROCESSING",
+        "QUEUED",
+        "SUCCEEDED",
+      ].sort(),
+    );
+    // And every member really is projectable — a state the lifecycle module
+    // cannot map is a state neither reading can be trusted about.
+    for (const state of union) {
+      expect(() =>
+        projectReportRequestState(state as never),
+      ).not.toThrow();
+    }
+  });
+
+  it("the worker's claim predicate excludes exactly the settled states", () => {
+    const code = stripComments(readWorker("report-generation-authority.ts"));
+    const match = code.match(/notIn:\s*\[([^\]]+)\]/);
+    expect(match, "claim predicate notIn array").toBeTruthy();
+    const listed = (match?.[1] ?? "")
+      .split(",")
+      .map((piece) => piece.trim().replace(/^"|"$/g, ""))
+      .filter(Boolean)
+      .sort();
+    expect(listed).toEqual([...SETTLED_IN_WORKER_CLAIM].sort());
+    expect(listed).toEqual([...SETTLED_REPORT_REQUEST_STATES].sort());
+  });
+
+  it("billing counts eligibility from the shared list, not a local literal", () => {
+    const code = readApi("services/billing/billing-account-projection.service.ts");
+    expect(code).toMatch(/IN_FLIGHT_REPORT_REQUEST_STATES/);
+    // The old predicate counted anything without a report row.
+    expect(code).toMatch(/inFlightEvidenceIds/);
+    expect(code).toMatch(/id:\s*\{\s*notIn:\s*inFlightEvidenceIds\s*\}/);
   });
 });

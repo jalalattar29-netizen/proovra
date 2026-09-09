@@ -119,6 +119,49 @@ export type PersistedReportRequestState =
   | "BLOCKED_POLICY";
 
 /**
+ * THE REQUEST STATES THAT MEAN "THE SYSTEM STILL OWES AN ANSWER".
+ *
+ * ---------------------------------------------------------------------------
+ * RELIABILITY CLOSURE (2026-09-09) — WHY THIS NEEDED A NAME
+ * ---------------------------------------------------------------------------
+ * Billing counts finalized records that have no report yet and calls the
+ * result "eligible without outputs". The count was `status: SIGNED` plus
+ * `reports: { none: {} }`, which is a fair description of the artifact table
+ * and an unfair description of the customer's situation: a record whose
+ * generation is QUEUED, claimed by a worker right now, or waiting on a retry
+ * also has no report row, and counting it says "you have not generated this"
+ * about work the product is in the middle of doing.
+ *
+ * These three states are the ones where the request is live. Naming them here,
+ * beside the persisted union they are drawn from, keeps the reading in the
+ * module that owns the vocabulary rather than as an array literal in a billing
+ * projection.
+ *
+ * This is NOT a second claim predicate. The worker's claim uses the complement
+ * — `state notIn [SUCCEEDED, FAILED_TERMINAL, BLOCKED_STALE, BLOCKED_POLICY]`
+ * — and remains the only thing that decides what a worker may take. The two
+ * lists partition `PersistedReportRequestState` exactly, and a contract test
+ * pins that partition so neither can drift alone.
+ */
+export const IN_FLIGHT_REPORT_REQUEST_STATES = [
+  "QUEUED",
+  "PROCESSING",
+  "FAILED_RETRYABLE",
+] as const satisfies ReadonlyArray<PersistedReportRequestState>;
+
+/**
+ * The complement: a request in one of these has stopped, however it stopped.
+ *
+ * Exported so the partition can be asserted rather than assumed.
+ */
+export const SETTLED_REPORT_REQUEST_STATES = [
+  "SUCCEEDED",
+  "FAILED_TERMINAL",
+  "BLOCKED_STALE",
+  "BLOCKED_POLICY",
+] as const satisfies ReadonlyArray<PersistedReportRequestState>;
+
+/**
  * THE persisted-state → customer-state mapping. One place, total.
  *
  * `SUCCEEDED` maps to `NOT_REQUESTED` because, from the customer's side, a
