@@ -60,11 +60,17 @@ function now(): Date {
 //      re-enqueueing. Operators see the stuck row on the canonical
 //      OTS status surface (evidence detail / `/operations/queues`).
 //
-//   3. **Stuck detection.** When the per-evidence attempt counter
-//      reaches a soft ceiling (10) the processor still re-enqueues
-//      but the next status read returns `stuck: true` so the queue
-//      operations UI can highlight it without waiting for the 30-day
-//      hard stop.
+//   3. ~~**Stuck detection.**~~ REMOVED FROM THIS NOTE (2026-09-09) because it
+//      described an implementation that no longer exists. There is no
+//      per-evidence attempt counter in this processor and nothing returns
+//      `stuck: true`; the Point-5 rewrite replaced that idea, and the 30-day
+//      global budget below is the only ceiling. A comment describing a
+//      mechanism the file does not have reads as coverage.
+//
+//      The operator-facing middle ground it was reaching for DOES exist now,
+//      as `evidence_integrity.ots_pending_aged` — a read-only operational
+//      condition on its own 24h/72h window, deliberately separate from the
+//      retry budget. See packages/shared-runtime/src/ops/ots-aging.ts.
 
 /**
  * PHASE 12 — POINT 5: the follow-up job id is DELETED, not renamed.

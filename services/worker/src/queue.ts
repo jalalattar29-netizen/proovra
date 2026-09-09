@@ -455,9 +455,38 @@ export async function enqueueSearchIndexingJob(
  * timestamp suffix is deleted rather than kept: a job id with a clock in it is
  * not deterministic, and two of them for the same evidence would both run.
  */
+/**
+ * THE FIVE-MINUTE DEFAULT IS FOR UPGRADES, AND ONLY FOR UPGRADES.
+ *
+ * ---------------------------------------------------------------------------
+ * RELIABILITY CLOSURE (2026-09-09) — WHY THE TWO OTS PRODUCERS DISAGREE
+ * ---------------------------------------------------------------------------
+ * The audit flagged that this function defaults to a five-minute delay while
+ * the API's `requestEvidenceOtsAnchoring` enqueues the same work name with
+ * none, and asked whether one of them is wrong. Neither is. They are producing
+ * the same job for two different phases of one lifecycle:
+ *
+ *   * INITIALIZATION must not wait. A record has just been finalized and holds
+ *     no proof at all; five minutes of delay is five minutes of a finalized
+ *     record with no anchor, for no benefit. The API path and the recovery
+ *     reconciler both enqueue immediately — the reconciler says so explicitly,
+ *     with `delayMs: 0`, rather than relying on this default not applying.
+ *
+ *   * UPGRADE must wait. The proof already exists and the question is whether
+ *     a calendar has folded it into a Bitcoin block yet. That takes hours at
+ *     best. Asking again immediately spends a round trip to be told the same
+ *     thing, and the default caller here is the processor scheduling its own
+ *     next poll.
+ *
+ * So the number is a POLLING INTERVAL, not a queue-wide latency setting, and
+ * unifying the two would make one of the two phases wrong. It stays local to
+ * the follow-up caller that needs it, and every initialization path states its
+ * own zero.
+ */
 export async function enqueueOtsUpgradeJob(
   evidenceId: string,
   options: {
+    /** Defaults to the five-minute UPGRADE poll interval — see above. */
     delayMs?: number;
     traceId?: string;
     /**

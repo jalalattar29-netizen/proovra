@@ -141,6 +141,22 @@ export function neverAttemptedOtsWhere(bounds: {
  * FAIL-ISOLATED: one record that cannot be enqueued is counted and stepped
  * over. A reconciler that throws stops reconciling, which is the failure mode
  * that lets a backlog build behind a single bad row.
+ *
+ * BOUNDED BY A LIMIT, NOT BY A CURSOR, AND DELIBERATELY SO. A cursor would have
+ * to persist between ticks, which means a second piece of durable state that
+ * can itself be wrong — parked past a row that was inserted behind it, or reset
+ * by a redeploy — and it would buy nothing here, because this population is
+ * SELF-DRAINING. A record leaves it only by acquiring an OTS status, so a row
+ * that is not served this tick is still matched by the next one, and the
+ * oldest-first ordering means the longest-waiting records are always the ones
+ * a short tick serves. The backlog shrinks by the batch size per tick until it
+ * is empty, and then every tick scans nothing.
+ *
+ * The one thing the limit does not give is fairness DURING a total outage: if
+ * the oldest batch cannot be stamped at all, it is re-enqueued every tick and
+ * newer records wait behind it. That is the correct behaviour rather than a
+ * gap, because an outage that stops the oldest batch stops the newer ones too;
+ * there is no ordering in which anybody is served.
  */
 export async function runOtsInitializationReconciler(
   options: RunOtsInitializationReconcilerOptions = {},

@@ -300,9 +300,17 @@ export async function ensureEvidenceOtsInitialized(params: {
  * Does a freshly-initialized proof still need the upgrade ladder?
  *
  * A PENDING proof always does. An ANCHORED one does too when it arrived
- * without a Bitcoin txid, because `resolveEffectiveOtsStatus` degrades exactly
- * that shape back to PENDING for display — so the ladder must keep running
- * until the anchor is one the product is willing to show.
+ * without a Bitcoin txid, because the product will not present that as a
+ * verified anchor — so the ladder keeps running until the anchor is one it is
+ * willing to show.
+ *
+ * CORRECTED 2026-09-09. This said `resolveEffectiveOtsStatus` degrades "exactly
+ * that shape" back to PENDING. It does not: that function degrades an ANCHORED
+ * status with no `anchoredAtUtc`, and says nothing about the txid. The two
+ * conditions are close enough that the sentence read as true, which is what
+ * made it worth fixing — the txid rule lives in `mapPublicAnchoringLabelFromOts`
+ * and in this processor's own `hasDefensibleTxid` check. The BEHAVIOUR here is
+ * unchanged and correct; only the citation was wrong.
  *
  * FAILED and DISABLED need nothing: one has no proof worth upgrading, the
  * other means the feature is off on this deployment.

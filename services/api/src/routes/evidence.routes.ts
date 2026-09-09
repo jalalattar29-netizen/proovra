@@ -10539,8 +10539,18 @@ if (
    *
    * RBAC (docblock corrected 2026-09-08 — the code was already right):
    *   - The DOMAIN permission `evidence.generate_report`, checked through
-   *     `getEvidenceWithRecordAccess`. OWNER, ADMIN and MEMBER hold it; VIEWER
-   *     and REVIEWER do not.
+   *     `getEvidenceWithRecordAccess`. OWNER, ADMIN and REVIEWER hold it;
+   *     VIEWER and CONTRIBUTOR do not.
+   *
+   *     CORRECTED 2026-09-09. The note said "OWNER, ADMIN and MEMBER hold it;
+   *     VIEWER and REVIEWER do not", which was itself a correction of an even
+   *     older wrong note — and it was wrong twice over. `ROLE_PERMISSIONS.REVIEWER`
+   *     in packages/shared/src/permissions.ts lists `evidence.generate_report`,
+   *     and MEMBER is not a canonical role at all (it is a DB team role; the
+   *     canonical vocabulary is OWNER / ADMIN / REVIEWER / CONTRIBUTOR /
+   *     VIEWER). The permission table is the authority and is unchanged; only
+   *     this description of it moves. A comment that has now been wrong in two
+   *     different directions is worth stating precisely.
    *   - This block used to claim "Owner-only … Team admins do NOT yet get a
    *     regenerate path", describing an earlier implementation that used an
    *     owner helper. The route moved to the canonical permission model and the
