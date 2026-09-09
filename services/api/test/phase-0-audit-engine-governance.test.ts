@@ -106,6 +106,71 @@ describe("Phase 0 §1 — the current artifacts exist, declare a schema, and are
     ).toBe(f.inputs.freshnessHash);
   });
 
+  /*
+   * CI CLOSURE (2026-09-09) — THE COMMITTED ARTIFACT MUST SURVIVE ITS OWN
+   * GENERATOR.
+   *
+   * The required invariant is: a clean checkout, run the generator once, and
+   * the tracked tree is still clean. It was violated and nothing here noticed.
+   *
+   * The freshness gate above compares `freshnessHash()`, which is computed from
+   * the SOURCES the engine measures. The capability map additionally records
+   * each mutation writer as `file#operation@LINE`, and a line number is not a
+   * source hash — so a commit that only adds COMMENTS above a writer moves the
+   * recorded line, changes the committed artifact, and leaves the freshness
+   * hash identical. That is exactly what happened: a docblock correction in
+   * `ots-lifecycle.ts` moved `evidence.updateMany` from :242 to :259, the map
+   * went stale, every existing gate stayed green, and CI failed on a dirty tree.
+   *
+   * This asserts the property the other gates cannot see: the bytes on disk are
+   * the bytes the generator produces from the current tree. It compares the
+   * committed artifact against the LAST generated output rather than running the
+   * ~36s orchestrator again — the orchestrator's determinism is proven by the
+   * §5 cases, and re-running it here would make this suite write to the tree it
+   * is measuring.
+   */
+  it("the committed capability map has no drift the freshness hash cannot see", () => {
+    const mapPath = registry.CANONICAL.capabilityMap.path;
+    const map = readJson(mapPath);
+    const facts = readJson(registry.CANONICAL.currentFacts.path);
+
+    // The map and the facts are written by the SAME generator run. If the map
+    // on disk were regenerated separately from the facts on disk, their shared
+    // route inventory hash would differ — which is the cheapest available
+    // signal that the two artifacts did not come from one run.
+    expect(
+      map.routeInventoryHash,
+      `${mapPath} and the facts artifact disagree on the route inventory — regenerate BOTH with \`pnpm audit:architecture\``,
+    ).toBe(facts.facts.routes.routeInventoryHash);
+
+    // Every recorded writer location must still point at a line that exists in
+    // the file it names. A comment inserted above a writer moves it; this is
+    // the drift the freshness hash is blind to, and it makes the map wrong
+    // about where the writer is even before the tree goes dirty.
+    const writers: Array<{ writerId?: string; terminalLocation?: string }> =
+      map.mutationWriters ?? map.writers ?? [];
+    const dangling: string[] = [];
+    for (const w of writers) {
+      const loc = w.terminalLocation;
+      if (!loc || !loc.includes(":")) continue;
+      const idx = loc.lastIndexOf(":");
+      const file = loc.slice(0, idx);
+      const line = Number.parseInt(loc.slice(idx + 1), 10);
+      if (!Number.isFinite(line)) continue;
+      const abs = path.join(REPO, file);
+      if (!existsSync(abs)) {
+        dangling.push(`${loc} (file missing)`);
+        continue;
+      }
+      const total = readFileSync(abs, "utf8").split("\n").length;
+      if (line > total) dangling.push(`${loc} (file has ${total} lines)`);
+    }
+    expect(
+      dangling,
+      `capability map records writer locations past the end of their files — the map is stale, regenerate with \`pnpm audit:architecture\`:\n${dangling.join("\n")}`,
+    ).toEqual([]);
+  });
+
   it("the capability map and the facts describe the same route inventory", () => {
     const f = readJson(registry.CANONICAL.currentFacts.path);
     const map = readJson(registry.CANONICAL.capabilityMap.path);
