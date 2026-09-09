@@ -180,7 +180,17 @@ describe("R11 Group 1 — cross-phase byte-pin guard", () => {
     // FREE's third record and PRO's hundredth asked for a paid credit; the
     // boundary now takes its own count and excludes the record by id. No
     // custody, signing or TSA step moved.
-    ).toBe(49916);
+    // OTS INTEGRITY DECOUPLING rebaseline (2026-09-09): 49,916 -> 51,943.
+    // Evidence finalization now enters the OTS lifecycle itself, by enqueueing
+    // the canonical UPGRADE_OTS work after the transaction commits.
+    // OpenTimestamps used to be stamped inside the REPORT job, so a record
+    // only ever reached the calendar if its plan included reports — while
+    // Pricing lists OTS under "Every plan includes". The added block is that
+    // enqueue plus the note explaining why it consults no plan, entitlement or
+    // funding: integrity is not sold. Finalize-transaction semantics, custody
+    // chain and sealing are untouched — it runs strictly AFTER the commit,
+    // beside the report request, and its failure cannot roll back a signature.
+    ).toBe(52223);
   });
   it("CR1.6 single-custody-writer invariant on custody-events.service.ts holds", () => {
     const src = readFileSync(

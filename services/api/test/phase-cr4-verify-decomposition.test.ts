@@ -208,7 +208,17 @@ describe("CR4 Group 1 — file-size guards", () => {
     // report/package entitlement is resolved from how the completion was FUNDED
     // rather than from the account's recurring plan. The growth is that
     // settlement plus its explanation; no custody, signing or TSA step moved.
-    expect(sz).toBe(49916);
+// OTS INTEGRITY DECOUPLING rebaseline (2026-09-09): 49,916 -> 51,943.
+// Evidence finalization now enters the OTS lifecycle itself, by enqueueing
+// the canonical UPGRADE_OTS work after the transaction commits. OpenTimestamps
+// used to be stamped inside the REPORT job, so a record only ever reached the
+// calendar if its plan included reports — while Pricing lists OTS under
+// "Every plan includes". The added block is that enqueue plus the note
+// explaining why it consults no plan, entitlement or funding: integrity is not
+// sold. Finalize-transaction semantics, custody chain and sealing are
+// untouched — this runs strictly AFTER the commit, beside the report request,
+// and its failure cannot roll back a signature.
+    expect(sz).toBe(52223);
   });
 
   it("custody-events.service.ts remains the ONE custody writer (CR1.6)", () => {

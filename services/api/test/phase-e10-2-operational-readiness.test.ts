@@ -337,7 +337,16 @@ describe("E10.2 Test 6 — zero code changes by E10.2", () => {
   it("the 5 protected core files remain green", () => {
     const PINS = [
       { rel: "src/routes/capture.routes.ts", expected: 21793 },
-      { rel: "src/services/evidence-complete.service.ts", expected: 46824 },
+      // Rebaselined 2026-09-09 (OTS INTEGRITY DECOUPLING): 46,824 → 51,943.
+      // This is a ±10% band, and the accumulated audited growth since 46,824
+      // had reached its edge. Finalization now enters the OTS lifecycle
+      // itself, enqueueing the canonical UPGRADE_OTS work after the
+      // transaction commits — OpenTimestamps used to be stamped inside the
+      // REPORT job, so a record reached the calendar only if its plan included
+      // reports, while Pricing lists OTS under "Every plan includes". The
+      // finalize transaction, custody chain and sealing are untouched; the
+      // enqueue runs strictly after the commit, beside the report request.
+      { rel: "src/services/evidence-complete.service.ts", expected: 52223 },
       {
               // Rebaselined 2026-07-31 (PHASE 12 POINT 3): Case-Evidence physical
       // convergence. The artifact query filtered `prisma.evidence` by the legacy

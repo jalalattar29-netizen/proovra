@@ -301,16 +301,35 @@ describe("TSA safety — no provider re-contact exists", () => {
 
 describe("the executor owns no infrastructure", () => {
   it("dispatches only through canonical authorities", () => {
-    expect(EXECUTOR).toContain("enqueueCanonicalWork");
+    /*
+     * OTS INTEGRITY DECOUPLING (2026-09-09) — the OTS arm reads
+     * `requestEvidenceOtsAnchoring` rather than `enqueueCanonicalWork`.
+     *
+     * This pinned the transport, and the point it was making — the executor
+     * owns no infrastructure — is stronger now, not weaker: it no longer names
+     * a queue client at all. When evidence finalization began entering the OTS
+     * lifecycle, this module and that one were TWO producers for one work
+     * name, and the audit engine flagged the pair. The enqueue moved behind one
+     * authority; both callers state intent.
+     */
+    expect(EXECUTOR).toContain("requestEvidenceOtsAnchoring");
     expect(EXECUTOR).toContain("requestReportGeneration");
-    // No private producer, no queue literal, no job id construction.
+    // No private producer, no queue literal, no job id construction — and no
+    // reaching past the authorities to the transport either.
+    expect(EXECUTOR).not.toMatch(/enqueueCanonicalWork/);
     expect(EXECUTOR).not.toMatch(/new Queue\(/);
     expect(EXECUTOR).not.toMatch(/QUEUE_NAMES\./);
     expect(EXECUTOR).not.toMatch(/jobId:\s*`/);
   });
 
-  it("uses the registered job name rather than a string", () => {
-    expect(EXECUTOR).toContain("JOB_NAMES.UPGRADE_OTS");
+  it("the OTS authority it calls uses the registered job name", () => {
+    // The job name moved with the enqueue. It must still be the REGISTERED
+    // one — a string literal here would be a queue name nothing verifies.
+    const AUTHORITY = read(
+      "../src/services/integrity/ots-anchoring-authority.service.ts",
+    );
+    expect(AUTHORITY).toContain("JOB_NAMES.UPGRADE_OTS");
+    expect(AUTHORITY).not.toMatch(/"ots-upgrade"/);
     expect(EXECUTOR).not.toMatch(/"ots-upgrade"/);
   });
 

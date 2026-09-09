@@ -46,51 +46,83 @@ function readSource(rel: string): string {
 // 1. Initial OTS create + enqueue — processor.ts
 // ============================================================================
 
-describe("Phase IA-forward-path-OTS — initial create + enqueue", () => {
+/**
+ * REWRITTEN — OTS INTEGRITY DECOUPLING.
+ *
+ * This block pinned the initial stamp INSIDE the report processor: that it
+ * imported `createOpenTimestamp`, called it during the run, and enqueued the
+ * follow-up through a `scheduleOtsUpgrade` gate. Every one of those assertions
+ * was an accurate description of the code and a description of the defect.
+ *
+ * Stamping from the report job meant a record only ever reached the calendar
+ * if its plan included reports. A Free record has no report job, so it never
+ * obtained an anchor — while Pricing lists OpenTimestamps under "Every plan
+ * includes". The proof was also created and then discarded whenever the
+ * entitlement gate refused a few lines later.
+ *
+ * The forward path still exists and is still pinned; it just belongs to the
+ * integrity lifecycle now. What follows asserts the same property — a new
+ * record gets stamped, and the follow-up ladder is scheduled — at its new and
+ * correct owner, plus the ABSENCE that makes the decoupling real.
+ */
+describe("OTS forward path — initial create belongs to the integrity lifecycle", () => {
   const PROCESSOR = readSource("../src/processor.ts");
+  const LIFECYCLE = readSource("../src/ots-lifecycle.ts");
+  const UPGRADE = readSource("../src/ots-upgrade.processor.ts");
 
-  it("imports createOpenTimestamp from ots.service", () => {
-    expect(PROCESSOR).toMatch(
+  it("the lifecycle module is the one caller of createOpenTimestamp", () => {
+    expect(LIFECYCLE).toMatch(
       /import\s*\{\s*createOpenTimestamp[\s\S]{0,200}from\s*["']\.\/ots\.service\.js["']/,
     );
+    expect(LIFECYCLE).toMatch(/createOpenTimestamp\(\s*\{/);
   });
 
-  it("imports enqueueOtsUpgradeJob from queue.js", () => {
-    expect(PROCESSOR).toMatch(
-      /import\s*\{[\s\S]{0,400}enqueueOtsUpgradeJob[\s\S]{0,400}from\s*["']\.\/queue\.js["']/,
+  it("it stamps the finalized canonical fingerprint, not a report-shaped input", () => {
+    // The stamped content must be the record's own stable digest, so the proof
+    // means something without reference to any artifact built from it.
+    expect(LIFECYCLE).toMatch(
+      /content:\s*Buffer\.from\(evidence\.fingerprintCanonicalJson/,
     );
+    // And it declines rather than inventing one when finalization has not
+    // produced that digest yet.
+    expect(LIFECYCLE).toMatch(/if\s*\(!evidence\.fingerprintCanonicalJson\)/);
   });
 
-  it("calls createOpenTimestamp during the report processor run", () => {
-    expect(PROCESSOR).toMatch(/createOpenTimestamp\(\s*\{/);
+  it("the upgrade processor initializes when a record has no proof yet", () => {
+    // The old code returned "skipped_missing_proof" here — a dead end for
+    // exactly the records that had never been stamped.
+    const idx = UPGRADE.indexOf("if (!evidence.otsProofBase64)");
+    expect(idx).toBeGreaterThan(-1);
+    const block = UPGRADE.slice(idx, idx + 2600);
+    expect(block).toMatch(/ensureEvidenceOtsInitialized\(\{/);
+    expect(block).toMatch(/enqueueOtsUpgradeJob\(evidenceId,/);
   });
 
-  it("uses scheduleOtsUpgrade gate to enqueue the upgrade follow-up", () => {
-    // The processor consults `scheduleOtsUpgrade` to decide whether to
-    // enqueue the follow-up; that decision flows back through finalize
-    // and is read at the top-level scope.
-    expect(PROCESSOR).toMatch(/scheduleOtsUpgrade\s*=\s*true/);
-    expect(PROCESSOR).toMatch(
-      /if\s*\(\s*!finalized\.skipped\s*&&\s*finalized\.scheduleOtsUpgrade\s*\)/,
+  it("the REPORT processor no longer creates, writes or schedules OTS", () => {
+    /*
+     * The decoupling, stated as an absence. A disabled or conditional copy
+     * left in the report job would be a second writer waiting to be switched
+     * back on, so none of these may appear in it at all.
+     *
+     * Comments are stripped first: this file's own explanation of what was
+     * removed names those symbols, and prose must not satisfy or break a rule.
+     */
+    const code = PROCESSOR.replace(/\/\*[\s\S]*?\*\//g, "").replace(
+      /^[ \t]*\/\/.*$/gm,
+      "",
     );
+    expect(code).not.toMatch(/createOpenTimestamp/);
+    expect(code).not.toMatch(/buildOtsEvidenceUpdateData/);
+    expect(code).not.toMatch(/enqueueOtsUpgrade(Job|Retry)/);
+    expect(code).not.toMatch(/scheduleOtsUpgrade/);
   });
 
-  it("calls the OTS upgrade enqueue inside that gate (NOT outside)", () => {
-    // The gate calls `enqueueOtsUpgradeRetry`, a thin wrapper around
-    // `enqueueOtsUpgradeJob` (see processor.ts:~1703). Pin either name
-    // so a refactor that drops the wrapper is still caught.
-    const gateIdx = PROCESSOR.indexOf("finalized.scheduleOtsUpgrade");
-    expect(gateIdx).toBeGreaterThan(-1);
-    const block = PROCESSOR.slice(gateIdx, gateIdx + 600);
-    expect(block).toMatch(/enqueueOtsUpgrade(Retry|Job)\(/);
-  });
-
-  it("enqueueOtsUpgradeRetry wrapper calls enqueueOtsUpgradeJob", () => {
-    // The wrapper exists for retry-context wrapping but it MUST land
-    // on enqueueOtsUpgradeJob so the BullMQ follow-up is registered.
-    expect(PROCESSOR).toMatch(
-      /async function enqueueOtsUpgradeRetry\([\s\S]{0,200}enqueueOtsUpgradeJob\(/,
-    );
+  it("the report reads the record's stored OTS state instead", () => {
+    // `prepareReportArtifacts` took an `otsResult` the job had just produced
+    // and preferred it over the row. With no stamp of its own to prefer, the
+    // projection is the row — one source, and re-runnable.
+    expect(PROCESSOR).toMatch(/otsProofBase64:\s*evidence\.otsProofBase64\s*\?\?\s*null/);
+    expect(PROCESSOR).toMatch(/otsStatus:\s*evidence\.otsStatus\s*\?\?\s*null/);
   });
 });
 

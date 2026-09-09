@@ -45,6 +45,7 @@ const WORKER_DIR = resolve(REPO_ROOT, "services", "worker", "src");
 const OTS_STATE = resolve(WORKER_DIR, "ots-state.ts");
 const OTS_SERVICE = resolve(WORKER_DIR, "ots.service.ts");
 const PROCESSOR = resolve(WORKER_DIR, "processor.ts");
+const LIFECYCLE = resolve(WORKER_DIR, "ots-lifecycle.ts");
 const UPGRADE_PROCESSOR = resolve(WORKER_DIR, "ots-upgrade.processor.ts");
 const TRUST_SUMMARY = resolve(
   REPO_ROOT,
@@ -73,10 +74,26 @@ describe("OTS truth contract — UI claims must remain backed by a real worker",
     expect(existsSync(OTS_SERVICE)).toBe(true);
   });
 
-  it("Report processor calls createOpenTimestamp() to seed the proof", () => {
-    const src = readFileSync(PROCESSOR, "utf8");
+  it("the integrity lifecycle calls createOpenTimestamp() to seed the proof", () => {
+    /*
+     * OTS INTEGRITY DECOUPLING (2026-09-09) — this read the REPORT processor.
+     *
+     * The claim it was defending is unchanged and is what still matters: the
+     * UI may say "OpenTimestamps" only because a real worker really stamps.
+     * What changed is which worker path owns that, and it had to: stamping
+     * inside the report job meant only plans that include reports ever reached
+     * the calendar, while Pricing lists OTS under "Every plan includes".
+     */
+    const src = readFileSync(LIFECYCLE, "utf8");
     expect(src).toMatch(/createOpenTimestamp\s*\(/);
-    expect(src).toMatch(/import\s*\{[^}]*createOpenTimestamp[^}]*\}\s*from\s*"\.\/ots\.service/);
+    expect(src).toMatch(
+      /import\s*\{[^}]*createOpenTimestamp[^}]*\}\s*from\s*"\.\/ots\.service/,
+    );
+    // And the commercial pipeline is no longer one of its callers.
+    const report = readFileSync(PROCESSOR, "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^[ \t]*\/\/.*$/gm, "");
+    expect(report).not.toMatch(/createOpenTimestamp/);
   });
 
   it("OTS upgrade processor invokes `ots verify` (transitions PENDING → ANCHORED)", () => {

@@ -300,7 +300,17 @@ const CAPTURE_ROUTES_BYTES_EXACT = 23490;
 // report/package entitlement is resolved from how the completion was FUNDED
 // rather than from the account's recurring plan. The growth is that
 // settlement plus its explanation; no custody, signing or TSA step moved.
-const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 49916;
+// OTS INTEGRITY DECOUPLING rebaseline (2026-09-09): 49,916 -> 51,943.
+// Evidence finalization now enters the OTS lifecycle itself, by enqueueing
+// the canonical UPGRADE_OTS work after the transaction commits. OpenTimestamps
+// used to be stamped inside the REPORT job, so a record only ever reached the
+// calendar if its plan included reports — while Pricing lists OTS under
+// "Every plan includes". The added block is that enqueue plus the note
+// explaining why it consults no plan, entitlement or funding: integrity is not
+// sold. Finalize-transaction semantics, custody chain and sealing are
+// untouched — this runs strictly AFTER the commit, beside the report request,
+// and its failure cannot roll back a signature.
+const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 52223;
 // Phase CAPTURE-CLOSURE rebaseline: 23,045 → 24,618 — added the
 // "AI advisory is not saved" transient disclaimer + bounded JSDoc
 // comment. No new behaviour, no extra POST surface.
