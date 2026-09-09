@@ -826,10 +826,23 @@ function EvidenceDetailPageInner() {
   const trustDecision = workspace.artifactVersions.trustDecision;
   const shareUrl = buildPublishedVerificationUrl(workspace.publicVerificationSummary);
   const isIntegrityFailed = evidence.status === "FAILED_HASH_MISMATCH";
-  const showManualLatestStatusCheck =
-    workspace.artifactStatus.report.available &&
-    workspace.artifactStatus.verificationPackage.available &&
-    !isOtsTerminal(workspace.preservationMatrix.ots.effectiveStatus);
+  /*
+   * OTS INTEGRITY DECOUPLING (2026-09-09) — the anchoring refresh is an
+   * INTEGRITY affordance, so it may not be gated on commercial artifacts.
+   *
+   * This required `report.available && verificationPackage.available`, which
+   * made sense only while OpenTimestamps was stamped inside the report job: a
+   * record with no report had no anchor to refresh either. Now every finalized
+   * record enters the lifecycle, so on a plan without reports the condition was
+   * permanently false and exactly the customers whose anchor was still pending
+   * had no way to ask whether it had landed.
+   *
+   * The remaining condition is the one that was always doing the real work:
+   * offer the check while the anchor can still move.
+   */
+  const showManualLatestStatusCheck = !isOtsTerminal(
+    workspace.preservationMatrix.ots.effectiveStatus,
+  );
 
   const canSeeDiscussion =
     workspaceCaps?.discussionEnabled === true ||

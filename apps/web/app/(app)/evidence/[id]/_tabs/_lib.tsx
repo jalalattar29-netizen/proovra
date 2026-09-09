@@ -506,9 +506,28 @@ export function describeOtsStatus(
           "OpenTimestamps proof is recorded, but public anchoring has not finalized yet.",
       };
     default:
+      /*
+       * OTS INTEGRITY DECOUPLING (2026-09-09) — NULL IS "NOT YET", NOT "NOT
+       * FOR YOU".
+       *
+       * This said "Not configured", which reads as a feature that is switched
+       * off for this record. That was defensible while OpenTimestamps was
+       * stamped inside the report job — a record on a plan without reports
+       * genuinely was never going to be anchored — and it is the sentence a
+       * Free customer saw while Pricing promised them OpenTimestamps.
+       *
+       * Every finalized record now enters the lifecycle on every plan, so an
+       * absent state means the stamp has not run YET: the record is between
+       * finalization and its first anchoring attempt, or it predates the
+       * decoupling and is waiting on reconciliation. Both are transitional,
+       * and neither is a configuration.
+       */
       return {
-        label: "Not configured",
-        detail: "No OpenTimestamps anchoring state is recorded in the current response.",
+        label: "Not yet anchored",
+        detail:
+          "OpenTimestamps anchoring has not started for this evidence item yet. " +
+          "It is part of the integrity layer on every plan and does not depend " +
+          "on reports or verification packages.",
       };
   }
 }
