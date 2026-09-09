@@ -960,3 +960,22 @@ migration), and binding the download governance gates for legacy
 Neither the TSA single-shot authority, the OTS plan-blindness, the credit
 ledger, Object Lock, tenant containment, nor Legal Hold's export policy was
 altered.
+
+---
+
+## AG. FINAL SHA
+
+`e34d450a7f948f792b2ed187407a2c5b06ba77f2` (`e34d450a`)
+
+## AH. PUSH
+
+Pushed to `origin main`, fast-forward, no force:
+
+    92f014fd..e34d450a  main -> main
+
+`git rev-list --left-right --count origin/main...HEAD` → **`0  0`**
+
+## AI. GIT STATUS
+
+`git status --porcelain` → **empty**. Clean tracked tree, nothing untracked,
+nothing stashed.
