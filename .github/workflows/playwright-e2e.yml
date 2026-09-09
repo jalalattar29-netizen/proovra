@@ -358,15 +358,70 @@ jobs:
   # anything but its own service containers.
   admin-control-plane:
     runs-on: ubuntu-latest
-    # UNCHANGED. Four shards are the fix; the limit is not raised to hide the
-    # cause. Measured with `--list`: the largest shard is 31 of 97 cases.
+    # NOT RAISED. Five shards bring the heaviest shard inside this limit; the
+    # timeout is the thing being respected, not the thing being adjusted.
+    # Measured with `--list`: heaviest shard is 20 matrix cases, and a matrix
+    # case runs 1.2-1.3 min, so ~26 min of execution plus ~8 min of setup.
     timeout-minutes: 45
     strategy:
       # Every shard reports. With fail-fast the first slow shard would cancel
-      # the others and the accounting below could never see all four.
+      # the others and the accounting job could never see all five.
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        # EXPLICIT VALUES, NOT ARITHMETIC.
+        #
+        # These were computed with an addition inside the expression, which
+        # GitHub does not support, so the workflow failed to parse and no
+        # shard ran at all. Every isolation value a row needs is written out
+        # here instead, which also makes the separation readable at a glance
+        # rather than derived in six places.
+        #
+        # Five shards, not four: at four the heaviest carried 30 matrix cases,
+        # about 39 min of execution before setup, which does not fit the 45-min
+        # limit above. Measured distributions, union 97 in both cases:
+        #   4 shards -> 31 / 20 / 22 / 24  (30 matrix cases on the heaviest)
+        #   5 shards -> 21 / 20 / 20 / 17 / 19  (20 matrix cases on the heaviest)
+        include:
+          - shard: 1
+            suffix: s1
+            api_port: 8191
+            web_port: 3311
+            pg_port: 55533
+            redis_port: 56479
+            db_name: proovra_admin_cp_fixture_s1
+            dist: node_modules/.cache/admin-fixture-next-prod-s1
+          - shard: 2
+            suffix: s2
+            api_port: 8192
+            web_port: 3312
+            pg_port: 55534
+            redis_port: 56480
+            db_name: proovra_admin_cp_fixture_s2
+            dist: node_modules/.cache/admin-fixture-next-prod-s2
+          - shard: 3
+            suffix: s3
+            api_port: 8193
+            web_port: 3313
+            pg_port: 55535
+            redis_port: 56481
+            db_name: proovra_admin_cp_fixture_s3
+            dist: node_modules/.cache/admin-fixture-next-prod-s3
+          - shard: 4
+            suffix: s4
+            api_port: 8194
+            web_port: 3314
+            pg_port: 55536
+            redis_port: 56482
+            db_name: proovra_admin_cp_fixture_s4
+            dist: node_modules/.cache/admin-fixture-next-prod-s4
+          - shard: 5
+            suffix: s5
+            api_port: 8195
+            web_port: 3315
+            pg_port: 55537
+            redis_port: 56483
+            db_name: proovra_admin_cp_fixture_s5
+            dist: node_modules/.cache/admin-fixture-next-prod-s5
 
     services:
       postgres:
@@ -374,11 +429,11 @@ jobs:
         env:
           POSTGRES_USER: pv
           POSTGRES_PASSWORD: pv
-          POSTGRES_DB: proovra_admin_cp_fixture
+          POSTGRES_DB: ${{ matrix.db_name }}
         ports:
-          - 55533:5432
+          - ${{ matrix.pg_port }}:5432
         options: >-
-          --health-cmd="pg_isready -U pv -d proovra_admin_cp_fixture"
+          --health-cmd="pg_isready -U pv"
           --health-interval=2s
           --health-timeout=3s
           --health-retries=20
@@ -386,7 +441,7 @@ jobs:
       redis:
         image: redis:7-alpine
         ports:
-          - 56479:6379
+          - ${{ matrix.redis_port }}:6379
         options: >-
           --health-cmd="redis-cli ping"
           --health-interval=2s
@@ -396,25 +451,24 @@ jobs:
     env:
       # The fixture launchers own the API and web environments. These two are
       # for the migrate + seed steps, which run before either launcher.
-      DATABASE_URL: postgresql://pv:pv@localhost:55533/proovra_admin_cp_fixture
-      DIRECT_URL: postgresql://pv:pv@localhost:55533/proovra_admin_cp_fixture
+      DATABASE_URL: postgresql://pv:pv@localhost:${{ matrix.pg_port }}/${{ matrix.db_name }}
+      DIRECT_URL: postgresql://pv:pv@localhost:${{ matrix.pg_port }}/${{ matrix.db_name }}
       NODE_ENV: development
       LOG_LEVEL: warn
 
-      # PER-SHARD ISOLATION.
+      # PER-SHARD ISOLATION, TAKEN FROM THE ROW.
       #
-      # Each matrix leg is its own runner with its own postgres and redis
-      # service containers, so the databases and caches are separate machines
-      # apart. These are derived anyway, so nothing is shared even if two shards
-      # ever land on one host — and so each value is set ONCE for BOTH the build
-      # step and Playwright s webServer. Those are separate invocations of the
-      # launcher, and a flag given to one is not given to the other; that is
+      # Each shard gets its own database, its own redis, its own ports and its
+      # own build output. Each value is set ONCE here so BOTH the build step and
+      # Playwright s webServer read the same one: they are separate invocations
+      # of the launcher, and a flag given to one is not given to the other —
       # exactly how the API origin came apart once already.
-      PROOVRA_FIXTURE_API_PORT: ${{ 8190 + matrix.shard }}
-      PROOVRA_FIXTURE_API_BASE: http://localhost:${{ 8190 + matrix.shard }}
-      PROOVRA_FIXTURE_WEB_PORT: ${{ 3310 + matrix.shard }}
-      PROOVRA_FIXTURE_WEB_BASE: http://localhost:${{ 3310 + matrix.shard }}
-      PROOVRA_FIXTURE_DIST: node_modules/.cache/admin-fixture-next-prod-shard${{ matrix.shard }}
+      PROOVRA_FIXTURE_API_PORT: ${{ matrix.api_port }}
+      PROOVRA_FIXTURE_API_BASE: http://localhost:${{ matrix.api_port }}
+      PROOVRA_FIXTURE_WEB_PORT: ${{ matrix.web_port }}
+      PROOVRA_FIXTURE_WEB_BASE: http://localhost:${{ matrix.web_port }}
+      PROOVRA_FIXTURE_REDIS_URL: redis://localhost:${{ matrix.redis_port }}/0
+      PROOVRA_FIXTURE_DIST: ${{ matrix.dist }}
       PROOVRA_ADMIN_JSON_REPORT: ${{ github.workspace }}/artifacts/admin-matrix/report-shard${{ matrix.shard }}.json
 
     steps:
@@ -447,8 +501,8 @@ jobs:
         run: |
           nohup node services/api/scripts/dev-admin-fixture-api.mjs \
             --api-port="${PROOVRA_FIXTURE_API_PORT}" \
-            --database-url="postgresql://pv:pv@localhost:55533/proovra_admin_cp_fixture" \
-            --redis-url="redis://localhost:56479/0" \
+            --database-url="${DATABASE_URL}" \
+            --redis-url="${PROOVRA_FIXTURE_REDIS_URL}" \
             > /tmp/admin-fixture-api.log 2>&1 &
           for _ in $(seq 1 90); do
             curl -sSf -m 2 ${PROOVRA_FIXTURE_API_BASE}/healthz > /dev/null 2>&1 && break
@@ -496,10 +550,10 @@ jobs:
             exit 1
           fi
 
-      # THE SHARD. Playwright s canonical mechanism; the four shards together
+      # THE SHARD. Playwright s canonical mechanism; the five shards together
       # are the 97 tests, and the accounting job proves it rather than assuming.
-      - name: Run the admin control-plane suite (shard ${{ matrix.shard }}/4)
-        run: pnpm test:e2e:admin -- --shard=${{ matrix.shard }}/4
+      - name: Run the admin control-plane suite (shard ${{ matrix.shard }}/5)
+        run: pnpm test:e2e:admin -- --shard=${{ matrix.shard }}/5
 
       - name: Upload fixture logs on failure
         if: failure()
@@ -526,7 +580,7 @@ jobs:
   # ===========================================================================
   # 97/97 ACCOUNTING ACROSS THE FOUR SHARDS
   # ===========================================================================
-  # Four green shards do not by themselves mean the suite ran. Sharding can
+  # Five green shards do not by themselves mean the suite ran. Sharding can
   # silently drop tests — an unbalanced or misconfigured split is exactly the
   # defect this change fixes, and it presented as three fast green shards and
   # one cancelled one. So the shards report what they executed and this job
@@ -544,7 +598,7 @@ jobs:
           path: shard-reports
           merge-multiple: true
 
-      - name: Prove 97 unique tests ran across the four shards
+      - name: Prove 97 unique tests ran across the five shards
         env:
           SHARD_RESULT: ${{ needs.admin-control-plane.result }}
-        run: node scripts/admin-shard-accounting.mjs shard-reports 97 4
+        run: node scripts/admin-shard-accounting.mjs shard-reports 97 5

@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "350df28cd1b3592fbce302d87d8037fa4ec1ea078f008fcbdfae86936dbafd59",
   "routeInventoryHash": "2ed0cf93ea10458d4e9be585c80099e6ea668aded9f78a061f5831653ad69065",
-  "consumerInventoryHash": "9a31266fa67b16091c1d434284dcdd4b710082f40c9f7eae2d0bdc0e87204984",
+  "consumerInventoryHash": "b2c1c43e710a3cd22feb656abd74a2227bee9974360b57a7df5cc7155c967605",
   "dispositionsHash": "4119c38e004ff938320c7d5c32cb3815429e7916dca9ffc67899ae23072f06c3",
   "totals": {
     "RegisteredRoutes": 1144,
@@ -10827,7 +10827,7 @@
       "method": "POST",
       "route": "/v1/intake/citizen/sessions",
       "registeringFile": "services/api/src/routes/citizen-capture.routes.ts",
-      "productConsumer": "apps/web/lib/citizen-capture/citizen-capture-client.ts:91",
+      "productConsumer": "apps/web/lib/citizen-capture/citizen-capture-client.ts:107",
       "machineConsumer": null,
       "authorization": "PUBLIC_UNGUARDED",
       "classification": "TARGET_COMPLETE",
@@ -10839,7 +10839,7 @@
       "method": "POST",
       "route": "/v1/intake/citizen/sessions/:id/capture",
       "registeringFile": "services/api/src/routes/citizen-capture.routes.ts",
-      "productConsumer": "apps/web/lib/citizen-capture/citizen-capture-client.ts:186",
+      "productConsumer": "apps/web/lib/citizen-capture/citizen-capture-client.ts:202",
       "machineConsumer": null,
       "authorization": "PUBLIC_UNGUARDED",
       "classification": "TARGET_COMPLETE",
@@ -142045,7 +142045,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/citizen-capture/citizen-capture-client.ts",
-          "line": 91,
+          "line": 107,
           "caller": "openCitizenSession",
           "class": "WEB",
           "primitive": "fetch",
@@ -142055,7 +142055,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/citizen-capture/citizen-capture-client.ts:91 (openCitizenSession, WEB)",
+      "dispositionEvidence": "apps/web/lib/citizen-capture/citizen-capture-client.ts:107 (openCitizenSession, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -142106,7 +142106,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/citizen-capture/citizen-capture-client.ts",
-          "line": 186,
+          "line": 202,
           "caller": "captureAndSubmit",
           "class": "WEB",
           "primitive": "fetch",
@@ -142116,7 +142116,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/citizen-capture/citizen-capture-client.ts:186 (captureAndSubmit, WEB)",
+      "dispositionEvidence": "apps/web/lib/citizen-capture/citizen-capture-client.ts:202 (captureAndSubmit, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
