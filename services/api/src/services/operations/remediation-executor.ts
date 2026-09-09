@@ -8,7 +8,7 @@
  * that owns the work. It owns no queue, no job id, no retry policy and no
  * artifact lifecycle — it dispatches:
  *
- *   OTS anchoring      -> `enqueueCanonicalWork(UPGRADE_OTS)`, the API's one
+ *   OTS anchoring      -> `requestEvidenceOtsAnchoring`, the API's one
  *                         transport, whose deterministic job id IS the dedupe.
  *   Report + package   -> `requestReportGeneration(...)`, which persists the
  *                         authorization OUTCOME as a `ReportGenerationRequest`
@@ -39,10 +39,9 @@
  */
 
 import type { PrismaClient } from "@prisma/client";
-import { JOB_NAMES } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { enqueueCanonicalWork } from "../../queue/canonical-queue-client.js";
+import { requestEvidenceOtsAnchoring } from "../integrity/ots-anchoring-authority.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { bump } from "../ops/metrics.service.js";
 import { requestReportGeneration } from "../reports/report-generation-authority.service.js";
@@ -229,21 +228,29 @@ async function resumeOtsAnchoring(evidence: {
     return outcome("ALREADY_SATISFIED");
   }
 
-  const enqueued = await enqueueCanonicalWork({
-    workName: JOB_NAMES.UPGRADE_OTS,
-    commandId: evidence.id,
-    traceId: "operations.remediation",
+  /*
+   * OTS INTEGRITY DECOUPLING (2026-09-09) — through the request authority.
+   *
+   * This enqueued the canonical work directly. So did evidence finalization,
+   * once every finalized record began entering the OTS lifecycle, and the
+   * audit engine reported the pair as `parallelAuthorities = 1` — correctly:
+   * the registry's central claim is ONE producer module per work name, and two
+   * producers are two places for the semantics to drift.
+   *
+   * The enqueue now lives in `ots-anchoring-authority.service.ts`. What is
+   * kept here is the part that is genuinely this caller's: translating the
+   * outcome into what an OPERATOR needs to read. "Collapsed onto live work"
+   * and "the transport is down" look the same to a completion path and must
+   * never look the same on an Operations console.
+   */
+  const requested = await requestEvidenceOtsAnchoring({
+    evidenceId: evidence.id,
+    trigger: "operations.remediation",
   });
 
-  if (enqueued.enqueued) return outcome("QUEUED", enqueued.jobId);
-
-  // The shared outcome distinguishes "collapsed onto live work" from "the
-  // transport is down", and the operator needs those to read differently.
-  const reason = String(enqueued.reason ?? "");
-  if (reason.includes("collapsed") || reason.includes("duplicate")) {
-    return outcome("ALREADY_IN_PROGRESS");
-  }
-  if (reason.includes("queue_unavailable")) return outcome("QUEUE_UNAVAILABLE");
+  if (requested.requested) return outcome("QUEUED", requested.jobId);
+  if (requested.reason === "collapsed") return outcome("ALREADY_IN_PROGRESS");
+  if (requested.reason === "queue_unavailable") return outcome("QUEUE_UNAVAILABLE");
   return outcome("FAILED");
 }
 

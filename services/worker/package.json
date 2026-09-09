@@ -12,6 +12,7 @@
     "build": "tsc -p tsconfig.build.json && node ./scripts/copy-assets.mjs",
     "test": "vitest run",
     "repair-ots-hybrid": "node --experimental-specifier-resolution=node dist/scripts/repair-ots-hybrid-state.js",
+  "reconcile-ots-never-attempted": "node --experimental-specifier-resolution=node dist/scripts/reconcile-ots-never-attempted.js",
     "diagnose-ots-evidence": "node --experimental-specifier-resolution=node dist/scripts/diagnose-ots-evidence.js",
     "smoke-ots-retry-state": "node --experimental-specifier-resolution=node dist/scripts/smoke-ots-retry-state.js",
     "destruction-candidates": "node --experimental-specifier-resolution=node dist/scripts/destruction-candidates.js",

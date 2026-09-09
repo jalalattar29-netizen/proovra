@@ -562,11 +562,11 @@ const STEP_DEFS: Record<
     id: "OTSProofCreated",
     eventName: EVIDENCE_LIFECYCLE_EVENT_NAMES.OTSProofCreated,
     description:
-      "Initial OpenTimestamps proof is created from the canonical hash. Status starts as PENDING; Bitcoin anchoring is deferred.",
+      "Initial OpenTimestamps proof is created from the canonical fingerprint. Status starts as PENDING; Bitcoin anchoring is deferred. Part of the BASE INTEGRITY layer: it does not depend on Report or Verification Package entitlement, and every finalized record enters it on every plan.",
     writerResponsibility:
-      "services/worker/src/ots.service.ts:createOpenTimestamp — called during report generation from services/worker/src/processor.ts.",
+      "services/worker/src/ots-lifecycle.ts:ensureEvidenceOtsInitialized — the one initialization authority, driven by the `ots-upgrade` queue. Triggered by evidence finalization (services/api/src/services/evidence-complete.service.ts) and by the bounded reconciliation script for records that predate the decoupling. It was previously called from the REPORT processor, which meant a record only ever reached the calendar if its plan included reports.",
     timestampMeaning:
-      "Implicit at report generation. otsProofBase64 is immutable from this point; only otsStatus + otsBitcoinTxid + otsAnchoredAtUtc advance later.",
+      "Server wall-clock at the stamp attempt, which follows finalization rather than report generation. A proof attests existence NO LATER THAN its anchor time, so a record reconciled long after capture receives a later anchor — capture/finalization, TSA and OTS anchor stay three distinct times and are never collapsed. otsProofBase64 is immutable from this point; only otsStatus + otsBitcoinTxid + otsAnchoredAtUtc advance later.",
     requiredInputs: [
       "evidence.fingerprintHash",
       "evidence.fileSha256",

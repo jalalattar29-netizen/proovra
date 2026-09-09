@@ -17,6 +17,7 @@ import { sha256HexFromStream } from "../stream-hash.js";
 import { createEvidenceTimestamp } from "./timestamp.service.js";
 import * as prismaPkg from "@prisma/client";
 import { requestReportGeneration } from "./reports/report-generation-authority.service.js";
+import { requestEvidenceOtsAnchoring } from "./integrity/ots-anchoring-authority.service.js";
 // Post-finalize side-effect orchestration lives in its own file.
 import { runEvidenceFinalizationFanout } from "./evidence-finalization-fanout.service.js";
 import { Readable } from "stream";
@@ -1287,6 +1288,45 @@ const captureMethod =
       }
     }
   }
+
+  /*
+   * ==========================================================================
+   * OTS — THE INTEGRITY LIFECYCLE, ENTERED BY EVERY FINALIZED RECORD.
+   * ==========================================================================
+   * This is the trigger that did not exist. OpenTimestamps was stamped inside
+   * the report job, so a record reached the calendar only if its plan included
+   * reports — and Pricing lists OpenTimestamps under "Every plan includes",
+   * beside hashing, RFC 3161 timestamps, signatures and custody. A Free record
+   * was promised an anchor by a page and denied one by a pipeline it had no
+   * business being routed through.
+   *
+   * NOTE WHAT THIS BLOCK DOES NOT CONSULT. Not the plan, not the entitlement,
+   * not `final.shouldEnqueueReport` a few lines below, not the credit ledger,
+   * not the record's funding. Integrity is not sold. The commercial question
+   * is asked once, immediately after this, and it decides Report and
+   * Verification Package — nothing else.
+   *
+   * IT RUNS AFTER THE COMMIT, like the report request beneath it and for the
+   * same reason: the calendar is an external network call, and a signature
+   * must never be rolled back because a timestamp server was briefly
+   * unreachable. The request authority derives the job id from the evidence id
+   * (`ots-upgrade-<id>`), so the id is itself the dedupe — a duplicate finalize
+   * collapses onto the live job instead of stamping twice.
+   *
+   * IT GOES THROUGH THE AUTHORITY, not the queue. `requestEvidenceOtsAnchoring`
+   * is the ONE API-side producer for this work name; enqueueing directly from
+   * here made a second one, and the registry's central claim — one producer per
+   * work name — is what stops two callers drifting apart on the semantics.
+   *
+   * A FAILURE HERE IS NOT A COMPLETION FAILURE. The authority never throws. The
+   * record is finalized, signed and durable; it simply has no anchor yet, which
+   * is the truth and is exactly the state the anchoring budget and the
+   * reconciliation path are built to carry forward.
+   */
+  await requestEvidenceOtsAnchoring({
+    evidenceId: final.result.id,
+    trigger: "evidence.completed",
+  });
 
   if (final.shouldEnqueueReport) {
     // PHASE 12 — POINT 5. The completion path persists a durable generation

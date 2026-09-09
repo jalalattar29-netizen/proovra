@@ -113,6 +113,12 @@ const ENTRYPOINTS = Object.freeze({
     "services/api/prisma/scripts/org-security-policy-readiness.ts",
     "services/worker/src/scripts/diagnose-ots-evidence.ts",
     "services/worker/src/scripts/repair-ots-hybrid-state.ts",
+    // OTS INTEGRITY DECOUPLING (2026-09-09) — the bounded reconciliation for
+    // records finalized while OTS was still owned by the report job, so
+    // nothing ever asked for their anchor. Dry-run by default; it enqueues
+    // the canonical job rather than writing OTS state itself.
+    // `pnpm --filter @proovra/worker reconcile-ots-never-attempted`
+    "services/worker/src/scripts/reconcile-ots-never-attempted.ts",
     "services/worker/src/scripts/smoke-ots-retry-state.ts",
     // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the read-only destruction
     // candidate report (`pnpm --filter @proovra/worker destruction-candidates`).
