@@ -261,7 +261,13 @@ const BULLMQ_JOBS: ReadonlyArray<WorkRegistryEntry> = [
       "conditional_state_claim",
       "upsert_by_natural_key",
     ],
-    reconciler: "services/worker/src/lifecycle-recovery.ts",
+    // RELIABILITY CLOSURE (2026-09-09) — this named lifecycle-recovery, which
+    // recovers only a FIRST generation for a record with no Report row at all.
+    // The request-shaped failures — a stranded regeneration, an expired
+    // PROCESSING lease, an exhausted attempt ceiling — belong to the sweep
+    // written for them, which until now had no scheduler.
+    reconciler:
+      "services/worker/src/report-generation-authority.ts#reconcileStrandedReportRequests",
     retry: RETRY_POLICIES.ARTIFACT,
     recovery: RECOVERY_POLICIES.ARTIFACT,
     externalBoundary: "storage",
@@ -297,7 +303,14 @@ const BULLMQ_JOBS: ReadonlyArray<WorkRegistryEntry> = [
     },
     terminalWriter: "services/worker/src/ots-state.ts",
     idempotency: ["deterministic_job_id", "upsert_by_natural_key"],
-    reconciler: "services/worker/src/lifecycle-recovery.ts",
+    // RELIABILITY CLOSURE (2026-09-09) — THIS FIELD WAS FALSE. It named
+    // lifecycle-recovery, which contains no OTS code whatsoever: a grep for
+    // "ots" in that module returns nothing. So the registry asserted a recovery
+    // authority for the never-attempted population that did not exist, and the
+    // population itself was invisible to Operations because the integrity scan
+    // selects only FAILED and the PENDING family. Governance metadata that
+    // claims coverage nobody wrote is worse than none.
+    reconciler: "services/worker/src/ots-initialization-reconciler.ts",
     retry: RETRY_POLICIES.TIMESTAMP_AUTHORITY,
     recovery: RECOVERY_POLICIES.ARTIFACT,
     externalBoundary: "timestamp_authority",

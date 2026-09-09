@@ -43,6 +43,10 @@ import {
   otsUpgradeQueue,
   otsUpgradeQueueName,
   purgeDeletedEvidenceJobName,
+  // RELIABILITY CLOSURE (2026-09-09) — the canonical report-request enqueue,
+  // handed to the stranded-request reconciler so the sweep uses the same
+  // deterministic job id as every other producer.
+  enqueueReportGenerationRequest,
   mediaIntelligenceDlqQueue,
   mediaIntelligenceDlqQueueName,
   redisConnection,
@@ -88,6 +92,9 @@ import { runOrphanArtifactScan } from "./orphan-scan.js";
 import { runSearchIndexReconciler } from "./search-index-reconciler.js";
 import { runIntelligenceRunReconciler } from "./intelligence-run-reconciler.js";
 import { runLifecycleRecovery } from "./lifecycle-recovery.js";
+// RELIABILITY CLOSURE (2026-09-09) — the two scheduled reconcilers.
+import { reconcileStrandedReportRequests } from "./report-generation-authority.js";
+import { runOtsInitializationReconciler } from "./ots-initialization-reconciler.js";
 import { withCronLock } from "./cron-lock.js";
 // Phase 27.5 — Governance operationalization workers.
 import {
@@ -741,6 +748,161 @@ function stopLifecycleRecoveryScheduler() {
   if (lifecycleRecoveryTimer) {
     clearInterval(lifecycleRecoveryTimer);
     lifecycleRecoveryTimer = null;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// RELIABILITY CLOSURE (2026-09-09) — THE TWO RECONCILERS THAT WERE WRITTEN AND
+// NEVER STARTED.
+//
+// Both close a commit-to-enqueue window that the architecture already documents
+// and already accepts. Neither builds an artifact, writes an OTS column or makes
+// a commercial decision; both only repair SCHEDULING through the canonical
+// producer for their work name.
+//
+// WHY THEY ARE SEPARATE FROM `lifecycle-recovery`, WHICH ALSO RUNS ABOVE.
+// `runLifecycleRecovery` scans EVIDENCE — records SIGNED with no Report row at
+// all — and re-requests a FIRST generation for them. That is a narrow, useful
+// sweep and it stays. It cannot see the failures these two are for:
+//
+//   * a durable `ReportGenerationRequest` whose enqueue was lost, when the
+//     record ALREADY has a report (a stranded REGENERATION);
+//   * a PROCESSING claim whose worker died;
+//   * a request that has burned its attempt ceiling and needs a truthful
+//     terminal state rather than another lap;
+//   * a finalized record that never entered the OTS lifecycle at all.
+//
+// The three request-shaped cases belong to `reconcileStrandedReportRequests`,
+// which was written for exactly them and had no caller; the fourth belongs to
+// the OTS initialization reconciler. Their populations do not overlap — one
+// keys on `ReportGenerationRequest`, one on `Evidence.otsStatus`, and
+// lifecycle-recovery on `Evidence.reports: none` — so no two of them can fight
+// over the same row. Where lifecycle-recovery and the report reconciler could
+// both re-enqueue one request, they converge rather than collide: the job id is
+// deterministic in the request id, so the second enqueue collapses onto the
+// first.
+// -----------------------------------------------------------------------------
+
+const reportRequestReconcilerEnabled = envBoolean(
+  "REPORT_REQUEST_RECONCILER_ENABLED",
+  true,
+);
+const reportRequestReconcilerIntervalMs = envNumber(
+  "REPORT_REQUEST_RECONCILER_INTERVAL_MS",
+  5 * 60 * 1000,
+);
+const reportRequestReconcilerBatchSize = envNumber(
+  "REPORT_REQUEST_RECONCILER_BATCH_SIZE",
+  100,
+);
+let reportRequestReconcilerTimer: ReturnType<typeof setInterval> | null = null;
+let reportRequestReconcilerRunning = false;
+
+async function runReportRequestReconcilerTick(trigger: string) {
+  // The running flag prevents overlap on one replica. Correctness does not
+  // depend on it: every repair the sweep performs is a conditional update or a
+  // deterministic-id enqueue, so a concurrent tick loses the race rather than
+  // double-recovering a row.
+  if (reportRequestReconcilerRunning) return;
+  reportRequestReconcilerRunning = true;
+  try {
+    const summary = await reconcileStrandedReportRequests({
+      enqueue: (requestId) => enqueueReportGenerationRequest(requestId),
+      batchSize: reportRequestReconcilerBatchSize,
+    });
+    if (
+      summary.reenqueued > 0 ||
+      summary.leasesReleased > 0 ||
+      summary.terminalRepaired > 0 ||
+      summary.failures > 0
+    ) {
+      logger.info(
+        { trigger, ...summary },
+        "report_request.reconciler.completed",
+      );
+    }
+  } catch (err) {
+    logger.error({ err, trigger }, "report_request.reconciler.failed");
+    captureException(err, { kind: "worker.report_request_reconciler" });
+  } finally {
+    reportRequestReconcilerRunning = false;
+  }
+}
+
+function startReportRequestReconcilerScheduler() {
+  if (!reportRequestReconcilerEnabled) {
+    logger.info({}, "report_request.reconciler.scheduler.disabled");
+    return;
+  }
+  reportRequestReconcilerTimer = setInterval(() => {
+    void runReportRequestReconcilerTick("interval");
+  }, reportRequestReconcilerIntervalMs);
+  logger.info(
+    { intervalMs: reportRequestReconcilerIntervalMs },
+    "report_request.reconciler.scheduler.started",
+  );
+}
+
+function stopReportRequestReconcilerScheduler() {
+  if (reportRequestReconcilerTimer) {
+    clearInterval(reportRequestReconcilerTimer);
+    reportRequestReconcilerTimer = null;
+  }
+}
+
+const otsInitializationReconcilerEnabled = envBoolean(
+  "OTS_INITIALIZATION_RECONCILER_ENABLED",
+  true,
+);
+const otsInitializationReconcilerIntervalMs = envNumber(
+  "OTS_INITIALIZATION_RECONCILER_INTERVAL_MS",
+  15 * 60 * 1000,
+);
+const otsInitializationReconcilerMinAgeMs = envNumber(
+  "OTS_INITIALIZATION_RECONCILER_MIN_AGE_MS",
+  30 * 60 * 1000,
+);
+let otsInitializationReconcilerTimer: ReturnType<typeof setInterval> | null =
+  null;
+let otsInitializationReconcilerRunning = false;
+
+async function runOtsInitializationReconcilerTick(trigger: string) {
+  if (otsInitializationReconcilerRunning) return;
+  otsInitializationReconcilerRunning = true;
+  try {
+    await runOtsInitializationReconciler({
+      trigger,
+      minAgeMs: otsInitializationReconcilerMinAgeMs,
+    });
+  } catch (err) {
+    logger.error({ err, trigger }, "ots.initialization.reconciler.failed");
+    captureException(err, { kind: "worker.ots_initialization_reconciler" });
+  } finally {
+    otsInitializationReconcilerRunning = false;
+  }
+}
+
+function startOtsInitializationReconcilerScheduler() {
+  if (!otsInitializationReconcilerEnabled) {
+    logger.info({}, "ots.initialization.reconciler.scheduler.disabled");
+    return;
+  }
+  otsInitializationReconcilerTimer = setInterval(() => {
+    void runOtsInitializationReconcilerTick("interval");
+  }, otsInitializationReconcilerIntervalMs);
+  logger.info(
+    {
+      intervalMs: otsInitializationReconcilerIntervalMs,
+      minAgeMs: otsInitializationReconcilerMinAgeMs,
+    },
+    "ots.initialization.reconciler.scheduler.started",
+  );
+}
+
+function stopOtsInitializationReconcilerScheduler() {
+  if (otsInitializationReconcilerTimer) {
+    clearInterval(otsInitializationReconcilerTimer);
+    otsInitializationReconcilerTimer = null;
   }
 }
 
@@ -2300,6 +2462,8 @@ async function shutdown(exitCode: number) {
   stopSearchIndexReconcilerScheduler();
   stopIntelligenceRunReconcilerScheduler();
   stopLifecycleRecoveryScheduler();
+  stopReportRequestReconcilerScheduler();
+  stopOtsInitializationReconcilerScheduler();
   stopMfaChallengeGcScheduler();
   stopMfaRecoveryDigestScheduler();
   // Phase 27.5 — Governance schedulers.
@@ -2558,6 +2722,11 @@ initSecretsAuthority(logger)
     startCaptureDraftReaperScheduler();
     startOrphanScanScheduler();
     startLifecycleRecoveryScheduler();
+    // RELIABILITY CLOSURE (2026-09-09) — the two reconcilers that existed in
+    // source and were never started. See their declarations for why they are
+    // distinct from lifecycle-recovery above.
+    startReportRequestReconcilerScheduler();
+    startOtsInitializationReconcilerScheduler();
     startMfaChallengeGcScheduler();
     startMfaRecoveryDigestScheduler();
     // Phase 27.5 — Governance schedulers.
