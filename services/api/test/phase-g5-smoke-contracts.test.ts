@@ -104,10 +104,17 @@ describe("Phase G5.7 smoke 3 — Matter workspace → evidence → export prefli
 
   it("Reports browse wraps both downloads in GovernedExportAction", () => {
     expect(REPORTS_INDEX).toContain("GovernedExportAction");
-    expect(REPORTS_INDEX).toContain('actionLabel="Download Report PDF"');
-    expect(REPORTS_INDEX).toContain(
-      'actionLabel="Download Verification Package ZIP"',
-    );
+    /*
+     * RELIABILITY CLOSURE (2026-09-09) — the two labels now come from the
+     * shared table in `apps/web/lib/evidence/generation-labels.ts`, so the
+     * literal spelling is asserted there rather than re-asserted in every
+     * surface's smoke test. The invariant this smoke path cares about — browse
+     * never offers an unwrapped download — is the line above.
+     * `phase-g3-2-final-live-operations-closure.test.ts` pins the constants'
+     * values.
+     */
+    expect(REPORTS_INDEX).toContain("actionLabel={DOWNLOAD_REPORT_LABEL}");
+    expect(REPORTS_INDEX).toContain("actionLabel={DOWNLOAD_PACKAGE_LABEL}");
   });
 
   it("MatterWorkspace renders evidence + opens detail on click", () => {

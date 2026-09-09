@@ -216,11 +216,45 @@ describe("Phase G3.2 — Reports export wrapping", () => {
       REPORTS_INDEX.match(/<GovernedExportAction/g) ?? []
     ).length;
     expect(reportWrapCount).toBeGreaterThanOrEqual(2);
-    // A2 vocabulary discipline — Report PDF and Verification Package
-    // ZIP are NEVER collapsed.
-    expect(REPORTS_INDEX).toContain('actionLabel="Download Report PDF"');
-    expect(REPORTS_INDEX).toContain(
-      'actionLabel="Download Verification Package ZIP"',
+    /*
+     * A2 vocabulary discipline — Report PDF and Verification Package ZIP are
+     * NEVER collapsed.
+     *
+     * RELIABILITY CLOSURE (2026-09-09) — ASSERTED THROUGH THE SHARED TABLE.
+     *
+     * This matched the literal `actionLabel="Download Report PDF"`, which
+     * pinned the discipline to ONE file's spelling of it. The four surfaces
+     * that render these two controls had drifted to four different spellings —
+     * the Artifacts cards called BOTH buttons "Download latest", so the two
+     * most important controls on a record were textually identical and told
+     * apart only by which card they sat in — and the fix was to give them one
+     * table, `apps/web/lib/evidence/generation-labels.ts`.
+     *
+     * The wrapper assertion above is unchanged and is the invariant that
+     * matters: a download that is not inside GovernedExportAction is a
+     * download that skips the governance gate. What moved is how the LABEL is
+     * checked. Reading the shared constants is strictly stronger than matching
+     * a literal here, because it also fails if some other surface re-spells
+     * them — which is the failure this discipline exists to prevent, and the
+     * one a per-file literal could never see.
+     */
+    expect(REPORTS_INDEX).toContain("actionLabel={DOWNLOAD_REPORT_LABEL}");
+    expect(REPORTS_INDEX).toContain("actionLabel={DOWNLOAD_PACKAGE_LABEL}");
+
+    const LABELS = readFileSync(
+      fileURLToPath(
+        new URL(
+          "../../../apps/web/lib/evidence/generation-labels.ts",
+          import.meta.url,
+        ),
+      ),
+      "utf8",
+    );
+    expect(LABELS).toContain(
+      'export const DOWNLOAD_REPORT_LABEL = "Download Report PDF";',
+    );
+    expect(LABELS).toContain(
+      'export const DOWNLOAD_PACKAGE_LABEL = "Download Verification Package ZIP";',
     );
   });
 });
