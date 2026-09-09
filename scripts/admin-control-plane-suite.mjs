@@ -39,6 +39,11 @@ import { spawn, spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import {
+  buildLocalFixtureEnv,
+  describeLocalFixtureEnv,
+} from "./local-fixture-env/index.mjs";
+
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 function arg(name, fallback) {
@@ -61,6 +66,39 @@ const DATABASE_URL = `postgresql://pv:pv@127.0.0.1:${PG_PORT}/${DB}`;
 const REDIS_URL = `redis://127.0.0.1:${REDIS_PORT}/0`;
 const API_BASE = `http://localhost:${API_PORT}`;
 const WEB_BASE = `http://localhost:${WEB_PORT}`;
+
+/**
+ * THE CHILD ENVIRONMENT IS BUILT, NOT INHERITED.
+ *
+ * This script spawns docker, pnpm, prisma, the fixture API and Playwright.
+ * The first version handed each of them `{ ...process.env }`, which is the
+ * leak path this repository already has a guard for — and the guard caught
+ * it (`apps/web/__tests__/local-fixture-env-isolation.test.mjs`), which is
+ * the guard doing its job on the person who added the script.
+ *
+ * It matters here specifically: `services/api/.env` holds live Production
+ * credentials on a developer machine, and anything in the ambient shell
+ * flows into the API the suite then measures. A verification harness that
+ * can reach Production is not a verification harness.
+ *
+ * `buildLocalFixtureEnv` is the one sanctioned mechanism: an OS baseline
+ * plus named local values, nothing else, scanned for non-local endpoints and
+ * credential shapes BEFORE the first child starts. It throws rather than
+ * spawns if the result would carry a leak.
+ */
+const CHILD_ENV = buildLocalFixtureEnv({
+  apiPort: String(API_PORT),
+  webPort: String(WEB_PORT),
+  databaseUrl: DATABASE_URL,
+  redisUrl: REDIS_URL,
+  extra: {
+    // The suite and the launcher read these to agree on one origin; see the
+    // refusal in apps/web/scripts/dev-admin-fixture.mjs.
+    PROOVRA_FIXTURE_API_BASE: API_BASE,
+    PROOVRA_FIXTURE_WEB_BASE: WEB_BASE,
+    PROOVRA_FIXTURE_WEB_PORT: String(WEB_PORT),
+  },
+});
 
 /** Everything this run created, newest first. Teardown walks it in order. */
 const cleanups = [];
@@ -98,7 +136,7 @@ function run(cmd, args, opts = {}) {
     cwd: REPO,
     shell: true,
     stdio: opts.quiet ? "pipe" : "inherit",
-    env: { ...process.env, ...(opts.env ?? {}) },
+    env: { ...CHILD_ENV, ...(opts.env ?? {}) },
     ...opts,
   });
   return r;
@@ -131,6 +169,11 @@ async function waitFor(label, url, timeoutMs) {
 }
 
 async function main() {
+  // Say what the children will actually get. Never a value — the point is to
+  // make the boundary auditable from the run log, not to print secrets.
+  console.log("[suite] child environment:");
+  console.log(describeLocalFixtureEnv(CHILD_ENV));
+
   // ---- 1. containers, named for THIS run --------------------------------
   run("docker", ["rm", "-f", PG_NAME, REDIS_NAME], { quiet: true });
   mustRun(
@@ -194,7 +237,9 @@ async function main() {
       `--database-url=${DATABASE_URL}`,
       `--redis-url=${REDIS_URL}`,
     ],
-    { cwd: REPO, shell: true, stdio: "inherit" },
+    // Explicit, not inherited. Omitting `env` hands the child the ambient
+    // shell, which is the same leak by a quieter route.
+    { cwd: REPO, shell: true, stdio: "inherit", env: CHILD_ENV },
   );
   cleanups.push({
     label: `fixture API (pid ${api.pid})`,
