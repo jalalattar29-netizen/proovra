@@ -221,7 +221,23 @@ const BULLMQ_JOBS: ReadonlyArray<WorkRegistryEntry> = [
     },
     terminalWriter: "services/worker/src/processor.ts",
     idempotency: ["deterministic_job_id"],
-    reconciler: "services/worker/src/lifecycle-recovery.ts",
+    /*
+     * GOVERNANCE CLOSURE (2026-09-09) — CORRECTED TO THE MODULE THAT ACTUALLY
+     * RECOVERS THIS WORK.
+     *
+     * This said `lifecycle-recovery.ts`, which contains no purge code at all —
+     * a grep for "purge" in that module returns nothing. The claim was the same
+     * class of untruth this field carried for UPGRADE_OTS before it was fixed:
+     * a recovery authority asserted for a chain that module cannot see.
+     *
+     * The recovery is real, it simply lives elsewhere. `trash-grace-reconciler`
+     * scans `lifecycleState: "TRASHED"` rows whose `deleteScheduledForUtc` has
+     * passed and enqueues the purge; a row stays TRASHED until the purge job
+     * actually tombstones it, so a lost enqueue is picked up by the next tick
+     * rather than stranding. Nothing is added here — the field is pointed at
+     * the owner that was always doing the work.
+     */
+    reconciler: "services/worker/src/governance/trash-grace-reconciler.ts",
     retry: RETRY_POLICIES.DESTRUCTIVE,
     recovery: RECOVERY_POLICIES.DESTRUCTIVE,
     externalBoundary: "storage",

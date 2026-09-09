@@ -52,6 +52,10 @@ import { prisma } from "./db.js";
 const RUNNING_LEASE_MS = MEDIA_INTELLIGENCE_RUN_LEASE_MS;
 /** How long a PENDING row may sit before it is considered stranded. */
 const PENDING_STRANDED_MS = 15 * 60 * 1000;
+/** A chunk written this recently may still have its original job in flight. */
+const EMBED_OWED_MIN_AGE_MS = 30 * 60 * 1000;
+/** Older than this and whatever produced it is long gone; not this sweep’s. */
+const EMBED_OWED_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 const DEFAULT_BATCH = 50;
 
 /**
@@ -74,6 +78,29 @@ export type IntelligenceRunReconcileResult = {
   strandedReEnqueued: number;
   abandonedForOperator: number;
   failed: number;
+  /**
+   * Chunks found still owing an embedding, and how many were re-enqueued.
+   *
+   * ---------------------------------------------------------------------------
+   * GOVERNANCE CLOSURE (2026-09-09) — THE REGISTRY NAMED THIS MODULE AND THIS
+   * MODULE COULD NOT SEE THE WORK.
+   * ---------------------------------------------------------------------------
+   * `EMBED_SEMANTIC_CHUNKS` declares `reconciler: intelligence-run-reconciler.ts`,
+   * and until now that was false in the way that matters: every scan in this file
+   * keys on `MediaIntelligenceRun`, and the embed producer writes no run row. It
+   * enqueues with `commandId: anchorChunkId` against chunk rows that already
+   * exist. So a lost embed enqueue left chunks unembedded forever, and the one
+   * module the registry pointed an operator at could not have found them.
+   *
+   * The durable fact was already in the schema and needed no new column:
+   * `EvidenceSemanticChunk.embedding` is nullable, so `embedding IS NULL` IS
+   * "this chunk is owed an embedding". Scanning it makes the existing
+   * declaration true rather than re-pointing the registry at something else,
+   * and it creates no second embedding authority — recovery re-enqueues through
+   * `enqueueMiEmbedJob`, the same canonical producer the live path uses.
+   */
+  embedChunksOwed: number;
+  embedChunksReEnqueued: number;
   durationMs: number;
   error?: string;
 };
@@ -89,6 +116,8 @@ export async function runIntelligenceRunReconciler(
     strandedReEnqueued: 0,
     abandonedForOperator: 0,
     failed: 0,
+    embedChunksOwed: 0,
+    embedChunksReEnqueued: 0,
     durationMs: 0,
   };
 
@@ -161,6 +190,47 @@ export async function runIntelligenceRunReconciler(
           if (outcome.enqueued) result.strandedReEnqueued += 1;
           else result.failed += 1;
         } catch {
+          result.failed += 1;
+        }
+      }
+    }
+
+    // ---- 3. Chunks still owing an embedding ------------------------------
+    //
+    // The population is `embedding IS NULL` on a chunk old enough that the
+    // original handoff cannot still be in flight. Both bounds matter: the floor
+    // keeps a chunk written seconds ago out of the scan, and the ceiling keeps
+    // the sweep off rows so old that whatever produced them is long gone.
+    //
+    // SELF-DRAINING, so a limit is the right bound rather than a cursor: a
+    // chunk leaves this population by acquiring an embedding, so a row not
+    // served this tick is matched by the next one, and oldest-first means the
+    // longest-waiting chunks are the ones a short tick serves.
+    //
+    // Re-enqueue is IDEMPOTENT by the canonical job id, so a chunk whose job is
+    // still queued collapses onto it rather than being scheduled twice.
+    const embedFloor = new Date(Date.now() - EMBED_OWED_MIN_AGE_MS);
+    const embedCeiling = new Date(Date.now() - EMBED_OWED_MAX_AGE_MS);
+    const owed = await prisma.evidenceSemanticChunk.findMany({
+      where: {
+        embedding: null,
+        createdAt: { lte: embedFloor, gte: embedCeiling },
+      },
+      select: { id: true },
+      orderBy: { createdAt: "asc" },
+      take: batchSize,
+    });
+    result.embedChunksOwed = owed.length;
+
+    if (owed.length > 0) {
+      const { enqueueMiEmbedJob } = await import("./queue.js");
+      for (const chunk of owed) {
+        try {
+          const outcome = await enqueueMiEmbedJob(chunk.id, { reason: "reconciler" });
+          if (outcome.enqueued) result.embedChunksReEnqueued += 1;
+        } catch {
+          // Fail-isolated: one chunk that cannot be enqueued is counted and
+          // stepped over. A reconciler that throws stops reconciling.
           result.failed += 1;
         }
       }
