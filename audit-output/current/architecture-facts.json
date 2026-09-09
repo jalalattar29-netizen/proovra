@@ -544,10 +544,6 @@
     "staleNextCommands": 0,
     "duplicateActiveStateSections": 0,
     "scalarsChecked": 49,
-    "violations": [
-      "SCALAR_DISAGREES_WITH_FACTS: ProductionRegisteredRoutes: checkpoint says 1141, facts say 1143",
-      "SCALAR_DISAGREES_WITH_FACTS: RegisteredRoutes: checkpoint says 1142, facts say 1144",
-      "SCALAR_DISAGREES_WITH_FACTS: ProductConsumedRoutes: checkpoint says 896, facts say 898"
-    ]
+    "violations": []
   }
 }
