@@ -271,9 +271,25 @@
 
 /* The three row actions share one height and radius. `app-primary-action` and
    `app-secondary-action` already agree on both; this only bounds the labels so
-   a long one cannot stretch its button out of line with the others. */
-.rpt-row__action {
-  white-space: nowrap;
+   a long one cannot stretch its button out of line with the others.
+
+   RELIABILITY CLOSURE (2026-09-09) — SCOPED TO min-width, AND THIS IS THE FIX.
+
+   It used to be unscoped, and it sits BELOW the max-width: 640px block that
+   sets `white-space: normal` on the same selector. Same specificity (0,0,1,0
+   — a media query adds none), later rule wins, at every viewport including the
+   one the override was written for. So the mobile wrap fix was dead from the
+   day it shipped, and at 320px a full-width button still refused to wrap its
+   label — which is exactly the overflow the comment in that block describes
+   itself as fixing.
+
+   Scoping to min-width makes the two rules mutually exclusive rather than
+   source-order-dependent, so neither can silently defeat the other again. No
+   `!important`: the cascade is correct once the rules stop overlapping. */
+@media (min-width: 641px) {
+  .rpt-row__action {
+    white-space: nowrap;
+  }
 }
 
 /* ---------- pagination ---------- */

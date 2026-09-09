@@ -41,6 +41,10 @@ import {
   type AiOperation,
 } from "../services/ai/ai-operation-registry.js";
 import { classifyChatScope } from "../services/ai/chat-scope-classifier.service.js";
+// RELIABILITY CLOSURE (2026-09-09) — the canonical output projection, so the
+// copilot renders the same action every other surface does instead of deriving
+// one from a report count.
+import { buildEvidenceArtifactStatus } from "../services/evidence-artifact-status.service.js";
 import { buildSuggestedAction } from "../services/ai/ai-suggested-action.service.js";
 
 const Body = z.object({
@@ -314,35 +318,98 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
     // A REPORT EXISTS or it does not, and the artifact answers that — not a
     // version column read through `?? 0`, which cannot tell "no report" from
     // "report version 0" and is the derivation the lifecycle contract forbids.
-    const hasReport = snapshot.row._count.reports > 0;
+    /*
+     * =====================================================================
+     * RELIABILITY CLOSURE (2026-09-09) — THE COPILOT IS NOT A FOURTH ACTION
+     * AUTHORITY.
+     * =====================================================================
+     * These two actions were derived from `_count.reports > 0` and
+     * `status === "SIGNED"`, with NO eligibility, funding or lifecycle input.
+     * So the panel offered:
+     *
+     *   * "Generate Report" on a FREE record whose canonical action is NONE,
+     *     because the outputs are not included for it at all;
+     *   * "Regenerate Report" on a downgraded record, where the canonical
+     *     action is also NONE — the customer keeps every version they made and
+     *     may not make another.
+     *
+     * The rule the rest of the product follows is that one authority decides
+     * the action and every surface renders it. The copilot now asks the same
+     * question the same way: the artifact-status projection, which is the
+     * three-axis state machine with the record's plan AND its funding.
+     *
+     * It offers what the server says and nothing else. When the answer is NONE
+     * — not included, blocked, terminal, or already in flight — the panel is
+     * quiet rather than inviting a click that would be refused.
+     */
+    /*
+     * The projection needs the record's OWNER and its package metadata, and the
+     * analysis snapshot carries neither — it is a different contract, shared
+     * with other copilot surfaces, and widening it to serve one action would
+     * make the snapshot answer a question it is not about. Two columns, read
+     * here.
+     */
+    const outputSubject = await prisma.evidence
+      .findUnique({
+        where: { id: ev.id },
+        select: {
+          status: true,
+          ownerUserId: true,
+          teamId: true,
+          verificationPackageMetadata: true,
+        },
+      })
+      .catch(() => null);
+    const outputStatus = outputSubject
+      ? await buildEvidenceArtifactStatus({
+          evidenceId: ev.id,
+          evidenceStatus: outputSubject.status,
+          evidenceTeamId: outputSubject.teamId ?? null,
+          evidenceOwnerUserId: outputSubject.ownerUserId,
+          evidenceVerificationPackageMetadata:
+            outputSubject.verificationPackageMetadata,
+        }).catch(() => null)
+      : null;
+    const canonicalAction = outputStatus?.outputs.report.action ?? "NONE";
     try {
-      if (hasReport) {
+      if (canonicalAction !== "NONE") {
         serverActions.push(buildSuggestedAction({
-          actionType: "RETRY_ELIGIBLE_REPORT",
-          displayLabel: "Regenerate Report",
-          reason: "A newer report version can be generated for this record.",
-          affectedObject: { type: "EVIDENCE_RECORD", id: ev.id, version: snapshot.row.verificationPackageVersion },
-          // The NEXT version, from the recorded one. A record with a report
-          // always has a version, so there is nothing to default here.
-          proposedChange: { reportVersion: (snapshot.row.latestReportVersion ?? 1) + 1 },
-          requiredPermission: "evidence.report.generate",
-          citations: [], versionMeta: {
-            promptVersion: "1.0.0", modelVersion: "structured-copilot",
-            contextSchemaVersion: "1.0.0", outputSchemaVersion: "1.0.0",
+          /*
+           * The bounded action id still distinguishes a first generation from a
+           * re-run, because the audit trail cares; the VERB the panel shows is
+           * the canonical one either way.
+           */
+          actionType:
+            canonicalAction === "REGENERATE"
+              ? "RETRY_ELIGIBLE_REPORT"
+              : "GENERATE_REPORT",
+          displayLabel:
+            canonicalAction === "GENERATE"
+              ? "Generate report & verification package"
+              : canonicalAction === "RETRY"
+                ? "Retry report & verification package"
+                : "Regenerate report & verification package",
+          reason:
+            canonicalAction === "GENERATE"
+              ? "This record is entitled to a report and does not have one yet."
+              : canonicalAction === "RETRY"
+                ? "The last generation attempt for this record failed and can be retried."
+                : "A newer report version can be generated for this record.",
+          affectedObject: {
+            type: "EVIDENCE_RECORD",
+            id: ev.id,
+            version: snapshot.row.verificationPackageVersion,
           },
-        }));
-      }
-      if (!hasReport && snapshot.row.status === "SIGNED") {
-        serverActions.push(buildSuggestedAction({
-          actionType: "GENERATE_REPORT",
-          displayLabel: "Generate Report",
-          reason: "This signed record has no report yet.",
-          affectedObject: { type: "EVIDENCE_RECORD", id: ev.id, version: snapshot.row.verificationPackageVersion },
-          proposedChange: { reportVersion: 1 },
+          proposedChange: {
+            reportVersion: (snapshot.row.latestReportVersion ?? 0) + 1,
+          },
           requiredPermission: "evidence.report.generate",
-          citations: [], versionMeta: {
-            promptVersion: "1.0.0", modelVersion: "structured-copilot",
-            contextSchemaVersion: "1.0.0", outputSchemaVersion: "1.0.0",
+          citations: [],
+          versionMeta: {
+            promptVersion: "1.0.0",
+            modelVersion: "structured-copilot",
+            contextSchemaVersion: "1.0.0",
+            outputSchemaVersion: "1.0.0",
           },
         }));
       }

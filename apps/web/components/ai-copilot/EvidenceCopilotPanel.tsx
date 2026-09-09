@@ -9,6 +9,12 @@ import { buildCopilotIdempotencyKey } from "@proovra/shared";
 import { useState } from "react";
 
 import { apiFetch, ApiError } from "../../lib/api";
+// RELIABILITY CLOSURE (2026-09-09) — the ONE reader of the typed generation
+// outcome, shared with Evidence Detail and the Reports page.
+import {
+  readGenerationOutcome,
+  type GenerationResponse,
+} from "../../lib/evidence/generation-outcome";
 import { CopilotCitationList, type CopilotCitationData } from "./CopilotCitation";
 
 type EvidenceCopilotData = {
@@ -71,14 +77,44 @@ function ConfirmedActionBar({ evidenceId, serverActions }: { evidenceId: string;
   const [confirming, setConfirming] = useState(false);
   const [outcome, setOutcome] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const canGenerateReport = serverActions.some((a) => a.actionType === "GENERATE_REPORT" || a.actionType === "RETRY_ELIGIBLE_REPORT");
+  /*
+   * The action exists only when the SERVER offered one. It derives the offer
+   * from the canonical output projection now — plan, funding and lifecycle —
+   * rather than from `_count.reports > 0`, which offered "Generate Report" on
+   * FREE records and "Regenerate Report" on downgraded ones, both of whose
+   * canonical action is NONE.
+   */
+  const generationAction = serverActions.find(
+    (a) =>
+      a.actionType === "GENERATE_REPORT" ||
+      a.actionType === "RETRY_ELIGIBLE_REPORT",
+  );
+  const canGenerateReport = Boolean(generationAction);
 
   async function executeRegenerateReport() {
     if (busy) return;
     setBusy(true);
     try {
-      await apiFetch(`/v1/evidence/${evidenceId}/reports/regenerate`, { method: "POST" });
-      setOutcome("Report regeneration was queued through the standard audited workflow.");
+      /*
+       * RELIABILITY CLOSURE (2026-09-09) — 202 IS NOT PROOF OF ANYTHING.
+       *
+       * This awaited the call, ignored the body, and reported success. The
+       * endpoint answers 202 for EVERY outcome — accepted, collapsed, refused
+       * as not-included, blocked, terminal, or lost to a queue outage — because
+       * from the caller's side the request was made either way. So the panel
+       * told the operator their regeneration had been "queued through the
+       * standard audited workflow" for requests the server had just declined,
+       * and the catch below never fired because nothing threw.
+       *
+       * It now reads the typed outcome through the same reader Evidence Detail
+       * and the Reports page use.
+       */
+      const read = readGenerationOutcome(
+        (await apiFetch(`/v1/evidence/${evidenceId}/reports/regenerate`, {
+          method: "POST",
+        })) as GenerationResponse,
+      );
+      setOutcome(read.message);
     } catch (err) {
       setOutcome(
         err instanceof ApiError && err.statusCode === 403
@@ -111,7 +147,11 @@ function ConfirmedActionBar({ evidenceId, serverActions }: { evidenceId: string;
       ))}
       {!canGenerateReport ? null : !confirming ? (
         <button className="app-secondary-action" onClick={() => setConfirming(true)} disabled={busy}>
-          Generate / regenerate Report…
+          {/* The server's own label for the verb it offered. This said
+              "Generate / regenerate Report…" — one control naming two
+              operations, because the panel could not tell which one it was
+              offering. */}
+          {generationAction?.displayLabel ?? "Generate report & verification package"}
         </button>
       ) : (
         <div

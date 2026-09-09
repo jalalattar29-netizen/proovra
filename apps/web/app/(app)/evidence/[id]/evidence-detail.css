@@ -2920,6 +2920,34 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   unicode-bidi: plaintext;
   /* Long package and version names wrap inside their own region. */
 }
+/* RELIABILITY CLOSURE (2026-09-09) — the per-version download control.
+   Pushed to the end of its row so the version identity reads first and the
+   action sits where the eye already goes; it wraps onto its own line below the
+   tablet threshold rather than compressing the metadata beside it. */
+.evidence-detail-artifact-version__action {
+  margin-inline-start: auto;
+  flex: none;
+  font-size: 12.5px;
+  padding-block: 4px;
+  padding-inline: 10px;
+}
+@media (max-width: 640px) {
+  .evidence-detail-artifact-version__action {
+    margin-inline-start: 0;
+    inline-size: 100%;
+    justify-content: center;
+  }
+}
+
+/* The READY action row. It carries a single control — the server's REGENERATE
+   — and sits above the version cards it will add to. */
+.evidence-detail-artifact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-block-end: 4px;
+}
+
 /* Separator dots are drawn, not typed, so they never reorder in RTL. */
 .evidence-detail-artifact-version__meta::before {
   content: "";

@@ -123,12 +123,23 @@ function buildReportRow(item: EvidenceListItem, detail: DetailWorkspaceState): A
   const availability = buildReportAvailability(item, detail);
   const signature = detail.report?.pdfSignature ?? null;
 
-  if (!detail.capabilities?.reportsIncluded) {
+  /*
+   * RELIABILITY CLOSURE (2026-09-09) — AVAILABILITY IS ASKED FIRST.
+   *
+   * This asked the plan first, so a record generated while entitled, on an
+   * account that has since downgraded, was described as "not included in this
+   * workspace plan" while its report existed and was downloadable. That is a
+   * false statement about the record, on the surface a reviewer scans.
+   *
+   * The precedence is the canonical one — an artifact that exists is described
+   * as what it is, and the commercial answer is for records that have none.
+   */
+  if (!availability.available && !detail.capabilities?.reportsIncluded) {
     return {
       key: "report",
       title: "Report",
       state: "disabled",
-      detail: "PDF reports are not included in this workspace plan.",
+      detail: "PDF reports are not included for this evidence record.",
     };
   }
 
@@ -172,12 +183,16 @@ function buildReportRow(item: EvidenceListItem, detail: DetailWorkspaceState): A
 function buildPackageRow(detail: DetailWorkspaceState): ArtifactRow {
   const availability = buildVerificationPackageAvailability(detail);
 
-  if (!detail.capabilities?.verificationPackageIncluded) {
+  // Same precedence correction as the report row above.
+  if (
+    !availability.available &&
+    !detail.capabilities?.verificationPackageIncluded
+  ) {
     return {
       key: "package",
       title: "Verification package",
       state: "disabled",
-      detail: "Verification packages are not included in this workspace plan.",
+      detail: "Verification packages are not included for this evidence record.",
     };
   }
 
@@ -546,16 +561,34 @@ export function QueueSelectionPreview({
     const publicVerification = hasPublicVerification(detail);
     const title = getDisplayTitle(item);
 
-    const reportDisabledReason = !detail.capabilities?.reportsIncluded
-      ? "PDF reports are not included in this workspace plan."
-      : !report.available
-        ? "No generated report is recorded for this record."
-        : undefined;
-    const packageDisabledReason = !detail.capabilities?.verificationPackageIncluded
-      ? "Verification packages are not included in this workspace plan."
-      : !verificationPackage.available
-        ? "No verification package is recorded for this record."
-        : undefined;
+    /*
+     * =====================================================================
+     * RELIABILITY CLOSURE (2026-09-09) — DOWNLOADING AN ARTIFACT THAT EXISTS
+     * IS NOT A COMMERCIAL QUESTION, HERE EITHER.
+     * =====================================================================
+     * Evidence Detail had this precheck removed in the 2026-09-08 pass. This
+     * surface kept it, so the same customer was refused their own artifact by
+     * their own browser depending on which page they happened to open:
+     *
+     *   * a record generated while entitled, on an account that has since
+     *     downgraded, reads `reportsIncluded: false` — and the report EXISTS,
+     *     is Object-Locked, and `GET /v1/evidence/:id/report/latest` carries
+     *     no commercial gate at all. It would have been served.
+     *
+     * Availability is the precondition; the CURRENT PLAN is not an input.
+     * (A credit-funded record was already fine here — the server's capability
+     * snapshot is record-aware — but that is the narrower half of the same
+     * question, and reading the flag at all was the mistake.)
+     *
+     * GENERATION is the opposite case and is unaffected: this pane offers no
+     * generate control, and the one that does reads the server's action.
+     */
+    const reportDisabledReason = !report.available
+      ? "No generated report is recorded for this record."
+      : undefined;
+    const packageDisabledReason = !verificationPackage.available
+      ? "No verification package is recorded for this record."
+      : undefined;
     const linkDisabledReason = !detail.capabilities?.publicVerifyIncluded
       ? "Public verification is not included in this workspace plan."
       : !publicVerification

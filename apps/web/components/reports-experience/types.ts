@@ -4,6 +4,15 @@
  * Mirrors the envelope returned by `/v1/reports/artifacts`.
  */
 
+// RELIABILITY CLOSURE (2026-09-09) — the canonical output vocabulary, so this
+// page renders the server's action instead of deriving one from the lossy
+// five-value lifecycle below.
+import type {
+  EvidenceOutputState,
+  OutputAction,
+  OutputTerminalReasonClass,
+} from "@proovra/shared";
+
 /** `skipped` = the caller did not ask for it. NOT a failure. */
 export type SectionStatus = "ok" | "degraded" | "unavailable" | "skipped";
 
@@ -58,6 +67,37 @@ export type ArtifactRow = {
     generatedAtUtc: string | null;
     blockedReason: string | null;
   };
+  /**
+   * RELIABILITY CLOSURE (2026-09-09) — THE CANONICAL PROJECTION.
+   *
+   * The two blocks above are the legacy five-value vocabulary, kept because the
+   * status text reads well from it. What it cannot carry is an ACTION, and this
+   * page used to derive one from it — a mapping that is lossy in exactly the
+   * places that decide whether a button should exist. `BLOCKED` collapses into
+   * `not_requested`, so the page offered Generate for a record whose canonical
+   * action is NONE; every `TERMINAL_FAILURE` collapses into `failed`, so it
+   * offered Retry for terminals nothing will reopen.
+   *
+   * `action` is the SERVER's — the same `outputActionFor` answer Evidence
+   * Detail renders — so the two surfaces cannot disagree about one record.
+   *
+   * OPTIONAL on the wire: the user-scoped fallback envelope this page can also
+   * receive is a different endpoint, and a row without it renders no action
+   * rather than an invented one.
+   */
+  outputs?: {
+    report: ArtifactOutputProjection;
+    verificationPackage: ArtifactOutputProjection;
+  };
+};
+
+/** One output's canonical state, action and availability, as projected. */
+export type ArtifactOutputProjection = {
+  state: EvidenceOutputState;
+  action: OutputAction;
+  terminalReasonClass: OutputTerminalReasonClass | null;
+  /** An artifact exists and may be opened, whatever the current request says. */
+  downloadable: boolean;
 };
 
 /** The six operational counters the summary strip renders. */

@@ -39,6 +39,16 @@ const TAB = read("app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx");
 const TAB_CODE = code(TAB);
 const HISTORY = read("app/(app)/evidence/[id]/components/ArtifactHistorySection.tsx");
 const HISTORY_CODE = code(HISTORY);
+/*
+ * RELIABILITY CLOSURE (2026-09-09) — the state->copy table MOVED to _lib.tsx.
+ *
+ * Not deleted, and not weakened: the page HEADER renders the two most prominent
+ * download controls on the record and was deriving its own reason from the
+ * legacy booleans, so a NOT_INCLUDED record read "No report has been generated
+ * for this record yet" three lines above an Artifacts tab that said the right
+ * thing. One table, two consumers.
+ */
+const LIB = read("app/(app)/evidence/[id]/_tabs/_lib.tsx");
 const RAIL = read("app/(app)/evidence/[id]/_tabs/EvidenceRecordRail.tsx");
 const PAGE = read("app/(app)/evidence/[id]/page.tsx");
 const CSS = read("app/(app)/evidence/[id]/evidence-detail.css");
@@ -82,7 +92,7 @@ test("every artifact state produces its own reason", () => {
    * cover every `EvidenceOutputState`, so a new state cannot be added without a
    * sentence.
    */
-  const table = TAB.match(/OUTPUT_STATE_COPY[\s\S]*?\n\};/);
+  const table = LIB.match(/OUTPUT_STATE_COPY[\s\S]*?\n\};/);
   assert.ok(table, "the state->copy table must exist");
   for (const state of [
     "READY",
@@ -106,8 +116,22 @@ test("every artifact state produces its own reason", () => {
 
 test("the export-governance preflight still wraps both downloads", () => {
   assert.match(HISTORY, /<GovernedExportAction/);
-  assert.match(HISTORY, /actionLabel="Download Report PDF"/);
-  assert.match(HISTORY, /actionLabel="Download Verification Package ZIP"/);
+  /*
+   * The two labels are now references to the shared canonical constants rather
+   * than literals, so one operation cannot be spelled four ways across four
+   * surfaces again. The STRINGS are unchanged — "Download Report PDF" and
+   * "Download Verification Package ZIP" are the existing vocabulary contract
+   * (phase A2 / G5.2), adopted rather than replaced — and they are pinned at
+   * their definition below.
+   */
+  assert.match(HISTORY, /actionLabel={DOWNLOAD_REPORT_LABEL}/);
+  assert.match(HISTORY, /actionLabel={DOWNLOAD_PACKAGE_LABEL}/);
+  const LABELS = read("lib/evidence/generation-labels.ts");
+  assert.match(LABELS, /DOWNLOAD_REPORT_LABEL = "Download Report PDF"/);
+  assert.match(
+    LABELS,
+    /DOWNLOAD_PACKAGE_LABEL = "Download Verification Package ZIP"/,
+  );
   // A governance block composes WITH the availability gate, never replaces it.
   assert.match(HISTORY, /renderAction=\{\(\{ disabled, onClick \}\) => downloadButton\(disabled, onClick\)\}/);
 });
@@ -132,7 +156,21 @@ test("the two histories are never concatenated", () => {
 });
 
 test("each family gets its own accessible download name", () => {
-  assert.match(HISTORY, /aria-label=\{`Download latest \$\{title\}`\}/);
+  /*
+   * RELIABILITY CLOSURE (2026-09-09) — the name is now the VISIBLE label, and
+   * the aria-label that used to supply it is gone because it would only have
+   * duplicated it.
+   *
+   * Both buttons used to read "Download latest", with the accessible name
+   * carrying the only distinction. Two different artifacts sharing one visible
+   * label is ambiguous for everyone, not only for assistive technology — in a
+   * screenshot, in a bug report, and in a linear read of the page.
+   */
+  assert.match(HISTORY, /\{actionLabel\}/);
+  assert.doesNotMatch(HISTORY, /Download latest</);
+  // And each per-version control names its version, so a list of them is not a
+  // column of identical buttons.
+  assert.match(HISTORY, /Download v\{item\.version\}/);
 });
 
 // ---------------------------------------------------------------------------

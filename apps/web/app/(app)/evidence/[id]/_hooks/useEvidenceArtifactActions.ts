@@ -51,6 +51,12 @@ import { apiFetch } from "../../../../../lib/api";
 import { captureException } from "../../../../../lib/sentry";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { tryDownloadFile } from "../_tabs/_lib";
+// RELIABILITY CLOSURE (2026-09-09) — the ONE reader of the typed generation
+// outcome, shared with the Reports page and the AI Copilot.
+import {
+  readGenerationOutcome,
+  type GenerationResponse,
+} from "../../../../../lib/evidence/generation-outcome";
 
 type Toast = (message: string, tone: "success" | "error" | "info") => void;
 
@@ -180,6 +186,27 @@ const downloadVerificationPackage = async () => {
         userMessage = "Verification package was not found.";
         tone = "info";
         break;
+      /*
+       * RELIABILITY CLOSURE (2026-09-09) — the endpoint stopped deriving
+       * "pending" from an absence, so these three states can now reach a
+       * client. A generation that FAILED used to be reported here as being
+       * generated.
+       */
+      case "verification_package_not_generated":
+        userMessage =
+          "No verification package has been generated for this record yet.";
+        tone = "info";
+        break;
+      case "verification_package_generation_failed":
+        userMessage =
+          "The last attempt to build the verification package failed. The evidence record and its integrity state are unaffected.";
+        tone = "info";
+        break;
+      case "verification_package_generation_stopped":
+        userMessage =
+          "The verification package could not be produced for this record and generation has stopped.";
+        tone = "info";
+        break;
       case "GOVERNANCE_CHECK_FAILED":
       case "governance_schema_unavailable":
         userMessage = "Governance check is temporarily unavailable. Retry shortly.";
@@ -225,6 +252,9 @@ const downloadVerificationPackage = async () => {
       e?.code === "verification_package_unavailable" ||
       e?.code === "verification_package_not_included" ||
       e?.code === "verification_package_not_found" ||
+      e?.code === "verification_package_not_generated" ||
+      e?.code === "verification_package_generation_failed" ||
+      e?.code === "verification_package_generation_stopped" ||
       e?.code === "PACKAGE_BLOCKED_BY_POLICY" ||
       e?.code === "GOVERNANCE_CHECK_FAILED" ||
       e?.code === "governance_schema_unavailable" ||
@@ -264,28 +294,25 @@ const generateOutputs = async () => {
   if (!evidenceId || generateOutputsBusy) return;
   setGenerateOutputsBusy(true);
   try {
-    const res = (await apiFetch(
-      `/v1/evidence/${evidenceId}/reports/regenerate`,
-      { method: "POST" },
-    )) as { enqueued?: boolean; reason?: string | null };
-    if (res.enqueued) {
-      addToast(
-        "Generation requested. The report and verification package will appear here when they complete.",
-        "success",
-      );
-    } else if (res.reason === "not_included_in_plan") {
-      // The server re-checked entitlement and it does not hold. Say so
-      // plainly rather than reporting a generic failure.
-      addToast(
-        "This record is not entitled to a report on its current plan.",
-        "info",
-      );
-    } else {
-      addToast(
-        "Generation is already under way for this record.",
-        "info",
-      );
-    }
+    /*
+     * RELIABILITY CLOSURE (2026-09-09) — READ THE OUTCOME, NOT THE BOOLEAN.
+     *
+     * This chain had two branches for six server answers, so `enqueued: false`
+     * became "Generation is already under way for this record." for a Redis
+     * outage, a permanently blocked record, a persist failure and a missing
+     * principal alike. Five of those six were false, and two of them described
+     * work that was never going to happen.
+     *
+     * The server sends a typed outcome and a safe sentence; `readGenerationOutcome`
+     * is the one reader, shared with the Reports page and the AI Copilot so the
+     * three cannot drift back apart.
+     */
+    const read = readGenerationOutcome(
+      (await apiFetch(`/v1/evidence/${evidenceId}/reports/regenerate`, {
+        method: "POST",
+      })) as GenerationResponse,
+    );
+    addToast(read.message, read.tone);
     await reloadWorkspace();
   } catch (err) {
     addToast(

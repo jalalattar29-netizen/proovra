@@ -22,6 +22,13 @@
  */
 
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
+// RELIABILITY CLOSURE (2026-09-09) — the canonical action label and the one
+// reader of the typed generation outcome, shared with Evidence Detail.
+import { GENERATION_ACTION_LABEL_COMPACT } from "../../lib/evidence/generation-labels";
+import {
+  readGenerationOutcome,
+  type GenerationResponse,
+} from "../../lib/evidence/generation-outcome";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
@@ -55,7 +62,7 @@ import { AccessGate } from "../access/AccessGate";
 import { GovernedExportAction } from "../governance/GovernedExportAction";
 // COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — the shared state
 // vocabulary. This page maps it onto its own row states; it never invents one.
-import type { EvidenceOutputState } from "@proovra/shared";
+import type { EvidenceOutputState, OutputAction } from "@proovra/shared";
 import type {
   ArtifactRow,
   LifecycleFilter,
@@ -121,6 +128,7 @@ type UserReportRow = {
   /** The server's canonical output lifecycle. Rendered; never re-derived. */
   reportLifecycle: EvidenceOutputState;
   packageLifecycle: EvidenceOutputState;
+  outputs?: ArtifactRow["outputs"];
   report: {
     available: boolean;
     version: number | null;
@@ -233,6 +241,9 @@ async function tryUserScopedReports(): Promise<ReportsArtifactsEnvelope | null> 
         generatedAtUtc: row.package.generatedAtUtc,
         blockedReason: null,
       },
+      // The canonical projection travels through the fallback too, so the two
+      // envelopes this page can receive offer the same action for one record.
+      outputs: row.outputs,
     }));
     return {
       generatedAt: new Date().toISOString(),
@@ -1000,23 +1011,14 @@ function ArtifactRowActions({
       const resp = (await apiFetch(
         `/v1/evidence/${row.evidenceId}/reports/regenerate`,
         { method: "POST" },
-      )) as { enqueued?: boolean; message?: string; reason?: string | null };
-      if (resp.enqueued) {
-        setRegenNotice(
-          "Generation requested. Refresh shortly for updated state.",
-        );
-      } else if (resp.reason === "not_included_in_plan") {
-        // COMMERCIAL CLOSURE (2026-09-08) — the honest commercial answer. This
-        // used to render the raw reason string after "Regeneration not
-        // enqueued:", which put an internal code in front of a customer.
-        setRegenNotice(
-          "This record is not entitled to a report on its current plan.",
-        );
-      } else {
-        setRegenNotice(
-          resp.message ?? "Generation is already under way for this record.",
-        );
-      }
+      )) as GenerationResponse;
+      /*
+       * RELIABILITY CLOSURE (2026-09-09) — the same typed reader Evidence
+       * Detail uses. This had two branches for six server answers, so a Redis
+       * outage and a permanently blocked record both rendered "Generation is
+       * already under way for this record."
+       */
+      setRegenNotice(readGenerationOutcome(resp).message);
     } catch (err) {
       const e = err as { statusCode?: number; message?: string };
       if (e.statusCode === 403) {
@@ -1040,35 +1042,32 @@ function ArtifactRowActions({
   const packageReady = row.package.state === "ready";
 
   /**
-   * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — THE ACTION, FROM THE
-   * SERVER'S LIFECYCLE.
+   * RELIABILITY CLOSURE (2026-09-09) — THE ACTION IS THE SERVER'S.
    *
-   * This was `report.state === "failed" || package.state === "failed"`, and the
-   * server derivation could not return `"failed"` — its own source said so:
-   * "No persisted failure state exists for a report; the derivation can never
-   * return it inside this population." So the `Retry generation` control had
-   * never rendered for any customer since it shipped.
+   * This derived the verb from the legacy five-value lifecycle, and that
+   * mapping is lossy in exactly the two places that decide whether a button
+   * should exist:
    *
-   * Both halves are fixed: the aggregator now derives its lifecycle from the
-   * durable `ReportGenerationRequest`, so `failed` is real, and this reads the
-   * lifecycle rather than inferring from absence.
+   *   * BLOCKED collapses into `not_requested`, so the page offered
+   *     "Generate report & package" for a record whose canonical action is
+   *     NONE. The click posted, was refused as already-terminal, and reported
+   *     success.
+   *   * every TERMINAL_FAILURE collapses into `failed`, so the page offered
+   *     "Retry generation" for integrity and technical terminals that nothing
+   *     will reopen — and labelled a now-eligible COMMERCIAL terminal "Retry"
+   *     when the canonical verb is GENERATE.
    *
-   *   failed         → Retry, for a pipeline failure that can be re-driven.
-   *   not_requested  → Generate. Inside this population (SIGNED/REPORTED, and
-   *                    entitled — `unavailable` is its own state) it means
-   *                    "eligible, nothing produced yet", which is exactly the
-   *                    record an upgraded customer is looking for.
-   *   unavailable    → nothing. The plan does not include it; a button here
-   *                    would be an advertisement with a refusal behind it.
-   *   pending/ready  → nothing. Work is in flight, or done.
+   * Evidence Detail already read `outputs.*.action`. The aggregator now
+   * projects it too, so both surfaces render the SAME answer for the same
+   * record at the same moment, and this file computes nothing.
+   *
+   * The two lifecycles above are still read — for the STATUS text, which is
+   * what they are good at.
    */
-  const generationVerb: "GENERATE" | "RETRY" | null =
-    row.report.state === "failed" || row.package.state === "failed"
-      ? "RETRY"
-      : row.report.state === "not_requested" ||
-          row.package.state === "not_requested"
-        ? "GENERATE"
-        : null;
+  const canonicalAction: OutputAction =
+    row.outputs?.report.action && row.outputs.report.action !== "NONE"
+      ? row.outputs.report.action
+      : (row.outputs?.verificationPackage.action ?? "NONE");
 
   return (
     <div
@@ -1182,22 +1181,27 @@ function ArtifactRowActions({
       )}
       {/* The audited POST /v1/evidence/:id/reports/regenerate endpoint. One
           request produces BOTH artifacts, so one control covers both. */}
-      {generationVerb ? (
+      {canonicalAction !== "NONE" ? (
         <Button
           variant="secondary"
           size="sm"
           data-reports-regenerate={row.evidenceId}
-          data-reports-generate-verb={generationVerb}
+          data-reports-generate-verb={canonicalAction}
           data-reports-regenerate-trigger-report-state={row.report.state}
           data-reports-regenerate-trigger-package-state={row.package.state}
           onClick={triggerRegenerate}
           disabled={busy !== null}
         >
+          {/*
+            The COMPACT label, and the only surface entitled to one. This row
+            already carries two downloads and a link, and three full-width
+            actions at 320px is where its horizontal overflow came from. The
+            words are a strict prefix of the canonical label — never a different
+            name for the same operation.
+          */}
           {busy === "regen"
             ? "Requesting…"
-            : generationVerb === "RETRY"
-              ? "Retry generation"
-              : "Generate report & package"}
+            : GENERATION_ACTION_LABEL_COMPACT[canonicalAction]}
         </Button>
       ) : null}
       <Link

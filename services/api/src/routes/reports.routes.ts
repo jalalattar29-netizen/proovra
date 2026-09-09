@@ -43,6 +43,10 @@ import { prisma } from "../db.js";
 // aggregator cannot describe the same record differently.
 import {
   deriveEvidenceOutputState,
+  outputActionFor,
+  classifyTerminalReason,
+  type OutputAction,
+  type OutputTerminalReasonClass,
   projectReportRequestState,
   type EvidenceOutputState,
   type PersistedReportRequestState,
@@ -105,6 +109,16 @@ export type UserReportRow = {
    */
   reportLifecycle: EvidenceOutputState;
   packageLifecycle: EvidenceOutputState;
+  /**
+   * RELIABILITY CLOSURE (2026-09-09) — the canonical ACTION, projected here so
+   * this fallback and the workspace aggregator hand the browser the same
+   * answer. Without it the page re-derived a verb from a lossy five-value
+   * mapping and offered controls the server would refuse.
+   */
+  outputs: {
+    report: UserReportOutputProjection;
+    verificationPackage: UserReportOutputProjection;
+  };
   report: {
     available: boolean;
     version: number | null;
@@ -115,6 +129,13 @@ export type UserReportRow = {
     version: number | null;
     generatedAtUtc: string | null;
   };
+};
+
+type UserReportOutputProjection = {
+  state: EvidenceOutputState;
+  action: OutputAction;
+  terminalReasonClass: OutputTerminalReasonClass | null;
+  downloadable: boolean;
 };
 
 export type UserReportsEnvelope = {
@@ -327,7 +348,13 @@ export default async function registerReportsRoutes(
             where: { evidenceId: { in: evidenceIds } },
             orderBy: [{ evidenceId: "asc" }, { createdAtUtc: "desc" }],
             distinct: ["evidenceId"],
-            select: { evidenceId: true, state: true },
+            // The terminal CLASS decides whether an action exists, so the
+            // bounded code has to travel with the state. Never projected raw.
+            select: {
+              evidenceId: true,
+              state: true,
+              terminalReasonCode: true,
+            },
           })
           .catch(() => []),
         resolveEvidenceOutputEligibilityMany({
@@ -372,9 +399,48 @@ export default async function registerReportsRoutes(
           availability: pkg !== null ? "READY" : "NO_ARTIFACT",
           finalized,
         });
+        /*
+         * RELIABILITY CLOSURE (2026-09-09) — THE ACTION TRAVELS WITH THE STATE.
+         *
+         * This route already derives the canonical lifecycle; it stopped one
+         * step short of the thing a surface actually needs, so the browser
+         * re-derived a verb from a lossy five-value mapping and offered
+         * Generate on BLOCKED records and Retry on terminals nothing reopens.
+         *
+         * Projecting it here costs one call to the same pure authority the
+         * workspace aggregator and Evidence Detail use, and it is what makes
+         * "the same record shows the same action on every surface" true rather
+         * than intended.
+         */
+        const terminalReasonClass =
+          generation === "TERMINAL_FAILURE"
+            ? classifyTerminalReason(request?.terminalReasonCode ?? null)
+            : null;
         return {
           reportLifecycle,
           packageLifecycle,
+          outputs: {
+            report: {
+              state: reportLifecycle,
+              action: outputActionFor({
+                state: reportLifecycle,
+                eligibility: eligibility?.reportEligibility ?? "ELIGIBLE",
+                terminalReasonClass,
+              }),
+              terminalReasonClass,
+              downloadable: report !== null,
+            },
+            verificationPackage: {
+              state: packageLifecycle,
+              action: outputActionFor({
+                state: packageLifecycle,
+                eligibility: eligibility?.packageEligibility ?? "ELIGIBLE",
+                terminalReasonClass,
+              }),
+              terminalReasonClass,
+              downloadable: pkg !== null,
+            },
+          },
           evidenceId: r.id,
           title: r.title,
           displayFileName: r.displayFileName ?? null,
