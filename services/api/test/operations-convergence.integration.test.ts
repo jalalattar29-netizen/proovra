@@ -397,9 +397,29 @@ describe("Operations convergence (live PostgreSQL 16)", () => {
       "ts -query",
       "TSA_URL",
     ]) {
+      /*
+       * RELIABILITY CLOSURE (2026-09-09) — THE VERB MUST BE A PRISMA CALL.
+       *
+       * This was `(update|create|upsert)` as a bare substring, and it produced
+       * a FALSE POSITIVE the moment this service gained an OTS scan: the word
+       * "create" is inside "createdAt", so an ordinary
+       * `{ createdAt: { lte: ... } }` in a WHERE clause sitting within 200
+       * characters of `otsStatus: true` in the following SELECT read as a
+       * write of an integrity column.
+       *
+       * The invariant is unchanged and still worth having — this service reads
+       * integrity status and writes incidents, and must never write an evidence
+       * column or reach a timestamp provider. What changed is that the pattern
+       * now names an actual Prisma mutation: a dot, the verb, an optional
+       * `Many`, and an open parenthesis. `createdAt` cannot match that, and
+       * `client.evidence.update(` still can.
+       *
+       * A guard that fires on a field name is a guard someone eventually
+       * silences, which is worse than not having one.
+       */
       // Allow READS of the status (in `where`/`select`), forbid WRITES/contacts.
       const writes = new RegExp(
-        `(update|create|upsert)[\\s\\S]{0,200}${forbidden.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}`,
+        `\\.(update|create|upsert)(Many)?\\([\\s\\S]{0,200}${forbidden.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}`,
       );
       expect(
         writes.test(SRC),

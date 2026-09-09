@@ -525,18 +525,41 @@ describe("OTS integrity lifecycle (live PostgreSQL 16)", () => {
     expect(ots.stampCalls.length).toBe(0);
   });
 
-  it("an outage leaves the record never-attempted rather than inventing a failure", async () => {
+  it("an outage leaves the record never-attempted AND consumes a retry attempt", async () => {
     await setPlan("FREE");
     ots.throwOnStamp = true;
     const id = await finalizedRecord();
 
-    await runJob(id);
+    /*
+     * RELIABILITY CLOSURE (2026-09-09) — THIS CASE NOW ASSERTS THE THROW.
+     *
+     * It used to call `runJob`, which swallows the processor's declared retry
+     * signal, and then check the columns. Both halves of that were fine except
+     * for what they left unsaid: the initializer used to CATCH the stamping
+     * error and return `initialized: false`, so the job completed
+     * SUCCESSFULLY on the first transient failure and the twenty-attempt
+     * TIMESTAMP_AUTHORITY budget was never touched. A single blip stranded the
+     * record at NULL for the rest of its life.
+     *
+     * The columns being null was therefore true for two opposite reasons — the
+     * right one (do not invent a per-record failure from a deployment-wide
+     * outage) and the wrong one (nothing is going to try again). This case
+     * could not tell them apart, which is exactly why the defect survived it.
+     *
+     * Asserting the throw is what pins the difference. The throw is the only
+     * thing that makes BullMQ consume an attempt and schedule the backoff.
+     */
+    await expect(processor.processOtsUpgrade(otsJob(id))).rejects.toThrow(
+      /OTS_INITIALIZATION_TRANSIENT/,
+    );
 
     const after = await readOts(id);
     // Writing FAILED here would mint a per-record integrity condition for
-    // every record captured during an outage. NULL is what actually happened.
+    // every record captured during an outage. NULL is what actually happened,
+    // and it stays NULL: the retry is a QUEUE fact, never an evidence column.
     expect(after.otsStatus).toBeNull();
     expect(after.otsFailureReason).toBeNull();
+    expect(after.otsProofBase64).toBeNull();
   });
 
   // =========================================================================

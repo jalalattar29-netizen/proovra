@@ -387,6 +387,31 @@ export async function createReportGenerationRequest(
       // The loser of a supersession race did not create the row, but the row it
       // reuses IS the supersession the caller asked for.
       superseded,
+      /*
+       * RELIABILITY CLOSURE (2026-09-09) — THIS WAS READ AND THEN DROPPED.
+       *
+       * `terminalReasonCode` was in the SELECT above and absent from the object
+       * returned, so every caller that collapsed onto a standing terminal row
+       * got `undefined` for it. That is not a cosmetic omission: the API
+       * service decides between two customer-facing answers with
+       *
+       *     isRecoverableBlockedTerminalReason(persisted.terminalReasonCode ?? null)
+       *
+       * and `null` classifies as NOT recoverable. So a record blocked by an
+       * ACTIVE legal hold — a condition that lifts the moment someone releases
+       * it — was reported as `TERMINAL`: "the previous generation attempt
+       * stopped and cannot be retried in its current state." The truthful
+       * answer, `RECOVERABLE_BLOCKED`, says it becomes possible again when the
+       * block is lifted.
+       *
+       * The person most affected is the one who can fix it. Telling them the
+       * work is dead is how a recoverable block becomes a support ticket.
+       *
+       * Only the DEDUPLICATED path was wrong. A freshly created row is QUEUED
+       * and genuinely has no terminal reason, which is why the branch above
+       * returns null and is correct to.
+       */
+      terminalReasonCode: existing.terminalReasonCode,
     };
   }
 }
