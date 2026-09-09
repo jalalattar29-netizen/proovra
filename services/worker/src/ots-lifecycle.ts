@@ -80,9 +80,26 @@ import { createOpenTimestamp, type OtsStampResult } from "./ots.service.js";
  * `createOpenTimestamp` has two failure vocabularies and they mean opposite
  * things. It RETURNS a structured `status: "FAILED"` for the failures it can
  * describe — those are domain facts about this record, and they are persisted.
- * It THROWS for everything else: the binary is missing, the host has no
- * network, the calendar timed out. Those are facts about the DEPLOYMENT, and
- * they are true of every record captured during the outage.
+ * It THROWS for the ones it cannot: those are facts about the DEPLOYMENT, and
+ * they are true of every record captured while the condition lasts.
+ *
+ * CORRECTED 2026-09-09 (RUNTIME ACCEPTANCE). This said it throws when "the
+ * binary is missing, the host has no network, the calendar timed out". Traced
+ * against the real provider, all three of those RETURN `FAILED` — they happen
+ * inside its try block, whose catch is total and converts every error into a
+ * structured status, with a named branch for the missing binary.
+ *
+ * What actually throws is the work done BEFORE that try:
+ * `mkWorkDir()` — `fs.mkdtemp` under the OS temp directory — and the
+ * non-empty-content guard. A read-only or full filesystem, a missing TMPDIR,
+ * a container whose temp mount vanished: no proof can be produced for ANY
+ * record until someone fixes the host, which is precisely the shape that must
+ * consume a retry rather than be written to one record's OTS column.
+ *
+ * The distinction the original note was reaching for is real and is what the
+ * code does. The examples were simply the wrong side of the try, and a comment
+ * that names the wrong cause is how the next person concludes the guard is
+ * unreachable and deletes it.
  *
  * The old code caught the throw, returned `initialized: false`, and the
  * processor returned normally — so the BullMQ job COMPLETED SUCCESSFULLY on the
