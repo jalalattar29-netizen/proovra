@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "350df28cd1b3592fbce302d87d8037fa4ec1ea078f008fcbdfae86936dbafd59",
   "routeInventoryHash": "94bae9e9a75446a261eef36bd59b5071bb33b3bb494b086def9f95f2609a77b7",
-  "consumerInventoryHash": "3e75f1b0786fbeb2a5e2e5d6248b6716294112c662c402515919e2f6d8c69ce9",
+  "consumerInventoryHash": "5f82ad363af50f0cd58133417b0e195e9a36eab5ecec5844eec12c503cf736b8",
   "dispositionsHash": "9e6e9532752cfd33dfd556e66587a473271144aa2d1c41662c0c4c91e70ec02c",
   "totals": {
     "RegisteredRoutes": 1142,
@@ -7408,7 +7408,7 @@
       "route": "/v1/admin/demo-requests/follow-up/run",
       "registeringFile": "services/api/src/routes/admin-demo-requests.routes.ts",
       "productConsumer": "apps/web/app/(app)/admin/demo-requests/page.tsx:595",
-      "machineConsumer": "services/worker/src/index.ts:438",
+      "machineConsumer": "services/worker/src/index.ts:458",
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "UNPROVEN"
@@ -14006,49 +14006,49 @@
     },
     "registeredQueues": {
       "reportQueueName": [
-        "services/worker/src/index.ts:2020"
+        "services/worker/src/index.ts:2040"
       ],
       "otsUpgradeQueueName": [
-        "services/worker/src/index.ts:2035"
+        "services/worker/src/index.ts:2055"
       ],
       "evidencePurgeQueueName": [
-        "services/worker/src/index.ts:2050"
+        "services/worker/src/index.ts:2070"
       ],
       "searchIndexingQueueName": [
-        "services/worker/src/index.ts:2066"
-      ],
-      "mediaIntelligenceQueueName": [
         "services/worker/src/index.ts:2086"
       ],
-      "derivedAssetsQueueName": [
+      "mediaIntelligenceQueueName": [
         "services/worker/src/index.ts:2106"
       ],
-      "redactionDerivativeQueueName": [
+      "derivedAssetsQueueName": [
         "services/worker/src/index.ts:2126"
       ],
+      "redactionDerivativeQueueName": [
+        "services/worker/src/index.ts:2146"
+      ],
       "exifQueueName": [
-        "services/worker/src/index.ts:2149"
+        "services/worker/src/index.ts:2169"
       ],
       "miSearchIndexQueueName": [
-        "services/worker/src/index.ts:2185"
+        "services/worker/src/index.ts:2205"
       ],
       "graphReconcileQueueName": [
-        "services/worker/src/index.ts:2200"
+        "services/worker/src/index.ts:2220"
       ],
       "miEmbedQueueName": [
-        "services/worker/src/index.ts:2219"
+        "services/worker/src/index.ts:2239"
       ],
       "graphDomainSyncQueueName": [
-        "services/worker/src/index.ts:2238"
+        "services/worker/src/index.ts:2258"
       ],
       "graphTimelineSyncQueueName": [
-        "services/worker/src/index.ts:2253"
+        "services/worker/src/index.ts:2273"
       ],
       "graphSearchProjectionQueueName": [
-        "services/worker/src/index.ts:2270"
+        "services/worker/src/index.ts:2290"
       ],
       "orgHealthRefreshQueueName": [
-        "services/worker/src/index.ts:2291"
+        "services/worker/src/index.ts:2311"
       ]
     },
     "registryEntries": 34,
@@ -14085,8 +14085,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1276#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1294#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -14126,8 +14126,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1276#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1294#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -14167,8 +14167,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1276#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1294#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -14208,8 +14208,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1276#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1294#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -14249,8 +14249,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1276#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1294#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -14290,8 +14290,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1276#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1294#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -14331,8 +14331,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1276#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1294#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -14372,8 +14372,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1276#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1294#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -14413,8 +14413,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1276#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1294#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -14454,8 +14454,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1276#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1294#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -15524,8 +15524,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/reconciliation-run.ts#governanceReconciliationRun.create@202",
-      "terminalLocation": "packages/shared-runtime/src/reconciliation-run.ts:202",
+      "writerId": "packages/shared-runtime/src/reconciliation-run.ts#governanceReconciliationRun.create@227",
+      "terminalLocation": "packages/shared-runtime/src/reconciliation-run.ts:227",
       "file": "packages/shared-runtime/src/reconciliation-run.ts",
       "enclosingDeclaration": "runGovernanceReconciliation",
       "kind": "DATABASE",
@@ -15550,15 +15550,15 @@
         "MODULE services/api/src/routes/search.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1045#runSearchIndexReconciler",
-        "BOOT services/worker/src/index.ts:1202#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1276#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1326#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1118#startSearchIndexReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1123#startSearchIndexReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1220#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1294#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1350#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1065#runSearchIndexReconciler",
+        "BOOT services/worker/src/index.ts:1222#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1346#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1138#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1143#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1240#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1370#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
@@ -15576,8 +15576,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/reconciliation-run.ts#governanceReconciliationRun.update@289",
-      "terminalLocation": "packages/shared-runtime/src/reconciliation-run.ts:289",
+      "writerId": "packages/shared-runtime/src/reconciliation-run.ts#governanceReconciliationRun.update@314",
+      "terminalLocation": "packages/shared-runtime/src/reconciliation-run.ts:314",
       "file": "packages/shared-runtime/src/reconciliation-run.ts",
       "enclosingDeclaration": "runGovernanceReconciliation",
       "kind": "DATABASE",
@@ -15602,15 +15602,15 @@
         "MODULE services/api/src/routes/search.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1045#runSearchIndexReconciler",
-        "BOOT services/worker/src/index.ts:1202#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1276#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1326#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1118#startSearchIndexReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1123#startSearchIndexReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1220#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1294#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1350#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1065#runSearchIndexReconciler",
+        "BOOT services/worker/src/index.ts:1222#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1346#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1138#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1143#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1240#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1370#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
@@ -15628,8 +15628,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/reconciliation-run.ts#governanceReconciliationRun.updateMany@173",
-      "terminalLocation": "packages/shared-runtime/src/reconciliation-run.ts:173",
+      "writerId": "packages/shared-runtime/src/reconciliation-run.ts#governanceReconciliationRun.updateMany@198",
+      "terminalLocation": "packages/shared-runtime/src/reconciliation-run.ts:198",
       "file": "packages/shared-runtime/src/reconciliation-run.ts",
       "enclosingDeclaration": "runGovernanceReconciliation",
       "kind": "DATABASE",
@@ -15654,15 +15654,15 @@
         "MODULE services/api/src/routes/search.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1045#runSearchIndexReconciler",
-        "BOOT services/worker/src/index.ts:1202#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1276#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1326#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1118#startSearchIndexReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1123#startSearchIndexReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1220#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1294#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1350#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1065#runSearchIndexReconciler",
+        "BOOT services/worker/src/index.ts:1222#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1346#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1138#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1143#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1240#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1370#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
@@ -15708,8 +15708,8 @@
         "MODULE services/api/src/routes/ops.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:717#runLifecycleRecovery",
-        "SCHEDULE services/worker/src/index.ts:731#startLifecycleRecoveryScheduler"
+        "BOOT services/worker/src/index.ts:737#runLifecycleRecovery",
+        "SCHEDULE services/worker/src/index.ts:751#startLifecycleRecoveryScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
@@ -27586,8 +27586,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/automation/automation-dispatch-runtime.service.ts#automationRun.updateMany@298",
-      "terminalLocation": "services/api/src/services/automation/automation-dispatch-runtime.service.ts:298",
+      "writerId": "services/api/src/services/automation/automation-dispatch-runtime.service.ts#automationRun.updateMany@322",
+      "terminalLocation": "services/api/src/services/automation/automation-dispatch-runtime.service.ts:322",
       "file": "services/api/src/services/automation/automation-dispatch-runtime.service.ts",
       "enclosingDeclaration": "claimAndExecute",
       "kind": "DATABASE",
@@ -27619,8 +27619,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/automation/automation-dispatch-runtime.service.ts#automationRun.updateMany@537",
-      "terminalLocation": "services/api/src/services/automation/automation-dispatch-runtime.service.ts:537",
+      "writerId": "services/api/src/services/automation/automation-dispatch-runtime.service.ts#automationRun.updateMany@561",
+      "terminalLocation": "services/api/src/services/automation/automation-dispatch-runtime.service.ts:561",
       "file": "services/api/src/services/automation/automation-dispatch-runtime.service.ts",
       "enclosingDeclaration": "reconcileStrandedRuns",
       "kind": "DATABASE",
@@ -27652,8 +27652,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/automation/automation-dispatch-runtime.service.ts#automationRun.updateMany@613",
-      "terminalLocation": "services/api/src/services/automation/automation-dispatch-runtime.service.ts:613",
+      "writerId": "services/api/src/services/automation/automation-dispatch-runtime.service.ts#automationRun.updateMany@637",
+      "terminalLocation": "services/api/src/services/automation/automation-dispatch-runtime.service.ts:637",
       "file": "services/api/src/services/automation/automation-dispatch-runtime.service.ts",
       "enclosingDeclaration": "reconcileStrandedRuns",
       "kind": "DATABASE",
@@ -27685,8 +27685,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/automation/automation-dispatch-runtime.service.ts#automationRun.updateMany@671",
-      "terminalLocation": "services/api/src/services/automation/automation-dispatch-runtime.service.ts:671",
+      "writerId": "services/api/src/services/automation/automation-dispatch-runtime.service.ts#automationRun.updateMany@695",
+      "terminalLocation": "services/api/src/services/automation/automation-dispatch-runtime.service.ts:695",
       "file": "services/api/src/services/automation/automation-dispatch-runtime.service.ts",
       "enclosingDeclaration": "fencedUpdate",
       "kind": "DATABASE",
@@ -69162,8 +69162,43 @@
       }
     },
     {
-      "writerId": "services/api/src/services/organization/org-invite-delivery.service.ts#notificationDelivery.create@352",
-      "terminalLocation": "services/api/src/services/organization/org-invite-delivery.service.ts:352",
+      "writerId": "services/api/src/services/organization/org-invite-delivery.service.ts#notificationDelivery.create@1011",
+      "terminalLocation": "services/api/src/services/organization/org-invite-delivery.service.ts:1011",
+      "file": "services/api/src/services/organization/org-invite-delivery.service.ts",
+      "enclosingDeclaration": "resendOrgInviteDelivery",
+      "kind": "DATABASE",
+      "target": "notificationDelivery",
+      "mutationKind": "create",
+      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/orgs/:id/invites/:inviteId/resend",
+        "POST /v1/orgs/:id/invites/bulk/resend"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/organizations-bulk-invite.routes.ts",
+        "MODULE services/api/src/routes/organizations.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "conditional_state_claim+provider_idempotency_key",
+        "retrySemantics": "EMAIL_DELIVERY",
+        "payloadVersionAuthority": "schemaVersion=CANONICAL_PAYLOAD_SCHEMA_VERSION",
+        "canonicalOrLegacy": "CANONICAL"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/organization/org-invite-delivery.service.ts#notificationDelivery.create@376",
+      "terminalLocation": "services/api/src/services/organization/org-invite-delivery.service.ts:376",
       "file": "services/api/src/services/organization/org-invite-delivery.service.ts",
       "enclosingDeclaration": "recordOrgInviteDeliveryPending",
       "kind": "DATABASE",
@@ -69200,8 +69235,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/organization/org-invite-delivery.service.ts#notificationDelivery.create@787",
-      "terminalLocation": "services/api/src/services/organization/org-invite-delivery.service.ts:787",
+      "writerId": "services/api/src/services/organization/org-invite-delivery.service.ts#notificationDelivery.create@811",
+      "terminalLocation": "services/api/src/services/organization/org-invite-delivery.service.ts:811",
       "file": "services/api/src/services/organization/org-invite-delivery.service.ts",
       "enclosingDeclaration": "rotateAndSend",
       "kind": "DATABASE",
@@ -69236,43 +69271,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/organization/org-invite-delivery.service.ts#notificationDelivery.create@987",
-      "terminalLocation": "services/api/src/services/organization/org-invite-delivery.service.ts:987",
-      "file": "services/api/src/services/organization/org-invite-delivery.service.ts",
-      "enclosingDeclaration": "resendOrgInviteDelivery",
-      "kind": "DATABASE",
-      "target": "notificationDelivery",
-      "mutationKind": "create",
-      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "POST /v1/orgs/:id/invites/:inviteId/resend",
-        "POST /v1/orgs/:id/invites/bulk/resend"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/organizations-bulk-invite.routes.ts",
-        "MODULE services/api/src/routes/organizations.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "conditional_state_claim+provider_idempotency_key",
-        "retrySemantics": "EMAIL_DELIVERY",
-        "payloadVersionAuthority": "schemaVersion=CANONICAL_PAYLOAD_SCHEMA_VERSION",
-        "canonicalOrLegacy": "CANONICAL"
-      }
-    },
-    {
-      "writerId": "services/api/src/services/organization/org-invite-delivery.service.ts#notificationDelivery.update@1021",
-      "terminalLocation": "services/api/src/services/organization/org-invite-delivery.service.ts:1021",
+      "writerId": "services/api/src/services/organization/org-invite-delivery.service.ts#notificationDelivery.update@1045",
+      "terminalLocation": "services/api/src/services/organization/org-invite-delivery.service.ts:1045",
       "file": "services/api/src/services/organization/org-invite-delivery.service.ts",
       "enclosingDeclaration": "resendOrgInviteDelivery",
       "kind": "DATABASE",
@@ -69306,8 +69306,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/organization/org-invite-delivery.service.ts#notificationDelivery.update@563",
-      "terminalLocation": "services/api/src/services/organization/org-invite-delivery.service.ts:563",
+      "writerId": "services/api/src/services/organization/org-invite-delivery.service.ts#notificationDelivery.update@587",
+      "terminalLocation": "services/api/src/services/organization/org-invite-delivery.service.ts:587",
       "file": "services/api/src/services/organization/org-invite-delivery.service.ts",
       "enclosingDeclaration": "markOutcome",
       "kind": "DATABASE",
@@ -69347,8 +69347,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/organization/org-invite-delivery.service.ts#notificationDelivery.update@579",
-      "terminalLocation": "services/api/src/services/organization/org-invite-delivery.service.ts:579",
+      "writerId": "services/api/src/services/organization/org-invite-delivery.service.ts#notificationDelivery.update@603",
+      "terminalLocation": "services/api/src/services/organization/org-invite-delivery.service.ts:603",
       "file": "services/api/src/services/organization/org-invite-delivery.service.ts",
       "enclosingDeclaration": "markOutcome",
       "kind": "DATABASE",
@@ -69388,8 +69388,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/organization/org-invite-delivery.service.ts#notificationDelivery.update@672",
-      "terminalLocation": "services/api/src/services/organization/org-invite-delivery.service.ts:672",
+      "writerId": "services/api/src/services/organization/org-invite-delivery.service.ts#notificationDelivery.update@696",
+      "terminalLocation": "services/api/src/services/organization/org-invite-delivery.service.ts:696",
       "file": "services/api/src/services/organization/org-invite-delivery.service.ts",
       "enclosingDeclaration": "cancel",
       "kind": "DATABASE",
@@ -69424,8 +69424,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/organization/org-invite-delivery.service.ts#notificationDelivery.update@821",
-      "terminalLocation": "services/api/src/services/organization/org-invite-delivery.service.ts:821",
+      "writerId": "services/api/src/services/organization/org-invite-delivery.service.ts#notificationDelivery.update@845",
+      "terminalLocation": "services/api/src/services/organization/org-invite-delivery.service.ts:845",
       "file": "services/api/src/services/organization/org-invite-delivery.service.ts",
       "enclosingDeclaration": "rotateAndSend",
       "kind": "DATABASE",
@@ -69460,8 +69460,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/organization/org-invite-delivery.service.ts#notificationDelivery.updateMany@745",
-      "terminalLocation": "services/api/src/services/organization/org-invite-delivery.service.ts:745",
+      "writerId": "services/api/src/services/organization/org-invite-delivery.service.ts#notificationDelivery.updateMany@769",
+      "terminalLocation": "services/api/src/services/organization/org-invite-delivery.service.ts:769",
       "file": "services/api/src/services/organization/org-invite-delivery.service.ts",
       "enclosingDeclaration": "rotateAndSend",
       "kind": "DATABASE",
@@ -69496,8 +69496,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/organization/org-invite-delivery.service.ts#notificationDelivery.updateMany@924",
-      "terminalLocation": "services/api/src/services/organization/org-invite-delivery.service.ts:924",
+      "writerId": "services/api/src/services/organization/org-invite-delivery.service.ts#notificationDelivery.updateMany@948",
+      "terminalLocation": "services/api/src/services/organization/org-invite-delivery.service.ts:948",
       "file": "services/api/src/services/organization/org-invite-delivery.service.ts",
       "enclosingDeclaration": "processDueOrgInviteDeliveries",
       "kind": "DATABASE",
@@ -69529,8 +69529,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/organization/org-invite-delivery.service.ts#organizationInvite.update@779",
-      "terminalLocation": "services/api/src/services/organization/org-invite-delivery.service.ts:779",
+      "writerId": "services/api/src/services/organization/org-invite-delivery.service.ts#organizationInvite.update@803",
+      "terminalLocation": "services/api/src/services/organization/org-invite-delivery.service.ts:803",
       "file": "services/api/src/services/organization/org-invite-delivery.service.ts",
       "enclosingDeclaration": "rotateAndSend",
       "kind": "DATABASE",
@@ -73835,8 +73835,41 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.update@1007",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1007",
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.update@1001",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1001",
+      "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
+      "enclosingDeclaration": "startReview",
+      "kind": "DATABASE",
+      "target": "evidenceReviewWorkflow",
+      "mutationKind": "update",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/reviewer-ops/reviews/:workflowId/start"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/reviewer-ops.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.update@1031",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1031",
       "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       "enclosingDeclaration": "pauseReview",
       "kind": "DATABASE",
@@ -73869,8 +73902,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.update@909",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:909",
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.update@933",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:933",
       "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       "enclosingDeclaration": "assignReviewerToWorkflowInner",
       "kind": "DATABASE",
@@ -73882,39 +73915,6 @@
         "POST /v1/reviewer-ops/reviews/:workflowId/assign",
         "POST /v1/reviewer-ops/reviews/:workflowId/reassign",
         "POST /v1/reviewer-ops/reviews/bulk"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/reviewer-ops.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NAMED_AUTHORITY",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.update@977",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:977",
-      "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
-      "enclosingDeclaration": "startReview",
-      "kind": "DATABASE",
-      "target": "evidenceReviewWorkflow",
-      "mutationKind": "update",
-      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "POST /v1/reviewer-ops/reviews/:workflowId/start"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -80691,8 +80691,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/capture-reaper.ts#captureSession.updateMany@105",
-      "terminalLocation": "services/worker/src/capture-reaper.ts:105",
+      "writerId": "services/worker/src/capture-reaper.ts#captureSession.updateMany@129",
+      "terminalLocation": "services/worker/src/capture-reaper.ts:129",
       "file": "services/worker/src/capture-reaper.ts",
       "enclosingDeclaration": "reapExpiredCaptureDrafts",
       "kind": "DATABASE",
@@ -80704,8 +80704,8 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:591#reapExpiredCaptureDrafts",
-        "SCHEDULE services/worker/src/index.ts:605#startCaptureDraftReaperScheduler"
+        "BOOT services/worker/src/index.ts:611#reapExpiredCaptureDrafts",
+        "SCHEDULE services/worker/src/index.ts:625#startCaptureDraftReaperScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -80723,8 +80723,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/capture-reaper.ts#captureSessionEvent.create@118",
-      "terminalLocation": "services/worker/src/capture-reaper.ts:118",
+      "writerId": "services/worker/src/capture-reaper.ts#captureSessionEvent.create@142",
+      "terminalLocation": "services/worker/src/capture-reaper.ts:142",
       "file": "services/worker/src/capture-reaper.ts",
       "enclosingDeclaration": "reapExpiredCaptureDrafts",
       "kind": "DATABASE",
@@ -80736,8 +80736,8 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:591#reapExpiredCaptureDrafts",
-        "SCHEDULE services/worker/src/index.ts:605#startCaptureDraftReaperScheduler"
+        "BOOT services/worker/src/index.ts:611#reapExpiredCaptureDrafts",
+        "SCHEDULE services/worker/src/index.ts:625#startCaptureDraftReaperScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -80787,8 +80787,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/exchange-package-builder.ts#evidenceExchangePackage.update@878",
-      "terminalLocation": "services/worker/src/exchange-package-builder.ts:878",
+      "writerId": "services/worker/src/exchange-package-builder.ts#evidenceExchangePackage.update@902",
+      "terminalLocation": "services/worker/src/exchange-package-builder.ts:902",
       "file": "services/worker/src/exchange-package-builder.ts",
       "enclosingDeclaration": "buildExchangePackage",
       "kind": "DATABASE",
@@ -80800,9 +80800,9 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1482#pollExchangePackageBuilds",
-        "BOOT services/worker/src/index.ts:1491#pollExchangePackageBuilds",
-        "SCHEDULE services/worker/src/index.ts:1481#startExchangePackageBuilderScheduler"
+        "BOOT services/worker/src/index.ts:1502#pollExchangePackageBuilds",
+        "BOOT services/worker/src/index.ts:1511#pollExchangePackageBuilds",
+        "SCHEDULE services/worker/src/index.ts:1501#startExchangePackageBuilderScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -80820,8 +80820,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/exchange-package-builder.ts#evidenceExchangePackage.update@922",
-      "terminalLocation": "services/worker/src/exchange-package-builder.ts:922",
+      "writerId": "services/worker/src/exchange-package-builder.ts#evidenceExchangePackage.update@946",
+      "terminalLocation": "services/worker/src/exchange-package-builder.ts:946",
       "file": "services/worker/src/exchange-package-builder.ts",
       "enclosingDeclaration": "buildExchangePackage",
       "kind": "DATABASE",
@@ -80833,9 +80833,9 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1482#pollExchangePackageBuilds",
-        "BOOT services/worker/src/index.ts:1491#pollExchangePackageBuilds",
-        "SCHEDULE services/worker/src/index.ts:1481#startExchangePackageBuilderScheduler"
+        "BOOT services/worker/src/index.ts:1502#pollExchangePackageBuilds",
+        "BOOT services/worker/src/index.ts:1511#pollExchangePackageBuilds",
+        "SCHEDULE services/worker/src/index.ts:1501#startExchangePackageBuilderScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -80868,8 +80868,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1393#runArchiveTierAutoTransitions",
-        "SCHEDULE services/worker/src/index.ts:1411#startArchiveAutoTransitionScheduler"
+        "BOOT services/worker/src/index.ts:1413#runArchiveTierAutoTransitions",
+        "SCHEDULE services/worker/src/index.ts:1431#startArchiveAutoTransitionScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -80902,8 +80902,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1276#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1294#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -80936,8 +80936,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1276#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1294#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -80970,8 +80970,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1276#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1294#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81004,8 +81004,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1276#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1294#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81038,8 +81038,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1276#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1294#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81072,8 +81072,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1276#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1294#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81106,8 +81106,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1276#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1294#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81140,8 +81140,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1276#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1294#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81174,8 +81174,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1276#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1294#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81208,8 +81208,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1276#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1294#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81242,8 +81242,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1350#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1346#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1370#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81276,8 +81276,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1350#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1346#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1370#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81314,12 +81314,12 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1202#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1276#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1326#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1220#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1294#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1350#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1222#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1346#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1240#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1370#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81356,12 +81356,12 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1202#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1276#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1326#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1220#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1294#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1350#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1222#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1346#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1240#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1370#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81398,12 +81398,12 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1202#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1276#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1326#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1220#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1294#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1350#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1222#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1346#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1240#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1370#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81440,12 +81440,12 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1202#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1276#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1326#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1220#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1294#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1350#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1222#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1346#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1240#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1370#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81480,12 +81480,12 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1202#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1276#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1326#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1220#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1294#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1350#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1222#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1346#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1240#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1370#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81520,12 +81520,12 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1202#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1276#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1326#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1220#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1294#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1350#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1222#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1346#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1240#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1370#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81560,12 +81560,12 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1202#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1276#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1326#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1220#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1294#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1350#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1222#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1346#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1240#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1370#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81583,8 +81583,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/retention-reconciliation.worker.ts#destructionReview.create@249",
-      "terminalLocation": "services/worker/src/governance/retention-reconciliation.worker.ts:249",
+      "writerId": "services/worker/src/governance/retention-reconciliation.worker.ts#destructionReview.create@274",
+      "terminalLocation": "services/worker/src/governance/retention-reconciliation.worker.ts:274",
       "file": "services/worker/src/governance/retention-reconciliation.worker.ts",
       "enclosingDeclaration": "runRetentionReconciliation",
       "kind": "DATABASE",
@@ -81598,8 +81598,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1202#runRetentionReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1220#startRetentionReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1222#runRetentionReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1240#startRetentionReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81617,8 +81617,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/retention-reconciliation.worker.ts#evidence.update@190",
-      "terminalLocation": "services/worker/src/governance/retention-reconciliation.worker.ts:190",
+      "writerId": "services/worker/src/governance/retention-reconciliation.worker.ts#evidence.update@215",
+      "terminalLocation": "services/worker/src/governance/retention-reconciliation.worker.ts:215",
       "file": "services/worker/src/governance/retention-reconciliation.worker.ts",
       "enclosingDeclaration": "runRetentionReconciliation",
       "kind": "DATABASE",
@@ -81632,8 +81632,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1202#runRetentionReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1220#startRetentionReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1222#runRetentionReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1240#startRetentionReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81651,8 +81651,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/retention-reconciliation.worker.ts#evidence.update@259",
-      "terminalLocation": "services/worker/src/governance/retention-reconciliation.worker.ts:259",
+      "writerId": "services/worker/src/governance/retention-reconciliation.worker.ts#evidence.update@284",
+      "terminalLocation": "services/worker/src/governance/retention-reconciliation.worker.ts:284",
       "file": "services/worker/src/governance/retention-reconciliation.worker.ts",
       "enclosingDeclaration": "runRetentionReconciliation",
       "kind": "DATABASE",
@@ -81666,8 +81666,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1202#runRetentionReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1220#startRetentionReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1222#runRetentionReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1240#startRetentionReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81685,8 +81685,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/retention-reconciliation.worker.ts#evidenceLifecycleEvent.create@194",
-      "terminalLocation": "services/worker/src/governance/retention-reconciliation.worker.ts:194",
+      "writerId": "services/worker/src/governance/retention-reconciliation.worker.ts#evidenceLifecycleEvent.create@219",
+      "terminalLocation": "services/worker/src/governance/retention-reconciliation.worker.ts:219",
       "file": "services/worker/src/governance/retention-reconciliation.worker.ts",
       "enclosingDeclaration": "runRetentionReconciliation",
       "kind": "DATABASE",
@@ -81700,8 +81700,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1202#runRetentionReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1220#startRetentionReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1222#runRetentionReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1240#startRetentionReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81719,8 +81719,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/retention-reconciliation.worker.ts#evidenceLifecycleEvent.create@263",
-      "terminalLocation": "services/worker/src/governance/retention-reconciliation.worker.ts:263",
+      "writerId": "services/worker/src/governance/retention-reconciliation.worker.ts#evidenceLifecycleEvent.create@288",
+      "terminalLocation": "services/worker/src/governance/retention-reconciliation.worker.ts:288",
       "file": "services/worker/src/governance/retention-reconciliation.worker.ts",
       "enclosingDeclaration": "runRetentionReconciliation",
       "kind": "DATABASE",
@@ -81734,8 +81734,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1202#runRetentionReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1220#startRetentionReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1222#runRetentionReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1240#startRetentionReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81753,8 +81753,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/retention-reconciliation.worker.ts#evidenceLifecycleEvent.create@359",
-      "terminalLocation": "services/worker/src/governance/retention-reconciliation.worker.ts:359",
+      "writerId": "services/worker/src/governance/retention-reconciliation.worker.ts#evidenceLifecycleEvent.create@384",
+      "terminalLocation": "services/worker/src/governance/retention-reconciliation.worker.ts:384",
       "file": "services/worker/src/governance/retention-reconciliation.worker.ts",
       "enclosingDeclaration": "runRetentionReconciliation",
       "kind": "DATABASE",
@@ -81768,8 +81768,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1202#runRetentionReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1220#startRetentionReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1222#runRetentionReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1240#startRetentionReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81787,8 +81787,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/trash-grace-reconciler.ts#destructionReview.create@357",
-      "terminalLocation": "services/worker/src/governance/trash-grace-reconciler.ts:357",
+      "writerId": "services/worker/src/governance/trash-grace-reconciler.ts#destructionReview.create@382",
+      "terminalLocation": "services/worker/src/governance/trash-grace-reconciler.ts:382",
       "file": "services/worker/src/governance/trash-grace-reconciler.ts",
       "enclosingDeclaration": "ensureDestructionReview",
       "kind": "DATABASE",
@@ -81802,8 +81802,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:985#runTrashGraceReconciliation",
-        "SCHEDULE services/worker/src/index.ts:998#startTrashGraceReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:1005#runTrashGraceReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1018#startTrashGraceReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81821,8 +81821,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/trash-grace-reconciler.ts#evidence.update@350",
-      "terminalLocation": "services/worker/src/governance/trash-grace-reconciler.ts:350",
+      "writerId": "services/worker/src/governance/trash-grace-reconciler.ts#evidence.update@375",
+      "terminalLocation": "services/worker/src/governance/trash-grace-reconciler.ts:375",
       "file": "services/worker/src/governance/trash-grace-reconciler.ts",
       "enclosingDeclaration": "ensureDestructionReview",
       "kind": "DATABASE",
@@ -81836,8 +81836,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:985#runTrashGraceReconciliation",
-        "SCHEDULE services/worker/src/index.ts:998#startTrashGraceReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:1005#runTrashGraceReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1018#startTrashGraceReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81855,8 +81855,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/trash-grace-reconciler.ts#evidence.update@366",
-      "terminalLocation": "services/worker/src/governance/trash-grace-reconciler.ts:366",
+      "writerId": "services/worker/src/governance/trash-grace-reconciler.ts#evidence.update@391",
+      "terminalLocation": "services/worker/src/governance/trash-grace-reconciler.ts:391",
       "file": "services/worker/src/governance/trash-grace-reconciler.ts",
       "enclosingDeclaration": "ensureDestructionReview",
       "kind": "DATABASE",
@@ -81870,8 +81870,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:985#runTrashGraceReconciliation",
-        "SCHEDULE services/worker/src/index.ts:998#startTrashGraceReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:1005#runTrashGraceReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1018#startTrashGraceReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81889,8 +81889,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/trash-grace-reconciler.ts#evidence.updateMany@335",
-      "terminalLocation": "services/worker/src/governance/trash-grace-reconciler.ts:335",
+      "writerId": "services/worker/src/governance/trash-grace-reconciler.ts#evidence.updateMany@360",
+      "terminalLocation": "services/worker/src/governance/trash-grace-reconciler.ts:360",
       "file": "services/worker/src/governance/trash-grace-reconciler.ts",
       "enclosingDeclaration": "ensureDestructionReview",
       "kind": "DATABASE",
@@ -81904,8 +81904,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:985#runTrashGraceReconciliation",
-        "SCHEDULE services/worker/src/index.ts:998#startTrashGraceReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:1005#runTrashGraceReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1018#startTrashGraceReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -81923,8 +81923,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/trash-grace-reconciler.ts#evidenceLifecycleEvent.create@370",
-      "terminalLocation": "services/worker/src/governance/trash-grace-reconciler.ts:370",
+      "writerId": "services/worker/src/governance/trash-grace-reconciler.ts#evidenceLifecycleEvent.create@395",
+      "terminalLocation": "services/worker/src/governance/trash-grace-reconciler.ts:395",
       "file": "services/worker/src/governance/trash-grace-reconciler.ts",
       "enclosingDeclaration": "ensureDestructionReview",
       "kind": "DATABASE",
@@ -81938,8 +81938,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:985#runTrashGraceReconciliation",
-        "SCHEDULE services/worker/src/index.ts:998#startTrashGraceReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:1005#runTrashGraceReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1018#startTrashGraceReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82019,8 +82019,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/intelligence-run-reconciler.ts#mediaIntelligenceRun.updateMany@145",
-      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:145",
+      "writerId": "services/worker/src/intelligence-run-reconciler.ts#mediaIntelligenceRun.updateMany@173",
+      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:173",
       "file": "services/worker/src/intelligence-run-reconciler.ts",
       "enclosingDeclaration": "runIntelligenceRunReconciler",
       "kind": "DATABASE",
@@ -82034,8 +82034,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1161#runIntelligenceRunReconciler",
-        "SCHEDULE services/worker/src/index.ts:1172#startIntelligenceRunReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:1181#runIntelligenceRunReconciler",
+        "SCHEDULE services/worker/src/index.ts:1192#startIntelligenceRunReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82053,8 +82053,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/intelligence-run-reconciler.ts#mediaIntelligenceRun.updateMany@157",
-      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:157",
+      "writerId": "services/worker/src/intelligence-run-reconciler.ts#mediaIntelligenceRun.updateMany@185",
+      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:185",
       "file": "services/worker/src/intelligence-run-reconciler.ts",
       "enclosingDeclaration": "runIntelligenceRunReconciler",
       "kind": "DATABASE",
@@ -82068,8 +82068,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1161#runIntelligenceRunReconciler",
-        "SCHEDULE services/worker/src/index.ts:1172#startIntelligenceRunReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:1181#runIntelligenceRunReconciler",
+        "SCHEDULE services/worker/src/index.ts:1192#startIntelligenceRunReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82273,8 +82273,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/mfa-challenge-gc.ts#mfaPendingChallenge.deleteMany@79",
-      "terminalLocation": "services/worker/src/mfa-challenge-gc.ts:79",
+      "writerId": "services/worker/src/mfa-challenge-gc.ts#mfaPendingChallenge.deleteMany@103",
+      "terminalLocation": "services/worker/src/mfa-challenge-gc.ts:103",
       "file": "services/worker/src/mfa-challenge-gc.ts",
       "enclosingDeclaration": "runMfaChallengeGc",
       "kind": "DATABASE",
@@ -82288,7 +82288,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:835#startMfaChallengeGcScheduler"
+        "SCHEDULE services/worker/src/index.ts:855#startMfaChallengeGcScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82306,8 +82306,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/mfa-challenge-gc.ts#mfaRecoveryRequest.updateMany@117",
-      "terminalLocation": "services/worker/src/mfa-challenge-gc.ts:117",
+      "writerId": "services/worker/src/mfa-challenge-gc.ts#mfaRecoveryRequest.updateMany@141",
+      "terminalLocation": "services/worker/src/mfa-challenge-gc.ts:141",
       "file": "services/worker/src/mfa-challenge-gc.ts",
       "enclosingDeclaration": "runMfaChallengeGc",
       "kind": "DATABASE",
@@ -82321,7 +82321,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:835#startMfaChallengeGcScheduler"
+        "SCHEDULE services/worker/src/index.ts:855#startMfaChallengeGcScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82339,8 +82339,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/mfa-challenge-gc.ts#securityEvent.create@141",
-      "terminalLocation": "services/worker/src/mfa-challenge-gc.ts:141",
+      "writerId": "services/worker/src/mfa-challenge-gc.ts#securityEvent.create@165",
+      "terminalLocation": "services/worker/src/mfa-challenge-gc.ts:165",
       "file": "services/worker/src/mfa-challenge-gc.ts",
       "enclosingDeclaration": "runMfaChallengeGc",
       "kind": "DATABASE",
@@ -82354,7 +82354,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:835#startMfaChallengeGcScheduler"
+        "SCHEDULE services/worker/src/index.ts:855#startMfaChallengeGcScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82372,8 +82372,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/mfa-recovery-digest.ts#EMAIL.deliverEmail@947",
-      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:947",
+      "writerId": "services/worker/src/mfa-recovery-digest.ts#EMAIL.deliverEmail@971",
+      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:971",
       "file": "services/worker/src/mfa-recovery-digest.ts",
       "enclosingDeclaration": "sendAdminDigest",
       "kind": "EXTERNAL",
@@ -82387,7 +82387,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:895#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:915#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82405,8 +82405,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/mfa-recovery-digest.ts#mfaRecoveryAdminDigestLog.create@518",
-      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:518",
+      "writerId": "services/worker/src/mfa-recovery-digest.ts#mfaRecoveryAdminDigestLog.create@542",
+      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:542",
       "file": "services/worker/src/mfa-recovery-digest.ts",
       "enclosingDeclaration": "acquireDigestClaim",
       "kind": "DATABASE",
@@ -82420,7 +82420,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:895#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:915#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82438,8 +82438,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/mfa-recovery-digest.ts#mfaRecoveryAdminDigestLog.update@654",
-      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:654",
+      "writerId": "services/worker/src/mfa-recovery-digest.ts#mfaRecoveryAdminDigestLog.update@678",
+      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:678",
       "file": "services/worker/src/mfa-recovery-digest.ts",
       "enclosingDeclaration": "recordDigestOutcome",
       "kind": "DATABASE",
@@ -82453,7 +82453,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:895#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:915#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82471,8 +82471,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/mfa-recovery-digest.ts#mfaRecoveryAdminDigestLog.update@672",
-      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:672",
+      "writerId": "services/worker/src/mfa-recovery-digest.ts#mfaRecoveryAdminDigestLog.update@696",
+      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:696",
       "file": "services/worker/src/mfa-recovery-digest.ts",
       "enclosingDeclaration": "recordDigestOutcome",
       "kind": "DATABASE",
@@ -82486,7 +82486,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:895#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:915#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82504,8 +82504,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/mfa-recovery-digest.ts#mfaRecoveryDigestLog.create@351",
-      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:351",
+      "writerId": "services/worker/src/mfa-recovery-digest.ts#mfaRecoveryDigestLog.create@375",
+      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:375",
       "file": "services/worker/src/mfa-recovery-digest.ts",
       "enclosingDeclaration": "runMfaRecoveryDigest",
       "kind": "DATABASE",
@@ -82519,7 +82519,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:895#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:915#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82537,8 +82537,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/mfa-recovery-digest.ts#notificationDelivery.create@528",
-      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:528",
+      "writerId": "services/worker/src/mfa-recovery-digest.ts#notificationDelivery.create@552",
+      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:552",
       "file": "services/worker/src/mfa-recovery-digest.ts",
       "enclosingDeclaration": "acquireDigestClaim",
       "kind": "DATABASE",
@@ -82552,7 +82552,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:895#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:915#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82570,8 +82570,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/mfa-recovery-digest.ts#notificationDelivery.update@642",
-      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:642",
+      "writerId": "services/worker/src/mfa-recovery-digest.ts#notificationDelivery.update@666",
+      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:666",
       "file": "services/worker/src/mfa-recovery-digest.ts",
       "enclosingDeclaration": "recordDigestOutcome",
       "kind": "DATABASE",
@@ -82585,7 +82585,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:895#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:915#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82603,8 +82603,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/mfa-recovery-digest.ts#notificationDelivery.update@664",
-      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:664",
+      "writerId": "services/worker/src/mfa-recovery-digest.ts#notificationDelivery.update@688",
+      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:688",
       "file": "services/worker/src/mfa-recovery-digest.ts",
       "enclosingDeclaration": "recordDigestOutcome",
       "kind": "DATABASE",
@@ -82618,7 +82618,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:895#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:915#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82636,8 +82636,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/mfa-recovery-digest.ts#notificationDelivery.update@679",
-      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:679",
+      "writerId": "services/worker/src/mfa-recovery-digest.ts#notificationDelivery.update@703",
+      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:703",
       "file": "services/worker/src/mfa-recovery-digest.ts",
       "enclosingDeclaration": "recordDigestOutcome",
       "kind": "DATABASE",
@@ -82651,7 +82651,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:895#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:915#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82669,8 +82669,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/mfa-recovery-digest.ts#notificationDelivery.update@691",
-      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:691",
+      "writerId": "services/worker/src/mfa-recovery-digest.ts#notificationDelivery.update@715",
+      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:715",
       "file": "services/worker/src/mfa-recovery-digest.ts",
       "enclosingDeclaration": "recordDigestOutcome",
       "kind": "DATABASE",
@@ -82684,7 +82684,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:895#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:915#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82702,8 +82702,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/mfa-recovery-digest.ts#notificationDelivery.update@704",
-      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:704",
+      "writerId": "services/worker/src/mfa-recovery-digest.ts#notificationDelivery.update@728",
+      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:728",
       "file": "services/worker/src/mfa-recovery-digest.ts",
       "enclosingDeclaration": "recordDigestOutcome",
       "kind": "DATABASE",
@@ -82717,7 +82717,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:895#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:915#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82735,8 +82735,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/mfa-recovery-digest.ts#notificationDelivery.updateMany@570",
-      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:570",
+      "writerId": "services/worker/src/mfa-recovery-digest.ts#notificationDelivery.updateMany@594",
+      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:594",
       "file": "services/worker/src/mfa-recovery-digest.ts",
       "enclosingDeclaration": "acquireDigestClaim",
       "kind": "DATABASE",
@@ -82750,7 +82750,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:895#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:915#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82768,8 +82768,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/mfa-recovery-digest.ts#securityEvent.create@323",
-      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:323",
+      "writerId": "services/worker/src/mfa-recovery-digest.ts#securityEvent.create@347",
+      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:347",
       "file": "services/worker/src/mfa-recovery-digest.ts",
       "enclosingDeclaration": "runMfaRecoveryDigest",
       "kind": "DATABASE",
@@ -82783,7 +82783,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:895#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:915#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -82801,8 +82801,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/mfa-recovery-digest.ts#securityEvent.create@365",
-      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:365",
+      "writerId": "services/worker/src/mfa-recovery-digest.ts#securityEvent.create@389",
+      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:389",
       "file": "services/worker/src/mfa-recovery-digest.ts",
       "enclosingDeclaration": "runMfaRecoveryDigest",
       "kind": "DATABASE",
@@ -82816,7 +82816,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:895#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:915#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -83036,8 +83036,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:218#recordQueueReplayResultIfRequested",
-        "BOOT services/worker/src/index.ts:300#recordQueueReplayResultIfRequested"
+        "BOOT services/worker/src/index.ts:238#recordQueueReplayResultIfRequested",
+        "BOOT services/worker/src/index.ts:320#recordQueueReplayResultIfRequested"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -83265,15 +83265,15 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1045#runSearchIndexReconciler",
-        "BOOT services/worker/src/index.ts:1161#runIntelligenceRunReconciler",
-        "BOOT services/worker/src/index.ts:717#runLifecycleRecovery",
-        "BOOT services/worker/src/index.ts:985#runTrashGraceReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1118#startSearchIndexReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1123#startSearchIndexReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1172#startIntelligenceRunReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:731#startLifecycleRecoveryScheduler",
-        "SCHEDULE services/worker/src/index.ts:998#startTrashGraceReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:1005#runTrashGraceReconciliation",
+        "BOOT services/worker/src/index.ts:1065#runSearchIndexReconciler",
+        "BOOT services/worker/src/index.ts:1181#runIntelligenceRunReconciler",
+        "BOOT services/worker/src/index.ts:737#runLifecycleRecovery",
+        "SCHEDULE services/worker/src/index.ts:1018#startTrashGraceReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1138#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1143#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1192#startIntelligenceRunReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:751#startLifecycleRecoveryScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -83308,8 +83308,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:717#runLifecycleRecovery",
-        "SCHEDULE services/worker/src/index.ts:731#startLifecycleRecoveryScheduler"
+        "BOOT services/worker/src/index.ts:737#runLifecycleRecovery",
+        "SCHEDULE services/worker/src/index.ts:751#startLifecycleRecoveryScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -83499,8 +83499,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:717#runLifecycleRecovery",
-        "SCHEDULE services/worker/src/index.ts:731#startLifecycleRecoveryScheduler"
+        "BOOT services/worker/src/index.ts:737#runLifecycleRecovery",
+        "SCHEDULE services/worker/src/index.ts:751#startLifecycleRecoveryScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -83565,8 +83565,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:717#runLifecycleRecovery",
-        "SCHEDULE services/worker/src/index.ts:731#startLifecycleRecoveryScheduler"
+        "BOOT services/worker/src/index.ts:737#runLifecycleRecovery",
+        "SCHEDULE services/worker/src/index.ts:751#startLifecycleRecoveryScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -83584,8 +83584,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/search-index-reconciler.ts#evidenceSearchDocument.deleteMany@496",
-      "terminalLocation": "services/worker/src/search-index-reconciler.ts:496",
+      "writerId": "services/worker/src/search-index-reconciler.ts#evidenceSearchDocument.deleteMany@527",
+      "terminalLocation": "services/worker/src/search-index-reconciler.ts:527",
       "file": "services/worker/src/search-index-reconciler.ts",
       "enclosingDeclaration": "sweepIneligibleDocuments",
       "kind": "DATABASE",
@@ -83600,9 +83600,9 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1045#runSearchIndexReconciler",
-        "SCHEDULE services/worker/src/index.ts:1118#startSearchIndexReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1123#startSearchIndexReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:1065#runSearchIndexReconciler",
+        "SCHEDULE services/worker/src/index.ts:1138#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1143#startSearchIndexReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -83957,9 +83957,9 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1482#pollExchangePackageBuilds",
-        "BOOT services/worker/src/index.ts:1491#pollExchangePackageBuilds",
-        "SCHEDULE services/worker/src/index.ts:1481#startExchangePackageBuilderScheduler"
+        "BOOT services/worker/src/index.ts:1502#pollExchangePackageBuilds",
+        "BOOT services/worker/src/index.ts:1511#pollExchangePackageBuilds",
+        "SCHEDULE services/worker/src/index.ts:1501#startExchangePackageBuilderScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -83990,7 +83990,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2639#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2659#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -84021,7 +84021,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2639#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2659#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -84039,8 +84039,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/webhook-dispatcher.ts#intelligenceActivityEvent.create@138",
-      "terminalLocation": "services/worker/src/webhook-dispatcher.ts:138",
+      "writerId": "services/worker/src/webhook-dispatcher.ts#intelligenceActivityEvent.create@162",
+      "terminalLocation": "services/worker/src/webhook-dispatcher.ts:162",
       "file": "services/worker/src/webhook-dispatcher.ts",
       "enclosingDeclaration": "activityEventCreate",
       "kind": "DATABASE",
@@ -84054,9 +84054,9 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1441#runWebhookDispatcherTick",
-        "BOOT services/worker/src/index.ts:1448#runWebhookDispatcherTick",
-        "SCHEDULE services/worker/src/index.ts:1440#startWebhookDispatcherScheduler"
+        "BOOT services/worker/src/index.ts:1461#runWebhookDispatcherTick",
+        "BOOT services/worker/src/index.ts:1468#runWebhookDispatcherTick",
+        "SCHEDULE services/worker/src/index.ts:1460#startWebhookDispatcherScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -84087,7 +84087,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2639#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2659#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -84118,7 +84118,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2639#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2659#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -84149,7 +84149,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2639#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2659#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -84180,7 +84180,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2639#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2659#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -122608,7 +122608,7 @@
       "nonProductConsumers": [
         {
           "file": "services/worker/src/index.ts",
-          "line": 438,
+          "line": 458,
           "caller": "runDemoFollowUps",
           "class": "WORKER",
           "primitive": "fetch"
