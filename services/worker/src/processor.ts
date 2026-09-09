@@ -2958,15 +2958,115 @@ async function runReportGeneration(
       throw createWorkerError("EVIDENCE_NOT_FOUND", false);
     }
 
+    /*
+     * Is this record entitled to a verification package at all?
+     *
+     * Asked through the ONE authority, with plan AND this record's own funding,
+     * exactly as `prepareReportArtifacts` asks it a few lines later — so the
+     * completeness guard below and the generation gate cannot disagree about
+     * whether a package was ever owed. A record whose plan excludes packages is
+     * COMPLETE with a report alone, and must not be regenerated forever chasing
+     * an output it was never going to get.
+     *
+     * Fails OPEN (`true`) on a resolution error: the worse mistake here is to
+     * declare a pair complete that is not, because that is the silent state this
+     * whole closure exists to end.
+     */
+    const verificationPackageEntitled = await (async () => {
+      try {
+        const plan = await resolveEffectivePlanForEvidence({
+          ownerUserId: evidence.ownerUserId,
+          teamId: evidence.teamId ?? null,
+        });
+        return resolveEvidenceOutputEntitlements({
+          plan,
+          funding: await resolveEvidenceFundingSource(evidenceId),
+        }).verificationPackageIncluded;
+      } catch {
+        return true;
+      }
+    })();
+
+    /*
+     * RELIABILITY CLOSURE (2026-09-09) — THE PACKAGE FAILURE THIS RUN SAW.
+     *
+     * The report transaction and the verification-package transaction are two
+     * durable writes for ONE requested output. When the package half failed,
+     * both of its catch branches logged, counted and swallowed — and the caller
+     * then marked the whole request SUCCEEDED. The customer's projection said
+     * the package had simply never been asked for, Operations opened nothing,
+     * and the only convergence was a human noticing and clicking Generate.
+     *
+     * A request is not successful while an output it is responsible for is
+     * missing. This carries the fact out of the swallow and into the run's
+     * result, where the terminal write can see it.
+     *
+     * A GOVERNANCE DENIAL IS NOT RECORDED HERE. That is a legitimate modelled
+     * outcome with its own persisted metadata and its own operational
+     * condition; treating it as a pipeline failure would turn a policy decision
+     * into an incident and retry against a gate that is meant to hold.
+     */
+    let packageTechnicalFailure: { phase: string; message: string } | null = null;
+
     if (evidence.status === EvidenceStatus.REPORTED && !forceRegenerate) {
       const existingReport = await prisma.report.findFirst({
         where: { evidenceId },
         orderBy: { version: "desc" },
       });
 
-      if (existingReport) {
+      /*
+       * RELIABILITY CLOSURE (2026-09-09) — "A REPORT EXISTS" IS NOT THE SAME AS
+       * "THE REQUESTED OUTPUT PAIR EXISTS".
+       *
+       * This guard asked only whether a Report row existed, and returned if one
+       * did. That is right for a duplicate delivery of finished work and wrong
+       * for the failure the audit found: the report transaction commits, the
+       * verification package is built AFTERWARDS in its own transaction, and its
+       * failure path was swallowed. The record was left REPORTED with a report
+       * and no package — and every path that could have repaired it landed
+       * here and returned.
+       *
+       * That included the Operations remediation registered for exactly this
+       * condition. `report.regenerate_artifacts` dispatches with
+       * `forceRegenerate: false` (correctly — the executor authorizes REQUESTING
+       * generation, not overwriting a finalised artifact), so the PACKAGE
+       * incident's own remediation button reached this line, returned, was
+       * marked SUCCEEDED and reported `QUEUED` to the operator while the
+       * condition never resolved.
+       *
+       * The guard now asks whether the OUTPUT PAIR this request is responsible
+       * for is complete. A missing package on an entitled record is unfinished
+       * work, so the run proceeds and produces a genuine matched pair at the
+       * next version.
+       *
+       * WHY A NEW PAIR AND NOT A PACKAGE AT THE EXISTING VERSION. The package
+       * embeds THIS RUN's report bytes; there is no stored intermediate to
+       * re-assemble from, and a freshly rendered report is not byte-identical to
+       * the stored one (its generated-at stamp alone differs). Writing that
+       * under the name of an existing version would put different bytes behind a
+       * version number that is already published. A fresh matched pair is the
+       * only truthful option — and it is already the product's shipped
+       * semantic: the customer-facing projection reports "report present,
+       * package absent" as `ELIGIBLE_NOT_GENERATED` for the package, whose
+       * Generate action produces exactly this.
+       */
+      const outputPairComplete =
+        existingReport !== null &&
+        (!verificationPackageEntitled ||
+          (await prisma.verificationPackage.findFirst({
+            where: { evidenceId },
+            select: { id: true },
+          })) !== null);
+
+      if (outputPairComplete) {
         logger.info(ctx, "Report already generated, skipping");
         return;
+      }
+      if (existingReport) {
+        logger.warn(
+          { ...ctx, status: "package_missing_completing_pair" },
+          "Report exists but its verification package does not; generating a new matched pair",
+        );
       }
     }
 
@@ -3012,6 +3112,55 @@ async function runReportGeneration(
           SELECT pg_advisory_xact_lock(hashtext(${prepared.evidenceId}))
         `;
 
+        /*
+         * =====================================================================
+         * VERSION RESERVATION — INSIDE THE LOCK, BEFORE ANY OBJECT IS WRITTEN.
+         * =====================================================================
+         * `prepareReportArtifacts` computed `provisionalVersion = max+1` and
+         * built both storage keys from it, and it did that OUTSIDE this
+         * transaction — before the advisory lock that serializes generation for
+         * this record. The lock therefore protected only the DATABASE work.
+         *
+         * Two runnable requests for one record at one baseline both held N.
+         * That pair is reachable: a completion request (`REPORT:<id>:v0`) still
+         * retrying when the OTS upgrade anchors and asks for a forced
+         * regeneration (`REPORT:<id>:v0:force`) is two DIFFERENT idempotency
+         * keys, so nothing collapsed them. Both would build, both would upload
+         * to `reports/<id>/vN.pdf`, and only then would the unique index on
+         * (evidenceId, version) elect a winner — by which point the object at
+         * that key held the LOSER's bytes while the surviving row described the
+         * winner's. An evidentiary artifact whose stored bytes are not the bytes
+         * its row describes is not a state this platform may reach.
+         *
+         * The uniqueness constraint is a backstop, not an allocator. The
+         * allocation now happens here, inside the serialized boundary, and every
+         * downstream consumer — the finalized PDF, both storage keys, the Report
+         * row, the package built after this transaction — reads the reserved
+         * number rather than the provisional one.
+         *
+         * WHY MUTATING `prepared` RATHER THAN THREADING A PARAMETER. `prepared`
+         * is this run's own working object, built moments ago by
+         * `prepareReportArtifacts` and referenced from ~30 places in this
+         * transaction and in the package block after it. Re-pointing it once,
+         * before its first use, gives every one of those sites the reserved
+         * value; threading a second version variable through them all would
+         * leave thirty opportunities to read the stale one.
+         */
+        const reservation = await tx.report.aggregate({
+          where: { evidenceId: prepared.evidenceId },
+          _max: { version: true },
+        });
+        const reservedVersion = (reservation._max.version ?? 0) + 1;
+        prepared.version = reservedVersion;
+        prepared.reportKey = `reports/${prepared.evidenceId}/v${reservedVersion}.pdf`;
+        prepared.verificationKey = `verification/${prepared.evidenceId}/v${reservedVersion}.zip`;
+        /*
+         * The reviewer-summary version travels on the identity snapshot and is
+         * persisted on the Report row, so it has to follow the reservation too;
+         * it was captured from the provisional number at prep time.
+         */
+        prepared.identitySnapshot.reviewerSummaryVersion = reservedVersion;
+
         const lockedEvidence = await tx.evidence.findFirst({
           where: { id: prepared.evidenceId, deletedAt: null },
           select: {
@@ -3053,10 +3202,24 @@ async function runReportGeneration(
           },
         });
 
+        /*
+         * The same completeness rule as the pre-transaction guard, re-asserted
+         * under the lock. A concurrent run may have created the report between
+         * the two checks; what must not happen is that this one skips while the
+         * package the request is responsible for is still absent.
+         */
+        const lockedPackage = verificationPackageEntitled
+          ? await tx.verificationPackage.findFirst({
+              where: { evidenceId: prepared.evidenceId },
+              select: { id: true },
+            })
+          : null;
+
         if (
           lockedEvidence.status === EvidenceStatus.REPORTED &&
           existingLatestReport &&
-          !forceRegenerate
+          !forceRegenerate &&
+          (!verificationPackageEntitled || lockedPackage !== null)
         ) {
           return {
             skipped: true as const,
@@ -3439,9 +3602,28 @@ const effectiveReportEvidencePayload = {
             captureMethodSnapshot: effectiveIdentitySnapshot.captureMethod,
             reviewerSummaryVersion:
               effectiveIdentitySnapshot.reviewerSummaryVersion,
-            verificationPackageVersion: prepared.verificationPackageIncluded
-              ? prepared.version
-              : null,
+            /*
+             * RELIABILITY CLOSURE (2026-09-09) — THIS COLUMN NAMES A PACKAGE
+             * THAT EXISTS, OR IT NAMES NOTHING.
+             *
+             * It used to be written here, at report-row creation, as
+             * `verificationPackageIncluded ? prepared.version : null` — an
+             * OPTIMISTIC claim, made before the package had been built, let
+             * alone uploaded or persisted. The package is produced after this
+             * transaction commits, in its own transaction, and its failure path
+             * is swallowed. So a package build that failed left
+             * `Report{version: N}.verificationPackageVersion = N` with no
+             * `VerificationPackage` row at N, and the artifact-status projection
+             * returned both numbers in one response: a package version from the
+             * report row, and a different (or absent) one from the package
+             * table.
+             *
+             * A column that answers "which package version accompanies this
+             * report" must be written by the code that creates that package.
+             * The package transaction below already sets it, conditionally on
+             * its own success. Here it starts null.
+             */
+            verificationPackageVersion: null,
 
             displayTitleSnapshot: prepared.display.displayTitle,
             displayDescriptionSnapshot: prepared.display.displayDescription,
@@ -4033,6 +4215,11 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
             },
             "Verification package generation failed after finalized custody"
           );
+
+          packageTechnicalFailure = {
+            phase: "prepare",
+            message: toBoundedReasonCode(verificationError),
+          };
         }
       }
     }
@@ -4285,6 +4472,11 @@ trustDecisionSnapshot:
                 : "UNKNOWN_VERIFICATION_PACKAGE_ERROR",
           },
         }).catch(() => null);
+
+        packageTechnicalFailure = {
+          phase: "store",
+          message: toBoundedReasonCode(verificationError),
+        };
       }
     }
 
@@ -4362,6 +4554,44 @@ trustDecisionSnapshot:
         ? "GenerateReportJob skipped because report already exists"
         : "GenerateReportJob completed"
     );
+
+    /*
+     * =====================================================================
+     * THE REQUEST IS NOT SUCCESSFUL WHILE AN OUTPUT IT OWNS IS MISSING.
+     * =====================================================================
+     * One request produces one PAIR — the report and the verification package
+     * are built by this job precisely so the customer has one action for one
+     * pipeline. Reporting SUCCEEDED with half of it missing made the request
+     * row, which is the durable authority every surface reads, state something
+     * that was not true: the projection reported the package as "never asked
+     * for", Operations opened nothing, and the only convergence was a human
+     * noticing.
+     *
+     * Throwing here rather than returning routes this into machinery that
+     * already exists: the caller writes FAILED_RETRYABLE (this error is
+     * retryable), BullMQ re-runs the request under its own attempt budget, the
+     * completeness guard at the top of this function now lets that re-run
+     * proceed, and if the budget is exhausted the stranded-request reconciler
+     * retires the row to a truthful terminal state. Nothing new was invented to
+     * carry it.
+     *
+     * The report that DID commit is untouched and stays downloadable. This is a
+     * statement about the REQUEST, not a rollback of the artifact.
+     */
+    if (packageTechnicalFailure && verificationPackageEntitled) {
+      await recordPackageGenerationIncident({
+        evidenceId,
+        teamId: evidence.teamId ?? null,
+        jobId: job.id ?? null,
+        phase: packageTechnicalFailure.phase,
+        reasonCode: packageTechnicalFailure.message,
+      });
+      throw createWorkerError(
+        "VERIFICATION_PACKAGE_INCOMPLETE_" +
+          packageTechnicalFailure.phase.toUpperCase(),
+        true,
+      );
+    }
   } catch (error) {
     if (
       error instanceof Error &&
@@ -4618,6 +4848,75 @@ async function recordReportFailureIncident(input: {
     logger.warn(
       { err, evidenceId: input.evidenceId },
       "worker.report.incident_bridge_failed",
+    );
+  }
+}
+
+/**
+ * RELIABILITY CLOSURE (2026-09-09) — A TECHNICAL PACKAGE FAILURE IS AN
+ * OPERATIONAL CONDITION.
+ *
+ * The verification package had exactly one failure signal: a bumped counter and
+ * a log line. Nothing opened, nothing escalated, nothing auto-resolved — so a
+ * record left with a report and no package was operationally silent, and the
+ * only party who could notice was the customer, on a surface that told them the
+ * package had simply never been requested.
+ *
+ * This is deliberately the SAME bridge the report pipeline uses
+ * (`recordWorkerIncident` → the canonical incident authority), under the
+ * PACKAGE category the remediation registry already governs. No second incident
+ * engine, no second condition vocabulary.
+ *
+ * WHAT IT IS NOT RAISED FOR. Not a commercial exclusion — that never reaches
+ * here, because an unentitled record throws its bounded plan denial long before
+ * the package step. Not a governance denial — that has its own persisted
+ * metadata and its own `pipeline.package_generation_denied` condition, and
+ * calling a policy decision an outage is the error this whole closure is about.
+ * Only a genuine build or storage failure.
+ *
+ * RESOLUTION IS AUTOMATIC AND IS NOT THIS FUNCTION'S BUSINESS. The condition's
+ * observation probe reads `Evidence.verificationPackageVersion`; when the pair
+ * finally converges, the canonical incident-transition authority resolves it
+ * from that domain truth.
+ */
+async function recordPackageGenerationIncident(input: {
+  evidenceId: string;
+  teamId: string | null;
+  jobId: string | number | null | undefined;
+  phase: string;
+  reasonCode: string;
+}): Promise<void> {
+  try {
+    const errorClass =
+      (input.reasonCode || "UNKNOWN")
+        .split(/[:\n]/, 1)[0]
+        .trim()
+        .slice(0, 80)
+        .toUpperCase()
+        .replace(/\s+/g, "_") || "UNKNOWN";
+    await recordWorkerIncident({
+      sourceId: "pipeline.package_generation_failed",
+      teamId: input.teamId,
+      category: "PACKAGE",
+      severity: "HIGH",
+      // One condition per (record, failure class), matching the report bridge's
+      // shape so a flapping build does not open a new row per attempt.
+      fingerprint: `PACKAGE:${input.evidenceId}:${errorClass}`,
+      title: `Verification package generation failed (${input.evidenceId.slice(0, 8)})`,
+      safeSummary:
+        "The report for this record was generated and stored, but its verification package was not. The evidence record and its integrity state are unaffected; the pipeline will retry, and the condition clears when the package exists.",
+      relatedEvidenceId: input.evidenceId,
+      relatedJobId: input.jobId == null ? null : String(input.jobId),
+      metadata: {
+        queueName: "report",
+        phase: input.phase,
+        errorClass,
+      },
+    });
+  } catch (err) {
+    logger.warn(
+      { err, evidenceId: input.evidenceId },
+      "worker.package.incident_bridge_failed",
     );
   }
 }
