@@ -122,6 +122,9 @@ export type EvidenceDetailCtx = {
   downloadOriginal: () => Promise<void> | void;
   downloadReport: () => Promise<void> | void;
   downloadVerificationPackage: () => Promise<void> | void;
+  // RELIABILITY CLOSURE (2026-09-09) — one retained version, by number.
+  downloadReportVersion: (version: number) => Promise<void> | void;
+  downloadVerificationPackageVersion: (version: number) => Promise<void> | void;
   /**
    * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — request generation of
    * this record's report AND verification package.
@@ -410,6 +413,51 @@ export function describeClientSignalState(
  * Total over `EvidenceOutputState`, so a new state cannot be added without a
  * label.
  */
+
+/**
+ * WHY A CONTROL IS UNAVAILABLE, keyed by the server's canonical state.
+ *
+ * RELIABILITY CLOSURE (2026-09-09) — this lived inside the Artifacts tab while
+ * the page HEADER, which renders the two most prominent download buttons on
+ * the record, derived its own reason from the legacy `available` / `pending`
+ * booleans. So a FREE record whose Artifacts tab correctly said "a report is
+ * not included for this evidence record" had a header three lines above it
+ * saying "No report has been generated for this record yet" — the sentence for
+ * a different state, on the same screen, about the same record.
+ *
+ * Total over `EvidenceOutputState`, so a new state is a compile error rather
+ * than a control that silently explains nothing.
+ */
+export const OUTPUT_STATE_COPY: Record<
+  EvidenceOutputState,
+  { reason: (noun: string) => string }
+> = {
+  READY: { reason: () => "" },
+  NOT_INCLUDED: {
+    reason: (noun) => `A ${noun} is not included for this evidence record.`,
+  },
+  ELIGIBLE_NOT_GENERATED: {
+    reason: (noun) =>
+      `No ${noun} has been generated for this record yet. Generate one to download it.`,
+  },
+  QUEUED: {
+    reason: (noun) => `The ${noun} is queued for generation. Re-check shortly.`,
+  },
+  GENERATING: {
+    reason: (noun) =>
+      `The ${noun} is being generated. Re-check status once it completes.`,
+  },
+  RETRYABLE_FAILURE: {
+    reason: (noun) => `The last attempt to build the ${noun} failed.`,
+  },
+  TERMINAL_FAILURE: {
+    reason: (noun) => `The ${noun} could not be produced for this record.`,
+  },
+  BLOCKED: {
+    reason: (noun) => `${noun} generation is blocked by a policy decision.`,
+  },
+};
+
 const OUTPUT_STATE_LABEL: Record<EvidenceOutputState, string> = {
   READY: "Available",
   QUEUED: "Queued",

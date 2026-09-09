@@ -57,6 +57,8 @@ type Toast = (message: string, tone: "success" | "error" | "info") => void;
 export type EvidenceArtifactActions = {
   downloadReport: () => Promise<void>;
   downloadVerificationPackage: () => Promise<void>;
+  downloadReportVersion: (version: number) => Promise<void>;
+  downloadVerificationPackageVersion: (version: number) => Promise<void>;
   generateOutputs: () => Promise<void>;
   generateOutputsBusy: boolean;
 };
@@ -297,9 +299,73 @@ const generateOutputs = async () => {
   }
 };
 
+
+/**
+ * DOWNLOAD ONE HISTORICAL VERSION.
+ *
+ * RELIABILITY CLOSURE (2026-09-09). The regeneration dialog told the operator
+ * that "previous versions are retained and remain downloadable", the history
+ * list showed them, and nothing in the product could open one: both endpoints
+ * were hard-coded to the newest row. These two call the versioned routes, which
+ * run the SAME authorization and governance gate as `/latest` — a held record's
+ * history is exactly as unreachable as its current version, which is the
+ * existing product decision and is not changed here.
+ *
+ * NO COMMERCIAL PRECHECK, for the same reason the latest-version handlers have
+ * none: an artifact that exists belongs to the customer who generated it, and
+ * the server is the authority on whether it may be opened.
+ */
+const downloadReportVersion = async (version: number) => {
+  if (!evidenceId) return;
+  try {
+    const data = (await apiFetch(
+      `/v1/evidence/${evidenceId}/reports/${version}`,
+    )) as { url?: string | null };
+    if (!data.url) {
+      addToast(`Report v${version} is not available.`, "info");
+      return;
+    }
+    window.open(data.url, "_blank", "noopener,noreferrer");
+  } catch (downloadError) {
+    addToast(
+      toSafeUserError(downloadError, {
+        message: `Could not download report v${version}.`,
+      }).message,
+      "error",
+    );
+  }
+};
+
+const downloadVerificationPackageVersion = async (version: number) => {
+  if (!evidenceId) return;
+  try {
+    const data = (await apiFetch(
+      `/v1/evidence/${evidenceId}/verification-packages/${version}`,
+    )) as { url?: string | null };
+    if (!data.url) {
+      addToast(`Verification package v${version} is not available.`, "info");
+      return;
+    }
+    const ok = await tryDownloadFile(
+      data.url,
+      `verification-package-${evidenceId}-v${version}.zip`,
+    );
+    if (!ok) window.open(data.url, "_blank", "noopener,noreferrer");
+  } catch (downloadError) {
+    addToast(
+      toSafeUserError(downloadError, {
+        message: `Could not download verification package v${version}.`,
+      }).message,
+      "error",
+    );
+  }
+};
+
   return {
     downloadReport,
     downloadVerificationPackage,
+    downloadReportVersion,
+    downloadVerificationPackageVersion,
     generateOutputs,
     generateOutputsBusy,
   };

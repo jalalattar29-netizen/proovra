@@ -71,6 +71,7 @@ import {
   describeOtsStatus,
   describePublicVerificationState,
   describeReportArtifactStatus,
+  OUTPUT_STATE_COPY,
   describeVerificationPackageStatus,
   formatBytes,
   formatValue,
@@ -620,6 +621,8 @@ function EvidenceDetailPageInner() {
   const {
     downloadReport,
     downloadVerificationPackage,
+    downloadReportVersion,
+    downloadVerificationPackageVersion,
     generateOutputs,
     generateOutputsBusy,
   } = useEvidenceArtifactActions({
@@ -877,26 +880,58 @@ function EvidenceDetailPageInner() {
    * returns, then the artifact projection's own reason (a plan that does not
    * include the artifact). `null` means the control is enabled.
    */
+  /*
+   * ===========================================================================
+   * RELIABILITY CLOSURE (2026-09-09) — A DOWNLOAD CONTROL REQUIRES AN ARTIFACT.
+   * ===========================================================================
+   * These two reasons were derived from the LEGACY `available` / `pending`
+   * booleans, and — worse — the buttons they annotate were disabled only by
+   * `exportDisabled || isIntegrityFailed`. Artifact existence was not an input
+   * to the control at all.
+   *
+   * So on a FREE record, or any record whose report had not been generated, the
+   * page header rendered an ENABLED "Download report PDF". Clicking it produced
+   * a 404 and a toast. The most prominent control on the record was one that
+   * could not work, on the most common plan in production.
+   *
+   * The reason text was wrong in the same place for the same cause: a
+   * NOT_INCLUDED record was told "No report has been generated for this record
+   * yet", the sentence for a different state, three lines above an Artifacts
+   * tab that said the right thing.
+   *
+   * Both now read the canonical state, through the copy table that tab uses.
+   *
+   * NOTE WHAT IS NOT AN INPUT: the current PLAN. Availability is a fact about
+   * the artifact, and a customer who downgraded still owns every version they
+   * generated. A READY artifact stays downloadable, which is why `READY`'s copy
+   * is the empty string and this evaluates to `null` for it.
+   */
+  const reportArtifactAvailable =
+    workspace.artifactStatus.report.available === true;
+  const packageArtifactAvailable =
+    workspace.artifactStatus.verificationPackage.available === true;
+
   const reportDownloadBlockedReason = isIntegrityFailed
     ? "Downloads are unavailable while recorded integrity is failed."
     : exportDisabled
       ? (exportBlockedReason ?? "Governance policy currently blocks this download.")
-      : !workspace.artifactStatus.report.available
-        ? workspace.artifactStatus.report.pending
-          ? "The report is still being generated."
-          : "No report has been generated for this record yet."
+      : !reportArtifactAvailable
+        ? OUTPUT_STATE_COPY[
+            workspace.artifactStatus.outputs.report.state
+          ].reason("report")
         : null;
 
   const packageDownloadBlockedReason = isIntegrityFailed
     ? "Downloads are unavailable while recorded integrity is failed."
     : packageDisabled
       ? (packageBlockedReason ?? "Governance policy currently blocks this download.")
-      : !workspace.artifactStatus.verificationPackage.available
-        ? (workspace.artifactStatus.verificationPackage.blockedReason ??
-          workspace.artifactStatus.verificationPackage.unavailableReason ??
-          (workspace.artifactStatus.verificationPackage.pending
-            ? "The verification package is still being generated."
-            : "No verification package has been generated for this record yet."))
+      : !packageArtifactAvailable
+        ? // The governance-denial blob carries a specific, operator-written
+          // reason; the canonical state is the fallback for everything else.
+          (workspace.artifactStatus.verificationPackage.blockedReason ??
+          OUTPUT_STATE_COPY[
+            workspace.artifactStatus.outputs.verificationPackage.state
+          ].reason("verification package"))
         : null;
 
   const visibleTabs = DETAIL_TABS.filter(
@@ -941,6 +976,8 @@ function EvidenceDetailPageInner() {
     downloadOriginal,
     downloadReport,
     downloadVerificationPackage,
+    downloadReportVersion,
+    downloadVerificationPackageVersion,
     generateOutputs,
     generateOutputsBusy,
     runRecordAction,
@@ -1201,7 +1238,12 @@ function EvidenceDetailPageInner() {
               type="button"
               className="app-primary-action"
               onClick={() => void downloadReport()}
-              disabled={exportDisabled || isIntegrityFailed}
+              // An existing artifact is the precondition. Governance and
+              // integrity may still refuse one that exists; nothing may offer
+              // one that does not.
+              disabled={
+                !reportArtifactAvailable || exportDisabled || isIntegrityFailed
+              }
               title={reportDownloadBlockedReason ?? "Download the generated report PDF"}
               aria-describedby={
                 reportDownloadBlockedReason ? "evidence-download-report-reason" : undefined
@@ -1216,7 +1258,9 @@ function EvidenceDetailPageInner() {
               type="button"
               className="app-secondary-action"
               onClick={() => void downloadVerificationPackage()}
-              disabled={packageDisabled || isIntegrityFailed}
+              disabled={
+                !packageArtifactAvailable || packageDisabled || isIntegrityFailed
+              }
               title={packageDownloadBlockedReason ?? "Download Verification Package ZIP"}
               aria-describedby={
                 packageDownloadBlockedReason ? "evidence-download-report-reason" : undefined

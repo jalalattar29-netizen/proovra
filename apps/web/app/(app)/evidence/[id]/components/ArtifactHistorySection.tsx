@@ -3,6 +3,12 @@
 import type { ReactNode } from "react";
 import { FileText, ShieldCheck } from "lucide-react";
 import { GovernedExportAction } from "../../../../../components/governance/GovernedExportAction";
+// RELIABILITY CLOSURE (2026-09-09) — the canonical download names, shared with
+// the page header and the Reports page.
+import {
+  DOWNLOAD_PACKAGE_LABEL,
+  DOWNLOAD_REPORT_LABEL,
+} from "../../../../../lib/evidence/generation-labels";
 
 type ReportVersion = {
   id: string;
@@ -40,6 +46,7 @@ function ArtifactFamilyCard({
   disabledReason,
   actionLabel,
   onDownload,
+  onDownloadVersion,
   governed,
   evidenceId,
   teamId,
@@ -54,6 +61,14 @@ function ArtifactFamilyCard({
   disabledReason: string | null;
   actionLabel: string;
   onDownload: () => void;
+  /**
+   * RELIABILITY CLOSURE (2026-09-09) — open ONE retained version.
+   *
+   * The list has always shown every version; nothing could open any but the
+   * newest, while the regeneration dialog promised they "remain downloadable".
+   * The control is per row because the promise was per row.
+   */
+  onDownloadVersion: (version: number) => void;
   governed: boolean;
   evidenceId?: string | null;
   teamId?: string | null;
@@ -68,13 +83,23 @@ function ArtifactFamilyCard({
         onClick={onClick}
         disabled={disabled}
         aria-disabled={disabled}
-        aria-label={`Download latest ${title}`}
         aria-describedby={disabled && disabledReason ? `${testid}-reason` : undefined}
         title={disabled ? (disabledReason ?? undefined) : undefined}
         data-evidence-artifact-download={testid}
         data-evidence-artifact-downloadable={downloadable ? "true" : "false"}
       >
-        Download latest
+        {/*
+          RELIABILITY CLOSURE (2026-09-09) — BOTH of these buttons read
+          "Download latest". Two different artifacts, one label, distinguishable
+          only by which card the control happened to sit in: linear for a screen
+          reader, ambiguous in a bug report, and a fourth spelling of an
+          operation the rest of the product already names.
+
+          `actionLabel` is the canonical name, and it is the same string the
+          page header and the Reports page render. The card title above still
+          says which family this is; the button now says it too.
+        */}
+        {actionLabel}
       </button>
     );
   };
@@ -134,6 +159,23 @@ function ArtifactFamilyCard({
               data-evidence-artifact-latest={item.latest ? "true" : "false"}
             >
               {renderMeta(item)}
+              {/*
+                Gated on the SAME `downloadable` verdict as the card action, so
+                history is never offered on a record whose artifacts governance
+                or integrity currently refuses. The server re-checks anyway; the
+                point is not to offer a control that cannot work.
+              */}
+              {downloadable ? (
+                <button
+                  type="button"
+                  className="app-secondary-action evidence-detail-artifact-version__action"
+                  onClick={() => onDownloadVersion(item.version)}
+                  data-evidence-artifact-version-download={testid}
+                  data-evidence-artifact-version-number={item.version}
+                >
+                  Download v{item.version}
+                </button>
+              ) : null}
             </li>
           ))}
         </ul>
@@ -146,6 +188,8 @@ export function ArtifactHistorySection({
   history,
   onDownloadReport,
   onDownloadVerificationPackage,
+  onDownloadReportVersion,
+  onDownloadVerificationPackageVersion,
   formatDateTime,
   formatBytes,
   evidenceId,
@@ -158,6 +202,8 @@ export function ArtifactHistorySection({
   history: ArtifactHistory | undefined;
   onDownloadReport: () => void;
   onDownloadVerificationPackage: () => void;
+  onDownloadReportVersion: (version: number) => void;
+  onDownloadVerificationPackageVersion: (version: number) => void;
   formatDateTime: (value: string | null | undefined) => string;
   formatBytes: (value: string | number | null | undefined) => string;
   /**
@@ -251,8 +297,9 @@ export function ArtifactHistorySection({
         emptyMessage="No report versions are recorded in the current response."
         downloadable={reportDownloadable}
         disabledReason={reportDisabledReason}
-        actionLabel="Download Report PDF"
+        actionLabel={DOWNLOAD_REPORT_LABEL}
         onDownload={onDownloadReport}
+        onDownloadVersion={onDownloadReportVersion}
         governed={governed}
         evidenceId={evidenceId}
         teamId={teamId}
@@ -267,8 +314,9 @@ export function ArtifactHistorySection({
         emptyMessage="No verification package versions are recorded in the current response."
         downloadable={packageDownloadable}
         disabledReason={packageDisabledReason}
-        actionLabel="Download Verification Package ZIP"
+        actionLabel={DOWNLOAD_PACKAGE_LABEL}
         onDownload={onDownloadVerificationPackage}
+        onDownloadVersion={onDownloadVerificationPackageVersion}
         governed={governed}
         evidenceId={evidenceId}
         teamId={teamId}

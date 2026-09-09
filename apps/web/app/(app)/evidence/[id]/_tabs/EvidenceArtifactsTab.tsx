@@ -36,47 +36,14 @@ import type {
   OutputAction,
   OutputTerminalReasonClass,
 } from "@proovra/shared";
-import { formatValue, type EvidenceDetailCtx } from "./_lib";
+import { formatValue, OUTPUT_STATE_COPY, type EvidenceDetailCtx } from "./_lib";
+// RELIABILITY CLOSURE (2026-09-09) — one operation, one name, across four
+// surfaces that each used to spell it differently.
+import { GENERATION_ACTION_LABEL } from "../../../../../lib/evidence/generation-labels";
 import { formatUserDateTime } from "../../../../../lib/date";
 import { ArtifactHistorySection } from "../components/ArtifactHistorySection";
 import { formatBytes } from "./_lib";
 
-/**
- * THE ONE COPY TABLE for a disabled download control, keyed by the server's
- * canonical state.
- *
- * Total over `EvidenceOutputState` so a new state is a compile error here
- * rather than a card that silently says nothing.
- */
-const OUTPUT_STATE_COPY: Record<
-  EvidenceOutputState,
-  { reason: (noun: string) => string }
-> = {
-  READY: { reason: () => "" },
-  NOT_INCLUDED: {
-    reason: (noun) => `A ${noun} is not included for this evidence record.`,
-  },
-  ELIGIBLE_NOT_GENERATED: {
-    reason: (noun) =>
-      `No ${noun} has been generated for this record yet. Generate one to download it.`,
-  },
-  QUEUED: {
-    reason: (noun) => `The ${noun} is queued for generation. Re-check shortly.`,
-  },
-  GENERATING: {
-    reason: (noun) =>
-      `The ${noun} is being generated. Re-check status once it completes.`,
-  },
-  RETRYABLE_FAILURE: {
-    reason: (noun) => `The last attempt to build the ${noun} failed.`,
-  },
-  TERMINAL_FAILURE: {
-    reason: (noun) => `The ${noun} could not be produced for this record.`,
-  },
-  BLOCKED: {
-    reason: (noun) => `${noun} generation is blocked by a policy decision.`,
-  },
-};
 
 /**
  * What a terminal failure MEANS, per class — never the raw reason code.
@@ -121,12 +88,16 @@ function GenerateOutputsButton({
   const [confirming, setConfirming] = useState(false);
   if (action === "NONE") return null;
 
-  const label =
-    action === "GENERATE"
-      ? "Generate report & verification package"
-      : action === "RETRY"
-        ? "Retry generation"
-        : "Regenerate report & verification package";
+  /*
+   * THE CANONICAL LABELS, and the only place they are written for this surface.
+   *
+   * RELIABILITY CLOSURE (2026-09-09) — "Retry generation" named a different
+   * thing from its two siblings, and the Reports page said "Generate report &
+   * package" for what this one called "Generate report & verification package".
+   * One operation must have one name: a person comparing the two surfaces was
+   * being asked to work out whether they did the same thing.
+   */
+  const label = GENERATION_ACTION_LABEL[action];
 
   /*
    * Only a REGENERATION needs confirming. It creates a new immutable version
@@ -202,6 +173,193 @@ function GenerateOutputsButton({
       </div>
     </div>
   );
+}
+
+/**
+ * THE ONE PANEL, over the canonical state.
+ *
+ * Presentation only: every decision it renders was made by the server. It
+ * chooses copy and tone from `state`, and it renders whatever `action` says —
+ * it never infers an action from the state it is branching on, which is the
+ * mistake that made the Reports page a second authority.
+ *
+ * `READY` renders no alert (a downloadable artifact is not a status message)
+ * but DOES render its action, which is how Regenerate became reachable.
+ */
+function ArtifactLifecyclePanel({
+  ctx,
+  output,
+}: {
+  ctx: EvidenceDetailCtx;
+  output: {
+    state: EvidenceOutputState;
+    action: OutputAction;
+    terminalReasonClass: OutputTerminalReasonClass | null;
+    attemptCount: number | null;
+  };
+}) {
+  const action = <GenerateOutputsButton ctx={ctx} action={output.action} />;
+
+  switch (output.state) {
+    case "NOT_INCLUDED":
+      return (
+        <div
+          className="app-alert app-alert--warn"
+          role="status"
+          data-evidence-section="reports-plan-gated"
+          data-evidence-output-state={output.state}
+        >
+          <strong>Reports are not included for this record</strong>
+          <p>
+            Report PDFs and verification packages are included with
+            Pay-per-evidence credits and with the Pro, Team and Enterprise
+            plans. Your evidence record itself is signed and preserved — the
+            chain of custody is intact, and public verification still works —
+            but no downloadable report artifact is produced for it.
+          </p>
+        </div>
+      );
+
+    case "ELIGIBLE_NOT_GENERATED":
+      return (
+        <div
+          className="app-alert"
+          role="status"
+          data-evidence-section="reports-eligible-not-generated"
+          data-evidence-output-state={output.state}
+        >
+          <strong>
+            Your current plan includes a report and verification package for
+            this record
+          </strong>
+          <p>
+            Nothing has been generated for it yet — records captured before this
+            entitlement applied are not produced automatically. Generating uses
+            no evidence credit; it does use workspace storage.
+          </p>
+          {action}
+        </div>
+      );
+
+    case "QUEUED":
+      return (
+        <div
+          className="app-alert"
+          role="status"
+          aria-live="polite"
+          data-evidence-section="reports-queued"
+          data-evidence-output-state={output.state}
+        >
+          <strong>
+            Report and verification package are queued for generation
+          </strong>
+          <p>
+            Work has been accepted and is waiting for a worker. This page checks
+            for completion on its own; nothing further is needed from you.
+          </p>
+        </div>
+      );
+
+    case "GENERATING":
+      return (
+        <div
+          className="app-alert"
+          role="status"
+          aria-live="polite"
+          data-evidence-section="reports-generating"
+          data-evidence-output-state={output.state}
+        >
+          <strong>Generating report and verification package…</strong>
+          <p>
+            Both artifacts are produced by one job. They will appear below when
+            it completes.
+          </p>
+        </div>
+      );
+
+    case "RETRYABLE_FAILURE":
+      return (
+        <div
+          className="app-alert app-alert--warn"
+          role="status"
+          data-evidence-section="reports-retryable-failure"
+          data-evidence-output-state={output.state}
+        >
+          <strong>Report generation failed</strong>
+          <p>
+            The last attempt did not complete
+            {output.attemptCount ? ` (attempt ${output.attemptCount})` : ""}. The
+            evidence record and its integrity state are unaffected.
+          </p>
+          {action}
+        </div>
+      );
+
+    case "TERMINAL_FAILURE":
+      return (
+        <div
+          className="app-alert app-alert--warn"
+          role="status"
+          data-evidence-section="reports-terminal-failure"
+          data-evidence-output-state={output.state}
+          data-evidence-terminal-class={output.terminalReasonClass ?? ""}
+        >
+          <strong>Report generation stopped</strong>
+          <p>{terminalFailureCopy(output.terminalReasonClass)}</p>
+          {action}
+        </div>
+      );
+
+    case "BLOCKED":
+      /*
+       * NO LONGER SILENT. A blocked record rendered nothing at all, so the one
+       * state whose entire content is an explanation had none — the reason
+       * survived only as the title attribute of a disabled download button.
+       *
+       * The action still comes from the server, and for a standing block the
+       * server returns NONE. It becomes an action again when the request
+       * authority re-reads the blocker and finds it gone.
+       */
+      return (
+        <div
+          className="app-alert app-alert--warn"
+          role="status"
+          data-evidence-section="reports-blocked"
+          data-evidence-output-state={output.state}
+        >
+          <strong>Report generation is blocked</strong>
+          <p>
+            A governance or lifecycle decision is currently preventing
+            generation for this record. It becomes possible again when that
+            decision changes; the evidence record and its integrity state are
+            unaffected.
+          </p>
+          {action}
+        </div>
+      );
+
+    case "READY":
+      /*
+       * A downloadable artifact is not a status message, so there is no alert
+       * here — the version cards below say everything. But the ACTION still
+       * renders, and that is the fix: READY is the only state whose canonical
+       * action is REGENERATE, and rendering nothing for it made the entire
+       * regeneration path in `GenerateOutputsButton` — confirmation dialog and
+       * all — unreachable code.
+       *
+       * After a downgrade the server returns NONE here, so the control
+       * disappears while the downloads stay. Neither decision is made locally.
+       */
+      return output.action === "NONE" ? null : (
+        <div
+          className="evidence-detail-artifact-actions"
+          data-evidence-section="reports-ready-actions"
+          data-evidence-output-state={output.state}
+        >
+          {action}
+        </div>
+      );
+  }
 }
 
 export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
@@ -287,73 +445,26 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
         </div>
       ) : null}
 
-      {/* THE ONE COMMERCIAL / LIFECYCLE STATEMENT, from the server's state.
-          Suppressed once an artifact exists: a downloadable report is not a
-          conversation about entitlement, and a downgrade never takes one away. */}
-      {reportOutput.state === "NOT_INCLUDED" ? (
-        <div
-          className="app-alert app-alert--warn"
-          role="status"
-          data-evidence-section="reports-plan-gated"
-          data-evidence-output-state={reportOutput.state}
-        >
-          <strong>Reports are not included for this record</strong>
-          <p>
-            Report PDFs and verification packages are included with
-            Pay-per-evidence credits and with the Pro, Team and Enterprise
-            plans. Your evidence record itself is signed and preserved — the
-            chain of custody is intact, and public verification still works —
-            but no downloadable report artifact is produced for it.
-          </p>
-        </div>
-      ) : reportOutput.state === "ELIGIBLE_NOT_GENERATED" ? (
-        <div
-          className="app-alert"
-          role="status"
-          data-evidence-section="reports-eligible-not-generated"
-          data-evidence-output-state={reportOutput.state}
-        >
-          <strong>
-            Your current plan includes a report and verification package for
-            this record
-          </strong>
-          <p>
-            Nothing has been generated for it yet — records captured before this
-            entitlement applied are not produced automatically. Generating uses
-            no evidence credit; it does use workspace storage.
-          </p>
-          <GenerateOutputsButton ctx={ctx} action={reportOutput.action} />
-        </div>
-      ) : reportOutput.state === "RETRYABLE_FAILURE" ? (
-        <div
-          className="app-alert app-alert--warn"
-          role="status"
-          data-evidence-section="reports-retryable-failure"
-          data-evidence-output-state={reportOutput.state}
-        >
-          <strong>Report generation failed</strong>
-          <p>
-            The last attempt did not complete
-            {reportOutput.attemptCount
-              ? ` (attempt ${reportOutput.attemptCount})`
-              : ""}
-            . The evidence record and its integrity state are unaffected.
-          </p>
-          <GenerateOutputsButton ctx={ctx} action={reportOutput.action} />
-        </div>
-      ) : reportOutput.state === "TERMINAL_FAILURE" ? (
-        <div
-          className="app-alert app-alert--warn"
-          role="status"
-          data-evidence-section="reports-terminal-failure"
-          data-evidence-output-state={reportOutput.state}
-          data-evidence-terminal-class={reportOutput.terminalReasonClass ?? ""}
-        >
-          <strong>Report generation stopped</strong>
-          <p>{terminalFailureCopy(reportOutput.terminalReasonClass)}</p>
-          <GenerateOutputsButton ctx={ctx} action={reportOutput.action} />
-        </div>
-      ) : null}
+      {/* ==================================================================
+          THE OUTPUT LIFECYCLE PANEL — TOTAL OVER THE CANONICAL STATE.
+          ==================================================================
+          RELIABILITY CLOSURE (2026-09-09). The chain that stood here handled
+          four of the eight states and fell through to `null` for the rest,
+          which produced two defects:
+
+            * READY is the ONLY state whose canonical action is REGENERATE, and
+              READY rendered nothing — so the regeneration path in
+              `GenerateOutputsButton`, confirmation dialog included, was
+              unreachable code. A customer could not create a new version from
+              the surface that owns versions.
+            * QUEUED and GENERATING rendered nothing, so the moment a person
+              clicked Generate the panel they were looking at went blank. The
+              only trace of their click was the reason text on a disabled
+              download button.
+
+          It is a switch over `EvidenceOutputState` now, so a new state is a
+          compile error rather than a silent empty panel. */}
+      <ArtifactLifecyclePanel ctx={ctx} output={reportOutput} />
 
       {/* Latest verification link. `shareUrl` is derived from the SAME
           publicVerificationSummary the rail reads, so the tab and the rail can
@@ -402,6 +513,10 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
         history={workspace.artifactVersions.history}
         onDownloadReport={() => void downloadReport()}
         onDownloadVerificationPackage={() => void downloadVerificationPackage()}
+        onDownloadReportVersion={(v) => void ctx.downloadReportVersion(v)}
+        onDownloadVerificationPackageVersion={(v) =>
+          void ctx.downloadVerificationPackageVersion(v)
+        }
         formatDateTime={formatUserDateTime}
         formatBytes={formatBytes}
         evidenceId={evidenceId}

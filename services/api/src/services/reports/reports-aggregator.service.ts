@@ -34,6 +34,12 @@ import {
 // lifecycle from the SAME shared state machine the per-record projection uses.
 import {
   deriveEvidenceOutputState,
+  // RELIABILITY CLOSURE (2026-09-09) — the canonical action and terminal class,
+  // projected by the server so the Reports page derives neither.
+  outputActionFor,
+  classifyTerminalReason,
+  type OutputAction,
+  type OutputTerminalReasonClass,
   projectReportRequestState,
   type EvidenceOutputState,
   type OutputGenerationState,
@@ -119,6 +125,42 @@ export type ArtifactRow = {
     version: number | null;
     generatedAtUtc: string | null;
     blockedReason: string | null;
+  };
+  /**
+   * RELIABILITY CLOSURE (2026-09-09) — THE CANONICAL OUTPUT PROJECTION, SO THE
+   * REPORTS PAGE STOPS BEING A SECOND ACTION AUTHORITY.
+   *
+   * The two blocks above are the legacy five-value vocabulary, and they are
+   * RETAINED because existing consumers read them. What they cannot carry is an
+   * ACTION: the browser re-derived one from them, and the mapping is lossy in
+   * exactly the places that matter.
+   *
+   *   * `BLOCKED` collapses into `not_requested`, so the page offered
+   *     "Generate report & package" for a record whose canonical action is
+   *     NONE — a button that posts, is refused, and reports success.
+   *   * every `TERMINAL_FAILURE` collapses into `failed`, so the page offered
+   *     "Retry generation" for integrity and technical terminals that nothing
+   *     will reopen, and labelled a now-eligible COMMERCIAL terminal "Retry"
+   *     when the canonical verb is GENERATE.
+   *
+   * This block is the same `deriveEvidenceOutputState` / `outputActionFor`
+   * answer that Evidence Detail renders, projected once by the server. The
+   * browser renders `action`; it derives nothing.
+   */
+  outputs: {
+    report: {
+      state: EvidenceOutputState;
+      action: OutputAction;
+      terminalReasonClass: OutputTerminalReasonClass | null;
+      /** An artifact exists and may be opened, whatever the current request says. */
+      downloadable: boolean;
+    };
+    verificationPackage: {
+      state: EvidenceOutputState;
+      action: OutputAction;
+      terminalReasonClass: OutputTerminalReasonClass | null;
+      downloadable: boolean;
+    };
   };
   /**
    * Phase 6 — workflow-template provenance trio. Surfaced as part of
@@ -589,10 +631,20 @@ export async function listWorkspaceArtifacts(input: {
               where: { evidenceId: { in: evidenceIds } },
               orderBy: [{ evidenceId: "asc" }, { createdAtUtc: "desc" }],
               distinct: ["evidenceId"],
-              select: { evidenceId: true, state: true },
+              // The terminal CLASS decides whether an action exists, so the
+              // code has to travel with the state. It is never projected raw.
+              select: {
+                evidenceId: true,
+                state: true,
+                terminalReasonCode: true,
+              },
             });
           } catch {
-            return [] as Array<{ evidenceId: string; state: string }>;
+            return [] as Array<{
+              evidenceId: string;
+              state: string;
+              terminalReasonCode: string | null;
+            }>;
           }
         })(),
         /*
@@ -646,23 +698,24 @@ export async function listWorkspaceArtifacts(input: {
             )
           : "NOT_REQUESTED";
 
-        const reportState = toReportLifecycle(
-          deriveEvidenceOutputState({
-            eligibility: eligibility?.reportEligibility ?? "ELIGIBLE",
-            generation,
-            availability: report !== null ? "READY" : "NO_ARTIFACT",
-            finalized,
-          }),
-        );
-        const packageState = toPackageLifecycle(
-          deriveEvidenceOutputState({
-            eligibility: eligibility?.packageEligibility ?? "ELIGIBLE",
-            generation: blocked ? "BLOCKED" : generation,
-            availability: pkg !== null ? "READY" : "NO_ARTIFACT",
-            finalized,
-          }),
-          blocked,
-        );
+        const reportCanonicalState = deriveEvidenceOutputState({
+          eligibility: eligibility?.reportEligibility ?? "ELIGIBLE",
+          generation,
+          availability: report !== null ? "READY" : "NO_ARTIFACT",
+          finalized,
+        });
+        const packageCanonicalState = deriveEvidenceOutputState({
+          eligibility: eligibility?.packageEligibility ?? "ELIGIBLE",
+          generation: blocked ? "BLOCKED" : generation,
+          availability: pkg !== null ? "READY" : "NO_ARTIFACT",
+          finalized,
+        });
+        const terminalReasonClass =
+          generation === "TERMINAL_FAILURE"
+            ? classifyTerminalReason(request?.terminalReasonCode ?? null)
+            : null;
+        const reportState = toReportLifecycle(reportCanonicalState);
+        const packageState = toPackageLifecycle(packageCanonicalState, blocked);
         return {
           evidenceId: r.id,
           title: r.title ?? null,
@@ -690,6 +743,36 @@ export async function listWorkspaceArtifacts(input: {
             version: pkg?.version ?? null,
             generatedAtUtc: pkg?.generatedAtUtc?.toISOString() ?? null,
             blockedReason: reason,
+          },
+          // The canonical projection, so the browser renders an action rather
+          // than inferring one from the lossy vocabulary above.
+          outputs: {
+            report: {
+              state: reportCanonicalState,
+              action: outputActionFor({
+                state: reportCanonicalState,
+                eligibility: eligibility?.reportEligibility ?? "ELIGIBLE",
+                terminalReasonClass,
+              }),
+              terminalReasonClass,
+              downloadable: report !== null,
+            },
+            verificationPackage: {
+              state: packageCanonicalState,
+              action: outputActionFor({
+                state: packageCanonicalState,
+                eligibility: eligibility?.packageEligibility ?? "ELIGIBLE",
+                terminalReasonClass:
+                  packageCanonicalState === "TERMINAL_FAILURE"
+                    ? terminalReasonClass
+                    : null,
+              }),
+              terminalReasonClass:
+                packageCanonicalState === "TERMINAL_FAILURE"
+                  ? terminalReasonClass
+                  : null,
+              downloadable: pkg !== null,
+            },
           },
           // Phase 6 — surface template-identity trio in the envelope.
           // Identity propagation only; legacy rows surface NULL.
