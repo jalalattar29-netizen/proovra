@@ -1047,7 +1047,12 @@ function resolveRecordedIntegrityPromotionDecision(params: {
   };
 }
 
-function createWorkerError(code: string, retriable: boolean): WorkerError {
+/**
+ * Exported for the partial-failure contract test. Behaviour unchanged: this is
+ * the same private helper, given a name a test can reach so the package-failure
+ * state transition can be asserted without standing up a signed fixture.
+ */
+export function createWorkerError(code: string, retriable: boolean): WorkerError {
   const err = new Error(code) as WorkerError;
   err.code = code;
   err.retriable = retriable;
@@ -1091,7 +1096,13 @@ function buildFinalizedAnchorPayload(params: {
   };
 }
 
-function isRetriableError(error: unknown): boolean {
+/**
+ * Exported for the partial-failure contract test. This predicate is what the
+ * catch in processGenerateReport uses to choose FAILED_RETRYABLE over
+ * FAILED_TERMINAL, so it is the exact decision the package-failure path turns
+ * on.
+ */
+export function isRetriableError(error: unknown): boolean {
   if (error && typeof error === "object" && "retriable" in error) {
     return (error as WorkerError).retriable === true;
   }
