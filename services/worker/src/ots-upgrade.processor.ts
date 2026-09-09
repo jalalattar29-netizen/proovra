@@ -23,6 +23,7 @@ import {
   resolveOtsTimeoutMs,
   verifyOtsProof,
 } from "./ots.service.js";
+import { ensureEvidenceOtsInitialized } from "./ots-lifecycle.js";
 import { buildOtsEvidenceUpdateData } from "./ots-state.js";
 import { enqueueReportJob } from "./processor.js";
 import { logger, withJobContext } from "./logger.js";
@@ -179,15 +180,71 @@ export async function processOtsUpgrade(job: Job<unknown>) {
     },
   });
 
-  if (!evidence || !evidence.otsProofBase64) {
+  if (!evidence) {
     logger.warn(
       withJobContext({
         jobId: job.id,
         evidenceId,
         durationMs: Date.now() - startedAt,
-        status: "skipped_missing_proof",
+        status: "skipped_missing_evidence",
       }),
       "ots.upgrade.skipped"
+    );
+    return;
+  }
+
+  if (!evidence.otsProofBase64) {
+    /*
+     * ===================================================================
+     * NO PROOF YET — INITIALIZE ONE. THIS USED TO BE A DEAD END.
+     * ===================================================================
+     * This branch returned "skipped_missing_proof", and for a record that
+     * would never be stamped it returned that forever. The initial stamp was
+     * created inside the REPORT job, so the only records that reached this
+     * processor with a proof were those whose plan includes reports. A FREE
+     * record could be enqueued here and would be turned away by this very
+     * line, permanently — while Pricing promised it OpenTimestamps.
+     *
+     * Initialization now happens here, which keeps ONE queue, ONE job id
+     * (`ots-upgrade-<evidenceId>` — the id is the dedupe) and ONE state
+     * machine for the whole lifecycle. The processor's two phases are simply
+     * "there is no proof" and "there is one".
+     *
+     * It returns rather than falling through: the freshly-created proof is
+     * seconds old and the calendar cannot have anchored it yet, so upgrading
+     * it in the same tick would spend a calendar round trip to learn nothing.
+     * The follow-up job carries it forward on the normal cadence, under the
+     * same global budget as every other pending proof.
+     */
+    const init = await ensureEvidenceOtsInitialized({
+      evidenceId,
+      requestId,
+      jobId: job.id ?? null,
+      trigger: "ots_upgrade_job",
+    });
+
+    if (init.initialized && init.needsUpgrade) {
+      await enqueueOtsUpgradeJob(evidenceId, { traceId: requestId }).catch(
+        (error: unknown) => {
+          // The record is stamped and durable either way. A follow-up that
+          // could not be scheduled is a queue problem, not an integrity one,
+          // and the reconciliation path re-enqueues it.
+          logger.warn(
+            { ...withJobContext({ jobId: job.id, evidenceId }), err: error },
+            "ots.init.followup_enqueue_failed",
+          );
+        },
+      );
+    }
+
+    logger.info(
+      withJobContext({
+        jobId: job.id,
+        evidenceId,
+        durationMs: Date.now() - startedAt,
+        status: init.initialized ? "initialized" : `skipped_${init.reason}`,
+      }),
+      "ots.upgrade.completed"
     );
     return;
   }
