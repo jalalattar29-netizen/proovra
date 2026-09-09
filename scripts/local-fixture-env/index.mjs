@@ -281,7 +281,25 @@ function buildLocalValues({ webPort, apiPort, databaseUrl, redisUrl }) {
     PACKAGE_SIGNING_PRIVATE_KEY_PATH: signingKeys.privatePath,
     PACKAGE_SIGNING_PUBLIC_KEY_PATH: signingKeys.publicPath,
     S3_OBJECT_LOCK_ENABLED: "false",
-    S3_OBJECT_LOCK_LEGAL_HOLD: "false",
+    /*
+     * "OFF", not "false" — this one is an ENUM, not a boolean.
+     *
+     * RUNTIME ACCEPTANCE (2026-09-09) — THE WORKER COULD NOT BOOT ON THIS.
+     * `services/worker/src/config.ts` types it `z.enum(["ON", "OFF"])`, so
+     * "false" is not merely ignored, it fails schema parsing and the process
+     * exits before its first log line. The API never noticed because it only
+     * asks whether the value `=== "ON"`, and every consumer of this module so
+     * far has been the API or the Web app — the two fixture launchers in the
+     * repository are `dev-admin-fixture-api.mjs` and `dev-admin-fixture.mjs`.
+     * The worker was simply never started on the canonical fixture.
+     *
+     * "OFF" is also the value that says what the fixture MEANS. Native S3
+     * Object Lock legal hold is deliberately not implemented — the worker
+     * refuses "ON" with a written reason, because PROOVRA enforces legal hold
+     * in the application through EvidenceLegalHold and has no per-version
+     * release path — so OFF is the honest setting rather than a placeholder.
+     */
+    S3_OBJECT_LOCK_LEGAL_HOLD: "OFF",
 
     SIGNER_PROVIDER: "local-pem",
 
