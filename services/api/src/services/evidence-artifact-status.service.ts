@@ -478,12 +478,38 @@ export async function buildEvidenceArtifactStatus(params: {
   // bundle); the package is SIGNED whenever it exists. The bounded
   // union reserves UNSIGNED for a future opt-out path so we don't
   // ship a status the contract cannot describe.
+  //
+  // ---------------------------------------------------------------------
+  // RELIABILITY CLOSURE (2026-09-09) — THE KEY ID IS NO LONGER GUESSED
+  // ---------------------------------------------------------------------
+  // `signerKeyId` was read from `process.env.PACKAGE_SIGNING_KEY_ID` — the
+  // key THIS API HOST would sign with today, not the key that signed THIS
+  // package. Those are the same value right up until a rotation, after which
+  // every historical package is reported as signed by a key that did not
+  // exist when it was built. On an integrity surface that is not a stale
+  // field, it is a false provenance claim.
+  //
+  // Compare the report block a few lines above, which reads
+  // `latestReport.pdfSignerKeyId` — the value persisted with the artifact.
+  // That is the correct shape, and VerificationPackage has no equivalent
+  // column, so there is nothing here to read.
+  //
+  // Until that column exists the honest answer is null: the package IS signed
+  // (the status is a fact about the bytes the worker always writes), and this
+  // API cannot say by which key. The authoritative answer already travels
+  // inside the artifact, in `MANIFEST.json.sig`, which is where a verifier
+  // looks anyway. No UI reads this field; both consumers read `.status`.
+  //
+  // DEFERRED, DELIBERATELY: persisting a signer key id on VerificationPackage
+  // is a schema change, and inventing one now would either backfill historical
+  // rows with today's key — reintroducing the exact false claim — or ship a
+  // column that is null for every existing package. Either belongs to a change
+  // that can migrate and backfill honestly, not to this one.
   const manifestSignature: VerificationPackageSignatureProjection | null =
     latestPackage
       ? {
           status: "SIGNED" as VerificationPackageSignatureStatus,
-          signerKeyId:
-            (process.env.PACKAGE_SIGNING_KEY_ID ?? "").trim() || null,
+          signerKeyId: null,
         }
       : null;
 
