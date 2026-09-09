@@ -125,6 +125,10 @@ const EXPECTED_CONSUMERS = [
   // canonical label, and the contrast of that label ON THE ADMIN SHELL is
   // asserted below rather than assumed — see the dark-surface test.
   "app/(app)/admin/users/[id]/EvidenceCreditGrant.tsx",
+  // The team's ONE create-assignment dialog. It moved out of the Work tab so
+  // the team header could open the SAME form instead of growing a second one;
+  // its five fields carry the canonical label exactly as they did in the tab.
+  "app/(app)/collaboration-teams/[teamId]/_components/CreateAssignmentModal.tsx",
   "app/(app)/collaboration-teams/[teamId]/_tabs/AssignmentsTab.tsx",
   "app/(app)/collaboration-teams/[teamId]/_tabs/SettingsTab.tsx",
   "app/(app)/collaboration-teams/page.tsx",

@@ -2,7 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { AppStatusBadge, type AppTone } from "../../../../../components/app-primitives/AppStatusBadge";
+import type { AppTone } from "../../../../../components/app-primitives/AppStatusBadge";
+/*
+ * The category label is a CATEGORY, not a state a dense row is scanned by, so
+ * it reads the tone table without taking a capsule for it. Same vocabulary,
+ * no surface — see `AppStatusText`.
+ */
+import { AppStatusText } from "../../../../../components/app-primitives/AppStatusText";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { formatUserDateTime, formatUserTime } from "../../../../../lib/date";
 import {
@@ -528,8 +534,20 @@ function ActivityTab({ team }: { team: CollaborationTeamDetail }) {
                         padding: "12px 14px",
                       }}
                     >
+                      {/*
+                        THE ICON CARRIES THE COLOUR NOW (§9).
+
+                        It was a fixed purple square on every row regardless of
+                        what happened, which left the category capsule beside
+                        the sentence as the only semantic signal — so a removal
+                        and a rename looked identical until you read the pill.
+                        The glyph reads the SAME canonical tone table the text
+                        label reads, so an icon and its label can never disagree
+                        about what a row means.
+                      */}
                       <span
                         aria-hidden
+                        data-activity-tone={tone}
                         style={{
                           width: 30,
                           height: 30,
@@ -537,10 +555,9 @@ function ActivityTab({ team }: { team: CollaborationTeamDetail }) {
                           borderRadius: 9,
                           display: "grid",
                           placeItems: "center",
-                          color: "#7C3AED",
-                          background:
-                            "linear-gradient(145deg, rgba(91,79,233,0.10), rgba(73,184,255,0.08))",
-                          border: "1px solid rgba(91,79,233,0.16)",
+                          color: `var(--tone-${tone})`,
+                          background: "rgba(15,23,42,0.035)",
+                          border: "1px solid rgba(15,23,42,0.07)",
                         }}
                       >
                         <EventIcon event={a.eventType} />
@@ -558,9 +575,25 @@ function ActivityTab({ team }: { team: CollaborationTeamDetail }) {
                           <span style={{ fontWeight: 650, color: "#172033", fontSize: 13.5 }}>
                             {activitySentence(a, actorName)}
                           </span>
-                          <AppStatusBadge tone={tone}>
+                          {/*
+                            A CATEGORY IS NOT A STATUS (§2/§9).
+
+                            "Assignments" and "Settings" are what KIND of
+                            administration a row is, printed on every single
+                            row — and a filled capsule behind every one of them
+                            turned a history into a column of lozenges with the
+                            sentence squeezed between them. `AppStatusText` is
+                            the canonical no-surface sibling of the badge and
+                            reads the SAME tone table, so the semantic colour
+                            survives the capsule.
+                          */}
+                          <AppStatusText
+                            tone={tone}
+                            size="sm"
+                            data-activity-category={cat}
+                          >
                             {CATEGORY_TONE_LABEL[cat]}
-                          </AppStatusBadge>
+                          </AppStatusText>
                         </div>
                         <div
                           style={{

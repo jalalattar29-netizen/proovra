@@ -27,22 +27,24 @@ import type { SafeErrorFallback } from "../../../../../lib/feedback/toSafeUserEr
 import { formatUserDate, formatUserDateTime } from "../../../../../lib/date";
 import {
   ASSIGNEE_UNASSIGNED,
-  type AssignableTarget,
   type CollaborationTeamAssignment,
   type CollaborationTeamDetail,
   type CollaborationTeamMember,
-  createAssignment,
-  listAssignableTargets,
   listAssignments,
   updateAssignment,
 } from "../../../../../lib/api/collaboration-teams";
+import {
+  memberLabel,
+  priorityLabel,
+  statusLabel,
+  targetLabel,
+} from "../_components/assignment-vocabulary";
 import {
   COLLABORATION_TEAM_ASSIGNMENT_PRIORITIES,
   COLLABORATION_TEAM_ASSIGNMENT_STATUSES,
   COLLABORATION_TEAM_ASSIGNMENT_TARGETS,
   type CollaborationTeamAssignmentPriority,
   type CollaborationTeamAssignmentStatus,
-  type CollaborationTeamAssignmentTarget,
 } from "@proovra/shared";
 
 // =============================================================================
@@ -70,44 +72,6 @@ import {
 // Humanization — backend enums are NEVER shown raw. Every status, priority and
 // target-type is mapped to plain language before it renders.
 // -----------------------------------------------------------------------------
-
-const STATUS_LABELS: Record<CollaborationTeamAssignmentStatus, string> = {
-  OPEN: "Open",
-  IN_PROGRESS: "In progress",
-  COMPLETED: "Completed",
-  REASSIGNED: "Reassigned",
-  CANCELLED: "Cancelled",
-};
-
-const PRIORITY_LABELS: Record<CollaborationTeamAssignmentPriority, string> = {
-  LOW: "Low",
-  NORMAL: "Normal",
-  HIGH: "High",
-  URGENT: "Urgent",
-};
-
-/**
- * "Access review" was WRONG, and wrong in a way that matters in an evidence
- * product: a REVIEW target is an `EvidenceReviewWorkflow` — the review of a
- * record — and an access review is a governance campaign over who holds
- * permissions. The label named the wrong domain entirely, and the row it sat
- * on linked to a reviewer console.
- */
-const TARGET_LABELS: Record<CollaborationTeamAssignmentTarget, string> = {
-  CASE: "Case",
-  EVIDENCE: "Evidence",
-  REVIEW: "Evidence review",
-};
-
-function statusLabel(status: CollaborationTeamAssignmentStatus): string {
-  return STATUS_LABELS[status] ?? status;
-}
-function priorityLabel(priority: CollaborationTeamAssignmentPriority): string {
-  return PRIORITY_LABELS[priority] ?? priority;
-}
-function targetLabel(target: CollaborationTeamAssignmentTarget): string {
-  return TARGET_LABELS[target] ?? target;
-}
 
 // Status → semantic tone (truthful map).
 function statusTone(status: CollaborationTeamAssignmentStatus): AppTone {
@@ -142,15 +106,6 @@ function priorityTone(priority: CollaborationTeamAssignmentPriority): AppTone {
   }
 }
 
-function memberLabel(member: CollaborationTeamMember): string {
-  return (
-    member.user.displayName ||
-    [member.user.firstName, member.user.lastName].filter(Boolean).join(" ") ||
-    member.user.email ||
-    member.userId.slice(0, 8)
-  );
-}
-
 function initialOf(label: string): string {
   return (label.trim()[0] ?? "?").toUpperCase();
 }
@@ -175,9 +130,26 @@ const SearchIcon = () => (
 function AssignmentsTab({
   team,
   canAssign,
+  onCreateAssignment,
+  reloadToken = 0,
 }: {
   team: CollaborationTeamDetail;
   canAssign: boolean;
+  /**
+   * Opens the team's ONE create-assignment dialog, which the page owns.
+   *
+   * The dialog used to live in this file, privately, so the Work tab was the
+   * only surface in the product that could delegate anything. It is a shared
+   * launcher now and this button is one of its two callers — the team header
+   * is the other — so there is exactly one form and one payload.
+   */
+  onCreateAssignment: () => void;
+  /**
+   * Bumped by the page when an assignment is created from ANYWHERE, so a
+   * creation made from the header reaches a Work tab that is already mounted.
+   * Without it the row appears only after a manual reload.
+   */
+  reloadToken?: number;
 }) {
   const { addToast } = useToast();
   const [items, setItems] =
@@ -185,7 +157,6 @@ function AssignmentsTab({
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] =
     useState<CollaborationTeamAssignmentStatus | null>(null);
-  const [creating, setCreating] = useState(false);
   const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
 
@@ -263,13 +234,20 @@ function AssignmentsTab({
     addToast,
   ]);
 
+  /*
+   * `reloadToken` is in the dependency list on purpose. An assignment created
+   * from the team header lands on a Work tab that is already mounted, and
+   * without a signal from the page this list would keep showing the set it
+   * fetched before the creation. It is a counter, not data — re-running the
+   * SAME query is the whole point.
+   */
   useEffect(() => {
     let cancelled = false;
     void refresh(() => cancelled);
     return () => {
       cancelled = true;
     };
-  }, [refresh]);
+  }, [refresh, reloadToken]);
 
   /**
    * The rest of the set, on the same cursor. Appended rather than replacing,
@@ -452,7 +430,7 @@ function AssignmentsTab({
             <button
               type="button"
               className="app-primary-action"
-              onClick={() => setCreating(true)}
+              onClick={onCreateAssignment}
               data-testid="create-assignment-button"
             >
               <svg
@@ -592,18 +570,6 @@ function AssignmentsTab({
           ) : null}
         </div>
       )}
-
-      {creating ? (
-        <CreateAssignmentModal
-          team={team}
-          onClose={() => setCreating(false)}
-          onCreated={async () => {
-            setCreating(false);
-            addToast("Assignment created.", "success");
-            await refresh();
-          }}
-        />
-      ) : null}
     </section>
   );
 }
@@ -1054,334 +1020,6 @@ function EditAssignmentModal({
         </div>
       </div>
     </Modal>
-  );
-}
-
-function CreateAssignmentModal({
-  team,
-  onClose,
-  onCreated,
-}: {
-  team: CollaborationTeamDetail;
-  onClose: () => void;
-  onCreated: () => void | Promise<void>;
-}) {
-  const { addToast } = useToast();
-  const [targetType, setTargetType] =
-    useState<CollaborationTeamAssignmentTarget>("CASE");
-  const [targetId, setTargetId] = useState("");
-  const [targetSearch, setTargetSearch] = useState("");
-  /*
-   * UI POLISH (2026-09-09) — the options are not dumped before they are asked for.
-   *
-   * The listbox rendered unconditionally, so opening the form showed every case
-   * in the workspace stacked under an empty search box. That is noise standing
-   * where the answer goes, and it gets worse the more real data a workspace has.
-   *
-   * It opens on focus or on the first character, and deliberately does NOT close
-   * on blur: a blur-to-close races the click that selects an option, which is
-   * the classic way a picker becomes unusable with a mouse. Nothing here filters
-   * locally — the search is still the server's.
-   */
-  const [targetPickerOpen, setTargetPickerOpen] = useState(false);
-  const targetPickerVisible =
-    targetPickerOpen || targetSearch.trim().length > 0;
-  const [targetOptions, setTargetOptions] = useState<
-    ReadonlyArray<AssignableTarget>
-  >([]);
-  const [targetsLoading, setTargetsLoading] = useState(false);
-
-  // Debounced so a keystroke is not a request; the selection is cleared when
-  // the type changes because an id from one kind is meaningless for another.
-  useEffect(() => {
-    let cancelled = false;
-    setTargetsLoading(true);
-    const handle = setTimeout(() => {
-      void listAssignableTargets(team.id, targetType, { search: targetSearch })
-        .then((res) => {
-          if (!cancelled) setTargetOptions(res.targets);
-        })
-        .catch(() => {
-          if (!cancelled) setTargetOptions([]);
-        })
-        .finally(() => {
-          if (!cancelled) setTargetsLoading(false);
-        });
-    }, targetSearch ? 250 : 0);
-    return () => {
-      cancelled = true;
-      clearTimeout(handle);
-    };
-  }, [team.id, targetType, targetSearch]);
-
-  useEffect(() => {
-    setTargetId("");
-  }, [targetType]);
-  const [assigneeUserId, setAssigneeUserId] = useState<string>("");
-  const [priority, setPriority] =
-    useState<CollaborationTeamAssignmentPriority>("NORMAL");
-  const [dueAt, setDueAt] = useState("");
-  const [note, setNote] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!targetId || busy) return;
-    setBusy(true);
-    try {
-      await createAssignment(team.id, {
-        targetType,
-        targetId,
-        assigneeUserId: assigneeUserId || null,
-        priority,
-        dueAtUtc: dueAt ? new Date(dueAt).toISOString() : null,
-        note: note || null,
-      });
-      await onCreated();
-    } catch (err) {
-      if (err instanceof ApiError) {
-        notifyApiError(addToast, err);
-      } else {
-        addToast("Couldn't create assignment.", "error");
-      }
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const targetTypeOptions = COLLABORATION_TEAM_ASSIGNMENT_TARGETS.map((t) => ({
-    value: t,
-    label: targetLabel(t),
-  }));
-
-  const assigneeOptions = [
-    { value: "", label: "Team-level (no specific assignee)" },
-    ...team.members
-      .filter((m) => m.status === "ACTIVE")
-      .map((m) => ({
-        value: m.userId,
-        label: memberLabel(m),
-        description: m.user.email ?? undefined,
-      })),
-  ];
-
-  const priorityOptions = COLLABORATION_TEAM_ASSIGNMENT_PRIORITIES.map((p) => ({
-    value: p,
-    label: priorityLabel(p),
-  }));
-
-  return (
-    <div
-      role="presentation"
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(15,23,42,0.45)",
-        backdropFilter: "blur(6px)",
-        WebkitBackdropFilter: "blur(6px)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "1rem",
-        zIndex: 200,
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <form
-        onSubmit={onSubmit}
-        data-testid="create-assignment-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="create-assignment-title"
-        className="app-dialog"
-      >
-        <div className="app-dialog__head">
-          <h2 id="create-assignment-title" className="app-dialog__title">
-            Create assignment
-          </h2>
-          <p className="app-dialog__subtitle">
-            Delegate a case, evidence item, or access review to a teammate or to
-            the team.
-          </p>
-        </div>
-
-        <div className="app-dialog__body">
-          <div data-testid="assignment-target-type">
-            <label className="app-field-label" id="assignment-target-type-label">
-              Target type
-            </label>
-            <AppListbox
-              value={targetType}
-              options={targetTypeOptions}
-              onChange={(v) =>
-                setTargetType(v as CollaborationTeamAssignmentTarget)
-              }
-              ariaLabelledby="assignment-target-type-label"
-              id="assignment-target-type"
-            />
-          </div>
-
-          <div>
-            <label
-              className="app-field-label"
-              htmlFor="assignment-target-search"
-            >
-              {targetLabel(targetType)}
-            </label>
-            {/*
-              A PICKER, NOT A PASTE BOX.
-
-              This asked the operator to copy a uuid out of another page's URL
-              and paste it here, and then rendered the result as the first eight
-              characters of that uuid with no link. The list below is the
-              workspace's own records, searched on the server, and the value
-              submitted is chosen rather than transcribed.
-            */}
-            <input
-              id="assignment-target-search"
-              value={targetSearch}
-              onChange={(e) => setTargetSearch(e.target.value)}
-              onFocus={() => setTargetPickerOpen(true)}
-              role="combobox"
-              aria-expanded={targetPickerVisible}
-              aria-controls="assignment-target-options"
-              aria-autocomplete="list"
-              placeholder={`Search ${targetLabel(targetType).toLowerCase()}s in this workspace`}
-              data-testid="assignment-target-search"
-              className="app-form-input"
-              autoComplete="off"
-            />
-            {targetPickerVisible ? (
-            <div
-              id="assignment-target-options"
-              role="listbox"
-              aria-label={`${targetLabel(targetType)} results`}
-              data-testid="assignment-target-options"
-              className="app-inner-surface"
-              style={{ maxHeight: 220, overflowY: "auto", marginTop: 8 }}
-            >
-              {targetOptions.length === 0 ? (
-                <p className="app-field-help" style={{ padding: "8px 10px" }}>
-                  {targetsLoading
-                    ? "Searching…"
-                    : `No ${targetLabel(targetType).toLowerCase()}s in this workspace match that.`}
-                </p>
-              ) : (
-                targetOptions.map((opt) => (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    role="option"
-                    aria-selected={targetId === opt.id}
-                    onClick={() => setTargetId(opt.id)}
-                    data-testid={`assignment-target-option-${opt.id}`}
-                    className={
-                      targetId === opt.id
-                        ? "app-listbox-option app-listbox-option--selected"
-                        : "app-listbox-option"
-                    }
-                    style={{
-                      display: "block",
-                      width: "100%",
-                      textAlign: "left",
-                      padding: "8px 10px",
-                      minHeight: 44,
-                    }}
-                  >
-                    <span className="app-table__primary">{opt.label}</span>
-                    {opt.sublabel ? (
-                      <span className="app-table__muted"> · {opt.sublabel}</span>
-                    ) : null}
-                    <span className="app-table__muted"> · {opt.status}</span>
-                  </button>
-                ))
-              )}
-            </div>
-            ) : null}
-          </div>
-
-          <div data-testid="assignment-assignee">
-            <label className="app-field-label" id="assignment-assignee-label">
-              Assignee
-            </label>
-            <AppListbox
-              value={assigneeUserId}
-              options={assigneeOptions}
-              onChange={(v) => setAssigneeUserId(v)}
-              ariaLabelledby="assignment-assignee-label"
-              id="assignment-assignee"
-              placeholder="Team-level (no specific assignee)"
-            />
-          </div>
-
-          <div data-testid="assignment-priority">
-            <label className="app-field-label" id="assignment-priority-label">
-              Priority
-            </label>
-            <AppListbox
-              value={priority}
-              options={priorityOptions}
-              onChange={(v) =>
-                setPriority(v as CollaborationTeamAssignmentPriority)
-              }
-              ariaLabelledby="assignment-priority-label"
-              id="assignment-priority"
-            />
-          </div>
-
-          <div>
-            <label className="app-field-label" htmlFor="assignment-due">
-              Due date <span className="app-field-optional">(optional)</span>
-            </label>
-            <input
-              id="assignment-due"
-              type="datetime-local"
-              value={dueAt}
-              onChange={(e) => setDueAt(e.target.value)}
-              data-testid="assignment-due"
-              className="app-form-input"
-            />
-          </div>
-
-          <div>
-            <label className="app-field-label" htmlFor="assignment-note">
-              Description <span className="app-field-optional">(optional)</span>
-            </label>
-            <textarea
-              id="assignment-note"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              maxLength={600}
-              rows={3}
-              data-testid="assignment-note"
-              className="app-form-input"
-              placeholder="Add context so the assignee knows what's expected."
-            />
-          </div>
-        </div>
-
-        <div className="app-dialog__footer">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={busy}
-            className="app-secondary-action"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={!targetId || busy}
-            className="app-primary-action"
-            data-testid="assignment-submit"
-          >
-            {busy ? "Creating…" : "Create assignment"}
-          </button>
-        </div>
-      </form>
-    </div>
   );
 }
 

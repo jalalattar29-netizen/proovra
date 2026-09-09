@@ -2426,3 +2426,98 @@ textarea.app-form-input {
   direction: ltr;
   unicode-bidi: isolate;
 }
+
+/* ---------------------------------------------------------------------------
+ * 20. SEARCH-SELECT (searchable single-select over RECORDS).
+ *
+ * The visual half of `AppSearchSelect`. It deliberately adds almost nothing:
+ * the popup surface and the option rows are the LISTBOX's — `.app-listbox__
+ * popup` and `.app-listbox__option`, unchanged, so a record picker and a
+ * vocabulary picker cannot drift apart. What is here is only what a record
+ * row needs and a vocabulary row does not: a right-aligned state word, a
+ * two-line label/sublabel cell, and an empty/searching line.
+ *
+ * NO PILLS. The status is semantic TEXT at the end of the row, in the muted
+ * ink every other secondary value uses. A capsule behind "Open" on every row
+ * turns a list of six cases into a list of six lozenges.
+ * ------------------------------------------------------------------------- */
+.app-search-select {
+  position: relative;
+  min-width: 0;
+}
+/* The popup is portaled and already sized to the field by the overlay, so the
+   listbox's own 360px clamp — written for a narrow trigger button — would
+   shrink it away from the field it belongs to. */
+.app-search-select__popup {
+  max-width: none;
+  max-height: 240px;
+  margin: 0;
+  list-style: none;
+}
+/* The field itself is an ordinary `.app-form-input`; this adds only what a
+   RECORD field needs — a long case name truncates rather than scrolling the
+   value out of sight while the operator types. */
+.app-search-select__input {
+  text-overflow: ellipsis;
+}
+.app-search-select__option {
+  justify-content: space-between;
+  gap: 12px;
+  /* A record row is two lines when it has a sublabel; the listbox option is
+     centred for one. */
+  align-items: center;
+  min-height: 40px;
+}
+.app-search-select__option-text {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.app-search-select__option-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-search-select__option-status {
+  flex-shrink: 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--app-ink-secondary);
+  text-transform: capitalize;
+}
+.app-listbox__option[aria-selected="true"] .app-search-select__option-status {
+  color: #6D28D9;
+}
+.app-search-select__empty {
+  padding: 10px;
+  font-size: 12.5px;
+  color: var(--app-ink-secondary);
+}
+
+/* ---------------------------------------------------------------------------
+ * 21. PAIRED PANEL GRID.
+ *
+ * `.app-grid-panels` is `auto-fit, minmax(320px, 1fr)`, which on a full-width
+ * page resolves to THREE columns — right for a rail of short status panels,
+ * wrong for settings cards holding a form each. `--pairs` fixes the count at
+ * two so a settings page reads as pairs rather than as whatever happens to
+ * fit, and a card whose content wants the room opts out per-card with
+ * `grid-column: 1 / -1`.
+ *
+ * One collapse step, at 900px: two columns survive a landscape tablet, and a
+ * portrait tablet or a phone gets a single clean stack rather than two 360px
+ * columns holding a textarea each.
+ * ------------------------------------------------------------------------- */
+.app-grid-panels--pairs {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.app-grid-panels--pairs > .app-grid-panels__full {
+  grid-column: 1 / -1;
+}
+@media (max-width: 900px) {
+  .app-grid-panels--pairs {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

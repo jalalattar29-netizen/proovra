@@ -272,8 +272,39 @@ function SettingsTab({
   const isArchived = team.status === "ARCHIVED";
 
   return (
-    <section data-testid="tab-settings-content" style={{ maxWidth: 620 }}>
-      <div className="app-section-stack">
+    /*
+     * A SETTINGS GRID, NOT A 620px COLUMN (§1).
+     *
+     * Every card here was stacked full-width inside a `maxWidth: 620` section,
+     * which on a 1360px page meant a narrow ribbon of cards down the left and
+     * roughly half the page permanently empty beside it. Nothing about these
+     * cards needed that: two of them are a single select and a paragraph.
+     *
+     * `.app-grid-panels` is the canonical panel row and its `--pairs` variant
+     * fixes the column count at two, because the base `auto-fit` resolves to
+     * THREE at this width — right for a rail of status panels, wrong for a card
+     * holding a form. Cards top-align, each pair shares a width, and no height
+     * is forced: two cards with different amounts of content are allowed to
+     * differ rather than being stretched to match.
+     *
+     * WHAT SPANS, AND WHY:
+     *   row 1  General details | Team configuration   — a form and a classifier,
+     *          both editing the team's own fields; genuine peers
+     *   row 2  Leadership                             — full width; its body is
+     *          three lines of governance copy that reads badly in a half column
+     *          and would otherwise leave the right half empty
+     *   row 3  Danger zone                            — full width, separated;
+     *          its rows are [explanation | action] bars that need the width, and
+     *          a destructive card should not share a line with a routine one
+     *
+     * Below 900px the grid is a single clean stack, so a portrait tablet or a
+     * phone never gets two columns holding a textarea each.
+     */
+    <section data-testid="tab-settings-content">
+      <div
+        className="app-grid-panels app-grid-panels--pairs"
+        data-testid="settings-grid"
+      >
         {/* A. General details */}
         <div className="app-panel">
           <div className="app-panel__head">
@@ -396,7 +427,10 @@ function SettingsTab({
           removed from the type field. The second step is offered in words.
         */}
         {canTransferLead ? (
-          <div className="app-panel" data-testid="settings-leadership">
+          <div
+            className="app-panel app-grid-panels__full"
+            data-testid="settings-leadership"
+          >
             <div className="app-panel__head">
               <h3 className="app-panel__title">Leadership</h3>
             </div>
@@ -456,7 +490,7 @@ function SettingsTab({
 
         {/* E. Danger zone — visually separated, red-tinted panel */}
         <div
-          className="app-panel"
+          className="app-panel app-grid-panels__full"
           data-testid="settings-danger-zone"
           style={{
             border: "1px solid rgba(201, 54, 62, 0.28)",

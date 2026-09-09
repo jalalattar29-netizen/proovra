@@ -48,6 +48,7 @@ import { DiscussionPanel } from "./_tabs/DiscussionTab";
 import { AssignmentsTab } from "./_tabs/AssignmentsTab";
 import { ActivityTab } from "./_tabs/ActivityTab";
 import { SettingsTab } from "./_tabs/SettingsTab";
+import { CreateAssignmentModal } from "./_components/CreateAssignmentModal";
 
 // WORKSPACE AND COLLABORATION RECONCILIATION — Discussion joined the tabs and
 // Invites left them.
@@ -305,6 +306,25 @@ function TeamDetail() {
    * workspace by the platform context. `null` means UNKNOWN and the link stays
    * hidden — fail closed, rather than promising on a degraded envelope.
    */
+  /*
+   * THE TEAM'S ONE ASSIGNMENT LAUNCHER.
+   *
+   * The create-assignment dialog was private to the Work tab, so delegating
+   * work required finding that tab first — and the obvious repair, a second
+   * button in the header with its own dialog, would have produced two forms,
+   * two payloads and two places for the target contract to drift.
+   *
+   * The state lives HERE, above the tabs, and exactly one dialog is rendered.
+   * The header button and the Work tab's button are two callers of the same
+   * opener; `canAssign` below is computed once for both.
+   *
+   * `assignmentReloadToken` is how a creation made from the header reaches a
+   * Work tab that is already mounted: the tab re-runs its query when the
+   * counter moves. Without it the new row appears only after a reload.
+   */
+  const [createAssignmentOpen, setCreateAssignmentOpen] = useState(false);
+  const [assignmentReloadToken, setAssignmentReloadToken] = useState(0);
+
   const externalReviewIncluded = usePlanFeature("externalReviewIncluded");
   const canManageExternalReviewers =
     useCan("REVIEWER_OPS_VIEW") && externalReviewIncluded === true;
@@ -721,6 +741,30 @@ function TeamDetail() {
               </button>
             ) : null}
             {/*
+              CREATE ASSIGNMENT, IN THE HEADER (§3).
+
+              Delegating work was reachable only from the Work tab, so an
+              operator reading Overview or Members had to go looking for it.
+              This opens the SAME dialog that button opens — one component, one
+              `createAssignment` call — and it is gated on the same
+              `canAssign`, which already folds the lifecycle in, so an
+              archived team offers it in neither place.
+
+              It is a peer SECONDARY beside Discussion, not a second filled
+              button: "Add people" is the header's one primary, and two filled
+              controls side by side say the reader has two first choices.
+            */}
+            {canAssign ? (
+              <button
+                type="button"
+                className="app-secondary-action"
+                onClick={() => setCreateAssignmentOpen(true)}
+                data-testid="header-create-assignment-button"
+              >
+                Create assignment
+              </button>
+            ) : null}
+            {/*
               The Collaboration Hub was a second destination holding five
               panels, three of which did nothing. What survived is the
               discussion, and it is a tab on this page — so the header opens
@@ -884,7 +928,12 @@ function TeamDetail() {
             canInvite={canInvite}
           />
         ) : activeTab === "work" ? (
-          <AssignmentsTab team={team} canAssign={canAssign} />
+          <AssignmentsTab
+            team={team}
+            canAssign={canAssign}
+            onCreateAssignment={() => setCreateAssignmentOpen(true)}
+            reloadToken={assignmentReloadToken}
+          />
         ) : activeTab === "discussion" ? (
           // Reachable by URL even though the tab is hidden above, so the
           // refusal is stated rather than surfacing as a load failure.
@@ -922,6 +971,33 @@ function TeamDetail() {
           </>
         ) : null}
       </div>
+
+      {/*
+        ONE DIALOG, ABOVE THE TABS.
+
+        Rendered here rather than inside a tab so it survives the tab the
+        operator opened it from, and so there is a single instance no matter
+        which button opened it.
+
+        `canAssign` is re-read on every render, so a team archived in another
+        window cannot leave a usable dialog standing: the affordance and the
+        dialog resolve away together, and the server refuses regardless.
+      */}
+      {createAssignmentOpen && canAssign ? (
+        <CreateAssignmentModal
+          team={team}
+          onClose={() => setCreateAssignmentOpen(false)}
+          onCreated={async () => {
+            setCreateAssignmentOpen(false);
+            addToast("Assignment created.", "success");
+            // The header counter reaches a Work tab that is already mounted;
+            // `refresh()` re-reads the team so the tab count agrees with it.
+            setAssignmentReloadToken((n) => n + 1);
+            await refresh();
+            if (activeTab !== "work") goTab("work");
+          }}
+        />
+      ) : null}
     </PageShell>
   );
 }

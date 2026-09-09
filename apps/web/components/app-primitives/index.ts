@@ -12,3 +12,8 @@
 export { AppListbox, type AppListboxOption, type AppListboxProps } from "./AppListbox";
 export { AppStatusBadge, type AppTone, type AppStatusBadgeProps } from "./AppStatusBadge";
 export { AppStatusText, type AppStatusTextProps } from "./AppStatusText";
+export {
+  AppSearchSelect,
+  type AppSearchSelectOption,
+  type AppSearchSelectProps,
+} from "./AppSearchSelect";
