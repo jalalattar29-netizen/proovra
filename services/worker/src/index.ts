@@ -753,7 +753,21 @@ function stopLifecycleRecoveryScheduler() {
 // a commercial decision; both only repair SCHEDULING through the canonical
 // producer for their work name.
 //
-// WHY THEY ARE SEPARATE FROM `lifecycle-recovery`, WHICH ALSO RUNS ABOVE.
+// WHERE THEY RUN. Inside `runLifecycleRecovery`, which the scheduler above
+// already starts — not on schedulers of their own.
+//
+// An earlier draft of this change gave them a separate sweep, and it was wrong
+// twice over. A sweep is a registered unit of work with obligations attached to
+// it, and adding one to declare "the same tick, five minutes apart" buys a
+// second thing that can be disabled, a second thing that can silently stop, and
+// a second set of obligations to keep truthful. More importantly the three
+// populations below are one responsibility — repair a handoff that was lost
+// between a commit and a queue — so splitting them across timers would let a
+// deployment run half of that repair.
+//
+// The registry now names `lifecycle-recovery.ts` as the reconciler for both
+// GENERATE_REPORT and UPGRADE_OTS, which is the truthful entry, and one tick
+// runs all three scans in order.
 // `runLifecycleRecovery` scans EVIDENCE — records SIGNED with no Report row at
 // all — and re-requests a FIRST generation for them. That is a narrow, useful
 // sweep and it stays. It cannot see the failures these two are for:
@@ -768,9 +782,9 @@ function stopLifecycleRecoveryScheduler() {
 // The three request-shaped cases belong to `reconcileStrandedReportRequests`,
 // which was written for exactly them and had no caller; the fourth belongs to
 // the OTS initialization reconciler. Their populations do not overlap — one
-// keys on `ReportGenerationRequest`, one on `Evidence.otsStatus`, and
-// lifecycle-recovery on `Evidence.reports: none` — so no two of them can fight
-// over the same row. Where lifecycle-recovery and the report reconciler could
+// keys on `ReportGenerationRequest`, one on `Evidence.otsStatus`, and the
+// original evidence scan on `Evidence.reports: none` — so no two of them can
+// fight over the same row even though one tick now runs all three. Where lifecycle-recovery and the report reconciler could
 // both re-enqueue one request, they converge rather than collide: the job id is
 // deterministic in the request id, so the second enqueue collapses onto the
 // first.
