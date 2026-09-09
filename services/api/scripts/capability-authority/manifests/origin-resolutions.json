@@ -219,10 +219,10 @@
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/worker/src/index.ts:440",
+      "site": "services/worker/src/index.ts:438",
       "verdict": "OURS",
       "originBinding": "url built from the worker's apiBaseUrl()",
-      "evidence": "services/worker/src/index.ts — demo-request follow-up tick calling POST /v1/admin/demo-requests/follow-up/run. Re-anchored :408 -> :412 (2026-08-24, trash-grace reconciler registered above it) and :412 -> :438 (2026-09-05, Phase 5 added the queue-replay correlation import and its two completion hooks above it). The call itself is byte-identical each time and the verdict is unchanged; this manifest is keyed by file:line, so ANY insertion above a reviewed site invalidates the review until it is re-anchored. That is the point of the key, and re-anchoring is a re-review, not a formality: the fetch was read again and still builds its url from the worker apiBaseUrl(). Re-anchored :438 -> :440 (2026-09-09, RELIABILITY CLOSURE: the OTS initialization reconciler's import was added above it). Re-read at the new anchor: the fetch still builds its url from the worker apiBaseUrl() and is otherwise byte-identical.",
+      "evidence": "services/worker/src/index.ts — demo-request follow-up tick calling POST /v1/admin/demo-requests/follow-up/run. Re-anchored :408 -> :412 (2026-08-24, trash-grace reconciler registered above it) and :412 -> :438 (2026-09-05, Phase 5 added the queue-replay correlation import and its two completion hooks above it). The call itself is byte-identical each time and the verdict is unchanged; this manifest is keyed by file:line, so ANY insertion above a reviewed site invalidates the review until it is re-anchored. That is the point of the key, and re-anchoring is a re-review, not a formality: the fetch was read again and still builds its url from the worker apiBaseUrl(). RE-READ 2026-09-09 (RELIABILITY CLOSURE) AND THE ANCHOR DID NOT MOVE: it is still :438. An earlier pass in that change re-anchored this to :440 on the expectation that the OTS initialization reconciler would add an import above it; that import went into lifecycle-recovery.ts instead, so nothing above this call changed and the :440 anchor was simply wrong. The site was re-read at :438 and the verdict is unchanged: the fetch builds its url from the worker apiBaseUrl() and is otherwise byte-identical. Recorded because a manifest keyed by file:line is only worth having if a wrong anchor is corrected out loud rather than left to be re-derived.",
       "reviewedAtUtc": "2026-09-09"
     },
     {
