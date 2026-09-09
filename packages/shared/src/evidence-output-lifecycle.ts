@@ -363,3 +363,203 @@ export function outputActionFor(input: {
       return "NONE";
   }
 }
+
+// ===========================================================================
+// RELIABILITY CLOSURE (2026-09-09) — BLOCKED IS NOT ALWAYS FOREVER
+// ===========================================================================
+
+/**
+ * The bounded terminal reason codes a `BLOCKED_STALE` / `BLOCKED_POLICY`
+ * request may carry, split by whether the blocker is a CONDITION OF THE WORLD
+ * that can end, or a statement about the request itself that never changes.
+ *
+ * ---------------------------------------------------------------------------
+ * WHY THIS EXISTS
+ * ---------------------------------------------------------------------------
+ * `isCommerciallyObsoleteTerminalReason` made a terminal COMMERCIAL refusal
+ * supersedable, and that closed the permanent lockout for one class. Three
+ * other classes were left behind, and they are equally recoverable:
+ *
+ *   policy_version_changed   a workspace governance policy was edited between
+ *                            a request's creation and its execution. That is a
+ *                            RACE, not a refusal — the very next request would
+ *                            have carried the new version and run.
+ *   legal_hold_active        holds are placed and released.
+ *   organization_not_active  suspensions are lifted.
+ *
+ * Because the request's idempotency key is anchored on the artifact version it
+ * is trying to advance past, and a blocked request produces no artifact, every
+ * later request for that record computed the SAME key, collapsed onto the
+ * terminal row and returned `already_terminal`. The customer's Generate button,
+ * the Reports page and the Operations remediation all dead-ended, permanently,
+ * on a condition that had since gone away.
+ *
+ * ---------------------------------------------------------------------------
+ * WHAT THIS DOES NOT DO
+ * ---------------------------------------------------------------------------
+ * It does not make a blocked request retryable. It says only that a NEW request
+ * MAY be minted — and the writer still has to confirm, against the CURRENT
+ * source of truth, that the blocker is genuinely gone. A reason code is a
+ * record of what was true once; it is never permission to act now.
+ */
+const RECOVERABLE_BLOCKED_TERMINAL_REASONS: ReadonlySet<string> = new Set([
+  "POLICY_VERSION_CHANGED",
+  "LEGAL_HOLD_ACTIVE",
+  "ORGANIZATION_NOT_ACTIVE",
+]);
+
+/**
+ * Reasons that describe the REQUEST rather than the world, and so can never be
+ * resolved by waiting. Stated explicitly rather than left as "everything else"
+ * so that adding a new blocked reason is a deliberate classification.
+ */
+const NON_RECOVERABLE_BLOCKED_TERMINAL_REASONS: ReadonlySet<string> = new Set([
+  "WORKSPACE_MISMATCH",
+  "WORKSPACE_NOT_FOUND",
+  "NO_PRINCIPAL",
+  "EVIDENCE_NOT_FOUND",
+]);
+
+/**
+ * Is this blocked terminal reason one whose blocker can END?
+ *
+ * Unknown codes answer FALSE. A blocked reason nobody has classified must not
+ * become silently supersedable, because supersession is what lets a new
+ * generation run — the conservative default is the one that cannot invent
+ * permission.
+ */
+export function isRecoverableBlockedTerminalReason(
+  terminalReasonCode: string | null | undefined,
+): boolean {
+  if (!terminalReasonCode) return false;
+  const code = terminalReasonCode.trim().toUpperCase();
+  if (NON_RECOVERABLE_BLOCKED_TERMINAL_REASONS.has(code)) return false;
+  return RECOVERABLE_BLOCKED_TERMINAL_REASONS.has(code);
+}
+
+/** Exposed for the contract test and for operator projections. */
+export function listRecoverableBlockedTerminalReasons(): readonly string[] {
+  return [...RECOVERABLE_BLOCKED_TERMINAL_REASONS];
+}
+
+/** Exposed for the contract test. */
+export function listNonRecoverableBlockedTerminalReasons(): readonly string[] {
+  return [...NON_RECOVERABLE_BLOCKED_TERMINAL_REASONS];
+}
+
+// ===========================================================================
+// GENERATION INTENT — THE VERB, AS A COMMAND
+// ===========================================================================
+
+/**
+ * What an actor is ASKING FOR. Distinct from {@link OutputAction}, which is
+ * what a surface may OFFER.
+ *
+ * They are the same three words and they are not the same thing: the action is
+ * a projection the server computes and the browser renders, while the intent is
+ * a command the browser sends and the server RE-DERIVES before it acts. The
+ * server never trusts the intent to be correct — it uses it only to record what
+ * the actor believed, and refuses when belief and truth disagree in a way that
+ * matters.
+ *
+ * `forceRegenerate` used to be sent as a hard-coded `true` for all three verbs,
+ * which meant a FIRST generation entered the regeneration-only legal-hold
+ * branch and burned its own idempotency key on a record that had nothing to
+ * preserve.
+ */
+export const GENERATION_INTENTS = ["GENERATE", "RETRY", "REGENERATE"] as const;
+export type GenerationIntent = (typeof GENERATION_INTENTS)[number];
+
+/**
+ * THE ONE RULE that turns an output state into `forceRegenerate`.
+ *
+ * `forceRegenerate` authorizes REPLACING a finalised artifact, and that is true
+ * of exactly one situation: an artifact already exists. Not "the caller asked
+ * for a regeneration", not "the endpoint is the regenerate endpoint" — the
+ * artifact itself is the fact that decides it, and the server reads that fact
+ * from persistence rather than from the request body.
+ */
+export function resolveForceRegenerate(input: {
+  availability: OutputArtifactAvailability;
+}): boolean {
+  return input.availability === "READY";
+}
+
+/**
+ * The intent implied by a canonical action, so a surface that holds an action
+ * can send the matching command without inventing a mapping of its own.
+ */
+export function intentForOutputAction(
+  action: OutputAction,
+): GenerationIntent | null {
+  switch (action) {
+    case "GENERATE":
+      return "GENERATE";
+    case "RETRY":
+      return "RETRY";
+    case "REGENERATE":
+      return "REGENERATE";
+    case "NONE":
+      return null;
+  }
+}
+
+// ===========================================================================
+// THE TYPED OUTCOME OF ASKING FOR GENERATION
+// ===========================================================================
+
+/**
+ * What actually happened when generation was requested.
+ *
+ * ---------------------------------------------------------------------------
+ * WHY A VOCABULARY AND NOT A BOOLEAN
+ * ---------------------------------------------------------------------------
+ * The API answered `202 { enqueued: boolean, reason?: string }`, and every
+ * browser surface collapsed `enqueued: false` into one sentence — "Generation
+ * is already under way for this record." That sentence was true for exactly one
+ * of the six reasons it was shown for. A customer whose request was lost to a
+ * Redis outage, and a customer whose record was permanently blocked, were both
+ * told the work was in progress.
+ *
+ * These members are the answers a person can act on differently. Anything finer
+ * belongs in a log.
+ */
+export const GENERATION_REQUEST_OUTCOMES = [
+  /** A new unit of work is durable and scheduled. */
+  "ENQUEUED",
+  /** Durable, and it joined work that was already live. */
+  "ALREADY_ACTIVE",
+  /** The row is durable but the queue refused it. A reconciler owns it. */
+  "QUEUE_UNAVAILABLE",
+  /** The record's plan and funding do not include this output. */
+  "NOT_INCLUDED",
+  /** A governance or lifecycle condition refuses it, and still does. */
+  "RECOVERABLE_BLOCKED",
+  /** The previous attempt ended in a state nothing will reopen. */
+  "TERMINAL",
+  /** A new request superseded a recoverable terminal one. */
+  "SUPERSEDED",
+  /** The request could not be persisted at all. */
+  "REQUEST_PERSIST_FAILED",
+  /** No such record, or it is not visible to this actor. */
+  "EVIDENCE_NOT_FOUND",
+  /** A request with no principal cannot be audited, so it is refused. */
+  "REQUESTER_REQUIRED",
+] as const;
+export type GenerationRequestOutcome =
+  (typeof GENERATION_REQUEST_OUTCOMES)[number];
+
+/**
+ * Did this outcome put new work into the system?
+ *
+ * The single question every surface was answering wrongly. `SUPERSEDED` counts:
+ * a superseding request IS new work, and it is the outcome an upgraded customer
+ * gets on the click that finally works. `QUEUE_UNAVAILABLE` does not: the row is
+ * durable and a reconciler owns it, but nothing is scheduled yet and telling the
+ * customer otherwise is the falsehood this vocabulary exists to end.
+ */
+export function generationOutcomeAcceptedWork(
+  outcome: GenerationRequestOutcome,
+): boolean {
+  return outcome === "ENQUEUED" || outcome === "SUPERSEDED";
+}

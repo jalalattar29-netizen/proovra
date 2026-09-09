@@ -71,6 +71,47 @@ import { createOpenTimestamp, type OtsStampResult } from "./ots.service.js";
  * the reason and moves on, because a record that cannot be stamped yet is not
  * a record that has failed.
  */
+/**
+ * A transient failure of the stamping call itself.
+ *
+ * ---------------------------------------------------------------------------
+ * RELIABILITY CLOSURE (2026-09-09) — WHY THIS IS THROWN AND NOT RETURNED
+ * ---------------------------------------------------------------------------
+ * `createOpenTimestamp` has two failure vocabularies and they mean opposite
+ * things. It RETURNS a structured `status: "FAILED"` for the failures it can
+ * describe — those are domain facts about this record, and they are persisted.
+ * It THROWS for everything else: the binary is missing, the host has no
+ * network, the calendar timed out. Those are facts about the DEPLOYMENT, and
+ * they are true of every record captured during the outage.
+ *
+ * The old code caught the throw, returned `initialized: false`, and the
+ * processor returned normally — so the BullMQ job COMPLETED SUCCESSFULLY on the
+ * first transient failure. `RETRY_POLICIES.TIMESTAMP_AUTHORITY` grants twenty
+ * attempts with exponential backoff and not one of them was ever consumed,
+ * because nothing threw. A single blip left the record at `otsStatus = NULL`
+ * for the rest of its life, invisible to Operations, which does not scan NULL.
+ *
+ * Throwing is what makes the retry budget that already exists become real. It
+ * still writes NO OTS column, so an outage is never persisted as a per-record
+ * integrity failure — the record stays honestly "never attempted" while the
+ * queue keeps trying.
+ */
+export class OtsInitializationTransientError extends Error {
+  readonly evidenceId: string;
+  /** Marks this as retryable for any generic handler that asks. */
+  readonly retriable = true as const;
+  readonly code = "OTS_INITIALIZATION_TRANSIENT" as const;
+
+  constructor(evidenceId: string, cause: unknown) {
+    const detail =
+      cause instanceof Error ? cause.message : String(cause ?? "unknown");
+    super(`OTS_INITIALIZATION_TRANSIENT:${evidenceId}:${detail.slice(0, 200)}`);
+    this.name = "OtsInitializationTransientError";
+    this.evidenceId = evidenceId;
+    this.cause = cause;
+  }
+}
+
 export type OtsInitializationOutcome =
   | {
       initialized: true;
@@ -174,20 +215,24 @@ export async function ensureEvidenceOtsInitialized(params: {
     });
   } catch (error) {
     /*
-     * A THROWN STAMP IS A TRANSIENT FAILURE, AND IS LEFT UNRECORDED.
+     * A THROWN STAMP IS A TRANSIENT FAILURE. IT IS LEFT UNRECORDED — AND IT IS
+     * RE-THROWN SO THE RETRY BUDGET ACTUALLY RUNS.
      *
-     * `createOpenTimestamp` returns a structured FAILED result for the
-     * failures it can describe. A throw is something else — the binary is
-     * missing, the host has no network, the call timed out — and writing
-     * `otsStatus = FAILED` for it would turn an outage into a per-record
-     * integrity condition on every record captured during it, each needing an
-     * operator to clear it afterwards.
+     * `createOpenTimestamp` returns a structured FAILED result for the failures
+     * it can describe. A throw is something else — the binary is missing, the
+     * host has no network, the call timed out — and writing `otsStatus = FAILED`
+     * for it would turn an outage into a per-record integrity condition on every
+     * record captured during it, each needing an operator to clear afterwards.
+     * So no OTS column is written here, and that part is unchanged.
      *
-     * Leaving the columns NULL keeps the record in "never attempted", which is
-     * what actually happened, and the job's own retry budget brings it back.
+     * What changed (2026-09-09) is the second half of that sentence. The old
+     * code said "the job's own retry budget brings it back" and then returned a
+     * value, which made the job SUCCEED: the budget was never entered, no
+     * follow-up was scheduled, and the record stayed NULL forever with nothing
+     * watching it. Re-throwing is what makes the claim true.
      */
     logger.warn({ ...ctx, err: error }, "ots.init.attempt_failed");
-    return { initialized: false, reason: "not_finalized" };
+    throw new OtsInitializationTransientError(evidenceId, error);
   }
 
   // ------------------------------------------------------------------

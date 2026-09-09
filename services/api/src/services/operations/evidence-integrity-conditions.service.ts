@@ -74,6 +74,9 @@ import type { IncidentCategory, IncidentSeverity } from "@proovra/shared";
 import { prisma as defaultPrisma } from "../../db.js";
 import {
   isOtsPendingAged,
+  // RELIABILITY CLOSURE (2026-09-09) — the never-attempted window.
+  readOtsInitializationStalledHours,
+  getOtsInitializationStalledMs,
   otsPendingAgeHours,
   otsPendingOperationalPosture,
   readOtsOperationsAgingPolicy,
@@ -140,6 +143,33 @@ export function parseOtsPendingAgedFingerprint(
   fingerprint: string,
 ): string | null {
   const prefix = `${OTS_PENDING_AGED_CLASS}:`;
+  if (!fingerprint.startsWith(prefix)) return null;
+  const evidenceId = fingerprint.slice(prefix.length);
+  return /^[A-Za-z0-9-]{8,64}$/.test(evidenceId) ? evidenceId : null;
+}
+
+/**
+ * RELIABILITY CLOSURE (2026-09-09) — the never-attempted class.
+ *
+ * Deliberately its OWN fingerprint class, not a variant of the aged-pending
+ * one. They describe opposite facts: aged-pending means a proof EXISTS and the
+ * calendar is slow; this means no proof was ever made, because the handoff from
+ * finalize to the anchoring queue did not survive. A record that moves from one
+ * to the other has genuinely progressed, and sharing a fingerprint would make
+ * that progress look like the same unresolved row.
+ */
+export const OTS_INITIALIZATION_STALLED_CLASS =
+  "ots_initialization_stalled" as const;
+
+export function otsInitializationStalledFingerprint(evidenceId: string): string {
+  return `${OTS_INITIALIZATION_STALLED_CLASS}:${evidenceId}`;
+}
+
+/** The evidence id a stalled-initialization fingerprint names, or null. */
+export function parseOtsInitializationStalledFingerprint(
+  fingerprint: string,
+): string | null {
+  const prefix = `${OTS_INITIALIZATION_STALLED_CLASS}:`;
   if (!fingerprint.startsWith(prefix)) return null;
   const evidenceId = fingerprint.slice(prefix.length);
   return /^[A-Za-z0-9-]{8,64}$/.test(evidenceId) ? evidenceId : null;
@@ -477,6 +507,87 @@ export async function syncEvidenceIntegrityConditions(
     }
   }
 
+
+  // -------------------------------------------------------------------------
+  // 1b. NEVER ATTEMPTED — the population no scan has ever selected.
+  //
+  // A SEPARATE QUERY, NOT A FOURTH ARM ON THE ONE ABOVE. Its predicate is an
+  // ABSENCE (`otsStatus IS NULL AND otsProofBase64 IS NULL`) rather than a
+  // failure state, it needs none of the TSA or failure-reason columns the main
+  // scan selects, and — decisively — it must not select `otsProofBase64` at
+  // all: that column holds the proof bytes, and pulling them for every record
+  // in a workspace to learn whether they are null would be an expensive way to
+  // ask a cheap question. The WHERE answers it instead, and the rows it returns
+  // are null by construction.
+  //
+  // It also gets its own bound. Folding it into the main scan would let a
+  // backlog of one class crowd the other out of a shared limit.
+  //
+  // READ-ONLY, like everything else in this file. Nothing here contacts a
+  // calendar, enqueues anchoring or writes an Evidence column; the SCHEDULED
+  // WORKER RECONCILER is what repairs these records, and this only makes the
+  // ones it has not repaired visible.
+  const neverAttempted = (await inSourceStage("SCAN", () =>
+    client.evidence.findMany({
+      where: {
+        AND: [
+          scopeWhere,
+          { deletedAt: null },
+          // The finalization test: the canonical fingerprint is the content OTS
+          // stamps, so its presence is what makes an anchor possible at all. A
+          // record that never finalized is not owed one.
+          { fingerprintCanonicalJson: { not: null } },
+          { otsStatus: null },
+          { otsProofBase64: null },
+          // Bounded at the query, so a fresh capture is never even considered.
+          // The predicate below re-applies the same window; this is the cheap
+          // half of it.
+          { createdAt: { lte: new Date(now.getTime() - getOtsInitializationStalledMs()) } },
+        ],
+      },
+      select: { id: true, teamId: true, title: true, createdAt: true },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      take: SCAN_BOUND + 1,
+    }),
+  )) as Array<{
+    id: string;
+    teamId: string | null;
+    title: string | null;
+    createdAt: Date;
+  }>;
+
+  if (neverAttempted.length > SCAN_BOUND) {
+    result.complete = false;
+    neverAttempted.length = SCAN_BOUND;
+  }
+
+  const stalledExisting = await inSourceStage("SCAN", () =>
+    loadExistingConditions(
+      client,
+      input.teamId,
+      neverAttempted.map((row) => otsInitializationStalledFingerprint(row.id)),
+    ),
+  );
+
+  for (const row of neverAttempted) {
+    const outcome = await inSourceStage("WRITE", () =>
+      recordOtsInitializationStalledCondition(
+        {
+          evidence: row,
+          teamId: input.teamId,
+          now,
+          existing:
+            stalledExisting.get(otsInitializationStalledFingerprint(row.id)) ??
+            null,
+        },
+        client,
+      ),
+    );
+    if (outcome === "opened") result.opened += 1;
+    else if (outcome === "reobserved") result.reobserved += 1;
+    else result.suppressedUntouched += 1;
+  }
+
   // -------------------------------------------------------------------------
   // 2. RESOLVE — from Evidence domain truth, read per condition.
   //
@@ -493,6 +604,15 @@ export async function syncEvidenceIntegrityConditions(
   // rather than a branch inside the one above.
   result.resolved += await inSourceStage("WRITE", () =>
     resolveRecoveredOtsPendingAged(
+      { teamId: input.teamId, scopeWhere, now },
+      client,
+    ),
+  );
+  // The never-attempted family has its own recovery predicate too — ANY OTS
+  // state ends it — so it gets its own resolver rather than a branch inside
+  // either of the two above.
+  result.resolved += await inSourceStage("WRITE", () =>
+    resolveRecoveredOtsInitializationStalled(
       { teamId: input.teamId, scopeWhere, now },
       client,
     ),
@@ -997,4 +1117,191 @@ async function activeLegalHoldEvidenceIds(
   } catch {
     return new Set();
   }
+}
+
+/**
+ * RELIABILITY CLOSURE (2026-09-09) — record a stalled OTS initialization.
+ *
+ * WHY THIS IS ITS OWN RECORDER RATHER THAN A BRANCH IN THE AGED-PENDING ONE.
+ * The two describe opposite facts, and the copy has to say so plainly: one is
+ * "your anchor is taking a long time", the other is "your anchor never
+ * started". A record that moves from the second to the first has genuinely
+ * progressed, and a shared fingerprint would have made that progress look like
+ * the same unresolved row.
+ *
+ * SEVERITY IS WARNING AND HAS NO LADDER. A record with no anchor yet is not
+ * unprovable: its RFC-3161 trusted timestamp is unaffected and independent, and
+ * so are its signature and its custody chain. What is outstanding is a SECOND,
+ * public-chain proof. Ranking that higher would push it above records that
+ * genuinely cannot be timestamped at all — the same reasoning the pending
+ * condition's ceiling is built on.
+ *
+ * LEGAL HOLD IS NOT CONSULTED. A hold has no bearing on whether an anchoring
+ * handoff happened, and the remediation this condition makes reachable
+ * (`ots.resume_anchoring`) neither exports nor mutates the record.
+ */
+async function recordOtsInitializationStalledCondition(
+  args: {
+    evidence: { id: string; title: string | null; createdAt: Date };
+    teamId: string;
+    now: Date;
+    existing: ExistingCondition | null;
+  },
+  client: PrismaClient,
+): Promise<RecordOutcome> {
+  const { evidence, teamId, existing } = args;
+  const fingerprint = otsInitializationStalledFingerprint(evidence.id);
+  const wasSuppressed =
+    existing?.status === prismaPkg.IncidentStatus.SUPPRESSED;
+
+  const recordLabel = evidence.title?.trim()
+    ? `"${evidence.title.trim().slice(0, 80)}"`
+    : `record ${evidence.id.slice(0, 8)}`;
+
+  const waitingHours = Math.floor(
+    (args.now.getTime() - evidence.createdAt.getTime()) / (60 * 60 * 1000),
+  );
+
+  const { created } = await recordIncident(
+    {
+      sourceId: "evidence_integrity.ots_initialization_stalled",
+      teamId,
+      category: EVIDENCE_INTEGRITY_CATEGORY,
+      severity: "WARNING" as IncidentSeverity,
+      fingerprint,
+      title: `Blockchain anchoring has not started for ${recordLabel}`,
+      safeSummary:
+        "This record was finalized and signed, but its OpenTimestamps anchoring has not begun. " +
+        "The record's own trusted timestamp, signature and chain of custody are unaffected and it remains valid evidence; " +
+        "the public-chain anchor is a second, independent proof that has not been requested yet. " +
+        "The platform re-requests anchoring for records in this state automatically; nothing here retries, re-anchors or alters a proof.",
+      relatedEvidenceId: evidence.id,
+      runbookSlug: "ots-anchoring",
+      metadata: {
+        integrityClass: OTS_INITIALIZATION_STALLED_CLASS,
+        otsStatus: null,
+        waitingHours,
+        stalledAfterHours: readOtsInitializationStalledHours(),
+      },
+    },
+    client,
+  );
+
+  if (wasSuppressed) return "suppressed_untouched";
+  return created ? "opened" : "reobserved";
+}
+
+/**
+ * Resolve stalled-initialization conditions whose record has since entered the
+ * lifecycle.
+ *
+ * POSITIVE EVIDENCE ONLY, and the weakest possible test: ANY OTS state resolves
+ * it. PENDING resolves it because the record now belongs to the aged-pending
+ * condition; FAILED because it now belongs to `ots_failure`; ANCHORED and
+ * DISABLED because there is nothing left to want. This source asks one question
+ * — did the handoff ever happen — and it must stop asserting itself the moment
+ * the answer is yes, whatever the answer leads to next.
+ *
+ * A record that cannot be read leaves its condition open: "we could not check"
+ * is not "it is fine". Deliberately the same shape as
+ * `resolveRecoveredOtsPendingAged`, including the suppression rule — domain
+ * truth outranks a silence.
+ */
+async function resolveRecoveredOtsInitializationStalled(
+  args: {
+    teamId: string;
+    scopeWhere: prismaPkg.Prisma.EvidenceWhereInput;
+    now: Date;
+  },
+  client: PrismaClient,
+): Promise<number> {
+  const open = await client.operationalIncident.findMany({
+    where: {
+      teamId: args.teamId,
+      category: EVIDENCE_INTEGRITY_CATEGORY as prismaPkg.IncidentCategory,
+      fingerprint: { startsWith: `${OTS_INITIALIZATION_STALLED_CLASS}:` },
+      status: {
+        in: [
+          prismaPkg.IncidentStatus.OPEN,
+          prismaPkg.IncidentStatus.ACKNOWLEDGED,
+          prismaPkg.IncidentStatus.SUPPRESSED,
+        ],
+      },
+    },
+    select: { id: true, fingerprint: true, status: true },
+    orderBy: [{ lastSeenAtUtc: "desc" }, { id: "desc" }],
+  });
+  if (open.length === 0) return 0;
+
+  const parsed = open
+    .map((row) => ({
+      row,
+      evidenceId: parseOtsInitializationStalledFingerprint(row.fingerprint),
+    }))
+    .filter(
+      (e): e is { row: (typeof open)[number]; evidenceId: string } =>
+        e.evidenceId != null,
+    );
+  if (parsed.length === 0) return 0;
+
+  const rows = await client.evidence.findMany({
+    where: {
+      AND: [
+        { id: { in: [...new Set(parsed.map((e) => e.evidenceId))] } },
+        args.scopeWhere,
+      ],
+    },
+    select: { id: true, otsStatus: true },
+  });
+  const byId = new Map(rows.map((r) => [r.id, r]));
+
+  let resolved = 0;
+  for (const { row, evidenceId } of parsed) {
+    const evidence = byId.get(evidenceId);
+    // Unreadable or gone: NOT proof of recovery. Leave it open.
+    if (!evidence) continue;
+    // Still never attempted. Nothing has changed.
+    if (evidence.otsStatus === null) continue;
+
+    const decision = decideObservationTransition({
+      currentStatus: row.status as IncidentTransitionStatus,
+      observation: "SOURCE_RECOVERED",
+    });
+    if (decision !== "AUTO_RESOLVE_SOURCE_RECOVERY") continue;
+
+    await client.operationalIncident.update({
+      where: { id: row.id },
+      data: {
+        status: prismaPkg.IncidentStatus.RESOLVED,
+        resolvedAtUtc: args.now,
+        resolvedByUserId: null,
+        resolutionNote:
+          "Resolved from Evidence domain truth: the record has entered the OpenTimestamps lifecycle.",
+      },
+    });
+    await client.operationalIncidentEvent
+      .create({
+        data: {
+          incidentId: row.id,
+          eventType: "resolved_by_domain_truth",
+          safeMessage:
+            "The record now carries an OpenTimestamps status. Resolved from positive domain evidence, not from absence in a scan.",
+          metadataJson: {
+            integrityClass: OTS_INITIALIZATION_STALLED_CLASS,
+            observedStatus: evidence.otsStatus,
+            previousStatus: row.status,
+          } as prismaPkg.Prisma.InputJsonValue,
+        },
+      })
+      .catch(() => null);
+
+    await import("./incident-sla-cycle.service.js")
+      .then((cycles) =>
+        cycles.closeSlaCycle({ incidentId: row.id, reason: "RESOLVED" }, client),
+      )
+      .catch(() => null);
+
+    resolved += 1;
+  }
+  return resolved;
 }

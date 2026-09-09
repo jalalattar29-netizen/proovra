@@ -48,6 +48,8 @@ import type { PrismaClient, Prisma } from "@prisma/client";
 import type { IncidentCategory, IncidentSeverity } from "@proovra/shared";
 import {
   isOtsPendingAged,
+  // RELIABILITY CLOSURE (2026-09-09) — the never-attempted predicate.
+  isOtsInitializationStalled,
   workspaceEvidenceWhere,
   type ActivityProbeKey,
   type ConditionMetricUnit,
@@ -712,6 +714,66 @@ async function observeOtsPendingAged(
   }
 }
 
+
+/**
+ * HAS THIS RECORD STILL NOT ENTERED THE OTS LIFECYCLE?
+ *
+ * The recovery signal for `evidence_integrity.ots_initialization_stalled`, and
+ * it is deliberately the weakest possible test: ANY OTS state at all resolves
+ * the condition. PENDING resolves it because the record is now the aged-pending
+ * condition's business; FAILED resolves it because it is now the ots_failure
+ * condition's; ANCHORED and DISABLED resolve it because there is nothing left
+ * to want. This source asks one question — did the handoff ever happen — and it
+ * must stop asserting itself the moment the answer becomes yes, whatever the
+ * answer leads to next.
+ *
+ * IT CONTACTS NOTHING. No calendar, no queue, no provider. Reading that a
+ * record never started does not start it; the only writes any caller makes from
+ * this answer are to OperationalIncident and its satellites.
+ */
+async function observeOtsInitializationStalled(
+  ctx: ProbeContext,
+): Promise<SourceObservation> {
+  const base = { observedAtUtc: ctx.now } as const;
+  try {
+    const integrity = await import("./evidence-integrity-conditions.service.js");
+    const evidenceId = identifiableSubject(
+      integrity.parseOtsInitializationStalledFingerprint(ctx.fingerprint),
+    );
+    if (!evidenceId) return { ...base, activity: "NOT_APPLICABLE" };
+    const record = await ctx.client.evidence.findFirst({
+      // Bound to the workspace as well as the id, matching
+      // `observeEvidenceArtifact`: a fingerprint is not an authorization.
+      where: { AND: [{ id: evidenceId }, ctx.evidenceWhere] },
+      select: {
+        otsStatus: true,
+        otsProofBase64: true,
+        fingerprintCanonicalJson: true,
+        createdAt: true,
+      },
+    });
+    // The record is gone, or is not this workspace's. It can never be observed
+    // stalled again, so it must stay closable rather than becoming a permanent
+    // row nobody can clear.
+    if (!record) return { ...base, activity: "NOT_APPLICABLE" };
+    return {
+      ...base,
+      activity: isOtsInitializationStalled(
+        {
+          otsStatus: record.otsStatus,
+          otsProofBase64: record.otsProofBase64,
+          fingerprintPresent: record.fingerprintCanonicalJson !== null,
+          createdAt: record.createdAt,
+        },
+        ctx.now,
+      )
+        ? "ACTIVE"
+        : "RECOVERED",
+    };
+  } catch {
+    return { ...base, activity: "UNKNOWN" };
+  }
+}
 /**
  * Does the record the condition names now HAVE the artifact it lacked?
  *
@@ -1048,6 +1110,10 @@ const PROBE_HANDLERS: Readonly<
   // NO LONGER A CLAIM WITH NOTHING BEHIND IT. Discovery opens these now, and
   // this reads the SAME shared window the Worker uses to give up anchoring.
   "evidence.ots_pending_aged": (ctx) => observeOtsPendingAged(ctx),
+
+  // `ots_initialization_stalled:<evidenceId>` — resolved by ANY OTS state.
+  "evidence.ots_initialization_stalled": (ctx) =>
+    observeOtsInitializationStalled(ctx),
 
   // `REPORT:<evidenceId>:<errorClass>` and
   // `worker_package_gate:<team>:<evidenceId>:<outcome>` — the artifact the

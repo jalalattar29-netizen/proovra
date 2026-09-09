@@ -258,6 +258,18 @@ export {
   isCommerciallyObsoleteTerminalReason,
   deriveEvidenceOutputState,
   outputActionFor,
+  // RELIABILITY CLOSURE (2026-09-09) — the blocked-recoverability classifier,
+  // the generation-intent vocabulary and the typed request outcome. All three
+  // exist so that exactly one module decides what a blocked terminal means,
+  // what `forceRegenerate` means, and what "we could not queue it" means.
+  isRecoverableBlockedTerminalReason,
+  listRecoverableBlockedTerminalReasons,
+  listNonRecoverableBlockedTerminalReasons,
+  GENERATION_INTENTS,
+  resolveForceRegenerate,
+  intentForOutputAction,
+  GENERATION_REQUEST_OUTCOMES,
+  generationOutcomeAcceptedWork,
 } from "./evidence-output-lifecycle.js";
 export type {
   OutputCommercialEligibility,
@@ -269,6 +281,8 @@ export type {
   EvidenceOutputAxes,
   OutputAction,
   PersistedReportRequestState,
+  GenerationIntent,
+  GenerationRequestOutcome,
 } from "./evidence-output-lifecycle.js";
 
 export {

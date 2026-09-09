@@ -309,6 +309,18 @@ export const ACTIVITY_PROBE_KEYS = [
   "evidence.tsa_status",
   "evidence.ots_status",
   "evidence.ots_pending_aged",
+  /**
+   * RELIABILITY CLOSURE (2026-09-09) — has this finalized record entered the
+   * OTS lifecycle AT ALL?
+   *
+   * Distinct from `evidence.ots_status`, which reads a status that EXISTS, and
+   * from `evidence.ots_pending_aged`, which reads a proof that is taking too
+   * long. This one reads the absence: `otsStatus IS NULL AND otsProofBase64 IS
+   * NULL` on a record whose digest has been stable for longer than the handoff
+   * can honestly be said to be in flight. It resolves the moment ANY OTS state
+   * is written, whichever one it is.
+   */
+  "evidence.ots_initialization_stalled",
   "evidence.report_present",
   "evidence.package_present",
   "identity.idp_outage_state",
@@ -551,6 +563,91 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiresResolutionNote: false,
       rationale:
         "A record still PENDING past the canonical OTS global budget is a deterministic read of otsStatus and the record's own age; the same predicate answers recovery.",
+    },
+    {
+      /*
+       * RELIABILITY CLOSURE (2026-09-09) — THE POPULATION NOTHING WATCHED.
+       *
+       * `otsStatus = NULL` means NEVER ATTEMPTED, and it was excluded from
+       * every operational scan: `syncEvidenceIntegrityConditions` selects
+       * `tsaStatus = FAILED`, `otsStatus = FAILED` and the PENDING family, so a
+       * record whose anchoring handoff was lost — a Redis outage in the
+       * milliseconds after the finalize commit, or a stamp call that threw and
+       * (before this closure) reported job success — sat at NULL for the rest of
+       * its life with nothing able to see it. Evidence Detail said "OpenTimestamps
+       * anchoring has not started for this evidence item yet", permanently, and
+       * the word "yet" was the only part that was wrong.
+       *
+       * NOT A FAILURE, AND NOT IMMEDIATE. NULL is the NORMAL state of a record
+       * between its finalize commit and its first stamp; opening a condition on
+       * that would raise one for every capture. The producer applies an age
+       * threshold, and only a record that has waited past it is a condition.
+       *
+       * TENANT_ACTIONABLE with the existing OTS remediation: making this
+       * condition discoverable is precisely what makes `ots.resume_anchoring` —
+       * which was already registered, already correct, and already able to
+       * repair this exact shape — reachable for the first time.
+       */
+      sourceId: "evidence_integrity.ots_initialization_stalled",
+      category: "EVIDENCE_INTEGRITY",
+      displayLabel: "Blockchain anchoring has not started",
+      producers: [
+        "services/api/src/services/operations/evidence-integrity-conditions.service.ts",
+      ],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [{ kind: "PREFIX", prefix: "ots_initialization_stalled" }],
+      resolutionAuthority: "SOURCE_TRUTH",
+      activityProbeKey: "evidence.ots_initialization_stalled",
+      recoveryPolicy: "PROBE_AUTO_RESOLVE",
+      recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
+      suppressionPolicy: "SUPPRESSION_PERSISTS",
+      remediationDisposition: "SAFE_REMEDIATION",
+      requiredCapability: "evidence.publish_verify",
+      audience: "TENANT_ACTIONABLE",
+      cardinality: "PER_RECORD",
+      workspaceApplicability: "ALL_WORKSPACES",
+      metricContract: "NONE",
+      drillDownContract: "NONE",
+      notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
+      requiresResolutionNote: false,
+      rationale:
+        "A finalized record with both OTS columns still NULL past the handoff window has not entered the anchoring lifecycle; writing any OTS state is the same read that answers recovery.",
+    },
+    {
+      /*
+       * RELIABILITY CLOSURE (2026-09-09) — A PACKAGE THAT FAILED TO BUILD.
+       *
+       * Its sibling `pipeline.package_generation_denied` covers a GOVERNANCE
+       * refusal, and that distinction is the point: a policy decision is not an
+       * outage. A technical build or storage failure had no condition at all —
+       * only a counter and a log line — so a record left with a report and no
+       * package was operationally silent while the request row said SUCCEEDED.
+       *
+       * Same probe as the denial, because the recovery signal is identical and
+       * is a column read: does this record have a verification package now?
+       */
+      sourceId: "pipeline.package_generation_failed",
+      category: "PACKAGE",
+      displayLabel: "Verification package generation failed",
+      producers: ["services/worker/src/processor.ts"],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [{ kind: "PREFIX", prefix: "PACKAGE" }],
+      resolutionAuthority: "SOURCE_TRUTH",
+      activityProbeKey: "evidence.package_present",
+      recoveryPolicy: "PROBE_AUTO_RESOLVE",
+      recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
+      suppressionPolicy: "SUPPRESSION_PERSISTS",
+      remediationDisposition: "SAFE_REMEDIATION",
+      requiredCapability: "evidence.generate_report",
+      audience: "TENANT_ACTIONABLE",
+      cardinality: "PER_RECORD",
+      workspaceApplicability: "ALL_WORKSPACES",
+      metricContract: "NONE",
+      drillDownContract: "NONE",
+      notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
+      requiresResolutionNote: false,
+      rationale:
+        "Evidence.verificationPackageVersion answers whether the package the job failed to produce now exists; the same read answers recovery.",
     },
     {
       sourceId: "evidence_integrity.ots_budget_exhausted",

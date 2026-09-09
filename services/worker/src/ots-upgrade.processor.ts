@@ -216,6 +216,21 @@ export async function processOtsUpgrade(job: Job<unknown>) {
      * The follow-up job carries it forward on the normal cadence, under the
      * same global budget as every other pending proof.
      */
+    /*
+     * RELIABILITY CLOSURE (2026-09-09) — A TRANSIENT STAMP FAILURE NOW THROWS,
+     * AND THIS FUNCTION DELIBERATELY DOES NOT CATCH IT.
+     *
+     * `ensureEvidenceOtsInitialized` raises `OtsInitializationTransientError`
+     * when the calendar call itself failed — an outage, a timeout, a missing
+     * binary — and writes no OTS column while doing so. Letting it propagate is
+     * the whole point: it is what consumes a BullMQ attempt and schedules the
+     * next one under `RETRY_POLICIES.TIMESTAMP_AUTHORITY` (20 attempts,
+     * exponential from 60s), which is the budget this queue has always declared
+     * and never actually entered.
+     *
+     * The `workDir` created below is NOT yet allocated at this point, so there
+     * is nothing to clean up on the way out.
+     */
     const init = await ensureEvidenceOtsInitialized({
       evidenceId,
       requestId,

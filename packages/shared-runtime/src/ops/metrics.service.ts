@@ -612,6 +612,11 @@ export const COUNTER_NAMES = [
   "ots_upgrade_succeeded_total",
   "ots_upgrade_failed_total",
   "ots_upgrade_pending_total",
+  // RELIABILITY CLOSURE (2026-09-09) — the never-attempted population. A
+  // finalized record with NULL OTS columns had no counter, no condition and no
+  // sweep, so a lost enqueue was invisible by construction.
+  "ots_initialization_scanned_total",
+  "ots_initialization_reconciled_total",
   "platform_audit_chain_drift_detected_total",
   "platform_audit_append_failed_total",
   "worker_span_total",

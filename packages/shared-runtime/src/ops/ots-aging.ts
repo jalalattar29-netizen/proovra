@@ -295,3 +295,82 @@ export function otsPendingOperationalPosture(
   if (hours >= policy.warningHours) return "WARNING";
   return "NONE";
 }
+
+// ===========================================================================
+// RELIABILITY CLOSURE (2026-09-09) — THE THIRD WINDOW: NEVER STARTED
+// ===========================================================================
+
+/**
+ * WHY A THIRD NUMBER, AND WHY IT IS NOT EITHER OF THE OTHER TWO.
+ *
+ * This file already argues at length that the Worker's 30-day give-up budget
+ * and the operator's 24h/72h alert boundary are two facts rather than two
+ * readings of one. The same argument applies once more here, to a THIRD
+ * question that has a different subject:
+ *
+ *   budget          how long may the platform keep RETRYING an existing proof?
+ *   pending aging   when should an operator be told a proof is SLOW?
+ *   this            when should an operator be told a record never entered the
+ *                   lifecycle AT ALL?
+ *
+ * The subject is the absence, not the proof — `otsStatus IS NULL AND
+ * otsProofBase64 IS NULL` — and the failure it describes is a lost handoff
+ * between the finalize commit and the anchoring queue, which the scheduled
+ * initialization reconciler repairs within minutes of noticing.
+ *
+ * IT IS THEREFORE LONGER THAN THE RECONCILER'S OWN THRESHOLD, ON PURPOSE. The
+ * reconciler waits ~30 minutes before deciding a handoff failed, because that
+ * is long enough to distinguish a lost enqueue from an ordinary queue backlog.
+ * If it is working, the record leaves NULL immediately after. An operator only
+ * needs to hear about a record that is STILL at NULL well after recovery should
+ * have happened — which means this window measures the failure of the RECOVERY,
+ * not the failure of the handoff. Six hours is roughly a dozen reconciler ticks:
+ * long enough that a condition here means the net itself is torn.
+ *
+ * There is no HIGH ladder. A record with no anchor yet is not unprovable — its
+ * RFC-3161 timestamp is unaffected and independent — so this reads WARNING and
+ * stops, for the same reason the pending condition's ceiling is HIGH.
+ */
+export const OTS_INITIALIZATION_STALLED_HOURS_DEFAULT = 6;
+
+/** The configured stalled-initialization window, in hours. */
+export function readOtsInitializationStalledHours(): number {
+  return envHours(
+    "OPS_OTS_INITIALIZATION_STALLED_HOURS",
+    OTS_INITIALIZATION_STALLED_HOURS_DEFAULT,
+  );
+}
+
+/** The same window in milliseconds — what discovery compares to. */
+export function getOtsInitializationStalledMs(): number {
+  return readOtsInitializationStalledHours() * 60 * 60 * 1000;
+}
+
+/**
+ * Has this record failed to enter the OTS lifecycle at all?
+ *
+ * TOTAL AND CONSERVATIVE. Any OTS state whatsoever — PENDING, ANCHORED, FAILED,
+ * DISABLED — means the lifecycle was entered and this is not the condition,
+ * whatever else may be wrong with the record. Likewise proof bytes without a
+ * status: the record HAS a proof, and the upgrade ladder owns it.
+ *
+ * `fingerprintPresent` is the finalization test, and it is the same one the
+ * initializer itself applies: the canonical fingerprint is the content OTS
+ * stamps, so its presence is what makes an anchor possible. A record that never
+ * finalized is not owed one.
+ */
+export function isOtsInitializationStalled(
+  evidence: {
+    otsStatus: string | null;
+    otsProofBase64: string | null;
+    fingerprintPresent: boolean;
+    createdAt: Date;
+  },
+  nowUtc: Date,
+  stalledMs: number = getOtsInitializationStalledMs(),
+): boolean {
+  if (!evidence.fingerprintPresent) return false;
+  if (evidence.otsStatus !== null) return false;
+  if (evidence.otsProofBase64 !== null) return false;
+  return nowUtc.getTime() - evidence.createdAt.getTime() >= stalledMs;
+}

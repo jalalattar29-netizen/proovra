@@ -434,6 +434,35 @@ const DISCOVERY: readonly OperationsSourceDiscovery[] = [
     surfaces: { home: true, notifications: true, operations: true },
   },
   {
+    // RELIABILITY CLOSURE (2026-09-09) — the never-attempted population. NULL
+    // OTS columns were excluded from every scan in this file's sibling, so a
+    // lost finalize→queue handoff was invisible by construction.
+    id: "evidence_integrity.ots_initialization_stalled",
+    owner: "Evidence.otsStatus / Evidence.otsProofBase64 (both NULL)",
+    scopeAuthority: "WORKSPACE_EVIDENCE_SCOPE",
+    discovery:
+      "finalized evidence in workspace scope whose OTS columns are both NULL past the stalled-initialization window",
+    fingerprint: "one condition per (Evidence, never-attempted)",
+    resolution: "the record gains ANY OTS status",
+    freshnessParticipating: false,
+    surfaces: { home: true, notifications: true, operations: true },
+  },
+  {
+    // RELIABILITY CLOSURE (2026-09-09) — a TECHNICAL package failure, distinct
+    // from its governance-denied sibling below. A policy decision is not an
+    // outage; a build or storage failure is, and it previously had no condition
+    // at all — only a counter and a log line.
+    id: "pipeline.package_generation_failed",
+    owner: "Evidence.verificationPackageVersion (worker report processor)",
+    scopeAuthority: "WORKSPACE_EVIDENCE_SCOPE",
+    discovery:
+      "written by the report processor when the verification package half of a generation fails to build or store",
+    fingerprint: "one condition per (Evidence, error class)",
+    resolution: "the record gains a verification package",
+    freshnessParticipating: false,
+    surfaces: { home: true, notifications: true, operations: true },
+  },
+  {
     id: "pipeline.package_generation_denied",
     owner: "Evidence.verificationPackageVersion (worker package gate)",
     scopeAuthority: "WORKSPACE_EVIDENCE_SCOPE",
