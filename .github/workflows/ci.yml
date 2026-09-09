@@ -716,6 +716,31 @@ jobs:
         if: failure()
         run: |
           set +e
+          # SIGNING_KEY_DIR MUST BE SET FOR INTERPOLATION, EVEN HERE.
+          #
+          # The compose file guards the signing bind mount with
+          # `${SIGNING_KEY_DIR:?...}` — deliberately, because the image ships no
+          # private key and a silently-empty mount would start a stack that
+          # cannot sign. But `if: failure()` means this step also runs when the
+          # job failed BEFORE "Mint the full stack's ephemeral signing material",
+          # and then the variable is unset: every compose command below dies on
+          # interpolation and collects nothing.
+          #
+          # That is the worst possible moment to lose diagnostics — the run
+          # already failed, and the operator gets a confusing interpolation
+          # error instead of the logs that would explain the real failure.
+          #
+          # A directory that exists and holds nothing is the right fallback for
+          # READING logs: `docker compose logs` never mounts it, and if the
+          # stack was never started there is nothing to mount it into. It is
+          # emphatically NOT a substitute for the real fixture — the minting
+          # step above still creates the ephemeral keypair the stack runs on,
+          # and Production still refuses to start without real key material.
+          if [ -z "${SIGNING_KEY_DIR:-}" ]; then
+            export SIGNING_KEY_DIR="${RUNNER_TEMP}/proovra-signing-absent"
+            mkdir -p "$SIGNING_KEY_DIR"
+            echo "::notice::SIGNING_KEY_DIR was unset (the job failed before signing material was minted); using an EMPTY directory so compose can interpolate and logs can be collected. No key material is present."
+          fi
           docker compose -f infra/docker/docker-compose.full.yml ps -a
           docker compose -f infra/docker/docker-compose.full.yml logs --no-color --tail=200 > /tmp/compose-logs.txt 2>&1
           cat /tmp/compose-logs.txt
