@@ -49,14 +49,28 @@ vi.mock("../../../worker/src/verification-package.js", async (importOriginal) =>
   };
 });
 
-/** Deterministic bytes: this case is not about the PDF. */
+/**
+ * Deterministic bytes: this case is not about the PDF, and rendering one would
+ * make the proof depend on a Chromium binary that has nothing to do with the
+ * property under test.
+ *
+ * The signature outcome returns the REAL `PdfSigningOutcome` shape. An earlier
+ * draft returned `{ pdf, signature: null }` and the run died much later, in
+ * `canonicalJsonValue: unsupported value type "undefined"` — a mock with the
+ * wrong shape does not fail where it is wrong, it fails somewhere that reads
+ * like a product defect.
+ */
 vi.mock("../../../worker/src/report-v2/build-report-pdf.js", () => ({
-  buildReportPdfV2: async () => Buffer.from("%PDF-1.7 acceptance fixture\n"),
+  buildReportPdfV2: async () => Buffer.from("%PDF-1.7 partial-failure fixture\n"),
   buildReportPdfV2WithSignatureOutcome: async () => ({
-    pdf: Buffer.from("%PDF-1.7 acceptance fixture\n"),
-    signature: null,
+    status: "UNSIGNED_OPT_OUT" as const,
+    pdf: Buffer.from("%PDF-1.7 partial-failure fixture\n"),
+    warning: "PDF signing is not exercised by this case.",
   }),
 }));
+
+/** The key the fixture evidence is signed with, and the row seeded for it. */
+const FIXTURE_SIGNING_KEY_ID = "partial-failure-fixture-key";
 
 describe("partial Report/Package failure (live PostgreSQL 16)", () => {
   let harness: IntegrationHarness;
@@ -90,31 +104,24 @@ describe("partial Report/Package failure (live PostgreSQL 16)", () => {
   });
 
   /*
-   * BLOCKED ON A FIXTURE CAPABILITY, AND SKIPPED RATHER THAN DELETED.
+   * THE FIXTURE PREREQUISITE IS PROVIDED HERE, SO THIS ALWAYS RUNS.
    *
-   * The seam works and the scenario is right; what the integration harness
-   * cannot currently supply is a record the report generator will accept. The
-   * generator verifies the evidence signature against a stored `SigningKey`
-   * row, and the harness seeds neither the key nor a genuinely signed record —
-   * `teamA.evidenceId` is CREATED, unsigned, with no stored original.
+   * This was `it.skip` for one reason: the generator refuses a record whose
+   * signing key it cannot find, and the harness seeds no `SigningKey` row. That
+   * read as "the harness cannot mint a finalized record", which was wrong — the
+   * check at processor.ts is a ROW LOOKUP, not a signature verification:
    *
-   * Fabricating the fields walks a ladder of real refusals, each one correct:
-   * EVIDENCE_STORAGE_NOT_SET, then REPORT_NOT_INCLUDED_IN_PLAN (PRO is a
-   * PERSONAL tier; an ORGANIZATION workspace needs TEAM or ENTERPRISE), then
-   * EVIDENCE_NOT_SIGNED, then SIGNING_KEY_NOT_FOUND. The last one cannot be
-   * faked: it needs a seeded key and a signature over the canonical
-   * fingerprint, which is the finalize path itself.
+   *     prisma.signingKey.findUnique({ where: { keyId_version: {...} } })
    *
-   * Closing this means teaching the harness to mint a finalized record through
-   * the real signing path — worth doing, and a fixture change rather than a
-   * test change. Until then the property is proven by source and by the two
-   * cases around this one, and is recorded as runtime-UNPROVEN rather than
-   * quietly dropped.
+   * So the prerequisite is a row, and a test may create its own. The earlier
+   * ladder of refusals — EVIDENCE_STORAGE_NOT_SET, REPORT_NOT_INCLUDED_IN_PLAN,
+   * EVIDENCE_NOT_SIGNED — are satisfied the same way: with real rows, not with
+   * a conditional gate around the assertion.
    *
-   * The `toHaveBeenCalled` guard at the end is what kept this honest: without
-   * it, every assertion here passes while the package stage is never reached.
+   * A runtime skip is not a smaller test, it is an absent one, and the suite
+   * forbids them precisely so a gap cannot hide behind a green run.
    */
-  it.skip("a package build failure does NOT let the request become SUCCEEDED", async () => {
+  it("a package build failure does NOT let the request become SUCCEEDED", async () => {
     const { evidenceId, teamId } = harness.fixtures.teamA;
     await prisma.reportGenerationRequest.deleteMany({ where: { evidenceId } });
     await prisma.report.deleteMany({ where: { evidenceId } });
@@ -157,6 +164,24 @@ describe("partial Report/Package failure (live PostgreSQL 16)", () => {
       });
     }
 
+    /*
+     * THE SIGNING KEY ROW. The generator looks the evidence key up by
+     * (keyId, version) and refuses SIGNING_KEY_NOT_FOUND when it is absent. It
+     * does not verify a signature at that point, so the prerequisite this test
+     * was skipped for is a ROW — and a test may create its own. The PEM below
+     * is inert fixture text; it signs nothing and verifies nothing.
+     */
+    await prisma.signingKey.upsert({
+      where: { keyId_version: { keyId: FIXTURE_SIGNING_KEY_ID, version: 1 } },
+      create: {
+        keyId: FIXTURE_SIGNING_KEY_ID,
+        version: 1,
+        publicKeyPem:
+          "-----BEGIN PUBLIC KEY-----\nfixture-local-only-not-a-real-key\n-----END PUBLIC KEY-----\n",
+      },
+      update: {},
+    });
+
     const body = Buffer.from("partial-failure acceptance original\n");
     const { createHash } = await import("node:crypto");
     const sha = createHash("sha256").update(body).digest("hex");
@@ -177,7 +202,7 @@ describe("partial Report/Package failure (live PostgreSQL 16)", () => {
         status: "SIGNED",
         signedAtUtc: new Date(),
         signatureBase64: "ZmFrZS1zaWduYXR1cmUtZm9yLXBhcnRpYWwtZmFpbHVyZQ==",
-        signingKeyId: process.env.SIGNING_KEY_ID!,
+        signingKeyId: FIXTURE_SIGNING_KEY_ID,
         signingKeyVersion: 1,
         fingerprintHash: "5".repeat(64),
         fingerprintCanonicalJson: JSON.stringify({ partial: "failure" }),
@@ -188,6 +213,13 @@ describe("partial Report/Package failure (live PostgreSQL 16)", () => {
         fileSha256: sha,
         verificationPackageVersion: null,
       },
+    });
+
+    // Captured BEFORE the run so "TSA was not touched" is a comparison
+    // rather than an assumption about what the fixture happened to hold.
+    const tsaBefore = await prisma.evidence.findUniqueOrThrow({
+      where: { id: evidenceId },
+      select: { tsaStatus: true, tsaGenTimeUtc: true, tsaMessageImprint: true },
     });
 
     const request = await prisma.reportGenerationRequest.create({
@@ -259,7 +291,43 @@ describe("partial Report/Package failure (live PostgreSQL 16)", () => {
     });
     expect(credits).toBe(0);
 
-    // 6. THE SEAM ACTUALLY FIRED — otherwise every assertion above is vacuous.
+    // 6. THE FAILURE IS RECOVERABLE, and the reason names the phase it failed
+    //    in. FAILED_RETRYABLE is what keeps the pair convergent: the record is
+    //    still owed a package and the reconciler will drive it again.
+    expect(after.state).toBe("FAILED_RETRYABLE");
+    expect(after.terminalReasonCode).toMatch(/^VERIFICATION_PACKAGE_INCOMPLETE_/);
+
+    // 7. THE REPORT IS DURABLE AND UNTOUCHED. A package failure is a statement
+    //    about the PACKAGE; the artifact that did commit stays committed, at
+    //    exactly one version, with no second row racing it.
+    const reports = await prisma.report.findMany({
+      where: { evidenceId },
+      select: { version: true, storageKey: true },
+      orderBy: { version: "asc" },
+    });
+    expect(reports.length).toBe(1);
+    expect(reports[0]!.version).toBe(1);
+    expect(reports[0]!.storageKey).toContain("/v1.");
+
+    // 8. OPERATIONS CAN SEE IT. A partial failure the operator cannot find is
+    //    a silent one, which is the state this whole guard exists to prevent.
+    const incidents = await prisma.operationalIncident.count({
+      where: { teamId, category: "PACKAGE" },
+    });
+    expect(incidents).toBeGreaterThan(0);
+
+    // 9. NO TSA AUTHORITY WAS CONTACTED. A retry must never mint a timestamp
+    //    whose genTime is later than the evidence it certifies, and a package
+    //    failure is a retry path.
+    const evidenceAfter = await prisma.evidence.findUniqueOrThrow({
+      where: { id: evidenceId },
+      select: { tsaStatus: true, tsaGenTimeUtc: true, tsaMessageImprint: true },
+    });
+    expect(evidenceAfter.tsaStatus).toBe(tsaBefore.tsaStatus);
+    expect(evidenceAfter.tsaGenTimeUtc).toEqual(tsaBefore.tsaGenTimeUtc);
+    expect(evidenceAfter.tsaMessageImprint).toBe(tsaBefore.tsaMessageImprint);
+
+    // 10. THE SEAM ACTUALLY FIRED — otherwise every assertion above is vacuous.
     expect(packageBuildFails).toHaveBeenCalled();
   });
 
