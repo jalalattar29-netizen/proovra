@@ -71,16 +71,55 @@ test.describe("Phase A0 — integrity banner + disabled CTAs (source contract)",
     expect(DETAIL_PAGE).toMatch(/recomputed\s+server-side\s+fingerprint/i);
   });
 
+  /*
+   * RELIABILITY CLOSURE (2026-09-09) — ASSERTED AS A PROPERTY, NOT A SPELLING.
+   *
+   * These matched `disabled={exportDisabled || isIntegrityFailed}` exactly,
+   * which pinned the guard to a two-term expression. A third term was added in
+   * front of each — `!reportArtifactAvailable` / `!packageArtifactAvailable` —
+   * so the header can no longer offer a download for an artifact that does not
+   * exist, and the literal patterns stopped matching while the property they
+   * exist for was strictly strengthened.
+   *
+   * A gate that fails when its subject gets SAFER is a gate that trains people
+   * to edit the gate. So each button is now located by its own stable
+   * `data-evidence-action` attribute and its `disabled` expression is read out
+   * and checked for the terms that must appear in it. The integrity term is
+   * still required — that is the Phase A0 hard gate and it is untouched — and
+   * the two new guards are required alongside it, so neither can be dropped
+   * without this failing.
+   */
+  function disabledExpressionFor(action: string): string {
+    const marker = `data-evidence-action="${action}"`;
+    const at = DETAIL_PAGE.indexOf(marker);
+    expect(at, `${marker} must exist in the evidence detail page`).toBeGreaterThan(-1);
+    // The button's own `disabled={...}` is the LAST one opened before its
+    // marker attribute, so read backwards from the marker rather than forwards
+    // from the file start — that cannot pick up a neighbouring control's guard.
+    const before = DETAIL_PAGE.slice(0, at);
+    const open = before.lastIndexOf("disabled={");
+    expect(open, `${action} must carry a disabled predicate`).toBeGreaterThan(-1);
+    // From that `disabled={` up to the marker is exactly this button's own
+    // attribute span: the marker is one of its attributes, and any other
+    // control's `disabled` would have to appear after it, not before.
+    return before.slice(open);
+  }
+
   test("Download report disabled when isIntegrityFailed", () => {
-    expect(DETAIL_PAGE).toMatch(
-      /disabled=\{exportDisabled\s*\|\|\s*isIntegrityFailed\}/,
-    );
+    const expr = disabledExpressionFor("download-report");
+    // THE PHASE A0 HARD GATE. Unchanged.
+    expect(expr).toContain("isIntegrityFailed");
+    // Governance may still refuse an artifact that exists.
+    expect(expr).toContain("exportDisabled");
+    // And nothing may offer one that does not.
+    expect(expr).toContain("!reportArtifactAvailable");
   });
 
   test("Download package disabled when isIntegrityFailed", () => {
-    expect(DETAIL_PAGE).toMatch(
-      /disabled=\{packageDisabled\s*\|\|\s*isIntegrityFailed\}/,
-    );
+    const expr = disabledExpressionFor("download-package");
+    expect(expr).toContain("isIntegrityFailed");
+    expect(expr).toContain("packageDisabled");
+    expect(expr).toContain("!packageArtifactAvailable");
   });
 
   test("Copy verification link disabled when isIntegrityFailed", () => {

@@ -74,7 +74,26 @@ describe("Phase R4 — lifecycle recovery reconciler", () => {
     findMany.mockResolvedValue([]);
     await runLifecycleRecovery({ trigger: "test" });
 
-    expect(findMany).toHaveBeenCalledTimes(1);
+    /*
+     * RELIABILITY CLOSURE (2026-09-09) — THIS SWEEP NOW MAKES TWO EVIDENCE
+     * QUERIES, AND THAT IS THE DESIGN.
+     *
+     * The assertion here was `toHaveBeenCalledTimes(1)`. That was never the
+     * property this case is named for — it was an incidental assumption that
+     * `runLifecycleRecovery` asks the evidence table exactly one question.
+     *
+     * It now asks two, because the OTS initialization reconciler was folded
+     * into this same tick rather than given a timer of its own. The two scans
+     * are one responsibility — repair a handoff lost between a commit and a
+     * queue — and separate schedulers would let a deployment run half of that
+     * repair.
+     *
+     * So the count is asserted as "the first query is the report-recovery
+     * scan", and the second scan gets its own assertions below. That is more
+     * coverage than the count carried, not less: the OTS predicate had no
+     * worker-side test at all.
+     */
+    expect(findMany.mock.calls.length).toBeGreaterThanOrEqual(1);
     const arg = findMany.mock.calls[0][0] as {
       where: Record<string, unknown>;
       take: number;
@@ -91,6 +110,56 @@ describe("Phase R4 — lifecycle recovery reconciler", () => {
     // Bounded batch.
     expect(arg.take).toBeGreaterThan(0);
     expect(arg.take).toBeLessThanOrEqual(1000);
+  });
+
+  it("also scans, in the same tick, for records that never entered the OTS lifecycle", async () => {
+    findMany.mockResolvedValue([]);
+    await runLifecycleRecovery({ trigger: "test" });
+
+    /*
+     * The second half of the same repair. A finalize can commit and its OTS
+     * enqueue can be lost, and until this scan existed nothing on the platform
+     * noticed: `otsStatus` stays NULL, and NULL is not what the integrity scan
+     * looks for.
+     *
+     * `fingerprintCanonicalJson` is the honest finalization test — it is the
+     * CONTENT that OTS stamps, written by the finalize transaction — and it is
+     * stronger than reading `status`, because it is the actual input rather
+     * than a label describing it.
+     */
+    expect(findMany.mock.calls.length).toBeGreaterThanOrEqual(2);
+    const ots = findMany.mock.calls[1][0] as {
+      where: Record<string, unknown>;
+      take: number;
+    };
+    expect(ots.where.deletedAt).toBeNull();
+    expect(ots.where.fingerprintCanonicalJson).toEqual({ not: null });
+    // BOTH OTS columns must be null. A record holding proof bytes has entered
+    // the lifecycle whatever its status says, and re-enqueueing it would ask
+    // the upgrade ladder to redo work it is already doing.
+    expect(ots.where.otsStatus).toBeNull();
+    expect(ots.where.otsProofBase64).toBeNull();
+    // Aged on both ends: a record finalized seconds ago is in flight, not
+    // stranded, and one older than the global anchoring budget is past help.
+    const created = ots.where.createdAt as { gte: Date; lte: Date };
+    expect(created.gte).toBeInstanceOf(Date);
+    expect(created.lte).toBeInstanceOf(Date);
+    expect(created.gte.getTime()).toBeLessThan(created.lte.getTime());
+    expect(ots.take).toBeGreaterThan(0);
+    expect(ots.take).toBeLessThanOrEqual(1000);
+  });
+
+  it("a failing sub-reconciler cannot stop the others in the same tick", async () => {
+    // The evidence scan succeeds; the OTS scan is made to throw. A sweep that
+    // aborts on one stage is how a backlog builds behind a single bad query.
+    findMany
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new Error("ots scan exploded"));
+
+    const res = await runLifecycleRecovery({ trigger: "test" });
+
+    expect(res).toBeTruthy();
+    expect(findMany.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 
   it("re-enqueues eligible stuck evidence and reports the count", async () => {
