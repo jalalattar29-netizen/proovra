@@ -29,6 +29,7 @@ import {
 import { ApiError } from "../../../../../lib/api";
 import { notifyApiError } from "../../../../../lib/feedback/notify";
 import {
+  ASSIGNEE_TEAM_LEVEL_LABEL,
   type AssignableTarget,
   type CollaborationTeamDetail,
   createAssignment,
@@ -154,7 +155,7 @@ export function CreateAssignmentModal({
   }));
 
   const assigneeOptions = [
-    { value: "", label: "Team-level (no specific assignee)" },
+    { value: "", label: ASSIGNEE_TEAM_LEVEL_LABEL },
     ...team.members
       .filter((m) => m.status === "ACTIVE")
       .map((m) => ({
@@ -286,7 +287,7 @@ export function CreateAssignmentModal({
               onChange={(v) => setAssigneeUserId(v)}
               ariaLabelledby="assignment-assignee-label"
               id="assignment-assignee"
-              placeholder="Team-level (no specific assignee)"
+              placeholder={ASSIGNEE_TEAM_LEVEL_LABEL}
             />
           </div>
 

@@ -41,6 +41,8 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
 import {
+  ASSIGNEE_TEAM_LEVEL_LABEL,
+  ASSIGNEE_TEAM_LEVEL_SHORT,
   createAssignment,
   listTeamMembers,
   listTeamResponsibility,
@@ -283,7 +285,7 @@ export function TeamResponsibilityPanel({
                   </span>
                 ) : null}
                 {r.assigneeUserId ? null : (
-                  <span className="app-table__muted">Team-level</span>
+                  <span className="app-table__muted">{ASSIGNEE_TEAM_LEVEL_SHORT}</span>
                 )}
                 {/*
                   Reassign / reprioritise / re-date / remove, from the record.
@@ -531,7 +533,7 @@ function ResponsibilityDialog({
           <AppListbox
             value={assigneeUserId}
             options={[
-              { value: "", label: "Team-level (nobody specific)" },
+              { value: "", label: ASSIGNEE_TEAM_LEVEL_LABEL },
               ...members.map((m) => ({ value: m.userId, label: m.label })),
             ]}
             onChange={setAssigneeUserId}

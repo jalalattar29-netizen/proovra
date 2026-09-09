@@ -188,6 +188,36 @@ export type CollaborationTeamAssignment = {
 export const ASSIGNEE_UNASSIGNED = "UNASSIGNED";
 
 /**
+ * WHAT AN EMPTY ASSIGNEE MEANS, IN ONE PLACE.
+ *
+ * It does NOT mean unassigned, and it does not mean workspace-level. A
+ * `CollaborationTeamAssignment` always carries a `teamId` — the service sets it
+ * from the request and derives `workspaceId` from the group's own tenant — so
+ * the record IS assigned: to the COLLABORATION TEAM, with no individual member
+ * carrying it. `createAssignment` calls this state "TEAM-LEVEL work (no
+ * assignee)" in its own comment, and treats it as a first-class outcome: a
+ * named assignee must be an ACTIVE member of that group and is notified, while
+ * team-level work is deliberately silent and is what the Overview's
+ * "unassigned" attention count and the Work filter's `ASSIGNEE_UNASSIGNED`
+ * sentinel exist to surface.
+ *
+ * "Workspace-level" would be a different and untrue claim: the workspace is
+ * the tenant column on the row, not the party responsible for it.
+ *
+ * FOUR SURFACES SAID THIS FOUR WAYS — "(no specific assignee)", "(unassigned)",
+ * "(nobody specific)" and bare "Team-level" — across the create dialog, the
+ * Work filter, the edit dialog and the record-side responsibility panel. On a
+ * product where the word decides what an operator believes about who is
+ * carrying the work, that is four different claims. There is one now, and the
+ * long form is written once rather than repeated between a label and the
+ * placeholder that echoes it.
+ */
+export const ASSIGNEE_TEAM_LEVEL_LABEL = "Team-level (no specific assignee)";
+
+/** The same state where a row or a chip has no room for the parenthetical. */
+export const ASSIGNEE_TEAM_LEVEL_SHORT = "Team-level";
+
+/**
  * The group's operational snapshot. Every number is counted by the database;
  * the surface renders them and derives nothing.
  */

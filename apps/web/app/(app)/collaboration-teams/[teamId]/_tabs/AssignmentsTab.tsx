@@ -26,6 +26,8 @@ import { notifyApiError } from "../../../../../lib/feedback/notify";
 import type { SafeErrorFallback } from "../../../../../lib/feedback/toSafeUserError";
 import { formatUserDate, formatUserDateTime } from "../../../../../lib/date";
 import {
+  ASSIGNEE_TEAM_LEVEL_LABEL,
+  ASSIGNEE_TEAM_LEVEL_SHORT,
   ASSIGNEE_UNASSIGNED,
   type CollaborationTeamAssignment,
   type CollaborationTeamDetail,
@@ -312,7 +314,7 @@ function AssignmentsTab({
     { value: "", label: "All assignees" },
     // The sentinel the SERVER understands. It used to be a client-only
     // `__team__` that the filter translated locally; now the value travels.
-    { value: ASSIGNEE_UNASSIGNED, label: "Team-level (unassigned)" },
+    { value: ASSIGNEE_UNASSIGNED, label: ASSIGNEE_TEAM_LEVEL_LABEL },
     ...team.members
       .filter((m) => m.status === "ACTIVE")
       .map((m) => ({ value: m.userId, label: memberLabel(m) })),
@@ -594,7 +596,7 @@ function AssignmentRow({
   const [editing, setEditing] = useState(false);
   const { confirm } = useConfirmAction();
   const assignee = members.find((m) => m.userId === assignment.assigneeUserId);
-  const assigneeLabel = assignee ? memberLabel(assignee) : "Team-level";
+  const assigneeLabel = assignee ? memberLabel(assignee) : ASSIGNEE_TEAM_LEVEL_SHORT;
   const isTeamLevel = !assignment.assigneeUserId;
 
   /**
@@ -702,7 +704,7 @@ function AssignmentRow({
       <td data-label="Assignee">
         <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
           {isTeamLevel ? (
-            <span className="app-table__muted">Team-level</span>
+            <span className="app-table__muted">{ASSIGNEE_TEAM_LEVEL_SHORT}</span>
           ) : (
             <>
               <span className="app-avatar app-avatar--sm" aria-hidden>
@@ -907,7 +909,7 @@ function EditAssignmentModal({
   const [busy, setBusy] = useState(false);
 
   const assigneeOptions = [
-    { value: "", label: "Team-level (nobody specific)" },
+    { value: "", label: ASSIGNEE_TEAM_LEVEL_LABEL },
     ...members
       .filter((m) => m.status === "ACTIVE")
       .map((m) => ({ value: m.userId, label: memberLabel(m) })),

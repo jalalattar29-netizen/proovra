@@ -69,6 +69,134 @@ vi.mock("../../../worker/src/report-v2/build-report-pdf.js", () => ({
   }),
 }));
 
+/**
+ * ===========================================================================
+ * OBJECT STORAGE — A COMPLETE IN-PROCESS DOUBLE, NOT A CONTAINER.
+ * ===========================================================================
+ * This suite reached the REAL S3 client. The test environment pins
+ * `S3_ENDPOINT` to `http://127.0.0.1:59000` precisely so nothing can touch a
+ * production bucket, and the run passed only because a disposable MinIO happened
+ * to be listening there when the suite was written. Once that container went
+ * away the suite failed `connect ECONNREFUSED 127.0.0.1:59000` — locally and in
+ * CI alike, because CI never had one.
+ *
+ * This is the SAME defect `destruction-storage-double-completeness.contract.test.ts`
+ * was written for, one instance later: a proof whose result depends on which
+ * containers happen to be up is not a proof. `bootIntegrationHarness` owns
+ * PostgreSQL and asserts Redis; it does not provision object storage, and every
+ * other Point-5 integration suite doubles the storage MODULE in process. So does
+ * this one now.
+ *
+ * IT IS COMPLETE ON PURPOSE, AND IT DOES NOT SPREAD THE REAL MODULE. A double
+ * built with `...actual` serves the calls it overrode and lets every other one
+ * fall through to a socket — which is exactly how the destruction suite came to
+ * report 1055 locally and 1053 in CI. Every function any worker module imports
+ * from `storage.js` is implemented here against an in-memory object map. A call
+ * this map has never heard of is a missing export and crashes visibly at import,
+ * which is the failure mode to want: loud, and nowhere near a network.
+ *
+ * The report path uses four of them — `headObject` and `getObjectStream` to read
+ * the evidence original, `putObjectBuffer` to publish the report PDF,
+ * `applyDefaultObjectRetention` behind it — and `deleteObject` and
+ * `verifyObjectLockConfiguration` complete the port surface.
+ */
+const storage = vi.hoisted(() => {
+  const objects = new Map<
+    string,
+    {
+      body: Buffer;
+      contentType: string;
+      metadata: Record<string, string> | null;
+      immutable: boolean;
+    }
+  >();
+  /** Which operations the run actually reached, so the proof can say so. */
+  const served: string[] = [];
+  return { objects, served, at: (bucket: string, key: string) => `${bucket}/${key}` };
+});
+
+vi.mock("../../../worker/src/storage.js", () => {
+  const notFound = (key: string) => {
+    // Shaped like the SDK's, because the destruction adapter narrows on it and
+    // a plain Error would read to it as "could not check", not "absent".
+    const err = new Error(`NoSuchKey: ${key}`) as Error & { name: string; $metadata: unknown };
+    err.name = "NotFound";
+    err.$metadata = { httpStatusCode: 404 };
+    return err;
+  };
+  return {
+    putObjectBuffer: async (p: {
+      bucket: string;
+      key: string;
+      body: Buffer;
+      contentType: string;
+      metadata?: Record<string, string | null | undefined>;
+      immutable?: boolean;
+    }) => {
+      storage.served.push("putObjectBuffer");
+      // The real one refuses an empty body; a double that accepts one would let
+      // a zero-byte report look durable.
+      if (!Buffer.isBuffer(p.body) || p.body.length <= 0) {
+        throw new Error("putObjectBuffer: body must be a non-empty Buffer");
+      }
+      storage.objects.set(storage.at(p.bucket, p.key), {
+        body: Buffer.from(p.body),
+        contentType: p.contentType,
+        metadata: (p.metadata as Record<string, string>) ?? null,
+        immutable: p.immutable === true,
+      });
+      return { etag: `"${p.body.length}"` };
+    },
+    getObjectStream: async (p: { bucket: string; key: string }) => {
+      storage.served.push("getObjectStream");
+      const o = storage.objects.get(storage.at(p.bucket, p.key));
+      if (!o) throw notFound(p.key);
+      const { Readable } = await import("node:stream");
+      return Readable.from([o.body]);
+    },
+    getObjectRange: async (p: { bucket: string; key: string; range?: string }) => {
+      storage.served.push("getObjectRange");
+      const o = storage.objects.get(storage.at(p.bucket, p.key));
+      if (!o) throw notFound(p.key);
+      const m = /bytes=(\d+)-(\d+)/.exec(p.range ?? "");
+      return m ? o.body.subarray(Number(m[1]), Number(m[2]) + 1) : o.body;
+    },
+    headObject: async (p: { bucket: string; key: string }) => {
+      storage.served.push("headObject");
+      const o = storage.objects.get(storage.at(p.bucket, p.key));
+      if (!o) throw notFound(p.key);
+      return {
+        sizeBytes: o.body.length,
+        contentType: o.contentType,
+        etag: `"${o.body.length}"`,
+        metadata: o.metadata,
+        // Object Lock is declared OFF by the fixture environment, so reporting
+        // a lock here would be the double inventing a guarantee the run does
+        // not have.
+        objectLockMode: null,
+        objectLockRetainUntilDate: null,
+        objectLockLegalHoldStatus: null,
+      };
+    },
+    deleteObject: async (p: { bucket: string; key: string }) => {
+      storage.served.push("deleteObject");
+      storage.objects.delete(storage.at(p.bucket, p.key));
+      return { deleted: true };
+    },
+    applyObjectRetention: async () => {
+      storage.served.push("applyObjectRetention");
+      return { applied: false, reason: "object_lock_disabled" as const };
+    },
+    applyDefaultObjectRetention: async () => {
+      storage.served.push("applyDefaultObjectRetention");
+      // Mirrors the real function under this fixture's `S3_OBJECT_LOCK_ENABLED
+      // = "false"`: it returns without a single S3 call.
+      return { applied: false, reason: "object_lock_disabled" as const };
+    },
+    verifyObjectLockConfiguration: async () => ({ mode: "disabled" as const }),
+  };
+});
+
 /** The key the fixture evidence is signed with, and the row seeded for it. */
 const FIXTURE_SIGNING_KEY_ID = "partial-failure-fixture-key";
 
@@ -302,12 +430,42 @@ describe("partial Report/Package failure (live PostgreSQL 16)", () => {
     //    exactly one version, with no second row racing it.
     const reports = await prisma.report.findMany({
       where: { evidenceId },
-      select: { version: true, storageKey: true },
+      select: { version: true, storageKey: true, storageBucket: true },
       orderBy: { version: "asc" },
     });
     expect(reports.length).toBe(1);
     expect(reports[0]!.version).toBe(1);
     expect(reports[0]!.storageKey).toContain("/v1.");
+    /*
+     * AND THE BYTES ARE WHERE THE ROW SAYS THEY ARE.
+     *
+     * The row previously recorded a key whose object lived in whatever MinIO
+     * happened to be listening on 127.0.0.1:59000. Reading it back out of the
+     * double proves the publish really happened on this run rather than being
+     * inferred from a database column — and it proves the double SERVED the
+     * write instead of a socket doing it.
+     */
+    const published = storage.objects.get(
+      storage.at(reports[0]!.storageBucket, reports[0]!.storageKey),
+    );
+    expect(published, "the report PDF must be durable in storage").toBeTruthy();
+    expect(published!.body.length).toBeGreaterThan(0);
+    expect(published!.contentType).toBe("application/pdf");
+
+    /*
+     * THE ORIGINAL WAS READ, AND NO PACKAGE OBJECT WAS WRITTEN.
+     *
+     * The first is what makes the report a report rather than an empty
+     * template; the second is the storage half of "the package did not
+     * happen" — a failed build must leave no half-written artifact behind for
+     * a later run to mistake for a real one.
+     */
+    expect(storage.served).toContain("getObjectStream");
+    expect(storage.served).toContain("putObjectBuffer");
+    const packageObjects = [...storage.objects.keys()].filter((k) =>
+      /package/i.test(k),
+    );
+    expect(packageObjects).toEqual([]);
 
     // 8. OPERATIONS CAN SEE IT. A partial failure the operator cannot find is
     //    a silent one, which is the state this whole guard exists to prevent.

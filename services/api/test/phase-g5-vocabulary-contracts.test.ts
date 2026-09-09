@@ -329,23 +329,8 @@ const TEAM_WORDING_ALLOWLIST = new Set<string>([
   // canonical Collaboration Teams surfaces shipped in Phases 5–7 and
   // therefore use the constitutional vocabulary.
   // -------------------------------------------------------------------
-  "app/(app)/collaboration-teams/page.tsx",
-  "app/(app)/collaboration-teams/[teamId]/page.tsx",
-  // The team-detail page was decomposed into per-tab modules (app-* redesign);
-  // each tab inherits the same legitimate Collaboration-Teams product wording.
-  "app/(app)/collaboration-teams/[teamId]/_tabs/OverviewTab.tsx",
-  "app/(app)/collaboration-teams/[teamId]/_tabs/MembersTab.tsx",
-  // WORKSPACE AND COLLABORATION RECONCILIATION — InvitesTab was removed with
-  // the retired CollaborationTeamInvite product surface (people are invited to
-  // the WORKSPACE, then assigned to a group), and DiscussionTab took its place
-  // as the group-scoped discussion the Hub used to own. Same directory, same
-  // legitimate Collaboration-Teams product wording as its siblings above.
-  "app/(app)/collaboration-teams/[teamId]/_tabs/DiscussionTab.tsx",
-  "app/(app)/collaboration-teams/[teamId]/_tabs/AssignmentsTab.tsx",
-  "app/(app)/collaboration-teams/[teamId]/_tabs/ActivityTab.tsx",
-  "app/(app)/collaboration-teams/[teamId]/_tabs/SettingsTab.tsx",
-  "app/(app)/collaboration-teams/[teamId]/collaboration/page.tsx",
-  "app/(app)/collaboration-teams/invites/[token]/accept/page.tsx",
+  // The eleven files this tree used to enumerate are covered by
+  // TEAM_WORDING_ALLOWED_TREES below — see the note there. The list SHRANK.
   // -------------------------------------------------------------------
   // Phase IA-self-serve-simplification — pricing-aligned vocabulary.
   //
@@ -399,6 +384,41 @@ const TEAM_WORDING_ALLOWLIST = new Set<string>([
   "app/(app)/billing/_sections/BillingOverview.tsx",
 ]);
 
+/**
+ * ONE CONSTITUTIONAL FEATURE, EXEMPTED AS A TREE RATHER THAN AS A FILE LIST.
+ *
+ * WHAT WENT WRONG WITH THE FILE LIST. Every module under
+ * `app/(app)/collaboration-teams/` was enumerated individually, and the reason
+ * given for each was identical: this directory IS the Collaboration Teams
+ * product, where "Team" is the constitutional term for the group and
+ * "Workspace" would be actively wrong. So the enumeration carried no
+ * information — and it broke the moment a file was SPLIT. Extracting the
+ * create-assignment dialog out of `_tabs/AssignmentsTab.tsx` (allowlisted)
+ * into `_components/CreateAssignmentModal.tsx` (not yet listed) moved an
+ * unchanged, legitimate string into a path the list had never heard of, and
+ * the gate reported a vocabulary regression where no word had changed.
+ *
+ * A contract that fires on a file move is reporting the refactor, not the
+ * vocabulary. The exemption is therefore scoped to what the reason actually
+ * covers: the feature's directory.
+ *
+ * WHAT THIS DOES **NOT** DO. It does not weaken the rule and it does not
+ * globally allow "Team". Outside these trees the file list is unchanged and
+ * still cannot grow. INSIDE them, "Team" is only permitted to mean the GROUP —
+ * the very next contract below forbids the two legacy senses (Team as a
+ * synonym for the workspace/tenant, and Team as the pricing tier) in exactly
+ * these files, which the per-file list never checked at all. The exempt tree
+ * is more constrained now than the files it replaced, not less.
+ */
+const TEAM_WORDING_ALLOWED_TREES = [
+  "app/(app)/collaboration-teams/",
+];
+
+/** True when a path sits inside a tree exempted as a whole feature. */
+function inAllowedTree(rel: string): boolean {
+  return TEAM_WORDING_ALLOWED_TREES.some((prefix) => rel.startsWith(prefix));
+}
+
 describe("Phase G5.2 — Team → Workspace carryover", () => {
   it("no NEW file outside the allowlist uses `Team` in user-facing UI strings", () => {
     const files = walk(WEB_ROOT);
@@ -409,7 +429,7 @@ describe("Phase G5.2 — Team → Workspace carryover", () => {
       /["'>](?:[^"'<>]*\b)?Team(?:s)?\b(?!Id|Member|Role|Workspace|Permission)/;
     for (const f of files) {
       const rel = relative(WEB_ROOT, f).replace(/\\/g, "/");
-      if (TEAM_WORDING_ALLOWLIST.has(rel)) continue;
+      if (TEAM_WORDING_ALLOWLIST.has(rel) || inAllowedTree(rel)) continue;
       const stripped = stripComments(readFileSync(f, "utf8"));
       const lines = stripped.split("\n");
       for (let i = 0; i < lines.length; i++) {
@@ -427,6 +447,126 @@ describe("Phase G5.2 — Team → Workspace carryover", () => {
         "New `Team` UI strings outside the G5.2 allowlist — use `Workspace`:\n" +
           offenders
             .map((o) => `  ${o.file}:${o.line} — ${o.excerpt}`)
+            .join("\n"),
+      );
+    }
+    expect(offenders).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Inside the exempt tree: `Team` must still mean the GROUP.
+//
+// The per-file allowlist this replaced asked one question — "is this path
+// listed?" — and then permitted every use of the word. That is the wrong
+// question for a directory exemption, because the exemption's REASON is
+// specific: "Team" is the constitutional name of the collaboration group. It
+// was never a licence for the two senses G5.2 exists to remove:
+//
+//   TEAM-AS-WORKSPACE   "Team workspace", "your team account" — the pre-G5
+//                       terminology where Team meant the tenant. This is the
+//                       carryover the whole contract is named after.
+//   TEAM-AS-PLAN        "Team plan", "Upgrade to Team" — the pricing tier.
+//                       Legitimate on Pricing and Billing, which are
+//                       separately allowlisted for exactly that; inside the
+//                       Collaboration Teams product it would tell an operator
+//                       their GROUP is a subscription.
+//
+// So the tree is more constrained than the files it replaced: a legitimate
+// group string passes, and either legacy sense fails.
+// ---------------------------------------------------------------------------
+
+/**
+ * Legacy senses of the word, matched on the WORD BOUNDARY that follows it.
+ *
+ * `Teams?\s+workspace` and not a bare "workspace": "Add people to this team,
+ * then to the workspace" is a true sentence about two different things, and a
+ * gate that rejected it would be teaching people to write worse copy.
+ */
+const LEGACY_TEAM_SENSES: ReadonlyArray<{ id: string; re: RegExp }> = [
+  // Team standing in for the tenant.
+  { id: "TEAM_AS_WORKSPACE", re: /\bteams?\s+(?:workspace|tenant|account)\b/i },
+  { id: "TEAM_AS_WORKSPACE", re: /\byour\s+team['’]s\s+workspace\b/i },
+  // Team standing in for the pricing tier.
+  { id: "TEAM_AS_PLAN", re: /\bteam\s+(?:plan|tier|subscription)\b/i },
+  { id: "TEAM_AS_PLAN", re: /\bupgrade\s+to\s+team\b/i },
+  { id: "TEAM_AS_PLAN", re: /\bon\s+pro\s+and\s+team\b/i },
+];
+
+/** True when a line carries any legacy sense of the word. */
+function legacyTeamSense(line: string): string | null {
+  for (const { id, re } of LEGACY_TEAM_SENSES) if (re.test(line)) return id;
+  return null;
+}
+
+describe("Phase G5.2 — inside the exempt tree, `Team` means the group", () => {
+  /**
+   * THE DISCRIMINATOR ITSELF, PROVEN BEFORE IT IS TRUSTED.
+   *
+   * A rule that accepted everything would make the tree exemption a hole, and
+   * a rule that rejected everything would make it unusable. Both halves are
+   * asserted against real product strings, so this cannot silently decay into
+   * either.
+   */
+  it("tells legitimate group wording apart from the legacy senses", () => {
+    for (const legitimate of [
+      'label: "Team-level (no specific assignee)"',
+      '<span className="app-table__muted">Team-level</span>',
+      "Collaboration Teams",
+      "Team activity",
+      "Invite a teammate",
+      "Team-level work belongs to the whole team and notifies nobody in",
+      "This team is archived.",
+      "Only LEAD and ADMIN can change team settings.",
+      // Two different things named in one sentence is not a conflation.
+      "Add people to this team, then to the workspace",
+    ]) {
+      expect(legacyTeamSense(legitimate), legitimate).toBe(null);
+    }
+    for (const [legacy, sense] of [
+      ["Switch to another Team workspace", "TEAM_AS_WORKSPACE"],
+      ["your team account is suspended", "TEAM_AS_WORKSPACE"],
+      ["Reports are included on the Team plan", "TEAM_AS_PLAN"],
+      ["Upgrade to Team to unlock reports", "TEAM_AS_PLAN"],
+      ["Available on Pro and Team", "TEAM_AS_PLAN"],
+    ] as const) {
+      expect(legacyTeamSense(legacy), legacy).toBe(sense);
+    }
+  });
+
+  it("the exempt trees actually contain the product they exempt", () => {
+    // A prefix that matches nothing would make the exemption — and the rule
+    // below — pass vacuously.
+    const files = walk(WEB_ROOT).filter((f) =>
+      inAllowedTree(relative(WEB_ROOT, f).replace(/\\/g, "/")),
+    );
+    expect(files.length).toBeGreaterThan(5);
+  });
+
+  it("no file in an exempt tree uses Team as the workspace or as a plan", () => {
+    const offenders: Array<{ file: string; line: number; sense: string; excerpt: string }> = [];
+    for (const f of walk(WEB_ROOT)) {
+      const rel = relative(WEB_ROOT, f).replace(/\\/g, "/");
+      if (!inAllowedTree(rel)) continue;
+      const lines = stripComments(readFileSync(f, "utf8")).split("\n");
+      for (let i = 0; i < lines.length; i++) {
+        const sense = legacyTeamSense(lines[i]);
+        if (sense) {
+          offenders.push({
+            file: rel,
+            line: i + 1,
+            sense,
+            excerpt: lines[i].trim().slice(0, 140),
+          });
+        }
+      }
+    }
+    if (offenders.length > 0) {
+      throw new Error(
+        "`Team` used as the WORKSPACE or as the PLAN inside the Collaboration " +
+          "Teams tree — that tree is exempt only for Team meaning the GROUP:\n" +
+          offenders
+            .map((o) => `  ${o.file}:${o.line} [${o.sense}] — ${o.excerpt}`)
             .join("\n"),
       );
     }
