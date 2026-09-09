@@ -553,7 +553,25 @@ jobs:
       # THE SHARD. Playwright s canonical mechanism; the five shards together
       # are the 97 tests, and the accounting job proves it rather than assuming.
       - name: Run the admin control-plane suite (shard ${{ matrix.shard }}/5)
-        run: pnpm test:e2e:admin -- --shard=${{ matrix.shard }}/5
+        # pnpm exec, NOT the package script.
+        #
+        # This was `pnpm test:e2e:admin -- --shard=N/5`, and every shard died
+        # instantly with "No tests found. Make sure that arguments are regular
+        # expressions matching test files." pnpm 10.28.2 forwards the `--`
+        # separator itself into the script, so Playwright argv ended as
+        #
+        #   playwright test --config ... -- --list --shard=1/5
+        #
+        # and Playwright read the bare `--` as a positional test-file regex.
+        # The shard option never reached it, so the jobs were not product-test
+        # failures at all: nothing ran.
+        #
+        # Calling the binary directly removes the forwarding question. The
+        # argv here is exactly what `--list` was validated against locally.
+        run: >-
+          pnpm exec playwright test
+          --config apps/web/e2e/admin-control-plane/playwright.config.ts
+          --shard=${{ matrix.shard }}/5
 
       - name: Upload fixture logs on failure
         if: failure()
