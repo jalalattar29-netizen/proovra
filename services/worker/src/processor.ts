@@ -110,15 +110,12 @@ import {
 import { buildVerificationPackageIntelligence } from "./verification-package-intelligence-bridge.js";
 import {
   enqueueEvidencePurgeJob,
-  enqueueOtsUpgradeJob,
   enqueueReportGenerationRequest,
   reportDlqQueue,
 } from "./queue.js";
 import { captureException } from "./sentry.js";
 import { createVerificationPackage, PackageGateDeniedError } from "./verification-package.js";
 import { loadProvenanceChainForPackage } from "./capture-trust/load-provenance-chain.js";
-import { createOpenTimestamp, type OtsStampResult } from "./ots.service.js";
-import { buildOtsEvidenceUpdateData } from "./ots-state.js";
 import { appendWorkerAuditLog } from "./platform-audit-append.js";
 import { rejectEvidenceIntegrity } from "./integrity-rejection.service.js";
 // PHASE 12 — POINT 5: the payload carries a request id; the authority is a row.
@@ -1723,21 +1720,6 @@ async function resolveEvidenceStorageSnapshot(params: {
   }
 }
 
-async function enqueueOtsUpgradeRetry(evidenceId: string) {
-  const result = await enqueueOtsUpgradeJob(evidenceId);
-
-  logger.info(
-    {
-      evidenceId,
-      enqueued: result.enqueued,
-      reason: "reason" in result ? result.reason : null,
-    },
-    "ots.upgrade.retry_scheduled"
-  );
-
-  return result;
-}
-
 function deriveIdentityLevel(params: {
   provider: prismaPkg.AuthProvider;
   emailVerifiedAt: Date | null;
@@ -1801,9 +1783,16 @@ function deriveReportCaptureMethod(params: {
 
 const { EvidenceStatus } = prismaPkg;
 
+/**
+ * OTS COMES FROM THE ROW. There used to be an `otsResult` parameter here, fed
+ * by the stamp this job created moments earlier, and every OTS field below was
+ * a ternary choosing between it and the stored column. The stamp is no longer
+ * this job's to make, so the parameter is gone and each ternary has collapsed
+ * onto the branch that reads the record — which is what the fallback branch
+ * always did, and is now simply what happens.
+ */
 async function prepareReportArtifacts(
   evidenceId: string,
-  otsResult?: OtsStampResult | null,
   options?: {
     allowReported?: boolean;
     refreshReason?: string | null;
@@ -2676,33 +2665,21 @@ evidenceStructure:
     tsaStatus: evidence.tsaStatus ?? null,
     tsaFailureReason: evidence.tsaFailureReason ?? null,
 
-    otsProofBase64: otsResult
-      ? otsResult.proofBase64
-      : evidence.otsProofBase64 ?? null,
-    otsHash: otsResult ? otsResult.hash : evidence.otsHash ?? null,
-    otsStatus: otsResult ? otsResult.status : evidence.otsStatus ?? null,
-    otsCalendar: otsResult ? otsResult.calendar : evidence.otsCalendar ?? null,
-    otsBitcoinTxid: otsResult
-      ? otsResult.bitcoinTxid
-      : evidence.otsBitcoinTxid ?? null,
-    otsAnchoredAtUtc:
-      otsResult
-        ? otsResult.anchoredAtUtc
-        : evidence.otsAnchoredAtUtc
-        ? evidence.otsAnchoredAtUtc.toISOString()
-        : null,
-    otsUpgradedAtUtc:
-      otsResult
-        ? otsResult.upgradedAtUtc
-        : evidence.otsUpgradedAtUtc
-        ? evidence.otsUpgradedAtUtc.toISOString()
-        : null,
-    otsFailureReason:
-      otsResult
-        ? otsResult.status === "FAILED"
-          ? otsResult.failureReason
-          : null
-        : evidence.otsFailureReason ?? null,
+    // The record's own OTS state, as stored by the one lifecycle that writes
+    // it. A report says what is true when it is built; if the anchor is still
+    // pending, the report says pending.
+    otsProofBase64: evidence.otsProofBase64 ?? null,
+    otsHash: evidence.otsHash ?? null,
+    otsStatus: evidence.otsStatus ?? null,
+    otsCalendar: evidence.otsCalendar ?? null,
+    otsBitcoinTxid: evidence.otsBitcoinTxid ?? null,
+    otsAnchoredAtUtc: evidence.otsAnchoredAtUtc
+      ? evidence.otsAnchoredAtUtc.toISOString()
+      : null,
+    otsUpgradedAtUtc: evidence.otsUpgradedAtUtc
+      ? evidence.otsUpgradedAtUtc.toISOString()
+      : null,
+    otsFailureReason: evidence.otsFailureReason ?? null,
 
     anchor: anchorSummary,
     certifications,
@@ -2993,48 +2970,34 @@ async function runReportGeneration(
       }
     }
 
-    let otsData: OtsStampResult | null = null;
-
-    try {
-      if (!forceRegenerate && evidence.fingerprintCanonicalJson) {
-        const latestReport = await prisma.report.findFirst({
-          where: { evidenceId },
-          orderBy: { version: "desc" },
-          select: { version: true },
-        });
-
-        const reportVersion = latestReport ? latestReport.version + 1 : 1;
-
-        otsData = await createOpenTimestamp({
-          content: Buffer.from(evidence.fingerprintCanonicalJson, "utf8"),
-          filenameStem: `fingerprint-${evidenceId}-v${reportVersion}`,
-        });
-
-        logger.info(
-          {
-            ...ctx,
-            otsStatus: otsData.status,
-            otsHash: otsData.hash,
-          },
-          "OpenTimestamp created"
-        );
-      }
-    } catch (otsError) {
-      captureException(otsError, {
-        ...ctx,
-        phase: "ots_stamp_early",
-      });
-
-      logger.warn(
-        {
-          ...ctx,
-          err: otsError,
-        },
-        "OpenTimestamp creation failed, continuing with report generation"
-      );
-    }
-
-    const prepared = await prepareReportArtifacts(evidenceId, otsData, {
+    /*
+     * =====================================================================
+     * OTS IS NOT THIS JOB'S TO CREATE. IT READS THE RECORD'S OWN STATE.
+     * =====================================================================
+     * This job used to call `createOpenTimestamp` here, persist the result in
+     * its own transaction below, and schedule the upgrade. That made a
+     * COMMERCIAL pipeline the owner of an INTEGRITY proof, with two costs.
+     *
+     * The customer-facing one: a record whose plan does not include reports
+     * has no report job, so it never obtained an anchor — while Pricing lists
+     * OpenTimestamps under "Every plan includes". And when the job did run for
+     * such a record, the stamp was created at the top and thrown away when
+     * `prepareReportArtifacts` refused a few lines later. The calendar was
+     * contacted to produce a proof nobody would ever store.
+     *
+     * The structural one: a report is a RENDERING of integrity state, and a
+     * renderer that also produces what it renders cannot be re-run safely.
+     * Regeneration had to be excluded by hand (`!forceRegenerate`) to avoid
+     * minting a second proof for one record.
+     *
+     * Initialization now belongs to `ots-lifecycle.ts`, driven by the
+     * `ots-upgrade` queue and triggered by evidence finalization. This job
+     * reads `evidence.ots*` like any other stored field — `prepareReportArtifacts`
+     * already fell back to those columns whenever no stamp was passed, so the
+     * report's content is unchanged for a record that has one, and truthful
+     * rather than absent for a record that does not.
+     */
+    const prepared = await prepareReportArtifacts(evidenceId, {
       allowReported: forceRegenerate,
       refreshReason: regenerateReason,
       // Phase A0 — pass job context through so the integrity-rejection
@@ -3098,7 +3061,6 @@ async function runReportGeneration(
           return {
             skipped: true as const,
             existingReportVersion: existingLatestReport.version,
-            scheduleOtsUpgrade: false,
             reportVersion: existingLatestReport.version,
             finalizedCustodyEvents: [],
           };
@@ -3155,71 +3117,19 @@ async function runReportGeneration(
           } as Prisma.InputJsonValue,
         });
 
-        let scheduleOtsUpgrade = false;
-
-        if (!forceRegenerate && otsData) {
-          if (otsData.status === "PENDING" || otsData.status === "ANCHORED") {
-            await tx.evidence.update({
-              where: { id: prepared.evidenceId },
-              data: buildOtsEvidenceUpdateData({
-                ...otsData,
-                existingBitcoinTxid: evidence.otsBitcoinTxid ?? null,
-              }),
-            });
-
-            await appendCustodyEventTx(tx, {
-              evidenceId: prepared.evidenceId,
-              eventType: prismaPkg.CustodyEventType.OTS_APPLIED,
-              atUtc: new Date(),
-              payload: {
-                otsStatus: otsData.status,
-                otsPhase:
-                  otsData.status === "ANCHORED"
-                    ? "anchored"
-                    : "proof_created",
-                hash: otsData.hash,
-                calendar: otsData.calendar,
-                bitcoinTxid: otsData.bitcoinTxid,
-                anchoredAtUtc: otsData.anchoredAtUtc,
-                upgradedAtUtc: otsData.upgradedAtUtc,
-              } as Prisma.InputJsonValue,
-            });
-
-            if (
-              otsData.status === "PENDING" ||
-              (otsData.status === "ANCHORED" && !otsData.bitcoinTxid)
-            ) {
-              scheduleOtsUpgrade = true;
-            }
-          } else if (otsData.status === "FAILED") {
-            await tx.evidence.update({
-              where: { id: prepared.evidenceId },
-              data: buildOtsEvidenceUpdateData({
-                ...otsData,
-                existingBitcoinTxid: evidence.otsBitcoinTxid ?? null,
-              }),
-            });
-
-            await appendCustodyEventTx(tx, {
-              evidenceId: prepared.evidenceId,
-              eventType: prismaPkg.CustodyEventType.OTS_FAILED,
-              atUtc: new Date(),
-              payload: {
-                otsStatus: "FAILED",
-                otsPhase: "stamp_failed",
-                failureReason: otsData.failureReason,
-              } as Prisma.InputJsonValue,
-            });
-          } else if (otsData.status === "DISABLED") {
-            await tx.evidence.update({
-              where: { id: prepared.evidenceId },
-              data: buildOtsEvidenceUpdateData({
-                ...otsData,
-                existingBitcoinTxid: evidence.otsBitcoinTxid ?? null,
-              }),
-            });
-          }
-        }
+        /*
+         * THE OTS WRITE BLOCK IS GONE, NOT MOVED INSIDE A CONDITION.
+         *
+         * Sixty lines here persisted the stamp this job had made, appended
+         * its custody event, and decided whether to schedule the upgrade. All
+         * three now belong to `ots-lifecycle.ts` and the `ots-upgrade`
+         * processor, which is the only place that writes the OTS columns.
+         *
+         * The report transaction therefore no longer writes integrity state
+         * at all. It reads it. That is the separation the whole change is
+         * for: leaving a disabled copy here would be a second writer waiting
+         * for someone to re-enable it.
+         */
 
         const promotionCustodyEvents = await tx.custodyEvent.findMany({
           where: { evidenceId: prepared.evidenceId },
@@ -3247,13 +3157,13 @@ async function runReportGeneration(
           tsaStatus: prepared.reportEvidencePayload.tsaStatus ?? null,
           tsaMessageImprint: prepared.reportEvidencePayload.tsaMessageImprint ?? null,
           tsaInputDigestHex: prepared.reportEvidencePayload.tsaInputDigestHex ?? null,
-          otsStatus:
-            otsData?.status ?? prepared.reportEvidencePayload.otsStatus ?? null,
-          otsHash: otsData?.hash ?? prepared.reportEvidencePayload.otsHash ?? null,
+          // One source, the prepared projection of the record's own columns.
+          // These read `otsData?.x ?? prepared…` while this job made its own
+          // stamp; with no stamp to prefer, the second operand is the answer.
+          otsStatus: prepared.reportEvidencePayload.otsStatus ?? null,
+          otsHash: prepared.reportEvidencePayload.otsHash ?? null,
           otsAnchoredAtUtc:
-            otsData?.anchoredAtUtc ??
-            prepared.reportEvidencePayload.otsAnchoredAtUtc ??
-            null,
+            prepared.reportEvidencePayload.otsAnchoredAtUtc ?? null,
           itemCount: prepared.contentSummary.itemCount,
           multipartItemHashesPresent:
             prepared.contentSummary.itemCount <= 1
@@ -3657,7 +3567,6 @@ const effectiveReportEvidencePayload = {
           skipped: false as const,
           version: prepared.version,
           reportKey: prepared.reportKey,
-          scheduleOtsUpgrade,
           reportVersion: prepared.version,
           finalizedReportEvidencePayload: effectiveReportEvidencePayload,
           effectiveVerificationStatus,
@@ -4419,32 +4328,19 @@ trustDecisionSnapshot:
       }).catch(() => null);
     }
 
-    if (!finalized.skipped && finalized.scheduleOtsUpgrade) {
-      try {
-        await enqueueOtsUpgradeRetry(prepared.evidenceId);
-      } catch (upgradeQueueError) {
-        captureException(upgradeQueueError, {
-          requestId,
-          evidenceId,
-          jobId: job.id ?? null,
-          phase: "ots_upgrade_enqueue",
-        });
-
-        logger.error(
-          {
-            ...withJobContext({
-              requestId,
-              jobId: job.id,
-              evidenceId,
-              attempt: job.attemptsMade + 1,
-              status: "ots_upgrade_enqueue_failed",
-            }),
-            err: upgradeQueueError,
-          },
-          "Failed to enqueue OTS upgrade retry job"
-        );
-      }
-    }
+    /*
+     * THE REPORT JOB NO LONGER SCHEDULES OTS WORK EITHER.
+     *
+     * This called `enqueueOtsUpgradeRetry` whenever the stamp it had just
+     * made still needed the anchoring ladder. With initialization moved out,
+     * the condition was permanently false, and a scheduler that can never
+     * fire is worse than none: it reads as coverage.
+     *
+     * Scheduling belongs to the lifecycle that owns the state. Evidence
+     * finalization enqueues the first job, the upgrade processor re-enqueues
+     * its own follow-up under the global budget, and the reconciliation
+     * script covers records that predate all of it.
+     */
 
     const durationMs = Date.now() - start;
 
