@@ -43,10 +43,6 @@ import {
   otsUpgradeQueue,
   otsUpgradeQueueName,
   purgeDeletedEvidenceJobName,
-  // RELIABILITY CLOSURE (2026-09-09) — the canonical report-request enqueue,
-  // handed to the stranded-request reconciler so the sweep uses the same
-  // deterministic job id as every other producer.
-  enqueueReportGenerationRequest,
   mediaIntelligenceDlqQueue,
   mediaIntelligenceDlqQueueName,
   redisConnection,
@@ -93,7 +89,6 @@ import { runSearchIndexReconciler } from "./search-index-reconciler.js";
 import { runIntelligenceRunReconciler } from "./intelligence-run-reconciler.js";
 import { runLifecycleRecovery } from "./lifecycle-recovery.js";
 // RELIABILITY CLOSURE (2026-09-09) — the two scheduled reconcilers.
-import { reconcileStrandedReportRequests } from "./report-generation-authority.js";
 import { runOtsInitializationReconciler } from "./ots-initialization-reconciler.js";
 import { withCronLock } from "./cron-lock.js";
 // Phase 27.5 — Governance operationalization workers.
@@ -782,73 +777,6 @@ function stopLifecycleRecoveryScheduler() {
 // deterministic in the request id, so the second enqueue collapses onto the
 // first.
 // -----------------------------------------------------------------------------
-
-const reportRequestReconcilerEnabled = envBoolean(
-  "REPORT_REQUEST_RECONCILER_ENABLED",
-  true,
-);
-const reportRequestReconcilerIntervalMs = envNumber(
-  "REPORT_REQUEST_RECONCILER_INTERVAL_MS",
-  5 * 60 * 1000,
-);
-const reportRequestReconcilerBatchSize = envNumber(
-  "REPORT_REQUEST_RECONCILER_BATCH_SIZE",
-  100,
-);
-let reportRequestReconcilerTimer: ReturnType<typeof setInterval> | null = null;
-let reportRequestReconcilerRunning = false;
-
-async function runReportRequestReconcilerTick(trigger: string) {
-  // The running flag prevents overlap on one replica. Correctness does not
-  // depend on it: every repair the sweep performs is a conditional update or a
-  // deterministic-id enqueue, so a concurrent tick loses the race rather than
-  // double-recovering a row.
-  if (reportRequestReconcilerRunning) return;
-  reportRequestReconcilerRunning = true;
-  try {
-    const summary = await reconcileStrandedReportRequests({
-      enqueue: (requestId) => enqueueReportGenerationRequest(requestId),
-      batchSize: reportRequestReconcilerBatchSize,
-    });
-    if (
-      summary.reenqueued > 0 ||
-      summary.leasesReleased > 0 ||
-      summary.terminalRepaired > 0 ||
-      summary.failures > 0
-    ) {
-      logger.info(
-        { trigger, ...summary },
-        "report_request.reconciler.completed",
-      );
-    }
-  } catch (err) {
-    logger.error({ err, trigger }, "report_request.reconciler.failed");
-    captureException(err, { kind: "worker.report_request_reconciler" });
-  } finally {
-    reportRequestReconcilerRunning = false;
-  }
-}
-
-function startReportRequestReconcilerScheduler() {
-  if (!reportRequestReconcilerEnabled) {
-    logger.info({}, "report_request.reconciler.scheduler.disabled");
-    return;
-  }
-  reportRequestReconcilerTimer = setInterval(() => {
-    void runReportRequestReconcilerTick("interval");
-  }, reportRequestReconcilerIntervalMs);
-  logger.info(
-    { intervalMs: reportRequestReconcilerIntervalMs },
-    "report_request.reconciler.scheduler.started",
-  );
-}
-
-function stopReportRequestReconcilerScheduler() {
-  if (reportRequestReconcilerTimer) {
-    clearInterval(reportRequestReconcilerTimer);
-    reportRequestReconcilerTimer = null;
-  }
-}
 
 const otsInitializationReconcilerEnabled = envBoolean(
   "OTS_INITIALIZATION_RECONCILER_ENABLED",
@@ -2462,7 +2390,6 @@ async function shutdown(exitCode: number) {
   stopSearchIndexReconcilerScheduler();
   stopIntelligenceRunReconcilerScheduler();
   stopLifecycleRecoveryScheduler();
-  stopReportRequestReconcilerScheduler();
   stopOtsInitializationReconcilerScheduler();
   stopMfaChallengeGcScheduler();
   stopMfaRecoveryDigestScheduler();
@@ -2725,7 +2652,6 @@ initSecretsAuthority(logger)
     // RELIABILITY CLOSURE (2026-09-09) — the two reconcilers that existed in
     // source and were never started. See their declarations for why they are
     // distinct from lifecycle-recovery above.
-    startReportRequestReconcilerScheduler();
     startOtsInitializationReconcilerScheduler();
     startMfaChallengeGcScheduler();
     startMfaRecoveryDigestScheduler();

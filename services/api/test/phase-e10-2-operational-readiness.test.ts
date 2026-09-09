@@ -397,8 +397,22 @@ describe("E10.2 Test 6 — zero code changes by E10.2", () => {
       // eligibility in the SAME batch it already ran for reports and packages.
       // Sanctioned, audited growth — the pin moves to the current size so it
       // keeps catching UNAUDITED drift.
+      // Rebaselined 2026-09-09 (RELIABILITY CLOSURE): 29,360 → 34,034. The
+      // aggregator projected the lifecycle and stopped one step short of the
+      // ACTION, so the Reports page re-derived a verb from the legacy
+      // five-value vocabulary — a mapping that is lossy in exactly the two
+      // places that decide whether a button should exist. `BLOCKED` collapses
+      // into `not_requested`, so the page offered Generate for a record whose
+      // canonical action is NONE; every `TERMINAL_FAILURE` collapses into
+      // `failed`, so it offered Retry for terminals nothing will reopen. Both
+      // clicks were refused as already-terminal and reported as success. The
+      // canonical action, its terminal class and per-artifact downloadability
+      // are now projected from the same pure authority Evidence Detail reads,
+      // in the batch that was already running. Sanctioned, audited growth —
+      // the pin moves to the current size so it keeps catching UNAUDITED
+      // drift.
       rel: "src/services/reports/reports-aggregator.service.ts",
-        expected: 29360,
+        expected: 34034,
       },
     ];
     for (const { rel, expected } of PINS) {

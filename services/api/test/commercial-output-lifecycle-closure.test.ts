@@ -305,12 +305,42 @@ describe("the output state machine", () => {
     expect(code).not.toMatch(/case "report_failed":\s*return \{ id: \{ in: \[\] \} \}/);
   });
 
-  it("the Reports page drives its action from the lifecycle, not from absence", () => {
+  it("the Reports page RENDERS the server's action and derives none of its own", () => {
     const code = stripComments(readWeb("components/reports-experience/ReportsIndex.tsx"));
-    expect(code).toMatch(/generationVerb/);
+    /*
+     * RELIABILITY CLOSURE (2026-09-09) — this pinned `generationVerb`, the local
+     * variable that derived the verb from the legacy five-value lifecycle. That
+     * derivation was the defect, not the fix: `BLOCKED` collapses into
+     * `not_requested`, so the page offered Generate for a record whose canonical
+     * action is NONE, and every `TERMINAL_FAILURE` collapses into `failed`, so
+     * it offered Retry for terminals nothing will reopen. Both clicks were
+     * refused as already-terminal and reported as success.
+     *
+     * The stronger invariant is that the page computes NOTHING: it reads the
+     * action the server projected, the same `outputActionFor` answer Evidence
+     * Detail renders.
+     */
+    expect(code).toMatch(/row\.outputs\?\.report\.action/);
+    expect(code).not.toMatch(/generationVerb/);
+    // The lossy vocabulary may still be read for STATUS TEXT, which is what it
+    // is good at — but never to decide whether a control exists.
+    expect(code).not.toMatch(/state === "failed"\s*\n?\s*\?\s*"RETRY"/);
     expect(code).not.toMatch(
       /state:\s*row\.report\.available \? "ready" : "not_requested"/,
     );
+  });
+
+  it("both report list endpoints project the canonical action beside the state", () => {
+    // The workspace aggregator AND the user-scoped fallback. The page can
+    // receive either envelope, and a record must offer the same action in both.
+    for (const file of [
+      "services/reports/reports-aggregator.service.ts",
+      "routes/reports.routes.ts",
+    ]) {
+      const code = stripComments(readApi(file));
+      expect(code, file).toMatch(/outputActionFor\(/);
+      expect(code, file).toMatch(/terminalReasonClass/);
+    }
   });
 
   it("the package endpoint answers a commercial refusal instead of eternal pending", () => {

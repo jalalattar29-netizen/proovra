@@ -41,9 +41,19 @@ const ots = vi.hoisted(() => ({
   upgradeCalls: [] as string[],
   /** What the fake CLI should report for the next upgrade. */
   outcome: "unavailable" as "unavailable" | "anchored",
+  /**
+   * What the fake CLI should do for the next INITIALIZATION.
+   *
+   * `throw` is the transient shape — a missing binary, no network, a timeout —
+   * which the initializer must re-raise so the queue retry budget actually
+   * runs. `pending` is the ordinary success: a proof exists, the calendar has
+   * not anchored it yet.
+   */
+  stamp: "pending" as "pending" | "throw",
   reset() {
     this.upgradeCalls.length = 0;
     this.outcome = "unavailable";
+    this.stamp = "pending";
   },
 }));
 
@@ -58,6 +68,22 @@ vi.mock("../../../worker/src/ots.service.js", async (importOriginal) => {
     getOtsProofInfo: async () => {
       ots.upgradeCalls.push("info");
       return { status: "UNAVAILABLE" as const };
+    },
+    createOpenTimestamp: async () => {
+      ots.upgradeCalls.push("create");
+      if (ots.stamp === "throw") {
+        throw new Error("ots: command not found");
+      }
+      return {
+        status: "PENDING" as const,
+        proofBase64: Buffer.from(`stamp-${Math.random()}`).toString("base64"),
+        hash: "b".repeat(64),
+        calendar: "https://alice.btc.calendar.opentimestamps.org",
+        bitcoinTxid: null,
+        anchoredAtUtc: null,
+        upgradedAtUtc: null,
+        failureReason: null,
+      };
     },
   };
 });
@@ -87,6 +113,7 @@ describe("POINT 5 FAMILY — evidence finalization / OTS (live PostgreSQL 16)", 
   let harness: IntegrationHarness;
   let prisma: typeof import("../../src/db.js")["prisma"];
   let processor: typeof import("../../../worker/src/ots-upgrade.processor.js");
+  let reconciler: typeof import("../../../worker/src/ots-initialization-reconciler.js");
   let own: WorkspaceFixture;
   let foreign: WorkspaceFixture;
 
@@ -97,6 +124,9 @@ describe("POINT 5 FAMILY — evidence finalization / OTS (live PostgreSQL 16)", 
     const { registerPrisma } = await import("@proovra/shared-runtime");
     registerPrisma(prisma as never);
     processor = await import("../../../worker/src/ots-upgrade.processor.js");
+    reconciler = await import(
+      "../../../worker/src/ots-initialization-reconciler.js"
+    );
 
     own = {
       teamId: harness.fixtures.teamA.teamId,
@@ -407,4 +437,202 @@ describe("POINT 5 FAMILY — evidence finalization / OTS (live PostgreSQL 16)", 
     expect(["PENDING", "FAILED"]).toContain(after!.otsStatus);
     expect(after!.otsProofBase64).toBeTruthy();
   });
+
+  // =========================================================================
+  // RELIABILITY CLOSURE (2026-09-09) — OtsInitializationReconciliationSweep
+  //
+  // The population nothing watched. Evidence finalization commits and THEN asks
+  // for anchoring; the request authority never throws, by design, because
+  // refusing a completion for an unreachable queue would trade a durable
+  // signature for a timestamp. Its result was discarded and no durable record
+  // of the intent was written, so a Redis blip left a signed record owing an
+  // anchor with nothing aware of it — and `otsStatus = NULL` is excluded from
+  // the integrity scan, so Operations could not see it either.
+  //
+  // These cases drive the REAL sweep and the REAL initializer against live
+  // PostgreSQL. Only the CLI boundary and the queue transport are substituted,
+  // and both are recording fakes.
+  // =========================================================================
+
+  /** A finalized record that never entered the lifecycle: both OTS columns null. */
+  async function neverAttempted(
+    fixture: WorkspaceFixture,
+    overrides: Record<string, unknown> = {},
+  ): Promise<string> {
+    const id = await pendingOts(fixture, {
+      otsStatus: null,
+      otsProofBase64: null,
+      otsHash: null,
+      // The digest OTS stamps. Its presence is what makes the record
+      // finalized for this purpose — the same predicate the initializer uses.
+      fingerprintCanonicalJson: JSON.stringify({ v: randomUUID() }),
+      ...overrides,
+    });
+    // Older than the sweep's handoff window. A fresh record is NOT a stalled
+    // one, and the case below proves that separately.
+    await prisma.$executeRawUnsafe(
+      `UPDATE "evidence" SET "created_at" = $2 WHERE "id" = $1::uuid`,
+      id,
+      new Date(Date.now() - 6 * 60 * 60 * 1000),
+    );
+    return id;
+  }
+
+  it("OtsInitializationReconciliationSweep: the finalized record is the durable intent, and a record with no digest is not one", async () => {
+    fanout.reset();
+    const owed = await neverAttempted(own);
+    // No canonical fingerprint = the digest OTS stamps does not exist yet, so
+    // there is nothing truthful to anchor and nothing is owed.
+    const notFinalized = await neverAttempted(own, {
+      fingerprintCanonicalJson: null,
+    });
+
+    const result = await reconciler.runOtsInitializationReconciler({
+      trigger: "point5",
+    });
+
+    expect(result.enqueued).toBeGreaterThanOrEqual(1);
+    expect(fanout.otsReschedules).toContain(owed);
+    expect(fanout.otsReschedules).not.toContain(notFinalized);
+    // A SCAN AND AN ENQUEUE. The sweep writes no OTS column — `ots-state.ts`
+    // remains the only writer — so the record it names is untouched by it.
+    const after = await readOts(owed);
+    expect(after!.otsStatus).toBeNull();
+    expect(after!.otsProofBase64).toBeNull();
+    provenCase("otsinit.durable.intent_before_work");
+  });
+
+  it("OtsInitializationReconciliationSweep: a record still inside the handoff window is left alone", async () => {
+    fanout.reset();
+    // Created now: between the finalize commit and the first stamp is the
+    // NORMAL state of a record, not a failure. A sweep that acted on it would
+    // race the enqueue that is already in flight.
+    const fresh = await pendingOts(own, {
+      otsStatus: null,
+      otsProofBase64: null,
+      otsHash: null,
+      fingerprintCanonicalJson: JSON.stringify({ v: randomUUID() }),
+    });
+
+    await reconciler.runOtsInitializationReconciler({ trigger: "point5" });
+
+    expect(fanout.otsReschedules).not.toContain(fresh);
+    provenCase("otsinit.claim.active_not_stolen");
+  });
+
+  it("OtsInitializationReconciliationSweep: the workspace is read from the record, never carried by the sweep", async () => {
+    fanout.reset();
+    const owed = await neverAttempted(own);
+    const before = await readOts(owed);
+
+    // The sweep takes no workspace argument — it cannot be pointed at one —
+    // and the work it schedules is addressed by evidence id alone.
+    await reconciler.runOtsInitializationReconciler({ trigger: "point5" });
+    await runUpgrade(otsJob(owed));
+
+    const after = await readOts(owed);
+    expect(after!.teamId).toBe(own.teamId);
+    expect(after!.organizationId).toBe(before!.organizationId);
+    provenCase("otsinit.tenant.workspace_reloaded");
+  });
+
+  it("OtsInitializationReconciliationSweep: a foreign workspace's record keeps its own tenancy through recovery", async () => {
+    fanout.reset();
+    const mine = await neverAttempted(own);
+    const theirs = await neverAttempted(foreign);
+
+    await reconciler.runOtsInitializationReconciler({ trigger: "point5" });
+    await runUpgrade(otsJob(theirs));
+
+    // Recovering someone else's record must not rebind it to the workspace
+    // that happened to be scanned alongside it.
+    const other = await readOts(theirs);
+    expect(other!.teamId).toBe(foreign.teamId);
+    expect((await readOts(mine))!.teamId).toBe(own.teamId);
+    provenCase("otsinit.tenant.cross_workspace_denied");
+  });
+
+  it("OtsInitializationReconciliationSweep: two concurrent initializations write ONE proof and ONE custody event", async () => {
+    fanout.reset();
+    ots.stamp = "pending";
+    const owed = await neverAttempted(own);
+
+    // The race the conditional write exists for. Both stamps are made; only a
+    // row still holding no proof is written, so the loser discards its own.
+    await Promise.all([
+      runUpgrade(otsJob(owed)),
+      runUpgrade(otsJob(owed)),
+      runUpgrade(otsJob(owed)),
+    ]);
+
+    const after = await readOts(owed);
+    expect(after!.otsProofBase64).toBeTruthy();
+    expect(await custodyCount(owed)).toBe(1);
+    provenCase("otsinit.claim.one_winner");
+  });
+
+  it("OtsInitializationReconciliationSweep: a second sweep over an initialized record is a no-op", async () => {
+    ots.stamp = "pending";
+    const owed = await neverAttempted(own);
+    await runUpgrade(otsJob(owed));
+    const initialized = await readOts(owed);
+    expect(initialized!.otsProofBase64).toBeTruthy();
+
+    fanout.reset();
+    await reconciler.runOtsInitializationReconciler({ trigger: "point5" });
+
+    // It has left the population: the sweep selects on BOTH columns being
+    // null, so a record that gained a proof is no longer its business.
+    expect(fanout.otsReschedules).not.toContain(owed);
+    const again = await readOts(owed);
+    expect(again!.otsProofBase64).toBe(initialized!.otsProofBase64);
+    expect(await custodyCount(owed)).toBe(1);
+    provenCase("otsinit.idempotency.duplicate_is_noop");
+  });
+
+  it("OtsInitializationReconciliationSweep: a settled record is never reset by a late initialization", async () => {
+    ots.stamp = "pending";
+    const owed = await neverAttempted(own);
+    // It anchored while the late job was in flight.
+    await prisma.evidence.update({
+      where: { id: owed },
+      data: {
+        otsStatus: "ANCHORED",
+        otsProofBase64: Buffer.from("settled").toString("base64"),
+        otsAnchoredAtUtc: new Date(),
+        otsBitcoinTxid: "a".repeat(64),
+      },
+    });
+    const settled = await readOts(owed);
+
+    await runUpgrade(otsJob(owed));
+
+    const after = await readOts(owed);
+    expect(after!.otsStatus).toBe("ANCHORED");
+    expect(after!.otsProofBase64).toBe(settled!.otsProofBase64);
+    expect(after!.otsBitcoinTxid).toBe(settled!.otsBitcoinTxid);
+    provenCase("otsinit.terminal.stale_cannot_overwrite");
+  });
+
+  it("a transient stamp failure consumes an attempt instead of reporting success", async () => {
+    // THE DEFECT THIS CLOSES. `createOpenTimestamp` throwing was caught, the
+    // initializer returned, and the processor returned normally — so the BullMQ
+    // job COMPLETED SUCCESSFULLY on the first transient failure and the twenty
+    // attempts RETRY_POLICIES.TIMESTAMP_AUTHORITY grants were never consumed.
+    ots.stamp = "throw";
+    const owed = await neverAttempted(own);
+
+    await expect(
+      processor.processOtsUpgrade(otsJob(owed) as never),
+    ).rejects.toThrow(/OTS_INITIALIZATION_TRANSIENT/);
+
+    // And an outage is still not persisted as a per-record integrity failure:
+    // the record stays honestly "never attempted" while the queue retries.
+    const after = await readOts(owed);
+    expect(after!.otsStatus).toBeNull();
+    expect(after!.otsProofBase64).toBeNull();
+    expect(await custodyCount(owed)).toBe(0);
+    ots.stamp = "pending";
+  });
+
 });

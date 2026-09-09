@@ -78,8 +78,28 @@ describe("the vocabulary is complete", () => {
   });
 
   it("counts what the registry counts", () => {
-    expect(registryIds.length).toBe(38);
-    expect(Object.keys(HOME_CONDITION_REPRESENTATION).length).toBe(38);
+    /*
+     * RELIABILITY CLOSURE (2026-09-09) — 38 → 40.
+     *
+     * Two conditions were added, and both describe a fact the product could not
+     * previously see:
+     *
+     *   evidence_integrity.ots_initialization_stalled — a finalized record
+     *     whose anchoring handoff was lost. `otsStatus = NULL` was excluded from
+     *     the integrity scan, so nothing opened and the working remediation was
+     *     unreachable.
+     *   pipeline.package_generation_failed — a TECHNICAL package build or
+     *     storage failure, distinct from its governance-denied sibling. It had
+     *     only a counter and a log line, so a record left with a report and no
+     *     package was operationally silent.
+     *
+     * The literal is kept rather than derived on purpose: the two identities
+     * above already assert set equality in both directions, so this one exists
+     * to make ADDING a condition a deliberate edit rather than an arithmetic
+     * side effect.
+     */
+    expect(registryIds.length).toBe(40);
+    expect(Object.keys(HOME_CONDITION_REPRESENTATION).length).toBe(40);
   });
 });
 

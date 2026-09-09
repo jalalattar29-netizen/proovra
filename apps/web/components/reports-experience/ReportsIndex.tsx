@@ -24,7 +24,11 @@
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 // RELIABILITY CLOSURE (2026-09-09) — the canonical action label and the one
 // reader of the typed generation outcome, shared with Evidence Detail.
-import { GENERATION_ACTION_LABEL_COMPACT } from "../../lib/evidence/generation-labels";
+import {
+  DOWNLOAD_PACKAGE_LABEL,
+  DOWNLOAD_REPORT_LABEL,
+  GENERATION_ACTION_LABEL_COMPACT,
+} from "../../lib/evidence/generation-labels";
 import {
   readGenerationOutcome,
   type GenerationResponse,
@@ -1082,7 +1086,7 @@ function ArtifactRowActions({
         <GovernedExportAction
           evidenceId={row.evidenceId}
           teamId={teamId}
-          actionLabel="Download Report PDF"
+          actionLabel={DOWNLOAD_REPORT_LABEL}
           compactWhenAllowed
           onAction={() =>
             void triggerReport({
@@ -1104,7 +1108,7 @@ function ArtifactRowActions({
               onClick={onClick}
               disabled={busy !== null || disabled}
             >
-              {busy === "report" ? "Opening…" : "Download report PDF"}
+              {busy === "report" ? "Opening…" : DOWNLOAD_REPORT_LABEL}
             </button>
           )}
         />
@@ -1132,7 +1136,7 @@ function ArtifactRowActions({
         <GovernedExportAction
           evidenceId={row.evidenceId}
           teamId={teamId}
-          actionLabel="Download Verification Package ZIP"
+          actionLabel={DOWNLOAD_PACKAGE_LABEL}
           compactWhenAllowed
           onAction={() =>
             void triggerPackage({
@@ -1152,7 +1156,7 @@ function ArtifactRowActions({
               onClick={onClick}
               disabled={busy !== null || disabled}
             >
-              {busy === "package" ? "Opening…" : "Download verification package"}
+              {busy === "package" ? "Opening…" : DOWNLOAD_PACKAGE_LABEL}
             </button>
           )}
         />

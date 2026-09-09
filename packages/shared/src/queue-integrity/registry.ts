@@ -1165,6 +1165,70 @@ const DB_SWEEPS: ReadonlyArray<WorkRegistryEntry> = [
     projection: "GET /v1/teams/:teamId/automation/runs",
   },
   {
+    /**
+     * RELIABILITY CLOSURE (2026-09-09) — the OTS never-attempted sweep.
+     *
+     * Evidence finalization commits, then asks for anchoring; the request
+     * authority never throws, by design, because refusing a completion for an
+     * unreachable queue would trade a durable signature for a timestamp. Its
+     * result was discarded and no durable record of the intent was written, so
+     * a Redis blip left a signed record owing an anchor with nothing aware of
+     * it — and `otsStatus = NULL` is excluded from the integrity scan, so
+     * Operations could not see it either.
+     *
+     * It writes NO OTS column: `ots-state.ts` remains the only writer, reached
+     * through the initializer, reached through the `ots-upgrade` queue. It
+     * touches no TSA column, and it asks nothing commercial — integrity is not
+     * sold, and this sweep has no plan, entitlement or funding input.
+     *
+     * DISTINCT FROM the operator-gated historical backfill script, which
+     * anchors records that predate the OTS decoupling and needs a human to
+     * decide it should happen at all. This repairs a handoff that was supposed
+     * to happen minutes ago and needs no decision from anybody.
+     */
+    workName: SWEEP_NAMES.OTS_INITIALIZATION_RECONCILER,
+    family: "evidence_finalization",
+    familyReason:
+      "Finds finalized evidence that never entered the OpenTimestamps lifecycle and re-enters the canonical anchoring producer for it. It completes the record's integrity state rather than deriving anything new from it.",
+    transport: "db_outbox_sweep",
+    queueName: null,
+    implementation: "CURRENT_RUNTIME",
+    schemaVersion: CANONICAL_PAYLOAD_SCHEMA_VERSION,
+    jobIdPrefix: null,
+    durableAuthority: {
+      model: "Evidence",
+      tenantSource: "Evidence.teamId (loaded by id; the sweep is tenant-blind)",
+      createdBySynchronousPath: true,
+    },
+    canonicalProducer: "services/worker/src/queue.ts#enqueueOtsUpgradeJob",
+    canonicalProcessor: "services/worker/src/ots-initialization-reconciler.ts",
+    workerRegistration: WORKER_INDEX,
+    claim: {
+      // No claim, and no lease. The sweep mutates nothing: the deterministic
+      // job id is the mutual exclusion, and the initializer's own conditional
+      // write (`otsProofBase64 IS NULL`) is what makes a duplicate harmless.
+      // The sweep mutates nothing, so there is no state to claim. The
+      // deterministic job id is the mutual exclusion, and the initializer's own
+      // conditional write (`otsProofBase64 IS NULL`) makes a duplicate
+      // harmless. `conditional_update_many` names that write.
+      from: "NULL",
+      to: "PENDING",
+      mechanism: "conditional_update_many",
+      leaseField: null,
+      leaseMs: null,
+    },
+    terminalWriter: "services/worker/src/ots-state.ts",
+    idempotency: ["deterministic_job_id", "upsert_by_natural_key"],
+    reconciler: "services/worker/src/ots-initialization-reconciler.ts",
+    retry: RETRY_POLICIES.TIMESTAMP_AUTHORITY,
+    recovery: RECOVERY_POLICIES.ARTIFACT,
+    // The calendar call belongs to the OTS job this sweep schedules; the sweep
+    // itself contacts nothing.
+    externalBoundary: null,
+    auditFamily: "evidence.ots_upgrade",
+    projection: "GET /v1/evidence/:id",
+  },
+  {
     workName: SWEEP_NAMES.WEBHOOK_DISPATCHER,
     family: "webhooks_providers",
     familyReason:

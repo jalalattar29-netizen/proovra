@@ -42,7 +42,10 @@ import { logger } from "./logger.js";
 // instead of `./processor.js` also keeps this module free of the report
 // generator's whole dependency graph.
 import { enqueueReportGenerationRequest } from "./queue.js";
-import { requestReportGenerationFromWorker } from "./report-generation-authority.js";
+import {
+  reconcileStrandedReportRequests,
+  requestReportGenerationFromWorker,
+} from "./report-generation-authority.js";
 import {
   resolveEffectivePlanForEvidence,
   resolveEvidenceFundingSource,
@@ -71,6 +74,13 @@ export interface LifecycleRecoveryResult {
   skippedIneligiblePlan: number;
   skippedExistingJob: number;
   failed: number;
+  /**
+   * RELIABILITY CLOSURE (2026-09-09) — the request-shaped half of the same
+   * recovery. See `runLifecycleRecovery` for why it lives here.
+   */
+  requestsReenqueued: number;
+  requestLeasesReleased: number;
+  requestsRetired: number;
 }
 
 const DEFAULT_MIN_SIGNED_AGE_MS = 15 * 60 * 1000;
@@ -157,12 +167,62 @@ export async function runLifecycleRecovery(
     }
   }
 
+  /*
+   * ===========================================================================
+   * THE REQUEST-SHAPED HALF OF THIS SWEEP.
+   * ===========================================================================
+   * RELIABILITY CLOSURE (2026-09-09). `reconcileStrandedReportRequests` was
+   * written, correct, and had NO production caller — its only reference was a
+   * test that invoked it directly, which is exactly why nobody noticed. Three
+   * guarantees the architecture states in prose therefore did not hold at
+   * runtime: expired PROCESSING leases were never released, the attempt ceiling
+   * never retired a request to a truthful terminal state, and a stranded
+   * REGENERATION was recovered by nothing at all.
+   *
+   * IT RUNS HERE RATHER THAN IN A SWEEP OF ITS OWN, AND THAT IS THE POINT.
+   * This module's stated purpose is closing the commit-to-enqueue window for
+   * report generation. It does that by scanning EVIDENCE — records SIGNED with
+   * no Report row — which finds a lost FIRST generation and nothing else. The
+   * reconciler closes the same window by scanning the REQUEST row, which finds
+   * the rest of it. Two sweeps for one responsibility would be two authorities
+   * over "does every record owed a report have scheduled work", and they would
+   * be free to disagree about it.
+   *
+   * They cannot collide. Where both would re-enqueue one request they converge
+   * instead: the job id is deterministic in the request id, so the second
+   * enqueue collapses onto the first.
+   *
+   * FAIL-ISOLATED. A failure here must not lose the evidence-shaped recovery
+   * that has already completed, so it is counted and reported rather than
+   * thrown.
+   */
+  let requestSummary = {
+    reenqueued: 0,
+    leasesReleased: 0,
+    terminalRepaired: 0,
+  };
+  try {
+    const summary = await reconcileStrandedReportRequests({
+      enqueue: (requestId) => enqueueReportGenerationRequest(requestId),
+    });
+    requestSummary = {
+      reenqueued: summary.reenqueued,
+      leasesReleased: summary.leasesReleased,
+      terminalRepaired: summary.terminalRepaired,
+    };
+  } catch (err) {
+    logger.error({ err, trigger }, "lifecycle.recovery.request_sweep_failed");
+  }
+
   const result: LifecycleRecoveryResult = {
     scanned: candidates.length,
     reenqueued,
     skippedIneligiblePlan,
     skippedExistingJob,
     failed,
+    requestsReenqueued: requestSummary.reenqueued,
+    requestLeasesReleased: requestSummary.leasesReleased,
+    requestsRetired: requestSummary.terminalRepaired,
   };
   logger.info({ ...result, trigger }, "lifecycle.recovery.completed");
   return result;

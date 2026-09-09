@@ -100,6 +100,7 @@ export const HOME_OPERATIONS_SOURCE_IDS = [
   "evidence_integrity.tsa_failed",
   "evidence_integrity.ots_failed",
   "evidence_integrity.ots_pending_aged",
+  "evidence_integrity.ots_initialization_stalled",
   "pipeline.report_backlog",
   "pipeline.package_backlog",
   "pipeline.signed_without_report_aged",
@@ -122,6 +123,7 @@ export const HOME_OPERATIONS_SOURCE_IDS = [
   "evidence_integrity.ots_budget_exhausted",
   "pipeline.report_generation_failed",
   "pipeline.package_generation_denied",
+  "pipeline.package_generation_failed",
   "review.escalation",
   "review.escalation_storm",
   "security.unclassified_signal",
@@ -215,6 +217,27 @@ export const HOME_CONDITION_REPRESENTATION: Record<
     because:
       "An abandoned anchor is terminal for the same records the anchoring row already lists.",
   },
+  /*
+   * RELIABILITY CLOSURE (2026-09-09) — never started, not merely slow.
+   *
+   * NOT merged into `ots_pending`, which is where its aged-pending sibling
+   * goes. That row is built from `trust.otsPending` — records that HAVE a
+   * proof and are waiting on the calendar — and this condition is the opposite
+   * fact: no proof was ever made, because the handoff from finalize to the
+   * anchoring queue did not survive. Folding it in would hide a broken handoff
+   * inside a count of healthy waiting.
+   */
+  "evidence_integrity.ots_initialization_stalled": {
+    kind: "ROW",
+    severity: "warning",
+    domains: ["integrity"],
+    label: "Blockchain anchoring has not started",
+    whyItMatters:
+      "These records are signed and preserved, and their trusted timestamp is unaffected — but their public-chain anchor was never requested. The platform re-requests it automatically; a record still here has not been recovered.",
+    recommendedAction: "Open the record to see its anchoring state.",
+    actionLabel: "Open evidence",
+    href: "/evidence",
+  },
   "evidence_integrity.ots_pending_aged": {
     kind: "MERGE",
     into: "ots_pending",
@@ -258,6 +281,24 @@ export const HOME_CONDITION_REPRESENTATION: Record<
     whyItMatters:
       "Governance refused to build the package, so the record cannot be handed to an external reviewer yet.",
     recommendedAction: "Open Reports to see which rule refused it.",
+    actionLabel: "Open reports",
+    href: "/reports",
+  },
+  /*
+   * RELIABILITY CLOSURE (2026-09-09) — a technical failure, not a refusal.
+   *
+   * Its sibling above is a GOVERNANCE denial, and the distinction is the whole
+   * point: a policy decision is not an outage, and an outage is not a policy
+   * decision. The operator does different things about them.
+   */
+  "pipeline.package_generation_failed": {
+    kind: "ROW",
+    severity: "warning",
+    domains: ["package"],
+    label: "A verification package failed to build",
+    whyItMatters:
+      "The report for these records was generated and stored, but its verification package was not. The evidence and its integrity state are unaffected, and the pipeline retries.",
+    recommendedAction: "Open Reports to see which records are incomplete.",
     actionLabel: "Open reports",
     href: "/reports",
   },

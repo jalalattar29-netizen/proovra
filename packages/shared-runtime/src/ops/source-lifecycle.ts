@@ -595,7 +595,15 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
         "services/api/src/services/operations/evidence-integrity-conditions.service.ts",
       ],
       discoveryState: "ACTIVE",
-      legacyFingerprints: [{ kind: "PREFIX", prefix: "ots_initialization_stalled" }],
+      /*
+       * NONE, and that is a statement rather than an omission. A legacy
+       * fingerprint traces a row written BEFORE `source_id` existed, and this
+       * condition did not exist then — no historical row can carry its prefix,
+       * and the applied backfill migration has no mapping for it because there
+       * was nothing to map. Declaring one would assert a history it does not
+       * have.
+       */
+      legacyFingerprints: [],
       resolutionAuthority: "SOURCE_TRUTH",
       activityProbeKey: "evidence.ots_initialization_stalled",
       recoveryPolicy: "PROBE_AUTO_RESOLVE",
@@ -631,7 +639,9 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       displayLabel: "Verification package generation failed",
       producers: ["services/worker/src/processor.ts"],
       discoveryState: "ACTIVE",
-      legacyFingerprints: [{ kind: "PREFIX", prefix: "PACKAGE" }],
+      // None, for the same reason as its sibling above: this condition is new,
+      // so every row that can carry its fingerprint also carries its source id.
+      legacyFingerprints: [],
       resolutionAuthority: "SOURCE_TRUTH",
       activityProbeKey: "evidence.package_present",
       recoveryPolicy: "PROBE_AUTO_RESOLVE",

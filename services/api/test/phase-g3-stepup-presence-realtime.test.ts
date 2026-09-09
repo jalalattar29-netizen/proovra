@@ -144,17 +144,36 @@ describe("Phase G3 — GovernedExportAction wired on ArtifactHistorySection", ()
   });
 
   it("wraps both Report PDF and Verification Package ZIP downloads", () => {
+    /*
+     * RELIABILITY CLOSURE (2026-09-09) — the two labels are supplied by the two
+     * FAMILY call sites and threaded through one wrapper, so the assertion is
+     * in two parts rather than one: the governance wrapper passes the family's
+     * label through, and the two families supply the two canonical names.
+     *
+     * The strings themselves are unchanged and are pinned at their definition;
+     * what changed is that four surfaces stopped each spelling them.
+     */
     expect(ARTIFACT_HISTORY).toMatch(
-      /<GovernedExportAction[\s\S]*?actionLabel="Download Report PDF"/,
+      /<GovernedExportAction[\s\S]*?actionLabel=\{actionLabel\}/,
     );
-    expect(ARTIFACT_HISTORY).toMatch(
-      /<GovernedExportAction[\s\S]*?actionLabel="Download Verification Package ZIP"/,
-    );
+    expect(ARTIFACT_HISTORY).toMatch(/actionLabel=\{DOWNLOAD_REPORT_LABEL\}/);
+    expect(ARTIFACT_HISTORY).toMatch(/actionLabel=\{DOWNLOAD_PACKAGE_LABEL\}/);
   });
 
   it("preserves Phase A2 vocabulary — Report PDF vs Verification Package ZIP are never collapsed", () => {
-    expect(ARTIFACT_HISTORY).toContain("Download Report PDF");
-    expect(ARTIFACT_HISTORY).toContain("Download Verification Package ZIP");
+      /*
+       * RELIABILITY CLOSURE (2026-09-09) — the label is a REFERENCE now, not a
+       * literal. The STRING is unchanged: "Download Report PDF" and "Download
+       * Verification Package ZIP" are the phase A2 / G5.2 vocabulary contract,
+       * adopted as canonical rather than replaced, and pinned at their
+       * definition in lib/evidence/generation-labels.ts. What changed is that
+       * four surfaces stopped each spelling them their own way.
+       */
+    expect(ARTIFACT_HISTORY).toContain("DOWNLOAD_REPORT_LABEL");
+    expect(ARTIFACT_HISTORY).toContain("DOWNLOAD_PACKAGE_LABEL");
+    // Both names are references now; the strings are pinned where they are
+    // defined, so four surfaces cannot spell one operation four ways again.
+    expect(ARTIFACT_HISTORY).toContain("DOWNLOAD_PACKAGE_LABEL");
   });
 
   it("degrades to the plain disabled-when-unavailable buttons when evidenceId/teamId are absent", () => {

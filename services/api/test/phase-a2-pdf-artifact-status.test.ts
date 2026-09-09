@@ -65,6 +65,12 @@ const ARTIFACT_PANEL = readSource(
 const EVIDENCE_DETAIL_PAGE = readSource(
   "../../../apps/web/app/(app)/evidence/[id]/page.tsx",
 );
+/*
+ * RELIABILITY CLOSURE (2026-09-09) — the canonical download names now live in
+ * one module, so the vocabulary contract is pinned at its DEFINITION rather
+ * than at each of the four places that used to spell it.
+ */
+const LABELS = readSource("../../../apps/web/lib/evidence/generation-labels.ts");
 
 describe("Phase A2 — PDF artifact status (source contract)", () => {
   it("migration adds the four PDF artifact columns to reports", () => {
@@ -168,11 +174,27 @@ describe("Phase A2 — PDF artifact status (source contract)", () => {
   //   * PDF signature verdict    → _tabs/_lib.describeReportPdfSignature,
   //     rendered by EvidenceIntegrityTab as "Report PDF signature".
   it("the governed download actions use the disambiguated labels", () => {
-    expect(ARTIFACT_PANEL).toContain("Download Report PDF");
-    expect(ARTIFACT_PANEL).toContain("Download Verification Package ZIP");
+      /*
+       * RELIABILITY CLOSURE (2026-09-09) — the label is a REFERENCE now, not a
+       * literal. The STRING is unchanged: "Download Report PDF" and "Download
+       * Verification Package ZIP" are the phase A2 / G5.2 vocabulary contract,
+       * adopted as canonical rather than replaced, and pinned at their
+       * definition in lib/evidence/generation-labels.ts. What changed is that
+       * four surfaces stopped each spelling them their own way.
+       */
+    expect(ARTIFACT_PANEL).toContain("DOWNLOAD_REPORT_LABEL");
+    expect(LABELS).toContain('DOWNLOAD_REPORT_LABEL = "Download Report PDF"');
+    // Reference, not literal — see the report-label case above. The string is
+    // pinned at its definition.
+    expect(ARTIFACT_PANEL).toContain("DOWNLOAD_PACKAGE_LABEL");
+    expect(LABELS).toContain(
+      'DOWNLOAD_PACKAGE_LABEL = "Download Verification Package ZIP"',
+    );
   });
 
   it("Evidence detail hero uses the disambiguated labels", () => {
+    // The page header still renders the literal; it is the one surface that
+    // never had a second spelling.
     expect(EVIDENCE_DETAIL_PAGE).toContain("Download Report PDF");
     expect(EVIDENCE_DETAIL_PAGE).toContain(
       "Download Verification Package ZIP",

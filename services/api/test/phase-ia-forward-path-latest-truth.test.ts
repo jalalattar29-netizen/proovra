@@ -136,6 +136,21 @@ describe("Phase IA-forward-path — every report/package read site selects the L
       // approximate it as "up to the next 600 chars" which is enough
       // for any of the 4 call sites in this file.
       const body = pieces[i]!.slice(0, 600);
+      /*
+       * RELIABILITY CLOSURE (2026-09-09) — a call that PINS a version is not
+       * selecting the latest one, and must not be asked to order.
+       *
+       * The historical-download routes read `where: { evidenceId, version }`,
+       * where `version` is the number the caller asked for. Ordering there
+       * would be meaningless — the predicate already identifies exactly one
+       * row — and requiring it would be requiring the wrong thing. The
+       * invariant this test exists for is unchanged and still enforced for
+       * every call that does NOT pin a version: a read of "the latest" must
+       * order by version desc, so a delayed regeneration write cannot freeze
+       * the page on v1.
+       */
+      const pinsAnExactVersion = /where:\s*\{[^}]*\bversion\b\s*[,}]/.test(body);
+      if (pinsAnExactVersion) continue;
       expect(body, `verificationPackage.findFirst call #${i} body`).toMatch(
         /orderBy:\s*\{\s*version:\s*"desc"\s*\}/,
       );

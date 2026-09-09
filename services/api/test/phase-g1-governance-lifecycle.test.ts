@@ -258,9 +258,17 @@ describe("Phase G1 (F.3) — export eligibility pre-flight", () => {
       );
       // A2 vocabulary — Report PDF and Verification Package ZIP are
       // never collapsed into one "Export" action.
-      expect(src).toMatch(/actionLabel="Download Report PDF"/);
+      /*
+       * RELIABILITY CLOSURE (2026-09-09) — the label is a REFERENCE now, not a
+       * literal. The STRING is unchanged: "Download Report PDF" and "Download
+       * Verification Package ZIP" are the phase A2 / G5.2 vocabulary contract,
+       * adopted as canonical rather than replaced, and pinned at their
+       * definition in lib/evidence/generation-labels.ts. What changed is that
+       * four surfaces stopped each spelling them their own way.
+       */
+      expect(src).toMatch(/actionLabel={DOWNLOAD_REPORT_LABEL}/);
       expect(src).toMatch(
-        /actionLabel="Download Verification Package ZIP"/,
+        /actionLabel={DOWNLOAD_PACKAGE_LABEL}/,
       );
     }
   });

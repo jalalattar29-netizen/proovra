@@ -210,6 +210,31 @@ export const SWEEP_NAMES = {
    * projection all address a sweep exactly as they address a job.
    */
   AUTOMATION_DISPATCH: "AutomationDispatchSweep",
+  /**
+   * RELIABILITY CLOSURE (2026-09-09) — THE OTS NEVER-ATTEMPTED SWEEP.
+   *
+   * A finalized record whose anchoring handoff was lost sat at
+   * `otsStatus = NULL` forever: the request authority never throws by design,
+   * its result was discarded, and no durable record of the intent was written
+   * anywhere. NULL is also excluded from the integrity scan, so no condition
+   * opened and the working `ots.resume_anchoring` remediation was unreachable,
+   * because it is keyed on an incident.
+   *
+   * It is a db_outbox_sweep for the same reason as its neighbours: the durable
+   * authority is a row a synchronous path already committed — the `Evidence`
+   * row itself — and the sweep re-enters the canonical producer rather than
+   * doing the work itself.
+   *
+   * ITS SIBLING IS NOT HERE, DELIBERATELY. The report-request half of this
+   * closure — `reconcileStrandedReportRequests`, which was equally unscheduled
+   * — runs inside `LifecycleRecoverySweep` rather than as a sweep of its own.
+   * That module's stated purpose is closing the commit-to-enqueue window for
+   * report generation, and it did so by scanning EVIDENCE, which finds a lost
+   * FIRST generation and nothing else; the reconciler closes the same window by
+   * scanning the REQUEST row. Two sweeps would be two authorities over one
+   * question.
+   */
+  OTS_INITIALIZATION_RECONCILER: "OtsInitializationReconciliationSweep",
 } as const;
 
 export type SweepName = (typeof SWEEP_NAMES)[keyof typeof SWEEP_NAMES];

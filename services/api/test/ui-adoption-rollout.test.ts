@@ -372,11 +372,38 @@ describe("Evidence detail page (full adoption)", () => {
     // now — the legacy Button primitive is gone from the whole route. The
     // contract asserted here is unchanged: the eligibility-derived flag
     // participates in the disabled gate of the report download.
+    /*
+     * RELIABILITY CLOSURE (2026-09-09) — ARTIFACT EXISTENCE JOINED THE GATE.
+     *
+     * The disabled expression was `exportDisabled || isIntegrityFailed`, and
+     * artifact existence was not an input at all — so a FREE record, or any
+     * record whose report had not been generated, rendered an ENABLED "Download
+     * Report PDF" that 404s. The most prominent control on the record could not
+     * work, on the most common plan in production.
+     *
+     * The contract this test exists for is UNCHANGED and still asserted: the
+     * eligibility-derived flag participates in the gate, and it still defaults
+     * to enabled so a missing or transiently-unavailable governance snapshot
+     * does not pre-emptively block a download. What is added is a term that can
+     * only ever REFUSE a control for an artifact that does not exist — and it
+     * reads availability, never the current plan, so a downgraded customer
+     * keeps every version they generated.
+     */
     expect(src).toMatch(
-      /<button[\s\S]*?onClick=\{\(\) => void downloadReport\(\)\}[\s\S]*?disabled=\{exportDisabled\b/,
+      /<button[\s\S]*?onClick=\{\(\) => void downloadReport\(\)\}[\s\S]*?disabled=\{[\s\S]{0,120}?exportDisabled\b/,
     );
     expect(src).toMatch(
-      /<button[\s\S]*?onClick=\{\(\) => void downloadVerificationPackage\(\)\}[\s\S]*?disabled=\{packageDisabled\b/,
+      /<button[\s\S]*?onClick=\{\(\) => void downloadVerificationPackage\(\)\}[\s\S]*?disabled=\{[\s\S]{0,120}?packageDisabled\b/,
+    );
+    expect(src).toMatch(
+      /disabled=\{\s*!reportArtifactAvailable \|\| exportDisabled \|\| isIntegrityFailed/,
+    );
+    expect(src).toMatch(
+      /disabled=\{\s*!packageArtifactAvailable \|\| packageDisabled \|\| isIntegrityFailed/,
+    );
+    // Availability comes from the artifact's own status, never from a plan.
+    expect(src).toMatch(
+      /reportArtifactAvailable\s*=\s*\n?\s*workspace\.artifactStatus\.report\.available === true/,
     );
   });
 

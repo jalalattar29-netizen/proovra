@@ -545,7 +545,18 @@ export async function syncEvidenceIntegrityConditions(
           { createdAt: { lte: new Date(now.getTime() - getOtsInitializationStalledMs()) } },
         ],
       },
-      select: { id: true, teamId: true, title: true, createdAt: true },
+      // `otsStatus` is a small column and is selected so the predicate below
+      // can be RE-APPLIED per row. `otsProofBase64` deliberately is not: it
+      // holds the proof bytes, the WHERE already constrains it to null, and
+      // pulling it for every record to learn that would be an expensive way to
+      // ask a cheap question.
+      select: {
+        id: true,
+        teamId: true,
+        title: true,
+        createdAt: true,
+        otsStatus: true,
+      },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       take: SCAN_BOUND + 1,
     }),
@@ -553,7 +564,8 @@ export async function syncEvidenceIntegrityConditions(
     id: string;
     teamId: string | null;
     title: string | null;
-    createdAt: Date;
+    createdAt: Date | null;
+    otsStatus: string | null;
   }>;
 
   if (neverAttempted.length > SCAN_BOUND) {
@@ -570,10 +582,29 @@ export async function syncEvidenceIntegrityConditions(
   );
 
   for (const row of neverAttempted) {
+    /*
+     * THE PREDICATE, RE-APPLIED PER ROW.
+     *
+     * The query bounds the population and this confirms it, which matters for
+     * two reasons. The window is configurable, so a row selected under one
+     * value must not be recorded under another; and a row that has since gained
+     * ANY OTS status has left this condition's population entirely — it belongs
+     * to the aged-pending or failure condition now, and opening a
+     * never-attempted row for it would describe the wrong thing.
+     *
+     * A row with no creation time cannot be aged at all, so it is skipped
+     * rather than assumed stale.
+     */
+    if (row.otsStatus !== null) continue;
+    const createdAt = row.createdAt;
+    if (!createdAt) continue;
+    if (now.getTime() - createdAt.getTime() < getOtsInitializationStalledMs())
+      continue;
+
     const outcome = await inSourceStage("WRITE", () =>
       recordOtsInitializationStalledCondition(
         {
-          evidence: row,
+          evidence: { id: row.id, title: row.title, createdAt },
           teamId: input.teamId,
           now,
           existing:

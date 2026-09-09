@@ -97,7 +97,38 @@ vi.mock("../src/db.js", () => ({
       count: async () => H.evidenceRows.length,
     },
     evidenceReviewWorkflow: { findMany: async () => [], count: async () => 0 },
-    report: { findMany: async () => [] },
+    /*
+     * RELIABILITY CLOSURE (2026-09-09) — the copilot's suggested actions come
+     * from the CANONICAL output projection now, not from `_count.reports`.
+     *
+     * It derived Generate/Regenerate from a report count with no eligibility,
+     * funding or lifecycle input, so it offered "Generate Report" on FREE
+     * records and "Regenerate Report" on downgraded ones — both NONE
+     * canonically. The projection reads the artifact TABLES, so the doubles
+     * below model them from the same fixture the count is taken from, and the
+     * two cases still mean exactly what they meant: a record WITH a report
+     * offers a new version, a record WITHOUT one offers a first generation.
+     */
+    report: {
+      findMany: async () => [],
+      findFirst: async () =>
+        (H.evidenceRow?._count as { reports?: number } | undefined)?.reports
+          ? {
+              version: H.evidenceRow?.latestReportVersion ?? 1,
+              generatedAtUtc: new Date(),
+              verificationPackageVersion: null,
+              reviewerSummaryVersion: null,
+              pdfSignatureStatus: "SIGNED",
+              pdfSignedAtUtc: new Date(),
+              pdfSignerKeyId: "k1",
+              pdfSigningWarning: null,
+            }
+          : null,
+    },
+    verificationPackage: { findFirst: async () => null },
+    // No durable generation request in flight: axis 2 is NOT_REQUESTED, which
+    // is what makes the artifact's presence the deciding fact in both cases.
+    reportGenerationRequest: { findFirst: async () => null },
   },
 }));
 vi.mock("../src/middleware/auth.js", () => ({
