@@ -39,10 +39,29 @@ import {
  * it, and an unbounded string would let a request select a branch that does
  * not exist.
  */
+/*
+ * P3-5 CLOSURE (2026-09-10) — `EXCHANGE_PACKAGE` was REMOVED from this
+ * vocabulary.
+ *
+ * Nothing ever created a request with it. A repo-wide search finds no
+ * `artifactType: "EXCHANGE_PACKAGE"` anywhere, and the processor has no branch
+ * for it — so a member whose whole purpose is to select a branch selected one
+ * that does not exist.
+ *
+ * The Exchange Package is a real product surface and is unaffected: it has its
+ * own builder (`services/worker/src/exchange-package-builder.ts`), its own
+ * bounded kinds (`EXCHANGE_PACKAGE_KINDS`) and its own state machine
+ * (`EXCHANGE_PACKAGE_STATES` in @proovra/shared). It has never travelled
+ * through `ReportGenerationRequest`, which is why this member had no producer.
+ *
+ * Removing it is safe at the database too: `report_generation_requests
+ * .artifact_type` is a plain VARCHAR with no enum constraint and no row has
+ * ever carried this value, so there is nothing to migrate and nothing to read
+ * back.
+ */
 export const REPORT_ARTIFACT_TYPES = [
   "REPORT",
   "VERIFICATION_PACKAGE",
-  "EXCHANGE_PACKAGE",
 ] as const;
 export type ReportArtifactType = (typeof REPORT_ARTIFACT_TYPES)[number];
 

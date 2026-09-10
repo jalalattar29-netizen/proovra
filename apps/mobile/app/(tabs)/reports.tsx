@@ -37,7 +37,28 @@ export default function ReportsScreen() {
         {reports.length === 0 ? (
           <View style={styles.emptyStateCard}>
             <Text style={[styles.emptyStateText, { fontFamily: fontFamilyBold }]}>No reports yet</Text>
-            <Text style={styles.emptyStateSubtext}>Capture evidence to generate signed reports.</Text>
+            {/*
+              P2-3 CLOSURE (2026-09-10) — DO NOT PROMISE AN OUTPUT THE PLAN
+              MAY NOT INCLUDE.
+
+              This read "Capture evidence to generate signed reports." On Free —
+              where a report is deliberately never produced — capturing evidence
+              generates no report at all, so the sentence told the customer the
+              app would do something it had decided not to do, and left them to
+              conclude it was broken when it did not.
+
+              The corrected copy states what capture DOES do on every plan
+              (record and preserve evidence, with public verification), and
+              names the report as plan-dependent rather than automatic. It makes
+              no claim about THIS account's plan, because this screen does not
+              resolve one — the record's own detail screen reads the canonical
+              output state and says which.
+            */}
+            <Text style={styles.emptyStateSubtext}>
+              Capture evidence to record and preserve it. Reports and
+              verification packages are produced for records your plan includes
+              them for — open a record to see its report status.
+            </Text>
 
             <Pressable style={styles.actionButton} onPress={() => router.push("/capture")}>
               <Text style={[styles.actionButtonText, { fontFamily: fontFamilyBold }]}>

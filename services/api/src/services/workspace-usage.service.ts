@@ -9,6 +9,11 @@ import {
   formatBytesHuman,
   getPlanCapabilities,
 } from "./plan-catalog.service.js";
+// P1-2 / PRODUCT OPTION B — THE one storage-add-on entitlement decision.
+import {
+  resolveStorageAddonEntitlement,
+  type PlanType,
+} from "@proovra/shared-billing";
 
 const GB = 1024n * 1024n * 1024n;
 
@@ -119,7 +124,46 @@ function maxBigInt(a: bigint, b: bigint): bigint {
  * Shape was the right key while TEAM meant a shared workspace; it stopped
  * being right the moment TEAM became a tier of the personal one.
  */
-export function storageAddonOffersForPlan(plan: prismaPkg.PlanType) {
+/**
+ * =============================================================================
+ * P1-2 / PRODUCT OPTION B (2026-09-10) — THE OFFER CATALOG NOW TAKES THE
+ * CANONICAL CAPABILITY, NOT JUST A PLAN NAME.
+ * =============================================================================
+ * WHICH offers a subject sees is a catalog question and stays here. WHETHER a
+ * subject may buy any at all is a COMMERCIAL question, and it is answered by
+ * `resolveStorageAddonEntitlement` in @proovra/shared-billing — the one pure
+ * policy — so that this function, the Billing projection, the checkout gate and
+ * the Pricing page cannot each decide it.
+ *
+ * `hasSettledEvidenceCreditGrant` is threaded in rather than looked up here,
+ * because this module is synchronous and its callers already hold the fact (or
+ * can resolve it once per request). Defaulting it to `false` keeps every
+ * existing caller's behaviour byte-identical until it opts in.
+ */
+export function storageAddonOffersForPlan(
+  plan: prismaPkg.PlanType,
+  options?: { hasSettledEvidenceCreditGrant?: boolean },
+) {
+  const entitlement = resolveStorageAddonEntitlement({
+    plan: plan as PlanType,
+    hasSettledEvidenceCreditGrant:
+      options?.hasSettledEvidenceCreditGrant === true,
+  });
+  if (!entitlement.storageAddonsPurchasable) return [];
+
+  /*
+   * The EVIDENCE-CREDIT catalog. A credit customer's subscription is FREE, so
+   * there is no plan tier to key on — the offers are the personal ones, which
+   * are the right size for a single-occupant workspace and are the same rows
+   * PRO buys. Nothing here grants a PRO entitlement: the offers are a
+   * purchasable capacity, and buying one adds capacity and nothing else.
+   */
+  if (entitlement.source === "EVIDENCE_CREDIT") {
+    return STORAGE_ADDON_OFFERS.filter(
+      (offer) => offer.billingShape === "SINGLE_OCCUPANT",
+    );
+  }
+
   switch (plan) {
     case prismaPkg.PlanType.TEAM:
       // The TEAM catalog: +100 GB, +500 GB, +1 TB. On the Personal subject.

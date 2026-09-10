@@ -44,14 +44,17 @@ import { prisma } from "../db.js";
 import {
   deriveEvidenceOutputState,
   outputActionFor,
+  resolveOfferedOutputAction,
   classifyTerminalReason,
   type OutputAction,
+  type OutputActionUnavailableReason,
   type OutputTerminalReasonClass,
   projectReportRequestState,
   type EvidenceOutputState,
   type PersistedReportRequestState,
 } from "@proovra/shared";
-import { resolveEvidenceOutputEligibilityMany } from "../services/billing/evidence-output-eligibility.service.js";
+import { resolveEvidenceOutputEligibilityByRecord } from "../services/billing/evidence-output-eligibility.service.js";
+import { resolveOutputRecordApplicability } from "../services/evidence-artifact-status.service.js";
 
 const ListQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
@@ -134,6 +137,8 @@ export type UserReportRow = {
 type UserReportOutputProjection = {
   state: EvidenceOutputState;
   action: OutputAction;
+  /** P2-1 — why the verb was withdrawn on a state that would carry one. */
+  actionUnavailableReason: OutputActionUnavailableReason | null;
   terminalReasonClass: OutputTerminalReasonClass | null;
   downloadable: boolean;
 };
@@ -244,6 +249,17 @@ export default async function registerReportsRoutes(
 
       type EvidenceListRow = {
         id: string;
+        /**
+         * P2-2 CLOSURE (2026-09-10) — the record's OWN commercial subject.
+         *
+         * This route can return rows from several workspaces at once (it
+         * matches on ownership OR any active membership), and it resolved
+         * every one of them against the CALLER'S personal plan. The subject of
+         * a record is the workspace that holds it, so the workspace travels
+         * with the row and the eligibility is grouped by it below.
+         */
+        ownerUserId: string;
+        teamId: string | null;
         title: string | null;
         displayFileName: string | null;
         originalFileName: string | null;
@@ -261,6 +277,9 @@ export default async function registerReportsRoutes(
           take: limit + 1,
           select: {
             id: true,
+            // P2-2 — the record's own commercial subject travels with the row.
+            ownerUserId: true,
+            teamId: true,
             title: true,
             displayFileName: true,
             originalFileName: true,
@@ -291,6 +310,11 @@ export default async function registerReportsRoutes(
           take: limit + 1,
           select: {
             id: true,
+            // P2-2 — required on BOTH branches: the fallback select is what a
+            // deployment without `deleted_at` actually runs, and eligibility
+            // must be resolved against the record's subject there too.
+            ownerUserId: true,
+            teamId: true,
             title: true,
             type: true,
             status: true,
@@ -357,13 +381,28 @@ export default async function registerReportsRoutes(
             },
           })
           .catch(() => []),
-        resolveEvidenceOutputEligibilityMany({
-          evidenceIds,
-          // The user-scoped fallback is by evidence OWNERSHIP, so the personal
-          // subject is the caller.
-          ownerUserId: userId,
-          teamId: null,
-        }).catch(() => new Map()),
+        /*
+         * P2-2 CLOSURE (2026-09-10) — PER-RECORD COMMERCIAL SUBJECT.
+         *
+         * This passed `{ ownerUserId: caller, teamId: null }`, i.e. the
+         * CALLER'S PERSONAL PLAN, and applied it to every row on the page. But
+         * `accessClause` above matches rows the caller owns OR rows in ANY
+         * workspace they are an active member of, so a Free-plan user reading
+         * this fallback saw their Team workspace's records reported as "not
+         * included" — a commercial verdict taken from the reader rather than
+         * from the record.
+         *
+         * The rows carry their own `ownerUserId`/`teamId` now, and the
+         * canonical resolver groups by that subject: one plan resolution per
+         * distinct subject on the page, no N+1, no second calculation here.
+         */
+        resolveEvidenceOutputEligibilityByRecord(
+          pageRows.map((r) => ({
+            id: r.id,
+            ownerUserId: r.ownerUserId,
+            teamId: r.teamId ?? null,
+          })),
+        ).catch(() => new Map()),
       ]);
 
       const reportByEvidence = new Map(
@@ -379,7 +418,8 @@ export default async function registerReportsRoutes(
       const items: UserReportRow[] = pageRows.map((r) => {
         const report = reportByEvidence.get(r.id) ?? null;
         const pkg = packageByEvidence.get(r.id) ?? null;
-        const finalized = r.status === "SIGNED" || r.status === "REPORTED";
+        // P1-3 — the record axis, from the ONE status mapping.
+        const record = resolveOutputRecordApplicability(r.status);
         const request = requestByEvidence.get(r.id) ?? null;
         const eligibility = eligibilityByEvidence.get(r.id) ?? null;
         const generation = request
@@ -391,13 +431,13 @@ export default async function registerReportsRoutes(
           eligibility: eligibility?.reportEligibility ?? "ELIGIBLE",
           generation,
           availability: report !== null ? "READY" : "NO_ARTIFACT",
-          finalized,
+          record,
         });
         const packageLifecycle = deriveEvidenceOutputState({
           eligibility: eligibility?.packageEligibility ?? "ELIGIBLE",
           generation,
           availability: pkg !== null ? "READY" : "NO_ARTIFACT",
-          finalized,
+          record,
         });
         /*
          * RELIABILITY CLOSURE (2026-09-09) — THE ACTION TRAVELS WITH THE STATE.
@@ -422,20 +462,31 @@ export default async function registerReportsRoutes(
           outputs: {
             report: {
               state: reportLifecycle,
-              action: outputActionFor({
-                state: reportLifecycle,
-                eligibility: eligibility?.reportEligibility ?? "ELIGIBLE",
-                terminalReasonClass,
+              /*
+               * P2-1 (2026-09-10) — the verb is withdrawn for a record whose
+               * workspace cannot be resolved. This fallback lists those records
+               * too, so the rule has to be applied here as well.
+               */
+              ...resolveOfferedOutputAction({
+                action: outputActionFor({
+                  state: reportLifecycle,
+                  eligibility: eligibility?.reportEligibility ?? "ELIGIBLE",
+                  terminalReasonClass,
+                }),
+                workspaceResolved: Boolean(r.teamId),
               }),
               terminalReasonClass,
               downloadable: report !== null,
             },
             verificationPackage: {
               state: packageLifecycle,
-              action: outputActionFor({
-                state: packageLifecycle,
-                eligibility: eligibility?.packageEligibility ?? "ELIGIBLE",
-                terminalReasonClass,
+              ...resolveOfferedOutputAction({
+                action: outputActionFor({
+                  state: packageLifecycle,
+                  eligibility: eligibility?.packageEligibility ?? "ELIGIBLE",
+                  terminalReasonClass,
+                }),
+                workspaceResolved: Boolean(r.teamId),
               }),
               terminalReasonClass,
               downloadable: pkg !== null,

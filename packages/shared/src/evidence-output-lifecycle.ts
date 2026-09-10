@@ -262,6 +262,42 @@ export function classifyTerminalReason(
   ) {
     return "INTEGRITY";
   }
+  /*
+   * P3-2 CLOSURE (2026-09-10) — THE GOVERNANCE REASONS, CLASSIFIED AS POLICY.
+   *
+   * The pattern below catches `POLICY_VERSION_CHANGED` (it contains "POLICY")
+   * and `BLOCKED_*` (prefix), and missed the other two reasons the worker's
+   * claim path actually writes:
+   *
+   *   LEGAL_HOLD_ACTIVE        a hold is in force
+   *   ORGANIZATION_NOT_ACTIVE  the organization is suspended
+   *   WORKSPACE_MISMATCH       the request's workspace disagrees with the row
+   *   WORKSPACE_NOT_FOUND      the workspace is gone
+   *   NO_PRINCIPAL             the request cannot be audited
+   *
+   * All five fell through to TECHNICAL — the class whose meaning is "the
+   * pipeline failed and exhausted its budget; an operator path may exist".
+   * Governance refusing something is not a pipeline fault, and telling an
+   * operator it was one sends them to look for an outage.
+   *
+   * Unreachable in today's projections (those reasons ride `BLOCKED_*` states,
+   * which project to `BLOCKED` rather than `TERMINAL_FAILURE`, and the class is
+   * only computed for the latter) — which is exactly why it is worth fixing
+   * now: a latent misclassification becomes a live one the first time a caller
+   * asks the classifier about a blocked row.
+   *
+   * Listed explicitly rather than widened by pattern, so adding a reason is a
+   * deliberate classification.
+   */
+  if (
+    code === "LEGAL_HOLD_ACTIVE" ||
+    code === "ORGANIZATION_NOT_ACTIVE" ||
+    code === "WORKSPACE_MISMATCH" ||
+    code === "WORKSPACE_NOT_FOUND" ||
+    code === "NO_PRINCIPAL"
+  ) {
+    return "POLICY";
+  }
   if (code.startsWith("BLOCKED") || code.includes("POLICY") || code.includes("STALE")) {
     return "POLICY";
   }
@@ -297,6 +333,27 @@ export type OutputArtifactAvailability =
 export const EVIDENCE_OUTPUT_STATES = [
   /** The plan (and this record's funding) do not include this output. */
   "NOT_INCLUDED",
+  /**
+   * The RECORD is not in a condition where this output could exist — it has
+   * not been finalized, or its integrity check failed and it never will be.
+   *
+   * ---------------------------------------------------------------------
+   * WHY THIS IS NOT `NOT_INCLUDED` (2026-09-10)
+   * ---------------------------------------------------------------------
+   * The derivation used to answer `NOT_INCLUDED` for any record that was not
+   * finalized, and every surface renders that state with PLAN copy. So a Pro
+   * customer watching their own upload was told reports were not included in
+   * their plan, and — far worse — a `FAILED_HASH_MISMATCH` record on
+   * Enterprise was told the same thing, which attributes an INTEGRITY FAILURE
+   * to a billing decision on a forensic surface.
+   *
+   * The two facts are different in kind. `NOT_INCLUDED` is a statement about
+   * what was BOUGHT; this is a statement about the RECORD. Keeping them apart
+   * is what lets each surface say the true sentence, and the bounded
+   * {@link OutputNotApplicableReason} says which of the two record conditions
+   * applies without a second state.
+   */
+  "NOT_APPLICABLE",
   /** Included, nothing produced yet, and asking for it is a real action. */
   "ELIGIBLE_NOT_GENERATED",
   "QUEUED",
@@ -309,18 +366,73 @@ export const EVIDENCE_OUTPUT_STATES = [
 ] as const;
 export type EvidenceOutputState = (typeof EVIDENCE_OUTPUT_STATES)[number];
 
+/**
+ * WHY an output is `NOT_APPLICABLE`. Bounded, so a surface renders copy from a
+ * value rather than from a server-supplied sentence.
+ *
+ * `NOT_FINALIZED` ends on its own — the record is still being captured or
+ * uploaded, and finalization makes the output applicable.
+ * `INTEGRITY_FAILED` never ends. A record whose recomputed SHA-256 disagreed
+ * with the value stored at completion cannot be re-promoted into an artifact
+ * by any path, and the recovery is a NEW record, not a retry of this one.
+ */
+export const OUTPUT_NOT_APPLICABLE_REASONS = [
+  "NOT_FINALIZED",
+  "INTEGRITY_FAILED",
+] as const;
+export type OutputNotApplicableReason =
+  (typeof OUTPUT_NOT_APPLICABLE_REASONS)[number];
+
+/**
+ * Where the RECORD is, with respect to being able to carry an output at all.
+ *
+ * Replaces the former `finalized: boolean`. One field rather than two, and a
+ * union rather than a boolean, because the boolean could not express the third
+ * case — a record that failed its integrity check and will therefore never be
+ * finalized — and every caller that held that case had to fold it into "not
+ * finalized yet", which is a false promise.
+ *
+ * It is TOTAL, so adding a fourth record condition is a compile error at every
+ * derivation rather than a silent fall-through.
+ */
+export const OUTPUT_RECORD_APPLICABILITIES = [
+  /** Still being captured or uploaded. Outputs become applicable on finalize. */
+  "NOT_FINALIZED",
+  /** Terminal integrity failure. Outputs will never become applicable. */
+  "INTEGRITY_FAILED",
+  /** SIGNED or REPORTED. Outputs are applicable. */
+  "FINALIZED",
+] as const;
+export type OutputRecordApplicability =
+  (typeof OUTPUT_RECORD_APPLICABILITIES)[number];
+
 export type EvidenceOutputAxes = {
   eligibility: OutputCommercialEligibility;
   generation: OutputGenerationState;
   availability: OutputArtifactAvailability;
   /**
-   * Has the record reached the point where an output could exist at all?
-   * A draft or uploading record is not "eligible but ungenerated" — nothing
-   * has happened yet — so it reports NOT_REQUESTED rather than inviting an
-   * action that would be refused.
+   * Has the record reached the point where an output could exist at all — and
+   * if not, is that temporary or permanent? See
+   * {@link OutputRecordApplicability}.
    */
-  finalized: boolean;
+  record: OutputRecordApplicability;
 };
+
+/**
+ * The bounded reason to render beside a `NOT_APPLICABLE` state.
+ *
+ * Returns `null` for every other state, so a projection can call it
+ * unconditionally and store the result beside the state without a branch of
+ * its own.
+ */
+export function outputNotApplicableReason(
+  axes: EvidenceOutputAxes,
+): OutputNotApplicableReason | null {
+  if (deriveEvidenceOutputState(axes) !== "NOT_APPLICABLE") return null;
+  return axes.record === "INTEGRITY_FAILED"
+    ? "INTEGRITY_FAILED"
+    : "NOT_FINALIZED";
+}
 
 /**
  * THE derivation. Total, pure, and ordered so the most consequential fact
@@ -332,19 +444,31 @@ export type EvidenceOutputAxes = {
  *      true when the plan later stops including NEW generation. This is what
  *      makes a downgrade lose the ability to generate without losing what the
  *      customer already paid for.
- *   2. Then live work, so an in-flight retry after an upgrade is not reported
+ *   2. Then a TERMINAL integrity failure. It outranks everything below it
+ *      because nothing below it can ever become true for such a record: no
+ *      request will be accepted, no plan change helps, and describing it as a
+ *      commercial exclusion — which is what the old ordering did — blames a
+ *      billing decision for a hash mismatch.
+ *   3. Then live work, so an in-flight retry after an upgrade is not reported
  *      as "not included" for the seconds before it lands.
- *   3. Then commercial ineligibility, which is why nothing is happening.
- *   4. Then the failure and blocked states.
- *   5. Then eligible-but-ungenerated, which is the one that carries an action.
+ *   4. Then a record that is not finalized yet. Nothing has been asked for and
+ *      nothing could have been; this is a statement about the record, and it
+ *      must not borrow the commercial state's copy.
+ *   5. Then commercial ineligibility, which is why nothing is happening.
+ *   6. Then the failure and blocked states.
+ *   7. Then eligible-but-ungenerated, which is the one that carries an action.
  */
 export function deriveEvidenceOutputState(
   axes: EvidenceOutputAxes,
 ): EvidenceOutputState {
   if (axes.availability === "READY") return "READY";
 
+  if (axes.record === "INTEGRITY_FAILED") return "NOT_APPLICABLE";
+
   if (axes.generation === "QUEUED") return "QUEUED";
   if (axes.generation === "PROCESSING") return "GENERATING";
+
+  if (axes.record === "NOT_FINALIZED") return "NOT_APPLICABLE";
 
   if (axes.eligibility === "NOT_INCLUDED") return "NOT_INCLUDED";
 
@@ -352,9 +476,9 @@ export function deriveEvidenceOutputState(
   if (axes.generation === "RETRYABLE_FAILURE") return "RETRYABLE_FAILURE";
   if (axes.generation === "TERMINAL_FAILURE") return "TERMINAL_FAILURE";
 
-  // Eligible, nothing in flight, nothing produced. Only a finalized record can
-  // be asked for an output; before that there is simply nothing to generate.
-  return axes.finalized ? "ELIGIBLE_NOT_GENERATED" : "NOT_INCLUDED";
+  // Eligible, finalized, nothing in flight, nothing produced. Asking for it is
+  // a real action.
+  return "ELIGIBLE_NOT_GENERATED";
 }
 
 /**
@@ -404,7 +528,76 @@ export function outputActionFor(input: {
     case "GENERATING":
     case "BLOCKED":
       return "NONE";
+    case "NOT_APPLICABLE":
+      /*
+       * Neither record condition carries an action. A record still uploading
+       * has nothing to generate FROM, and one that failed its integrity check
+       * can never be re-promoted into an artifact — the recovery is a new
+       * record. Offering a verb here would be a button the server refuses.
+       */
+      return "NONE";
   }
+}
+
+// ===========================================================================
+// P2-1 CLOSURE (2026-09-10) — WHEN A VERB IS WITHDRAWN FROM A STATE THAT
+// WOULD OTHERWISE CARRY ONE
+// ===========================================================================
+
+/**
+ * Why a surface may not offer the action its state implies.
+ *
+ * `WORKSPACE_UNRESOLVED` is the only member: a record written before the
+ * workspace backfill carries no workspace, and `createReportGenerationRequest`
+ * refuses it because a request that cannot be scoped must not exist. Those
+ * records ARE listed — the canonical scope predicate has an owner-scoped arm
+ * for exactly them — so without this the product offered Generate and answered
+ * the click by claiming the record was not available.
+ */
+export const OUTPUT_ACTION_UNAVAILABLE_REASONS = [
+  "WORKSPACE_UNRESOLVED",
+] as const;
+export type OutputActionUnavailableReason =
+  (typeof OUTPUT_ACTION_UNAVAILABLE_REASONS)[number];
+
+/**
+ * THE ONE RULE that withdraws a verb without touching the state.
+ *
+ * ---------------------------------------------------------------------------
+ * WHY IT IS SEPARATE FROM `outputActionFor`
+ * ---------------------------------------------------------------------------
+ * `outputActionFor` answers "what does this STATE imply?", and its answer is
+ * correct: an eligible finalized record with no artifact does imply GENERATE.
+ * This answers a different question — "can this particular record accept the
+ * request at all?" — and the two must not be conflated, because the state is
+ * still true and still drives the copy, the downloads and the version history.
+ *
+ * ---------------------------------------------------------------------------
+ * WHY IT DOES NOT CHANGE THE STATE
+ * ---------------------------------------------------------------------------
+ * A legacy record with an existing artifact is READY, and it must stay READY:
+ * the artifact is downloadable and the version list is real. Only the verb is
+ * withdrawn. This is the same separation of OWNERSHIP from GENERATION that
+ * makes a downgrade keep its downloads, applied to a different cause.
+ *
+ * THREE PROJECTIONS CALL IT — Evidence Detail, the Reports aggregator and the
+ * user-scoped Reports fallback — because all three list these records, and a
+ * rule applied at one of them is a button that still dead-ends at the other
+ * two.
+ */
+export function resolveOfferedOutputAction(input: {
+  /** What the state implies, from {@link outputActionFor}. */
+  action: OutputAction;
+  /** Does the record carry a workspace the request could be scoped to? */
+  workspaceResolved: boolean;
+}): {
+  action: OutputAction;
+  actionUnavailableReason: OutputActionUnavailableReason | null;
+} {
+  if (input.action === "NONE" || input.workspaceResolved) {
+    return { action: input.action, actionUnavailableReason: null };
+  }
+  return { action: "NONE", actionUnavailableReason: "WORKSPACE_UNRESOLVED" };
 }
 
 // ===========================================================================
@@ -586,6 +779,28 @@ export const GENERATION_REQUEST_OUTCOMES = [
   "REQUEST_PERSIST_FAILED",
   /** No such record, or it is not visible to this actor. */
   "EVIDENCE_NOT_FOUND",
+  /**
+   * The record exists and is visible, but carries no workspace binding, so a
+   * request for it cannot be scoped and is refused.
+   *
+   * -----------------------------------------------------------------------
+   * P2-1 CLOSURE (2026-09-10) — WHY THIS IS NOT `EVIDENCE_NOT_FOUND`
+   * -----------------------------------------------------------------------
+   * `createReportGenerationRequest` refuses a record whose `teamId` is null
+   * with `evidence_workspace_unresolved`, and the API mapped that reason onto
+   * `EVIDENCE_NOT_FOUND` — whose copy is "This evidence record is not
+   * available." Legacy personal records written before the workspace backfill
+   * carry exactly that null, and they ARE listed (the canonical scope
+   * predicate has an explicit owner-scoped arm for them). So the product
+   * showed the record, offered Generate on it, and answered the click by
+   * saying the record did not exist.
+   *
+   * It is a distinct outcome because it is a distinct situation with a
+   * distinct remedy: the record is fine and one field is missing. The action
+   * is suppressed rather than offered-and-refused, and the sentence says what
+   * is actually wrong.
+   */
+  "WORKSPACE_UNRESOLVED",
   /** A request with no principal cannot be audited, so it is refused. */
   "REQUESTER_REQUIRED",
 ] as const;

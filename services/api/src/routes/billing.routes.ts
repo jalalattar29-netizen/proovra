@@ -2,7 +2,15 @@ import { resolveCommercialContext } from "../services/billing/commercial-context
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import * as prismaPkg from "@prisma/client";
-import { EVIDENCE_CREDIT_PRODUCT } from "@proovra/shared-billing";
+import {
+  EVIDENCE_CREDIT_PRODUCT,
+  resolveStorageAddonEntitlement,
+  type PlanType,
+} from "@proovra/shared-billing";
+// P1-2 / PRODUCT OPTION B — the ledger fact the storage-addon policy needs, and
+// the ONE offer catalog that says which rows a subject may buy.
+import { hasSettledEvidenceCreditGrant } from "../services/billing/evidence-credits.service.js";
+import { storageAddonOffersForPlan } from "../services/workspace-usage.service.js";
 import { requireAuth } from "../middleware/auth.js";
 // BILLING DEPENDENT-CANCELLATION CONVERGENCE (2026-08-27) — `cancelPayPalSubscription`
 // and `stripeRequestRaw` are no longer imported here. This route reached the
@@ -439,12 +447,55 @@ async function assertStorageAddonAllowed(params: {
     throw err;
   }
 
-  if (scope.plan === prismaPkg.PlanType.FREE) {
-    const err: Error & { statusCode?: number } = new Error(
-      "Please upgrade your base plan before purchasing extra storage"
+  /*
+   * ==========================================================================
+   * P1-2 / PRODUCT OPTION B (2026-09-10) — THE SERVER GATE, ON THE CANONICAL
+   * CAPABILITY.
+   * ==========================================================================
+   * `scope.plan === FREE` was a plan comparison standing in for a commercial
+   * decision, and it was the ENFORCEMENT half of the evidence-credit dead end:
+   * a credit buyer's subscription is FREE by design, so this refused the one
+   * purchase that could have freed them from the 250 MB ceiling they had
+   * already filled with records they had paid for.
+   *
+   * The decision moves to `resolveStorageAddonEntitlement`, the same policy the
+   * Billing projection and the offer catalog read, so the button, the drawer
+   * and this gate cannot disagree. The FACT it needs is read from the ledger:
+   * a settled PURCHASE or ADMIN_GRANT row, never a balance, never a query
+   * parameter, never anything a client can assert.
+   */
+  const storageAddons = resolveStorageAddonEntitlement({
+    plan: scope.plan as PlanType,
+    hasSettledEvidenceCreditGrant: await hasSettledEvidenceCreditGrant(
+      params.userId,
+    ),
+  });
+  if (!storageAddons.storageAddonsPurchasable) {
+    const err: Error & { statusCode?: number; code?: string } = new Error(
+      "Extra storage is available with Pro and Team, or with Pay-per-evidence once you have bought an evidence credit.",
     );
     err.statusCode = 409;
+    err.code = "STORAGE_ADDON_NOT_INCLUDED";
     throw err;
+  }
+
+  /*
+   * An evidence-credit customer buys from the SINGLE_OCCUPANT catalog — the
+   * same rows PRO buys, checked here against the offer catalog rather than
+   * re-listed, so one list governs what is offered and what is accepted.
+   */
+  if (storageAddons.source === "EVIDENCE_CREDIT") {
+    const offered = storageAddonOffersForPlan(scope.plan, {
+      hasSettledEvidenceCreditGrant: true,
+    }).some((offer) => offer.key === params.addonKey);
+    if (!offered) {
+      const err: Error & { statusCode?: number } = new Error(
+        "This storage add-on is not available for Pay-per-evidence.",
+      );
+      err.statusCode = 400;
+      throw err;
+    }
+    return { scope, definition };
   }
 
   if (scope.plan === prismaPkg.PlanType.PAYG) {

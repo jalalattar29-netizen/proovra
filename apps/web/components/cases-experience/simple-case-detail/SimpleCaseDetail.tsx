@@ -53,6 +53,9 @@ import { useRouter } from "next/navigation";
 import { Copy, FileText, Plus, Search, Share2, ShieldCheck } from "lucide-react";
 
 import { apiFetch } from "../../../lib/api";
+// P2-4 — the ONE Cases label mapping for a canonical output state.
+import type { EvidenceOutputState } from "@proovra/shared";
+import { caseOutputLabel } from "../../../lib/evidence/generation-labels";
 import { useToast } from "../../ui";
 // Phase 7B (visual-only) — canonical shared design-system primitives.
 // PageShell is the repository's ONE content-plane authority; this surface
@@ -1158,12 +1161,29 @@ function EvidenceTab({
                       </>
                     ) : null}
                     <span aria-hidden>•</span>
-                    <span>
-                      {item.reportReady ? "Report ready" : "Report missing"}
+                    {/*
+                      P2-4 (2026-09-10) — the SERVER's output state, not
+                      `reportReady ? ready : missing`. That inference called a
+                      commercial exclusion, an unfinalized upload and a
+                      generation running at that instant all "missing".
+                    */}
+                    <span data-simple-case-evidence-report-state={item.outputs?.report.state ?? ""}>
+                      {item.outputs
+                        ? caseOutputLabel(item.outputs.report.state, "Report")
+                        : item.reportReady
+                          ? "Report ready"
+                          : "Report not available"}
                     </span>
                     <span aria-hidden>•</span>
-                    <span>
-                      {item.packageReady ? "Package ready" : "Package missing"}
+                    <span data-simple-case-evidence-package-state={item.outputs?.verificationPackage.state ?? ""}>
+                      {item.outputs
+                        ? caseOutputLabel(
+                            item.outputs.verificationPackage.state,
+                            "Package",
+                          )
+                        : item.packageReady
+                          ? "Package ready"
+                          : "Package not available"}
                     </span>
                   </div>
                 </div>
@@ -1279,6 +1299,11 @@ type AttachCandidate = {
   createdAt: string;
   reportReady: boolean;
   packageReady: boolean;
+  /** P2-4 — the server's canonical output state. Rendered, never derived. */
+  outputs?: {
+    report: { state: EvidenceOutputState };
+    verificationPackage: { state: EvidenceOutputState };
+  };
 };
 
 /**
@@ -1699,7 +1724,11 @@ function AttachEvidenceModal({
                           }
                           data-state={c.reportReady ? "ready" : "missing"}
                         >
-                          {c.reportReady ? "Report ready" : "Report missing"}
+                          {c.outputs
+                            ? caseOutputLabel(c.outputs.report.state, "Report")
+                            : c.reportReady
+                              ? "Report ready"
+                              : "Report not available"}
                         </span>
                         <span
                           data-simple-case-attach-row-package={
@@ -1707,7 +1736,14 @@ function AttachEvidenceModal({
                           }
                           data-state={c.packageReady ? "ready" : "missing"}
                         >
-                          {c.packageReady ? "Package ready" : "Package missing"}
+                          {c.outputs
+                            ? caseOutputLabel(
+                                c.outputs.verificationPackage.state,
+                                "Package",
+                              )
+                            : c.packageReady
+                              ? "Package ready"
+                              : "Package not available"}
                         </span>
                       </span>
                     </span>
@@ -1878,7 +1914,11 @@ function ReportsPackagesTab({
                       }
                       style={{ color: item.reportReady ? "#167A5B" : "#64748b" }}
                     >
-                      {item.reportReady ? "Report ready" : "Report missing"}
+                      {item.outputs
+                        ? caseOutputLabel(item.outputs.report.state, "Report")
+                        : item.reportReady
+                          ? "Report ready"
+                          : "Report not available"}
                     </span>
                     <span aria-hidden>·</span>
                     <span
@@ -1887,7 +1927,14 @@ function ReportsPackagesTab({
                       }
                       style={{ color: item.packageReady ? "#167A5B" : "#64748b" }}
                     >
-                      {item.packageReady ? "Package ready" : "Package missing"}
+                      {item.outputs
+                        ? caseOutputLabel(
+                            item.outputs.verificationPackage.state,
+                            "Package",
+                          )
+                        : item.packageReady
+                          ? "Package ready"
+                          : "Package not available"}
                     </span>
                   </div>
                 </div>

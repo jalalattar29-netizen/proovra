@@ -6,6 +6,8 @@
  *   - GET /v1/cases/:id/workspace
  */
 
+import type { EvidenceOutputState } from "@proovra/shared";
+
 export type SectionStatus = "ok" | "degraded" | "unavailable" | "not_applicable";
 
 export type CaseScope = "PERSONAL" | "TEAM";
@@ -205,8 +207,20 @@ export type MatterWorkspaceEnvelope = {
          * reported no change at all.
          */
         analysisRevision: string;
+        /** Artifact PRESENCE only. */
         reportReady: boolean;
         packageReady: boolean;
+        /**
+         * P2-4 (2026-09-10) — the server's canonical output state.
+         *
+         * Optional on the wire because the legacy-case envelope shape is
+         * shared with an older projection; every Cases renderer treats its
+         * absence as "unknown" and shows presence only, never "missing".
+         */
+        outputs?: {
+          report: { state: EvidenceOutputState };
+          verificationPackage: { state: EvidenceOutputState };
+        };
         /**
          * Phase 32.8D-frontend-closure — canonical CaseEvidenceLink id.
          * Null when the evidence is attached via the legacy

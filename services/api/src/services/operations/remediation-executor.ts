@@ -315,7 +315,27 @@ async function regenerateArtifacts(
       ? outcome("ALREADY_SATISFIED", requested.requestId)
       : outcome("NOT_ELIGIBLE", requested.requestId);
   }
-  if (requested.deduplicated) return outcome("ALREADY_IN_PROGRESS");
+  /*
+   * P3-8 CLOSURE (2026-09-10) — THE OUTCOME OUTRANKS `deduplicated`.
+   *
+   * `deduplicated` was consulted first and mapped straight to
+   * ALREADY_IN_PROGRESS. But the loser of a SUPERSESSION race is also
+   * `deduplicated: true` — it did not create the row, it reuses the winner's —
+   * and that row IS the supersession the operator asked for. So the one click
+   * that finally worked on a record that had been locked out was reported as
+   * "This work is already in progress", which is the sentence for a different
+   * situation and hides the thing the operator most wanted to know.
+   *
+   * The typed outcome already distinguishes them, so it decides. `SUPERSEDED`
+   * and `ENQUEUED` are both accepted work and both read QUEUED here;
+   * `ALREADY_ACTIVE` is the one case that genuinely is already under way.
+   */
+  if (requested.outcome === "SUPERSEDED" || requested.outcome === "ENQUEUED") {
+    return outcome("QUEUED", requested.requestId);
+  }
+  if (requested.outcome === "ALREADY_ACTIVE" || requested.deduplicated) {
+    return outcome("ALREADY_IN_PROGRESS");
+  }
   if (!requested.enqueued) {
     // Durable but unscheduled. The reconciler owns it, and saying so is more
     // useful than a generic failure.

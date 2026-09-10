@@ -15,6 +15,8 @@
 import type { AppTone } from "../../app-primitives/AppStatusBadge";
 import { lifecycleTone } from "../../../lib/status-tone/lifecycleTone";
 import type { MatterWorkspaceEnvelope } from "../types";
+// P2-4 — the ONE predicate that says whether an output state is case work.
+import { caseOutputNeedsAttention } from "../../../lib/evidence/generation-labels";
 
 /** Friendly case-status labels (UPPER_SNAKE enum → Sentence case). */
 export const CASE_STATUS_LABEL: Record<string, string> = {
@@ -113,7 +115,28 @@ export function summariseDeliverables(
   for (const item of items) {
     if (item.reportReady) reportsReady += 1;
     if (item.packageReady) packagesReady += 1;
-    if (!item.reportReady || !item.packageReady) needsAttention += 1;
+    /*
+     * P2-4 CLOSURE (2026-09-10) — "MISSING EITHER DELIVERABLE" WAS THE WRONG
+     * QUESTION.
+     *
+     * This was `!item.reportReady || !item.packageReady`, so a record the plan
+     * never produces an artifact for, one still being uploaded, and one whose
+     * generation was running at that instant all counted as case work
+     * outstanding. On a workspace that had been downgraded, every record in
+     * every case counted — a permanent number nobody could reduce.
+     *
+     * The canonical state decides it, through the one shared predicate. When
+     * the server did not send a state (the legacy envelope shape), nothing is
+     * counted: an unknown is not a deficiency.
+     */
+    if (item.outputs) {
+      if (
+        caseOutputNeedsAttention(item.outputs.report.state) ||
+        caseOutputNeedsAttention(item.outputs.verificationPackage.state)
+      ) {
+        needsAttention += 1;
+      }
+    }
   }
   return { reportsReady, packagesReady, needsAttention };
 }
@@ -137,8 +160,20 @@ export function deriveNeedsAttention(
     });
     return out;
   }
-  const missingReport = items.filter((i) => !i.reportReady).length;
-  const missingPackage = items.filter((i) => !i.packageReady).length;
+  /*
+   * P2-4 — the same correction as `summariseDeliverables`. These two counts
+   * drove the sentences "N evidence records are missing a report" and
+   * "… missing a verification package", which named a commercial exclusion, an
+   * unfinalized upload and an in-flight generation as one kind of problem.
+   */
+  const missingReport = items.filter(
+    (i) => i.outputs && caseOutputNeedsAttention(i.outputs.report.state),
+  ).length;
+  const missingPackage = items.filter(
+    (i) =>
+      i.outputs &&
+      caseOutputNeedsAttention(i.outputs.verificationPackage.state),
+  ).length;
   const integrityIssues = items.filter(
     (i) =>
       i.verificationStatus &&
@@ -148,10 +183,12 @@ export function deriveNeedsAttention(
   if (missingReport > 0) {
     out.push({
       key: "missing-report",
+      // P2-4 — "needs a report generated" is what the count now means, and
+      // it is only ever true where an action or an operator step exists.
       label:
         missingReport === 1
-          ? "1 evidence record is missing a report."
-          : `${missingReport} evidence records are missing a report.`,
+          ? "1 evidence record still needs its report generated."
+          : `${missingReport} evidence records still need their reports generated.`,
     });
   }
   if (missingPackage > 0) {
@@ -159,8 +196,8 @@ export function deriveNeedsAttention(
       key: "missing-package",
       label:
         missingPackage === 1
-          ? "1 evidence record is missing a verification package."
-          : `${missingPackage} evidence records are missing a verification package.`,
+          ? "1 evidence record still needs its verification package generated."
+          : `${missingPackage} evidence records still need their verification packages generated.`,
     });
   }
   if (integrityIssues > 0) {

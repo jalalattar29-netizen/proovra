@@ -41,6 +41,8 @@ import {
   classifyTerminalReason,
   deriveEvidenceOutputState,
   outputActionFor,
+  outputNotApplicableReason,
+  resolveOfferedOutputAction,
   projectReportRequestState,
   type EvidenceOutputState,
   type OutputAction,
@@ -48,6 +50,9 @@ import {
   type OutputCommercialEligibility,
   type OutputGenerationState,
   type OutputIneligibilityReason,
+  type OutputActionUnavailableReason,
+  type OutputNotApplicableReason,
+  type OutputRecordApplicability,
   type OutputTerminalReasonClass,
   type PersistedReportRequestState,
   type PdfSignatureStatus,
@@ -108,6 +113,33 @@ function resolveWarningCopy(
 export type VerificationPackageUnavailableReason = OutputIneligibilityReason;
 
 /**
+ * THE ONE MAPPING from a persisted `EvidenceStatus` to the record axis.
+ *
+ * P1-3 CLOSURE (2026-09-10). Three call sites need it — this projection, the
+ * Reports aggregator and the user-scoped Reports fallback — and a status
+ * string compared inline at each of them is how a fourth status comes to be
+ * classified two different ways. It is a pure function of the status, so it
+ * takes the status and nothing else.
+ *
+ * A status this function does not recognise reads `NOT_FINALIZED`, which is
+ * the conservative answer: it offers no action and promises nothing.
+ */
+export function resolveOutputRecordApplicability(
+  status: prismaPkg.EvidenceStatus | string | null | undefined,
+): OutputRecordApplicability {
+  if (status === prismaPkg.EvidenceStatus.FAILED_HASH_MISMATCH) {
+    return "INTEGRITY_FAILED";
+  }
+  if (
+    status === prismaPkg.EvidenceStatus.SIGNED ||
+    status === prismaPkg.EvidenceStatus.REPORTED
+  ) {
+    return "FINALIZED";
+  }
+  return "NOT_FINALIZED";
+}
+
+/**
  * The three-axis projection for one output, plus the derived state and the
  * action a surface may offer.
  *
@@ -118,6 +150,15 @@ export type EvidenceOutputProjection = {
   /** Axis 1 — commercial. */
   eligibility: OutputCommercialEligibility;
   ineligibilityReason: OutputIneligibilityReason | null;
+  /**
+   * P1-3 CLOSURE (2026-09-10) — WHY the output is `NOT_APPLICABLE`.
+   *
+   * Present only for that state, and bounded. `NOT_FINALIZED` ends when the
+   * record finalizes; `INTEGRITY_FAILED` never ends. A surface that renders
+   * one sentence for both would tell the owner of a hash-mismatched record to
+   * wait for something that is not coming.
+   */
+  notApplicableReason: OutputNotApplicableReason | null;
   /** Axis 2 — generation execution, projected from the request row. */
   generation: OutputGenerationState;
   /** Class of the terminal reason, when generation is TERMINAL_FAILURE. */
@@ -136,6 +177,24 @@ export type EvidenceOutputProjection = {
   state: EvidenceOutputState;
   /** The one action a surface may offer for that state. */
   action: OutputAction;
+  /**
+   * P2-1 CLOSURE (2026-09-10) — WHY THE VERB WAS WITHDRAWN, when the state
+   * would otherwise carry one.
+   *
+   * `WORKSPACE_UNRESOLVED` is the only member today: a legacy record written
+   * before the workspace backfill has a null `teamId`, and
+   * `createReportGenerationRequest` refuses such a record because a request
+   * that cannot be scoped must not exist. Those records ARE listed — the
+   * canonical scope predicate has an owner-scoped arm for exactly them — so
+   * without this the product offered Generate and answered the click by
+   * claiming the record was not available.
+   *
+   * It deliberately does NOT change `state`. The record's outputs are what
+   * they are: an existing artifact stays READY and stays downloadable, which
+   * is the same separation of ownership from generation the downgrade path
+   * relies on. Only the verb goes.
+   */
+  actionUnavailableReason: OutputActionUnavailableReason | null;
 };
 
 export interface EvidenceArtifactStatus {
@@ -309,6 +368,20 @@ export async function buildEvidenceArtifactStatus(params: {
     params.evidenceStatus === prismaPkg.EvidenceStatus.SIGNED ||
     params.evidenceStatus === prismaPkg.EvidenceStatus.REPORTED;
 
+  /*
+   * P1-3 CLOSURE (2026-09-10) — THE RECORD AXIS.
+   *
+   * `finalized` alone folded a terminal integrity failure into "not finalized
+   * yet", and the derivation then folded THAT into `NOT_INCLUDED`, which every
+   * surface renders with plan copy. A `FAILED_HASH_MISMATCH` record was
+   * therefore told its billing plan was the reason it had no report.
+   *
+   * The three record conditions are named here, once, from the status the
+   * caller already holds.
+   */
+  const recordApplicability: OutputRecordApplicability =
+    resolveOutputRecordApplicability(params.evidenceStatus);
+
   const reportEligibility: OutputCommercialEligibility =
     eligibility?.reportEligibility ?? "ELIGIBLE";
   const packageEligibility: OutputCommercialEligibility =
@@ -369,10 +442,17 @@ export async function buildEvidenceArtifactStatus(params: {
    * are the same kind of fact — something stopped it — and the reason is what
    * differs. The report has no equivalent metadata blob.
    */
+  const reportAxes = {
+    eligibility: reportEligibility,
+    generation,
+    availability: reportAvailability,
+    record: recordApplicability,
+  } as const;
   const reportOutput: EvidenceOutputProjection = {
     eligibility: reportEligibility,
     ineligibilityReason:
       reportEligibility === "NOT_INCLUDED" ? ineligibilityReason : null,
+    notApplicableReason: outputNotApplicableReason(reportAxes),
     generation,
     terminalReasonClass,
     terminalReasonCode:
@@ -383,27 +463,51 @@ export async function buildEvidenceArtifactStatus(params: {
     requestedAtUtc: latestRequest?.createdAtUtc?.toISOString() ?? null,
     completedAtUtc: latestRequest?.completedAtUtc?.toISOString() ?? null,
     availability: reportAvailability,
-    state: deriveEvidenceOutputState({
-      eligibility: reportEligibility,
-      generation,
-      availability: reportAvailability,
-      finalized,
-    }),
+    state: deriveEvidenceOutputState(reportAxes),
     action: "NONE",
+    actionUnavailableReason: null,
   };
-  reportOutput.action = outputActionFor({
-    state: reportOutput.state,
-    eligibility: reportEligibility,
-    terminalReasonClass,
-  });
+  /*
+   * P2-1 CLOSURE (2026-09-10) — A RECORD WITH NO WORKSPACE CARRIES NO VERB.
+   *
+   * The generation writer refuses a record whose workspace is null, because a
+   * request that cannot be scoped must not exist. Legacy personal rows written
+   * before the workspace backfill are exactly that shape AND are listed, so
+   * the verb was offered and the click was answered with "This evidence record
+   * is not available."
+   *
+   * Withdrawn here, once, for both outputs — and the STATE is untouched, so an
+   * existing artifact on such a record stays READY and stays downloadable.
+   */
+  const workspaceResolved = Boolean(params.evidenceTeamId);
+
+  {
+    const offered = resolveOfferedOutputAction({
+      action: outputActionFor({
+        state: reportOutput.state,
+        eligibility: reportEligibility,
+        terminalReasonClass,
+      }),
+      workspaceResolved,
+    });
+    reportOutput.action = offered.action;
+    reportOutput.actionUnavailableReason = offered.actionUnavailableReason;
+  }
 
   const packageGeneration: OutputGenerationState = packageBlocked
     ? "BLOCKED"
     : generation;
+  const packageAxes = {
+    eligibility: packageEligibility,
+    generation: packageGeneration,
+    availability: packageAvailability,
+    record: recordApplicability,
+  } as const;
   const packageOutput: EvidenceOutputProjection = {
     eligibility: packageEligibility,
     ineligibilityReason:
       packageEligibility === "NOT_INCLUDED" ? ineligibilityReason : null,
+    notApplicableReason: outputNotApplicableReason(packageAxes),
     generation: packageGeneration,
     terminalReasonClass:
       packageGeneration === "TERMINAL_FAILURE" ? terminalReasonClass : null,
@@ -415,19 +519,22 @@ export async function buildEvidenceArtifactStatus(params: {
     requestedAtUtc: latestRequest?.createdAtUtc?.toISOString() ?? null,
     completedAtUtc: latestRequest?.completedAtUtc?.toISOString() ?? null,
     availability: packageAvailability,
-    state: deriveEvidenceOutputState({
-      eligibility: packageEligibility,
-      generation: packageGeneration,
-      availability: packageAvailability,
-      finalized,
-    }),
+    state: deriveEvidenceOutputState(packageAxes),
     action: "NONE",
+    actionUnavailableReason: null,
   };
-  packageOutput.action = outputActionFor({
-    state: packageOutput.state,
-    eligibility: packageEligibility,
-    terminalReasonClass: packageOutput.terminalReasonClass,
-  });
+  {
+    const offered = resolveOfferedOutputAction({
+      action: outputActionFor({
+        state: packageOutput.state,
+        eligibility: packageEligibility,
+        terminalReasonClass: packageOutput.terminalReasonClass,
+      }),
+      workspaceResolved,
+    });
+    packageOutput.action = offered.action;
+    packageOutput.actionUnavailableReason = offered.actionUnavailableReason;
+  }
 
   /*
    * THE LEGACY BOOLEANS, KEPT IN AGREEMENT WITH THE STATE.

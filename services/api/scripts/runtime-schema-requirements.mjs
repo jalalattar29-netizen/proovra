@@ -38,7 +38,7 @@
 /**
  * @typedef {{
  *   id: string,
- *   kind: "enum_type" | "enum_value" | "column" | "index",
+ *   kind: "enum_type" | "enum_value" | "column" | "index" | "table",
  *   detail: string,
  *   requiredBy: string,
  *   suppliedBy: string,
@@ -133,6 +133,75 @@ export const RUNTIME_SCHEMA_REQUIREMENTS = Object.freeze([
       "revocation is a STATE, not a deletion. Every pending-invitation reader filters on it — the workspace invitation list, resolveWorkspaceInvitationAllowance (the seat gate) and the collaboration entitlement projection — so its absence fails those reads outright instead of degrading, and a revoked invitation would otherwise be indistinguishable from a live one",
     suppliedBy: "20280501000000_workspace_invite_lifecycle_hardening",
   },
+
+  /**
+   * ==========================================================================
+   * P3-9 (2026-09-10) — THE TWO TABLES THE OUTPUT EXPERIENCE NOW RESTS ON.
+   * ==========================================================================
+   * Both predate this file and neither was declared, and the reason they were
+   * missed is the reason they are the most dangerous omission in it: every
+   * READER of them degrades gracefully.
+   *
+   * `reportGenerationRequest` is read through `.catch(() => null)` on the
+   * artifact-status projection, an async IIFE with a try/catch in the Reports
+   * aggregator, `.catch(() => [])` in the user-scoped fallback and a try/catch
+   * in the billing projection — because a missing row is a normal state and
+   * those surfaces must render without one. So if the TABLE were absent, no
+   * request would fail: every record would simply project `NOT_REQUESTED`,
+   * every Generate click would return `REQUEST_PERSIST_FAILED`, and the
+   * preflight would report the release healthy. A silent, product-wide output
+   * outage with a green deploy — which is precisely the answer the header above
+   * says this file must never give.
+   *
+   * The UNIQUE indexes are declared alongside the tables rather than assumed,
+   * because in both cases the uniqueness IS the correctness property:
+   *
+   *   report_generation_requests.idempotency_key
+   *       the version-anchored key is what collapses two concurrent completion
+   *       fan-outs into one request and lets the DB elect a single winner of a
+   *       supersession race. Without the index both callers succeed and two
+   *       runnable requests race for one artifact version.
+   *
+   *   evidence_credit_ledger_entries.evidence_id
+   *       the serialization point for credit spend. Without it a retried
+   *       completion can burn a second credit for one record — a customer
+   *       charged twice — and `resolveEvidenceFunding` can no longer answer
+   *       "how was this record funded" with one row.
+   */
+  {
+    id: "report_generation_requests.table",
+    kind: "table",
+    detail: 'table public."report_generation_requests" must exist',
+    requiredBy:
+      "THE durable generation-intent authority. It is the only real execution state the platform has for report and verification-package generation: createReportGenerationRequest is its one writer, the worker claims and settles rows in it, and the artifact-status projection, the Reports aggregator, the user-scoped Reports fallback and the Billing eligibility count all read it. Every one of those readers degrades on error rather than failing, so an absent table does not surface as an error — it silently reports every record as never-requested and refuses every Generate click, with a green preflight",
+    suppliedBy: "20271113000000_point5_report_generation_authority",
+  },
+  {
+    id: "report_generation_requests.idempotency_key_unique",
+    kind: "index",
+    detail:
+      'a UNIQUE index on public."report_generation_requests"("idempotency_key") must exist',
+    requiredBy:
+      "the version-anchored idempotency key is what makes duplicate generation intent collapse instead of racing. Two concurrent completion fan-outs for one record compute the same key and the unique violation elects one winner; the loser reuses the winner's row. Without the index both inserts succeed, two runnable requests exist for one baseline artifact version, and the supersession chain can advance twice",
+    suppliedBy: "20271113000000_point5_report_generation_authority",
+  },
+  {
+    id: "evidence_credit_ledger_entries.table",
+    kind: "table",
+    detail: 'table public."evidence_credit_ledger_entries" must exist',
+    requiredBy:
+      "THE evidence-credit authority. It records purchases, admin grants and per-record consumption, and it answers two questions nothing else can: how a record's completion was funded (resolveEvidenceFunding — which decides whether a FREE account's record earns a report and verification package) and whether an account is genuinely an evidence-credit customer (hasSettledEvidenceCreditGrant — which decides storage-add-on eligibility). Its absence silently downgrades every credit-funded record to plan-only entitlement",
+    suppliedBy: "20271227000000_billing_commercial_correctness",
+  },
+  {
+    id: "evidence_credit_ledger_entries.evidence_id_unique",
+    kind: "index",
+    detail:
+      'a UNIQUE index on public."evidence_credit_ledger_entries"("evidence_id") must exist',
+    requiredBy:
+      "the serialization point for credit spend. consumeEvidenceCreditForCompletion decrements the wallet conditionally and then INSERTs this row inside the completion transaction; the unique violation is what rolls a concurrent second spend back. Without the index a retried or re-delivered completion can burn a second credit for one evidence record — a customer charged twice for one capture",
+    suppliedBy: "20271227000000_billing_commercial_correctness",
+  },
 ]);
 
 /**
@@ -193,6 +262,59 @@ const PROBES = Object.freeze({
      WHERE table_schema = 'public'
        AND table_name = 'team_invites'
        AND column_name = 'revoked_at'
+     LIMIT 1`,
+
+  // P3-9 — the two output/commercial tables and the two uniqueness properties
+  // that make them correct. Read-only, information_schema / pg_catalog only.
+  "report_generation_requests.table": `
+    SELECT 1
+      FROM information_schema.tables
+     WHERE table_schema = 'public'
+       AND table_name = 'report_generation_requests'
+     LIMIT 1`,
+  /*
+   * Asserted through pg_index rather than by index NAME.
+   *
+   * Prisma's `@unique` generates `report_generation_requests_idempotency_key_key`,
+   * but the property this release depends on is the UNIQUENESS, not the name a
+   * generator chose — and a hand-written migration or a rename would satisfy
+   * the requirement while failing a name match. The predicate asks the
+   * question the code actually relies on: is there a unique index whose single
+   * column is `idempotency_key`.
+   */
+  "report_generation_requests.idempotency_key_unique": `
+    SELECT 1
+      FROM pg_index i
+      JOIN pg_class t ON t.oid = i.indrelid
+      JOIN pg_namespace n ON n.oid = t.relnamespace
+      JOIN pg_attribute a
+        ON a.attrelid = t.oid
+       AND a.attnum = i.indkey[0]
+     WHERE n.nspname = 'public'
+       AND t.relname = 'report_generation_requests'
+       AND i.indisunique
+       AND i.indnatts = 1
+       AND a.attname = 'idempotency_key'
+     LIMIT 1`,
+  "evidence_credit_ledger_entries.table": `
+    SELECT 1
+      FROM information_schema.tables
+     WHERE table_schema = 'public'
+       AND table_name = 'evidence_credit_ledger_entries'
+     LIMIT 1`,
+  "evidence_credit_ledger_entries.evidence_id_unique": `
+    SELECT 1
+      FROM pg_index i
+      JOIN pg_class t ON t.oid = i.indrelid
+      JOIN pg_namespace n ON n.oid = t.relnamespace
+      JOIN pg_attribute a
+        ON a.attrelid = t.oid
+       AND a.attnum = i.indkey[0]
+     WHERE n.nspname = 'public'
+       AND t.relname = 'evidence_credit_ledger_entries'
+       AND i.indisunique
+       AND i.indnatts = 1
+       AND a.attname = 'evidence_id'
      LIMIT 1`,
 });
 

@@ -95,6 +95,12 @@ const GENERATION_OUTCOME_MESSAGE: Record<GenerationRequestOutcome, string> = {
   REQUEST_PERSIST_FAILED:
     "We could not record the request. Please try again; the record is unaffected.",
   EVIDENCE_NOT_FOUND: "This evidence record is not available.",
+  /*
+   * P2-1 (2026-09-10) — this used to be answered with the sentence above, on a
+   * record the customer could see, open and download from.
+   */
+  WORKSPACE_UNRESOLVED:
+    "This older evidence record needs a workspace association before new output generation can be requested. Its existing materials are unaffected — contact support to have it associated.",
   REQUESTER_REQUIRED: "This request could not be attributed and was not made.",
 };
 
@@ -8899,11 +8905,33 @@ return {
           },
         });
 
+        /*
+         * P1-1 CLOSURE (2026-09-10) — RESOLVED ONCE, HERE, AND HANDED DOWN.
+         *
+         * `artifactStatus` used to be built ~400 lines below this point, and
+         * `buildEvidenceIntelligence` therefore ran without it and derived its
+         * own answer from artifact-row presence. Moving the ONE resolution
+         * above its first consumer is what makes "one commercial decision per
+         * request" true rather than intended; the value is reused below, so
+         * this costs nothing and removes the second authority.
+         */
+        const artifactStatus = await buildEvidenceArtifactStatus({
+          evidenceId: id,
+          evidenceStatus: evidence.status,
+          evidenceTeamId: evidence.teamId ?? null,
+          // COMMERCIAL CLOSURE (2026-09-08) — see the sibling call on
+          // /artifacts/status: eligibility is a per-RECORD question.
+          evidenceOwnerUserId: evidence.ownerUserId ?? null,
+          evidenceVerificationPackageMetadata:
+            evidence.verificationPackageMetadata ?? null,
+        });
+
         const evidenceIntelligence = await buildEvidenceIntelligence({
           evidenceId: id,
           evidence,
           anchor,
           storage,
+          outputs: artifactStatus.outputs,
         });
 
         const forensicCustodyEvents = allCustodyEvents.filter(
@@ -9287,16 +9315,7 @@ const timestampDigestMatches: boolean | null =
         };
 
         const sourceContext = buildSourceContext({ evidence, parts });
-        const artifactStatus = await buildEvidenceArtifactStatus({
-          evidenceId: id,
-          evidenceStatus: evidence.status,
-          evidenceTeamId: evidence.teamId ?? null,
-          // COMMERCIAL CLOSURE (2026-09-08) — see the sibling call on
-          // /artifacts/status: eligibility is a per-RECORD question.
-          evidenceOwnerUserId: evidence.ownerUserId ?? null,
-          evidenceVerificationPackageMetadata:
-            evidence.verificationPackageMetadata ?? null,
-        });
+        // `artifactStatus` is resolved once, above, before its first consumer.
         const primaryCaseId = primaryCaseIdOf(evidence);
         const relatedEvidenceCount = primaryCaseId
           ? await prisma.evidence.count({
@@ -9789,11 +9808,27 @@ const timestampDigestMatches: boolean | null =
         );
         const anchor = await getAnchorStatus(id);
 
+        /*
+         * P1-1 CLOSURE (2026-09-10) — this route had NO canonical output
+         * projection at all, so the intelligence it returns was derived
+         * entirely from artifact-row presence. It resolves the one canonical
+         * answer and hands it in, exactly as the review-workspace route does.
+         */
+        const artifactStatus = await buildEvidenceArtifactStatus({
+          evidenceId: id,
+          evidenceStatus: evidence.status,
+          evidenceTeamId: evidence.teamId ?? null,
+          evidenceOwnerUserId: evidence.ownerUserId ?? null,
+          evidenceVerificationPackageMetadata:
+            evidence.verificationPackageMetadata ?? null,
+        });
+
         const evidenceIntelligence = await buildEvidenceIntelligence({
           evidenceId: id,
           evidence,
           anchor,
           storage,
+          outputs: artifactStatus.outputs,
         });
 
         auditEvidenceAction(req, {
@@ -11841,6 +11876,25 @@ displayName: resolvedDisplayName,
                 terminalReasonClass: packageOutput.terminalReasonClass,
                 message:
                   "The verification package could not be produced for this record and generation has stopped.",
+              });
+            case "NOT_APPLICABLE":
+              /*
+               * P1-3 (2026-09-10) — a RECORD condition, and the two of them end
+               * differently, so they answer differently. Neither borrows the
+               * commercial message above.
+               */
+              return reply.code(409).send({
+                code:
+                  packageOutput.notApplicableReason === "INTEGRITY_FAILED"
+                    ? "verification_package_integrity_failed"
+                    : "verification_package_not_applicable",
+                state: packageOutput.state,
+                reason: packageOutput.notApplicableReason,
+                action: packageOutput.action,
+                message:
+                  packageOutput.notApplicableReason === "INTEGRITY_FAILED"
+                    ? "This record did not pass its integrity check, so no verification package can be produced for it."
+                    : "This record has not been finalized yet, so no verification package exists for it.",
               });
             case "ELIGIBLE_NOT_GENERATED":
               return reply.code(409).send({

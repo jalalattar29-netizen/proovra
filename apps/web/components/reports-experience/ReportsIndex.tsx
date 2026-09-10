@@ -168,6 +168,9 @@ function toReportLifecycle(state: EvidenceOutputState): ReportLifecycle {
       return "failed";
     case "NOT_INCLUDED":
       return "unavailable";
+    case "NOT_APPLICABLE":
+      // P1-3 — mirrors the server-side mapper exactly. See the note there.
+      return "not_requested";
     case "ELIGIBLE_NOT_GENERATED":
     case "BLOCKED":
       return "not_requested";
@@ -186,6 +189,9 @@ function toPackageLifecycle(state: EvidenceOutputState): PackageLifecycle {
       return "failed";
     case "NOT_INCLUDED":
       return "unavailable";
+    case "NOT_APPLICABLE":
+      // P1-3 — mirrors the server-side mapper exactly. See the note there.
+      return "not_requested";
     case "ELIGIBLE_NOT_GENERATED":
     case "BLOCKED":
       return "not_requested";
@@ -1073,6 +1079,24 @@ function ArtifactRowActions({
       ? row.outputs.report.action
       : (row.outputs?.verificationPackage.action ?? "NONE");
 
+  /*
+   * P2-1 (2026-09-10) — WHY THE VERB IS ABSENT, when the status text implies
+   * one should be there.
+   *
+   * The server withdraws the action for a legacy record with no workspace
+   * binding, so `canonicalAction` is already NONE and the button is already
+   * gone. Without this the row would read "Report not generated yet" beside no
+   * way to generate it — true, and unexplained.
+   *
+   * A short note rather than the full sentence: this row already carries two
+   * downloads, a status badge and a link, and Evidence Detail (one click away,
+   * via "Open evidence") states it in full.
+   */
+  const actionWithheldReason =
+    row.outputs?.report.actionUnavailableReason ??
+    row.outputs?.verificationPackage.actionUnavailableReason ??
+    null;
+
   return (
     <div
       className="rpt-row__actions"
@@ -1185,6 +1209,16 @@ function ArtifactRowActions({
       )}
       {/* The audited POST /v1/evidence/:id/reports/regenerate endpoint. One
           request produces BOTH artifacts, so one control covers both. */}
+      {actionWithheldReason === "WORKSPACE_UNRESOLVED" ? (
+        <span
+          className="app-status-badge"
+          data-tone="slate"
+          data-reports-action-withheld={actionWithheldReason}
+          style={{ opacity: 0.7 }}
+        >
+          Needs a workspace association
+        </span>
+      ) : null}
       {canonicalAction !== "NONE" ? (
         <Button
           variant="secondary"

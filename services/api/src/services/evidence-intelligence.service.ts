@@ -7,7 +7,11 @@ import {
   isAccessCustodyEventType,
   normalizeOtsStatusValue,
 } from "@proovra/shared";
-import type { EvidenceIntelligence } from "@proovra/shared";
+import type {
+  EvidenceIntelligence,
+  EvidenceOutputState,
+  OutputNotApplicableReason,
+} from "@proovra/shared";
 
 type EvidenceIntelligenceStorageSummary = {
   immutable: boolean;
@@ -78,7 +82,98 @@ type EvidenceIntelligenceInput = {
   };
   anchor: EvidenceIntelligenceAnchorInput;
   storage: EvidenceIntelligenceStorageSummary;
+  /**
+   * =========================================================================
+   * P1-1 CLOSURE (2026-09-10) — THE CANONICAL OUTPUT STATE, HANDED IN.
+   * =========================================================================
+   * This module used to answer "does this record have its outputs?" from
+   * `reportReady` / `packageReady` — artifact-row presence, with no commercial
+   * or lifecycle input whatsoever. It was therefore a SECOND output authority,
+   * and its answer reached the same page as the canonical one:
+   *
+   *   Artifacts tab   "Reports are not included for this record"   (canonical)
+   *   Overview tab    "Needs review …  Generate the PDF report
+   *                    before external review"                     (this file)
+   *   Risk signals    two WARNING entries                          (this file)
+   *
+   * on one record, at one moment, on one screen.
+   *
+   * It is REQUIRED, not optional. An optional field would let a caller omit it
+   * and silently fall back to the defect; making it required turns every call
+   * site into a compile error until it supplies the one already-resolved
+   * projection, which is what "one decision" means in practice.
+   *
+   * This module still decides NOTHING commercial. It receives the verdict.
+   */
+  outputs: EvidenceIntelligenceOutputs;
 };
+
+/**
+ * The slice of the canonical `EvidenceArtifactStatus.outputs` this module
+ * consumes. Deliberately narrow — a state and a bounded reason per output —
+ * so nothing here can reach for an axis and start re-deriving.
+ */
+export type EvidenceIntelligenceOutputs = {
+  report: {
+    state: EvidenceOutputState;
+    notApplicableReason: OutputNotApplicableReason | null;
+  };
+  verificationPackage: {
+    state: EvidenceOutputState;
+    notApplicableReason: OutputNotApplicableReason | null;
+  };
+};
+
+/**
+ * IS THE ABSENCE OF THIS OUTPUT SOMETHING A REVIEWER CAN ACT ON?
+ *
+ * THE one predicate that replaces `!reportReady`. Three states answer "no" and
+ * they answer it for three different reasons, all of which are the product
+ * working correctly:
+ *
+ *   READY           it is not absent at all.
+ *   NOT_INCLUDED    the plan and this record's funding exclude it. That is a
+ *                   commercial decision the customer made, not a gap in the
+ *                   evidence — and an advisory panel is not a sales surface.
+ *   NOT_APPLICABLE  the record cannot carry the output: it is not finalized,
+ *                   or its integrity check failed. Neither is a review gap,
+ *                   and the integrity case has its own, louder signal.
+ *
+ * Everything else — queued, generating, failed, blocked — genuinely is
+ * something a reviewer wants to know about, and the canonical state says
+ * which.
+ */
+function outputAbsenceIsReviewGap(state: EvidenceOutputState): boolean {
+  switch (state) {
+    case "READY":
+    case "NOT_INCLUDED":
+    case "NOT_APPLICABLE":
+      return false;
+    case "ELIGIBLE_NOT_GENERATED":
+    case "QUEUED":
+    case "GENERATING":
+    case "RETRYABLE_FAILURE":
+    case "TERMINAL_FAILURE":
+    case "BLOCKED":
+      return true;
+  }
+}
+
+/**
+ * Does this output contribute to the readiness SCORE at all?
+ *
+ * Distinct from {@link outputAbsenceIsReviewGap} on purpose. A queued output is
+ * a review gap worth mentioning AND a legitimate zero in the score — the record
+ * is genuinely less ready than one whose artifact exists. But an output the
+ * product never produces for this record must leave the denominator entirely:
+ * scoring it as zero would mean a Free record could never score above 50%, and
+ * the number would be measuring the price plan rather than the evidence.
+ */
+function outputParticipatesInReadinessScore(
+  state: EvidenceOutputState,
+): boolean {
+  return state !== "NOT_INCLUDED" && state !== "NOT_APPLICABLE";
+}
 
 type EventLabelInfo = {
   label: string;
@@ -227,27 +322,64 @@ function buildEvidenceReviewDecision(params: {
   evidence: EvidenceIntelligenceInput["evidence"];
   chainValid: boolean;
   chainMode: string;
-  reportReady: boolean;
-  verificationPackageReady: boolean;
+  outputs: EvidenceIntelligenceOutputs;
   anchorVerified: boolean;
 }): EvidenceIntelligence["reviewerDecision"] {
   const issues: string[] = [];
   const nextActions: string[] = [];
   const statusEvidence = String(params.evidence.status).toUpperCase();
+  const reportState = params.outputs.report.state;
+  const packageState = params.outputs.verificationPackage.state;
+  const reportReady = reportState === "READY";
 
   if (!params.chainValid) {
     issues.push("Custody chain integrity could not be verified.");
     nextActions.push("Review custody event history and reconcile missing event hashes.");
   }
 
-  if (!params.reportReady) {
-    issues.push("Evidence report is not yet generated.");
-    nextActions.push("Generate the PDF report before external review.");
+  /*
+   * P1-1 CLOSURE (2026-09-10) — GATED ON THE CANONICAL STATE, NOT ON ABSENCE.
+   *
+   * This was `if (!params.reportReady)`, which is true of a Free record whose
+   * plan will never produce a report and of an unfinalized upload — and it
+   * pushed "Generate the PDF report before external review" onto the Overview
+   * tab for both. The Artifacts tab, reading the canonical state, was
+   * simultaneously saying reports are not included. One page, two answers.
+   *
+   * The verb also follows the state now: a record whose generation has already
+   * been requested does not need to be told to request it.
+   */
+  if (outputAbsenceIsReviewGap(reportState)) {
+    if (reportState === "ELIGIBLE_NOT_GENERATED") {
+      issues.push("Evidence report is not yet generated.");
+      nextActions.push("Generate the report and verification package before external review.");
+    } else if (reportState === "QUEUED" || reportState === "GENERATING") {
+      issues.push("Evidence report generation is still in progress.");
+    } else {
+      issues.push("Evidence report generation did not complete.");
+      nextActions.push("Open the record's Artifacts tab for the reason and the available action.");
+    }
   }
 
-  if (!params.anchorVerified && !params.verificationPackageReady) {
-    issues.push("Public verification and verification package are not fully available.");
-    nextActions.push("Confirm OpenTimestamps Bitcoin anchoring or generate a package for independent review.");
+  /*
+   * ANCHORING AND THE PACKAGE ARE ONE SENTENCE ONLY WHERE BOTH ARE REAL GAPS.
+   *
+   * The old condition was `!anchorVerified && !packageReady`, so a Free record
+   * with a pending anchor produced "Public verification and verification
+   * package are not fully available" — half of which the customer never bought.
+   *
+   * The package half is dropped entirely when its absence is not a gap, and
+   * with it goes the "generate a package" guidance: there is no standalone
+   * package action in this product. Generation is PAIRED — one request produces
+   * the report and the package — so the only honest verb is the paired one
+   * above, and naming a package-only action here invented a control that does
+   * not exist.
+   */
+  const packageAbsenceIsGap = outputAbsenceIsReviewGap(packageState);
+  if (!params.anchorVerified && packageAbsenceIsGap) {
+    issues.push("Bitcoin anchoring and the verification package are not yet available.");
+  } else if (!params.anchorVerified && !reportReady) {
+    issues.push("Bitcoin anchoring has not been confirmed for this record.");
   }
 
   if (params.evidence.deletedAt) {
@@ -261,7 +393,31 @@ function buildEvidenceReviewDecision(params: {
     };
   }
 
-  if (issues.length === 0 && params.chainValid && params.reportReady) {
+  /*
+   * P1-1 CLOSURE — A TERMINAL INTEGRITY FAILURE IS ITS OWN VERDICT.
+   *
+   * It used to reach the generic "Needs review" tail below and be explained by
+   * whichever issues happened to be in the list — which, before this change,
+   * included "Evidence report is not yet generated". The record's problem is
+   * not a missing report.
+   */
+  if (params.outputs.report.notApplicableReason === "INTEGRITY_FAILED") {
+    return {
+      status: "NEEDS_ATTENTION",
+      label: "Integrity check failed",
+      summary:
+        "The fingerprint recomputed from this record's stored bytes did not match the value recorded when it was completed. It is preserved for inspection and no outputs will be produced from it.",
+      reasons: [
+        "Recomputed fingerprint does not match the value recorded at completion.",
+      ],
+      nextActions: [
+        "Re-upload or re-capture the source material as a new evidence record.",
+      ],
+      tone: "danger",
+    };
+  }
+
+  if (issues.length === 0 && params.chainValid && reportReady) {
     return {
       status: "READY_FOR_EXTERNAL_REVIEW",
       label: "Ready for review",
@@ -277,6 +433,44 @@ function buildEvidenceReviewDecision(params: {
         "Share the verification link with external reviewers.",
         "Provide the generated report as supporting evidence.",
       ],
+      tone: "success",
+    };
+  }
+
+  /*
+   * P1-1 CLOSURE — A RECORD WITHOUT PAID OUTPUTS IS NOT A RECORD THAT NEEDS
+   * ATTENTION.
+   *
+   * Without this branch a finalized Free record fell through to "Needs review"
+   * with the filler reason "Some verification or preservation signals are
+   * incomplete" — marking it deficient for a commercial decision, which is
+   * exactly what §3.2 of the closure forbids. Its custody chain is intact, its
+   * integrity material is complete and its public verification works; the only
+   * thing it lacks is an artifact the plan does not sell.
+   *
+   * Deliberately NOT extended to NOT_APPLICABLE: a record that is not
+   * finalized has not finished becoming evidence, and saying it is ready for
+   * external review would be the opposite error.
+   */
+  if (
+    issues.length === 0 &&
+    params.chainValid &&
+    reportState === "NOT_INCLUDED" &&
+    (statusEvidence === "SIGNED" || statusEvidence === "REPORTED")
+  ) {
+    return {
+      status: "READY_FOR_EXTERNAL_REVIEW",
+      label: "Ready for review",
+      summary:
+        "The evidence record has a verified custody chain and complete integrity material. A PDF report and verification package are not included for this record; its public verification page carries the same integrity evidence.",
+      reasons: [
+        `Custody chain is ${params.chainMode}.`,
+        "Fingerprint, signature and custody materials are recorded.",
+        params.anchorVerified
+          ? "OpenTimestamps Bitcoin anchoring verified."
+          : "Public verification is available for this record.",
+      ],
+      nextActions: ["Share the verification link with external reviewers."],
       tone: "success",
     };
   }
@@ -468,8 +662,7 @@ function buildReviewerAlerts(params: {
   anchor: EvidenceIntelligenceAnchorInput;
   storage: EvidenceIntelligenceStorageSummary;
   chainValid: boolean;
-  reportReady: boolean;
-  verificationPackageReady: boolean;
+  outputs: EvidenceIntelligenceOutputs;
 }): EvidenceIntelligence["reviewerAlerts"] {
   const alerts: EvidenceIntelligence["reviewerAlerts"] = [];
 
@@ -497,19 +690,32 @@ function buildReviewerAlerts(params: {
     });
   }
 
-  if (!params.reportReady) {
+  /*
+   * =======================================================================
+   * P1-1 CLOSURE (2026-09-10) — THESE TWO ARE GONE FROM THIS MODULE.
+   * =======================================================================
+   * They fired on `!reportReady` / `!packageReady` — pure artifact-row
+   * absence — and the route merges this array with the CANONICAL alert block
+   * it builds from `outputs.*.state`. That canonical block deliberately emits
+   * nothing for NOT_INCLUDED, so on every Free record the page showed the two
+   * WARNING signals below and the canonical silence at the same time: the old
+   * authority overruling the new one on the same screen.
+   *
+   * The canonical block already covers every state where an output's absence
+   * IS worth a reviewer's attention (queued, generating, failed, blocked,
+   * eligible-but-ungenerated), with copy keyed to the state. Emitting a second
+   * alert from here could only duplicate it or contradict it.
+   *
+   * What remains here is the INTEGRITY case, which the canonical output block
+   * does not cover because it is not an output condition at all — it is a fact
+   * about the record, and it is the loudest thing on this panel.
+   */
+  if (params.outputs.report.notApplicableReason === "INTEGRITY_FAILED") {
     alerts.push({
-      severity: "warning",
-      label: "Report not ready",
-      detail: "A downloadable evidence report is not yet available.",
-    });
-  }
-
-  if (!params.verificationPackageReady) {
-    alerts.push({
-      severity: "warning",
-      label: "Verification package missing",
-      detail: "A verification package is not currently generated for this record.",
+      severity: "danger",
+      label: "Integrity check failed",
+      detail:
+        "The fingerprint recomputed from the stored bytes does not match the value recorded at completion. No outputs will be produced for this record.",
     });
   }
 
@@ -579,19 +785,47 @@ function buildCustodyTimeline(params: {
     });
 }
 
+/**
+ * The readiness score.
+ *
+ * ---------------------------------------------------------------------------
+ * P1-1 CLOSURE (2026-09-10) — AN OUTPUT THE PRODUCT WILL NEVER MAKE LEAVES THE
+ * DENOMINATOR, RATHER THAN SCORING ZERO.
+ * ---------------------------------------------------------------------------
+ * The score was a fixed four-signal average with `reportReady` and
+ * `packageReady` as two of the four. On a Free record both are permanently
+ * false, so the ceiling was 50% no matter how complete the evidence was — the
+ * number was measuring the price plan. The same was true of a record still
+ * uploading, and of one whose integrity check failed.
+ *
+ * Excluding the signal is the correct fix and zeroing it is not: a record that
+ * is not entitled to an artifact is not LESS PREPARED for review than one that
+ * is; the artifact simply is not part of what preparation means for it. A
+ * QUEUED or FAILED output, by contrast, stays in the denominator and scores
+ * zero, because there the absence really is an incomplete step.
+ */
 function buildLibrarySummary(params: {
   evidence: EvidenceIntelligenceInput["evidence"];
   chainValid: boolean;
-  reportReady: boolean;
-  verificationPackageReady: boolean;
+  outputs: EvidenceIntelligenceOutputs;
   anchorVerified: boolean;
 }): EvidenceIntelligence["librarySummary"] {
-  const signals = [
+  const signals: number[] = [
     params.chainValid ? 1 : 0,
-    params.reportReady ? 1 : 0,
-    params.verificationPackageReady ? 1 : 0,
     params.anchorVerified ? 1 : 0,
   ];
+  if (outputParticipatesInReadinessScore(params.outputs.report.state)) {
+    signals.push(params.outputs.report.state === "READY" ? 1 : 0);
+  }
+  if (
+    outputParticipatesInReadinessScore(
+      params.outputs.verificationPackage.state,
+    )
+  ) {
+    signals.push(
+      params.outputs.verificationPackage.state === "READY" ? 1 : 0,
+    );
+  }
   const score = Math.round((signals.reduce((sum, value) => sum + value, 0) / signals.length) * 100);
 
   return {
@@ -724,8 +958,7 @@ export async function buildEvidenceIntelligence(
       evidence: params.evidence,
       chainValid: chain.valid,
       chainMode: chain.mode,
-      reportReady,
-      verificationPackageReady,
+      outputs: params.outputs,
       anchorVerified: Boolean(
         params.anchor?.transactionId || params.anchor?.anchoredAtUtc
       ),
@@ -738,15 +971,13 @@ export async function buildEvidenceIntelligence(
       anchor: params.anchor,
       storage: params.storage,
       chainValid: chain.valid,
-      reportReady,
-      verificationPackageReady,
+      outputs: params.outputs,
     }),
     custodyTimeline: buildCustodyTimeline({ records: custodyRecords }),
     librarySummary: buildLibrarySummary({
       evidence: params.evidence,
       chainValid: chain.valid,
-      reportReady,
-      verificationPackageReady,
+      outputs: params.outputs,
       anchorVerified: Boolean(
         params.anchor?.transactionId || params.anchor?.anchoredAtUtc
       ),

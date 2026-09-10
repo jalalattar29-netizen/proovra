@@ -21,7 +21,19 @@
 
 import { prisma } from "../../db.js";
 import { evidenceAnalysisRevisionFor } from "../ai/evidence-analysis-snapshot.service.js";
-import { deriveCanonicalArtifactAvailability } from "@proovra/shared";
+import * as prismaPkg from "@prisma/client";
+import {
+  deriveCanonicalArtifactAvailability,
+  // P2-4 — the ONE output state machine. Cases renders its answer; it does not
+  // get a vocabulary of its own and it does not re-derive anything.
+  deriveEvidenceOutputState,
+  projectReportRequestState,
+  type EvidenceOutputState,
+  type OutputGenerationState,
+  type PersistedReportRequestState,
+} from "@proovra/shared";
+import { resolveEvidenceOutputEligibilityByRecord } from "../billing/evidence-output-eligibility.service.js";
+import { resolveOutputRecordApplicability } from "../evidence-artifact-status.service.js";
 import {
   computeCaseRisk,
   listCaseEvidenceIds,
@@ -164,8 +176,33 @@ export type MatterWorkspaceEnvelope = {
          * it. The server recomputes and compares.
          */
         analysisRevision: string;
+        /**
+         * Artifact PRESENCE. Honest, and axis-3 only — it says whether a row
+         * exists and nothing about whether one was ever going to.
+         */
         reportReady: boolean;
         packageReady: boolean;
+        /**
+         * =====================================================================
+         * P2-4 CLOSURE (2026-09-10) — THE CANONICAL OUTPUT STATE, PROJECTED.
+         * =====================================================================
+         * The Cases surfaces read `reportReady` / `packageReady` and rendered
+         * "Report missing", "No report", and a `needsAttention` count from
+         * `!reportReady || !packageReady`. That is the collapsed boolean the
+         * output closure removed everywhere else: it reports a commercial
+         * decision, an unfinalized record and a generation that is running
+         * right now as three instances of the same deficiency.
+         *
+         * The state travels with the row so the Cases client renders the
+         * server's answer instead of inferring one. It is deliberately the
+         * same `EvidenceOutputState` every other surface reads — Cases does
+         * not get its own vocabulary, and it does not call
+         * `deriveEvidenceOutputState` itself.
+         */
+        outputs: {
+          report: { state: EvidenceOutputState };
+          verificationPackage: { state: EvidenceOutputState };
+        };
         /**
          * Phase 32.8D-frontend-closure — the canonical
          * `CaseEvidenceLink.id` for this evidence's link to the case.
@@ -717,8 +754,83 @@ async function runEvidenceBoard(
         displayFileName: true,
         originalFileName: true,
         mimeType: true,
+        // P2-4 — the record's own commercial subject, for the grouped
+        // eligibility resolution below. A case can hold records from more than
+        // one owner, so the subject is a fact about the row.
+        ownerUserId: true,
       },
     });
+
+    /*
+     * P2-4 CLOSURE (2026-09-10) — THE THREE AXES, RESOLVED ONCE FOR THE PAGE.
+     *
+     * Exactly the shape the Reports aggregator uses, and for the same reason:
+     * a surface that renders an output's status needs the commercial axis and
+     * the generation axis, not just the artifact row. Both reads are bounded to
+     * the page's ids, both degrade to an empty map rather than failing the
+     * section, and neither adds a per-row query.
+     */
+    const boardEvidenceIds = items.map((e: { id: string }) => e.id);
+    const [outputEligibility, latestRequests] = await Promise.all([
+      resolveEvidenceOutputEligibilityByRecord(
+        items.map((e) => ({
+          id: e.id,
+          ownerUserId: e.ownerUserId,
+          teamId: e.teamId ?? null,
+        })),
+      ).catch(() => new Map()),
+      (async () => {
+        try {
+          return await prisma.reportGenerationRequest.findMany({
+            where: { evidenceId: { in: boardEvidenceIds } },
+            orderBy: [{ evidenceId: "asc" }, { createdAtUtc: "desc" }],
+            distinct: ["evidenceId"],
+            select: { evidenceId: true, state: true },
+          });
+        } catch {
+          return [] as Array<{ evidenceId: string; state: string }>;
+        }
+      })(),
+    ]);
+    const requestByEvidence = new Map(
+      latestRequests.map((r) => [r.evidenceId, r.state]),
+    );
+
+    /** The canonical output state for one row, from the one state machine. */
+    const outputStatesFor = (e: {
+      id: string;
+      status: unknown;
+      _count: { reports: number; verificationPackages: number };
+    }) => {
+      const eligibility = outputEligibility.get(e.id) ?? null;
+      const persisted = requestByEvidence.get(e.id);
+      const generation: OutputGenerationState = persisted
+        ? projectReportRequestState(persisted as PersistedReportRequestState)
+        : "NOT_REQUESTED";
+      const record = resolveOutputRecordApplicability(
+        e.status as prismaPkg.EvidenceStatus | null,
+      );
+      return {
+        report: {
+          state: deriveEvidenceOutputState({
+            eligibility: eligibility?.reportEligibility ?? "ELIGIBLE",
+            generation,
+            availability: e._count.reports > 0 ? "READY" : "NO_ARTIFACT",
+            record,
+          }),
+        },
+        verificationPackage: {
+          state: deriveEvidenceOutputState({
+            eligibility: eligibility?.packageEligibility ?? "ELIGIBLE",
+            generation,
+            availability:
+              e._count.verificationPackages > 0 ? "READY" : "NO_ARTIFACT",
+            record,
+          }),
+        },
+      };
+    };
+
     // Look up linkId/linkRole/linkSource for the items present so the
     // Evidence Board can offer direct "Unlink" actions per row.
     const links = await prisma.caseEvidenceLink.findMany({
@@ -794,6 +906,8 @@ async function runEvidenceBoard(
           reportAvailable: e._count.reports > 0,
           verificationPackageAvailable: e._count.verificationPackages > 0,
         }),
+        // P2-4 — the canonical state, beside the presence booleans.
+        outputs: outputStatesFor(e),
         linkId: byEv.get(e.id)?.linkId ?? null,
         linkRole: byEv.get(e.id)?.role ? String(byEv.get(e.id)!.role) : null,
         linkSource: byEv.get(e.id)?.source

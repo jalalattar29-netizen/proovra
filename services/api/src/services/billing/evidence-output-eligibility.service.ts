@@ -239,6 +239,83 @@ export async function resolveEvidenceOutputEligibilityMany(input: {
 }
 
 /**
+ * THE COMMERCIAL SUBJECT OF A RECORD, AS A GROUPING KEY.
+ *
+ * A record's commercial subject is the workspace that holds it, and the owner
+ * when it holds none. Two records with the same key resolve to the same plan,
+ * so a page of records needs one resolution per DISTINCT key rather than one
+ * per row.
+ */
+function commercialSubjectKey(record: {
+  ownerUserId: string;
+  teamId: string | null;
+}): string {
+  return `${record.ownerUserId}::${record.teamId ?? ""}`;
+}
+
+/**
+ * Resolve output eligibility for a page of records that may span SEVERAL
+ * commercial subjects.
+ *
+ * ---------------------------------------------------------------------------
+ * P2-2 CLOSURE (2026-09-10) — WHY THIS EXISTS
+ * ---------------------------------------------------------------------------
+ * `resolveEvidenceOutputEligibilityMany` takes ONE subject and applies it to
+ * every id, which is exactly right for a workspace-scoped list and exactly
+ * wrong for a list that crosses workspaces. The user-scoped Reports fallback
+ * (`GET /v1/reports`) returns rows the caller owns OR rows in any workspace
+ * they are an active member of, and it resolved all of them against the
+ * CALLER'S PERSONAL PLAN. A Free-plan member of a Team workspace was therefore
+ * told their Team workspace's records had no report included — the commercial
+ * subject of a record is the workspace that holds it, never the person reading
+ * the page.
+ *
+ * The rows carry their own owner and workspace, so the subject is a fact about
+ * each row. This groups by it and asks the canonical resolver once per distinct
+ * subject: no N+1, and no second commercial calculation.
+ */
+export async function resolveEvidenceOutputEligibilityByRecord(
+  records: ReadonlyArray<{
+    id: string;
+    ownerUserId: string;
+    teamId: string | null;
+  }>,
+): Promise<Map<string, EvidenceOutputEligibility>> {
+  const out = new Map<string, EvidenceOutputEligibility>();
+  if (records.length === 0) return out;
+
+  const bySubject = new Map<
+    string,
+    { ownerUserId: string; teamId: string | null; ids: string[] }
+  >();
+  for (const record of records) {
+    const key = commercialSubjectKey(record);
+    const bucket = bySubject.get(key);
+    if (bucket) bucket.ids.push(record.id);
+    else
+      bySubject.set(key, {
+        ownerUserId: record.ownerUserId,
+        teamId: record.teamId,
+        ids: [record.id],
+      });
+  }
+
+  // Sequential rather than parallel: the number of distinct subjects on one
+  // page is small, and a workspace resolution touches the same tables the
+  // page's own queries do.
+  for (const bucket of bySubject.values()) {
+    const resolved = await resolveEvidenceOutputEligibilityMany({
+      evidenceIds: bucket.ids,
+      ownerUserId: bucket.ownerUserId,
+      teamId: bucket.teamId,
+    });
+    for (const [id, eligibility] of resolved) out.set(id, eligibility);
+  }
+
+  return out;
+}
+
+/**
  * The evidence ids in `evidenceIds` whose outputs are NOT included.
  *
  * Used by the operational-backlog populations, which must not count a record
@@ -262,32 +339,25 @@ export async function selectNonEntitledEvidenceIds(
       select: { id: true, ownerUserId: true, teamId: true },
     });
 
-    // One resolution per distinct workspace, not per record.
-    const byWorkspace = new Map<
-      string,
-      { ownerUserId: string; teamId: string | null; ids: string[] }
-    >();
+    /*
+     * P2-2 CLOSURE (2026-09-10) — one grouping implementation, not two.
+     *
+     * This function grouped by commercial subject inline, and the Reports
+     * fallback needed the same grouping. Two copies of "what is this record's
+     * commercial subject" is how the two come to disagree, so the grouping
+     * moved to `resolveEvidenceOutputEligibilityByRecord` above and this reads
+     * it.
+     */
+    const eligibility = await resolveEvidenceOutputEligibilityByRecord(
+      rows.map((row) => ({
+        id: row.id,
+        ownerUserId: row.ownerUserId,
+        teamId: row.teamId ?? null,
+      })),
+    );
     for (const row of rows) {
-      const key = `${row.ownerUserId}::${row.teamId ?? ""}`;
-      const bucket = byWorkspace.get(key);
-      if (bucket) bucket.ids.push(row.id);
-      else
-        byWorkspace.set(key, {
-          ownerUserId: row.ownerUserId,
-          teamId: row.teamId ?? null,
-          ids: [row.id],
-        });
-    }
-
-    for (const bucket of byWorkspace.values()) {
-      const eligibility = await resolveEvidenceOutputEligibilityMany({
-        evidenceIds: bucket.ids,
-        ownerUserId: bucket.ownerUserId,
-        teamId: bucket.teamId,
-      });
-      for (const id of bucket.ids) {
-        if (eligibility.get(id)?.reportsIncluded === false) excluded.add(id);
-      }
+      if (eligibility.get(row.id)?.reportsIncluded === false)
+        excluded.add(row.id);
     }
   } catch {
     return new Set<string>();

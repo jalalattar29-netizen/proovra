@@ -221,8 +221,13 @@ export default function MarketingPricingPage() {
   };
 
   const freePrice = displayCurrency === "EUR" ? "€0" : "$0";
+  /*
+   * P1-2 CLOSURE (2026-09-10) — a credit has a UNIT price, not a monthly one.
+   * The catalog's `payg` object is the evidence-credit OFFER now, not a plan
+   * row, and `monthlyPriceCents` never described what this column sells.
+   */
   const paygPrice =
-    formatPlanPrice(catalog?.payg?.monthlyPriceCents, displayCurrency) ??
+    formatPlanPrice(catalog?.payg?.unitPriceCents, displayCurrency) ??
     CATALOG_VALUE_UNAVAILABLE;
   const proPrice =
     formatPlanPrice(catalog?.pro?.monthlyPriceCents, displayCurrency) ??
@@ -286,6 +291,14 @@ export default function MarketingPricingPage() {
         "Intake links for collecting evidence you fund with credits",
         "Credits never expire",
         "No subscription — your account stays on Free",
+        /*
+         * P1-2 / PRODUCT OPTION B (2026-09-10) — stated here because the
+         * storage ceiling is the one thing that used to trap a credit
+         * customer, and because the comparison table now shows Free's 250 MB
+         * in this column. A reader who sees that number needs to know the way
+         * past it, and it is not "buy Pro".
+         */
+        "Free storage allowance, with paid storage add-ons once you hold a credit",
       ],
     },
     {
@@ -522,7 +535,18 @@ export default function MarketingPricingPage() {
       label: "Storage included",
       values: [
         catalogValue(catalog?.free?.storageLabel),
-        catalogValue(catalog?.payg?.storageLabel),
+        /*
+         * P1-2 — THE TRUE NUMBER, AND THE REASON IT IS THAT NUMBER.
+         *
+         * This rendered `PLAN_CAPABILITIES.PAYG.includedStorageBytes` — 5 GB —
+         * from a grandfather-resolution row that no purchase path assigns. A
+         * credit buyer's account is Free, so their storage is Free's. Naming
+         * the plan the number comes from is what stops the row reading like a
+         * typo, and the add-on row below says how to raise it.
+         */
+        catalog?.payg?.storageLabel
+          ? `${catalog.payg.storageLabel} (Free account)`
+          : CATALOG_VALUE_UNAVAILABLE,
         catalogValue(catalog?.pro?.storageLabel),
         catalogValue(catalog?.team?.storageLabel),
         "Custom storage envelope",
@@ -532,7 +556,10 @@ export default function MarketingPricingPage() {
       label: "Storage add-ons",
       values: [
         "Not available",
-        "Not available",
+        // PRODUCT OPTION B (2026-09-10) — available to an evidence-credit
+        // customer, whose subscription stays Free. The server decides it
+        // (`resolveStorageAddonEntitlement`); this row states it.
+        "Monthly, from +10 GB",
         "Monthly, from +10 GB",
         "Monthly, from +100 GB",
         "Contract storage",
@@ -584,7 +611,11 @@ export default function MarketingPricingPage() {
       label: "AI assistance (advisory)",
       values: [
         "Not included",
-        `${catalogValue(catalog?.payg?.aiAdvisoryMonthlyOperations)} ops / month`,
+        // P1-2 — Free's allowance, because a credit buyer is on Free. This
+        // published 50 from the grandfather row.
+        catalog?.payg?.aiAdvisoryMonthlyOperations != null
+          ? `${catalog.payg.aiAdvisoryMonthlyOperations} ops / month (Free account)`
+          : CATALOG_VALUE_UNAVAILABLE,
         `${catalogValue(catalog?.pro?.aiAdvisoryMonthlyOperations)} ops / month`,
         `${catalogValue(catalog?.team?.aiAdvisoryMonthlyOperations)} ops / month`,
         "Custom AI assistance",

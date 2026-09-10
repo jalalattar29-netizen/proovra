@@ -68,6 +68,11 @@ function databaseWith(present: {
   workspaceClosedAtColumn?: boolean;
   inviteTokenHashColumn?: boolean;
   inviteRevokedAtColumn?: boolean;
+  // P3-9 — the output/commercial tables and their load-bearing uniqueness.
+  reportGenerationRequestsTable?: boolean;
+  reportGenerationRequestsIdempotencyUnique?: boolean;
+  evidenceCreditLedgerTable?: boolean;
+  evidenceCreditLedgerEvidenceIdUnique?: boolean;
 }) {
   return async (sql: string): Promise<boolean> => {
     if (sql.includes("WORKSPACE_OPERATIONS")) return present.reconciliationEnumValue === true;
@@ -101,6 +106,26 @@ function databaseWith(present: {
     if (sql.includes("table_name = 'team_invites'") && sql.includes("revoked_at")) {
       return present.inviteRevokedAtColumn === true;
     }
+    /*
+     * P3-9 (2026-09-10) — the two tables the whole output experience rests on,
+     * and the two uniqueness properties that make them correct.
+     *
+     * The UNIQUE-index probes are matched FIRST and are told apart by the
+     * column they assert on, because a name match would not distinguish them:
+     * both are `pg_index` queries and both name a table.
+     */
+    if (sql.includes("indisunique") && sql.includes("idempotency_key")) {
+      return present.reportGenerationRequestsIdempotencyUnique === true;
+    }
+    if (sql.includes("indisunique") && sql.includes("evidence_id")) {
+      return present.evidenceCreditLedgerEvidenceIdUnique === true;
+    }
+    if (sql.includes("table_name = 'report_generation_requests'")) {
+      return present.reportGenerationRequestsTable === true;
+    }
+    if (sql.includes("table_name = 'evidence_credit_ledger_entries'")) {
+      return present.evidenceCreditLedgerTable === true;
+    }
     throw new Error(`unrecognised probe:\n${sql}`);
   };
 }
@@ -114,6 +139,10 @@ const FULLY_MIGRATED = {
   workspaceClosedAtColumn: true,
   inviteTokenHashColumn: true,
   inviteRevokedAtColumn: true,
+  reportGenerationRequestsTable: true,
+  reportGenerationRequestsIdempotencyUnique: true,
+  evidenceCreditLedgerTable: true,
+  evidenceCreditLedgerEvidenceIdUnique: true,
 };
 
 describe("runtime schema requirements", () => {
@@ -132,8 +161,26 @@ describe("runtime schema requirements", () => {
     // …and states the ORDER, because applying them the other way round is the
     // mistake the message exists to prevent.
     expect(reason).toContain("20271222000000, commit, then 20271223000000");
-    // BOUNDED: an operator has to be able to read it.
-    expect(reason.split("\n").length).toBeLessThan(30);
+    /*
+     * BOUNDED: an operator has to be able to read it.
+     *
+     * P3-9 (2026-09-10) — expressed PER REQUIREMENT rather than as a flat 30.
+     *
+     * The flat bound was calibrated when there were eight requirements and
+     * broke at twelve, which would have made every future declaration a
+     * choice between adding a requirement and bumping a magic number — and
+     * bumping it is how a bound stops meaning anything.
+     *
+     * The property that actually matters is that the message stays THREE lines
+     * per missing object (the detail, why it is needed, which migration
+     * supplies it) plus a header and the ordering footer. That is what makes it
+     * readable, and it fails if a requirement starts contributing a paragraph.
+     */
+    const LINES_PER_REQUIREMENT = 3;
+    const FIXED_OVERHEAD = 4;
+    expect(reason.split("\n").length).toBeLessThanOrEqual(
+      result.missing.length * LINES_PER_REQUIREMENT + FIXED_OVERHEAD,
+    );
   });
 
   it("the FULLY MIGRATED schema is accepted", async () => {
@@ -263,6 +310,75 @@ describe("runtime schema requirements", () => {
     for (const catalog of ["pg_type", "pg_enum", "information_schema.columns", "pg_indexes"]) {
       expect(probes).toContain(catalog);
     }
+  });
+});
+
+/**
+ * P3-9 (2026-09-10) — NEGATIVE CONTRACTS FOR THE OUTPUT/COMMERCIAL TABLES.
+ *
+ * Each of these was a silent failure before the declaration existed: every
+ * reader of `report_generation_requests` catches its own errors (a missing row
+ * is a normal state), so an absent TABLE produced no error anywhere — just a
+ * product where nothing had ever been requested and nothing could be. These
+ * tests are what make "the preflight refuses it" a fact rather than a claim.
+ */
+describe("runtime schema requirements — output and commercial tables", () => {
+  it("a database without report_generation_requests is REFUSED, and says which migration", async () => {
+    const { checkRuntimeSchemaRequirements, describeRuntimeSchemaFailure } =
+      await load();
+    const result = await checkRuntimeSchemaRequirements(
+      databaseWith({ ...FULLY_MIGRATED, reportGenerationRequestsTable: false }),
+    );
+    expect(
+      result.ok,
+      "a database with no generation-request table must not be reported healthy",
+    ).toBe(false);
+    const reason = describeRuntimeSchemaFailure(result);
+    expect(reason).toContain('table public."report_generation_requests" must exist');
+    expect(reason).toContain("20271113000000_point5_report_generation_authority");
+  });
+
+  it("the table WITHOUT its unique idempotency key is REFUSED", async () => {
+    // The table alone is not the requirement: without the unique index two
+    // concurrent callers both insert, and two runnable requests race for one
+    // artifact version.
+    const { checkRuntimeSchemaRequirements, describeRuntimeSchemaFailure } =
+      await load();
+    const result = await checkRuntimeSchemaRequirements(
+      databaseWith({
+        ...FULLY_MIGRATED,
+        reportGenerationRequestsIdempotencyUnique: false,
+      }),
+    );
+    expect(result.ok).toBe(false);
+    expect(describeRuntimeSchemaFailure(result)).toContain("idempotency_key");
+  });
+
+  it("a database without evidence_credit_ledger_entries is REFUSED", async () => {
+    const { checkRuntimeSchemaRequirements, describeRuntimeSchemaFailure } =
+      await load();
+    const result = await checkRuntimeSchemaRequirements(
+      databaseWith({ ...FULLY_MIGRATED, evidenceCreditLedgerTable: false }),
+    );
+    expect(result.ok).toBe(false);
+    expect(describeRuntimeSchemaFailure(result)).toContain(
+      'table public."evidence_credit_ledger_entries" must exist',
+    );
+  });
+
+  it("the credit ledger WITHOUT its unique evidence_id is REFUSED", async () => {
+    // This uniqueness is the serialization point for credit spend. Without it a
+    // retried completion can charge a customer twice for one capture.
+    const { checkRuntimeSchemaRequirements, describeRuntimeSchemaFailure } =
+      await load();
+    const result = await checkRuntimeSchemaRequirements(
+      databaseWith({
+        ...FULLY_MIGRATED,
+        evidenceCreditLedgerEvidenceIdUnique: false,
+      }),
+    );
+    expect(result.ok).toBe(false);
+    expect(describeRuntimeSchemaFailure(result)).toContain("evidence_id");
   });
 });
 

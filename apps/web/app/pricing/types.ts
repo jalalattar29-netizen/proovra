@@ -71,10 +71,51 @@ export type PricingEnterpriseCatalog = {
   enterpriseFeatures?: EnterpriseFeatureFlags;
 };
 
+/**
+ * The Pay-per-evidence OFFER. Deliberately NOT a `PricingCatalogPlan`.
+ *
+ * P1-2 CLOSURE (2026-09-10). It used to be one, projected from
+ * `PLAN_CAPABILITIES.PAYG` — a grandfather-resolution row that no write path
+ * assigns and that the catalog itself forbids advertising. The page therefore
+ * published 5 GB of storage and 50 AI operations a month to a customer who
+ * receives FREE's 250 MB and 10.
+ *
+ * Giving the offer its own type is what stops that recurring: a credit pack is
+ * not a subscription tier, and a shape that cannot be mistaken for one cannot
+ * be rendered as one. The subscription-level numbers it does carry are FREE's,
+ * because that is the plan a credit buyer is on.
+ */
+export type PricingEvidenceCreditOffer = {
+  productKey: "EVIDENCE_CREDIT";
+  displayName: string;
+  pricingModel: "PER_CREDIT";
+  unitPriceCents: number;
+  creditsGrantedPerPurchase: number;
+  creditsRequiredPerCompletion: number;
+  creditsExpire: false;
+  /** The underlying subscription. Always FREE — buying credits changes no plan. */
+  plan: "FREE";
+  requiresSubscription: false;
+  /** What ONE credit-funded record earns. Per record, never per account. */
+  perFundedRecord: {
+    reportIncluded: boolean;
+    verificationPackageIncluded: boolean;
+    publicVerifyIncluded: boolean;
+  };
+  /** Subscription-level entitlements, which stay FREE's. */
+  storageBytes: string;
+  storageLabel: string;
+  aiAdvisoryMonthlyOperations: number | null;
+  intakeIncluded: boolean;
+  casesIncluded: boolean;
+  /** PRODUCT OPTION B — an evidence-credit customer may buy storage add-ons. */
+  storageAddonsPurchasable: boolean;
+};
+
 export type PricingCatalogResponse = {
   currency: "USD" | "EUR";
   free: PricingCatalogPlan;
-  payg: PricingCatalogPlan;
+  payg: PricingEvidenceCreditOffer;
   pro: PricingCatalogPlan;
   team: PricingCatalogPlan;
   enterprise?: PricingEnterpriseCatalog;

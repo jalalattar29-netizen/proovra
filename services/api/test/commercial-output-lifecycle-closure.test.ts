@@ -204,7 +204,7 @@ describe("output eligibility is a per-record question", () => {
 // ===========================================================================
 
 describe("the output state machine", () => {
-  const finalized = true;
+  const record = "FINALIZED" as const;
 
   it("an excluded output is NOT_INCLUDED, never pending", () => {
     // THE headline defect: a Free finalized record reported `pending: true`
@@ -214,7 +214,7 @@ describe("the output state machine", () => {
         eligibility: "NOT_INCLUDED",
         generation: "NOT_REQUESTED",
         availability: "NO_ARTIFACT",
-        finalized,
+        record,
       }),
     ).toBe("NOT_INCLUDED");
   });
@@ -224,7 +224,7 @@ describe("the output state machine", () => {
       eligibility: "ELIGIBLE",
       generation: "NOT_REQUESTED",
       availability: "NO_ARTIFACT",
-      finalized,
+      record,
     });
     expect(state).toBe("ELIGIBLE_NOT_GENERATED");
     expect(outputActionFor({ state, eligibility: "ELIGIBLE" })).toBe("GENERATE");
@@ -237,7 +237,7 @@ describe("the output state machine", () => {
       eligibility: "NOT_INCLUDED",
       generation: "NOT_REQUESTED",
       availability: "READY",
-      finalized,
+      record,
     });
     expect(state).toBe("READY");
     expect(outputActionFor({ state, eligibility: "NOT_INCLUDED" })).toBe("NONE");

@@ -1833,6 +1833,34 @@ function buildCertificationSummary(params: {
   };
 }
 
+/**
+ * =============================================================================
+ * P3-1 CLOSURE (2026-09-10) — A CLAIM ABOUT AN ARCHIVE MUST READ THE ARCHIVE.
+ * =============================================================================
+ * `status` had five fields hard-coded `true`: `reportArtifactIncluded`,
+ * `certificationTemplateIncluded`, `originalLinkageIncluded`,
+ * `caseMetadataIncluded` and `verificationInstructionsIncluded`. Two of those
+ * describe entries the builder appends CONDITIONALLY —
+ * `createVerificationPackage`'s `reportPdf` parameter is optional, and the
+ * linkage and case blocks depend on inputs that can be absent.
+ *
+ * Today the single caller always supplies a report, so `true` happened to be
+ * accurate. That is the least reassuring possible reason for a forensic
+ * artifact to be correct: the file is called
+ * `court-admissibility-checklist.json`, an external reviewer reads it as an
+ * inventory of what they are holding, and the fields were asserting rather
+ * than reporting. A future caller — an exchange variant, a redacted export, a
+ * partial rebuild — would have made the archive lie about itself.
+ *
+ * The presence facts are now INPUTS, resolved by the caller from the same
+ * values it uses to decide whether to append each entry. `buildArtifactBoundaries`
+ * already took `reportIncluded` that way and was the model.
+ *
+ * The four that remain `true` are unconditional appends: hashes, signature,
+ * public key, the checksum manifest and the manifest digest are written on
+ * every path with no branch, and the custody split is performed for every
+ * package. Those are structural properties of the builder, not of its inputs.
+ */
 function buildCourtReadinessChecklist(params: {
   evidenceFiles: VerificationEvidenceFile[];
   hasTimestampToken: boolean;
@@ -1840,6 +1868,14 @@ function buildCourtReadinessChecklist(params: {
   forensicCustodyCount: number;
   accessActivityCount: number;
   metadata: VerificationPackageMetadata;
+  /** Whether the PDF report was actually appended to this archive. */
+  reportIncluded: boolean;
+  /** Whether a custodian-declaration template was appended. */
+  certificationTemplateIncluded: boolean;
+  /** Whether `original-linkage.json` was appended. */
+  originalLinkageIncluded: boolean;
+  /** Whether `case-metadata.json` was appended. */
+  caseMetadataIncluded: boolean;
   certifications?: {
     custodian?: VerificationCertificationRecord | null;
     qualifiedPerson?: VerificationCertificationRecord | null;
@@ -1851,22 +1887,24 @@ function buildCourtReadinessChecklist(params: {
     packetProfile: "COURT_READY_SUPPORTING_PACKET",
     status: {
       preservedOriginalIncluded: params.evidenceFiles.length > 0,
+      // Unconditional appends — see the note above.
       hashMaterialIncluded: true,
       signatureMaterialIncluded: true,
       publicKeyIncluded: true,
-      timestampIncluded: params.hasTimestampToken,
-      anchorIncluded: params.anchorIncluded,
       forensicCustodySeparated: true,
       accessActivitySeparated: true,
       auditAccessReportIncluded: true,
       packageChecksumManifestIncluded: true,
       packageManifestDigestIncluded: true,
       verificationInstructionsIncluded: true,
-      reportArtifactIncluded: true,
-      certificationTemplateIncluded: true,
       systemProcessDeclarationIncluded: true,
-      originalLinkageIncluded: true,
-      caseMetadataIncluded: true,
+      // Conditional appends — reported, not asserted.
+      timestampIncluded: params.hasTimestampToken,
+      anchorIncluded: params.anchorIncluded,
+      reportArtifactIncluded: params.reportIncluded,
+      certificationTemplateIncluded: params.certificationTemplateIncluded,
+      originalLinkageIncluded: params.originalLinkageIncluded,
+      caseMetadataIncluded: params.caseMetadataIncluded,
     },
     remainingHumanRequirements: [
       "Custodian declaration or qualified-person certification must be completed for court-facing use.",
@@ -2763,6 +2801,26 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
           forensicCustodyCount: custodySplit.forensic.length,
           accessActivityCount: custodySplit.access.length,
           metadata,
+          /*
+           * P3-1 — the presence facts, from the same values that decide the
+           * appends.
+           *
+           * `reportIncluded` is the one that could differ: the `reports/…pdf`
+           * entry above is guarded by `if (data.reportPdf)`, and the parameter
+           * is optional, so the checklist's old hard-coded `true` was a claim
+           * the archive could contradict. It is the SAME expression
+           * `buildArtifactBoundaries` is given three lines up, deliberately —
+           * two files describing the same archive must not disagree.
+           *
+           * The other three are appended unconditionally on every path, and
+           * they are stated here rather than inside the builder so that
+           * removing or guarding one of those appends forces this line to
+           * change with it.
+           */
+          reportIncluded: Boolean(data.reportPdf),
+          certificationTemplateIncluded: true,
+          originalLinkageIncluded: true,
+          caseMetadataIncluded: true,
           certifications: data.certifications,
         })
       ),

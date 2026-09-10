@@ -360,23 +360,71 @@ test("formatRelative produces a stable short-month date string", () => {
   assert.equal(formatRelative("not-a-date"), "—");
 });
 
-test("summariseDeliverables counts reportReady + packageReady + needs-attention from the envelope", () => {
+/**
+ * P2-4 (2026-09-10) — the fixture now carries the CANONICAL OUTPUT STATE,
+ * because that is what the product sends and what the helper reads.
+ *
+ * It used to carry only the two artifact-presence booleans, and the helper
+ * counted "either one absent" as case work outstanding. That is the defect
+ * this closure removed: it reports a commercial exclusion, an unfinalized
+ * record and a generation running at that instant as three instances of one
+ * deficiency.
+ *
+ * The assertions are STRENGTHENED rather than relaxed — row 4 is the case the
+ * old shape could not express at all.
+ */
+test("summariseDeliverables counts readiness from presence and attention from the canonical state", () => {
+  const outputs = (report: string, pkg: string) =>
+    ({
+      report: { state: report },
+      verificationPackage: { state: pkg },
+    }) as never;
   const fakeEnvelope = {
     sections: {
       evidence: {
         status: "ok",
         items: [
-          { id: "1", reportReady: true, packageReady: true },
-          { id: "2", reportReady: true, packageReady: false },
-          { id: "3", reportReady: false, packageReady: false },
+          // Both artifacts exist. Nothing outstanding.
+          {
+            id: "1",
+            reportReady: true,
+            packageReady: true,
+            outputs: outputs("READY", "READY"),
+          },
+          // Report done, package still building. IN PROGRESS is not attention:
+          // the system owes the answer and is producing it.
+          {
+            id: "2",
+            reportReady: true,
+            packageReady: false,
+            outputs: outputs("READY", "GENERATING"),
+          },
+          // Entitled, nothing generated. This IS outstanding work: it has an
+          // action behind it and someone can clear it.
+          {
+            id: "3",
+            reportReady: false,
+            packageReady: false,
+            outputs: outputs("ELIGIBLE_NOT_GENERATED", "ELIGIBLE_NOT_GENERATED"),
+          },
+          // The row the OLD shape could not express: the plan does not include
+          // these outputs. Counting it was the defect.
+          {
+            id: "4",
+            reportReady: false,
+            packageReady: false,
+            outputs: outputs("NOT_INCLUDED", "NOT_INCLUDED"),
+          },
         ],
       },
     },
   } as unknown as Parameters<typeof summariseDeliverables>[0];
   const r = summariseDeliverables(fakeEnvelope);
+  // Presence counts are unchanged — they are honest axis-3 facts.
   assert.equal(r.reportsReady, 2);
   assert.equal(r.packagesReady, 1);
-  assert.equal(r.needsAttention, 2);
+  // ONLY row 3. Not row 2 (in flight) and not row 4 (not included).
+  assert.equal(r.needsAttention, 1);
 });
 
 test("deriveNeedsAttention surfaces the no-evidence empty branch first", () => {
@@ -389,13 +437,41 @@ test("deriveNeedsAttention surfaces the no-evidence empty branch first", () => {
 });
 
 test("deriveNeedsAttention itemises missing-report / missing-package / integrity in order", () => {
+  /*
+   * P2-4 (2026-09-10) — the ORDER contract is unchanged and still asserted;
+   * what changed is WHICH rows qualify, and the fixture now says so.
+   *
+   * Row 1 is entitled with nothing generated — real outstanding work, and the
+   * row that produces both output items. The integrity item is independent of
+   * the output state and rides on `verificationStatus`, exactly as before.
+   */
+  const outputs = (report: string, pkg: string) =>
+    ({
+      report: { state: report },
+      verificationPackage: { state: pkg },
+    }) as never;
   const fake = {
     sections: {
       evidence: {
         status: "ok",
         items: [
-          { id: "1", reportReady: false, packageReady: false, verificationStatus: "FAILED" },
-          { id: "2", reportReady: true, packageReady: true, verificationStatus: "RECORDED_INTEGRITY_VERIFIED" },
+          {
+            id: "1",
+            reportReady: false,
+            packageReady: false,
+            verificationStatus: "FAILED",
+            outputs: outputs(
+              "ELIGIBLE_NOT_GENERATED",
+              "ELIGIBLE_NOT_GENERATED",
+            ),
+          },
+          {
+            id: "2",
+            reportReady: true,
+            packageReady: true,
+            verificationStatus: "RECORDED_INTEGRITY_VERIFIED",
+            outputs: outputs("READY", "READY"),
+          },
         ],
       },
     },
@@ -403,6 +479,51 @@ test("deriveNeedsAttention itemises missing-report / missing-package / integrity
   const r = deriveNeedsAttention(fake);
   const keys = r.map((i) => i.key);
   assert.deepEqual(keys, ["missing-report", "missing-package", "integrity"]);
+});
+
+test("deriveNeedsAttention does NOT report an excluded output as case work", () => {
+  /*
+   * THE DEFECT THIS CLOSES, as its own named case.
+   *
+   * A record whose plan does not include reports produced "1 evidence record is
+   * missing a report" in the customer's own case file — permanently, with no
+   * action behind it. On a downgraded workspace every record in every case
+   * counted, and the number could never be reduced.
+   *
+   * The integrity item still fires, which is what proves the fixture is live
+   * and the assertion is not passing on an empty list.
+   */
+  const fake = {
+    sections: {
+      evidence: {
+        status: "ok",
+        items: [
+          {
+            id: "1",
+            reportReady: false,
+            packageReady: false,
+            verificationStatus: "FAILED",
+            outputs: {
+              report: { state: "NOT_INCLUDED" },
+              verificationPackage: { state: "NOT_INCLUDED" },
+            },
+          },
+          {
+            id: "2",
+            reportReady: false,
+            packageReady: false,
+            verificationStatus: "RECORDED_INTEGRITY_VERIFIED",
+            outputs: {
+              report: { state: "NOT_APPLICABLE" },
+              verificationPackage: { state: "NOT_APPLICABLE" },
+            },
+          },
+        ],
+      },
+    },
+  } as unknown as Parameters<typeof deriveNeedsAttention>[0];
+  const keys = deriveNeedsAttention(fake).map((i) => i.key);
+  assert.deepEqual(keys, ["integrity"]);
 });
 
 // ===========================================================================

@@ -5,6 +5,7 @@ import { useLocale } from "../../../src/locale-context";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../../../src/api";
+import type { EvidenceOutputState } from "@proovra/shared";
 
 /**
  * Phase 12 Point 4 (Pass E) — the on-screen "AI Analysis" section was
@@ -20,12 +21,66 @@ import { apiFetch } from "../../../src/api";
  * mobile intelligence surface is product work, not dead-code cleanup.
  */
 
+/**
+ * P2-3 CLOSURE (2026-09-10) — one sentence per canonical output state.
+ *
+ * TOTAL over `EvidenceOutputState` (imported from @proovra/shared — mobile
+ * holds no vocabulary of its own), so a state added to the product is a
+ * compile error here rather than a blank card on a phone.
+ *
+ * `null` is the honest "we could not read the status" case, and it is
+ * deliberately not folded into any real state: not knowing is not the same as
+ * knowing there is nothing.
+ */
+function reportStateMessage(state: EvidenceOutputState | null): string {
+  switch (state) {
+    case null:
+      return "Report status is unavailable right now. Pull to refresh, or open this record on the web app.";
+    case "READY":
+      // Reached only if the URL could not be minted; the button is hidden.
+      return "The report is ready. Open this record on the web app to download it.";
+    case "NOT_INCLUDED":
+      return "A report and verification package are not included for this record. Its integrity materials and public verification are unaffected.";
+    case "NOT_APPLICABLE":
+      return "A report becomes available once this record is finalized.";
+    case "ELIGIBLE_NOT_GENERATED":
+      return "No report has been generated for this record yet. Generate one from the web app.";
+    case "QUEUED":
+    case "GENERATING":
+      return "The report is being generated. It will be available here shortly.";
+    case "RETRYABLE_FAILURE":
+      return "The last attempt to generate the report did not complete. The evidence record and its integrity state are unaffected.";
+    case "TERMINAL_FAILURE":
+      return "Report generation stopped for this record. Open it on the web app for the reason.";
+    case "BLOCKED":
+      return "Report generation is blocked for this record by a governance or lifecycle decision.";
+  }
+}
+
 export default function EvidenceDetailScreen() {
   const { t, fontFamilyBold, fontFamily, isRTL } = useLocale();
   const params = useLocalSearchParams<{ id?: string }>();
 
   const [status, setStatus] = useState<string>("SIGNED");
   const [reportUrl, setReportUrl] = useState<string | null>(null);
+  /*
+   * P2-3 CLOSURE (2026-09-10) — THE SERVER'S CANONICAL OUTPUT STATE.
+   *
+   * This screen had only `reportUrl`, and it rendered an ALWAYS-ENABLED
+   * "Download Report" whose handler was `if (reportUrl) …`. On every record
+   * without a report — which is every record on Free — pressing it did nothing
+   * at all, with no message. A control that silently no-ops is worse than an
+   * absent one: the customer concludes the app is broken rather than that the
+   * artifact does not exist.
+   *
+   * The state comes from the SAME projection web reads
+   * (`GET /v1/evidence/:id/artifacts/status`). Mobile reimplements no plan
+   * logic and holds no enum of its own — `EvidenceOutputState` is imported
+   * from @proovra/shared, which this app already depends on.
+   */
+  const [reportState, setReportState] = useState<EvidenceOutputState | null>(
+    null,
+  );
   const [createdAt, setCreatedAt] = useState<string | null>(null);
   const [type, setType] = useState<string>("Evidence");
   const [fileSha, setFileSha] = useState<string | null>(null);
@@ -44,9 +99,30 @@ export default function EvidenceDetailScreen() {
       })
       .catch(() => setStatus("SIGNED"));
 
-    apiFetch(`/v1/evidence/${params.id}/report/latest`)
-      .then((data) => setReportUrl(data.url ?? null))
-      .catch(() => setReportUrl(null));
+    /*
+     * P2-3 — the STATE first, then the URL only when the state says READY.
+     *
+     * `/report/latest` emits custody and audit events for a real download, so
+     * calling it speculatively on every screen open recorded a download that
+     * nobody performed. The status endpoint is explicitly side-effect free and
+     * is the one this screen should have been reading.
+     */
+    apiFetch(`/v1/evidence/${params.id}/artifacts/status`)
+      .then((data) => {
+        const next = data?.outputs?.report?.state ?? null;
+        setReportState(next);
+        if (next !== "READY") {
+          setReportUrl(null);
+          return;
+        }
+        return apiFetch(`/v1/evidence/${params.id}/report/latest`)
+          .then((report) => setReportUrl(report.url ?? null))
+          .catch(() => setReportUrl(null));
+      })
+      .catch(() => {
+        setReportState(null);
+        setReportUrl(null);
+      });
   }, [params.id]);
 
   const statusTone = useMemo(() => {
@@ -107,14 +183,38 @@ export default function EvidenceDetailScreen() {
             verification-link fetch anywhere in apps/mobile, and the
             evidence detail response this screen reads carries no share
             URL. Building one is product work, not dead-code cleanup. */}
-        <View style={styles.buttonRow}>
-          <Button
-            label={t("downloadReport")}
-            onPress={() => {
-              if (reportUrl) void Linking.openURL(reportUrl);
-            }}
-          />
-        </View>
+        {/*
+          P2-3 CLOSURE (2026-09-10) — THE CONTROL EXISTS ONLY WHEN IT WORKS.
+
+          The button was rendered unconditionally and enabled, with
+          `onPress = () => { if (reportUrl) … }`. On any record without a report
+          it did nothing and said nothing. It now appears only when the server
+          says READY and a URL was minted; every other state renders the
+          server-derived sentence instead, so the screen always explains itself.
+
+          Hidden rather than disabled because the mobile `Button` primitive has
+          no disabled affordance, and adding one to show a control that can
+          never be pressed on this screen would be the same dead button with a
+          lower opacity.
+        */}
+        {reportState === "READY" && reportUrl ? (
+          <View style={styles.buttonRow}>
+            <Button
+              label={t("downloadReport")}
+              onPress={() => {
+                void Linking.openURL(reportUrl);
+              }}
+            />
+          </View>
+        ) : (
+          <Card style={[styles.darkCard, { marginTop: spacing.md }]}>
+            <Text
+              style={[styles.k, { fontFamily, textAlign: isRTL ? "right" : "left" }]}
+            >
+              {reportStateMessage(reportState)}
+            </Text>
+          </Card>
+        )}
       </ScrollView>
 
       <BottomNav />

@@ -86,7 +86,7 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 353,
+    "AuditFilesInventoried": 356,
     "AuditFilesUnclassified": 0,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
@@ -139,7 +139,7 @@
     "ProductionRuntimeFilesModifiedByPhase0": 0,
     "ProductBehaviorTestsRemoved": 0,
     "HistoricalMigrationsModifiedByPhase0": 0,
-    "ProductBehaviorTestsInventoried": 204
+    "ProductBehaviorTestsInventoried": 206
   },
   "reportRoles": {
     "counts": {
@@ -158,14 +158,14 @@
     }
   },
   "byRole": {
-    "PRODUCT_BEHAVIOR_TEST": 204,
+    "PRODUCT_BEHAVIOR_TEST": 206,
     "CONTINUATION_CHECKPOINT": 1,
+    "DOMAIN_AUTHORITY": 69,
     "GENERATED_CURRENT_ARTIFACT": 3,
     "LEDGER_VALIDATOR_OR_GENERATOR": 1,
     "GENERATED_LEDGER_RENDERING": 2,
     "CANONICAL_LEDGER_SOURCE": 1,
     "CURRENT_GENERATED_REPORT": 1,
-    "DOMAIN_AUTHORITY": 68,
     "DIAGNOSTIC_NOT_AUTHORITY": 1,
     "HISTORY_TREE_MARKER": 1,
     "HISTORICAL_REPORT": 23,
@@ -620,6 +620,21 @@
       "path": "audit-output/current/CONTINUATION-CHECKPOINT.md",
       "role": "CONTINUATION_CHECKPOINT",
       "reason": "The ONE resume note for work in progress. It states where execution stopped and what runs next; it is not a report and asserts no count of its own — every number in it is copied from the generated facts and is re-derivable by running the engine.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "audit-output/current/admin-enterprise-product-audit.json",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Curated architecture artifact for a single domain, consumed rather than re-derived.",
       "imports": [],
       "importedBy": [],
       "spawns": [],
@@ -3312,6 +3327,21 @@
       "disposition": "RETAINED"
     },
     {
+      "path": "services/api/test/commercial-output-verify-closure.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
       "path": "services/api/test/commercial-plan-authority-drift.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
@@ -5698,6 +5728,21 @@
     },
     {
       "path": "services/api/test/technical-metadata-verify-projection.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/tsa-no-retry-repo-wide.gate.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],

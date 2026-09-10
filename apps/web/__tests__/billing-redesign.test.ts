@@ -1024,7 +1024,22 @@ test("FREE storage says a plan is what the button opens", () => {
   const projection = readRaw(
     "../../../services/api/src/services/billing/billing-account-projection.service.ts",
   );
-  assert.match(projection, /Additional storage is available with Pro and Team\./);
+  /*
+   * P1-2 / PRODUCT OPTION B (2026-09-10) — the sentence now names BOTH routes.
+   *
+   * It used to end at "…with Pro and Team.", and that was the customer-facing
+   * half of the evidence-credit dead end: a Free account looking at a full
+   * meter was told the only way up was a subscription, while the cheaper route
+   * — buy an evidence credit, then buy storage — existed and was not mentioned.
+   *
+   * Still pinned strictly, and still asserted on the SERVER: the point of the
+   * original test is that the page does not compose this reason, and that is
+   * unchanged.
+   */
+  assert.match(
+    projection,
+    /Additional storage is available with Pro and Team, and with Pay-per-evidence once you have bought an evidence credit\./,
+  );
 });
 
 test("a scheduled downgrade is stated before the plan can be misread", () => {

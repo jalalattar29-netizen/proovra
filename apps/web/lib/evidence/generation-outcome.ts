@@ -78,6 +78,10 @@ const FALLBACK_MESSAGE: Record<GenerationRequestOutcome, string> = {
   REQUEST_PERSIST_FAILED:
     "We could not record the request. Please try again; the record is unaffected.",
   EVIDENCE_NOT_FOUND: "This evidence record is not available.",
+  // P2-1 (2026-09-10) — this used to be answered with the sentence above, on a
+  // record the customer could see, open and download from.
+  WORKSPACE_UNRESOLVED:
+    "This older evidence record needs a workspace association before new output generation can be requested. Its existing materials are unaffected.",
   REQUESTER_REQUIRED: "This request could not be attributed and was not made.",
 };
 
@@ -100,6 +104,12 @@ const TONE: Record<GenerationRequestOutcome, GenerationOutcomeTone> = {
   TERMINAL: "info",
   REQUEST_PERSIST_FAILED: "error",
   EVIDENCE_NOT_FOUND: "error",
+  /*
+   * P2-1 — INFO, not ERROR. Nothing failed and nothing was lost: the record is
+   * intact, its existing artifacts are downloadable, and one field is missing.
+   * An error tone here would tell the customer their evidence was damaged.
+   */
+  WORKSPACE_UNRESOLVED: "info",
   REQUESTER_REQUIRED: "error",
 };
 

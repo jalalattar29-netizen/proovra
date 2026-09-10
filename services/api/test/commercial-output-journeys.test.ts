@@ -90,7 +90,7 @@ describe("SCENARIO 1 — FREE captures evidence and nothing looks broken", () =>
         eligibility: "NOT_INCLUDED",
         generation: "NOT_REQUESTED",
         availability: "NO_ARTIFACT",
-        finalized: true,
+        record: "FINALIZED",
       }),
     ).toBe("NOT_INCLUDED");
   });
@@ -183,7 +183,7 @@ describe("SCENARIO 4 — FREE upgrades to PRO and its history becomes generatabl
       eligibility: "ELIGIBLE",
       generation: "NOT_REQUESTED",
       availability: "NO_ARTIFACT",
-      finalized: true,
+      record: "FINALIZED",
     });
     expect(state).toBe("ELIGIBLE_NOT_GENERATED");
     expect(outputActionFor({ state, eligibility: "ELIGIBLE" })).toBe("GENERATE");
@@ -349,7 +349,7 @@ describe("SCENARIO 9 — PRO downgrades to FREE and keeps what it generated", ()
         eligibility: "NOT_INCLUDED",
         generation: "NOT_REQUESTED",
         availability: "READY",
-        finalized: true,
+        record: "FINALIZED",
       }),
     ).toBe("READY");
   });
@@ -501,7 +501,7 @@ describe("SCENARIO 16 — a real technical failure is visible and retryable", ()
       eligibility: "ELIGIBLE",
       generation: "RETRYABLE_FAILURE",
       availability: "NO_ARTIFACT",
-      finalized: true,
+      record: "FINALIZED",
     });
     expect(state).toBe("RETRYABLE_FAILURE");
     expect(outputActionFor({ state, eligibility: "ELIGIBLE" })).toBe("RETRY");

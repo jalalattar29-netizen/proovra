@@ -25,7 +25,7 @@
  * server's `OutputAction`, never here.
  */
 
-import type { OutputAction } from "@proovra/shared";
+import type { EvidenceOutputState, OutputAction } from "@proovra/shared";
 
 /**
  * The verb, in full, for every action the server can hand a surface.
@@ -75,3 +75,74 @@ export const GENERATION_ACTION_LABEL_COMPACT: Record<OutputAction, string> = {
  */
 export const DOWNLOAD_REPORT_LABEL = "Download Report PDF";
 export const DOWNLOAD_PACKAGE_LABEL = "Download Verification Package ZIP";
+
+// ===========================================================================
+// P2-4 CLOSURE (2026-09-10) — THE CASES VOCABULARY FOR ONE OUTPUT STATE.
+// ===========================================================================
+
+/**
+ * IS THIS OUTPUT'S CURRENT STATE SOMETHING THE CASE OWNER SHOULD ACT ON?
+ *
+ * The Cases surfaces counted `!reportReady || !packageReady` into a
+ * "needs attention" total and wrote "N evidence records are missing a report".
+ * Three different situations produced that sentence:
+ *
+ *   * an output the plan and this record's funding exclude — the product
+ *     working as sold, restated as a deficiency in the customer's own case
+ *     file;
+ *   * a record that is not finalized, or whose integrity check failed;
+ *   * a generation that was queued or running at that exact moment.
+ *
+ * Only the last group of states is genuinely outstanding work, and this is the
+ * one predicate that says so. It is total over `EvidenceOutputState`, so a new
+ * state is a compile error here rather than a silent "missing".
+ */
+export function caseOutputNeedsAttention(state: EvidenceOutputState): boolean {
+  switch (state) {
+    case "READY":
+    // Not included, and not applicable to this record: neither is a gap in the
+    // case file, and neither has an action behind it.
+    case "NOT_INCLUDED":
+    case "NOT_APPLICABLE":
+    // In flight. The system owes an answer and is producing one; a case
+    // dashboard that flags this trains its reader to ignore the flag.
+    case "QUEUED":
+    case "GENERATING":
+      return false;
+    case "ELIGIBLE_NOT_GENERATED":
+    case "RETRYABLE_FAILURE":
+    case "TERMINAL_FAILURE":
+    case "BLOCKED":
+      return true;
+  }
+}
+
+/**
+ * The short cell label a Cases row renders for one output.
+ *
+ * Total, and deliberately free of the word "missing" for every state where
+ * nothing is missing.
+ */
+export function caseOutputLabel(
+  state: EvidenceOutputState,
+  noun: "Report" | "Package",
+): string {
+  switch (state) {
+    case "READY":
+      return `${noun} ready`;
+    case "NOT_INCLUDED":
+      return `${noun} not included`;
+    case "NOT_APPLICABLE":
+      return `${noun} not applicable`;
+    case "QUEUED":
+    case "GENERATING":
+      return `${noun} generating`;
+    case "ELIGIBLE_NOT_GENERATED":
+      return `${noun} not generated`;
+    case "RETRYABLE_FAILURE":
+    case "TERMINAL_FAILURE":
+      return `${noun} generation failed`;
+    case "BLOCKED":
+      return `${noun} blocked`;
+  }
+}

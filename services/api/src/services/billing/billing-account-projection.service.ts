@@ -76,6 +76,9 @@ import { listStorageAddonDefinitions } from "../billing.service.js";
 // catalogue decision, and the ONE personal-evidence counter, both shared with
 // the enforcement path so the meter cannot disagree with the gate.
 import { storageAddonOffersForPlan } from "../workspace-usage.service.js";
+// P1-2 / PRODUCT OPTION B — the ledger fact the canonical storage-addon policy
+// needs. Read once per projection; the DECISION stays in shared-billing.
+import { hasSettledEvidenceCreditGrant } from "./evidence-credits.service.js";
 import {
   getPlanPriceCents,
   getStorageAddonPriceCents,
@@ -971,8 +974,17 @@ function describeOffer(
 function offersFor(params: {
   plan: prismaPkg.PlanType;
   currency: BillingCurrency;
+  /**
+   * P1-2 / PRODUCT OPTION B — a FREE account that is genuinely an
+   * evidence-credit customer may buy storage. The fact is resolved ONCE per
+   * projection and handed here; the DECISION stays in the canonical policy the
+   * offer catalog consults.
+   */
+  hasSettledEvidenceCreditGrant: boolean;
 }): StorageAddonOffer[] {
-  return storageAddonOffersForPlan(params.plan)
+  return storageAddonOffersForPlan(params.plan, {
+    hasSettledEvidenceCreditGrant: params.hasSettledEvidenceCreditGrant,
+  })
     .map((d) => ({
       key: d.key,
       label: d.label,
@@ -1469,9 +1481,27 @@ export async function buildBillingAccountProjection(input: {
   }
 
   // ---- Storage add-ons ----------------------------------------------------
-  // FREE cannot buy storage: the server refuses it with 409 "upgrade your base
-  // plan first", so the surface offers nothing rather than a button that 409s.
-  const addonsEligible = scope.plan !== "FREE";
+  /*
+   * P1-2 / PRODUCT OPTION B (2026-09-10) — THE CANONICAL CAPABILITY, NOT A
+   * PLAN COMPARISON.
+   *
+   * This was `scope.plan !== "FREE"`, which is a plan name standing in for a
+   * commercial decision — and it was the browser-visible half of the dead end
+   * an evidence-credit customer hit: their subscription is FREE by design, so
+   * the drawer offered nothing while Pricing advertised 5 GB.
+   *
+   * The decision now comes from `resolveStorageAddonEntitlement` through the
+   * offer catalog, and the fact it needs — has this account ever been granted
+   * credits through a settled path — is read ONCE here.
+   */
+  const hasCreditGrant =
+    account.type === "PERSONAL"
+      ? await hasSettledEvidenceCreditGrant(scope.ownerUserId)
+      : false;
+  const addonsEligible =
+    storageAddonOffersForPlan(scope.plan, {
+      hasSettledEvidenceCreditGrant: hasCreditGrant,
+    }).length > 0;
 
   // THE banner decision, made once, on the server.
   const storageFull = storage.state === "MEASURED" && storage.limitReached;
@@ -1610,7 +1640,13 @@ export async function buildBillingAccountProjection(input: {
             // current plan has its own, and that more can be added after
             // moving up — in a card whose whole job is to say which plans
             // include it.
-            reason: "Additional storage is available with Pro and Team.",
+            /*
+             * P1-2 — the second route to the same capability is named, because
+             * it is the cheaper one and a Free account looking at a full meter
+             * should not be told Pro is the only way up when it is not.
+             */
+            reason:
+              "Additional storage is available with Pro and Team, and with Pay-per-evidence once you have bought an evidence credit.",
             unlockedByPlan: "PRO",
           },
         }
@@ -1619,7 +1655,11 @@ export async function buildBillingAccountProjection(input: {
       ? {
           storageAddons: {
             offers: canAddon
-              ? offersFor({ plan: scope.plan, currency })
+              ? offersFor({
+                  plan: scope.plan,
+                  currency,
+                  hasSettledEvidenceCreditGrant: hasCreditGrant,
+                })
               : [],
             active: await activeAddonsFor({
               ownerUserId: scope.ownerUserId,

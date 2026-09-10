@@ -38,6 +38,8 @@ import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
+// P2-4 — the canonical output state travels with each board row.
+import type { EvidenceOutputState } from "@proovra/shared";
 // Phase 7B (visual-only) — canonical shared design-system primitives.
 // PageShell/PageHeader/PageSection come from the barrel; Card / Button /
 // Badge / EmptyState are DEEP-imported (the barrel serves the LEGACY
@@ -144,6 +146,11 @@ type MatterEnvelope = {
         createdAt: string;
         reportReady: boolean;
         packageReady: boolean;
+        /** P2-4 — the server's canonical output state. Rendered, never derived. */
+        outputs?: {
+          report: { state: EvidenceOutputState };
+          verificationPackage: { state: EvidenceOutputState };
+        };
         linkRole: string | null;
       }>;
     };

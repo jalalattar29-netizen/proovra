@@ -172,7 +172,42 @@ export async function requestReportGeneration(
       ownerUserId: evidenceSubject.ownerUserId,
       teamId: evidenceSubject.teamId ?? null,
     }).catch(() => null);
-    if (eligibility && !eligibility.reportsIncluded) {
+    /*
+     * P3-7 CLOSURE (2026-09-10) — THE PAIR, NOT JUST THE REPORT.
+     *
+     * This asked `!eligibility.reportsIncluded` and nothing else, whatever the
+     * request's `artifactType` was. Today the two flags are equal on every
+     * catalog row and for a credit-funded record, so the check happened to be
+     * right — which is the whole problem with it: it was right by coincidence,
+     * and the coincidence is a commercial decision somebody could change in
+     * `PLAN_CAPABILITIES` without ever looking at this file.
+     *
+     * ONE REQUEST STILL PRODUCES ONE PAIR. This does not split the action into
+     * two — the worker builds the package inside the report job precisely so
+     * the customer has one control for one pipeline, and that stays. What
+     * changes is that the precheck asks about EVERY artifact the request will
+     * produce, so a plan that included one and not the other could not slip a
+     * half-producible request past this gate.
+     */
+    const requiredEntitlements: Array<{ label: string; included: boolean }> =
+      eligibility
+        ? input.artifactType === "VERIFICATION_PACKAGE"
+          ? [
+              {
+                label: "verification_package",
+                included: eligibility.verificationPackageIncluded,
+              },
+            ]
+          : // A REPORT request produces the pair, so BOTH must be entitled.
+            [
+              { label: "report", included: eligibility.reportsIncluded },
+              {
+                label: "verification_package",
+                included: eligibility.verificationPackageIncluded,
+              },
+            ]
+        : [];
+    if (requiredEntitlements.some((entitlement) => !entitlement.included)) {
       bump("report_generation_not_included_total");
       return {
         requested: false,
@@ -226,13 +261,26 @@ export async function requestReportGeneration(
     return {
       requested: false,
       reason: persisted.reason,
+      /*
+       * P2-1 CLOSURE (2026-09-10) — a record with no workspace is not a record
+       * that does not exist.
+       *
+       * `evidence_workspace_unresolved` was folded into EVIDENCE_NOT_FOUND,
+       * whose message is "This evidence record is not available." Legacy
+       * personal rows written before the workspace backfill carry a null
+       * `teamId`, they are listed by the canonical scope predicate's
+       * owner-scoped arm, and their Generate button therefore posted and came
+       * back denying the record existed. The two reasons now answer
+       * separately.
+       */
       outcome:
-        persisted.reason === "evidence_not_found" ||
         persisted.reason === "evidence_workspace_unresolved"
-          ? "EVIDENCE_NOT_FOUND"
-          : persisted.reason === "requester_required"
-            ? "REQUESTER_REQUIRED"
-            : "REQUEST_PERSIST_FAILED",
+          ? "WORKSPACE_UNRESOLVED"
+          : persisted.reason === "evidence_not_found"
+            ? "EVIDENCE_NOT_FOUND"
+            : persisted.reason === "requester_required"
+              ? "REQUESTER_REQUIRED"
+              : "REQUEST_PERSIST_FAILED",
     };
   }
   bump("report_generation_request_created_total");

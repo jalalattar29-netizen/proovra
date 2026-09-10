@@ -190,7 +190,7 @@ describe("Phase 32.6.1 — artifact status `blocked` projection", () => {
                 ? "TERMINAL_FAILURE"
                 : "NOT_REQUESTED",
           availability: "NO_ARTIFACT",
-          finalized: true,
+          record: "FINALIZED",
         }),
       ).not.toBe("QUEUED");
     }

@@ -252,6 +252,16 @@ export {
   OUTPUT_TERMINAL_REASON_CLASSES,
   OUTPUT_ARTIFACT_AVAILABILITIES,
   EVIDENCE_OUTPUT_STATES,
+  // P1-3 CLOSURE (2026-09-10) — the record-condition axis and the bounded
+  // reason that travels with NOT_APPLICABLE, so "this record cannot carry an
+  // output yet" stops borrowing the commercial state's copy.
+  OUTPUT_NOT_APPLICABLE_REASONS,
+  OUTPUT_RECORD_APPLICABILITIES,
+  outputNotApplicableReason,
+  // P2-1 — the ONE rule that withdraws a verb from a record whose workspace
+  // cannot be resolved, without touching the state.
+  OUTPUT_ACTION_UNAVAILABLE_REASONS,
+  resolveOfferedOutputAction,
   OUTPUT_ACTIONS,
   projectReportRequestState,
   classifyTerminalReason,
@@ -280,6 +290,9 @@ export type {
   OutputTerminalReasonClass,
   OutputArtifactAvailability,
   EvidenceOutputState,
+  OutputNotApplicableReason,
+  OutputRecordApplicability,
+  OutputActionUnavailableReason,
   EvidenceOutputAxes,
   OutputAction,
   PersistedReportRequestState,

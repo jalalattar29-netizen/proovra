@@ -34,6 +34,7 @@ import { ChevronRight, Globe, ShieldCheck } from "lucide-react";
 import type {
   EvidenceOutputState,
   OutputAction,
+  OutputNotApplicableReason,
   OutputTerminalReasonClass,
 } from "@proovra/shared";
 import { formatValue, OUTPUT_STATE_COPY, type EvidenceDetailCtx } from "./_lib";
@@ -195,12 +196,92 @@ function ArtifactLifecyclePanel({
     state: EvidenceOutputState;
     action: OutputAction;
     terminalReasonClass: OutputTerminalReasonClass | null;
+    /** P1-3 — bounded, present only for NOT_APPLICABLE. */
+    notApplicableReason: OutputNotApplicableReason | null;
+    /** P2-1 — why the verb was withdrawn on a state that would carry one. */
+    actionUnavailableReason: "WORKSPACE_UNRESOLVED" | null;
     attemptCount: number | null;
   };
 }) {
-  const action = <GenerateOutputsButton ctx={ctx} action={output.action} />;
+  /*
+   * P2-1 (2026-09-10) — when the server withdrew the verb, say why.
+   *
+   * `action` is already NONE here, so `GenerateOutputsButton` renders nothing.
+   * Rendering nothing was the old behaviour and it left a legacy record with an
+   * invitation-shaped silence; the sentence replaces it. Placed alongside the
+   * action so every state's arm gets it without repeating the branch.
+   */
+  const action =
+    output.actionUnavailableReason === "WORKSPACE_UNRESOLVED" ? (
+      <p
+        className="evidence-detail-artifact-note"
+        data-evidence-action-unavailable={output.actionUnavailableReason}
+      >
+        This older record needs a workspace association before a new report or
+        verification package can be requested. Everything already generated for
+        it stays available.
+      </p>
+    ) : (
+      <GenerateOutputsButton ctx={ctx} action={output.action} />
+    );
 
   switch (output.state) {
+    case "NOT_APPLICABLE":
+      /*
+       * P1-3 CLOSURE (2026-09-10) — A RECORD CONDITION, STATED AS ONE.
+       *
+       * Both of these used to render the NOT_INCLUDED arm below, which names
+       * plans. So a Pro customer watching their own upload was told reports
+       * were not included in their plan, and a record whose recomputed SHA-256
+       * disagreed with the value stored at completion was told the same — a
+       * billing sentence for an integrity failure, on a forensic surface.
+       *
+       * The two reasons are rendered separately because they end differently:
+       * finalization is coming, and an integrity failure is not.
+       */
+      return output.notApplicableReason === "INTEGRITY_FAILED" ? (
+        <div
+          className="app-alert app-alert--warn"
+          role="status"
+          data-evidence-section="reports-integrity-failed"
+          data-evidence-output-state={output.state}
+          data-evidence-not-applicable-reason={output.notApplicableReason}
+        >
+          <strong>
+            Outputs cannot be produced for this record
+          </strong>
+          <p>
+            This record did not pass its integrity check: the fingerprint
+            recomputed from the stored bytes did not match the value recorded
+            when it was completed. A report and verification package can only
+            be produced from a record whose integrity is intact, so none will
+            be generated for this one. The record itself is preserved exactly
+            as received, for inspection. To capture this material as evidence,
+            re-upload or re-capture it as a new record.
+          </p>
+        </div>
+      ) : (
+        <div
+          className="app-alert"
+          role="status"
+          data-evidence-section="reports-not-applicable"
+          data-evidence-output-state={output.state}
+          data-evidence-not-applicable-reason={
+            output.notApplicableReason ?? "NOT_FINALIZED"
+          }
+        >
+          <strong>
+            Outputs become available once this record is finalized
+          </strong>
+          <p>
+            A report and verification package are produced from a finalized
+            record — its fingerprint, signature and chain of custody. This
+            record has not reached that point yet, so there is nothing to
+            generate from and no action to take.
+          </p>
+        </div>
+      );
+
     case "NOT_INCLUDED":
       return (
         <div
@@ -350,7 +431,14 @@ function ArtifactLifecyclePanel({
        * After a downgrade the server returns NONE here, so the control
        * disappears while the downloads stay. Neither decision is made locally.
        */
-      return output.action === "NONE" ? null : (
+      /*
+       * P2-1 — the withdrawn-verb note renders here too. A legacy record with
+       * an existing artifact is READY, downloadable, and cannot be
+       * regenerated; the downloads above say the first two and this says the
+       * third.
+       */
+      return output.action === "NONE" &&
+        output.actionUnavailableReason === null ? null : (
         <div
           className="evidence-detail-artifact-actions"
           data-evidence-section="reports-ready-actions"

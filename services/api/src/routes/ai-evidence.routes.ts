@@ -18,6 +18,9 @@ import {
   evaluateCopilotEvidenceEligibility,
   evidenceAnalysisRevisionsMatch,
   sha256Base64Url,
+  // P3-6 — the typed permission vocabulary, so a suggestion cannot name a
+  // permission the product does not have.
+  type Permission,
 } from "@proovra/shared";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
@@ -403,7 +406,24 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
           proposedChange: {
             reportVersion: (snapshot.row.latestReportVersion ?? 0) + 1,
           },
-          requiredPermission: "evidence.report.generate",
+          /*
+           * P3-6 CLOSURE (2026-09-10) — the CANONICAL permission, from the
+           * typed vocabulary.
+           *
+           * This was the literal `"evidence.report.generate"`, which is not a
+           * member of `Permission` at all — the real name is
+           * `evidence.generate_report`, and it is the one
+           * `getEvidenceWithRecordAccess` checks on the endpoint this
+           * suggestion executes. Nothing consumed the field, so nothing broke;
+           * what it did was put a permission name that does not exist onto an
+           * audited action proposal, where the next reader would reasonably
+           * treat it as the gate.
+           *
+           * Typed via `satisfies Permission` so a rename in the permission
+           * table is a compile error here rather than a second silent drift.
+           */
+          requiredPermission:
+            "evidence.generate_report" satisfies Permission,
           citations: [],
           versionMeta: {
             promptVersion: "1.0.0",

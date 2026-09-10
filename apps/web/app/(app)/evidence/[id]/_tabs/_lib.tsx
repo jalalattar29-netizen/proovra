@@ -436,6 +436,19 @@ export const OUTPUT_STATE_COPY: Record<
   NOT_INCLUDED: {
     reason: (noun) => `A ${noun} is not included for this evidence record.`,
   },
+  /*
+   * P1-3 (2026-09-10) — NO PLAN NAME, AND NO PROMISE THAT CANNOT BE KEPT.
+   *
+   * One sentence has to serve both record conditions here, because this map is
+   * keyed by state alone and feeds a disabled control's tooltip. It is written
+   * so it is true of each: a record still being finalized, and one whose
+   * integrity check failed and never will be. The Artifacts panel, which HAS
+   * the bounded reason, says which.
+   */
+  NOT_APPLICABLE: {
+    reason: (noun) =>
+      `A ${noun} is not available for this record in its current state.`,
+  },
   ELIGIBLE_NOT_GENERATED: {
     reason: (noun) =>
       `No ${noun} has been generated for this record yet. Generate one to download it.`,
@@ -467,6 +480,8 @@ const OUTPUT_STATE_LABEL: Record<EvidenceOutputState, string> = {
   TERMINAL_FAILURE: "Generation stopped",
   BLOCKED: "Blocked",
   NOT_INCLUDED: "Not included for this record",
+  // P1-3 — a record condition, never a commercial one.
+  NOT_APPLICABLE: "Not available for this record",
 };
 
 export function describeReportArtifactStatus(

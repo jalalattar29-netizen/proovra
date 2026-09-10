@@ -6,6 +6,7 @@ import type {
   OutputCommercialEligibility,
   OutputGenerationState,
   OutputIneligibilityReason,
+  OutputNotApplicableReason,
   OutputTerminalReasonClass,
   TrustDecision,
 } from "@proovra/shared";
@@ -21,6 +22,8 @@ import type {
 export type EvidenceOutputProjection = {
   eligibility: OutputCommercialEligibility;
   ineligibilityReason: OutputIneligibilityReason | null;
+  /** P1-3 — bounded reason, present only when `state` is NOT_APPLICABLE. */
+  notApplicableReason: OutputNotApplicableReason | null;
   generation: OutputGenerationState;
   terminalReasonClass: OutputTerminalReasonClass | null;
   terminalReasonCode: string | null;
@@ -30,6 +33,8 @@ export type EvidenceOutputProjection = {
   availability: OutputArtifactAvailability;
   state: EvidenceOutputState;
   action: OutputAction;
+  /** P2-1 — why the verb was withdrawn on a state that would otherwise carry one. */
+  actionUnavailableReason: "WORKSPACE_UNRESOLVED" | null;
 };
 import type {
   EvidenceAnnotation,

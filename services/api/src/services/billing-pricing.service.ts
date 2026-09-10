@@ -1,7 +1,9 @@
 import * as prismaPkg from "@prisma/client";
 import {
+  EVIDENCE_CREDIT_PRODUCT,
   PLAN_CAPABILITIES,
   formatBytesHuman,
+  resolveEvidenceOutputEntitlements,
 } from "@proovra/shared-billing";
 import { listStorageAddonDefinitions } from "./billing.service.js";
 
@@ -132,7 +134,31 @@ export function getStripeStorageAddonPriceId(params: {
   return process.env[envKey]?.trim() || null;
 }
 
-function projectPublishedPlan<P extends "FREE" | "PAYG" | "PRO" | "TEAM">(
+/**
+ * =============================================================================
+ * P1-2 CLOSURE (2026-09-10) — THE TYPE PARAMETER IS THE GATE.
+ * =============================================================================
+ * This accepted `"PAYG"`, and `buildPricingCatalogResponse` used it to publish
+ * `PLAN_CAPABILITIES.PAYG` as the Pay-per-evidence column. That row carries its
+ * own instruction, in `packages/shared-billing/src/plan-catalog.ts`:
+ *
+ *     "GRANDFATHER-RESOLUTION ROW ONLY. NOT A SELLABLE PLAN. […] Nothing may
+ *      advertise these values: Pricing and Billing render
+ *      EVIDENCE_CREDIT_PRODUCT, never this row."
+ *
+ * The instruction was written and the projection was not changed to match, so
+ * the public Pricing comparison table advertised 5 GB of storage and 50 AI
+ * operations a month to Pay-per-evidence buyers. No write path assigns
+ * `entitlements.plan = 'PAYG'`, so a real credit buyer holds FREE's 250 MB and
+ * 10 operations. Two published entitlements that could not be obtained.
+ *
+ * Narrowing the parameter to the three SELLABLE subscription plans makes the
+ * defect unrepresentable rather than merely fixed: `projectPublishedPlan("PAYG")`
+ * is now a compile error, and the credit column is assembled from the credit
+ * product plus the entitlements a buyer actually holds (see
+ * `projectEvidenceCreditOffer`).
+ */
+function projectPublishedPlan<P extends "FREE" | "PRO" | "TEAM">(
   plan: P,
   monthlyPriceCents: number,
 ) {
@@ -159,6 +185,83 @@ function projectPublishedPlan<P extends "FREE" | "PAYG" | "PRO" | "TEAM">(
   };
 }
 
+/**
+ * THE PAY-PER-EVIDENCE COLUMN, BUILT FROM WHAT A BUYER ACTUALLY RECEIVES.
+ *
+ * P1-2 CLOSURE (2026-09-10). Three sources, and deliberately not a plan row:
+ *
+ *   EVIDENCE_CREDIT_PRODUCT   the price, the grant, and the fact credits do
+ *                             not expire — the product being sold.
+ *   PLAN_CAPABILITIES.FREE    the SUBSCRIPTION entitlements the buyer keeps,
+ *                             because buying a credit does not change the
+ *                             account's plan. This is the honest answer to
+ *                             "how much storage do I get", and it is FREE's.
+ *   the record-level grant    what one funded record earns, resolved through
+ *                             the ONE authority (`resolveEvidenceOutputEntitlements`
+ *                             with `funding: "EVIDENCE_CREDIT"`), never
+ *                             restated as literals here.
+ *
+ * `plan: "FREE"` is stated explicitly and is the point of the whole shape:
+ * there is no PAYG subscription tier, and a surface reading this object can
+ * see that the underlying plan is FREE rather than inferring it.
+ */
+function projectEvidenceCreditOffer(currency: BillingCurrency) {
+  const free = PLAN_CAPABILITIES.FREE;
+  const perRecord = resolveEvidenceOutputEntitlements({
+    plan: "FREE",
+    funding: "EVIDENCE_CREDIT",
+  });
+
+  return {
+    productKey: EVIDENCE_CREDIT_PRODUCT.productKey,
+    displayName: EVIDENCE_CREDIT_PRODUCT.displayName,
+    pricingModel: "PER_CREDIT" as const,
+    unitPriceCents: getEvidenceCreditPriceCents(currency),
+    creditsGrantedPerPurchase: EVIDENCE_CREDIT_PRODUCT.creditsGrantedPerPurchase,
+    creditsRequiredPerCompletion: EVIDENCE_CREDIT_PRODUCT.creditsPerCompletion,
+    creditsExpire: EVIDENCE_CREDIT_PRODUCT.creditsExpire,
+
+    /**
+     * THE UNDERLYING SUBSCRIPTION. A credit buyer is a FREE account holding a
+     * wallet; nothing about the plan changes when a credit is purchased.
+     */
+    plan: "FREE" as const,
+    requiresSubscription: false,
+
+    /**
+     * What ONE credit-funded record earns. Per RECORD, never per account —
+     * which is the whole design of the product and the reason a plan row
+     * could never express it.
+     */
+    perFundedRecord: {
+      reportIncluded: perRecord.reportsIncluded,
+      verificationPackageIncluded: perRecord.verificationPackageIncluded,
+      publicVerifyIncluded: perRecord.publicVerifyIncluded,
+    },
+
+    /**
+     * The SUBSCRIPTION-level entitlements, which stay FREE's. Published so the
+     * Pricing table renders the true numbers in this column instead of a
+     * plan's that nobody is on.
+     */
+    storageBytes: free.includedStorageBytes.toString(),
+    storageLabel: formatBytesHuman(free.includedStorageBytes),
+    aiAdvisoryMonthlyOperations: free.aiAdvisoryMonthlyOperations,
+    intakeIncluded: true,
+    casesIncluded: free.casesIncluded,
+
+    /**
+     * PRODUCT OPTION B (2026-09-10) — an evidence-credit customer may buy
+     * storage add-ons even though their subscription is FREE.
+     *
+     * Published as a fact about the OFFER, resolved from the same canonical
+     * capability the server enforces, so the page states it rather than
+     * inferring it from a plan name.
+     */
+    storageAddonsPurchasable: true,
+  };
+}
+
 export function buildPricingCatalogResponse(params: {
   currency: BillingCurrency;
 }) {
@@ -169,14 +272,7 @@ export function buildPricingCatalogResponse(params: {
   return {
     currency,
     free: projectPublishedPlan("FREE", 0),
-    payg: {
-      ...projectPublishedPlan(
-        "PAYG",
-        getPlanPriceCents(prismaPkg.PlanType.PAYG, currency),
-      ),
-      creditsRequiredPerCompletion:
-        PLAN_CAPABILITIES.PAYG.paygCreditsRequiredPerCompletion,
-    },
+    payg: projectEvidenceCreditOffer(currency),
     pro: projectPublishedPlan(
       "PRO",
       getPlanPriceCents(prismaPkg.PlanType.PRO, currency),

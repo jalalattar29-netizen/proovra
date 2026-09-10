@@ -334,23 +334,26 @@ const TEAM_WORDING_ALLOWLIST = new Set<string>([
   // -------------------------------------------------------------------
   // Phase IA-self-serve-simplification — pricing-aligned vocabulary.
   //
-  // The public pricing page calls one of the plans "Team". The
-  // self-serve simplification adds:
-  //   * `FreeReportsLockedNotice` — the Reports unlock copy explicitly
-  //     names "Pay-Per-Evidence, Pro, or Team" as the plans that
-  //     include reports. Renaming "Team" here would break the
-  //     pricing-page mirror that the brief requires.
+  // The public pricing page calls one of the plans "Team".
   //   * `SelfServeHomeDashboard` — the "Team activity" section is the
   //     constitutional Collaboration Teams surface (see Phase 5/6/7
   //     above). The brief explicitly names this section.
+  //
+  // P2-5 (2026-09-10) — `FreeReportsLockedNotice.tsx` was REMOVED from this
+  // allowlist because the component was DELETED. It had zero consumers (the
+  // Reports page dropped it in 2026-08-27 and says so), and its copy carried
+  // two contradictions: an unlock checklist claiming "Shareable verification
+  // link" is bought by upgrading, beside two sentences in the same card saying
+  // public verification stays free — which is what the catalog says — and a
+  // docblock asserting the report download endpoints are plan-gated, which
+  // they deliberately are not.
   // -------------------------------------------------------------------
-  "components/reports-experience/FreeReportsLockedNotice.tsx",
   "components/home-experience/SelfServeHomeDashboard.tsx",
   // -------------------------------------------------------------------
   // Platform Admin Control Center (P0/P1) — pricing-plan vocabulary.
   //
   // The billing-plan enum has a tier literally named "Team" (the public
-  // pricing page's mid tier — see FreeReportsLockedNotice above). The
+  // pricing page's mid tier). The
   // customers/organizations roster's plan filter and the billing detail
   // console's subscriptions-by-plan breakdown render that plan's
   // canonical name. This is the pricing tier, NOT a Collaboration Team

@@ -37,8 +37,10 @@ import {
   // RELIABILITY CLOSURE (2026-09-09) — the canonical action and terminal class,
   // projected by the server so the Reports page derives neither.
   outputActionFor,
+  resolveOfferedOutputAction,
   classifyTerminalReason,
   type OutputAction,
+  type OutputActionUnavailableReason,
   type OutputTerminalReasonClass,
   projectReportRequestState,
   type EvidenceOutputState,
@@ -46,6 +48,7 @@ import {
   type PersistedReportRequestState,
 } from "@proovra/shared";
 import { resolveEvidenceOutputEligibilityMany } from "../billing/evidence-output-eligibility.service.js";
+import { resolveOutputRecordApplicability } from "../evidence-artifact-status.service.js";
 
 /** `skipped` = the caller did not ask for it. NOT a failure. */
 export type SectionStatus = "ok" | "degraded" | "unavailable" | "skipped";
@@ -151,6 +154,8 @@ export type ArtifactRow = {
     report: {
       state: EvidenceOutputState;
       action: OutputAction;
+      /** P2-1 — why the verb was withdrawn on a state that would carry one. */
+      actionUnavailableReason: OutputActionUnavailableReason | null;
       terminalReasonClass: OutputTerminalReasonClass | null;
       /** An artifact exists and may be opened, whatever the current request says. */
       downloadable: boolean;
@@ -158,6 +163,7 @@ export type ArtifactRow = {
     verificationPackage: {
       state: EvidenceOutputState;
       action: OutputAction;
+      actionUnavailableReason: OutputActionUnavailableReason | null;
       terminalReasonClass: OutputTerminalReasonClass | null;
       downloadable: boolean;
     };
@@ -251,6 +257,16 @@ function toReportLifecycle(state: EvidenceOutputState): ReportLifecycle {
       return "failed";
     case "NOT_INCLUDED":
       return "unavailable";
+    case "NOT_APPLICABLE":
+      /*
+       * P1-3 (2026-09-10) — the legacy five-value vocabulary has no member for
+       * "this record cannot carry the output yet". `unavailable` is the
+       * COMMERCIAL member and must not absorb a record condition, so this
+       * reads `not_requested`: nothing has been asked for, which is equally
+       * true of an unfinalized record and of an integrity-failed one.
+       * Consumers that need the distinction read `outputs.*.state`.
+       */
+      return "not_requested";
     case "ELIGIBLE_NOT_GENERATED":
     case "BLOCKED":
       return "not_requested";
@@ -273,6 +289,16 @@ function toPackageLifecycle(
       return "failed";
     case "NOT_INCLUDED":
       return "unavailable";
+    case "NOT_APPLICABLE":
+      /*
+       * P1-3 (2026-09-10) — the legacy five-value vocabulary has no member for
+       * "this record cannot carry the output yet". `unavailable` is the
+       * COMMERCIAL member and must not absorb a record condition, so this
+       * reads `not_requested`: nothing has been asked for, which is equally
+       * true of an unfinalized record and of an integrity-failed one.
+       * Consumers that need the distinction read `outputs.*.state`.
+       */
+      return "not_requested";
     case "ELIGIBLE_NOT_GENERATED":
     case "BLOCKED":
       return "not_requested";
@@ -530,6 +556,11 @@ export async function listWorkspaceArtifacts(input: {
       take: limit + 1,
       select: {
         id: true,
+        // P2-1 — the record's workspace binding. A legacy row carries none, and
+        // the generation writer refuses such a record; the verb is withdrawn
+        // from this list on that basis. Scoping is unaffected — the WHERE
+        // already carries the canonical owner-scoped arm for these rows.
+        teamId: true,
         title: true,
         // The title cascade's inputs. Presentation data only — nothing here
         // decides lifecycle, permission or eligibility.
@@ -689,7 +720,8 @@ export async function listWorkspaceArtifacts(input: {
         const { blocked, reason } = readPackageBlocked(
           r.verificationPackageMetadata,
         );
-        const finalized = r.status === "SIGNED" || r.status === "REPORTED";
+        // P1-3 — the record axis, from the ONE status mapping.
+        const record = resolveOutputRecordApplicability(r.status);
         const eligibility = eligibilityByEvidence.get(r.id) ?? null;
         const request = requestByEvidence.get(r.id) ?? null;
         const generation: OutputGenerationState = request
@@ -702,13 +734,13 @@ export async function listWorkspaceArtifacts(input: {
           eligibility: eligibility?.reportEligibility ?? "ELIGIBLE",
           generation,
           availability: report !== null ? "READY" : "NO_ARTIFACT",
-          finalized,
+          record,
         });
         const packageCanonicalState = deriveEvidenceOutputState({
           eligibility: eligibility?.packageEligibility ?? "ELIGIBLE",
           generation: blocked ? "BLOCKED" : generation,
           availability: pkg !== null ? "READY" : "NO_ARTIFACT",
-          finalized,
+          record,
         });
         const terminalReasonClass =
           generation === "TERMINAL_FAILURE"
@@ -749,23 +781,36 @@ export async function listWorkspaceArtifacts(input: {
           outputs: {
             report: {
               state: reportCanonicalState,
-              action: outputActionFor({
-                state: reportCanonicalState,
-                eligibility: eligibility?.reportEligibility ?? "ELIGIBLE",
-                terminalReasonClass,
+              /*
+               * P2-1 (2026-09-10) — the verb is withdrawn for a record whose
+               * workspace cannot be resolved. This surface LISTS those records
+               * (the canonical scope predicate has an owner-scoped null arm for
+               * them), so a rule applied only on Evidence Detail would leave the
+               * same dead button here.
+               */
+              ...resolveOfferedOutputAction({
+                action: outputActionFor({
+                  state: reportCanonicalState,
+                  eligibility: eligibility?.reportEligibility ?? "ELIGIBLE",
+                  terminalReasonClass,
+                }),
+                workspaceResolved: Boolean(r.teamId),
               }),
               terminalReasonClass,
               downloadable: report !== null,
             },
             verificationPackage: {
               state: packageCanonicalState,
-              action: outputActionFor({
-                state: packageCanonicalState,
-                eligibility: eligibility?.packageEligibility ?? "ELIGIBLE",
-                terminalReasonClass:
-                  packageCanonicalState === "TERMINAL_FAILURE"
-                    ? terminalReasonClass
-                    : null,
+              ...resolveOfferedOutputAction({
+                action: outputActionFor({
+                  state: packageCanonicalState,
+                  eligibility: eligibility?.packageEligibility ?? "ELIGIBLE",
+                  terminalReasonClass:
+                    packageCanonicalState === "TERMINAL_FAILURE"
+                      ? terminalReasonClass
+                      : null,
+                }),
+                workspaceResolved: Boolean(r.teamId),
               }),
               terminalReasonClass:
                 packageCanonicalState === "TERMINAL_FAILURE"

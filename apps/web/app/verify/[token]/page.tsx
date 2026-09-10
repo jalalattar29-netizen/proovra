@@ -2431,9 +2431,24 @@ function VerificationPackageIntegrityCard({
         </div>
 
         <div style={{ ...VERIFY_TYPO.small, fontSize: 13, color: VERIFY_BRAND.ink }}>
+          {/*
+            P3-3 CLOSURE (2026-09-10) — THE SECOND SENTENCE CONTRADICTED THE
+            BADGE ABOVE IT.
+
+            The absent-package branch read "Package-level integrity can be
+            checked independently from the downloaded verification package" —
+            beside a badge saying "Unavailable", pointing the reader at a
+            download that does not exist for this record. It also implied the
+            package is what makes independent verification possible, which is
+            not true of this product: every proof the package bundles is
+            exposed on THIS page and is checkable from it.
+
+            The replacement says what is true and what the reader can do,
+            without naming an artifact they cannot obtain.
+          */}
           {complete
             ? "The exported forensic bundle supports independent verification of package contents, checksums, manifest integrity, custody export, and audit/access materials with standard tooling."
-: "Evidence integrity can still be reviewed here. Package-level integrity can be checked independently from the downloaded verification package."}
+            : "No downloadable package is available for this record, and its integrity assessment does not depend on one. The fingerprint, signature, timestamp, anchoring and custody materials are published on this page and can each be checked independently with standard tooling."}
         </div>
 
         {integrity.generatedAtUtc ? (

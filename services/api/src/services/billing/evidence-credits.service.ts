@@ -392,6 +392,58 @@ export async function consumeEvidenceCreditForCompletion(
 }
 
 /**
+ * HAS THIS SUBJECT EVER BEEN GRANTED EVIDENCE CREDITS THROUGH A SETTLED PATH?
+ *
+ * P1-2 / PRODUCT OPTION B (2026-09-10) — the ONE input the canonical
+ * `resolveStorageAddonEntitlement` policy needs from this host. It is a read,
+ * not a rule: the rule lives in @proovra/shared-billing and this supplies its
+ * fact.
+ *
+ * `PURCHASE` and `ADMIN_GRANT` are the only two grant kinds, and both are
+ * settled and server-written:
+ *
+ *   PURCHASE     written only by `grantEvidenceCredits`, reached from a
+ *                verified provider webhook or from the reconciler re-reading
+ *                settled provider state. Idempotent on (provider, providerRef).
+ *   ADMIN_GRANT  written only by the audited platform-admin route, idempotent
+ *                on grantRef.
+ *
+ * Deliberately NOT `credits > 0`: see the long note on
+ * `resolveStorageAddonEntitlement`. A customer who has spent their credits is
+ * still an evidence-credit customer — and is precisely the one whose storage
+ * is full.
+ *
+ * `CONSUMPTION` and `REVERSAL` are excluded because neither is a grant: a
+ * consumption is a spend, and a reversal unwinds a grant that is already
+ * represented by its own row.
+ *
+ * Fails CLOSED (`false`) on any error. Refusing to offer an add-on leaves the
+ * product as it was; offering one the server would then refuse at checkout is
+ * a worse outcome than a missing button.
+ */
+export async function hasSettledEvidenceCreditGrant(
+  userId: string,
+): Promise<boolean> {
+  try {
+    const row = await prisma.evidenceCreditLedgerEntry.findFirst({
+      where: {
+        userId,
+        entryType: {
+          in: [
+            prismaPkg.EvidenceCreditEntryType.PURCHASE,
+            prismaPkg.EvidenceCreditEntryType.ADMIN_GRANT,
+          ],
+        },
+      },
+      select: { id: true },
+    });
+    return row !== null;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * How ONE Evidence record's completion was funded.
  *
  * The ledger is the authority: a CONSUMPTION entry for the record means the

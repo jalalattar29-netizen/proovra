@@ -1112,6 +1112,57 @@ function buildIdentitySignal(
   });
 }
 
+/**
+ * =============================================================================
+ * THE VERIFICATION-PACKAGE SIGNAL — INFORMATIONAL, AND DELIBERATELY UNSCORED.
+ * =============================================================================
+ * P3-4 CLOSURE (2026-09-10).
+ *
+ * ----------------------------------------------------------------------------
+ * THE PROBLEM: A COMMERCIAL INPUT INTO A PUBLIC INTEGRITY SCORE
+ * ----------------------------------------------------------------------------
+ * This signal carried 5 of the 40 available points, awarded 5 when a package
+ * existed and 3 when it did not. Whether a package exists is a COMMERCIAL fact:
+ * the plan and the record's funding decide it (`resolveEvidenceOutputEntitlements`
+ * is the authority), and a Free record never has one. So a Free customer's
+ * public verification page scored 95 where an otherwise identical paid record
+ * scored 100, and the two points of difference measured the price plan rather
+ * than the evidence.
+ *
+ * It reached further than the number. `degradedSignals` counts any signal whose
+ * status is partial/pending/missing/failed, and it drives `degradedButUsable`
+ * and the `VERIFIED_WITH_DEGRADED_SIGNALS` presentation state — so a record's
+ * headline could read "verified with supporting limitations" because of an
+ * artifact its owner had not bought.
+ *
+ * ----------------------------------------------------------------------------
+ * WHY REMOVING IT IS CORRECT, NOT A CONCESSION
+ * ----------------------------------------------------------------------------
+ * The exemption in the product decision is for a package that "contains a
+ * forensic proof element not otherwise represented". It contains none. Every
+ * proof inside a verification package — the canonical fingerprint, the Ed25519
+ * signature and public key, the RFC 3161 token, the OpenTimestamps proof, the
+ * custody chain, the storage protection state — is a SIGNAL OF ITS OWN in this
+ * very list. The package is a convenient offline BUNDLE of things already
+ * scored here, so scoring it again both double-counted the same assurance and
+ * charged for the convenience.
+ *
+ * ----------------------------------------------------------------------------
+ * WHAT IT STILL DOES
+ * ----------------------------------------------------------------------------
+ * It remains in the signal list and it still says truthfully whether a package
+ * exists — that is real, useful information for someone deciding how to verify
+ * the record offline. `maxPoints: 0` is what makes it informational: it adds
+ * nothing to the numerator and nothing to the denominator, in every branch, so
+ * a record's score is identical with and without a package.
+ *
+ * Its STATUS is `passed` in both the present and absent-with-materials cases,
+ * because the status feeds `degradedSignals` and neither of those is a
+ * degradation of the evidence. The genuinely bare case — no package AND no core
+ * cryptographic material — keeps `missing`, and it is not a commercial
+ * statement: a record with no fingerprint and no signature has a real problem,
+ * which the core and signature signals score directly.
+ */
 function buildVerificationPackageSignal(
   evidence: TrustDecisionEvidenceInput
 ): TrustSignal {
@@ -1123,11 +1174,11 @@ function buildVerificationPackageSignal(
       key: "verification_package",
       label: "Verification package",
       status: "passed",
-      points: 5,
-      maxPoints: 5,
+      points: 0,
+      maxPoints: 0,
       summary: "Verification package recorded",
       detail:
-        "A verification package/version is recorded, supporting deeper technical validation outside summary surfaces.",
+        "A verification package is recorded, bundling this record's integrity materials for offline review. It does not add to the integrity assessment above — the proofs it contains are each assessed on their own.",
     });
   }
 
@@ -1135,12 +1186,12 @@ function buildVerificationPackageSignal(
     return makeSignal({
       key: "verification_package",
       label: "Verification package",
-      status: "partial",
-      points: 3,
-      maxPoints: 5,
-      summary: "Technical materials available",
+      status: "passed",
+      points: 0,
+      maxPoints: 0,
+      summary: "Not included for this record",
       detail:
-        "Core technical materials are recorded, but a verification package version was not included in this record payload.",
+        "No downloadable verification package is included for this record. This does not affect its integrity: the fingerprint, signature, timestamp, anchoring and custody materials are recorded and are assessed individually above, and they can be checked from this page.",
     });
   }
 
@@ -1149,9 +1200,10 @@ function buildVerificationPackageSignal(
     label: "Verification package",
     status: "missing",
     points: 0,
-    maxPoints: 5,
-    summary: "Verification package not recorded",
-    detail: "No verification package reference was included.",
+    maxPoints: 0,
+    summary: "No integrity materials recorded",
+    detail:
+      "Neither a verification package nor core cryptographic materials were recorded for this record.",
   });
 }
 

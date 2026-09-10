@@ -95,6 +95,8 @@ export type ArtifactRow = {
 export type ArtifactOutputProjection = {
   state: EvidenceOutputState;
   action: OutputAction;
+  /** P2-1 — why the verb was withdrawn on a state that would carry one. */
+  actionUnavailableReason?: "WORKSPACE_UNRESOLVED" | null;
   terminalReasonClass: OutputTerminalReasonClass | null;
   /** An artifact exists and may be opened, whatever the current request says. */
   downloadable: boolean;
