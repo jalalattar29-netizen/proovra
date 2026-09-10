@@ -218,16 +218,25 @@ describe("Phase B0 — retention inheritance resolver", () => {
     expect(RETENTION_RESOLVER).toContain('"none"');
   });
 
-  it("resolution order is team-first → org-inherited → none", () => {
-    // The function body checks team policy BEFORE the org policy.
-    const fn = RETENTION_RESOLVER.slice(
-      RETENTION_RESOLVER.indexOf("export async function resolveTeamRetentionPolicy"),
+  it("resolution order is team-first → org-inherited → none", async () => {
+    // Asserted on BEHAVIOUR, not on the order two calls appear in the source:
+    // the resolver is now a projection of the retention engine's decision
+    // (PV-DUP-002), and the order that matters is the answer it gives.
+    const { resolveTeamRetentionPolicy } = await import(
+      "../src/services/organization/retention-inheritance.service.js"
     );
-    const teamIdx = fn.indexOf("evidenceRetentionPolicy.findFirst");
-    const orgIdx = fn.indexOf("organizationPolicy.findUnique");
-    expect(teamIdx).toBeGreaterThan(0);
-    expect(orgIdx).toBeGreaterThan(0);
-    expect(teamIdx).toBeLessThan(orgIdx);
+    const both = retentionClient({ workspaceDays: 30, template: { retentionDays: 90, immutable: false } });
+    expect(await resolveTeamRetentionPolicy("t1", both)).toMatchObject({
+      source: "team_policy",
+      retentionDays: 30,
+    });
+    const orgOnly = retentionClient({ workspaceDays: undefined, template: { retentionDays: 90, immutable: false } });
+    expect(await resolveTeamRetentionPolicy("t1", orgOnly)).toMatchObject({
+      source: "org_policy_inherited",
+      template: { retentionDays: 90 },
+    });
+    const neither = retentionClient({ workspaceDays: undefined, template: null });
+    expect(await resolveTeamRetentionPolicy("t1", neither)).toEqual({ source: "none", teamId: "t1" });
   });
 
   it("resolver is read-only — never creates a team policy from an inherited template", () => {
@@ -239,12 +248,64 @@ describe("Phase B0 — retention inheritance resolver", () => {
     );
   });
 
-  it("DB errors fall through to `none` — never throws", () => {
-    // Two try/catch guards on the two reads.
-    const catchCount = (RETENTION_RESOLVER.match(/catch\s*\{/g) ?? []).length;
-    expect(catchCount).toBeGreaterThanOrEqual(2);
+  it("a database error is a FAILURE, never a false 'no policy applies'", async () => {
+    // WCC-NEW-001. This case used to pin the opposite: two try/catch guards
+    // that turned any read failure into `source: "none"`, which the retention
+    // page rendered as "No retention policy applies" — an all-clear for a read
+    // that had failed. The resolver now propagates, and the page renders its
+    // failure branch.
+    const { resolveTeamRetentionPolicy } = await import(
+      "../src/services/organization/retention-inheritance.service.js"
+    );
+    for (const failing of ["evidenceRetentionPolicy", "team", "organizationPolicy"] as const) {
+      const client = retentionClient({
+        workspaceDays: undefined,
+        template: { retentionDays: 90, immutable: false },
+        fail: failing,
+      });
+      await expect(resolveTeamRetentionPolicy("t1", client)).rejects.toThrow(/simulated/);
+    }
   });
 });
+
+/** A minimal injected client for the retention resolvers. */
+function retentionClient(input: {
+  workspaceDays: number | null | undefined;
+  template: { retentionDays: number | null; immutable: boolean } | null;
+  fail?: "evidenceRetentionPolicy" | "team" | "organizationPolicy";
+}) {
+  const boom = async () => {
+    throw new Error("simulated database failure");
+  };
+  const at = new Date("2026-07-22T00:00:00Z");
+  const row =
+    input.workspaceDays === undefined
+      ? []
+      : [
+          {
+            id: "p1", teamId: "t1", displayName: "workspace", description: null,
+            status: "ACTIVE", scope: "WORKSPACE", scopeQualifier: null, caseId: null,
+            retentionDays: input.workspaceDays, immutable: false,
+            autoExtensionEnabled: false, autoExtensionDays: null,
+            supersededByPolicyId: null, currentVersion: 1, createdByUserId: "u1",
+            createdAt: at, updatedAt: at, archivedAtUtc: null,
+          },
+        ];
+  return {
+    evidenceRetentionPolicy: {
+      findMany: input.fail === "evidenceRetentionPolicy" ? boom : async () => row,
+    },
+    team: {
+      findUnique: input.fail === "team" ? boom : async () => ({ organizationId: "org-1" }),
+    },
+    organizationPolicy: {
+      findUnique:
+        input.fail === "organizationPolicy"
+          ? boom
+          : async () => (input.template ? { value: { ...input.template, description: null } } : null),
+    },
+  } as never;
+}
 
 describe("Phase B0 — sidebar vocabulary", () => {
   it("server navigation registry surfaces 'Workspaces' label", () => {

@@ -27,9 +27,40 @@ const H = vi.hoisted(() => ({
   orgTemplate: null as Record<string, unknown> | null,
 }));
 
+/**
+ * `resolveTeamRetentionPolicy` is a projection of the engine's workspace-level
+ * decision (PV-DUP-002), so the workspace policy is read through the engine's
+ * `findMany` over ACTIVE WORKSPACE-scope rows. The fixture row carries every
+ * column the engine projects.
+ */
+function workspacePolicyRow(p: Record<string, unknown>) {
+  const at = new Date("2026-07-22T00:00:00Z");
+  return {
+    teamId: "t1",
+    displayName: "workspace policy",
+    description: null,
+    status: "ACTIVE",
+    scope: "WORKSPACE",
+    scopeQualifier: null,
+    caseId: null,
+    autoExtensionEnabled: false,
+    autoExtensionDays: null,
+    supersededByPolicyId: null,
+    currentVersion: 1,
+    createdByUserId: "u1",
+    createdAt: at,
+    updatedAt: at,
+    archivedAtUtc: null,
+    ...p,
+  };
+}
+
 vi.mock("../src/db.js", () => ({
   prisma: {
-    evidenceRetentionPolicy: { findFirst: async () => H.teamPolicy },
+    evidenceRetentionPolicy: {
+      findFirst: async () => H.teamPolicy,
+      findMany: async () => (H.teamPolicy ? [workspacePolicyRow(H.teamPolicy)] : []),
+    },
     team: {
       findUnique: async () => ({ organizationId: H.organizationId }),
     },

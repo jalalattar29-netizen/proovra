@@ -103,8 +103,22 @@ type EffectiveRetentionDecision = {
     immutable: boolean;
     description: string | null;
   };
+  /**
+   * The retention that GOVERNS — the engine's answer after the organization's
+   * mandatory floor (null = indefinite). The inheritance panel shows the same
+   * number from the same decision.
+   */
+  effectiveRetentionDays?: number | null;
+  mandatoryFloorApplied?: boolean;
   conflicts: ReadonlyArray<{ code: string; detail: string }>;
 };
+
+/** The governing value, from the engine; older payloads fall back to the row. */
+function governingRetentionDays(d: EffectiveRetentionDecision): number | null {
+  if (d.effectiveRetentionDays !== undefined) return d.effectiveRetentionDays;
+  if (d.policy) return d.policy.retentionDays;
+  return d.inheritedTemplate ? d.inheritedTemplate.retentionDays : null;
+}
 
 /** `GET /v1/governance/retention-candidates` */
 type RetentionCandidate = {
@@ -583,17 +597,17 @@ function RetentionPoliciesPageInner() {
               </div>
               <div>
                 <div style={fieldLabelTextStyle}>Retention</div>
-                <div style={{ fontWeight: 600 }}>
-                  {effective.policy
-                    ? effective.policy.retentionDays === null
-                      ? "Indefinite"
-                      : `${effective.policy.retentionDays.toLocaleString()} days`
-                    : effective.inheritedTemplate
-                      ? effective.inheritedTemplate.retentionDays === null
-                        ? "Indefinite"
-                        : `${effective.inheritedTemplate.retentionDays.toLocaleString()} days`
-                      : "Indefinite"}
+                <div style={{ fontWeight: 600 }} data-effective-retention-days>
+                  {(() => {
+                    const days = governingRetentionDays(effective);
+                    return days === null ? "Indefinite" : `${days.toLocaleString()} days`;
+                  })()}
                 </div>
+                {effective.mandatoryFloorApplied ? (
+                  <div style={{ ...mutedStyle, fontSize: 12 }} data-effective-retention-floor>
+                    Raised to the organization&apos;s required minimum
+                  </div>
+                ) : null}
               </div>
               <div>
                 <div style={fieldLabelTextStyle}>Governing policy</div>

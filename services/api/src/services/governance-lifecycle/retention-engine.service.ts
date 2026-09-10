@@ -42,7 +42,11 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
-import { resolveTeamRetentionPolicy } from "../organization/retention-inheritance.service.js";
+import {
+  applyOrganizationRetentionFloor,
+  isWeakerRetention,
+  readOrganizationRetentionTemplate,
+} from "../organization/retention-template.js";
 
 // -----------------------------------------------------------------------------
 // Error
@@ -552,6 +556,15 @@ export type EffectiveRetentionDecision = {
     description: string | null;
   };
   /**
+   * PV-DUP-002 — the retention that actually GOVERNS, after the organization's
+   * mandatory floor. `null` is indefinite. Equal to the winning policy's own
+   * value unless an immutable organization template raised it, in which case
+   * `mandatoryFloorApplied` is true. Every surface shows this number, so the
+   * effective panel and the inheritance panel cannot disagree about it.
+   */
+  effectiveRetentionDays: number | null;
+  mandatoryFloorApplied?: boolean;
+  /**
    * Phase G1 — bounded conflict surface. The engine emits structured
    * conflict codes whenever an operational rule fires (same-scope
    * duplicate, weaker-than-inherited workspace override, etc.). UI
@@ -618,25 +631,35 @@ export async function resolveEffectiveRetentionPolicy(
   }> = [];
 
   // -------------------------------------------------------------------
-  // Phase G1 (B0.4) — no explicit policy → consult the Phase B0
-  // inheritance resolver before declaring "no_active_policy". This is
-  // the operational enforcement of the inheritance contract that B0
-  // shipped as a UI-only display.
+  // PV-DUP-002 — ONE read of the organization template, shared by the
+  // inheritance fallback, the mandatory floor and the conflict checks.
+  //
+  // This used to ask the Phase B0 inheritance resolver twice. That resolver
+  // answers "team_policy" whenever the workspace has a policy of its own, so
+  // the conflict branch below — which only ran when it said
+  // "org_policy_inherited" — could never fire beside a winner: both conflict
+  // codes were dead, and the immutable floor that resolver applied never
+  // reached this decision. The retention page showed one number here and a
+  // different one in its inheritance panel.
+  //
+  // A database failure propagates. It is not "no policy applies".
   // -------------------------------------------------------------------
+  const org = await readOrganizationRetentionTemplate(input.teamId, client);
+
   if (candidates.length === 0) {
-    const inheritance = await resolveTeamRetentionPolicy(input.teamId, client);
-    if (inheritance.source === "org_policy_inherited") {
+    if (org.organizationId && org.template) {
       bump("retention_policy_inherited_total");
       return {
         policy: null,
         reason: "inherited_from_org",
         source: "org_policy_inherited",
         inheritedTemplate: {
-          organizationId: inheritance.organizationId,
-          retentionDays: inheritance.template.retentionDays,
-          immutable: inheritance.template.immutable,
-          description: inheritance.template.description,
+          organizationId: org.organizationId,
+          retentionDays: org.template.retentionDays,
+          immutable: org.template.immutable,
+          description: org.template.description,
         },
+        effectiveRetentionDays: org.template.retentionDays,
         conflicts,
       };
     }
@@ -644,6 +667,7 @@ export async function resolveEffectiveRetentionPolicy(
       policy: null,
       reason: "no_active_policy",
       source: "none",
+      effectiveRetentionDays: null,
       conflicts,
     };
   }
@@ -655,6 +679,7 @@ export async function resolveEffectiveRetentionPolicy(
       policy: null,
       reason: "no_winner",
       source: "none",
+      effectiveRetentionDays: null,
       conflicts,
     };
   }
@@ -680,48 +705,41 @@ export async function resolveEffectiveRetentionPolicy(
   }
 
   // -------------------------------------------------------------------
-  // Phase G1 (B0.4) — when a workspace-scoped policy exists, compare
-  // it against the org template (if any). Operationally relevant
-  // conflicts:
+  // The organization template against the winning policy (§9.4: a child
+  // may strengthen the organization's rule, never weaken it).
   //
-  //   * workspace_overrides_immutable — the parent organization
-  //     published an immutable template, and the workspace's local
-  //     policy effectively bypasses it. The local policy is still
-  //     served (the engine cannot retroactively delete operator
-  //     intent), but the conflict is surfaced so governance admins
-  //     can resolve it.
+  //   * workspace_overrides_immutable — the template is IMMUTABLE and the
+  //     winning policy is weaker. The template is a mandatory floor, so
+  //     the effective retention is RAISED to it; the local row is left
+  //     untouched and the conflict is surfaced for the governance admin.
+  //   * workspace_weaker_than_inherited — the template is advisory and
+  //     the winning policy is weaker. The local policy applies.
   //
-  //   * workspace_weaker_than_inherited — the local policy's
-  //     retention horizon is shorter than the inherited template.
+  // A policy at least as strong as the template is compliant and raises
+  // nothing.
   // -------------------------------------------------------------------
-  if (winner.scope === "WORKSPACE") {
-    const inheritance = await resolveTeamRetentionPolicy(input.teamId, client);
-    if (inheritance.source === "org_policy_inherited") {
-      const tmpl = inheritance.template;
-      if (tmpl.immutable) {
-        conflicts.push({
-          code: "workspace_overrides_immutable",
-          detail:
-            "The parent organization template is marked immutable; the local workspace policy is currently active alongside it. Resolve at the organization level.",
-        });
-      }
-      if (
-        typeof tmpl.retentionDays === "number" &&
-        typeof winner.retentionDays === "number" &&
-        winner.retentionDays < tmpl.retentionDays
-      ) {
-        conflicts.push({
-          code: "workspace_weaker_than_inherited",
-          detail: `Local workspace retention (${winner.retentionDays} days) is shorter than the inherited organization template (${tmpl.retentionDays} days).`,
-        });
-      }
-    }
+  const floor = applyOrganizationRetentionFloor(winner.retentionDays, org.template);
+  if (org.template && isWeakerRetention(winner.retentionDays, org.template.retentionDays)) {
+    const days = (d: number | null) => (d === null ? "indefinite retention" : `${d} days`);
+    conflicts.push(
+      org.template.immutable
+        ? {
+            code: "workspace_overrides_immutable",
+            detail: `The organization's retention template is immutable (${days(org.template.retentionDays)}). This workspace's policy (${days(winner.retentionDays)}) is weaker, so the organization floor is enforced.`,
+          }
+        : {
+            code: "workspace_weaker_than_inherited",
+            detail: `Local workspace retention (${days(winner.retentionDays)}) is shorter than the organization template (${days(org.template.retentionDays)}). The template is advisory, so the workspace policy applies.`,
+          },
+    );
   }
 
   return {
     policy: winner,
     reason: `picked_${winner.scope.toLowerCase()}`,
     source: "team_policy",
+    effectiveRetentionDays: floor.retentionDays,
+    ...(floor.mandatoryFloorApplied ? { mandatoryFloorApplied: true } : {}),
     conflicts,
   };
 }

@@ -202,6 +202,168 @@ describe("effective retention resolution (live PostgreSQL 16)", () => {
   });
 
   // ---------------------------------------------------------------------
+  // Only ACTIVE policies govern; a paused or superseded one is history.
+  // ---------------------------------------------------------------------
+  it("ignores PAUSED and SUPERSEDED policies", async () => {
+    await clearPolicies();
+    for (const status of ["PAUSED", "SUPERSEDED"]) {
+      const id = await writePolicy({ team: teamId, scope: "WORKSPACE", retentionDays: 30 });
+      await prisma.evidenceRetentionPolicy.update({ where: { id }, data: { status } as never });
+    }
+    const decision = await resolveEffectiveRetentionPolicy({ teamId });
+    expect(decision.policy).toBeNull();
+    expect(decision.reason).toBe("no_active_policy");
+  });
+
+  // ---------------------------------------------------------------------
+  // The organization level: a template is inherited only when the
+  // workspace has no policy of its own.
+  // ---------------------------------------------------------------------
+  async function orgOf(team: string): Promise<string> {
+    const row = await prisma.team.findUnique({ where: { id: team }, select: { organizationId: true } });
+    expect(row?.organizationId, "the harness workspace must belong to an organization").toBeTruthy();
+    return row!.organizationId!;
+  }
+
+  async function writeOrgTemplate(team: string, value: Record<string, unknown>): Promise<void> {
+    const organizationId = await orgOf(team);
+    await prisma.organizationPolicy.upsert({
+      where: { organization_policies_org_key_uniq: { organizationId, key: "retention.default" } },
+      create: {
+        organizationId,
+        key: "retention.default",
+        value: value as never,
+        lastUpdatedByUserId: harness.fixtures.teamA.ownerUserId,
+      },
+      update: { value: value as never },
+    });
+  }
+
+  async function clearOrgTemplate(team: string): Promise<void> {
+    const organizationId = await orgOf(team);
+    await prisma.organizationPolicy.deleteMany({ where: { organizationId, key: "retention.default" } });
+  }
+
+  it("inherits the ORGANIZATION template when the workspace has no policy", async () => {
+    await clearPolicies();
+    await writeOrgTemplate(teamId, { retentionDays: 2555, immutable: false, description: "org default" });
+    try {
+      const decision = await resolveEffectiveRetentionPolicy({ teamId });
+      expect(decision.source).toBe("org_policy_inherited");
+      expect(decision.reason).toBe("inherited_from_org");
+      expect(decision.inheritedTemplate?.retentionDays).toBe(2555);
+    } finally {
+      await clearOrgTemplate(teamId);
+    }
+  });
+
+  it("a WORKSPACE policy wins over the inherited template, and a weaker one is flagged", async () => {
+    await clearPolicies();
+    await writeOrgTemplate(teamId, { retentionDays: 2555, immutable: false, description: null });
+    try {
+      await writePolicy({ team: teamId, scope: "WORKSPACE", retentionDays: 30 });
+      const decision = await resolveEffectiveRetentionPolicy({ teamId });
+      expect(decision.source).toBe("team_policy");
+      expect(decision.policy?.scope).toBe("WORKSPACE");
+      expect(decision.conflicts.map((c) => c.code)).toContain("workspace_weaker_than_inherited");
+    } finally {
+      await clearOrgTemplate(teamId);
+    }
+  });
+
+  it("an IMMUTABLE template is a floor: the decision and the inheritance projection agree on it", async () => {
+    await clearPolicies();
+    await writeOrgTemplate(teamId, { retentionDays: 2555, immutable: true, description: null });
+    try {
+      await writePolicy({ team: teamId, scope: "WORKSPACE", retentionDays: 30 });
+      const decision = await resolveEffectiveRetentionPolicy({ teamId });
+      expect(decision.policy?.retentionDays).toBe(30); // the row is untouched
+      expect(decision.effectiveRetentionDays).toBe(2555); // the floor governs
+      expect(decision.mandatoryFloorApplied).toBe(true);
+      expect(decision.conflicts.map((c) => c.code)).toEqual(["workspace_overrides_immutable"]);
+
+      const inheritance = await get(`/v1/governance/retention/inheritance?teamId=${teamId}`);
+      expect(inheritance.statusCode, inheritance.body).toBe(200);
+      expect((inheritance.json() as { resolution: unknown }).resolution).toMatchObject({
+        source: "team_policy",
+        retentionDays: 2555,
+        mandatoryFloorApplied: true,
+      });
+    } finally {
+      await clearOrgTemplate(teamId);
+    }
+  });
+
+  it("a policy at least as strong as an immutable template raises nothing and flags nothing", async () => {
+    await clearPolicies();
+    await writeOrgTemplate(teamId, { retentionDays: 365, immutable: true, description: null });
+    try {
+      await writePolicy({ team: teamId, scope: "WORKSPACE", retentionDays: 3650 });
+      const decision = await resolveEffectiveRetentionPolicy({ teamId });
+      expect(decision.effectiveRetentionDays).toBe(3650);
+      expect(decision.mandatoryFloorApplied).toBeUndefined();
+      expect(decision.conflicts).toEqual([]);
+    } finally {
+      await clearOrgTemplate(teamId);
+    }
+  });
+
+  it("a failed organization read propagates instead of answering 'no policy applies'", async () => {
+    const orgReadFails = {
+      evidenceRetentionPolicy: { findMany: async () => [] },
+      team: { findUnique: async () => { throw new Error("simulated organization read failure"); } },
+      organizationPolicy: { findUnique: async () => null },
+    } as unknown as Parameters<typeof resolveEffectiveRetentionPolicy>[1];
+    await expect(resolveEffectiveRetentionPolicy({ teamId }, orgReadFails)).rejects.toThrow(
+      /simulated organization read failure/,
+    );
+  });
+
+  // ---------------------------------------------------------------------
+  // THE HTTP PATHS. The Sentry signature named GET /v1/governance/dashboard;
+  // the governance retention page loads the dashboard, the effective
+  // decision and the inheritance projection together. Every one of them
+  // must answer, with no optional filter and with every combination.
+  // ---------------------------------------------------------------------
+  function get(url: string) {
+    return harness.app.inject({
+      method: "GET",
+      url,
+      headers: { authorization: `Bearer ${harness.fixtures.teamA.ownerToken}` },
+    });
+  }
+
+  it("the effective-policy endpoint answers 200 for every combination of optional filters", async () => {
+    await clearPolicies();
+    await writePolicy({ team: teamId, scope: "WORKSPACE", retentionDays: 30 });
+    const caseId = harness.fixtures.teamA.caseId;
+    const optional: Array<[string, string]> = [
+      ["evidenceType", "PHOTO"],
+      ["jurisdiction", "EU"],
+      ["caseId", caseId],
+    ];
+    for (let mask = 0; mask < 1 << optional.length; mask += 1) {
+      const qs = optional
+        .filter((_, i) => mask & (1 << i))
+        .map(([k, v]) => `&${k}=${encodeURIComponent(v)}`)
+        .join("");
+      const res = await get(`/v1/governance/retention-policies/effective?teamId=${teamId}${qs}`);
+      expect(res.statusCode, `filters [${qs}] → ${res.body}`).toBe(200);
+      expect((res.json() as { policy: { scope: string } | null }).policy?.scope).toBe("WORKSPACE");
+    }
+  });
+
+  it("the inheritance projection and the governance dashboard answer 200 on the same page load", async () => {
+    await clearPolicies();
+    const inheritance = await get(`/v1/governance/retention/inheritance?teamId=${teamId}`);
+    expect(inheritance.statusCode, inheritance.body).toBe(200);
+    expect((inheritance.json() as { resolution: { source: string } }).resolution.source).toBe("none");
+
+    const dashboard = await get(`/v1/governance/dashboard?teamId=${teamId}`);
+    expect(dashboard.statusCode, dashboard.body).toBe(200);
+  });
+
+  // ---------------------------------------------------------------------
   // An infrastructure failure must NOT become a false "no policy applies".
   // ---------------------------------------------------------------------
   it("propagates a database error instead of reporting 'no policy applies'", async () => {
