@@ -570,31 +570,42 @@ export async function resolveEffectiveRetentionPolicy(
   input: ResolveEffectivePolicyInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<EffectiveRetentionDecision> {
+  /*
+   * ONE ARM PER FILTER THE CALLER ACTUALLY SUPPLIED.
+   *
+   * This used to emit `{ id: "__never__" }` for each absent optional filter,
+   * intending an arm that matches nothing. `EvidenceRetentionPolicy.id` is
+   * `@db.Uuid`, so PostgreSQL rejected the WHOLE statement with
+   * `invalid input syntax for type uuid: "__never__"` — the sentinel did not
+   * match nothing, it invalidated the query.
+   *
+   * It fired on the ORDINARY call. A workspace-level resolution supplies no
+   * evidence type, no jurisdiction and no case, so all three no-op arms were
+   * present and the resolver failed at exactly the question it exists to
+   * answer. Every such call also raised a critical operational alert.
+   *
+   * An absent filter is the ABSENCE of a predicate, so it is expressed by not
+   * pushing one. The WORKSPACE arm is unconditional and keeps the array
+   * non-empty, so `OR` is always well-formed.
+   */
+  const scopeArms: prismaPkg.Prisma.EvidenceRetentionPolicyWhereInput[] = [
+    { scope: "WORKSPACE" },
+  ];
+  if (input.evidenceType) {
+    scopeArms.push({ scope: "EVIDENCE_TYPE", scopeQualifier: input.evidenceType });
+  }
+  if (input.jurisdiction) {
+    scopeArms.push({ scope: "REGULATORY", scopeQualifier: input.jurisdiction });
+  }
+  if (input.caseId) {
+    scopeArms.push({ scope: "CASE", caseId: input.caseId });
+  }
+
   const candidates = await client.evidenceRetentionPolicy.findMany({
     where: {
       teamId: input.teamId,
       status: "ACTIVE",
-      OR: [
-        { scope: "WORKSPACE" },
-        input.evidenceType
-          ? {
-              scope: "EVIDENCE_TYPE",
-              scopeQualifier: input.evidenceType,
-            }
-          : { id: "__never__" }, // no-op
-        input.jurisdiction
-          ? {
-              scope: "REGULATORY",
-              scopeQualifier: input.jurisdiction,
-            }
-          : { id: "__never__" },
-        input.caseId
-          ? {
-              scope: "CASE",
-              caseId: input.caseId,
-            }
-          : { id: "__never__" },
-      ],
+      OR: scopeArms,
     },
   });
 
