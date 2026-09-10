@@ -151,7 +151,7 @@ are. **It is a real signal, not a duplicate.**
 
 ---
 
-## D. ROOT CAUSE 1 — THE STALE GENERATED FACTS
+## D. ROOT CAUSE 1 — THE STALE GENERATED ARTIFACTS, AND THE TRAP UNDERNEATH THEM
 
 Reproduced locally, verbatim:
 
@@ -161,16 +161,97 @@ AuditEngineIntegrity = FAIL
   STALE: audit-output/current/architecture-facts.json — regenerate with `pnpm audit:architecture`
 ```
 
-`services/api/scripts/audit/index.mjs` regenerates the facts in memory,
-normalises volatile fields out of both sides, and compares. A source change
-that alters what the facts describe makes the committed artifact stale, and
+`services/api/scripts/audit/index.mjs` regenerates the artifacts in memory,
+normalises volatile fields out of both sides, and compares. A tree change that
+alters what they describe makes the committed copies stale, and
 `--engine-check` refuses.
 
-`ec92bc6a` **did** include `architecture-facts.json` (10 lines changed), so the
-generator was run during the closure — but source edits landed after that run,
-and the artifact was never regenerated against the final tree. This is the
-"generators LAST" rule, and it is why regeneration is the last action of this
-pass (§S) rather than an early one.
+### D.1 The first diagnosis was incomplete, and CI said so
+
+The reading above — "the closure ran the generator, then edited source again"
+— was reached by regenerating, watching the check pass, and moving on. It was
+wrong, and the way it was found to be wrong is the point: **the first push of
+this recovery (`c3a92a42`) failed `build-test` at the same step 6**, while
+`--engine-check` passed on this machine, on the committed tree, with nothing
+uncommitted.
+
+A local PASS and a remote FAIL over the same commit means the difference is not
+in the source. It is in the tree.
+
+### D.2 What the difference actually was
+
+`git status` showed three untracked files left over from earlier, unrelated
+work. One of them was **inside the generated-artifact directory**:
+
+```
+?? audit-output/current/admin-enterprise-product-audit.json
+?? docs/admin/audits/ADMIN_ENTERPRISE_PRODUCT_AUDIT.md
+?? docs/admin/audits/FINAL_ADVERSARIAL_E2E_CLOSURE_AUDIT.md
+```
+
+Moving all three aside and re-running the check reproduced CI exactly:
+
+```
+AuditEngineIntegrity = FAIL
+  STALE: audit-output/current/audit-governance-inventory.json
+  STALE: audit-output/current/architecture-facts.json
+```
+
+Restoring the two markdown documents left it PASSing, which isolates the cause
+to a single file. The regenerated diff names it outright — one inventory entry,
+one count:
+
+```
+-    "AuditFilesInventoried": 356,
++    "AuditFilesInventoried": 355,
+-    "DOMAIN_AUTHORITY": 69,
++    "DOMAIN_AUTHORITY": 68,
+-    { "path": "audit-output/current/admin-enterprise-product-audit.json",
+-      "role": "DOMAIN_AUTHORITY", … }
+```
+
+The audit engine **inventories its own artifact directory**. An untracked JSON
+sitting in `audit-output/current/` is therefore an *input*: the generator counts
+it, writes 356 into the committed artifacts, and CI — whose checkout has 355
+files — recomputes 355 and correctly calls the artifact stale.
+
+### D.3 Why this makes the local check actively misleading
+
+The relationship is inverted from the usual one. On a developer machine holding
+that untracked file:
+
+- `pnpm audit:architecture` writes artifacts describing **356** files;
+- `pnpm audit:architecture --engine-check` then **passes**, because it compares
+  against the same tree that produced them;
+- CI **fails**, because the file it is counting does not exist there.
+
+So a local green is not evidence, and regenerating "one more time" cannot help
+— each regeneration reproduces the same wrong number. This is why the first
+push did not fix `build-test` despite the generator having been run last, twice,
+and byte-compared: **byte-stability across two runs on one tree says nothing
+about agreement with a different tree.**
+
+It also explains `ec92bc6a` without appealing to ordering. That commit *did*
+include `architecture-facts.json`; the closure *did* run the generator last.
+It ran it in a tree that already held the same untracked file — it is in the
+`git status` captured at the very start of this session — so the artifact it
+committed was stale on arrival.
+
+### D.4 The fix, and the rule that follows
+
+The artifacts are regenerated **with the untracked JSON moved aside**, so they
+describe the tree that is actually committed. Verified in that state: two
+consecutive runs byte-identical for all three artifacts, and
+`AuditEngineIntegrity = PASS`. Four generated files changed —
+`architecture-facts.json`, `audit-governance-inventory.json`, `report.md` and
+`current-runtime-capability-map.json`. The untracked file is restored
+afterwards and stays out of the commit (§AD).
+
+The rule, which nothing in the repository currently enforces: **the audit
+artifacts must be generated against a CI-shaped tree.** Untracked files under
+`audit-output/current/` change the answer, and the gate that would catch it is
+the very gate they defeat. Recorded as an open item in §AC.6 with the two
+candidate closures.
 
 ---
 
@@ -1223,7 +1304,13 @@ pnpm --filter proovra-web build
 OPERATIONS_LAYOUT=1 pnpm exec playwright test --project=operations-layout
 ```
 
-Two things will otherwise mislead you, and both are documented in-tree:
+Three things will otherwise mislead you:
+
+- **regenerate the audit artifacts with untracked files under `audit-output/`
+  moved aside.** The engine inventories that directory, so a scratch file there
+  becomes part of the committed artifact and CI rejects it — while your local
+  `--engine-check` passes (§D.3). A local PASS over a dirty `git status` is not
+  evidence.
 
 - move `.p7tmp` and `services/api/.p7tmp` aside before the API unit project, or
   the Point-7 gate asserts against whatever ledger your machine happens to hold
@@ -1278,6 +1365,8 @@ its own investigation.
 4. Refuse a `.p7tmp` ledger older than the current suite SHA (§AC.4).
 5. Land the one-line ioredis listener together with a source-contract
    instrument that does not break when a function gains a comment (§AC.5).
+6. Make `pnpm audit:architecture` either inventory tracked files only, or
+   refuse to run over an untracked artifact directory (§AC.6).
 
 None of these is a blocker for this change, and each is a piece of work with
 its own validation.
@@ -1370,6 +1459,33 @@ replacing the character-window searches with something that does not fail when a
 function gains a comment — the file has already widened those windows twice for
 exactly that reason, which is the signal that the window is the wrong
 instrument.
+
+### AC.6 The audit artifacts can be generated against a tree CI does not have
+
+The engine inventories its own artifact directory, so an **untracked** file
+under `audit-output/current/` is an input (§D.2). The developer who regenerates
+in that state writes artifacts describing a file CI cannot see, and
+`--engine-check` **passes locally while failing on CI** — the gate that exists
+to catch a stale artifact is defeated by the same condition that staled it.
+
+It has now cost two commits: `ec92bc6a`, whose regenerated artifact was stale on
+arrival, and `c3a92a42`, whose regeneration was done in the same tree and
+therefore did not fix it.
+
+Two candidate closures, neither done here:
+
+1. **Inventory tracked files only.** Ask git what the tree contains rather than
+   the filesystem, so an untracked scratch file cannot enter a committed
+   artifact. This is the real fix, and it changes the engine's definition of
+   "the tree" — which deserves its own review.
+2. **Refuse to generate from a dirty artifact directory.** Cheaper and blunter:
+   `pnpm audit:architecture` exits non-zero if `git status --porcelain
+   audit-output/` reports anything untracked, naming the file. It would have
+   stopped both commits at the moment of generation.
+
+Until one lands, the operational rule is in §Y: regenerate with untracked files
+under `audit-output/` moved aside, and treat a local `--engine-check` PASS as
+meaningless unless `git status` is clean.
 
 ---
 
