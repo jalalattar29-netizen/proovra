@@ -12,8 +12,9 @@ import { buildPayPalCustomId } from "./paypal-checkout-policy.service.js";
 // non-migrated branch of `must()`.
 import {
   MIGRATED_SECRETS,
-  requireSecret,
+  getSecret,
 } from "../config/runtime-secrets.js";
+import { paymentsUnavailable } from "./billing/payments-unavailable.js";
 // PHASE 11 — canonical internal URL builder. Used ONLY to compose the
 // return/cancel URL (buildReturnUrl below); the PayPal API-call endpoints
 // (apiBase/must) are untouched.
@@ -24,12 +25,12 @@ type PayPalToken = {
 };
 
 function must(name: string): string {
-  if ((MIGRATED_SECRETS as readonly string[]).includes(name)) {
-    return requireSecret(name);
-  }
-  const value = process.env[name];
+  const value = (MIGRATED_SECRETS as readonly string[]).includes(name)
+    ? getSecret(name)
+    : process.env[name];
+  // PV-DEFECT-003 — the bounded 503 PAYMENTS_UNAVAILABLE, not a bare 500.
   if (!value || !value.trim()) {
-    throw new Error(`${name} is not set`);
+    throw paymentsUnavailable("paypal", name);
   }
   return value.trim();
 }

@@ -69,6 +69,42 @@ const CODE_MAP: Record<
    * and there are exactly two things the operator can do instead. Saying them
    * is the difference between a refusal and a dead end.
    */
+  /**
+   * BATCH C — bounded domain refusals. Each was a bare `throw` answering 500
+   * and paging critical; each now has a code and a sentence that says what to
+   * do instead.
+   */
+  EVIDENCE_RELATIONSHIP_SELF_LINK: {
+    title: "Choose a different record",
+    message: "A record can't be linked to itself. Enter a different evidence record ID.",
+    severity: "warning",
+  },
+  PAYMENTS_UNAVAILABLE: {
+    title: "Payments unavailable",
+    message:
+      "Payments are temporarily unavailable, and nothing was charged. Please try again later, or contact support if this continues.",
+    severity: "warning",
+  },
+  WEBHOOK_ENDPOINT_URL_INVALID: {
+    title: "Check the endpoint address",
+    message: "The endpoint address must be a public https:// URL.",
+    severity: "warning",
+  },
+  WEBHOOK_ENDPOINT_EVENTS_INVALID: {
+    title: "Check the selected events",
+    message: "Choose at least one event, and no more than the allowed number, for this endpoint.",
+    severity: "warning",
+  },
+  WEBHOOK_ENDPOINT_EVENT_UNKNOWN: {
+    title: "Unknown event",
+    message: "One of the selected events is not available for webhooks. Remove it and try again.",
+    severity: "warning",
+  },
+  SCIM_TOKEN_ROTATE_CONFLICT: {
+    title: "The token changed",
+    message: "This provisioning token was changed while it was being rotated. Refresh the list and try again.",
+    severity: "warning",
+  },
   CONDITION_STILL_ACTIVE: {
     title: "This condition is still active",
     message:

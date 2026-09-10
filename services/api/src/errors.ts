@@ -390,3 +390,105 @@ export function classifyReportability(error: unknown): ErrorReportability {
   }
   return "UNEXPECTED";
 }
+
+// ---------------------------------------------------------------------------
+// BOUNDED DOMAIN OUTCOMES — ONE CONVENTION FOR "NO" THAT IS NOT "BROKEN".
+//
+// A rejected input, an identifier that answers to nothing the caller may see,
+// a conflict with current state and an unconfigured provider are DECISIONS,
+// not faults. Three of them were written as bare `throw new Error(...)`, which
+// the central handler can only read as an infrastructure failure: a 500, a
+// Sentry capture and a critical operational page for an operator's typo.
+//
+// Each builder returns a `DomainError`, so the handler answers it verbatim with
+// its own status and public code, and the response hook does not page anyone.
+// The PUBLIC CODE stays domain-specific — only the shape is shared.
+// ---------------------------------------------------------------------------
+
+type BoundedRefusalInit = {
+  /** Stable, domain-specific machine code the client renders copy from. */
+  code: string;
+  /** What the caller is told: actionable, bounded, identifier-free. */
+  message: string;
+  /** Richer text for logs and tests; never crosses the wire. */
+  developerMessage?: string;
+  metadata?: DomainErrorInit["metadata"];
+};
+
+/** The caller's input is not acceptable as it stands. 400, never paged. */
+export function inputRefusal(init: BoundedRefusalInit): DomainError {
+  return new DomainError(init.developerMessage ?? init.code, {
+    httpStatus: 400,
+    publicCode: init.code,
+    publicMessage: init.message,
+    reportability: "EXPECTED_DENIAL",
+    severity: "info",
+    metadata: init.metadata,
+  });
+}
+
+/** The request conflicts with the resource's current state. 409, never paged. */
+export function conflictRefusal(init: BoundedRefusalInit): DomainError {
+  return new DomainError(init.developerMessage ?? init.code, {
+    httpStatus: 409,
+    publicCode: init.code,
+    publicMessage: init.message,
+    reportability: "EXPECTED_DENIAL",
+    severity: "info",
+    metadata: init.metadata,
+  });
+}
+
+/**
+ * Nothing the caller may see answers to this identifier. 404, with the same
+ * body whether the thing does not exist or belongs to someone else — the
+ * anti-enumeration convention the rest of the API already follows.
+ */
+export function notFoundRefusal(
+  init: Partial<BoundedRefusalInit> = {},
+): DomainError {
+  return new DomainError(init.developerMessage ?? init.code ?? "NOT_FOUND", {
+    httpStatus: 404,
+    publicCode: init.code ?? "NOT_FOUND",
+    publicMessage: init.message ?? "Not found.",
+    reportability: "EXPECTED_DENIAL",
+    severity: "info",
+    metadata: init.metadata,
+  });
+}
+
+/**
+ * A provider this request needs is not available in this environment. 503
+ * with a bounded code, as the integrations surface already answers.
+ *
+ * OPERATIONAL_WARNING, not UNEXPECTED: it is neither the customer's mistake
+ * nor a crash, but in an environment that should have the provider it IS a
+ * configuration regression — so the response hook raises a warning-level
+ * operational signal rather than a critical page, and never nothing.
+ * `setting` names WHICH configuration is missing, for the operator's log
+ * only: never its value, and never on the wire.
+ */
+export function providerUnavailable(input: {
+  code: string;
+  message: string;
+  provider: string;
+  reason: string;
+  setting?: string | null;
+  developerMessage?: string;
+}): DomainError {
+  return new DomainError(
+    input.developerMessage ?? `${input.provider} unavailable: ${input.reason}`,
+    {
+      httpStatus: 503,
+      publicCode: input.code,
+      publicMessage: input.message,
+      reportability: "OPERATIONAL_WARNING",
+      severity: "warning",
+      metadata: {
+        provider: input.provider,
+        reason: input.reason,
+        setting: input.setting ?? null,
+      },
+    },
+  );
+}

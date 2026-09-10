@@ -82,6 +82,7 @@ import {
 } from "../identity/membership-provisioning.service.js";
 import { enforceScimManagedOwnership } from "./scim-managed-ownership.service.js";
 import { resolveTeamEnterpriseFeatureGate } from "../enterprise-gate-resolvers.service.js";
+import { conflictRefusal } from "../../errors.js";
 
 // -----------------------------------------------------------------------------
 // Token hashing
@@ -389,7 +390,15 @@ export async function rotateScimToken(
       },
     });
     if (claimed.count !== 1) {
-      throw new Error("SCIM_TOKEN_ROTATE_CONFLICT");
+      // A concurrent rotate or revoke won the row. That is a conflict with
+      // current state (409), not a crash — and the transaction still rolls
+      // back, so no second credential is minted.
+      throw conflictRefusal({
+        code: "SCIM_TOKEN_ROTATE_CONFLICT",
+        message:
+          "This provisioning token was changed while it was being rotated. Refresh the list and try again.",
+        developerMessage: "SCIM_TOKEN_ROTATE_CONFLICT",
+      });
     }
     const revoked = await tx.scimProvisioningToken.findUniqueOrThrow({
       where: { id: existing.id },

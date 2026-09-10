@@ -195,6 +195,27 @@ test("the registry does not describe codes the API no longer emits", () => {
     );
     known.add(c);
   }
+  /*
+   * BATCH C — BOUNDED DOMAIN REFUSALS EMIT FROM THEIR SERVICES.
+   *
+   * Each was a bare `throw` answering 500; each is now a DomainError the
+   * central handler answers verbatim. Held to the file that raises it, the
+   * same way the commercial family above is: delete the throw and this fails.
+   */
+  for (const [c, authority] of [
+    ["EVIDENCE_RELATIONSHIP_SELF_LINK", "services/api/src/services/evidence-review/relationship-summary.service.ts"],
+    ["PAYMENTS_UNAVAILABLE", "services/api/src/services/billing/payments-unavailable.ts"],
+    ["WEBHOOK_ENDPOINT_URL_INVALID", "services/api/src/services/packaging/webhooks/webhook-platform.service.ts"],
+    ["WEBHOOK_ENDPOINT_EVENTS_INVALID", "services/api/src/services/packaging/webhooks/webhook-platform.service.ts"],
+    ["WEBHOOK_ENDPOINT_EVENT_UNKNOWN", "services/api/src/services/packaging/webhooks/webhook-platform.service.ts"],
+    ["SCIM_TOKEN_ROTATE_CONFLICT", "services/api/src/services/access-control/scim.service.ts"],
+  ] as const) {
+    assert.ok(
+      read(authority).includes('"' + c + '"'),
+      c + " is classified as service-emitted by " + authority + ", which no longer emits it.",
+    );
+    known.add(c);
+  }
   // Codes that reach the client from the API's global error handler or from
   // the web client's own normalization rather than from a route file.
   for (const c of [

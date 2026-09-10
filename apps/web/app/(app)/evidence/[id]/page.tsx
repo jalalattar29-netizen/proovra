@@ -200,6 +200,9 @@ function EvidenceDetailPageInner() {
   const [workflowEventsLoading, setWorkflowEventsLoading] = useState(false);
   const [relationshipOpen, setRelationshipOpen] = useState(false);
   const [relationshipTargetId, setRelationshipTargetId] = useState("");
+  const relationshipTargetIsSelf =
+    Boolean(evidenceId) &&
+    relationshipTargetId.trim().toLowerCase() === String(evidenceId).toLowerCase();
   const [relationshipType, setRelationshipType] = useState("RELATED");
   const [relationshipNote, setRelationshipNote] = useState("");
   const [exportDisabled, setExportDisabled] = useState(false);
@@ -1569,7 +1572,12 @@ function EvidenceDetailPageInner() {
               type="button"
               className="app-primary-action"
               onClick={() => void saveRelationship()}
-              disabled={actionBusy || !relationshipTargetId}
+              disabled={actionBusy || !relationshipTargetId.trim() || relationshipTargetIsSelf}
+              aria-describedby={
+                relationshipTargetIsSelf || !relationshipTargetId.trim()
+                  ? "evidence-relationship-target-reason"
+                  : undefined
+              }
             >
               Save relationship
             </button>
@@ -1586,7 +1594,26 @@ function EvidenceDetailPageInner() {
             value={relationshipTargetId}
             onChange={(event) => setRelationshipTargetId(event.target.value)}
             placeholder="Linked evidence UUID"
+            aria-label="Linked evidence record ID"
+            aria-invalid={relationshipTargetIsSelf || undefined}
           />
+          {/* PV-DEFECT-001 — the server refuses a self-link (400
+              EVIDENCE_RELATIONSHIP_SELF_LINK); saying so before the request is
+              the same rule, stated where the operator is typing. */}
+          <p
+            id="evidence-relationship-target-reason"
+            className="evidence-detail-muted"
+            role={relationshipTargetIsSelf ? "alert" : undefined}
+            data-evidence-relationship-reason={
+              relationshipTargetIsSelf ? "self" : !relationshipTargetId.trim() ? "empty" : undefined
+            }
+          >
+            {relationshipTargetIsSelf
+              ? "A record can't be linked to itself. Enter a different evidence record ID."
+              : !relationshipTargetId.trim()
+                ? "Enter the ID of the record to link before saving."
+                : null}
+          </p>
           <label className="evidence-detail-field">
             <span>Relationship type</span>
             <AppListbox

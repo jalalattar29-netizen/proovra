@@ -323,13 +323,24 @@ function ExternalReviewManagementConsole() {
           body: JSON.stringify({ grantIds: ids, reason: "Operator bulk revoke" }),
         },
       );
-      const revokedCount =
-        (res?.rows as Array<{ outcome: string }> | undefined)?.filter(
-          (r) => r.outcome === "REVOKED",
-        ).length ?? 0;
+      // PV-DEFECT-002 — every row reports its own outcome. An id that no
+      // longer answers in this workspace is decided before any write and
+      // named here, instead of failing the whole batch as a server error.
+      const rows = (res?.rows as Array<{ outcome: string }> | undefined) ?? [];
+      const count = (outcome: string) => rows.filter((r) => r.outcome === outcome).length;
+      const revokedCount = count("REVOKED");
+      const already = count("ALREADY_REVOKED");
+      const missing = count("NOT_FOUND");
+      const failed = count("FAILED");
+      const parts = [`Revoked ${revokedCount} of ${ids.length} invitations.`];
+      if (already > 0) parts.push(`${already} were already revoked.`);
+      if (missing > 0) {
+        parts.push(`${missing} no longer exist in this workspace — refresh the list.`);
+      }
+      if (failed > 0) parts.push(`${failed} could not be revoked; try them again.`);
       setBanner({
-        tone: "ok",
-        text: `Bulk revoke: ${revokedCount}/${ids.length} grants revoked.`,
+        tone: missing > 0 || failed > 0 ? "warn" : "ok",
+        text: parts.join(" "),
       });
       setMultiSelected(new Set());
       await refresh();

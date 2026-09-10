@@ -1,6 +1,8 @@
 // D:\digital-witness\services\api\src\services\paypal-plan-map.service.ts
 import * as prismaPkg from "@prisma/client";
 
+import { paymentsUnavailable } from "./billing/payments-unavailable.js";
+
 export type SupportedPayPalCurrency = "EUR" | "USD";
 
 export type PayPalRecurringPlan =
@@ -14,10 +16,15 @@ export function normalizePayPalCurrency(
   return currency === "EUR" ? "EUR" : "USD";
 }
 
+/**
+ * A plan id this checkout needs. Missing is still LOUD — the checkout is
+ * refused, never downgraded to a one-time charge — but it is refused as the
+ * bounded 503 PAYMENTS_UNAVAILABLE rather than a bare 500 (WCC-NEW-004).
+ */
 function must(name: string): string {
   const value = process.env[name];
   if (!value || !value.trim()) {
-    throw new Error(`${name} is not set`);
+    throw paymentsUnavailable("paypal", name, "plan_not_configured");
   }
   return value.trim();
 }

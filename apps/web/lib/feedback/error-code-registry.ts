@@ -267,6 +267,16 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
     where: "global",
   },
 
+  // -- Bounded domain refusals (Batch C) ------------------------------------
+  // Service-emitted DomainErrors the central handler answers verbatim; the
+  // coverage test holds each one to the service that throws it.
+  EVIDENCE_RELATIONSHIP_SELF_LINK: { disposition: "customer", where: "global" },
+  PAYMENTS_UNAVAILABLE: { disposition: "customer", where: "global" },
+  WEBHOOK_ENDPOINT_URL_INVALID: { disposition: "customer", where: "global" },
+  WEBHOOK_ENDPOINT_EVENTS_INVALID: { disposition: "customer", where: "global" },
+  WEBHOOK_ENDPOINT_EVENT_UNKNOWN: { disposition: "customer", where: "global" },
+  SCIM_TOKEN_ROTATE_CONFLICT: { disposition: "customer", where: "global" },
+
   // -- Feature availability -------------------------------------------------
   FEATURE_DISABLED: { disposition: "customer", where: "global" },
   INTEGRATIONS_DISABLED: {

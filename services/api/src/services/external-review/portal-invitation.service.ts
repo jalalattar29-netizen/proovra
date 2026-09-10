@@ -177,13 +177,23 @@ export async function revokeInvitation(input: {
   if (!res.ok) {
     return { ok: false, denial: mapGrantDenial(res.reason) };
   }
-  await emitPortalActivity({
-    prisma,
-    teamId: input.teamId,
-    grantId: input.grantId,
-    code: "GRANT_REVOKED",
-    payload: { reason: input.reason ?? null },
+  // The portal activity log is keyed to the portal INVITATION: its grant_id
+  // references external_reviewer_role_assignments. A grant issued outside the
+  // portal has no invitation row — its revocation is recorded by the grant
+  // service's own security event — and writing an activity row for it would be
+  // a foreign-key violation AFTER the grant had already been revoked.
+  const invitationRows = await prisma.externalReviewerRoleAssignment.count({
+    where: { id: input.grantId, teamId: input.teamId },
   });
+  if (invitationRows > 0) {
+    await emitPortalActivity({
+      prisma,
+      teamId: input.teamId,
+      grantId: input.grantId,
+      code: "GRANT_REVOKED",
+      payload: { reason: input.reason ?? null },
+    });
+  }
   return { ok: true };
 }
 
@@ -370,8 +380,12 @@ function mapGrantDenial(reason: string): ExternalPortalDenialReason {
       return "TOKEN_EXPIRED";
     case "REVOKED":
       return "TOKEN_REVOKED";
+    // `token_unknown` is the grant service's own spelling of "no such grant
+    // in this workspace". It used to fall through to POLICY_REJECTED, so an
+    // unknown id was reported as a policy refusal rather than as not found.
     case "GRANT_NOT_FOUND":
     case "INVITE_NOT_FOUND":
+    case "token_unknown":
       return "INVITE_NOT_FOUND";
     case "ALREADY_ACCEPTED":
       return "INVITE_ALREADY_ACCEPTED";

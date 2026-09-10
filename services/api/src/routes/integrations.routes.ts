@@ -51,6 +51,7 @@ import {
   MAX_ROTATION_GRACE_MINUTES,
 } from "../services/integrations/api-keys.service.js";
 import { getEnvSourceHint } from "../env.js";
+import { markBoundedOutcome } from "../http/bounded-outcome.js";
 // Phase 19 — API key create/revoke require step-up.
 // Phase 4 closure — each integration action has its own dedicated
 // step-up purpose (INTEGRATION_API_KEY_* / INTEGRATION_WEBHOOK_*).
@@ -124,6 +125,14 @@ async function requireMember(
 function gateFeatureOrReply(reply: FastifyReply): boolean {
   const reason = integrationsFeatureDisabledReason();
   if (reason) {
+    // A deliberate flag is a chosen state; a missing secret is a
+    // configuration regression that still reaches ops as a warning signal.
+    // Neither is a crash, so neither pages critical (WCC-NEW-002).
+    markBoundedOutcome(reply.request, {
+      code: "INTEGRATIONS_DISABLED",
+      reportability: reason === "secret_missing" ? "OPERATIONAL_WARNING" : "EXPECTED_DENIAL",
+      severity: "warning",
+    });
     reply.code(503).send({
       error: { code: "INTEGRATIONS_DISABLED", reason },
     });
@@ -725,6 +734,14 @@ export async function integrationsRoutes(app: FastifyInstance) {
                   err.code === "invalid_event_types"
                 ? 400
                 : 500;
+          if (status === 503) {
+            markBoundedOutcome(reply.request, {
+              code: err.code,
+              reportability:
+                err.code === "secret_missing" ? "OPERATIONAL_WARNING" : "EXPECTED_DENIAL",
+              severity: "warning",
+            });
+          }
           return reply
             .code(status)
             .send({ error: { code: err.code, details: err.details ?? null } });
