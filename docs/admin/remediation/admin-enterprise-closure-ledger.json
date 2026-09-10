@@ -389,6 +389,20 @@
       "status": "FIXED",
       "fix": "admin-inventory.mjs blanks comments with the TypeScript parser (trivia between real tokens, offsets preserved) and reads registrations from the syntax tree — string, template or hoisted `const` path, /v1 or not — so the inventory reads 1,145 routes (1,141 call sites, 0 unresolved) where it read 1,108. One classification moved: GET /v1/support-access/grants from FILTER to FILTER_CANDIDATE, because the old slice ran into the next handler's teamId filter",
       "acceptanceTest": "apps/web/__tests__/admin-inventory-route-count.test.mjs (5): phantom-block and string cases, JSX/regex cases, constant/non-/v1 resolution, syntax-tree count equals the text count with no unresolved first argument, and the registrations the old reader missed are present"
+    },
+    {
+      "id": "WCC-NEW-029",
+      "audit": "resumed remediation inspection",
+      "severity": "P1",
+      "surface": "API test preload",
+      "currentSource": "services/api/test/setup/test-bootstrap.mjs",
+      "currentRuntime": "Filesystem interception recorded 16 env file existence checks and 16 reads before fix; zero afterwards",
+      "disposition": "FIX_REQUIRED",
+      "batch": "B-followup",
+      "status": "FIXED",
+      "fix": "Fingerprint inherited process values only; never inspect repository env files. Keep the inherited-value oracle and socket guard.",
+      "acceptanceTest": "apps/web/__tests__/test-bootstrap-no-env-reads.test.mjs; 1/1 failed before and 1/1 passed after; existing fixture suite 23/23 passed",
+      "finalCommit": []
     }
   ],
   "phase9": [
@@ -879,5 +893,26 @@
       "WCC-NEW-025": "engine-check INSTRUMENT AmbiguousConsumerSites = 2 after Batch G",
       "WCC-NEW-027": "checkRedis mutation: HEAD fixed-window tests 7 failed"
     }
+  },
+  "resumedSession": {
+    "baseline": "a019d5d74d796c55c0ee7b5a839d332d0acafd06",
+    "resumedHead": "fb5e03b69609a2bb68daf58c10cfbfc302993cc6",
+    "exclusiveWorktree": "D:/pv-wcc",
+    "authorization": "User explicitly confirmed exclusive ownership and requested resume instead of fresh worktree",
+    "verifiedTests": [
+      {
+        "command": "node --test apps/web/__tests__/test-bootstrap-no-env-reads.test.mjs apps/web/__tests__/local-fixture-env-isolation.test.mjs",
+        "passed": 24,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "command": "focused API source-contract tests (six modified files)",
+        "passed": 157,
+        "failed": 0,
+        "skipped": 0
+      }
+    ],
+    "finalIntegration": "NOT_RUN"
   }
 }

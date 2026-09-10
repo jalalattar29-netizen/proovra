@@ -113,8 +113,7 @@ export const SCRUBBED_KEYS: string[] = [];
 
 /**
  * Answers "did this value come from the machine?" — installed on `globalThis`
- * by the `--import` preload, which fingerprinted the inherited environment and
- * the `.env` files before scrubbing them. Absent only if this file is loaded
+ * by the `--import` preload, which fingerprinted the inherited environment before scrubbing it. Absent only if this file is loaded
  * without the preload, in which case the conservative behaviour (scrub
  * everything dangerous, every pass) is the right fallback.
  */
