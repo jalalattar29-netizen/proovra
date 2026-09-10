@@ -144,9 +144,9 @@ function GovernancePolicyPageInner() {
   // envelope hasn't hydrated yet — render the bounded loading shell.
   if (!teamId) {
     return (
-      <main data-governance-policy-loading style={{ padding: 24 }}>
+      <div data-governance-policy-loading style={{ padding: 24 }}>
         Loading organization workspace…
-      </main>
+      </div>
     );
   }
 

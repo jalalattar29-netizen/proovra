@@ -126,6 +126,7 @@ export function OperationalBreadcrumb({
             ) : (
               <span
                 data-breadcrumb-current={isLast ? "true" : "false"}
+                aria-current={isLast ? "page" : undefined}
                 style={{
                   color: isLast ? "#0f172a" : "inherit",
                   fontWeight: isLast ? 600 : 400,

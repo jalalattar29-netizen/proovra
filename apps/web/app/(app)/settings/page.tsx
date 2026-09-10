@@ -223,7 +223,7 @@ function SettingsWorkspace() {
       <div className="set-shell" data-settings-shell>
         <SettingsNav model={model} active={pane} onSelect={openPane} />
 
-        <main className="set-main" aria-live="polite">
+        <div className="set-main" aria-live="polite">
           {pane === "overview" ? (
             <SettingsOverview
               ui={ui}
@@ -295,7 +295,7 @@ function SettingsWorkspace() {
               ) : null}
             </>
           )}
-        </main>
+        </div>
       </div>
     </PageShell>
   );

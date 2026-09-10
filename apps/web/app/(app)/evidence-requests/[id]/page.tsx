@@ -318,14 +318,14 @@ function Inner() {
 
   if (loading) {
     return (
-      <main style={mainStyle} data-evidence-request-loading>
+      <div style={mainStyle} data-evidence-request-loading>
         <p>Loading evidence request…</p>
-      </main>
+      </div>
     );
   }
   if (error || !data) {
     return (
-      <main style={mainStyle} data-evidence-request-error role="alert">
+      <div style={mainStyle} data-evidence-request-error role="alert">
         <h1 style={titleStyle}>Evidence request unavailable</h1>
         <p>{error ?? "Not found."}</p>
         {data?.caseId ? (
@@ -333,7 +333,7 @@ function Inner() {
             Return to matter
           </Link>
         ) : null}
-      </main>
+      </div>
     );
   }
 
@@ -359,7 +359,7 @@ function Inner() {
   const reviewReady = required.length === 0 || requiredFulfilled === required.length;
 
   return (
-    <main style={mainStyle} data-evidence-request={data.id}>
+    <div style={mainStyle} data-evidence-request={data.id}>
       {/* Phase B — operational breadcrumb keeps the workspace + Phase B
           group context visible while operators move between
           intake/matter surfaces. */}
@@ -791,7 +791,7 @@ function Inner() {
         </div>
       ) : null}
       {requestId ? <ContextualDeliveryStatus requestId={requestId} /> : null}
-    </main>
+    </div>
   );
 }
 

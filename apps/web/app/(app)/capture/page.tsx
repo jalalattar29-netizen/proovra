@@ -744,7 +744,7 @@ onClick={async () => {
             am I", and only the rail derives its state from the session.
             The rail is the orientation; this list is gone. */}
         <section className="capture-enterprise-grid">
-          <main className="capture-enterprise-card capture-main-panel">
+          <div className="capture-enterprise-card capture-main-panel">
         <section className="capture-hero">
           {/* THE HEADING, AND NOTHING ABOVE IT.
               The hero carried an eyebrow — a 15px camera glyph and the words
@@ -1392,7 +1392,7 @@ onClick={async () => {
           onReset={() => setClearConfirmOpen(true)}
           onFinalize={finalizeSession}
         />
-          </main>
+          </div>
 
           <CaptureSessionPanel
             busy={busy}

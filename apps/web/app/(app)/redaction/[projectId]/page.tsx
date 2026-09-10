@@ -251,7 +251,7 @@ function RedactionProjectShell({
 
   if (!project) {
     return (
-      <main style={{ padding: 40, textAlign: "center" }}>Loading…</main>
+      <div style={{ padding: 40, textAlign: "center" }}>Loading…</div>
     );
   }
 
@@ -333,7 +333,7 @@ function RedactionProjectShell({
           />
         </aside>
 
-        <main>
+        <div>
           {selectedVersion ? (
             <VersionWorkspace
               project={project}
@@ -358,7 +358,7 @@ function RedactionProjectShell({
               Create a new version to begin authoring redactions.
             </div>
           )}
-        </main>
+        </div>
       </div>
 
       <footer

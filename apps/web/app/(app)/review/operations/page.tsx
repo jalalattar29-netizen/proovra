@@ -223,7 +223,7 @@ useEffect(() => {
   }
 
   return (
-    <main style={pageStyle}>
+    <div style={pageStyle}>
       <header>
         <h1 style={titleStyle}>Review operations</h1>
         <p style={mutedStyle}>
@@ -425,7 +425,7 @@ useEffect(() => {
           </section>
         </>
       )}
-    </main>
+    </div>
   );
 }
 

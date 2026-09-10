@@ -326,7 +326,7 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
   const activeSection = useActiveSection(sectionOrder);
 
   return (
-    <main
+    <div
       className="ec-page"
       data-command-center
       data-cc-persona={persona ?? "VIEWER"}
@@ -575,7 +575,7 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
 
       {/* Unsupported Signals — transparent catalog, collapsed by default */}
       <UnsupportedSignalsSection signals={envelope.unsupportedSignals} />
-    </main>
+    </div>
   );
 }
 
@@ -4906,7 +4906,7 @@ function EnterpriseEmpty({
 
 function CommandCenterLoading() {
   return (
-    <main className="ec-page" data-command-center-loading>
+    <div className="ec-page" data-command-center-loading>
       <header className="ec-hero">
         <div className="ec-hero-titles">
           <div className="ec-kicker">Evidence Operations Center</div>
@@ -4916,7 +4916,7 @@ function CommandCenterLoading() {
       <section className="ec-section">
         <div className="ec-skeleton" />
       </section>
-    </main>
+    </div>
   );
 }
 
@@ -4932,7 +4932,7 @@ function NoWorkspaceState() {
   // user actually needs, with real registered destinations + the
   // workspace-administration deep link.
   return (
-    <main className="ec-page" data-command-center-empty>
+    <div className="ec-page" data-command-center-empty>
       <header className="ec-hero">
         <div className="ec-hero-titles">
           <div className="ec-kicker">Evidence Operations Center</div>
@@ -4999,7 +4999,7 @@ function NoWorkspaceState() {
           </Link>
         </div>
       </SectionShell>
-    </main>
+    </div>
   );
 }
 
@@ -5009,7 +5009,7 @@ function AuthErrorState({
   code: "auth_required" | "permission_denied";
 }) {
   return (
-    <main className="ec-page" data-command-center-auth-error>
+    <div className="ec-page" data-command-center-auth-error>
       <header className="ec-hero">
         <div className="ec-hero-titles">
           <div className="ec-kicker">Evidence Operations Center</div>
@@ -5023,7 +5023,7 @@ function AuthErrorState({
           </p>
         </div>
       </header>
-    </main>
+    </div>
   );
 }
 
@@ -5035,7 +5035,7 @@ function UnavailableState({
   requestId: string | null;
 }) {
   return (
-    <main className="ec-page" data-command-center-error>
+    <div className="ec-page" data-command-center-error>
       <header className="ec-hero">
         <div className="ec-hero-titles">
           <div className="ec-kicker">Evidence Operations Center</div>
@@ -5046,7 +5046,7 @@ function UnavailableState({
           ) : null}
         </div>
       </header>
-    </main>
+    </div>
   );
 }
 

@@ -25,7 +25,7 @@ export default function EvidenceLifecycleSegmentLoading() {
     height: 10,
   } as const;
   return (
-    <main
+    <div
       data-evidence-lifecycle-loading
       style={{
         padding: 20,
@@ -98,6 +98,6 @@ export default function EvidenceLifecycleSegmentLoading() {
           100% { background-position: 0% 50%; }
         }
       `}</style>
-    </main>
+    </div>
   );
 }

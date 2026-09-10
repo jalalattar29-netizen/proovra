@@ -344,7 +344,9 @@
       "surface": "33 routes + PageRouteGate denial panels",
       "disposition": "FIX_REQUIRED",
       "batch": "H",
-      "status": "OPEN"
+      "status": "FIXED_PENDING_BROWSER_PROOF",
+      "fix": "Replace 44 nested main render branches with div containers; shell provides MainLandmarkContext so full-page feedback keeps one main both inside and outside the shell",
+      "acceptanceTest": "main-landmark-ownership.test.mjs red before, green after; main-landmark-ownership.render.test.tsx 7/7; full render 1113/1113; capture/layout contracts 37/37"
     },
     {
       "id": "PV-NAV-001",
@@ -353,7 +355,9 @@
       "surface": "/governance/retention breadcrumb",
       "disposition": "FIX_REQUIRED",
       "batch": "H",
-      "status": "OPEN"
+      "status": "FIXED_PENDING_BROWSER_PROOF",
+      "fix": "Remove duplicated Governance item on retention; canonical OperationalBreadcrumb marks the current item with aria-current=page",
+      "acceptanceTest": "main-landmark-ownership.test.mjs red before, green after; main-landmark-ownership.render.test.tsx 7/7; full render 1113/1113; capture/layout contracts 37/37"
     },
     {
       "id": "PV-DUP-002",
@@ -418,7 +422,9 @@
       "status": "FIXED",
       "fix": "Honor PROOVRA_ENV_BOOTSTRAPPED before checking or reading env files",
       "acceptanceTest": "apps/web/__tests__/test-bootstrap-no-env-reads.test.mjs; Prisma regression red before, green after; isolation total 25 passed, zero skipped",
-      "finalCommit": []
+      "finalCommit": [
+        "c5c71c99"
+      ]
     }
   ],
   "phase9": [
@@ -943,6 +949,18 @@
         "command": "full render suite",
         "files": 53,
         "passed": 1113,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "command": "new disposable database migration deploy",
+        "database": "proovra_wcc_resume_test_20260910",
+        "result": "PASS",
+        "historicalMigrationsEdited": false
+      },
+      {
+        "command": "main landmark source and render regressions",
+        "passed": 8,
         "failed": 0,
         "skipped": 0
       }

@@ -1,5 +1,6 @@
 "use client";
 
+import { MainLandmarkContext } from "../navigation/MainLandmarkContext";
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { AppSidebarV2 } from "./AppSidebarV2";
@@ -221,28 +222,30 @@ export function AppShellV2({ children, onLogout }: AppShellV2Props) {
       </div>
 
       <div className="app-shell-v2-content-slot">
-        <main
-          className="app-shell-v2-content"
-          id="app-main-content"
-          /* -1, not 0: the skip link needs a focus TARGET, and a landmark that
-             is a permanent tab stop would add a stop for everybody. */
-          tabIndex={-1}
-        >
-          {/*
-           * PHASE 10 STEP 5 — persistent support-access banner. Renders
-           * only when the envelope reports active support access; a no-op
-           * for every ordinary user. Kept above page content so it is
-           * visible on every route during a support session.
-           */}
-          <SupportAccessBanner />
-          {needsRecovery ? (
-            <WorkspaceRecoveryPanel />
-          ) : personalSpaceBlocked ? (
-            <PersonalSpaceUnavailablePanel />
-          ) : (
-            children
-          )}
-        </main>
+        <MainLandmarkContext.Provider value={true}>
+          <main
+            className="app-shell-v2-content"
+            id="app-main-content"
+            /* -1, not 0: the skip link needs a focus TARGET, and a landmark that
+               is a permanent tab stop would add a stop for everybody. */
+            tabIndex={-1}
+          >
+            {/*
+             * PHASE 10 STEP 5 — persistent support-access banner. Renders
+             * only when the envelope reports active support access; a no-op
+             * for every ordinary user. Kept above page content so it is
+             * visible on every route during a support session.
+             */}
+            <SupportAccessBanner />
+            {needsRecovery ? (
+              <WorkspaceRecoveryPanel />
+            ) : personalSpaceBlocked ? (
+              <PersonalSpaceUnavailablePanel />
+            ) : (
+              children
+            )}
+          </main>
+        </MainLandmarkContext.Provider>
       </div>
 
       {/* Cmd+K palette — self-mounted portal; renders only when open. */}

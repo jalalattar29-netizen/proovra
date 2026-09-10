@@ -1356,7 +1356,7 @@ function EvidenceDetailPageInner() {
         </nav>
 
         <div className="evidence-detail-layout">
-          <main
+          <div
             className="evidence-detail-main"
             role="tabpanel"
             id={`evidence-tabpanel-${activeTab}`}
@@ -1375,7 +1375,7 @@ function EvidenceDetailPageInner() {
                 onGoToCustody={() => setActiveTab("custody")}
               />
             ) : null}
-          </main>
+          </div>
 
           {/* ONE shared rail for every tab — see _tabs/EvidenceRecordRail. */}
           <EvidenceRecordRail

@@ -169,7 +169,7 @@ function AcceptTeamInvite() {
   }, [run]);
 
   return (
-    <main
+    <div
       className="cc-page"
       data-testid="accept-invite-page"
       data-status={status}
@@ -191,7 +191,7 @@ function AcceptTeamInvite() {
           router.push(`/login?next=${encodeURIComponent(here)}`);
         },
       })}
-    </main>
+    </div>
   );
 }
 

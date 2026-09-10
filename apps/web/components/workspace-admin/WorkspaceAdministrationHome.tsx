@@ -44,7 +44,7 @@ export function WorkspaceAdministrationHome() {
   const duplicates = useDuplicatePersonalCandidates();
 
   return (
-    <main className="cc-page" data-workspace-administration-home>
+    <div className="cc-page" data-workspace-administration-home>
       <header className="cc-page-header">
         <div>
           <div className="cc-kicker">Workspace Administration</div>
@@ -330,6 +330,6 @@ export function WorkspaceAdministrationHome() {
           <WorkspaceAdminPanel />
         </section>
       ) : null}
-    </main>
+    </div>
   );
 }

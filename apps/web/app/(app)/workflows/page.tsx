@@ -169,7 +169,7 @@ function WorkflowsTemplatesPageInner() {
   const sectorOptions = useMemo(() => SECTORS, []);
 
   return (
-    <main style={pageStyle}>
+    <div style={pageStyle}>
       <header>
         <h1 style={titleStyle}>Workflow Templates</h1>
         <p style={mutedStyle}>
@@ -354,7 +354,7 @@ function WorkflowsTemplatesPageInner() {
           )}
         </section>
       )}
-    </main>
+    </div>
   );
 }
 

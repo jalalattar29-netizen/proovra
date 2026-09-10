@@ -488,7 +488,6 @@ function RetentionPoliciesPageInner() {
             <OperationalBreadcrumb
               routeId="governance.retention"
               items={[
-                { label: "Governance", href: "/governance" },
                 { label: "Retention policies" },
               ]}
             />

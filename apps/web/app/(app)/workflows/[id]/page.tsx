@@ -305,7 +305,7 @@ function WorkflowInstancePageInner() {
   }, [steps]);
 
   return (
-    <main style={pageStyle}>
+    <div style={pageStyle}>
       <header>
         <h1 style={titleStyle}>Workflow</h1>
         <p style={mutedStyle}>
@@ -575,7 +575,7 @@ function WorkflowInstancePageInner() {
           </section>
         </>
       )}
-    </main>
+    </div>
   );
 }
 

@@ -76,9 +76,9 @@ function ReviewerCriteriaPageInner() {
     }
   }
 
-  if (!teamId) return <main style={{ padding: 24 }}><p>Select a workspace.</p></main>;
+  if (!teamId) return <div style={{ padding: 24 }}><p>Select a workspace.</p></div>;
   return (
-    <main style={{ padding: 24, maxWidth: 980 }}>
+    <div style={{ padding: 24, maxWidth: 980 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
         <h1 style={{ margin: 0 }}>Reviewer Criteria</h1>
         <button className="app-primary-action" onClick={() => setShowCreate((v) => !v)}>
@@ -144,7 +144,7 @@ function ReviewerCriteriaPageInner() {
           {historyId === s.id ? <VersionHistory teamId={teamId} setId={s.id} /> : null}
         </section>
       ))}
-    </main>
+    </div>
   );
 }
 

@@ -103,7 +103,7 @@ export function GovernanceControlPlane() {
   // CapabilityDegradedPanel instead of a plain-text fallback.
   if (ctx.envelope && !ctx.can("GOVERNANCE_VIEW")) {
     return (
-      <main className="cc-page" data-governance-capability-degraded>
+      <div className="cc-page" data-governance-capability-degraded>
         <CapabilityDegradedPanel
           surface="Governance"
           requiredCapability="GOVERNANCE_VIEW"
@@ -114,7 +114,7 @@ export function GovernanceControlPlane() {
             { label: "Review billing & plan", href: "/billing" },
           ]}
         />
-      </main>
+      </div>
     );
   }
 
@@ -131,7 +131,7 @@ export function GovernanceControlPlane() {
   const isAdmin = ctx.can("GOVERNANCE_ACT");
 
   return (
-    <main className="cc-page" data-governance-control-plane>
+    <div className="cc-page" data-governance-control-plane>
       <header className="cc-page-header">
         <div>
           <div className="cc-kicker">Compliance · Preservation · Retention</div>
@@ -222,7 +222,7 @@ export function GovernanceControlPlane() {
           {tab === "incidents" && <IncidentsTab env={env} />}
         </>
       )}
-    </main>
+    </div>
   );
 }
 
@@ -970,7 +970,7 @@ function SectionNote({
 
 function ShellLoading() {
   return (
-    <main className="cc-page" data-governance-loading>
+    <div className="cc-page" data-governance-loading>
       <header className="cc-page-header">
         <div>
           <div className="cc-kicker">Compliance · Preservation · Retention</div>
@@ -980,7 +980,7 @@ function ShellLoading() {
       <section className="cc-section">
         <div className="cc-skeleton" />
       </section>
-    </main>
+    </div>
   );
 }
 
@@ -995,7 +995,7 @@ function ShellAuthError({
   code: "auth_required" | "permission_denied";
 }) {
   return (
-    <main className="cc-page" data-governance-auth-error={code}>
+    <div className="cc-page" data-governance-auth-error={code}>
       <header className="cc-page-header">
         <div>
           <div className="cc-kicker">Compliance · Preservation · Retention</div>
@@ -1004,13 +1004,13 @@ function ShellAuthError({
           </h1>
         </div>
       </header>
-    </main>
+    </div>
   );
 }
 
 function ShellUnavailable({ message }: { message: string }) {
   return (
-    <main className="cc-page" data-governance-unavailable>
+    <div className="cc-page" data-governance-unavailable>
       <header className="cc-page-header">
         <div>
           <div className="cc-kicker">Compliance · Preservation · Retention</div>
@@ -1018,7 +1018,7 @@ function ShellUnavailable({ message }: { message: string }) {
           <p className="cc-subtitle">{message}</p>
         </div>
       </header>
-    </main>
+    </div>
   );
 }
 

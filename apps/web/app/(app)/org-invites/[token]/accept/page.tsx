@@ -179,7 +179,7 @@ function OrgInviteAcceptPageInner() {
   );
 
   return (
-    <main
+    <div
       style={{ padding: "1.5rem", maxWidth: 560 }}
       data-phase-2-7x-org-invite-accept
       data-token-present={token ? "true" : "false"}
@@ -294,6 +294,6 @@ function OrgInviteAcceptPageInner() {
           />
         </div>
       )}
-    </main>
+    </div>
   );
 }

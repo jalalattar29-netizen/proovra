@@ -188,7 +188,7 @@ function OrganizationsListPageInner() {
   const totalOrgs = state.kind === "ready" ? state.data.summary.totalOrgs : 0;
 
   return (
-    <main
+    <div
       className="org-list-surface"
       style={{ padding: "1.5rem", maxWidth: 980, margin: "0 auto" }}
       data-phase-a-1b-organizations-list
@@ -554,7 +554,7 @@ function OrganizationsListPageInner() {
         </Link>
         .
       </footer>
-    </main>
+    </div>
   );
 }
 

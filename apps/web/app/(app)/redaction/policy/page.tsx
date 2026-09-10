@@ -336,7 +336,7 @@ function PolicyManagementConsole() {
           />
         </aside>
 
-        <main style={{ display: "grid", gap: 12 }}>
+        <div style={{ display: "grid", gap: 12 }}>
           {selectedPolicyId ? (
             <>
               <PolicyVersionsPanel
@@ -382,7 +382,7 @@ function PolicyManagementConsole() {
               Create a policy to begin.
             </div>
           )}
-        </main>
+        </div>
       </div>
     </div>
   );

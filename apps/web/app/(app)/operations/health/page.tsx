@@ -254,18 +254,18 @@ function WorkspaceHealthPageInner() {
 
   if (!workspaceId) {
     return (
-      <main className="wsh">
+      <div className="wsh">
         {breadcrumb}
         <p className="wsh__note">
           No workspace is currently selected. Workspace health describes one
           workspace at a time.
         </p>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="wsh">
+    <div className="wsh">
       {breadcrumb}
 
       <header className="app-page-header wsh__header">
@@ -448,6 +448,6 @@ function WorkspaceHealthPageInner() {
         dependency probes — is not shown here. It is identical for every
         workspace on the instance and is administered by PROOVRA platform staff.
       </p>
-    </main>
+    </div>
   );
 }

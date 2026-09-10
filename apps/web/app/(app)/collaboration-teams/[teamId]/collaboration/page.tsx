@@ -36,8 +36,8 @@ export default function RetiredCollaborationHubPage() {
   }, [router, teamId]);
 
   return (
-    <main className="cc-page" data-testid="collaboration-hub-retired">
+    <div className="cc-page" data-testid="collaboration-hub-retired">
       <p className="app-empty__body">Opening the team discussion…</p>
-    </main>
+    </div>
   );
 }
