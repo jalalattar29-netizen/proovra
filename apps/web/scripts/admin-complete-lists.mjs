@@ -35,7 +35,11 @@
 
 /**
  * @typedef {object} CompleteList
- * @property {string} route     the admin route rendering the count
+ * @property {string} route     the route rendering the count. Usually an /admin
+ *                              route; three moved to their tenant homes under
+ *                              PV-PLACE-001 and keep their declaration (and its
+ *                              API proof) because they still count by length —
+ *                              the /admin-only audits just no longer scan them.
  * @property {string} noun      the counted noun, as the page words it
  * @property {string} endpoint  the handler that returns the rows
  * @property {string} reason    why nothing truncates it
@@ -44,7 +48,8 @@
 /** @type {CompleteList[]} */
 export const COMPLETE_LISTS = [
   {
-    route: "/admin/platform/automation",
+    // PV-PLACE-001 — moved from /admin/platform/automation.
+    route: "/operations/automation",
     noun: "rule",
     endpoint: "GET /v1/automation/rules",
     reason:
@@ -62,7 +67,8 @@ export const COMPLETE_LISTS = [
       "capabilities the product has.",
   },
   {
-    route: "/admin/identity",
+    // PV-PLACE-001 — moved from /admin/identity.
+    route: "/security-center/identity",
     noun: "member",
     endpoint: "GET /v1/identity/members",
     reason:
@@ -71,7 +77,8 @@ export const COMPLETE_LISTS = [
       "filter client-side: the filter narrows all of them, not a page of them.",
   },
   {
-    route: "/admin/identity/permission-matrix",
+    // PV-PLACE-001 — moved from /admin/identity/permission-matrix.
+    route: "/security-center/identity/permission-matrix",
     noun: "role",
     endpoint: "GET /v1/admin/identity/role-matrix",
     reason:

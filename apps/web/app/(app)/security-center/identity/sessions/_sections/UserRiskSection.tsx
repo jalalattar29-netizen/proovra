@@ -43,7 +43,7 @@ import {
   sectionLabelStyle,
   sectionMuted,
   type SectionState,
-} from "../../../security/_sections/section-state";
+} from "../../../posture/_sections/section-state";
 
 type Member = { userId: string; role: string; status: string };
 

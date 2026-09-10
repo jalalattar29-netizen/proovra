@@ -15,13 +15,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { apiFetch } from "../../../../../../lib/api";
-import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError";
-import { useTenantGuard } from "../../../../../../lib/platform-context";
-import { Card } from "../../../../../../components/ui/Card";
-import { Badge } from "../../../../../../components/ui/Badge";
-import { Button } from "../../../../../../components/ui/Button";
-import { EmptyState } from "../../../../../../components/ui/EmptyState";
+import { apiFetch } from "../../../../../lib/api";
+import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
+import { useTenantGuard } from "../../../../../lib/platform-context";
+import { Card } from "../../../../../components/ui/Card";
+import { Badge } from "../../../../../components/ui/Badge";
+import { Button } from "../../../../../components/ui/Button";
+import { EmptyState } from "../../../../../components/ui/EmptyState";
 
 export type FederationReadiness = {
   teamId: string;

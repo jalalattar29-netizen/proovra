@@ -32,15 +32,15 @@
       "reviewedAtUtc": "2026-08-16"
     },
     {
-      "site": "apps/web/app/(app)/admin/identity/_sections/ServiceAccountsSection.tsx:154",
+      "site": "apps/web/app/(app)/security-center/identity/_sections/ServiceAccountsSection.tsx:153",
       "helper": "admin identity console posts to the disable leg of a ternary-built path",
       "callSitesRead": [
-        "apps/web/app/(app)/admin/identity/_sections/ServiceAccountsSection.tsx:154"
+        "apps/web/app/(app)/security-center/identity/_sections/ServiceAccountsSection.tsx:153"
       ],
       "routes": [
         "POST /v1/identity/service-accounts/:id/disable"
       ],
-      "evidence": "reg services/api/src/routes/identity.routes.ts:915 app.post(\"/v1/identity/service-accounts/:id/disable\", { preHandler: requireAuth }); apps/web/app/(app)/admin/identity/_sections/ServiceAccountsSection.tsx:154 `/v1/identity/service-accounts/${account.id}/${enabled ? \"enable\" : \"disable\"}` inside the confirm-gated mutate helper; :361 data-identity-service-account-disable={a.id} button; docs/architecture/route-classification/wiring-registry.json \"POST /v1/identity/service-accounts/:id/disable\" finalState WIRED_PRODUCT targetSurface apps/web/app/(app)/admin/identity/page.tsx",
+      "evidence": "reg services/api/src/routes/identity.routes.ts:915 app.post(\"/v1/identity/service-accounts/:id/disable\", { preHandler: requireAuth }); apps/web/app/(app)/security-center/identity/_sections/ServiceAccountsSection.tsx:153 `/v1/identity/service-accounts/${account.id}/${enabled ? \"enable\" : \"disable\"}` inside the confirm-gated mutate helper; :357 data-identity-service-account-disable={a.id} button; docs/architecture/route-classification/wiring-registry.json \"POST /v1/identity/service-accounts/:id/disable\" finalState WIRED_PRODUCT targetSurface apps/web/app/(app)/security-center/identity/page.tsx",
       "reviewedAtUtc": "2026-08-16"
     },
     {

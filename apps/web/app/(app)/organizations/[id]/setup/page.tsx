@@ -1011,13 +1011,13 @@ function OrganizationSetupInner() {
               <ReadinessRow
                 label="Single sign-on (SAML / OIDC)"
                 ready={mfa.kind === "ready" ? mfa.data.policy.ssoReadyFlag : null}
-                href="/admin/identity"
+                href="/security-center/identity"
                 cta="Configure SSO"
               />
               <ReadinessRow
                 label="SCIM user provisioning"
                 ready={mfa.kind === "ready" ? mfa.data.policy.scimReadyFlag : null}
-                href="/admin/identity/scim"
+                href="/security-center/identity/scim"
                 cta="Configure SCIM"
               />
               <div style={{ fontSize: 12, opacity: 0.75 }}>

@@ -237,7 +237,7 @@ describe("Phase P1.1 — Bounded registries", () => {
 describe("Phase P1.1 — Frontend surfaces", () => {
   it("SCIM page exposes Tokens / Drift / Replay tabs", () => {
     const p = readSource(
-      "../../../apps/web/app/(app)/admin/identity/scim/page.tsx",
+      "../../../apps/web/app/(app)/security-center/identity/scim/page.tsx",
     );
     expect(p).toContain("TAB_LABELS");
     expect(p).toContain("Drift detection");
@@ -293,12 +293,12 @@ describe("Phase P1.1 — Frontend surfaces", () => {
     // page PLUS its sections so the contract follows the decomposition
     // instead of pinning a single file's line count.
     const p = [
-      readSource("../../../apps/web/app/(app)/admin/identity/sessions/page.tsx"),
+      readSource("../../../apps/web/app/(app)/security-center/identity/sessions/page.tsx"),
       readSource(
-        "../../../apps/web/app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx",
+        "../../../apps/web/app/(app)/security-center/identity/sessions/_sections/ActiveSessionsSection.tsx",
       ),
       readSource(
-        "../../../apps/web/app/(app)/admin/identity/sessions/_sections/SessionTimelineDrawer.tsx",
+        "../../../apps/web/app/(app)/security-center/identity/sessions/_sections/SessionTimelineDrawer.tsx",
       ),
     ].join("\n");
     expect(p).toContain("SessionTimelineDrawer");
@@ -321,12 +321,12 @@ describe("Phase P1.1 — Frontend surfaces", () => {
 // ---------------------------------------------------------------------------
 
 describe("Phase P1.1 — Honest-scope card hygiene", () => {
-  it("/admin/identity no longer lists the four shipped follow-ups", () => {
+  it("/security-center/identity no longer lists the four shipped follow-ups", () => {
     // Phase IA-collapse — hub moved from /settings/security to
-    // /admin/identity. /settings/security is now the Account Security
+    // /security-center/identity. /settings/security is now the Account Security
     // home (route id `account.security`).
     const hub = readSource(
-      "../../../apps/web/app/(app)/admin/identity/page.tsx",
+      "../../../apps/web/app/(app)/security-center/identity/page.tsx",
     );
     expect(hub).not.toMatch(
       /<strong>SCIM drift reconciliation engine<\/strong>/,

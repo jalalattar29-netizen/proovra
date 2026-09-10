@@ -22,7 +22,7 @@ import { open, signIn, strip, WEB } from "./lib.mjs";
 
 const ROUTES = process.argv.slice(2).length
   ? process.argv.slice(2)
-  : ["/admin", "/admin/evidence-ops", "/admin/identity/scim", "/admin/platform/queues"];
+  : ["/admin", "/admin/evidence-ops", "/security-center/identity/scim", "/admin/platform/queues"];
 
 const { browser, ctx, page } = await open({ width: 1440, height: 900, rtl: true });
 await signIn(page);

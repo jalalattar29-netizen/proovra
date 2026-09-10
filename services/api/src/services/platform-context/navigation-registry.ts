@@ -493,10 +493,12 @@ const PLATFORM_HEALTH_GROUP: NavRegistryGroup = {
     // operators rely on direct URLs. SECURITY_CENTER_VIEW is the
     // right gate: it's granted to OWNER/ADMIN and already controls
     // the sibling /security-center page.
+    // PV-PLACE-001 — identity administration is the WORKSPACE's, and lives
+    // in its Security Center; `/admin` is the platform console only.
     {
       id: "platform.identity_admin",
       label: "Identity Admin",
-      href: "/admin/identity",
+      href: "/security-center/identity",
       iconKey: "security_center",
       domain: "PLATFORM_HEALTH",
       badgeKey: null,

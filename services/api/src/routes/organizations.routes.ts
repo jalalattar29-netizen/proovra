@@ -390,6 +390,7 @@ export async function organizationsRoutes(app: FastifyInstance) {
           verifiedAtUtc: true,
           createdAt: true,
           updatedAt: true,
+          kind: true,
         },
       });
       if (!org) {
@@ -436,6 +437,12 @@ export async function organizationsRoutes(app: FastifyInstance) {
         verifiedAtUtc: org.verifiedAtUtc ? org.verifiedAtUtc.toISOString() : null,
         createdAt: org.createdAt.toISOString(),
         updatedAt: org.updatedAt.toISOString(),
+        // PV-OD-003 — whether this is a customer organization or the one the
+        // platform provisioned for a workspace (SYSTEM — every personal
+        // workspace has one). The web hides the Enterprise organization-admin
+        // console for a SYSTEM organization and answers a direct URL with a
+        // bounded state; the server fact decides, never a client guess.
+        organizationKind: org.kind,
         callerRole: access.role,
         // PHASE 12 POINT 4 STEP 1 — the org-admin surfaces this caller may
         // SEE, derived from the same role vocabulary the endpoint gates use.

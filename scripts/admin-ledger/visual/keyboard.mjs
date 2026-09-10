@@ -423,11 +423,11 @@ const results = [];
   });
   const page = await ctx.newPage();
   await signIn(page);
-  await page.goto(`${WEB}/admin/identity/sessions`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${WEB}/security-center/identity/sessions`, { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(3_000);
   await strip(page).catch(() => 0);
 
-  const nav = { route: "/admin/identity/sessions" };
+  const nav = { route: "/security-center/identity/sessions" };
 
   const TRIGGER_SEL = "button.app-account-toolbar-mobile-menu";
   const trigger = await page.evaluate((sel) => {

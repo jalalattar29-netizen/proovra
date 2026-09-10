@@ -73,8 +73,9 @@ function readRegistry() {
   // The first version of this required `id:` to be immediately followed by
   // `href:`, and silently dropped every entry with a comment between the two —
   // which is most of the interesting ones, because the entries that needed
-  // explaining are the ones people explained. `/admin/identity` carries a
-  // nine-line note about why it is PLATFORM_ADMIN and was therefore reported
+  // explaining are the ones people explained. `/admin/identity` carried a
+  // nine-line note about why it was PLATFORM_ADMIN (it has since moved to
+  // `/security-center/identity` under PV-PLACE-001) and was therefore reported
   // as UNREGISTERED. A parser that drops what it cannot match produces a
   // confident wrong answer, so the boundary is now the structure (a
   // two-space-indented object literal) and the fields are searched inside it.
@@ -120,7 +121,8 @@ function readRegistry() {
  * first pass of this audit checked only `useActiveWorkspaceId` and its obvious
  * siblings, and therefore reported that no platform page read a workspace —
  * while `/admin/platform/queues` was calling `useTeamId()` and
- * `/admin/platform/automation` was calling `useActiveSpaceId()`, both of which
+ * `/admin/platform/automation` (now `/operations/automation`, PV-PLACE-001)
+ * was calling `useActiveSpaceId()`, both of which
  * return exactly that.
  *
  * All of them resolve through `useTeamWorkspaceGate`, so a page reaching for

@@ -43,7 +43,15 @@ const MUST_NOT_BE_CORE: ReadonlyArray<{ path: string; label: string }> = [
   { path: "/evidence-lifecycle/retention", label: "Retention (lifecycle)" },
   { path: "/organizations", label: "Organization administration" },
   { path: "/admin", label: "Admin surface" },
-  { path: "/admin/identity", label: "Enterprise identity / SSO / SCIM" },
+  // PV-PLACE-001 / PV-OD-001 — the identity family and the three workspace
+  // operations consoles moved out of /admin, which had covered them by prefix.
+  // Their tenant homes must still never resolve to CORE: /operations itself IS
+  // CORE, so the three consoles beneath it are pinned one by one.
+  { path: "/security-center/identity", label: "Enterprise identity / SSO / SCIM" },
+  { path: "/security-center/posture", label: "Workspace security posture" },
+  { path: "/operations/analytics", label: "Workspace operational analytics" },
+  { path: "/operations/automation", label: "Workspace automation rules" },
+  { path: "/operations/reliability", label: "Workspace upload reliability" },
   { path: "/security-center", label: "Security center (workspace identity)" },
   { path: "/identity-security", label: "Identity security ops" },
   { path: "/executive", label: "Executive dashboard" },

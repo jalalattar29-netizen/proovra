@@ -37,7 +37,7 @@ import {
   classifyError,
   sectionMuted,
   type SectionState,
-} from "../../../security/_sections/section-state";
+} from "../../../posture/_sections/section-state";
 import { shortId } from "../../_sections/identity-admin-shared";
 
 type ImpactRow = {

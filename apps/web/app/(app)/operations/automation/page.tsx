@@ -3,7 +3,7 @@
 /**
  * Phase E3 — Operational Automation page.
  *
- * Lives UNDER the Operations Center hub (`/admin/platform/automation`). NOT a
+ * Lives UNDER the Operations Center hub (`/operations/automation`). NOT a
  * root nav item — 32.8 IA pinned by Test 1 + Test 2 keeps root at the
  * 6 canonical primaries.
  *
@@ -29,27 +29,27 @@
  * lifecycle routes had no product surface at all before this.
  */
 
-import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 
-import { apiFetch } from "../../../../../lib/api";
+import { apiFetch } from "../../../../lib/api";
 import {
   useActiveSpaceId,
   usePlatformContext,
-} from "../../../../../lib/platform-context";
-import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
+} from "../../../../lib/platform-context";
+import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import {
   PageShell,
   PageHeader,
-} from "../../../../../components/ui/PageShell";
-import "../admin-platform.css";
-import { AutomationRuleForm } from "../../../../../components/automation/AutomationRuleForm";
-import { AutomationRuleToggle } from "../../../../../components/automation/AutomationRuleToggle";
-import type { AutomationRule } from "../../../../../components/automation/types";
-import { formatUserDateTime } from "../../../../../lib/date";
-import { ResultCount } from "../../../../../components/ui/ResultCount";
-import { FilterBar } from "../../../../../components/ui/FilterBar";
-import { Button } from "../../../../../components/ui/Button";
+} from "../../../../components/ui/PageShell";
+import "../../admin/platform/admin-platform.css";
+import { AutomationRuleForm } from "../../../../components/automation/AutomationRuleForm";
+import { AutomationRuleToggle } from "../../../../components/automation/AutomationRuleToggle";
+import type { AutomationRule } from "../../../../components/automation/types";
+import { formatUserDateTime } from "../../../../lib/date";
+import { ResultCount } from "../../../../components/ui/ResultCount";
+import { FilterBar } from "../../../../components/ui/FilterBar";
+import { Button } from "../../../../components/ui/Button";
 
 type AutomationRun = {
   id: string;
@@ -711,7 +711,7 @@ function runsQuery(teamId: string, status: string): string {
 
 export default function AutomationPage(): JSX.Element {
   return (
-    <PageRouteGate routeId="platform.automation">
+    <PageRouteGate routeId="operations.automation">
       <AutomationPageInner />
     </PageRouteGate>
   );

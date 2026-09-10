@@ -27,7 +27,7 @@ The console at `/settings/security/saml` provides production-grade configuration
 
 ### 2.1 Provision a new IdP connection
 
-Connections are created via the platform's onboarding flow (or by Platform Admin via the providers admin page at `/admin/identity/providers`). The SAML console assumes a connection record exists; the path is:
+Connections are created by a workspace security administrator in the **Connections** section of the SSO console (`/security-center/sso`), which also carries each connection's lifecycle (activate, disable, revoke) and its signing and verified-domain policy. The former `/admin/identity/providers` page merged into this console (PV-DUP-001) and redirects to it. The SAML console assumes a connection record exists; the path is:
 
 1. IT admin navigates to `/settings/security/saml`.
 2. The card lists the active SAML connection(s) for the workspace.
@@ -61,7 +61,7 @@ Each check returns a pass/fail with a structured reason. Failed checks block the
 
 ### 2.4 Promote the connection to ACTIVE
 
-When all health checks pass, the connection is eligible for ACTIVE. The transition is performed via the providers admin page (`/admin/identity/providers`) — the action is audited as `sso_connection_transitioned`.
+When all health checks pass, the connection is eligible for ACTIVE. The transition is performed from the Connections section of the SSO console (`/security-center/sso`) — the action is audited as `sso_connection_transitioned`.
 
 ---
 

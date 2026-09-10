@@ -3,7 +3,7 @@
 /**
  * Phase E4 — Operational Analytics page.
  *
- * Lives UNDER the Operations Center hub (`/admin/platform/analytics`). NOT a root
+ * Lives UNDER the Operations Center hub (`/operations/analytics`). NOT a root
  * nav item — 32.8 IA keeps root at the 6 canonical primaries.
  *
  * Hard rules (enforced by phase-e4-analytics.test.ts):
@@ -22,23 +22,23 @@
  *   - Read-only. No mutations. No new root nav item.
  */
 
-import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useEffect, useMemo, useState } from "react";
 
-import { apiFetch } from "../../../../../lib/api";
+import { apiFetch } from "../../../../lib/api";
 import { useSearchParams } from "next/navigation";
-import { useUrlFilterSync } from "../../../../../lib/use-url-filter-sync";
+import { useUrlFilterSync } from "../../../../lib/use-url-filter-sync";
 import {
   useActiveSpaceId,
-} from "../../../../../lib/platform-context";
-import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
+} from "../../../../lib/platform-context";
+import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import {
   PageShell,
   PageHeader,
-} from "../../../../../components/ui/PageShell";
-import "../admin-platform.css";
-import { formatUserDate, formatUserDateTime } from "../../../../../lib/date";
-import { IdentifierText } from "../../../../../components/ui/IdentifierText";
+} from "../../../../components/ui/PageShell";
+import "../../admin/platform/admin-platform.css";
+import { formatUserDate, formatUserDateTime } from "../../../../lib/date";
+import { IdentifierText } from "../../../../components/ui/IdentifierText";
 
 // ---------------------------------------------------------------------------
 // Envelope types — mirror services/api/src/services/analytics/analytics.service.ts
@@ -265,7 +265,7 @@ function AnalyticsPageInner(): JSX.Element {
       ? (n as AnalyticsWindowOption)
       : DEFAULT_WINDOW;
   });
-  useUrlFilterSync("/admin/platform/analytics", { window: windowDays });
+  useUrlFilterSync("/operations/analytics", { window: windowDays });
   const [state, setState] = useState<LoadState>({ status: "loading" });
   // PHASE 12 — VERTICAL B. The window selector is bounded by the SERVER
   // contract (`GET /v1/analytics/_window`), not by a client constant.
@@ -846,7 +846,7 @@ function AnalyticsPageInner(): JSX.Element {
 
 export default function AnalyticsPage(): JSX.Element {
   return (
-    <PageRouteGate routeId="platform.analytics">
+    <PageRouteGate routeId="operations.analytics">
       <AnalyticsPageInner />
     </PageRouteGate>
   );

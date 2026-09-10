@@ -101,15 +101,15 @@ function filesFor(route) {
    *
    * This took every `_sections/*.tsx` under the page's directory AND its
    * parent's, which folds a sibling page's code into this one's shape.
-   * `/admin/identity/timeline` renders a read-only audit list and issues a
+   * `/security-center/identity/timeline` renders a read-only audit list and issues a
    * single GET; it was credited with fourteen endpoints and eleven mutations
-   * belonging to `/admin/identity`, and then judged on whether IT rendered
+   * belonging to `/security-center/identity`, and then judged on whether IT rendered
    * their states. Attribution in the other direction is the same error with a
    * worse outcome: a state one page handles reported as handled on a page
    * that has nothing of the kind.
    *
    * A section belongs to the page that imports it. Composed pages are
-   * unaffected — `/admin/identity` imports all eleven of its own — and a
+   * unaffected — `/security-center/identity` imports all eleven of its own — and a
    * shared section imported by two pages is correctly counted for both.
    */
   const pageSrc = (() => {
@@ -385,7 +385,7 @@ const EVIDENCE = {
    * NOT a loosened bar. `Promise.all` behind a single `.catch` still fails
    * this, and that is exactly what it found: `/admin/platform/exports`
    * discarded an export list that had answered because the object-lock probe
-   * beside it had not, and `/admin/platform/automation` threw away the rules
+   * beside it had not, and `/operations/automation` threw away the rules
    * when the run history failed. Both are fixed; `partial-shared-catch` in the
    * fixtures keeps the rule honest.
    */
@@ -395,7 +395,7 @@ const EVIDENCE = {
      * word `partial` is "a page SAYING the word rather than a page handling
      * the state" — and then left `/PARTIAL/`, `/partial/i`, `/some sources/i`
      * and `/degraded/i` in the list beside the structural tests, where they
-     * answered first. `/admin/platform/analytics` passed on the word
+     * answered first. `/operations/analytics` passed on the word
      * "degraded" while loading five metric endpoints through `Promise.all`
      * behind a single `.catch`, which is the exact defect this state exists to
      * find: one slow or refused source discards the four that answered.
@@ -406,7 +406,7 @@ const EVIDENCE = {
      * The test has to be applied to the FUNCTION THAT READS SEVERAL SOURCES,
      * not to the file. A first version asked whether the file anywhere
      * contained two distinct setters written from catch blocks, and
-     * `/admin/platform/analytics` satisfied that from unrelated handlers while
+     * `/operations/analytics` satisfied that from unrelated handlers while
      * its five metric endpoints went through one `Promise.all` and one
      * `.catch`. A page can hold both shapes at once; only the one guarding the
      * concurrent read decides this state.
@@ -435,7 +435,7 @@ const EVIDENCE = {
       if (!widest || widestCount < 2) return false;
       if (/Promise\.allSettled/.test(widest)) return true;
       /* A `.catch` attached to ONE of the concurrent requests is an
-         independent outcome by construction — `/admin/security`'s digest
+         independent outcome by construction — `/security-center/posture`'s digest
          section reads preferences and a preview together, catches the
          preview's failure on the request itself, and renders "No digest
          preview available … Your preferences below are still accurate."
@@ -460,7 +460,7 @@ const EVIDENCE = {
    * so `/admin/platform/observability` was reported as hiding a cap while
    * rendering the denominator underneath the two tables it caps.
    *
-   * `/admin/identity/permission-matrix` says it in words instead: "Showing the
+   * `/security-center/identity/permission-matrix` says it in words instead: "Showing the
    * first of 93 — the list scrolls", written because a card headed "93 of 93
    * permissions" was showing twelve of them behind an invisible scrollbar.
    */
@@ -514,8 +514,8 @@ const EVIDENCE = {
    *
    *   `classifyFailure`   the identity family's one classifier. It returns
    *                       `kind: "denied"` for a 403 or a concealing 404, and
-   *                       `/admin/identity/access-reviews` and
-   *                       `/admin/identity/permission-matrix` each branch on
+   *                       `/security-center/identity/access-reviews` and
+   *                       `/security-center/identity/permission-matrix` each branch on
    *                       `failure.kind === "denied"` to say so.
    *   `toSafeUserError`   the app-wide safe-feedback path, whose status bucket
    *                       maps 403 to "You don't have access to this area …
@@ -535,7 +535,7 @@ const EVIDENCE = {
    * disqualifies the page outright, whatever else it contains.
    *
    * It found two, and both were real:
-   *   `/admin/identity/runtime`     `.catch(() => ({ sessions: [] }))` on the
+   *   `/security-center/identity/runtime`     `.catch(() => ({ sessions: [] }))` on the
    *                                 live-session list — a refusal rendering as
    *                                 "No active sessions" during an incident.
    *   `/admin/platform/media-graph` `catch {}` with a fixed string, so a
@@ -572,9 +572,9 @@ const EVIDENCE = {
    * UNAVAILABLE — A CAPABILITY THIS DEPLOYMENT MAY SIMPLY NOT HAVE.
    *
    * GATE B. `/Unavailable/` was CASE-SENSITIVE, and every page in this console
-   * writes the word in a sentence: `/admin/platform/analytics` renders "Data
+   * writes the word in a sentence: `/operations/analytics` renders "Data
    * source unavailable — value omitted rather than estimated",
-   * `/admin/billing` renders "Not connected", `/admin/security` renders
+   * `/admin/billing` renders "Not connected", `/security-center/posture` renders
    * "not enabled", `/admin/platform/media-graph` distinguishes "instrument
    * missing" from a zero. Four routes that handle the state precisely, all
    * reported as gaps because of one capital letter.
@@ -651,8 +651,8 @@ const EVIDENCE = {
    * GATE B. The same defect ACTION_FAILED had, in the other direction: the
    * patterns were page-local variable names (`setSuccess`, `setNotice`,
    * `setRegenNotice`, `successBox`) collected from whichever pages happened to
-   * be written first. `/admin/identity/permission-matrix` announces through
-   * `setElevationNotice`, `/admin/identity` through `{ ok: true }` row
+   * be written first. `/security-center/identity/permission-matrix` announces through
+   * `setElevationNotice`, `/security-center/identity` through `{ ok: true }` row
    * results, `/admin/platform/media-graph` through `kind: "success"` — three
    * pages that all handle the state, none of which uses the four names.
    *
@@ -1152,8 +1152,9 @@ for (const route of ROUTES) {
      *
      * GATE B. `<select` was in this test, so any dropdown anywhere made the
      * page owe a "nothing matches your filters" state.
-     * `/admin/identity/providers` was judged on two `<select>`s that are
-     * FIELDS in its create-a-provider form, and `/admin/platform/analytics`
+     * `/admin/identity/providers` (since merged into `/security-center/sso`,
+     * PV-PLACE-001 / PV-DUP-001) was judged on two `<select>`s that are
+     * FIELDS in its create-a-provider form, and `/operations/analytics`
      * on its time-window control — a control that chooses which period to
      * measure, not one that hides rows. Neither page can reach the state.
      *

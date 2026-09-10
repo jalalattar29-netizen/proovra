@@ -235,7 +235,8 @@ const MEASURE = `(() => {
 
   const tables = [...main.querySelectorAll('table')];
   // Row height is the single best predictor of an unnecessarily long page:
-  // a table row should be 40-60px, and /admin/identity/sessions was at 205
+  // a table row should be 40-60px, and /admin/identity/sessions (now
+  // /security-center/identity/sessions, PV-PLACE-001) was at 205
   // because one cell dumped a raw user-agent.
   const rowStats = tables.map((t) => {
     const rows = [...t.querySelectorAll('tbody tr')];

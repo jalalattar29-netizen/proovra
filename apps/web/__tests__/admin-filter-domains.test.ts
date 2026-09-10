@@ -4,7 +4,8 @@
  * ===========================================================================
  * WHAT THIS CAUGHT
  * ===========================================================================
- * `/admin/security` offered two choices that could not work:
+ * `/admin/security` (now `/security-center/posture`, PV-PLACE-001) offered two
+ * choices that could not work:
  *
  *   • Event severity → "Critical". `SECURITY_EVENT_SEVERITIES` is INFO,
  *     WARNING, HIGH, and `GET /v1/security/events` validates `severity`
@@ -43,7 +44,7 @@ const REPO = resolve(WEB, "../..");
 
 const POSTURE = resolve(
   WEB,
-  "app/(app)/admin/security/_sections/WorkspaceSecurityPostureSection.tsx",
+  "app/(app)/security-center/posture/_sections/WorkspaceSecurityPostureSection.tsx",
 );
 const SHARED_SECURITY = resolve(REPO, "packages/shared/src/security.ts");
 

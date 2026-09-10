@@ -120,7 +120,7 @@ const EXPECTED_CONSUMERS = [
   // PHASE 7 — the reliability page's filter labels were page-local inline
   // styles with their own ink; they now name the one authority like every
   // other field label in the product.
-  "app/(app)/admin/platform/reliability/page.tsx",
+  "app/(app)/operations/reliability/page.tsx",
   // The platform-admin evidence-credit grant. Its three fields carry the
   // canonical label, and the contrast of that label ON THE ADMIN SHELL is
   // asserted below rather than assumed — see the dark-surface test.

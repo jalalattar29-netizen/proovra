@@ -120,12 +120,6 @@ const INSPECTED = {
     changed:
       "'Not measured' 30px/750 -> 15px muted (6 of 16 tiles were non-values); Failed operations no longer red at zero; the 4-tile not-measured section -> 1 fact card",
   },
-  "/admin/identity/scim": {
-    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
-    pattern: "URL-addressable tablist -> tab panels",
-    changed:
-      "the console's only real tablist: state moved to ?tab=, adopted AdmTabs/AdmTabPanel for arrow keys + roving tabindex + tabpanel semantics; all 4 tabs opened and verified. LATER IN THE PHASE: the tab was reading its state back from the URL, so it did not change until the router's replace landed — it now switches on the click and treats the URL as a reflection of that, which is why the tab sweep measures the panel rather than the address bar",
-  },
   "/admin/platform/runbooks": {
     disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
     pattern: "searchable catalog rail + reader",
@@ -204,65 +198,11 @@ const INSPECTED = {
     changed:
       "off the legacy style objects onto the canonical components; the metadata dump moved behind a disclosure instead of printing raw JSON as page content",
   },
-  "/admin/identity": {
-    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
-    pattern: "member table -> extra access -> service accounts -> mappings -> session governance -> specialist surfaces -> scope disclosure",
-    changed:
-      "the member id column rendered one indistinguishable string on every row (an eight-character head of a sequentially-allocated UUID); it now shows head and tail through the one canonical shortener. The four per-row Revoke controls are the page's only filled red buttons and were left as they are — one per row is the console's destructive convention, which the cross-route measurement confirms",
-  },
-  "/admin/identity/access-reviews": {
-    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
-    pattern: "campaign summary -> review table -> decision controls",
-    changed:
-      "onto the canonical surfaces and the shared empty state; a disabled decision control now says why it is disabled instead of being inert and silent",
-  },
-  "/admin/identity/permission-matrix": {
-    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
-    pattern: "role selector -> permission matrix -> capability disclosure",
-    changed:
-      "a card was showing 12 of 93 permissions with no indication the other 81 existed; the matrix now discloses its own size, and amber stopped being applied to rows that carry no warning",
-  },
-  "/admin/identity/providers": {
-    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
-    pattern: "provider list -> per-provider configuration -> health",
-    changed:
-      "nine cards migrated off the legacy system; a raw ISO timestamp rendered as prose became a formatted instant",
-  },
-  "/admin/identity/runtime": {
-    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
-    pattern: "runtime posture -> session monitor -> quarantine -> emergency control",
-    changed:
-      "all twenty-five session rows printed the identical string '0adf0000-000…' in the User column, so an operator picking a session to quarantine could not tell which row they were acting on; the shortener keeps head AND tail now. 'Emergency org revoke' is the page's single filled red control",
-  },
-  "/admin/identity/sessions": {
-    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
-    pattern: "filter bar -> session table -> quarantine -> trusted devices -> policy impact -> member risk",
-    changed:
-      "every row carried TWO solid-red buttons, fifty on a full page, and the more dangerous of the pair ('Revoke all', member-scoped, step-up gated) was indistinguishable from the safer one; it is a secondary action now. The row's last action also rendered 41px past the visible edge — Timeline, a read rather than a mutation, moved to the Member cell and the table went from 1268px to 1214px inside a 1216px wrapper with no sideways scroll",
-  },
-  "/admin/identity/timeline": {
-    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
-    pattern: "filter bar -> identity event timeline -> per-event disclosure",
-    changed:
-      "the actor was stated twice in each row (once as a name, once as the same name in the kind slot); the presenter now renders the kind only when it differs from the name",
-  },
   "/admin/operations": {
     disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
     pattern: "posture row -> filter bar -> condition table -> security events",
     changed:
       "five conditions read 'Trusted timestamping failed · EVIDENCE_INTEGRITY · seen 10x · last 1m ago' against the same workspace at the same severity and status, while their own summary said each covers one record — the projection had always carried relatedEvidenceId and the page declared none of it; each row now names and links its subject. The Affected column read 'Northwind Legal / Northwind Legal' on every row. And a router.replace fired from inside the fetch callback, so a link clicked during the load navigated the reader back to the list they had just left",
-  },
-  "/admin/platform/analytics": {
-    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
-    pattern: "window control -> reading guide -> five metric groups -> generation footer",
-    changed:
-      "the source trace under the last Automation tile rendered 'source: AutomationWebhookDestinati / on' — a 28-character model name split mid-syllable in a 120px tile, on a surface whose whole claim is that a number can be checked against its table; IdentifierText offers the break at the CamelCase boundary and contributes no character, so the value still copies exactly",
-  },
-  "/admin/platform/automation": {
-    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
-    pattern: "rule summary -> rule table -> run history",
-    changed:
-      "onto the shared apf-* surfaces with one filter reset; the run list states the cap it reads under",
   },
   "/admin/platform/exports": {
     disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
@@ -300,12 +240,6 @@ const INSPECTED = {
     changed:
       "off the legacy palette and style objects; the queue's empty state explains what would appear there rather than being blank",
   },
-  "/admin/platform/reliability": {
-    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
-    pattern: "window control -> reliability tiles -> incident correlation",
-    changed:
-      "the filter labels were page-local inline styles with their own ink; they name the one canonical field-label authority now, which is what made this route the first admin consumer of that primitive",
-  },
   "/admin/platform/signers": {
     disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
     pattern: "signer posture -> signer table -> key facts",
@@ -323,12 +257,6 @@ const INSPECTED = {
     pattern: "query field -> result groups -> per-result disclosure",
     changed:
       "the search field is labelled and its icon is named; results land on destinations that read the deep-link parameters they are sent, which they previously emitted and ignored",
-  },
-  "/admin/security": {
-    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
-    pattern: "scope note -> posture strip -> events + scans -> MFA policy -> member lifecycle -> activity -> digest -> self-check",
-    changed:
-      "two filters offered values their endpoints refuse — 'Critical' against a domain of INFO/WARNING/HIGH, and 'Infected' where the status is SUSPICIOUS — so both returned 400 and rendered a form-validation sentence on a list; SUSPICIOUS also fell through to neutral grey, the one scan result an operator must act on. Five scan counters read 0 because no scanner is configured, two empty states blamed a filter that was not applied, and the page's own note card restated the amber scope banner 100px above it",
   },
   "/admin/support-access": {
     disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
@@ -371,20 +299,21 @@ const INSPECTED = {
 /* --------------------------------------------------------------- families */
 
 const FAMILY = [
+  // PV-PLACE-001 / PV-OD-001 — the Identity family (/admin/identity/*), the
+  // workspace security posture (/admin/security) and the analytics, automation
+  // and reliability consoles left the console for their tenant homes
+  // (/security-center/*, /operations/*). The rows come from admin-inventory,
+  // which walks app/(app)/admin, so they no longer appear here.
   ["/admin/platform/runbooks", "G. Runbooks", "Which procedure applies, and what exactly do I do?"],
   ["/admin/platform/exports", "C. Evidence Operations", "Is the export pipeline moving?"],
   ["/admin/platform/signers", "C. Evidence Operations", "Is custody intact and who signed?"],
   ["/admin/platform/media-graph", "C. Evidence Operations", "How does this media relate to the rest?"],
   ["/admin/platform/recovery", "C. Evidence Operations", "Can this be recovered, and by whom?"],
-  ["/admin/platform/analytics", "H. Business Insight", "What is adoption doing, on what window?"],
   ["/admin/platform-health", "F. Platform Operations", "What is degraded right now?"],
   ["/admin/platform/readiness", "F. Platform Operations", "Is this deployment fit to serve?"],
   ["/admin/platform/observability", "F. Platform Operations", "What are the signals saying?"],
-  ["/admin/platform/reliability", "F. Platform Operations", "Is the platform holding up over time?"],
   ["/admin/platform/queues", "F. Platform Operations", "What is backed up, and is it moving?"],
-  ["/admin/platform/automation", "F. Platform Operations", "What runs on its own, and did it run?"],
   ["/admin/evidence-ops", "C. Evidence Operations", "Which evidence needs attention?"],
-  ["/admin/identity", "D. Identity and Access", "Who has access and what is failing?"],
   ["/admin/customers", "B. Customers and Organizations", "Who are the customers and what state are they in?"],
   ["/admin/workspaces", "B. Customers and Organizations", "Which workspaces exist and are they live?"],
   ["/admin/users", "B. Customers and Organizations", "Who is this person and what can they reach?"],
@@ -392,7 +321,6 @@ const FAMILY = [
   ["/admin/demo-requests", "B. Customers and Organizations", "Who asked for a demo?"],
   ["/admin/provisioning", "B. Customers and Organizations", "How do I stand up an enterprise customer?"],
   ["/admin/billing", "B. Customers and Organizations", "What is owed, paid, and at risk?"],
-  ["/admin/security", "E. Security and Support", "What is the security posture and what changed?"],
   ["/admin/audit", "E. Security and Support", "Who did what, with what authority, and what happened?"],
   ["/admin/timeline", "E. Security and Support", "What happened, in order?"],
   ["/admin/alerts", "E. Security and Support", "What is firing and does anybody own it?"],
@@ -437,8 +365,12 @@ for (const row of keyboard?.results ?? []) {
   if (row.route) kbdByRoute.set(row.route, row);
 }
 
-const TABBED = new Set(["/admin/identity/scim"]);
-const WINDOWED = new Set(["/admin/dashboard", "/admin/platform/analytics"]);
+// PV-PLACE-001 — the console's only tablist (SCIM) and the analytics window
+// moved to /security-center/identity/scim and /operations/analytics. The tab
+// probe (visual/tabs.mjs) still drives both at their new homes; no /admin row
+// is tabbed any more, and only /admin/dashboard carries a window control.
+const TABBED = new Set([]);
+const WINDOWED = new Set(["/admin/dashboard"]);
 
 const shotCell = (route, view) => {
   const f = `${slug(route)}--${view}.png`;
@@ -612,7 +544,7 @@ if (tabs?.report) {
     if (entry.tab) {
       const d = entry.desktop ?? {};
       lines.push(
-        `/admin/identity/scim tab=${entry.tab.padEnd(10)} selected="${d.selectedLabel}" one-selected=${d.selected === 1} url=${d.url} overflow=${d.overflow} mobileOverflow=${entry.mobile?.overflow}`,
+        `/security-center/identity/scim tab=${entry.tab.padEnd(10)} selected="${d.selectedLabel}" one-selected=${d.selected === 1} url=${d.url} overflow=${d.overflow} mobileOverflow=${entry.mobile?.overflow}`,
       );
     }
     if (entry.keyboard) {

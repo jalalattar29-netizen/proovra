@@ -8,32 +8,33 @@
  * REST client. The intelligence platform could report provider spend against
  * budgets that nothing in the product could create.
  *
- * WHY THE AUTOMATION ACTOR IS AN OPERATOR PROFILE, AND WHY THAT IS NOT A CHEAT
+ * WHY THE AUTOMATION ACTOR IS THE ORGANIZATION OWNER (PV-PLACE-001 / PV-OD-001)
  * ---------------------------------------------------------------------------
- * `/operations/automation` is registered with `requiredActiveSpace:
- * "PLATFORM_ADMIN"` (routeRegistry.ts, id `platform.automation`), so
- * `resolveRouteAccess` short-circuits to PLATFORM_ADMIN_ONLY for everyone
- * else. The capability its controls read, `AUTOMATION_MANAGE`, is granted at
- * TEAM scope to OWNER/ADMIN, and the SERVER permission behind every one of
- * these routes — `integration.webhook.manage` — is derived from the workspace
- * role, with platform admins explicitly denied a bypass
- * (`automation.routes.ts:78-109`).
+ * `/operations/automation` WAS registered with `requiredActiveSpace:
+ * "PLATFORM_ADMIN"` (id `platform.automation`, page under
+ * `/admin/platform/automation`), so the only actor who could both open the
+ * page and perform the write was a platform admin who also owned a
+ * non-personal workspace, and these journeys used that profile.
  *
- * The single actor who can both OPEN the page and PERFORM the write is
- * therefore a platform admin who also holds OWNER on a non-personal
- * workspace. That is what `buildEnterpriseFixture({ platformAdminOwner: true })`
- * builds, and it is a faithful reproduction of the product's own gate rather
- * than a way around it: the route gate is real and is satisfied, and the
- * server-side authorization is real and is satisfied separately, by the
- * workspace role. Widening a platform-admin route gate to make a test easier
- * would be changing the product to fit the test; this reviewed the gate and
- * left it alone.
+ * `/admin` now means PROOVRA platform administration only. The console
+ * administers ONE workspace's rules, so it moved to its tenant home and is
+ * registered as `operations.automation`: `requiredActiveSpace:
+ * "ORGANIZATION_ONLY"`, `AUTOMATION_VIEW`, and Enterprise-only. The capability
+ * its controls read, `AUTOMATION_MANAGE`, is granted at TEAM scope to
+ * OWNER/ADMIN, and the SERVER permission behind every one of these routes —
+ * `integration.webhook.manage` — is derived from the workspace role, with
+ * platform admins explicitly denied a bypass (`automation.routes.ts:78-109`).
  *
- * The provider-budget capability does NOT use that profile. `/intelligence`
- * is an `ENTERPRISE_ONLY_ROUTE_IDS` route reached by an ordinary enterprise
- * workspace owner, and giving it a platform-admin actor would have hidden a
- * genuine enterprise-gate failure behind the platform-admin escape in
- * `resolveRouteAccess`.
+ * So the actor is now the ordinary enterprise organization OWNER, with no
+ * platform role — the same reasoning the provider-budget capability below
+ * always used: a platform-admin actor would hide a genuine tenant- or
+ * enterprise-gate failure behind the platform-admin escape in
+ * `resolveRouteAccess`. Both the page gate and the server authorization are
+ * satisfied by the workspace role alone, which is what the move claims.
+ *
+ * The provider-budget capability uses the same profile. `/intelligence` is an
+ * `ENTERPRISE_ONLY_ROUTE_IDS` route reached by an ordinary enterprise
+ * workspace owner.
  *
  * WHY THE TOGGLE CAPABILITIES SELECT THEIR SUBJECT AT `open()`
  * ---------------------------------------------------------------------------
@@ -70,7 +71,8 @@ import {
 const SUITE = "e2e/point7/ui-capabilities-automation.spec.ts";
 const proven = (id: string) => provenBrowserScenario(SUITE, id);
 
-const AUTOMATION_ROUTE_ID = "platform.automation";
+// PV-PLACE-001 — the page gate's route id (was `platform.automation`).
+const AUTOMATION_ROUTE_ID = "operations.automation";
 const INTELLIGENCE_ROUTE_ID = "workspace.intelligence";
 
 /**
@@ -139,7 +141,6 @@ test.describe("JOURNEY A — automation console and provider budgets", () => {
   test("p7.ui.automation.rule_created", async ({ page }) => {
     const fixture = await buildEnterpriseFixture({
       label: "auto-create",
-      platformAdminOwner: true,
     });
     const { probe } = await signInAsOperator(page, fixture);
 
@@ -330,7 +331,6 @@ test.describe("JOURNEY A — automation console and provider budgets", () => {
   test("p7.ui.automation.rule_enabled", async ({ page }) => {
     const fixture = await buildEnterpriseFixture({
       label: "auto-enable",
-      platformAdminOwner: true,
     });
     const { probe } = await signInAsOperator(page, fixture);
     const ws = fixture.tenant.workspaceId;
@@ -421,7 +421,6 @@ test.describe("JOURNEY A — automation console and provider budgets", () => {
   test("p7.ui.automation.rule_disabled", async ({ page }) => {
     const fixture = await buildEnterpriseFixture({
       label: "auto-disable",
-      platformAdminOwner: true,
     });
     const { probe } = await signInAsOperator(page, fixture);
     const ws = fixture.tenant.workspaceId;

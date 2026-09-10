@@ -137,7 +137,9 @@
       "surface": "11 /admin workspace-scoped pages",
       "disposition": "OWNER_DECISION_RESOLVED",
       "batch": "D",
-      "status": "OPEN"
+      "status": "FIXED",
+      "fix": "11 pages moved: /admin/identity/* -> /security-center/identity/* (gated once in security-center/identity/layout.tsx on SECURITY_CENTER_VIEW + ORGANIZATION_ONLY), /admin/security -> /security-center/posture, /admin/platform/{analytics,automation,reliability} -> /operations/* (Enterprise tier kept; tenant capabilities; reliability pairs OPERATIONS_VIEW with the admin-tier OPERATIONS_SUPPRESS to match its admin-only API). Permanent single-hop redirects; /operations/* redirect sources removed; registry ids renamed; admin nav identity section removed; adminScopeDispositions entries for moved routes removed; platform alerts/timeline now link platform surfaces.",
+      "acceptanceTest": "apps/web/__tests__/admin-route-ownership-redirects.test.ts (40), attention-arch-phase4a-platform-isolation (reinterpreted to the owner decision)"
     },
     {
       "id": "PV-DUP-001",
@@ -146,7 +148,8 @@
       "surface": "/admin/identity/providers vs /security-center/sso",
       "disposition": "DUPLICATE_TO_REMOVE",
       "batch": "D",
-      "status": "OPEN"
+      "status": "FIXED",
+      "fix": "the providers console merged into /security-center/sso as its Connections section (shared refresh key with the SAML section); page gated on its own security_center.sso entry; redirect from /admin/identity/providers precedes the wildcard"
     },
     {
       "id": "PV-STEPUP-001",
@@ -191,7 +194,8 @@
       "surface": "/security-center/sso, /organizations/:id/admin/members",
       "disposition": "FIX_REQUIRED",
       "batch": "E",
-      "status": "OPEN"
+      "status": "PARTIAL",
+      "note": "Ingest metadata, Add rotation cert, Install/rotate key and the verified-domain checkbox state their prerequisite (aria-describedby); organization members Send invite / Suspend remain for Batch E/F"
     },
     {
       "id": "PV-A11Y-002",
@@ -422,7 +426,8 @@
       "id": "ADM-P3-004",
       "disposition": "REGRESSED_ON_CURRENT_MAIN",
       "note": "adminNavigation.ts banner still says FIVE CONSUMERS over a list of four",
-      "batch": "D"
+      "batch": "D",
+      "status": "OPEN"
     },
     {
       "id": "ADM-P3-005",
@@ -609,7 +614,9 @@
       "surface": "MFA policy",
       "finding": "two writers: /v1/identity-security/mfa-policy (security-center) and /v1/identity/mfa-admin/policy/:teamId (admin/security)",
       "batch": "D",
-      "status": "OPEN"
+      "status": "FIXED",
+      "fix": "one MFA policy writer: PUT /v1/identity-security/mfa-policy is a deprecated alias applying the canonical Enterprise entitlement (mfaEnforcement) and the versioned write; the Security Center landing shows the policy and links to the one editor on /security-center/posture",
+      "acceptanceTest": "services/api/test/phase-12b-identity-selfservice-matrix.test.ts (3 red on the previous route: canonical writer, deprecation, 402)"
     },
     {
       "id": "WCC-NEW-012",
@@ -617,7 +624,8 @@
       "surface": "PageRouteGate denial panels",
       "finding": "render a second <main> on every denied route",
       "batch": "H",
-      "status": "OPEN"
+      "status": "PARTIAL",
+      "note": "organization-admin layout <main> -> <div> (17 routes); PageRouteGate denial panels remain for Batch H"
     },
     {
       "id": "WCC-NEW-013",
@@ -634,6 +642,49 @@
       "finding": "wrote a GRANT_REVOKED portal activity row for a grant with no portal invitation, an FK violation after the grant was already revoked; an unknown id mapped to POLICY_REJECTED instead of INVITE_NOT_FOUND",
       "batch": "C",
       "status": "FIXED_PENDING_COMMIT"
+    },
+    {
+      "id": "WCC-NEW-015",
+      "severity": "P2",
+      "surface": "PUT /v1/identity-security/mfa-policy",
+      "finding": "no Enterprise entitlement check: a workspace without MFA enforcement in its plan could set it by calling the route directly, while the canonical PATCH refused with 402",
+      "batch": "D",
+      "status": "FIXED"
+    },
+    {
+      "id": "WCC-NEW-016",
+      "severity": "P3",
+      "surface": "admin console contextual routes",
+      "finding": "/admin/users/ person detail claimed the identity section, which never contained People; corrected to customers",
+      "batch": "D",
+      "status": "FIXED_PENDING_COMMIT"
+    },
+    {
+      "id": "WCC-NEW-017",
+      "severity": "P2",
+      "surface": "admin count-truth audit",
+      "finding": "apps/web/scripts/admin-count-truth-audit.mjs walked app/(app)/admin only, so the moment eleven administrative pages moved to their tenant homes their count sites dropped out of scrutiny and one per-record judgement was deleted rather than moved: \"0 unbacked\" would have become true by forgetting",
+      "batch": "D",
+      "status": "FIXED",
+      "fix": "the audit scans /admin plus the six moved roots (security-center/identity|posture|sso, operations/analytics|automation|reliability); 46 sites (17 on moved pages), 0 unbacked; the per-record ipAllowlist judgement moved with its page; the web test requires every complete-list declaration to name a scanned page carrying a COMPLETE_LIST site",
+      "acceptanceTest": "apps/web/__tests__/admin-count-truth.test.mjs (6), apps/web/__tests__/admin-stylesheet-reach.test.ts (scans the moved roots, follows the AdminVisualSystem delivery one import deep)"
+    },
+    {
+      "id": "WCC-NEW-018",
+      "severity": "P3",
+      "surface": "capability authority manifests",
+      "finding": "Batch C shifted lines in paypal.service.ts, stripe.service.ts, webhook-platform.service.ts and the evidence page; the hand-maintained dynamic-resolutions and origin-resolutions manifests cite call sites by line, so 17 citations went stale and the analyzer reported 6 dynamic-unresolved, 9 unreviewed-origin, 5 ambiguous, 2 unmatched and 2 classification conflicts",
+      "batch": "C-followup",
+      "status": "FIXED",
+      "fix": "each stale citation re-pointed at the SAME line text in the current file (mapped from the pre-Batch-C tree e65cf986, every move printed and reviewed); the analyzer reports zero on all five instruments. route-dispositions.json citations are informational and are reconciled once against the final tree in Batch L",
+      "acceptanceTest": "services/api/test/phase-12-capability-analyzer-adversarial.test.ts 38/39, phase-12-route-consumer-authority.test.ts (instrument integrity); the map-freshness case regenerates in Batch L"
     }
-  ]
+  ],
+  "ownerDecisionImplementation": {
+    "PV-OD-003": {
+      "status": "FIXED",
+      "fix": "GET /v1/orgs/:id projects organizationKind; a SYSTEM organization (provisioned for a workspace) hides Open Admin and the admin deep links, and a direct URL renders a bounded not-available state with a sales path instead of the console",
+      "followUp": "live-PG proof with an explicit CUSTOMER organization in Batch K"
+    }
+  }
 }

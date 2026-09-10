@@ -4,7 +4,8 @@
  *
  * WHAT THIS SUITE PROVES
  * ---------------------------------------------------------------------------
- * The admin page /admin/platform/reliability offers two operator mutations on
+ * The reliability page — /operations/reliability, moved from
+ * /admin/platform/reliability under PV-PLACE-001 — offers two operator mutations on
  * an upload session:
  *
  *   POST /v1/reliability/upload-sessions/:evidenceId/mark-abandoned   { teamId }

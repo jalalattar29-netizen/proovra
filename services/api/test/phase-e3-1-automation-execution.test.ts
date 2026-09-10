@@ -55,7 +55,7 @@ const PROCESSOR = readApi(
   "src/services/automation/automation-dispatch-runtime.service.ts",
 );
 const TRIGGERS = readApi("src/services/automation/automation-triggers.ts");
-const PAGE = readWeb("app/(app)/admin/platform/automation/page.tsx");
+const PAGE = readWeb("app/(app)/operations/automation/page.tsx");
 
 // ===========================================================================
 // PART 1 — Pure condition evaluator (no eval / vm / Function)
@@ -489,8 +489,9 @@ describe("E3.1 Test 4 — UI execution-active notice replaces foundation-only no
     expect(PAGE).not.toMatch(/socket\.io/);
   });
 
-  it("page still gated by PageRouteGate routeId='platform.automation'", () => {
-    expect(PAGE).toMatch(/PageRouteGate\s+routeId="platform\.automation"/);
+  // PV-PLACE-001 — the page moved to /operations/automation under a tenant id.
+  it("page still gated by PageRouteGate routeId='operations.automation'", () => {
+    expect(PAGE).toMatch(/PageRouteGate\s+routeId="operations\.automation"/);
   });
 });
 

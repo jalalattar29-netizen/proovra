@@ -27,7 +27,7 @@
  *     "POST /v1/ops/media-intelligence/runs/:runId/retry"     (confirm; toSafeUserError failures)
  *     "POST /v1/ops/media-intelligence/dlq/replay"            (confirm; toSafeUserError failures)
  *
- *   app/(app)/admin/platform/reliability/page.tsx
+ *   app/(app)/operations/reliability/page.tsx
  *     "POST /v1/reliability/upload-sessions/:evidenceId/mark-abandoned"
  *     "POST /v1/reliability/upload-sessions/:evidenceId/request-review"
  *       (both confirm; the response row is committed to state, no re-read)
@@ -164,7 +164,7 @@ import { ConfirmActionProvider } from "../../components/ui/ConfirmActionModal";
 import OperationsSignersPage from "../../app/(app)/admin/platform/signers/page";
 import OperationsRecoveryPage from "../../app/(app)/admin/platform/recovery/page";
 import MediaGraphOpsPage from "../../app/(app)/admin/platform/media-graph/page";
-import ReliabilityPage from "../../app/(app)/admin/platform/reliability/page";
+import ReliabilityPage from "../../app/(app)/operations/reliability/page";
 import OperationsQueuesPage from "../../app/(app)/admin/platform/queues/page";
 import OperationsExportsPage from "../../app/(app)/admin/platform/exports/page";
 
@@ -911,7 +911,7 @@ describe("Media graph — POST /v1/ops/media-intelligence/dlq/replay", () => {
 });
 
 // ===========================================================================
-// 4. /admin/platform/reliability
+// 4. /operations/reliability
 // ===========================================================================
 
 function reliabilitySession(over: Record<string, unknown> = {}) {

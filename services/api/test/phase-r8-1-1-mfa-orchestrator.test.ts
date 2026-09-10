@@ -435,7 +435,12 @@ describe("R8.1.1 Part 8 — step-up uses the same factor model", () => {
     //     transaction around both sweeps;
     //   * my-sessions: sessionIdHash removed from the projection;
     //   * one new read (session-policy-impact) computed server-side.
-    const expected = 48524;
+    // Rebaselined 2026-09-10 (WCC-NEW-011/015, admin-enterprise closure) to
+    // 51590. The +2.5KB is again ENFORCEMENT: PUT /mfa-policy became a
+    // deprecated alias that now applies the Enterprise entitlement check and
+    // the versioned write it previously skipped, and answers 409 on a stale
+    // version. No step-up authority was added (the invariant test above).
+    const expected = 51590;
     const low = Math.floor(expected * 0.95);
     const high = Math.ceil(expected * 1.05);
     expect(st.size).toBeGreaterThanOrEqual(low);

@@ -235,8 +235,10 @@ describe("Phase 1A — legacy IA redirects", () => {
     ["/ops/observability", "/admin/platform/observability"],
     ["/ops/runbooks", "/admin/platform/runbooks"],
     ["/ops/media-graph", "/admin/platform/media-graph"],
-    ["/ops/automation", "/admin/platform/automation"],
-    ["/ops/analytics", "/admin/platform/analytics"],
+    // PV-PLACE-001 — workspace automation and analytics are tenant surfaces
+    // in Operations, not platform-console pages.
+    ["/ops/automation", "/operations/automation"],
+    ["/ops/analytics", "/operations/analytics"],
     ["/dashboard/insights", "/home"],
     ["/dashboard/batch-analysis", "/operations/batch-analysis"],
     ["/dashboard/quotas", "/operations/quotas"],

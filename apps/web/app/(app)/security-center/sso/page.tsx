@@ -48,7 +48,9 @@ import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 // Phase 2.3 — adopt AccessGate for the workspace-required + permission
 // states. Previously these rendered bare grey text with no next step.
 import { AccessGate } from "../../../../components/access/AccessGate";
-import { PageShell, PageHeader } from "../../../../components/ui/PageShell";
+import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
+import { AdminVisualSystem } from "../../../../components/admin/AdminVisualSystem";
+import { IdentityProvidersSection } from "./_sections/IdentityProvidersSection";
 import { Card } from "../../../../components/ui/Card";
 import { Button } from "../../../../components/ui/Button";
 import { Badge } from "../../../../components/ui/Badge";
@@ -99,10 +101,23 @@ type IngestResult = {
   };
 };
 
+/**
+ * PV-DUP-001 — THE ONE SSO CONSOLE.
+ *
+ * `/admin/identity/providers` and this page both configured the same tenant
+ * SSO through the same endpoint, under two gates and in two navigation
+ * families. The providers console's connection lifecycle now renders here as
+ * the Connections section, above the SAML configuration it feeds; the old URL
+ * redirects. The gate is this page's OWN registry entry (`security_center.sso`,
+ * organization workspaces) rather than the Security Center landing's — the
+ * landing admits personal workspaces, SSO does not.
+ */
 export default function SsoAdminPage() {
   return (
-    <PageRouteGate routeId="workspace.security_center">
-      <SsoAdminContent />
+    <PageRouteGate routeId="security_center.sso">
+      <AdminVisualSystem>
+        <SsoAdminContent />
+      </AdminVisualSystem>
     </PageRouteGate>
   );
 }
@@ -132,6 +147,13 @@ function SsoAdminContent() {
   const [certResult, setCertResult] = useState<Record<string, string | null>>({});
   const [certError, setCertError] = useState<Record<string, string | null>>({});
   const { confirm } = useConfirmAction();
+  /**
+   * ONE REFRESH KEY FOR THE PAGE. The Connections section and the SAML
+   * section read the same list; either one changing a connection bumps this
+   * and both re-read, so they never show two different lists.
+   */
+  const [version, setVersion] = useState(0);
+  const bump = () => setVersion((v) => v + 1);
 
   useEffect(() => {
     if (!teamId) return;
@@ -151,7 +173,7 @@ function SsoAdminContent() {
     return () => {
       cancelled = true;
     };
-  }, [teamId]);
+  }, [teamId, version]);
 
   function spMetadataUrl(connectionId: string): string {
     const base =
@@ -201,6 +223,7 @@ function SsoAdminContent() {
         { method: "POST" },
       );
       setTestResult((prev) => ({ ...prev, [connectionId]: result }));
+      bump();
       // Refresh provider list so samlLastTestedAt / samlLastTestStatus are current
       if (teamId) {
         apiFetch(`/v1/admin/identity/providers?teamId=${encodeURIComponent(teamId)}`, {
@@ -251,6 +274,7 @@ function SsoAdminContent() {
         [connectionId]: `Next cert added. Fingerprint: ${result.certNextFingerprint}`,
       }));
       setNextCertPem((prev) => ({ ...prev, [connectionId]: "" }));
+      bump();
     } catch (err) {
       setCertError((prev) => ({
         ...prev,
@@ -330,6 +354,7 @@ function SsoAdminContent() {
         },
       );
       setIngestResult((prev) => ({ ...prev, [connectionId]: result }));
+      bump();
     } catch (err) {
       setIngestError((prev) => ({
         ...prev,
@@ -359,8 +384,8 @@ function SsoAdminContent() {
       header={
         <PageHeader
           eyebrow="Security Center · SSO"
-          title="SAML SSO Configuration"
-          subtitle="Manage SAML 2.0 Service Provider connections for this workspace. Paste your Identity Provider metadata XML to configure endpoints and certificate fingerprints. The SP metadata URL below must be registered with your IdP."
+          title="Single sign-on"
+          subtitle="Identity providers for this workspace: create and manage connections, then configure SAML — register the SP metadata URL with your IdP, ingest its metadata, test the connection and rotate certificates."
           contextStrip={
             /* Phase P1.1 — links to the new SSO Health + Visual Mapping pages.
                These are sibling routes; this main page stays the canonical
@@ -404,13 +429,22 @@ function SsoAdminContent() {
           ]}
           testid="sso-access-gate-no-workspace"
         />
-      ) : providers === null && !loadError ? (
+      ) : (
+        <IdentityProvidersSection refreshKey={version} onChanged={bump} />
+      )}
+
+      {!teamId ? null : (
+      <PageSection
+        title="SAML configuration"
+        description="For each SAML connection: the SP metadata and ACS URLs to register with your IdP, the IdP metadata to ingest, a health check, and zero-downtime certificate rotation."
+      >
+      {providers === null && !loadError ? (
         <p style={mutedStyle}>Loading SSO providers…</p>
       ) : providers && providers.length === 0 ? (
         <EmptyState
           framed
-          title="No SSO connection configured"
-          purpose="No SAML SSO providers are configured for this workspace yet. Contact support to provision a SAML connection, then return here to ingest IdP metadata and rotate certificates."
+          title="No connection yet"
+          purpose="Create a connection under Connections above. A SAML connection then appears here for metadata ingest, testing and certificate rotation."
         />
       ) : (
         providers?.map((p) => (
@@ -453,13 +487,16 @@ function SsoAdminContent() {
               <>
                 {/* SP Metadata URL + ACS URL */}
                 <div style={fieldGroupStyle}>
-                  <label style={labelStyle}>SP Metadata URL</label>
+                  <label style={labelStyle} htmlFor={`sso-sp-metadata-${p.id}`}>
+                    SP Metadata URL
+                  </label>
                   <p style={{ ...mutedStyle, marginBottom: 6 }}>
                     Register this URL with your Identity Provider to configure the
                     SAML trust. The endpoint serves the SP EntityDescriptor XML.
                   </p>
                   <div style={copyRowStyle}>
                     <input
+                      id={`sso-sp-metadata-${p.id}`}
                       readOnly
                       value={spMetadataUrl(p.id)}
                       style={readonlyInputStyle}
@@ -477,13 +514,16 @@ function SsoAdminContent() {
                   {/* R8.2.2 — ACS URL shown explicitly so operators can configure it in IdP
                       without relying solely on metadata upload */}
                   <div style={{ marginTop: 10 }}>
-                    <label style={labelStyle}>ACS URL (HTTP-POST Binding)</label>
+                    <label style={labelStyle} htmlFor={`sso-acs-${p.id}`}>
+                      ACS URL (HTTP-POST Binding)
+                    </label>
                     <p style={{ ...mutedStyle, marginBottom: 4 }}>
                       The endpoint your IdP will POST SAML assertions to. Use this if
                       your IdP requires the ACS URL entered manually.
                     </p>
                     <div style={copyRowStyle}>
                       <input
+                        id={`sso-acs-${p.id}`}
                         readOnly
                         value={acsUrl()}
                         style={readonlyInputStyle}
@@ -700,10 +740,14 @@ function SsoAdminContent() {
 
                     {/* Add next cert */}
                     <div style={{ marginTop: 12 }}>
-                      <label style={{ ...labelStyle, fontWeight: 500 }}>
+                      <label
+                        style={{ ...labelStyle, fontWeight: 500 }}
+                        htmlFor={`sso-next-cert-${p.id}`}
+                      >
                         Add rotation certificate
                       </label>
                       <textarea
+                        id={`sso-next-cert-${p.id}`}
                         rows={4}
                         placeholder="-----BEGIN CERTIFICATE-----&#10;MIICxD...&#10;-----END CERTIFICATE-----&#10;(PEM or base64-only both accepted)"
                         value={nextCertPem[p.id] ?? ""}
@@ -718,10 +762,18 @@ function SsoAdminContent() {
                           size="sm"
                           loading={certBusy[p.id]}
                           disabled={certBusy[p.id] || !(nextCertPem[p.id] ?? "").trim()}
+                          aria-describedby={
+                            !(nextCertPem[p.id] ?? "").trim() ? `sso-next-cert-reason-${p.id}` : undefined
+                          }
                           onClick={() => void handleAddNextCert(p.id)}
                         >
                           {certBusy[p.id] ? "Saving…" : "Add rotation cert"}
                         </Button>
+                        {!(nextCertPem[p.id] ?? "").trim() ? (
+                          <span id={`sso-next-cert-reason-${p.id}`} style={mutedStyle}>
+                            Paste the IdP&apos;s new certificate above to add it.
+                          </span>
+                        ) : null}
                         {p.samlCertNextFingerprint ? (
                           <Button
                             variant="secondary"
@@ -747,7 +799,7 @@ function SsoAdminContent() {
 
                 {/* Ingest IdP metadata */}
                 <div style={fieldGroupStyle}>
-                  <label style={labelStyle}>
+                  <label style={labelStyle} htmlFor={`sso-metadata-${p.id}`}>
                     {isConfigured(p) ? "Re-ingest IdP Metadata" : "Ingest IdP Metadata"}
                   </label>
                   <p style={{ ...mutedStyle, marginBottom: 6 }}>
@@ -756,6 +808,7 @@ function SsoAdminContent() {
                     extracted automatically.
                   </p>
                   <textarea
+                    id={`sso-metadata-${p.id}`}
                     rows={6}
                     placeholder="<?xml version=&quot;1.0&quot;?><EntityDescriptor ...>...</EntityDescriptor>"
                     value={metadataXml[p.id] ?? ""}
@@ -764,16 +817,26 @@ function SsoAdminContent() {
                     }
                     style={textareaStyle}
                   />
-                  <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
+                  <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center", flexWrap: "wrap" }}>
                     <Button
                       variant="primary"
                       size="sm"
                       loading={busy[p.id]}
                       disabled={busy[p.id] || !(metadataXml[p.id] ?? "").trim()}
+                      aria-describedby={
+                        !(metadataXml[p.id] ?? "").trim() ? `sso-metadata-reason-${p.id}` : undefined
+                      }
                       onClick={() => void handleIngest(p.id)}
                     >
                       {busy[p.id] ? "Ingesting…" : "Ingest metadata"}
                     </Button>
+                    {/* PV-DIS-003 — the button waits for input; it says so
+                        rather than looking broken. */}
+                    {!(metadataXml[p.id] ?? "").trim() ? (
+                      <span id={`sso-metadata-reason-${p.id}`} style={mutedStyle}>
+                        Paste the IdP metadata XML above to ingest it.
+                      </span>
+                    ) : null}
                     <a
                       href={loginTestUrl(p.id)}
                       target="_blank"
@@ -834,6 +897,8 @@ function SsoAdminContent() {
             ) : null}
           </Card>
         ))
+      )}
+      </PageSection>
       )}
       {/* P1.4 — step-up modal surfaces only when a destructive SAML
           operation (cert promotion) triggers 401 STEP_UP_REQUIRED.

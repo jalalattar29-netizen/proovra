@@ -1028,7 +1028,7 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
       "services/api/src/services/access-control/scim.service.ts",
       "services/api/src/services/access-control/scim-groups.service.ts",
       "services/api/src/services/access-control/scim-reconciliation.service.ts",
-      "apps/web/app/(app)/admin/identity/scim/page.tsx",
+      "apps/web/app/(app)/security-center/identity/scim/page.tsx",
     ],
     policyTags: ["SCIM", "status:partial"],
   },

@@ -355,7 +355,8 @@ async function inspect(page: Page) {
        * A native radio or checkbox is 13x13 and always will be — that is the
        * platform widget. What a person actually clicks is the <label> wrapping
        * it, because clicking a label activates its control. Measuring the
-       * input reported 16 failures on /admin/security whose real targets are
+       * input reported 16 failures on /admin/security (now
+       * /security-center/posture, PV-PLACE-001) whose real targets are
        * 220x62 and 220x80.
        *
        * This is not a way to make findings disappear: checked against the same

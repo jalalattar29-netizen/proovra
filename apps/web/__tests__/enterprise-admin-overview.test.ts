@@ -125,13 +125,15 @@ test("Overview renders every required posture section", () => {
 
 const QUICK_ACTIONS: ReadonlyArray<[string, RegExp]> = [
   ["quick-action-invite-members", /\/organizations\/\$\{orgId\}\/admin\/members/],
-  ["quick-action-configure-sso", /\/admin\/identity/],
-  ["quick-action-configure-scim", /\/admin\/identity\/scim/],
+  // PV-PLACE-001 / PV-OD-001 — identity administration moved from
+  // /admin/identity to the workspace's Security Center.
+  ["quick-action-configure-sso", /"\/security-center\/identity"/],
+  ["quick-action-configure-scim", /"\/security-center\/identity\/scim"/],
   ["quick-action-verify-domain", /\/organizations\/\$\{orgId\}\/admin\/domains/],
   ["quick-action-review-audit", /\/organizations\/\$\{orgId\}\/admin\/audit/],
   ["quick-action-configure-mfa", /\/organizations\/\$\{orgId\}\/admin\/security/],
   ["quick-action-manage-retention", /\/organizations\/\$\{orgId\}\/admin\/retention/],
-  ["quick-action-manage-api", /\/admin\/identity/],
+  ["quick-action-manage-api", /"\/security-center\/identity"/],
   ["quick-action-review-access", /\/organizations\/\$\{orgId\}\/admin\/access-reviews/],
   // PHASE 11 URL convergence (2026-07-23) — the `?org=` query param was a
   // dead reference (the `/teams` → `/collaboration-teams` redirect never

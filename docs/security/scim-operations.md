@@ -2,7 +2,7 @@
 
 **Audience:** enterprise IT admins responsible for IdP-driven user provisioning.
 
-**Canonical path:** `/settings/security/scim` (redirects to `/admin/identity/scim`).
+**Canonical path:** `/settings/security/scim` (redirects to `/security-center/identity/scim`).
 
 ---
 
@@ -24,7 +24,7 @@ PROOVRA implements SCIM 2.0 for IdP-driven user + group lifecycle. Operationally
 
 P1.4 wires step-up around two destructive SCIM admin operations:
 
-- **SCIM token creation** (frontend `/admin/identity/scim` `submitCreate`). If the workspace step-up policy is set, the backend returns 401 STEP_UP_REQUIRED; the modal collects the OTP; the operation proceeds.
+- **SCIM token creation** (frontend `/security-center/identity/scim` `submitCreate`). If the workspace step-up policy is set, the backend returns 401 STEP_UP_REQUIRED; the modal collects the OTP; the operation proceeds.
 - **SCIM token revocation** (frontend `revoke` handler). Same gate.
 
 The backend audit fires regardless of step-up; step-up is operator-side confirmation, not the authoritative gate.
@@ -75,7 +75,7 @@ These are listed verbatim on the `/settings/security` hub honest-scope card so a
 
 ## 6. Reference
 
-- Surface: [apps/web/app/(app)/admin/identity/scim/page.tsx](../../apps/web/app/%28app%29/admin/identity/scim/page.tsx)
+- Surface: [apps/web/app/(app)/security-center/identity/scim/page.tsx](../../apps/web/app/%28app%29/security-center/identity/scim/page.tsx)
 - Canonical redirect: [apps/web/app/(app)/settings/security/scim/page.tsx](../../apps/web/app/%28app%29/settings/security/scim/page.tsx)
 - Routes: [services/api/src/routes/scim.routes.ts](../../services/api/src/routes/scim.routes.ts), [services/api/src/routes/admin-identity.routes.ts](../../services/api/src/routes/admin-identity.routes.ts)
 - Service: [services/api/src/services/access-control/scim.service.ts](../../services/api/src/services/access-control/scim.service.ts)

@@ -476,7 +476,17 @@ vi.mock("../src/services/identity-security/mfa-policy.service.js", async (orig) 
   ...(await orig<Record<string, unknown>>()),
   getMfaPolicy: async (teamId: string) => {
     H.rec("getMfaPolicy", { teamId });
-    return { teamId, level: "ADMINS_ONLY", stepUpTtlSeconds: 900, trustedDeviceTtlDays: 30 };
+    return { teamId, level: "ADMINS_ONLY", stepUpTtlSeconds: 900, trustedDeviceTtlDays: 30, policyVersion: 1 };
+  },
+  // WCC-NEW-011 — the canonical, versioned writer the PUT alias now uses.
+  updateMfaPolicyVersioned: async (i: Record<string, unknown>) => {
+    H.rec("updateMfaPolicyVersioned", i);
+    return {
+      teamId: i.teamId, level: i.level,
+      stepUpTtlSeconds: i.stepUpTtlSeconds ?? null,
+      trustedDeviceTtlDays: i.trustedDeviceTtlDays ?? null,
+      policyVersion: 2,
+    };
   },
   evaluateMfaRequirement: async (i: Record<string, unknown>) => {
     H.rec("evaluateMfaRequirement", i);
@@ -490,6 +500,21 @@ vi.mock("../src/services/identity-security/mfa-policy.service.js", async (orig) 
       trustedDeviceTtlDays: i.trustedDeviceTtlDays ?? null,
       policyVersion: 2,
     };
+  },
+}));
+
+// WCC-NEW-011 — the PUT alias enforces the SAME Enterprise entitlement the
+// canonical PATCH does. `enterpriseOk` is the file's existing entitlement toggle.
+vi.mock("../src/services/billing-enforcement.service.js", async (orig) => ({
+  ...(await orig<Record<string, unknown>>()),
+  assertTeamAllowsEnterpriseFeature: async (teamId: string, feature: string) => {
+    H.rec("assertTeamAllowsEnterpriseFeature", { teamId, feature });
+    if (!H.enterpriseOk) {
+      throw Object.assign(new Error("This feature requires an Enterprise plan."), {
+        statusCode: 402,
+        code: "ENTERPRISE_FEATURE_REQUIRED",
+      });
+    }
   },
 }));
 
@@ -1469,11 +1494,44 @@ describe("workspace MFA policy", () => {
       payload: { teamId: TEAM, level: "ALL_MEMBERS", stepUpTtlSeconds: 600, trustedDeviceTtlDays: 14 },
     });
     expect(res.statusCode).toBe(200);
-    expect(called("updateMfaPolicy")).toHaveLength(1);
-    expect(callInput("updateMfaPolicy")).toMatchObject({
-      teamId: TEAM, level: "ALL_MEMBERS", actorUserId: ACTOR,
+    // WCC-NEW-011 — the canonical writer is the VERSIONED one, fed the version
+    // the alias read itself; the unversioned writer is never reached.
+    expect(called("updateMfaPolicyVersioned")).toHaveLength(1);
+    expect(callInput("updateMfaPolicyVersioned")).toMatchObject({
+      teamId: TEAM, level: "ALL_MEMBERS", actorUserId: ACTOR, expectedPolicyVersion: 1,
     });
+    expect(called("updateMfaPolicy")).toHaveLength(0);
     expect(JSON.parse(res.body).policy.level).toBe("ALL_MEMBERS");
+  });
+
+  it("PUT policy is a deprecated alias that names its successor", async () => {
+    const res = await app.inject({
+      method: "PUT", url: "/v1/identity-security/mfa-policy", headers: STEP_UP,
+      payload: { teamId: TEAM, level: "ALL_MEMBERS" },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers["deprecation"]).toBe("true");
+    expect(String(res.headers["sunset"])).not.toBe("");
+    expect(String(res.headers["link"])).toContain(`/v1/identity/mfa-admin/policy/${TEAM}`);
+  });
+
+  it("PUT policy without the Enterprise entitlement → 402 with ZERO policy write and no step-up spent", async () => {
+    // Before WCC-NEW-011 this route had no entitlement check at all, so a
+    // workspace without MFA enforcement in its plan could set it here while
+    // the canonical PATCH refused it.
+    H.enterpriseOk = false;
+    const res = await app.inject({
+      method: "PUT", url: "/v1/identity-security/mfa-policy", headers: STEP_UP,
+      payload: { teamId: TEAM, level: "ALL_MEMBERS" },
+    });
+    expect(res.statusCode).toBe(402);
+    expect(JSON.parse(res.body).error.code).toBe("ENTERPRISE_FEATURE_REQUIRED");
+    expect(callInput("assertTeamAllowsEnterpriseFeature")).toMatchObject({
+      teamId: TEAM, feature: "mfaEnforcement",
+    });
+    expect(called("updateMfaPolicyVersioned")).toHaveLength(0);
+    expect(called("updateMfaPolicy")).toHaveLength(0);
+    expect(called("requireStepUpForSensitiveAction")).toHaveLength(0);
   });
 
   it("PUT policy step-up denial → 401 with ZERO policy write", async () => {
@@ -1483,6 +1541,7 @@ describe("workspace MFA policy", () => {
       payload: { teamId: TEAM, level: "ALL_MEMBERS" },
     });
     expect(res.statusCode).toBe(401);
+    expect(called("updateMfaPolicyVersioned")).toHaveLength(0);
     expect(called("updateMfaPolicy")).toHaveLength(0);
     expect(callInput("requireStepUpForSensitiveAction")).toMatchObject({
       purpose: "MFA_POLICY_UPDATE", resourceKind: "organization_security_policy", resourceId: TEAM,

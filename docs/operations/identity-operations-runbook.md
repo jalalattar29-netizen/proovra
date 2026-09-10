@@ -13,8 +13,8 @@
 - Open `/settings/security/saml`. Confirm cert-expiry warnings show >30 days for every ACTIVE connection.
 
 ### Each week
-- Open `/admin/identity/sessions` filtered to "include expired". Sanity-check expected session count.
-- Open `/admin/identity/access-reviews` filtered to PENDING. Triage anything > 7 days old.
+- Open `/security-center/identity/sessions` filtered to "include expired". Sanity-check expected session count.
+- Open `/security-center/identity/access-reviews` filtered to PENDING. Triage anything > 7 days old.
 - Open `/security-center/mfa-recovery`. Resolve pending recovery requests (most expire 72 hours after creation).
 
 ---
@@ -23,10 +23,10 @@
 
 ### Suspected account compromise
 
-1. Open `/admin/identity/sessions?teamId=…`.
+1. Open `/security-center/identity/sessions?teamId=…`.
 2. Find the user's sessions; click **Revoke** on each suspicious entry.
 3. If the suspicious surface is broad, use **Revoke-all** for that user (step-up gated).
-4. If the suspicious surface is org-wide, open `/admin/identity/runtime` and use the **emergency revoke** (step-up gated).
+4. If the suspicious surface is org-wide, open `/security-center/identity/runtime` and use the **emergency revoke** (step-up gated).
 5. Open `/settings/security/audit`. Filter event kind = "Sessions". Confirm the revocation audit emitted.
 6. Open `/security-center/mfa-recovery`. If the operator needs to recover, follow the quorum-based recovery flow.
 
@@ -47,7 +47,7 @@
 
 ### SCIM token compromised / leaked
 
-1. Open `/admin/identity/scim` or `/settings/security/scim`.
+1. Open `/security-center/identity/scim` or `/settings/security/scim`.
 2. Find the compromised token.
 3. Click **Revoke** (step-up gated).
 4. Issue a new token with the same scopes (step-up gated).
@@ -65,13 +65,13 @@
 
 1. Open `/settings/security/audit`. Filter event kind = "High severity only" or "Sessions".
 2. Open `suspicious_session_detected` event detail.
-3. Open `/admin/identity/runtime`. Find the session; click **Quarantine** (with reason + release hours).
+3. Open `/security-center/identity/runtime`. Find the session; click **Quarantine** (with reason + release hours).
 4. Investigate; if confirmed legitimate, click **Release**. If confirmed compromised, click **Revoke**.
-5. For per-session forensics, open `/admin/identity/sessions`, find the session row, click **View timeline** for the bounded identity-event reconstruction (see `docs/security/session-reconstruction.md`).
+5. For per-session forensics, open `/security-center/identity/sessions`, find the session row, click **View timeline** for the bounded identity-event reconstruction (see `docs/security/session-reconstruction.md`).
 
 ### SCIM drift detected
 
-1. Open `/admin/identity/scim` → **Drift detection** tab. The scan runs automatically.
+1. Open `/security-center/identity/scim` → **Drift detection** tab. The scan runs automatically.
 2. Review the risk-banded summary. High-risk items (e.g. `DUPLICATE_EXTERNAL_SUBJECT`) take priority.
 3. For each row you intend to act on, confirm the proposed action and tick the checkbox. `REVIEW_ONLY` rows are not selectable — they require human decision.
 4. Click **Reconcile selected**. Step-up gates on purpose `SCIM_RECONCILIATION_EXECUTE`.
@@ -80,7 +80,7 @@
 
 ### SCIM sync failure backlog
 
-1. Open `/admin/identity/scim` → **Sync replay** tab.
+1. Open `/security-center/identity/scim` → **Sync replay** tab.
 2. Transient failures (e.g. `scim_user_create_failed`) carry a **Replay** button. Terminal failures (`scim_invalid_token`) require issuing a new token in the Tokens tab.
 3. Replay emits `scim_sync_replayed` to the audit chain.
 
@@ -118,10 +118,10 @@ Phase P1.1 closed four of the five P1 bounded follow-ups. The canonical hub now 
 
 Closed in P1.1 (shipped surfaces in parentheses):
 
-- ✅ SCIM drift reconciliation engine (`/admin/identity/scim` → Drift detection + Sync replay tabs)
+- ✅ SCIM drift reconciliation engine (`/security-center/identity/scim` → Drift detection + Sync replay tabs)
 - ✅ SSO connection health monitoring dashboard (`/security-center/sso/health`)
 - ✅ Visual SAML attribute mapping builder (`/security-center/sso/mapping`)
-- ✅ Bounded session identity timeline (`/admin/identity/sessions` → per-row "View timeline"); this is the privacy-safe, scope-honest replacement for "Historical session replay" — identity events only, NOT a surveillance system.
+- ✅ Bounded session identity timeline (`/security-center/identity/sessions` → per-row "View timeline"); this is the privacy-safe, scope-honest replacement for "Historical session replay" — identity events only, NOT a surveillance system.
 
 Operators should NOT assume the remaining item is coming on a fixed schedule; raise procurement requests if needed.
 

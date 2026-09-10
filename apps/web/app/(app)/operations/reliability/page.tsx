@@ -21,22 +21,22 @@
  * Public verify, external intake, and report-v2 do NOT read these.
  */
 
-import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useEffect, useMemo, useState } from "react";
 
-import { apiFetch } from "../../../../../lib/api";
-import { formatUserDateTime } from "../../../../../lib/date";
-import { useTeamId } from "../../../../../lib/platform-context";
-import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
+import { apiFetch } from "../../../../lib/api";
+import { formatUserDateTime } from "../../../../lib/date";
+import { useTeamId } from "../../../../lib/platform-context";
+import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import {
   PageShell,
   PageHeader,
-} from "../../../../../components/ui/PageShell";
-import "../admin-platform.css";
-import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
-import { Badge } from "../../../../../components/ui/Badge";
-import { Button } from "../../../../../components/ui/Button";
-import { statusTone } from "../../../../../components/ui/StatusBadge";
+} from "../../../../components/ui/PageShell";
+import "../../admin/platform/admin-platform.css";
+import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
+import { Badge } from "../../../../components/ui/Badge";
+import { Button } from "../../../../components/ui/Button";
+import { statusTone } from "../../../../components/ui/StatusBadge";
 
 type Counts = Record<string, number>;
 
@@ -103,7 +103,7 @@ const STATUSES = [
 // Phase 38.15 — wrap in canonical PageRouteGate.
 export default function ReliabilityPage() {
   return (
-    <PageRouteGate routeId="platform.reliability">
+    <PageRouteGate routeId="operations.reliability">
       <ReliabilityPageInner />
     </PageRouteGate>
   );

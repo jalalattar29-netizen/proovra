@@ -273,7 +273,7 @@ for (const zoom of [1, 2]) {
        * A FIXED SETTLE IS A RACE, AND LOSING IT PRODUCES A FALSE FINDING.
        *
        * 3s replaced 1.5s for exactly this reason and it is still a guess. On
-       * one pass this sweep reported `/admin/identity` at 1024 as "h1=0 · NO
+       * one pass this sweep reported `/security-center/identity` at 1024 as "h1=0 · NO
        * MAIN LANDMARK" — a page with no heading and no primary region, which
        * would be among the worst findings in the accessibility section. It was
        * not true: the same route, measured on its own AND in the sweep's exact
@@ -298,7 +298,7 @@ for (const zoom of [1, 2]) {
          a route whose primary region never appeared within 18s was measured
          anyway and reported "h1=0 · NO MAIN LANDMARK" — indistinguishable
          from a page that genuinely has neither. It moved between routes from
-         run to run (/admin/identity at 1024 on one pass, /admin/billing at
+         run to run (/security-center/identity at 1024 on one pass, /admin/billing at
          320 on the next), which is the shape of a dev-server cold compile and
          not the shape of a page defect. Both were checked individually and
          both have a heading and a landmark.

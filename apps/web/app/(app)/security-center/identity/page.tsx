@@ -3,7 +3,7 @@
 /**
  * PHASE 12B — Organization identity administration console.
  *
- * `/admin/identity` was a navigation hub. It is now the WORKING console for
+ * `/security-center/identity` was a navigation hub. It is now the WORKING console for
  * enterprise identity administration, with the navigation preserved at the
  * bottom as a directory of the specialist surfaces (SAML, SCIM, sessions,
  * runtime, audit) that keep their own pages.
@@ -68,43 +68,43 @@ const SPECIALIST_SURFACES: ReadonlyArray<Surface> = [
       "Configure identity-provider SSO. Metadata ingestion, certificate rotation, request signing, NameID + attribute mapping, connection health checks, and IdP outage detection.",
   },
   {
-    href: "/admin/identity/scim",
-    canonicalPath: "/settings/security/scim",
+    href: "/security-center/identity/scim",
+    canonicalPath: "/security-center/identity/scim",
     title: "SCIM operations",
     description:
       "Provisioning token lifecycle, scope-limited bearer tokens, IP allowlist, suspend / reactivate, and revoke. Destructive operations require step-up.",
   },
   {
-    href: "/admin/identity/timeline",
-    canonicalPath: "/settings/security/audit",
+    href: "/security-center/identity/timeline",
+    canonicalPath: "/security-center/identity/timeline",
     title: "Identity audit center",
     description:
       "Unified security-event timeline: login activity, step-up elevations, session governance, geo-risk anomalies, and provisioning events. Filters per event kind + severity.",
   },
   {
-    href: "/admin/identity/sessions",
-    canonicalPath: "/admin/identity/sessions",
+    href: "/security-center/identity/sessions",
+    canonicalPath: "/security-center/identity/sessions",
     title: "Active sessions",
     description:
       "Live session inventory. Revoke individual sessions or revoke-all for a user (step-up gated). Filter by revoked / expired.",
   },
   {
-    href: "/admin/identity/runtime",
-    canonicalPath: "/admin/identity/runtime",
+    href: "/security-center/identity/runtime",
+    canonicalPath: "/security-center/identity/runtime",
     title: "Runtime monitor",
     description:
       "Live SOC console: quarantine sessions, release safe sessions, re-score on demand, and emergency org-wide revoke (step-up gated).",
   },
   {
-    href: "/admin/identity/access-reviews",
-    canonicalPath: "/admin/identity/access-reviews",
+    href: "/security-center/identity/access-reviews",
+    canonicalPath: "/security-center/identity/access-reviews",
     title: "Access reviews",
     description:
       "Periodic + triggered access reviews. Certify, revoke, or suspend each entry, or regenerate the queue on demand.",
   },
   {
-    href: "/admin/identity/permission-matrix",
-    canonicalPath: "/admin/identity/permission-matrix",
+    href: "/security-center/identity/permission-matrix",
+    canonicalPath: "/security-center/identity/permission-matrix",
     title: "Permission matrix",
     description:
       "The authoritative role → permission projection, one member's effective permissions with their source, and temporary elevation.",
@@ -127,7 +127,7 @@ const SPECIALIST_SURFACES: ReadonlyArray<Surface> = [
 
 export default function AdminIdentityConsolePage() {
   return (
-    <PageRouteGate routeId="admin.identity">
+    <PageRouteGate routeId="security_center.identity">
       <AdminIdentityConsoleInner />
     </PageRouteGate>
   );

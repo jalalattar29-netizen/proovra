@@ -22,6 +22,99 @@
   ],
 
   "_reclassified": {
+    "POST /v1/admin/identity/elevations @ /admin/identity/permission-matrix": {
+      "disposition": "PROVEN",
+      "control": "Button 'Grant elevation' in the temporary-elevation form",
+      "riskClass": "SECURITY_SENSITIVE",
+      "scope": "One member of the active workspace gains one permission for a bounded window; named in the dialog before step-up",
+      "reason": "MOVED, not removed (PV-PLACE-001 / PV-OD-001). /admin/identity/permission-matrix administered ONE workspace and moved out of the platform console to /security-center/identity/permission-matrix; the old URL redirects there (next.config.js). This matrix enumerates app/(app)/admin only, so the row left its scope while the behaviour did not change. The executed proof still mounts the moved page and names this exact mutation id.",
+      "replacedBy": [],
+      "evidence": [
+        "apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"
+      ]
+    },
+    "POST /v1/admin/identity/emergency-revoke @ /admin/identity/runtime": {
+      "disposition": "PROVEN",
+      "control": "Button 'Emergency org revoke' (with incident-reason field) in the runtime monitor header",
+      "riskClass": "DESTRUCTIVE",
+      "scope": "Every active session in the active workspace is terminated; typed confirmation 'REVOKE ALL' names the workspace-wide effect",
+      "reason": "MOVED, not removed (PV-PLACE-001 / PV-OD-001). /admin/identity/runtime administered ONE workspace and moved out of the platform console to /security-center/identity/runtime; the old URL redirects there (next.config.js). This matrix enumerates app/(app)/admin only, so the row left its scope while the behaviour did not change. The executed proof still mounts the moved page and names this exact mutation id.",
+      "replacedBy": [],
+      "evidence": [
+        "apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"
+      ]
+    },
+    "POST /v1/identity-security/reconcile @ /admin/identity/runtime": {
+      "disposition": "PROVEN",
+      "control": "Button 'Run reconcile' in the 'Runtime reconcile' section",
+      "riskClass": "HIGH_IMPACT_OPERATIONAL",
+      "scope": "Expired step-up challenges and expired device trust in the active workspace only; stated in the dialog before step-up",
+      "reason": "MOVED, not removed (PV-PLACE-001 / PV-OD-001). /admin/identity/runtime administered ONE workspace and moved out of the platform console to /security-center/identity/runtime; the old URL redirects there (next.config.js). This matrix enumerates app/(app)/admin only, so the row left its scope while the behaviour did not change. The executed proof still mounts the moved page and names this exact mutation id.",
+      "replacedBy": [],
+      "evidence": [
+        "apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"
+      ]
+    },
+    "POST /v1/identity/access-reviews/:id/decision @ /admin/identity/access-reviews": {
+      "disposition": "PROVEN",
+      "control": "Row decision buttons (Certify / Revoke member / …) on an access-review item",
+      "riskClass": "SECURITY_SENSITIVE",
+      "scope": "One access-review item in the active workspace; a revoke decision removes that member's access; named in the dialog",
+      "reason": "MOVED, not removed (PV-PLACE-001 / PV-OD-001). /admin/identity/access-reviews administered ONE workspace and moved out of the platform console to /security-center/identity/access-reviews; the old URL redirects there (next.config.js). This matrix enumerates app/(app)/admin only, so the row left its scope while the behaviour did not change. The executed proof still mounts the moved page and names this exact mutation id.",
+      "replacedBy": [],
+      "evidence": [
+        "apps/web/__tests__/render/admin-mutations-identity.render.test.tsx",
+        "services/api/test/phase-12b-identity-residual-matrix.test.ts"
+      ]
+    },
+    "POST /v1/identity/access-reviews/regenerate @ /admin/identity/access-reviews": {
+      "disposition": "PROVEN",
+      "control": "Button 'Regenerate queue' in the access-reviews header",
+      "riskClass": "HIGH_IMPACT_OPERATIONAL",
+      "scope": "The active workspace's review queue gains newly detected items; existing decisions untouched; stated in the dialog",
+      "reason": "MOVED, not removed (PV-PLACE-001 / PV-OD-001). /admin/identity/access-reviews administered ONE workspace and moved out of the platform console to /security-center/identity/access-reviews; the old URL redirects there (next.config.js). This matrix enumerates app/(app)/admin only, so the row left its scope while the behaviour did not change. The executed proof still mounts the moved page and names this exact mutation id.",
+      "replacedBy": [],
+      "evidence": [
+        "apps/web/__tests__/render/admin-mutations-identity.render.test.tsx",
+        "services/api/test/phase-12b-identity-residual-matrix.test.ts"
+      ]
+    },
+    "POST /v1/reliability/upload-sessions/:evidenceId/mark-abandoned @ /admin/platform/reliability": {
+      "disposition": "PROVEN",
+      "control": "Row action 'Mark abandoned' on an upload session",
+      "riskClass": "DESTRUCTIVE",
+      "scope": "One upload session of the active workspace, named by evidence id in the dialog, is closed for good",
+      "reason": "MOVED, not removed (PV-PLACE-001 / PV-OD-001). /admin/platform/reliability administered ONE workspace and moved out of the platform console to /operations/reliability; the old URL redirects there (next.config.js). This matrix enumerates app/(app)/admin only, so the row left its scope while the behaviour did not change. The executed proof still mounts the moved page and names this exact mutation id.",
+      "replacedBy": [],
+      "evidence": [
+        "apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx",
+        "services/api/test/admin-reliability-operator-actions.integration.test.ts"
+      ]
+    },
+    "POST /v1/reliability/upload-sessions/:evidenceId/request-review @ /admin/platform/reliability": {
+      "disposition": "PROVEN",
+      "control": "Row action 'Request review' on an upload session",
+      "riskClass": "HIGH_IMPACT_OPERATIONAL",
+      "scope": "One upload session of the active workspace, named by evidence id in the dialog, enters the review queue with a WARNING event",
+      "reason": "MOVED, not removed (PV-PLACE-001 / PV-OD-001). /admin/platform/reliability administered ONE workspace and moved out of the platform console to /operations/reliability; the old URL redirects there (next.config.js). This matrix enumerates app/(app)/admin only, so the row left its scope while the behaviour did not change. The executed proof still mounts the moved page and names this exact mutation id.",
+      "replacedBy": [],
+      "evidence": [
+        "apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx",
+        "services/api/test/admin-reliability-operator-actions.integration.test.ts"
+      ]
+    },
+    "POST /v1/scim/sync-failures/:id/replay @ /admin/identity/scim": {
+      "disposition": "PROVEN",
+      "control": "Row action 'Replay' on a SCIM sync failure",
+      "riskClass": "HIGH_IMPACT_OPERATIONAL",
+      "scope": "One sync failure of the active workspace is cleared so the provider's provisioning change applies on its next push; named in the dialog",
+      "reason": "MOVED, not removed (PV-PLACE-001 / PV-OD-001). /admin/identity/scim administered ONE workspace and moved out of the platform console to /security-center/identity/scim; the old URL redirects there (next.config.js). This matrix enumerates app/(app)/admin only, so the row left its scope while the behaviour did not change. The executed proof still mounts the moved page and names this exact mutation id.",
+      "replacedBy": [],
+      "evidence": [
+        "apps/web/__tests__/render/admin-mutations-identity.render.test.tsx",
+        "services/api/test/phase-12b-identity-recovery-org-matrix.test.ts"
+      ]
+    },
     "POST /v1/admin/orgs/:id/plan @ /admin/customers/:id": {
       "disposition": "NOT_APPLICABLE",
       "control": "Buttons 'Suspend customer' / 'Resume customer' in the customer page header",
@@ -174,114 +267,6 @@
     }
   },
 
-  "POST /v1/admin/identity/elevations @ /admin/identity/permission-matrix": {
-    "riskClass": "SECURITY_SENSITIVE",
-    "control": "Button 'Grant elevation' in the temporary-elevation form",
-    "scope": "One member of the active workspace gains one permission for a bounded window; named in the dialog before step-up",
-    "cells": {
-      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"] },
-      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"] }
-    }
-  },
-  "POST /v1/admin/identity/emergency-revoke @ /admin/identity/runtime": {
-    "riskClass": "DESTRUCTIVE",
-    "control": "Button 'Emergency org revoke' (with incident-reason field) in the runtime monitor header",
-    "scope": "Every active session in the active workspace is terminated; typed confirmation 'REVOKE ALL' names the workspace-wide effect",
-    "cells": {
-      "refreshFromServer": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"] },
-      "noOptimisticSuccess": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"] },
-      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"] }
-    }
-  },
-  "POST /v1/identity-security/reconcile @ /admin/identity/runtime": {
-    "riskClass": "HIGH_IMPACT_OPERATIONAL",
-    "control": "Button 'Run reconcile' in the 'Runtime reconcile' section",
-    "scope": "Expired step-up challenges and expired device trust in the active workspace only; stated in the dialog before step-up",
-    "cells": {
-      "refreshFromServer": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"] },
-      "noOptimisticSuccess": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"] },
-      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"] }
-    }
-  },
-  "POST /v1/admin/identity/sessions/:id/quarantine @ /admin/identity/runtime": {
-    "riskClass": "SECURITY_SENSITIVE",
-    "control": "Row action 'Quarantine' on an active session",
-    "scope": "One session in the active workspace, held from privileged actions until released; reason from the catalogue"
-  },
-  "POST /v1/admin/identity/sessions/:id/release @ /admin/identity/runtime": {
-    "riskClass": "SECURITY_SENSITIVE",
-    "control": "Row action 'Release' on a quarantined session",
-    "scope": "One quarantined session in the active workspace regains privileged actions"
-  },
-  "POST /v1/admin/identity/sessions/:id/score @ /admin/identity/runtime": {
-    "riskClass": "SECURITY_SENSITIVE",
-    "control": "Row action 'Re-score' on an active session",
-    "scope": "One session's risk score in the active workspace is recomputed and recorded"
-  },
-  "POST /v1/identity/access-reviews/:id/decision @ /admin/identity/access-reviews": {
-    "riskClass": "SECURITY_SENSITIVE",
-    "control": "Row decision buttons (Certify / Revoke member / …) on an access-review item",
-    "scope": "One access-review item in the active workspace; a revoke decision removes that member's access; named in the dialog",
-    "cells": {
-      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"] },
-      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"] }
-    }
-  },
-  "POST /v1/identity/access-reviews/regenerate @ /admin/identity/access-reviews": {
-    "riskClass": "HIGH_IMPACT_OPERATIONAL",
-    "control": "Button 'Regenerate queue' in the access-reviews header",
-    "scope": "The active workspace's review queue gains newly detected items; existing decisions untouched; stated in the dialog",
-    "cells": {
-      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"] },
-      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"] }
-    }
-  },
-  "POST /v1/admin/identity/providers @ /admin/identity/providers": {
-    "riskClass": "SECURITY_SENSITIVE",
-    "control": "Button 'Create connection' in the SSO provider form",
-    "scope": "A new SSO connection for the active workspace, in DRAFT until transitioned; named in the dialog before step-up"
-  },
-  "POST /v1/admin/identity/providers/:id/policy @ /admin/identity/providers": {
-    "riskClass": "SECURITY_SENSITIVE",
-    "control": "Button 'Save policy' on a provider's enforcement policy",
-    "scope": "One SSO connection's enforcement policy for the active workspace; named in the dialog before step-up"
-  },
-  "POST /v1/admin/identity/providers/:id/transition @ /admin/identity/providers": {
-    "riskClass": "SECURITY_SENSITIVE",
-    "control": "Provider lifecycle buttons (Enable / Disable / Retire) on a connection",
-    "scope": "One SSO connection's lifecycle state for the active workspace; named in the dialog before step-up"
-  },
-  "POST /v1/admin/identity/scim/tokens @ /admin/identity/scim": {
-    "riskClass": "SECURITY_SENSITIVE",
-    "control": "Button 'Issue token' in the SCIM tokens panel",
-    "scope": "A new SCIM bearer token for the active workspace; shown once; named in the dialog before step-up"
-  },
-  "POST /v1/admin/identity/scim/tokens/:id/revoke @ /admin/identity/scim": {
-    "riskClass": "SECURITY_SENSITIVE",
-    "control": "Row action 'Revoke' on a SCIM token",
-    "scope": "One SCIM token for the active workspace stops authenticating immediately; named in the dialog before step-up"
-  },
-  "POST /v1/admin/identity/scim/tokens/:id/rotate @ /admin/identity/scim": {
-    "riskClass": "SECURITY_SENSITIVE",
-    "control": "Row action 'Rotate' on a SCIM token",
-    "scope": "One SCIM token for the active workspace is replaced; the old value stops authenticating; named in the dialog before step-up"
-  },
-  "POST /v1/scim/reconciliation/execute @ /admin/identity/scim": {
-    "riskClass": "HIGH_IMPACT_OPERATIONAL",
-    "control": "Button 'Execute reconciliation' in the managed-membership panel",
-    "scope": "Membership of the active workspace is aligned to the identity provider's view; named in the dialog before step-up"
-  },
-  "POST /v1/scim/sync-failures/:id/replay @ /admin/identity/scim": {
-    "riskClass": "HIGH_IMPACT_OPERATIONAL",
-    "control": "Row action 'Replay' on a SCIM sync failure",
-    "scope": "One sync failure of the active workspace is cleared so the provider's provisioning change applies on its next push; named in the dialog",
-    "cells": {
-      "confirmation": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"] },
-      "explainsScope": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"] },
-      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"] },
-      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"] }
-    }
-  },
 
   "POST /v1/admin/incidents/:id/acknowledge @ /admin/operations": {
     "riskClass": "REVERSIBLE_STATE_CHANGE",
@@ -502,39 +487,6 @@
       "explainsScope": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
       "failureLeavesStateCorrect": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
       "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] }
-    }
-  },
-  "POST /v1/reliability/upload-sessions/:evidenceId/mark-abandoned @ /admin/platform/reliability": {
-    "riskClass": "DESTRUCTIVE",
-    "control": "Row action 'Mark abandoned' on an upload session",
-    "scope": "One upload session of the active workspace, named by evidence id in the dialog, is closed for good",
-    "cells": {
-      "unauthorizedRefused": { "disposition": "FIXED_AND_PROVEN", "evidence": ["services/api/test/admin-reliability-operator-actions.integration.test.ts"] },
-      "persistedEffect": { "disposition": "FIXED_AND_PROVEN", "evidence": ["services/api/test/admin-reliability-operator-actions.integration.test.ts"] },
-      "concurrency": { "disposition": "FIXED_AND_PROVEN", "evidence": ["services/api/test/admin-reliability-operator-actions.integration.test.ts"] },
-      "auditOutput": { "disposition": "FIXED_AND_PROVEN", "evidence": ["services/api/test/admin-reliability-operator-actions.integration.test.ts"] },
-      "tenantIsolation": { "disposition": "FIXED_AND_PROVEN", "evidence": ["services/api/test/admin-reliability-operator-actions.integration.test.ts"] },
-      "refreshFromServer": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
-      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
-      "failureLeavesStateCorrect": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
-      "explainsScope": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] }
-    }
-  },
-  "POST /v1/reliability/upload-sessions/:evidenceId/request-review @ /admin/platform/reliability": {
-    "riskClass": "HIGH_IMPACT_OPERATIONAL",
-    "control": "Row action 'Request review' on an upload session",
-    "scope": "One upload session of the active workspace, named by evidence id in the dialog, enters the review queue with a WARNING event",
-    "cells": {
-      "unauthorizedRefused": { "disposition": "FIXED_AND_PROVEN", "evidence": ["services/api/test/admin-reliability-operator-actions.integration.test.ts"] },
-      "persistedEffect": { "disposition": "FIXED_AND_PROVEN", "evidence": ["services/api/test/admin-reliability-operator-actions.integration.test.ts"] },
-      "concurrency": { "disposition": "FIXED_AND_PROVEN", "evidence": ["services/api/test/admin-reliability-operator-actions.integration.test.ts"] },
-      "auditOutput": { "disposition": "FIXED_AND_PROVEN", "evidence": ["services/api/test/admin-reliability-operator-actions.integration.test.ts"] },
-      "tenantIsolation": { "disposition": "FIXED_AND_PROVEN", "evidence": ["services/api/test/admin-reliability-operator-actions.integration.test.ts"] },
-      "refreshFromServer": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
-      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
-      "failureLeavesStateCorrect": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
-      "confirmation": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
-      "explainsScope": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] }
     }
   }
 }

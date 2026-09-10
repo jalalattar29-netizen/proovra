@@ -208,6 +208,19 @@ export const ENTERPRISE_ONLY_ROUTE_IDS: ReadonlySet<string> = new Set([
   "account.organization_admin_roles",
   "account.organization_admin_billing",
   "account.organization_admin_integrations",
+  // PV-PLACE-001 — workspace administration moved out of /admin. Enterprise
+  // under /admin (surface tier), and still Enterprise in their tenant homes.
+  "security_center.identity",
+  "security_center.identity_access_reviews",
+  "security_center.identity_permission_matrix",
+  "security_center.identity_runtime",
+  "security_center.identity_scim",
+  "security_center.identity_sessions",
+  "security_center.identity_timeline",
+  "security_center.posture",
+  "operations.reliability",
+  "operations.automation",
+  "operations.analytics",
   // Workspace-admin tenancy + enterprise-shell surfaces.
   //
   // NOTE (PHASE 13 / NEW-062): `admin.teams` is deliberately NOT here.
@@ -878,178 +891,105 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     sidebarEligible: false,
   },
   {
-    // ADM-013 — this page rendered with no registry entry. It inherited
-    // PLATFORM_ADMIN from admin/layout.tsx, so it was reachable and gated, but
-    // the sidebar, the command palette and the breadcrumb had nothing to
-    // resolve it against — which is why a deep link into it named no return
-    // path.
-    id: "admin.identity_access_reviews",
-    href: "/admin/identity/access-reviews",
+    // PV-PLACE-001 — moved from /admin/identity. It administers ONE organization workspace's identity; the platform console's URL and gate described an audience the API never had. The family is gated once, in security-center/identity/layout.tsx, on this same authority.
+    id: "security_center.identity_access_reviews",
+    href: "/security-center/identity/access-reviews",
     label: "Access reviews",
-    description: "Periodic access review campaigns and their outcomes.",
-    domain: "PLATFORM_ADMIN",
-    // Exactly what the layout gate already enforces. Registering it is not a
-    // grant; it is writing down the authority the page already had.
-    requiredCapabilities: ["PLATFORM_ADMIN"],
-    requiredActiveSpace: "PLATFORM_ADMIN",
-    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
+    description:
+      "Periodic and triggered access reviews for this workspace: certify, revoke or suspend each entry.",
+    domain: "ORGANIZATION_WORKSPACE",
+    requiredCapabilities: ["SECURITY_CENTER_VIEW"],
+    requiredActiveSpace: "ORGANIZATION_ONLY",
+    fallbackBehavior: "REQUEST_ACCESS",
 
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
-    // Reached from the /admin/identity hub or from a list, not from the
-    // sidebar. Nine more near-identical rows would bury the surfaces an
-    // operator navigates by.
     sidebarEligible: false,
   },
   {
-    // ADM-013 — this page rendered with no registry entry. It inherited
-    // PLATFORM_ADMIN from admin/layout.tsx, so it was reachable and gated, but
-    // the sidebar, the command palette and the breadcrumb had nothing to
-    // resolve it against — which is why a deep link into it named no return
-    // path.
-    id: "admin.identity_permission_matrix",
-    href: "/admin/identity/permission-matrix",
+    // PV-PLACE-001 — moved from /admin/identity. It administers ONE organization workspace's identity; the platform console's URL and gate described an audience the API never had. The family is gated once, in security-center/identity/layout.tsx, on this same authority.
+    id: "security_center.identity_permission_matrix",
+    href: "/security-center/identity/permission-matrix",
     label: "Permission matrix",
-    description: "Role-to-permission matrix as the runtime resolves it.",
-    domain: "PLATFORM_ADMIN",
-    // Exactly what the layout gate already enforces. Registering it is not a
-    // grant; it is writing down the authority the page already had.
-    requiredCapabilities: ["PLATFORM_ADMIN"],
-    requiredActiveSpace: "PLATFORM_ADMIN",
-    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
+    description:
+      "The role-to-permission matrix as the runtime resolves it for this workspace, and temporary elevation.",
+    domain: "ORGANIZATION_WORKSPACE",
+    requiredCapabilities: ["SECURITY_CENTER_VIEW"],
+    requiredActiveSpace: "ORGANIZATION_ONLY",
+    fallbackBehavior: "REQUEST_ACCESS",
 
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
-    // Reached from the /admin/identity hub or from a list, not from the
-    // sidebar. Nine more near-identical rows would bury the surfaces an
-    // operator navigates by.
     sidebarEligible: false,
   },
   {
-    // ADM-013 — this page rendered with no registry entry. It inherited
-    // PLATFORM_ADMIN from admin/layout.tsx, so it was reachable and gated, but
-    // the sidebar, the command palette and the breadcrumb had nothing to
-    // resolve it against — which is why a deep link into it named no return
-    // path.
-    id: "admin.identity_providers",
-    href: "/admin/identity/providers",
-    label: "Identity providers",
-    description: "SAML and OIDC provider configuration and health.",
-    domain: "PLATFORM_ADMIN",
-    // Exactly what the layout gate already enforces. Registering it is not a
-    // grant; it is writing down the authority the page already had.
-    requiredCapabilities: ["PLATFORM_ADMIN"],
-    requiredActiveSpace: "PLATFORM_ADMIN",
-    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
+    // PV-PLACE-001 — moved from /admin/identity. It administers ONE organization workspace's identity; the platform console's URL and gate described an audience the API never had. The family is gated once, in security-center/identity/layout.tsx, on this same authority.
+    id: "security_center.identity_runtime",
+    href: "/security-center/identity/runtime",
+    label: "Identity runtime monitor",
+    description:
+      "Live session, factor and risk signals for this workspace: quarantine, release, re-score and emergency revoke.",
+    domain: "ORGANIZATION_WORKSPACE",
+    requiredCapabilities: ["SECURITY_CENTER_VIEW"],
+    requiredActiveSpace: "ORGANIZATION_ONLY",
+    fallbackBehavior: "REQUEST_ACCESS",
 
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
-    // Reached from the /admin/identity hub or from a list, not from the
-    // sidebar. Nine more near-identical rows would bury the surfaces an
-    // operator navigates by.
     sidebarEligible: false,
   },
   {
-    // ADM-013 — this page rendered with no registry entry. It inherited
-    // PLATFORM_ADMIN from admin/layout.tsx, so it was reachable and gated, but
-    // the sidebar, the command palette and the breadcrumb had nothing to
-    // resolve it against — which is why a deep link into it named no return
-    // path.
-    id: "admin.identity_runtime",
-    href: "/admin/identity/runtime",
-    label: "Identity runtime",
-    description: "Live identity runtime signals — sessions, factors, risk.",
-    domain: "PLATFORM_ADMIN",
-    // Exactly what the layout gate already enforces. Registering it is not a
-    // grant; it is writing down the authority the page already had.
-    requiredCapabilities: ["PLATFORM_ADMIN"],
-    requiredActiveSpace: "PLATFORM_ADMIN",
-    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
+    // PV-PLACE-001 — moved from /admin/identity. It administers ONE organization workspace's identity; the platform console's URL and gate described an audience the API never had. The family is gated once, in security-center/identity/layout.tsx, on this same authority.
+    id: "security_center.identity_scim",
+    href: "/security-center/identity/scim",
+    label: "SCIM provisioning",
+    description:
+      "Provisioning tokens, directory reconciliation and sync failures for this workspace.",
+    domain: "ORGANIZATION_WORKSPACE",
+    requiredCapabilities: ["SECURITY_CENTER_VIEW"],
+    requiredActiveSpace: "ORGANIZATION_ONLY",
+    fallbackBehavior: "REQUEST_ACCESS",
 
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
-    // Reached from the /admin/identity hub or from a list, not from the
-    // sidebar. Nine more near-identical rows would bury the surfaces an
-    // operator navigates by.
     sidebarEligible: false,
   },
   {
-    // ADM-013 — this page rendered with no registry entry. It inherited
-    // PLATFORM_ADMIN from admin/layout.tsx, so it was reachable and gated, but
-    // the sidebar, the command palette and the breadcrumb had nothing to
-    // resolve it against — which is why a deep link into it named no return
-    // path.
-    id: "admin.identity_scim",
-    href: "/admin/identity/scim",
-    label: "SCIM operations",
-    description: "SCIM provisioning drift, reconciliation and run history.",
-    domain: "PLATFORM_ADMIN",
-    // Exactly what the layout gate already enforces. Registering it is not a
-    // grant; it is writing down the authority the page already had.
-    requiredCapabilities: ["PLATFORM_ADMIN"],
-    requiredActiveSpace: "PLATFORM_ADMIN",
-    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
-
-    advancedByDefault: true,
-    commandPaletteVisible: true,
-    allToolsVisible: true,
-    // Reached from the /admin/identity hub or from a list, not from the
-    // sidebar. Nine more near-identical rows would bury the surfaces an
-    // operator navigates by.
-    sidebarEligible: false,
-  },
-  {
-    // ADM-013 — this page rendered with no registry entry. It inherited
-    // PLATFORM_ADMIN from admin/layout.tsx, so it was reachable and gated, but
-    // the sidebar, the command palette and the breadcrumb had nothing to
-    // resolve it against — which is why a deep link into it named no return
-    // path.
-    id: "admin.identity_sessions",
-    href: "/admin/identity/sessions",
+    // PV-PLACE-001 — moved from /admin/identity. It administers ONE organization workspace's identity; the platform console's URL and gate described an audience the API never had. The family is gated once, in security-center/identity/layout.tsx, on this same authority.
+    id: "security_center.identity_sessions",
+    href: "/security-center/identity/sessions",
     label: "Sessions & devices",
-    description: "Active sessions and devices across the platform.",
-    domain: "PLATFORM_ADMIN",
-    // Exactly what the layout gate already enforces. Registering it is not a
-    // grant; it is writing down the authority the page already had.
-    requiredCapabilities: ["PLATFORM_ADMIN"],
-    requiredActiveSpace: "PLATFORM_ADMIN",
-    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
+    description:
+      "Active sessions, trusted devices and member risk for this workspace.",
+    domain: "ORGANIZATION_WORKSPACE",
+    requiredCapabilities: ["SECURITY_CENTER_VIEW"],
+    requiredActiveSpace: "ORGANIZATION_ONLY",
+    fallbackBehavior: "REQUEST_ACCESS",
 
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
-    // Reached from the /admin/identity hub or from a list, not from the
-    // sidebar. Nine more near-identical rows would bury the surfaces an
-    // operator navigates by.
     sidebarEligible: false,
   },
   {
-    // ADM-013 — this page rendered with no registry entry. It inherited
-    // PLATFORM_ADMIN from admin/layout.tsx, so it was reachable and gated, but
-    // the sidebar, the command palette and the breadcrumb had nothing to
-    // resolve it against — which is why a deep link into it named no return
-    // path.
-    id: "admin.identity_timeline",
-    href: "/admin/identity/timeline",
+    // PV-PLACE-001 — moved from /admin/identity. It administers ONE organization workspace's identity; the platform console's URL and gate described an audience the API never had. The family is gated once, in security-center/identity/layout.tsx, on this same authority.
+    id: "security_center.identity_timeline",
+    href: "/security-center/identity/timeline",
     label: "Identity audit",
-    description: "Bounded identity audit timeline.",
-    domain: "PLATFORM_ADMIN",
-    // Exactly what the layout gate already enforces. Registering it is not a
-    // grant; it is writing down the authority the page already had.
-    requiredCapabilities: ["PLATFORM_ADMIN"],
-    requiredActiveSpace: "PLATFORM_ADMIN",
-    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
+    description:
+      "The bounded identity audit trail for this workspace: sign-ins, provisioning, sessions and elevations, with who acted.",
+    domain: "ORGANIZATION_WORKSPACE",
+    requiredCapabilities: ["SECURITY_CENTER_VIEW"],
+    requiredActiveSpace: "ORGANIZATION_ONLY",
+    fallbackBehavior: "REQUEST_ACCESS",
 
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
-    // Reached from the /admin/identity hub or from a list, not from the
-    // sidebar. Nine more near-identical rows would bury the surfaces an
-    // operator navigates by.
     sidebarEligible: false,
   },
   {
@@ -1329,23 +1269,20 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     sidebarEligible: true,
   },
   {
-    id: "platform.reliability",
-    href: "/admin/platform/reliability",
-    label: "Reliability operations",
-    description: "Upload pipeline, session-state recovery, queue policy summaries.",
+    // PV-PLACE-001 — moved from /admin/platform/reliability. Its reads and actions are admin-only (requireAdminMember), so the gate pairs Operations access with the admin-tier OPERATIONS_SUPPRESS: a member who may not read it is not shown it.
+    id: "operations.reliability",
+    href: "/operations/reliability",
+    label: "Upload reliability",
+    description: "Stalled and abandoned upload sessions for this workspace, and the actions that resolve them.",
     domain: "OPS",
-    requiredCapabilities: ["OPS_CENTER_VIEW"],
-    // PHASE 4 — Operations is a platform-admin area (rule 9).
-    requiredActiveSpace: "PLATFORM_ADMIN",
+    requiredCapabilities: ["OPERATIONS_VIEW", "OPERATIONS_SUPPRESS"],
+    requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
 
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
-    // Final Closure Remediation Part E — flipped from false to true so
-    // SREs see Reliability ops in the sidebar's Operations group
-    // without prior knowledge.
-    sidebarEligible: true,
+    sidebarEligible: false,
   },
   // Phase Final-Closure-Verification — `/admin/platform/queues` was the
   // canonical BullMQ queue-triage surface but lived only at typed URL;
@@ -1835,15 +1772,14 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   // No new root entries are introduced — the 32.8 canonical primaries
   // remain bounded at 6.
   {
-    id: "platform.automation",
-    href: "/admin/platform/automation",
+    // PV-PLACE-001 — moved from /admin/platform/automation; rules and runs are one workspace's (requireTeamCapability). Managing them stays behind AUTOMATION_MANAGE.
+    id: "operations.automation",
+    href: "/operations/automation",
     label: "Automation rules",
-    description:
-      "Bounded operational automation: trigger + action rules with audit history.",
+    description: "Automation rules and their runs for this workspace.",
     domain: "OPS",
     requiredCapabilities: ["AUTOMATION_VIEW"],
-    // PHASE 4 — Operations is a platform-admin area (rule 9).
-    requiredActiveSpace: "PLATFORM_ADMIN",
+    requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
 
     advancedByDefault: true,
@@ -1856,15 +1792,14 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   // canonical primaries remain bounded at 6. Read-only surface; every
   // metric is source-traceable to a real Prisma model, never fabricated.
   {
-    id: "platform.analytics",
-    href: "/admin/platform/analytics",
+    // PV-PLACE-001 — moved from /admin/platform/analytics; every read authorizes on this workspace (intelligence.read).
+    id: "operations.analytics",
+    href: "/operations/analytics",
     label: "Operational analytics",
-    description:
-      "Bounded operational analytics: real counts from real tables. No fake metrics, no AI predictions, no legal/admissibility scores.",
+    description: "Operational, reviewer, governance and automation analytics for this workspace.",
     domain: "OPS",
     requiredCapabilities: ["ANALYTICS_VIEW"],
-    // PHASE 4 — Operations is a platform-admin area (rule 9).
-    requiredActiveSpace: "PLATFORM_ADMIN",
+    requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
 
     advancedByDefault: true,
@@ -2209,15 +2144,16 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     sidebarEligible: false,
   },
   {
-    id: "platform.security",
-    href: "/admin/security",
-    label: "Security & incidents",
+    // PV-PLACE-001 — moved from /admin/security, which read ONE workspace's posture behind the platform gate. It carries the one MFA policy editor (WCC-NEW-011).
+    id: "security_center.posture",
+    href: "/security-center/posture",
+    label: "Workspace security",
     description:
-      "Platform security posture (PLATFORM_ADMIN only): security events, admin audit trail, operational incidents. Read-only aggregation. No raw IPs/tokens.",
-    domain: "PLATFORM_ADMIN",
-    requiredCapabilities: ["PLATFORM_ADMIN"],
-    requiredActiveSpace: "PLATFORM_ADMIN",
-    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
+      "MFA policy, member factor lifecycle, MFA activity and security posture for this organization workspace.",
+    domain: "ORGANIZATION_WORKSPACE",
+    requiredCapabilities: ["SECURITY_CENTER_VIEW"],
+    requiredActiveSpace: "ORGANIZATION_ONLY",
+    fallbackBehavior: "REQUEST_ACCESS",
 
     advancedByDefault: true,
     commandPaletteVisible: true,
@@ -2630,28 +2566,16 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   // page on disk; nothing here invents an empty route.
   // ---------------------------------------------------------------------------
   {
-    id: "admin.identity",
-    // Phase IA-collapse — admin identity hub moved from /settings/security
-    // (which is now the personal Account Security home — route id
-    // `account.security`) to /admin/identity, where the procurement-grade
-    // SAML / SCIM / Audit + Sessions / Runtime / Access reviews / Permission
-    // matrix / MFA admin entry points already live. The legacy URL
-    // /settings/security/{saml,scim,audit} sub-paths continue to redirect
-    // to their canonical homes via next.config.js — deep links are
-    // preserved.
-    href: "/admin/identity",
-    label: "Identity operations",
+    // PV-PLACE-001 — moved from /admin/identity. It administers ONE organization workspace's identity; the platform console's URL and gate described an audience the API never had. The family is gated once, in security-center/identity/layout.tsx, on this same authority.
+    id: "security_center.identity",
+    href: "/security-center/identity",
+    label: "Identity administration",
     description:
-      "Enterprise identity operations hub — SAML, SCIM, identity audit, active sessions.",
-    // P0-5 — this lives under /admin/* which is platform-admin-gated by
-    // admin/layout.tsx (routeId platform.admin). It is a PROOVRA Platform
-    // Admin surface, NOT a customer org-workspace surface, so it must be
-    // PLATFORM_ADMIN-scoped (was mis-tagged ORGANIZATION_ONLY, which made it
-    // nav-visible to org users who then hit the platform-admin layout gate).
-    domain: "PLATFORM_ADMIN",
-    requiredCapabilities: ["PLATFORM_ADMIN"],
-    requiredActiveSpace: "PLATFORM_ADMIN",
-    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
+      "Members, service accounts, external identities and session governance for this organization workspace.",
+    domain: "ORGANIZATION_WORKSPACE",
+    requiredCapabilities: ["SECURITY_CENTER_VIEW"],
+    requiredActiveSpace: "ORGANIZATION_ONLY",
+    fallbackBehavior: "REQUEST_ACCESS",
 
     advancedByDefault: true,
     commandPaletteVisible: true,

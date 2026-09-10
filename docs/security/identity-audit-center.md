@@ -2,7 +2,7 @@
 
 **Audience:** security operations / SOC engineers / compliance reviewers.
 
-**Canonical path:** `/settings/security/audit` (redirects to `/admin/identity/timeline`).
+**Canonical path:** `/settings/security/audit` (redirects to `/security-center/identity/timeline`).
 
 ---
 
@@ -82,7 +82,7 @@ The `metadataJson` field is bounded to 4 KB; PROOVRA truncates with a marker and
 
 ## 7. Reference
 
-- Surface: [apps/web/app/(app)/admin/identity/timeline/page.tsx](../../apps/web/app/%28app%29/admin/identity/timeline/page.tsx)
+- Surface: [apps/web/app/(app)/security-center/identity/timeline/page.tsx](../../apps/web/app/%28app%29/security-center/identity/timeline/page.tsx)
 - Canonical redirect: [apps/web/app/(app)/settings/security/audit/page.tsx](../../apps/web/app/%28app%29/settings/security/audit/page.tsx)
 - Service: [services/api/src/services/security/security-event.service.ts](../../services/api/src/services/security/security-event.service.ts)
 - Catalog: `packages/shared/dist/security.d.ts` (`SECURITY_EVENT_TYPES`)

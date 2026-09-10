@@ -35,7 +35,7 @@ import {
 import {
   classifyError,
   type SectionState,
-} from "../../../security/_sections/section-state";
+} from "../../../posture/_sections/section-state";
 import { formatCellDateTime } from "../../../../../../lib/date";
 
 type IdentityTimelineEvent = {

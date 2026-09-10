@@ -11,28 +11,28 @@
  * Mutations under proof (exact routes):
  *
  *   "POST /v1/admin/identity/emergency-revoke"
- *     app/(app)/admin/identity/runtime/page.tsx — reason from the inline
+ *     app/(app)/security-center/identity/runtime/page.tsx — reason from the inline
  *     input (data-testid identity-runtime-emergency-reason), typed-confirm
  *     "REVOKE ALL", announced only AFTER the runtime re-read.
  *
  *   "POST /v1/identity-security/reconcile"
- *     app/(app)/admin/identity/runtime/page.tsx — confirm, then step-up,
+ *     app/(app)/security-center/identity/runtime/page.tsx — confirm, then step-up,
  *     then reload BEFORE the result is committed.
  *
  *   "POST /v1/admin/identity/elevations"
- *     app/(app)/admin/identity/permission-matrix/page.tsx — bounded
+ *     app/(app)/security-center/identity/permission-matrix/page.tsx — bounded
  *     temporary elevation, confirm + step-up, snapshot re-read.
  *
  *   "POST /v1/identity/access-reviews/:id/decision"
- *     app/(app)/admin/identity/access-reviews/page.tsx — per-decision
+ *     app/(app)/security-center/identity/access-reviews/page.tsx — per-decision
  *     confirm; note REQUIRED for Suspend / Revoke / No action.
  *
  *   "POST /v1/identity/access-reviews/regenerate"
- *     app/(app)/admin/identity/access-reviews/page.tsx — confirm, empty
+ *     app/(app)/security-center/identity/access-reviews/page.tsx — confirm, empty
  *     JSON body, created-count notice after the queue re-read.
  *
  *   "POST /v1/scim/sync-failures/:id/replay"
- *     app/(app)/admin/identity/scim/page.tsx (ReplayTab) — confirm names
+ *     app/(app)/security-center/identity/scim/page.tsx (ReplayTab) — confirm names
  *     the failure; terminal failures are offered no control at all.
  */
 
@@ -122,7 +122,7 @@ vi.mock("next/link", () => ({
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: () => {}, replace: () => {}, back: () => {} }),
   useSearchParams: () => new URLSearchParams(""),
-  usePathname: () => "/admin/identity",
+  usePathname: () => "/security-center/identity",
   useParams: () => ({}),
 }));
 
@@ -174,10 +174,10 @@ vi.mock("../../components/identity-security/StepUpModal", () => {
 
 import { ToastProvider } from "../../components/ui";
 import { ConfirmActionProvider } from "../../components/ui/ConfirmActionModal";
-import IdentityRuntimePage from "../../app/(app)/admin/identity/runtime/page";
-import PermissionMatrixPage from "../../app/(app)/admin/identity/permission-matrix/page";
-import AccessReviewsPage from "../../app/(app)/admin/identity/access-reviews/page";
-import ScimPage from "../../app/(app)/admin/identity/scim/page";
+import IdentityRuntimePage from "../../app/(app)/security-center/identity/runtime/page";
+import PermissionMatrixPage from "../../app/(app)/security-center/identity/permission-matrix/page";
+import AccessReviewsPage from "../../app/(app)/security-center/identity/access-reviews/page";
+import ScimPage from "../../app/(app)/security-center/identity/scim/page";
 
 // ---------------------------------------------------------------------------
 // Harness
@@ -272,7 +272,7 @@ beforeEach(() => {
 });
 
 // ===========================================================================
-// 1. /admin/identity/runtime — emergency org-wide revoke
+// 1. /security-center/identity/runtime — emergency org-wide revoke
 // ===========================================================================
 
 function runtimeGets(path: string): Reply {
@@ -402,7 +402,7 @@ describe("Identity runtime — POST /v1/admin/identity/emergency-revoke", () => 
 });
 
 // ===========================================================================
-// 2. /admin/identity/runtime — workspace identity-runtime reconcile
+// 2. /security-center/identity/runtime — workspace identity-runtime reconcile
 // ===========================================================================
 
 describe("Identity runtime — POST /v1/identity-security/reconcile", () => {
@@ -472,7 +472,7 @@ describe("Identity runtime — POST /v1/identity-security/reconcile", () => {
 });
 
 // ===========================================================================
-// 3. /admin/identity/permission-matrix — bounded temporary elevation
+// 3. /security-center/identity/permission-matrix — bounded temporary elevation
 // ===========================================================================
 
 function matrixGets(path: string): Reply {
@@ -636,7 +636,7 @@ describe("Permission matrix — POST /v1/admin/identity/elevations", () => {
 });
 
 // ===========================================================================
-// 4. /admin/identity/access-reviews — regenerate + decision
+// 4. /security-center/identity/access-reviews — regenerate + decision
 // ===========================================================================
 
 function reviewsGets(path: string): Reply {
@@ -779,7 +779,7 @@ describe("Access reviews — POST /v1/identity/access-reviews/:id/decision", () 
 });
 
 // ===========================================================================
-// 5. /admin/identity/scim (ReplayTab) — sync-failure replay
+// 5. /security-center/identity/scim (ReplayTab) — sync-failure replay
 // ===========================================================================
 
 function scimGets(path: string): Reply {

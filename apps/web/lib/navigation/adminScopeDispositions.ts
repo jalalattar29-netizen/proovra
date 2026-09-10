@@ -113,13 +113,6 @@ export const ADMIN_SCOPE_DISPOSITIONS: readonly AdminScopeDisposition[] = [
       "CORRECTED. listRecoveryReports queries `where: { teamId: input.teamId }`, so the readiness history shown is one workspace's. The validate-backup and validate-restore actions are platform work, but what the page DISPLAYS is scoped, and the banner describes what is displayed.",
   },
   {
-    route: "/admin/platform/reliability",
-    observed: "WORKSPACE_CANDIDATE",
-    decision: "WORKSPACE_SURFACE_LABELLED",
-    why:
-      "CORRECTED, and this one reached the browser before it was caught. countUploadSessionsByTeam({ teamId }) narrows to one workspace, and the page's own subtitle already said 'for this workspace'. It was briefly labelled platform-wide because the inventory saw no Prisma `where` in the handler — the narrowing happens inside the service. The inventory now reports that shape as a CANDIDATE rather than as proof of anything.",
-  },
-  {
     route: "/admin/support-access",
     // RECLASSIFIED IN PHASE 4, because the code moved under the judgement.
     //
@@ -167,103 +160,6 @@ export const ADMIN_SCOPE_DISPOSITIONS: readonly AdminScopeDisposition[] = [
     decision: "PLATFORM_AUDIT_CONTEXT",
     why:
       "VERIFIED: POST /v1/admin/orgs/:id/suspend and /resume are requirePlatformAdmin + step-up, and the organization they act on is named by the PATH. The teamId the page now sends in the body (it previously sent {} and every click was a 400) exists so requireStepUpForSensitiveAction can bind the challenge and the audit row to the workspace the operator was standing in — it filters nothing and selects nothing. Same shape as /admin/provisioning's plan grant.",
-  },
-  {
-    route: "/admin/identity",
-    observed: "WORKSPACE_CANDIDATE",
-    decision: "WORKSPACE_SURFACE_LABELLED",
-    why:
-      "The identity hub and every child call /v1/admin/identity/*, whose guard is requireIdentityAdmin — ACTIVE membership of the supplied teamId plus identity.org_policy.read. It is not a platform gate, and listSsoConnections({ teamId }) filters. A platform admin sees THEIR OWN workspace's identity configuration. NOT moved to a tenant URL: the page gate (PLATFORM_ADMIN) is currently stricter than the API, and moving it would widen the audience from platform operators to every workspace admin. That is a product decision, not a refactor.",
-  },
-  {
-    route: "/admin/identity/providers",
-    observed: "WORKSPACE_FILTERED",
-    decision: "WORKSPACE_SURFACE_LABELLED",
-    why:
-      "listSsoConnections({ teamId }) narrows to one workspace and requireIdentityAdmin demands ACTIVE membership of it, so a platform admin sees the SSO configuration of the workspace they are standing in and no other. Labelled rather than moved, for the audience reason recorded on /admin/identity.",
-  },
-  {
-    route: "/admin/identity/timeline",
-    observed: "WORKSPACE_FILTERED",
-    decision: "WORKSPACE_SURFACE_LABELLED",
-    why:
-      "The identity audit timeline is narrowed by teamId in the handler, so this is one workspace's identity history presented under a Platform heading. Labelled rather than moved, for the audience reason recorded on /admin/identity.",
-  },
-  {
-    route: "/admin/identity/runtime",
-    observed: "WORKSPACE_FILTERED",
-    decision: "WORKSPACE_SURFACE_LABELLED",
-    why:
-      "Runtime identity signals — sessions, factors, risk — are computed for the active workspace, not across tenants. Grouped and labelled with the rest of the identity family so the section does not mix scopes without saying so.",
-  },
-  {
-    route: "/admin/identity/access-reviews",
-    // WORKSPACE_FILTERED, upgraded from WORKSPACE_CANDIDATE.
-    //
-    // The old note said the inventory could only report a CANDIDATE "because
-    // the narrowing happens inside the service". That was half right: the
-    // narrowing does happen there, but the reason the tracer could not see it
-    // was that this page's list URL is built as
-    // `/v1/identity/access-reviews${qs.toString() ? `?${qs}` : ""}` and the
-    // extractor truncated the template, so the endpoint matched no
-    // registration at all. With that fixed the filter is proven.
-    observed: "WORKSPACE_FILTERED",
-    decision: "WORKSPACE_SURFACE_LABELLED",
-    why:
-      "Access-review campaigns belong to a workspace, and the listing now resolves to a registration whose handler narrows by the supplied teamId. The family's shared guard, requireIdentityAdmin, demands ACTIVE membership of that same workspace, so the label and the authority agree.",
-  },
-  {
-    route: "/admin/identity/permission-matrix",
-    observed: "WORKSPACE_CANDIDATE",
-    decision: "WORKSPACE_SURFACE_LABELLED",
-    why:
-      "The permission matrix is resolved against one workspace's roles and memberships, so two workspaces legitimately produce different matrices. Presenting it under a Platform heading implies a single platform-wide answer that does not exist.",
-  },
-  {
-    route: "/admin/identity/scim",
-    observed: "WORKSPACE_CANDIDATE",
-    decision: "WORKSPACE_SURFACE_LABELLED",
-    why:
-      "SCIM provisioning, its drift and its reconciliation runs are configured and evaluated per workspace; there is no platform-wide SCIM state to show. Labelled with its family rather than moved, for the audience reason on /admin/identity.",
-  },
-  {
-    route: "/admin/security",
-    observed: "WORKSPACE_CANDIDATE",
-    decision: "WORKSPACE_SURFACE_LABELLED",
-    why:
-      "The page's own header calls it 'Workspace security posture' and it reads /v1/security/* and /v1/identity/mfa-admin/* for one teamId. It is a workspace surface sitting behind the platform gate; labelled, not moved, for the same reason as the identity family.",
-  },
-  {
-    /**
-     * PHASE 7 — THIS ROUTE HAD NO DISPOSITION AND SHOULD ALWAYS HAVE HAD ONE.
-     *
-     * `admin-inventory.mjs` classified a route from its `page.tsx` alone, and
-     * this page is a five-line shell over `_sections/*`. Every section reads
-     * `useTeamId()` — the sessions inventory, the quarantine table, trusted
-     * devices, the policy-impact table and member risk — so the route was
-     * being reported PLATFORM while reading one workspace's live sessions.
-     * Teaching the scanner that a route is its page AND its sections surfaced
-     * it, which is the classifier working rather than a new finding.
-     */
-    route: "/admin/identity/sessions",
-    observed: "WORKSPACE_FILTERED",
-    decision: "WORKSPACE_SURFACE_LABELLED",
-    why:
-      "VERIFIED by reading the sections: ActiveSessionsSection's own description is 'Every live session in the workspace you are currently in', and it reads /v1/admin/identity/sessions, /quarantined-sessions and /v1/identity/sessions/:id/timeline for one teamId resolved from lib/platform-context — the operator can never type one. Revoke, revoke-all, quarantine and release all act on that workspace, and revoke-all is step-up gated. It is a workspace surface behind the platform gate, labelled by the nav registry's scope: 'WORKSPACE' and by AdminTenantScopeNotice on the page, exactly as /admin/security and the rest of the identity family are.",
-  },
-  {
-    route: "/admin/platform/analytics",
-    observed: "WORKSPACE_FILTERED",
-    decision: "WORKSPACE_SURFACE_LABELLED",
-    why:
-      "/v1/analytics/* authorizes through authorizeOrFail with intelligence.read and scopes by teamId. Tenant analytics presented under a Platform heading. Labelled; moving it would widen who can reach the UI.",
-  },
-  {
-    route: "/admin/platform/automation",
-    observed: "WORKSPACE_FILTERED",
-    decision: "WORKSPACE_SURFACE_LABELLED",
-    why:
-      "/v1/automation/rules and /v1/automation/runs both take teamId as a query filter and the page supplies its own active workspace, so this is one tenant's automation shown under a Platform heading. Labelled rather than moved: the page gate is stricter than the API.",
   },
   {
     route: "/admin/operations",

@@ -408,7 +408,7 @@ export async function middleware(req: NextRequest) {
     //     `app/(app)/` and therefore on the app host.
     //
     // Phase Final-Closure-Remediation — `/identity` was removed from
-    // the live route tree (folded into `/admin/identity`). The legacy
+    // the live route tree (folded into what is now `/security-center/identity`). The legacy
     // URL is now an exact-match redirect in `next.config.js` and is
     // intentionally NOT in this list so any www-host hit to /identity
     // 404s cleanly instead of bouncing through the app host first.

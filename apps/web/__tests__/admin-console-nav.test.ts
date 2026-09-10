@@ -209,7 +209,14 @@ test("a path outside /admin resolves to nothing", () => {
 test("scope comes from the registry, not from a second list of paths", () => {
   // Two lists of paths drift: a page could be promoted in the nav and left in
   // the tenant-scope list, or the reverse, and nothing would notice.
-  assert.equal(isWorkspaceScopedAdminPath("/admin/identity"), true);
+  // PV-PLACE-001 / PV-OD-001 — the identity family administered ONE workspace
+  // and moved out of /admin to /security-center/identity, so the registry no
+  // longer knows it. The workspace-scoped example is now Exports, and the old
+  // identity URL must resolve to nothing (it would come back as WORKSPACE if
+  // the section were ever re-added to the platform console).
+  assert.equal(isWorkspaceScopedAdminPath("/admin/platform/exports"), true);
+  assert.equal(isWorkspaceScopedAdminPath("/admin/identity"), false);
+  assert.equal(resolveAdminLocation("/admin/identity"), null);
   // CORRECTED in ADM-013. Signers was WORKSPACE, and the banner therefore
   // said "This page administers your own active workspace — not the platform."
   // `listAllSigners` starts from `getCurrentActiveSigners()`, which takes no
@@ -226,7 +233,11 @@ test("scope comes from the registry, not from a second list of paths", () => {
 
 test("a contextual detail inherits the scope of the list it came from", () => {
   // A workspace-scoped list cannot produce a platform-scoped detail.
-  assert.equal(isWorkspaceScopedAdminPath("/admin/identity/sessions"), true);
+  // PV-PLACE-001 — was /admin/identity/sessions, which left the console. The
+  // workspace-scoped list still in it is Exports; a path beneath it inherits
+  // WORKSPACE by the longest-prefix match.
+  assert.equal(isWorkspaceScopedAdminPath("/admin/platform/exports/__id__"), true);
+  assert.equal(isWorkspaceScopedAdminPath("/admin/identity/sessions"), false);
   assert.equal(isWorkspaceScopedAdminPath("/admin/users/__id__"), false);
 });
 

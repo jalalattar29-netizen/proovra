@@ -26,21 +26,8 @@ confident wrong answer with no way to tell.
 | `/admin/customers/:id` | ResultCount — organization event | `CAP_DISCLOSED` | — | — |
 | `/admin/dashboard` | ResultCount — recent event | `CAP_DISCLOSED` | — | — |
 | `/admin/executive` | ResultCount — at-risk customer | `CAP_DISCLOSED` | — | — |
-| `/admin/identity/access-reviews` | ResultCount — access review | `CAP_DISCLOSED` | yes | yes |
-| `/admin/identity` | ResultCount — member | `COMPLETE_LIST` | yes | yes |
-| `/admin/identity/permission-matrix` | ResultCount — role | `COMPLETE_LIST` | yes | — |
-| `/admin/identity/providers` | ResultCount — connection | `CAP_DISCLOSED` | — | — |
-| `/admin/identity/runtime` | ResultCount — quarantined session | `SERVER_HAS_MORE` | — | yes |
-| `/admin/identity/runtime` | ResultCount — session | `SERVER_HAS_MORE` | yes | yes |
-| `/admin/identity/scim` | ResultCount — sync failure | `EXACT_TOTAL` | yes | yes |
-| `/admin/identity/sessions` | ResultCount — session | `SERVER_HAS_MORE` | yes | yes |
-| `/admin/identity/sessions` | ResultCount — held session | `SERVER_HAS_MORE` | — | yes |
-| `/admin/identity/timeline` | ResultCount — event | `SERVER_HAS_MORE` | yes | yes |
 | `/admin/operations` | ResultCount — condition | `CAP_DISCLOSED` | yes | yes |
 | `/admin/operations` | ResultCount — security event | `SERVER_HAS_MORE` | yes | yes |
-| `/admin/platform/automation` | ResultCount — rule | `COMPLETE_LIST` | — | — |
-| `/admin/platform/automation` | ResultCount — run | `EXACT_TOTAL` | yes | — |
-| `/admin/platform/automation` | ResultCount — run | `CAP_DISCLOSED` | — | — |
 | `/admin/platform/exports` | ResultCount — export | `CAP_DISCLOSED` | — | — |
 | `/admin/platform/media-graph` | ResultCount — run | `SERVER_HAS_MORE` | yes | yes |
 | `/admin/platform/observability` | ResultCount — non-zero signal | `EXACT_TOTAL` | — | — |
@@ -50,15 +37,28 @@ confident wrong answer with no way to tell.
 | `/admin/platform/signers` | ResultCount — attestation | `EXACT_TOTAL` | yes | yes |
 | `/admin/provisioning` | ResultCount — pending invitation | `EXACT_TOTAL` | — | — |
 | `/admin/search` | inline — result | `CAP_DISCLOSED` | — | — |
-| `/admin/security` | ResultCount — MFA event | `SERVER_HAS_MORE` | — | yes |
-| `/admin/security` | ResultCount — recovery event | `SERVER_HAS_MORE` | — | yes |
-| `/admin/security` | ResultCount — security event | `SERVER_HAS_MORE` | yes | yes |
-| `/admin/security` | ResultCount — scan | `CAP_DISCLOSED` | yes | yes |
 | `/admin/support-access` | ResultCount — support grant | `EXACT_TOTAL` | yes | yes |
 | `/admin/timeline` | ResultCount — event | `SERVER_HAS_MORE` | yes | yes |
 | `/admin/users/:id` | ResultCount — workspace membership | `CAP_DISCLOSED` | — | — |
 | `/admin/users/:id` | ResultCount — organization membership | `CAP_DISCLOSED` | — | — |
 | `/admin/users/:id` | ResultCount — payment | `CAP_DISCLOSED` | — | — |
+| `/security-center/identity/access-reviews` | ResultCount — access review | `CAP_DISCLOSED` | yes | yes |
+| `/security-center/identity` | ResultCount — member | `COMPLETE_LIST` | yes | yes |
+| `/security-center/identity/permission-matrix` | ResultCount — role | `COMPLETE_LIST` | yes | — |
+| `/security-center/identity/runtime` | ResultCount — quarantined session | `SERVER_HAS_MORE` | — | yes |
+| `/security-center/identity/runtime` | ResultCount — session | `SERVER_HAS_MORE` | yes | yes |
+| `/security-center/identity/scim` | ResultCount — sync failure | `EXACT_TOTAL` | yes | yes |
+| `/security-center/identity/sessions` | ResultCount — session | `SERVER_HAS_MORE` | yes | yes |
+| `/security-center/identity/sessions` | ResultCount — held session | `SERVER_HAS_MORE` | — | yes |
+| `/security-center/identity/timeline` | ResultCount — event | `SERVER_HAS_MORE` | yes | yes |
+| `/security-center/posture` | ResultCount — MFA event | `SERVER_HAS_MORE` | — | yes |
+| `/security-center/posture` | ResultCount — recovery event | `SERVER_HAS_MORE` | — | yes |
+| `/security-center/posture` | ResultCount — security event | `SERVER_HAS_MORE` | yes | yes |
+| `/security-center/posture` | ResultCount — scan | `CAP_DISCLOSED` | yes | yes |
+| `/security-center/sso` | ResultCount — connection | `CAP_DISCLOSED` | — | — |
+| `/operations/automation` | ResultCount — rule | `COMPLETE_LIST` | — | — |
+| `/operations/automation` | ResultCount — run | `EXACT_TOTAL` | yes | — |
+| `/operations/automation` | ResultCount — run | `CAP_DISCLOSED` | — | — |
 
 ## What each classification means
 
@@ -74,10 +74,10 @@ The one place this audit accepts a bare length. Each is a claim about a
 handler in `services/api`, asserted by
 `services/api/test/admin-count-truth-complete-lists.test.ts`.
 
-- **`GET /v1/automation/rules`** — counted on `/admin/platform/automation`. Rules are per-workspace configuration, bounded by what an operator created; the handler runs findMany with no take, so the length IS the population.
+- **`GET /v1/automation/rules`** — counted on `/operations/automation`. Rules are per-workspace configuration, bounded by what an operator created; the handler runs findMany with no take, so the length IS the population.
 - **`GET /v1/admin/adoption`** — counted on `/admin/adoption`. One row per KNOWN capability, enumerated from a fixed catalogue rather than queried from a growing table. The list cannot exceed the number of capabilities the product has.
-- **`GET /v1/identity/members`** — counted on `/admin/identity`. listTeamMembersWithAccess runs findMany with no take, so the browser holds every member of the workspace. That is also why this page may filter client-side: the filter narrows all of them, not a page of them.
-- **`GET /v1/admin/identity/role-matrix`** — counted on `/admin/identity/permission-matrix`. The matrix is the product's fixed set of roles crossed with its fixed set of capabilities. Both are compiled-in constants, not rows.
+- **`GET /v1/identity/members`** — counted on `/security-center/identity`. listTeamMembersWithAccess runs findMany with no take, so the browser holds every member of the workspace. That is also why this page may filter client-side: the filter narrows all of them, not a page of them.
+- **`GET /v1/admin/identity/role-matrix`** — counted on `/security-center/identity/permission-matrix`. The matrix is the product's fixed set of roles crossed with its fixed set of capabilities. Both are compiled-in constants, not rows.
 
 ## Counts of a field on one record
 
@@ -86,5 +86,5 @@ and `group.results` are the same shape, and an earlier pattern-based
 exemption wrongly cleared the second — a page of search results
 that had been cut off at ten.
 
-- **`a.ipAllowlist`** on `/admin/identity`. The allowlist is a column on the ServiceAccount row being rendered, selected in full by the roster query — there is no separate paged read of it, so the length is the account's whole allowlist.
+- **`a.ipAllowlist`** on `/security-center/identity`. The allowlist is a column on the ServiceAccount row being rendered, selected in full by the roster query — there is no separate paged read of it, so the length is the account's whole allowlist.
 

@@ -22,41 +22,65 @@
  * `scripts/admin-ledger/visual/composition.mjs` does catch a missing
  * stylesheet — it appends a probe element and reads its computed border — but
  * it needs a running fixture, and it probes ONE family per route. This asks
- * the cheaper and broader question of every admin page at once, with no
- * server, and it is the check that fails in CI.
+ * the cheaper and broader question of every administrative page at once, with
+ * no server, and it is the check that fails in CI.
+ *
+ * ===========================================================================
+ * PV-PLACE-001 — THE ADMINISTRATIVE PAGES THAT LEFT /admin
+ * ===========================================================================
+ * Owner decision PV-OD-001 moved eleven workspace-administration pages out of
+ * /admin to their tenant homes (Security Center, Operations). They kept the
+ * administrative visual system, which now loads through ONE component —
+ * `components/admin/AdminVisualSystem.tsx` imports `admin-system.css` and
+ * `admin-console.css` — rendered by admin/layout.tsx and by each moved
+ * route's own layout or page. So:
+ *
+ *   * the scanned set is /admin PLUS those roots, so a moved page that loses
+ *     its stylesheet fails here exactly as it would have under /admin;
+ *   * a page or layout "loads" a sheet when it imports it directly OR imports
+ *     a local module that does. In the App Router a stylesheet imported by a
+ *     module the route imports belongs to that route — which is precisely how
+ *     the shared component delivers it.
  */
 
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const WEB = resolve(HERE, "..");
 
-const ADMIN = resolve(WEB, "app/(app)/admin");
+const APP = resolve(WEB, "app/(app)");
+const ADMIN = resolve(APP, "admin");
+
+/** Every root that renders the administrative visual system. */
+const ROOTS = [
+  ADMIN,
+  resolve(APP, "security-center/identity"),
+  resolve(APP, "security-center/posture"),
+  resolve(APP, "security-center/sso"),
+  resolve(APP, "operations/analytics"),
+  resolve(APP, "operations/automation"),
+  resolve(APP, "operations/reliability"),
+];
 
 /**
  * Class prefix -> the stylesheet that defines it, relative to the repo's
  * `apps/web`. A page using the prefix must import that file, or inherit it
- * from a layout above it.
+ * from a layout above it within its root.
  */
-const FAMILIES: Array<{
-  prefix: string;
-  sheet: string;
-  /** Loaded by a layout, so any page beneath it already has it. */
-  viaLayout?: string;
-}> = [
+const FAMILIES: Array<{ prefix: string; sheet: string }> = [
   {
     prefix: "apf-",
     sheet: resolve(WEB, "app/(app)/admin/platform/admin-platform.css"),
   },
   {
+    // Delivered by AdminVisualSystem, which admin/layout.tsx and every moved
+    // root renders.
     prefix: "adm-",
     sheet: resolve(WEB, "app/(app)/admin/admin-system.css"),
-    // admin/layout.tsx imports it for the whole console.
-    viaLayout: ADMIN,
   },
   {
     prefix: "rb-",
@@ -85,33 +109,73 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-/** Does `file`, or a layout above it, import `sheet`? */
-function reaches(file: string, sheet: string, viaLayout?: string): boolean {
-  const sheetAbs = sheet;
+function read(file: string): string | null {
+  try {
+    return readFileSync(file, "utf8");
+  } catch {
+    return null;
+  }
+}
 
-  const importsSheet = (candidate: string): boolean => {
-    let src: string;
-    try {
-      src = readFileSync(candidate, "utf8");
-    } catch {
-      return false;
-    }
-    for (const m of src.matchAll(/import\s+"([^"]+\.css)"/g)) {
-      if (resolve(dirname(candidate), m[1]) === sheetAbs) return true;
-    }
-    return false;
-  };
+/** Does this module import `sheet` itself? */
+function importsSheetDirectly(file: string, sheet: string): boolean {
+  const src = read(file);
+  if (src === null) return false;
+  for (const m of src.matchAll(/import\s+"([^"]+\.css)"/g)) {
+    if (resolve(dirname(file), m[1]) === sheet) return true;
+  }
+  return false;
+}
 
-  if (importsSheet(file)) return true;
+/** A relative module specifier resolved to the .tsx/.ts file it names. */
+function resolveModule(from: string, spec: string): string | null {
+  const base = resolve(dirname(from), spec);
+  for (const candidate of [
+    `${base}.tsx`,
+    `${base}.ts`,
+    join(base, "index.tsx"),
+    join(base, "index.ts"),
+  ]) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}
 
-  // Walk up to the family's layout root, checking each layout.tsx.
+/**
+ * Does this route file load `sheet` — directly, or through a local module it
+ * imports that imports the sheet? One level, deliberately: that is the shape
+ * of the shared AdminVisualSystem delivery, and a deeper chain would be a
+ * stylesheet hidden where no reviewer looks for it.
+ */
+function loadsSheet(file: string, sheet: string): boolean {
+  if (importsSheetDirectly(file, sheet)) return true;
+  const src = read(file);
+  if (src === null) return false;
+  for (const m of src.matchAll(/import\s+[^"']*?from\s+"(\.{1,2}\/[^"]+)"/g)) {
+    const mod = resolveModule(file, m[1]);
+    if (mod && importsSheetDirectly(mod, sheet)) return true;
+  }
+  return false;
+}
+
+function rootOf(file: string): string {
+  const root = ROOTS.find((r) => file === r || file.startsWith(r + "\\") || file.startsWith(r + "/"));
+  if (!root) throw new Error(`no scanned root contains ${file}`);
+  return root;
+}
+
+/** Does `file`, or a layout above it within its root, load `sheet`? */
+function reaches(file: string, sheet: string): boolean {
+  if (loadsSheet(file, sheet)) return true;
+
+  // Walk up to the file's root, checking each layout.tsx.
   let dir = dirname(file);
-  const stop = viaLayout ?? ADMIN;
+  const stop = rootOf(file);
   for (;;) {
     const layout = join(dir, "layout.tsx");
     try {
       statSync(layout);
-      if (importsSheet(layout)) return true;
+      if (loadsSheet(layout, sheet)) return true;
     } catch {
       /* no layout at this level */
     }
@@ -123,13 +187,21 @@ function reaches(file: string, sheet: string, viaLayout?: string): boolean {
   return false;
 }
 
-const files = walk(ADMIN);
+const files = ROOTS.flatMap((root) => walk(root));
 
-test("the admin page set is found", () => {
+test("the administrative page set is found", () => {
   assert.ok(
     files.length > 40,
-    `expected 40+ admin route files, found ${files.length}`,
+    `expected 40+ administrative route files, found ${files.length}`,
   );
+  // Every moved root is actually scanned — a typo in ROOTS must not quietly
+  // shrink the set back to /admin.
+  for (const root of ROOTS) {
+    assert.ok(
+      files.some((f) => f.startsWith(root)),
+      `no page or layout found under ${relative(WEB, root)}`,
+    );
+  }
 });
 
 for (const family of FAMILIES) {
@@ -146,7 +218,7 @@ for (const family of FAMILIES) {
         .replace(/\/\*[\s\S]*?\*\//g, "")
         .replace(/^\s*\/\/.*$/gm, "");
       if (!re.test(rendered)) continue;
-      if (!reaches(file, family.sheet, family.viaLayout)) {
+      if (!reaches(file, family.sheet)) {
         offenders.push(relative(WEB, file).split("\\").join("/"));
       }
     }
@@ -155,7 +227,7 @@ for (const family of FAMILIES) {
       offenders,
       [],
       `these pages use ${family.prefix}* but neither they nor a layout above ` +
-        `them import ${relative(WEB, family.sheet).split("\\").join("/")}, ` +
+        `them load ${relative(WEB, family.sheet).split("\\").join("/")}, ` +
         `so those classes resolve to nothing:\n${offenders.join("\n")}`,
     );
   });

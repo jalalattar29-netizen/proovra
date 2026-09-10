@@ -45,12 +45,10 @@
  *    and the navigation cannot disagree about which surfaces are which.
  */
 
-import { useEffect, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 
-import "../../../components/admin/admin-console.css";
-import "./admin-system.css";
-
+import { AdminVisualSystem } from "../../../components/admin/AdminVisualSystem";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { AdminEntityCrumbProvider } from "../../../components/admin/AdminEntityCrumb";
 import AdminConsoleNav, {
@@ -66,28 +64,9 @@ import {
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
-  /**
-   * FLAG THE CONSOLE ON THE BODY, SO THE PRODUCT DECOR CAN BE TURNED OFF.
-   *
-   * The authenticated shell paints two decorative layers: a four-stop radial
-   * and linear gradient on `body.has-app-decor`, and a photographic PNG on
-   * `.app-shell-v2`. Both are ancestors of this layout, so nothing inside it
-   * can neutralise them — hence a body class rather than a nested rule.
-   *
-   * They are right for the product surfaces and wrong here. An operations
-   * console is read for hours at a time, often beside a terminal, and the
-   * numbers on it are the content; a warm gradient behind a table of incident
-   * counts lowers contrast and makes the page read as marketing. The same
-   * argument the decor comment makes for keeping it off marketing routes
-   * applies to keeping it off this one.
-   *
-   * Added and removed symmetrically, mirroring (app)/layout.tsx, so leaving
-   * the console restores the product ground.
-   */
-  useEffect(() => {
-    document.body.classList.add("is-admin-console");
-    return () => document.body.classList.remove("is-admin-console");
-  }, []);
+  // The console's look — the admin stylesheets and the body class that turns
+  // the product decor off — lives in AdminVisualSystem, shared with the
+  // workspace-administration pages that moved to their tenant homes.
   const workspaceScoped = isWorkspaceScopedAdminPath(pathname);
   // Mutually exclusive by construction — a surface has ONE scope — but read
   // separately so a future third state cannot silently fall through to the
@@ -95,6 +74,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const platformAuditScoped = isPlatformAuditScopedAdminPath(pathname);
 
   return (
+    <AdminVisualSystem>
     <PageRouteGate routeId="platform.admin">
       {/*
         PHASE 6 6 - the provider wraps BOTH the breadcrumb and the page, so a
@@ -113,5 +93,6 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       </div>
       </AdminEntityCrumbProvider>
     </PageRouteGate>
+    </AdminVisualSystem>
   );
 }

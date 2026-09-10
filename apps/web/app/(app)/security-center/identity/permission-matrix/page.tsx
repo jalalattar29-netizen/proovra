@@ -361,7 +361,7 @@ export default function PermissionMatrixPage() {
           subtitle="The authoritative role → permission projection, plus one member's effective access with the source of every outcome. Nothing on this page is computed in the browser."
           contextStrip={
             <Link
-              href="/admin/identity"
+              href="/security-center/identity"
               // 44px hit box; the header keeps its height (admin-console.css).
               className="admin-hit-link"
               style={{ fontSize: 12 }}

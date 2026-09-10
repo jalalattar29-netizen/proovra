@@ -2,7 +2,7 @@
 
 /**
  * PHASE 12B — shared vocabulary for the Organization identity administration
- * console (`/admin/identity` + its inspector sub-pages).
+ * console (`/security-center/identity` + its inspector sub-pages).
  *
  * ONE failure classifier for every section, so a DENIAL never renders as
  * "nothing here" and a raw backend string never reaches an operator:

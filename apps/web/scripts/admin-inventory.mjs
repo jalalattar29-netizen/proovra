@@ -219,7 +219,8 @@ function readApiRoutes() {
         // Does the handler NARROW its result by teamId?
         //
         // Three shapes, and missing the third produced a wrong answer that
-        // reached the UI: `/admin/platform/reliability` calls
+        // reached the UI: `/admin/platform/reliability` (now
+        // `/operations/reliability`, PV-PLACE-001) calls
         // `countUploadSessionsByTeam({ teamId: query.teamId })`. There is no
         // Prisma `where` in the handler at all — the narrowing happens inside
         // a service — so the first two patterns reported AUDIT, the page was
@@ -601,7 +602,8 @@ function inspectPage(file, apiRoutes) {
    *   → no teamRole to refine with → WORKSPACE_UNCLASSIFIED
    *
    * which is how `/admin/identity`, `/admin/identity/sessions` and
-   * `/admin/security` were reported as unclassified while every one of them
+   * `/admin/security` (all three have since left the console under
+   * PV-PLACE-001 for `/security-center/*`) were reported as unclassified while every one of them
    * declares `scope: "WORKSPACE"` and calls workspace-filtered endpoints —
    * `/v1/identity/mfa-admin/policy/:teamId` and its siblings — from sections.
    *
@@ -686,7 +688,7 @@ function inspectPage(file, apiRoutes) {
      *
      * This read `page.tsx` alone, which was true of the console when it was
      * written and stopped being true as pages were decomposed. `/admin/security`
-     * is an ORCHESTRATOR — six `_sections/*` components, every one of them
+     * (now `/security-center/posture`, PV-PLACE-001) was an ORCHESTRATOR — six `_sections/*` components, every one of them
      * calling `useTeamId()` — and its page file held a `teamId` of its own only
      * for one clause of a note card. Removing that dead variable (it had become
      * a lint error) flipped the route's classification from

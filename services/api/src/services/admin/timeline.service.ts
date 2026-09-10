@@ -312,7 +312,9 @@ export async function buildPlatformTimeline(
       severity: normaliseSeverity(r.severity),
       organizationId: null,
       targetLabel: r.teamId ? `workspace · ${r.teamId}` : null,
-      href: "/admin/security",
+      // The platform's security-event feed; /admin/security was one
+      // workspace's page and has moved to that workspace's Security Center.
+      href: "/admin/operations",
     });
   }
 

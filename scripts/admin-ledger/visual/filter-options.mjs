@@ -5,7 +5,7 @@
  * ===========================================================================
  * WHY THIS EXISTS
  * ===========================================================================
- * `/admin/security` offered two choices that could not work. Its event-severity
+ * `/security-center/posture` offered two choices that could not work. Its event-severity
  * filter opened with "Critical", and a security event's severity domain is
  * INFO / WARNING / HIGH — `GET /v1/security/events` validates against that zod
  * enum, so the request came back 400. Its scan-result filter offered

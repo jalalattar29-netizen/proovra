@@ -63,8 +63,11 @@ import {
 import {
   evaluateMfaRequirement,
   getMfaPolicy,
-  updateMfaPolicy,
+  updateMfaPolicyVersioned,
+  MfaPolicyVersionConflictError,
 } from "../services/identity-security/mfa-policy.service.js";
+import { assertTeamAllowsEnterpriseFeature } from "../services/billing-enforcement.service.js";
+import { ALIAS_SUNSET_HTTP_DATE } from "./deprecated-alias.js";
 import {
   getRiskSnapshotForUser,
 } from "../services/identity-security/risk.service.js";
@@ -515,13 +518,45 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
     trustedDeviceTtlDays: z.number().int().min(1).max(180).nullable().optional(),
   });
 
+  /*
+   * WCC-NEW-011 — ONE WRITER OF THE MFA POLICY.
+   *
+   * The canonical writer is PATCH /v1/identity/mfa-admin/policy/:teamId:
+   * Enterprise-entitled (`mfaEnforcement`), versioned so a concurrent editor
+   * is refused rather than overwritten, and it carries the enforcement fail
+   * mode. This PUT predates it and had none of the three — a workspace
+   * without the Enterprise entitlement could set MFA enforcement by calling
+   * it directly, which the canonical route refuses with 402.
+   *
+   * It stays registered for the organization setup wizard and any external
+   * caller, and it now applies the SAME entitlement and the same versioned
+   * write, reading the current version itself so its body shape is unchanged.
+   * It answers with the deprecation signals that name its successor.
+   */
   app.put(
     "/v1/identity-security/mfa-policy",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const body = PolicyBody.parse(req.body ?? {});
+      reply.header("deprecation", "true");
+      reply.header("sunset", ALIAS_SUNSET_HTTP_DATE);
+      reply.header(
+        "link",
+        `</v1/identity/mfa-admin/policy/${body.teamId}>; rel="successor-version"`,
+      );
       const actor = await requireSecurityActor(req, reply, body.teamId, "identity.org_policy.manage");
       if (!actor) return;
+      // The same entitlement the canonical writer enforces — checked after
+      // authorization, so a caller outside the workspace learns nothing new.
+      try {
+        await assertTeamAllowsEnterpriseFeature(body.teamId, "mfaEnforcement");
+      } catch (err) {
+        const status = (err as { statusCode?: number }).statusCode ?? 402;
+        const code = (err as { code?: string }).code ?? "ENTERPRISE_FEATURE_REQUIRED";
+        return reply.code(status).send({
+          error: { code, message: (err as Error).message, upgradeCta: "/contact-sales" },
+        });
+      }
       // MFA policy update is itself a sensitive action.
       const gate = await requireStepUpForSensitiveAction({
         req,
@@ -533,16 +568,32 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
         resourceId: body.teamId,
       });
       if (gate.sent) return;
-      const updated = await updateMfaPolicy({
-        teamId: body.teamId,
-        actorUserId: actor.userId,
-        level: body.level as never,
-        stepUpTtlSeconds: body.stepUpTtlSeconds,
-        trustedDeviceTtlDays: body.trustedDeviceTtlDays,
-        ipAddress: requestIp(req),
-        userAgent: requestUa(req),
-      });
-      return reply.code(200).send({ policy: updated });
+      const current = await getMfaPolicy(body.teamId);
+      try {
+        const updated = await updateMfaPolicyVersioned({
+          teamId: body.teamId,
+          actorUserId: actor.userId,
+          expectedPolicyVersion: current.policyVersion,
+          level: body.level as never,
+          ...(body.stepUpTtlSeconds !== undefined ? { stepUpTtlSeconds: body.stepUpTtlSeconds } : {}),
+          ...(body.trustedDeviceTtlDays !== undefined
+            ? { trustedDeviceTtlDays: body.trustedDeviceTtlDays }
+            : {}),
+          ipAddress: requestIp(req),
+          userAgent: requestUa(req),
+        });
+        return reply.code(200).send({ policy: updated });
+      } catch (err) {
+        if (err instanceof MfaPolicyVersionConflictError) {
+          return reply.code(409).send({
+            error: {
+              code: "MFA_POLICY_VERSION_CONFLICT",
+              message: "The MFA policy changed while you were editing it. Reload, review, and retry.",
+            },
+          });
+        }
+        throw err;
+      }
     },
   );
 

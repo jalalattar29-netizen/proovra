@@ -126,6 +126,18 @@ test("every complete-list declaration names an endpoint and a reason", () => {
   for (const d of recorded.completeListDeclarations ?? []) {
     assert.match(d.endpoint, /^(GET|POST) \/v1\//, "declaration names a route");
     assert.ok(d.reason.length > 40, `${d.endpoint} states why it is complete`);
-    assert.ok(d.route.startsWith("/admin/"), "declaration names the page");
+    // PV-PLACE-001 — the page a declaration vouches for may live outside
+    // /admin now (eleven administrative pages moved to their tenant homes and
+    // the audit scans them there). "Names the page" is therefore checked
+    // against what the audit actually SCANNED: the declared page must carry a
+    // count site the audit credited as COMPLETE_LIST. A declaration for a page
+    // the scan never reached, or one whose count is not the declared kind,
+    // vouches for nothing.
+    assert.ok(
+      recorded.sites.some(
+        (s) => s.route === d.route && s.truth === "COMPLETE_LIST",
+      ),
+      `declaration for ${d.route} names a scanned page carrying a COMPLETE_LIST count`,
+    );
   }
 });

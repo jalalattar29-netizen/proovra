@@ -350,8 +350,9 @@ describe("Phase R10 — Stage 2/3: next.config.js redirect cleanliness", () => {
   // The pre-cleanup config had /ops/* -> /operations/* redirects whose
   // destinations did not exist on disk, so the canonical /ops/* pages
   // were 308-ing into 404s. The cleanup pruned every redirect whose
-  // destination was missing; only /ops/reliability -> /admin/platform/reliability
-  // remains because /admin/platform/reliability genuinely exists.
+  // destination was missing; only /ops/reliability -> /operations/reliability
+  // (formerly /admin/platform/reliability, moved by PV-PLACE-001) remains
+  // because that page genuinely exists.
 
   function opsPagesOnDisk(): string[] {
     const opsDir = webPath("app/(app)/ops");

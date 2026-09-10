@@ -180,6 +180,13 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   // PROOVRA's internal consoles did not move. They are under
   // `/admin/platform/*`, and `/ops` above (the raw platform ops console)
   // stays INTERNAL.
+  // PV-PLACE-001 — three workspace-administration consoles moved here from
+  // /admin/platform/*. They were ENTERPRISE-tier under /admin and stay so:
+  // the move changes their URL and gate (tenant, not platform), not their
+  // package. First match wins, so these precede the CORE /operations prefix.
+  { pathPrefix: "/operations/analytics", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "workspace operational analytics (moved from /admin/platform/analytics)" },
+  { pathPrefix: "/operations/automation", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "workspace automation rules (moved from /admin/platform/automation)" },
+  { pathPrefix: "/operations/reliability", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "workspace upload reliability (moved from /admin/platform/reliability)" },
   { pathPrefix: "/operations", tier: "CORE", directAccessPolicy: "allow", reason: "tenant Operations — shared unresolved workspace work; gated on OPERATIONS_VIEW" },
   // CORE alias for the canonical `/trust-center` URL — pinned by the
   // surface-tier wiring test (Phase IA-surface-tier-wiring).
@@ -312,7 +319,6 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   // BEFORE the generic /admin prefix so the bound is unambiguous
   // (first-match-wins). All three variants 404 for non-enterprise.
   { pathPrefix: "/admin/organizations", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "admin organizations console (ENTERPRISE_ONLY)" },
-  { pathPrefix: "/admin/identity", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "admin identity hub" },
   { pathPrefix: "/admin", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "admin surface (org admin / platform admin entry)" },
   { pathPrefix: "/organization-admin", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "organization admin (ENTERPRISE_ONLY)" },
   { pathPrefix: "/security-center", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "security center (admin form). Personal security lives in /settings#security (CORE)" },

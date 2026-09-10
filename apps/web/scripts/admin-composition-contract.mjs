@@ -186,7 +186,8 @@ function isList(code, route) {
 /**
  * Does this page FILTER a list, as opposed to merely containing a <select>?
  *
- * /admin/identity/providers has two selects and no filters: they are the
+ * /admin/identity/providers (since merged into /security-center/sso under
+ * PV-PLACE-001 / PV-DUP-001) had two selects and no filters: they are the
  * provider type and the JIT default role in the CREATE form. Counting them as
  * filters demanded a "no results match" state for a list nobody can filter,
  * which is a sentence that could never appear.
@@ -231,7 +232,8 @@ function isList(code, route) {
  *     there would have meant duplicating a card grid that already shows
  *     every queue's depth — worse UX in service of a passing script.
  *
- *   * Scanning useEffect alone missed /admin/identity/sessions. Its loader
+ *   * Scanning useEffect alone missed /admin/identity/sessions (now
+ *     /security-center/identity/sessions, PV-PLACE-001). Its loader
  *     is a useCallback holding includeRevoked and includeExpired, which go
  *     straight into the query string; the effect only sees `[load]`.
  *
@@ -373,7 +375,8 @@ const CHECKS = [
     //
     // The original premise was "a client-side filter lies at scale: it narrows
     // the page you can see and nothing else". That is true of a PAGED list and
-    // false of a complete one. /admin/identity fetches /v1/identity/members,
+    // false of a complete one. /admin/identity (now /security-center/identity,
+    // PV-PLACE-001) fetches /v1/identity/members,
     // whose service is findMany({ where: { teamId } }) with no take — the
     // browser holds every member, so filtering locally narrows all of them and
     // is both correct and instant.

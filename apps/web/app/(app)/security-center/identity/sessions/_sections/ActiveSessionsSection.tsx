@@ -80,7 +80,7 @@ import {
   sectionLabelStyle,
   sectionMuted,
   type SectionState,
-} from "../../../security/_sections/section-state";
+} from "../../../posture/_sections/section-state";
 import { SessionTimelineDrawer } from "./SessionTimelineDrawer";
 import { formatCellDateTime } from "../../../../../../lib/date";
 import { shortId } from "../../_sections/identity-admin-shared";

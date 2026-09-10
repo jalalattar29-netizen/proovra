@@ -44,15 +44,20 @@ import { resolveRouteAccess } from "../lib/navigation/routeAccessResolver";
 
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
-/** The eleven consoles moved out of the tenant namespace in Phase 4A. */
+/**
+ * The consoles moved out of the tenant namespace in Phase 4A that ARE
+ * platform consoles. Phase 4A moved eleven; PV-PLACE-001 (owner decision
+ * PV-OD-001) established that three of them — reliability, automation and
+ * analytics — were never platform consoles: every read behind them authorizes
+ * on the operator's OWN workspace. They are tenant surfaces again, listed in
+ * TENANT_OPERATIONS_CHILDREN below, and `/admin/platform/*` keeps only what
+ * genuinely administers the platform.
+ */
 const MOVED_CONSOLES = [
   "runbooks",
   "observability",
-  "reliability",
   "queues",
   "media-graph",
-  "automation",
-  "analytics",
   "readiness",
   "signers",
   "exports",
@@ -77,6 +82,13 @@ const TENANT_OPERATIONS_CHILDREN = [
   "quotas",
   "batch-analysis",
   "health",
+  // PV-PLACE-001 — the workspace's own automation rules, operational
+  // analytics and upload reliability. Organization-workspace, Enterprise-tier
+  // surfaces (tiers.ts), gated on tenant capabilities; the platform console
+  // no longer claims them.
+  "analytics",
+  "automation",
+  "reliability",
 ] as const;
 
 type Route = {

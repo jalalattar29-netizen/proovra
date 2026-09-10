@@ -138,11 +138,10 @@ const nextConfig = {
         destination: "/admin/platform/observability",
         permanent: true,
       },
-      {
-        source: "/operations/reliability",
-        destination: "/admin/platform/reliability",
-        permanent: true,
-      },
+      // PV-PLACE-001 — `/operations/reliability`, `/operations/automation` and
+      // `/operations/analytics` were redirect SOURCES into the platform
+      // console. They are now the canonical pages themselves, so their
+      // redirects are gone (a redirect would make the page unreachable).
       {
         source: "/operations/queues",
         destination: "/admin/platform/queues",
@@ -151,16 +150,6 @@ const nextConfig = {
       {
         source: "/operations/media-graph",
         destination: "/admin/platform/media-graph",
-        permanent: true,
-      },
-      {
-        source: "/operations/automation",
-        destination: "/admin/platform/automation",
-        permanent: true,
-      },
-      {
-        source: "/operations/analytics",
-        destination: "/admin/platform/analytics",
         permanent: true,
       },
       {
@@ -183,11 +172,54 @@ const nextConfig = {
         destination: "/admin/platform/recovery",
         permanent: true,
       },
-      // Legacy `/ops/reliability` now lands on the platform route in one
-      // hop rather than chaining through `/operations/reliability`.
+      // Legacy `/ops/reliability` lands on the canonical workspace page in one
+      // hop.
       {
         source: "/ops/reliability",
-        destination: "/admin/platform/reliability",
+        destination: "/operations/reliability",
+        permanent: true,
+      },
+      // -----------------------------------------------------------------
+      // PV-PLACE-001 — `/admin` is PROOVRA platform administration only.
+      // These eleven pages administered the operator's OWN workspace and
+      // moved to their tenant homes. Old bookmarks land in one hop; the
+      // query string travels with the redirect. The providers console is
+      // listed before the /admin/identity wildcard: it merged into the
+      // canonical SSO console rather than moving (PV-DUP-001).
+      // -----------------------------------------------------------------
+      {
+        source: "/admin/identity/providers",
+        destination: "/security-center/sso",
+        permanent: true,
+      },
+      {
+        source: "/admin/identity",
+        destination: "/security-center/identity",
+        permanent: true,
+      },
+      {
+        source: "/admin/identity/:path*",
+        destination: "/security-center/identity/:path*",
+        permanent: true,
+      },
+      {
+        source: "/admin/security",
+        destination: "/security-center/posture",
+        permanent: true,
+      },
+      {
+        source: "/admin/platform/analytics",
+        destination: "/operations/analytics",
+        permanent: true,
+      },
+      {
+        source: "/admin/platform/automation",
+        destination: "/operations/automation",
+        permanent: true,
+      },
+      {
+        source: "/admin/platform/reliability",
+        destination: "/operations/reliability",
         permanent: true,
       },
       {
@@ -309,7 +341,7 @@ const nextConfig = {
       },
       {
         source: "/settings/security/scim",
-        destination: "/admin/identity/scim",
+        destination: "/security-center/identity/scim",
         permanent: true,
       },
       // Settings IA refactor (2026-07-17) — the six Settings child pages
@@ -349,7 +381,7 @@ const nextConfig = {
       },
       {
         source: "/settings/security/audit",
-        destination: "/admin/identity/timeline",
+        destination: "/security-center/identity/timeline",
         permanent: true,
       },
       // Phase 2B (Teams/Workspace consolidation) — the parallel
@@ -381,7 +413,7 @@ const nextConfig = {
       },
       {
         source: "/identity",
-        destination: "/admin/identity",
+        destination: "/security-center/identity",
         permanent: true,
       },
       // Phase 1A — Legacy /dashboard/* paths folded into canonical home +
@@ -417,12 +449,12 @@ const nextConfig = {
       },
       {
         source: "/ops/automation",
-        destination: "/admin/platform/automation",
+        destination: "/operations/automation",
         permanent: true,
       },
       {
         source: "/ops/analytics",
-        destination: "/admin/platform/analytics",
+        destination: "/operations/analytics",
         permanent: true,
       },
       {

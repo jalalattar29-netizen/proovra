@@ -298,7 +298,7 @@ export default function ScimPage() {
       if (next === "tokens") qs.delete("tab");
       else qs.set("tab", next);
       const query = qs.toString();
-      router.replace(`/admin/identity/scim${query ? `?${query}` : ""}`, {
+      router.replace(`/security-center/identity/scim${query ? `?${query}` : ""}`, {
         scroll: false,
       });
     },

@@ -241,7 +241,7 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       // transparency, evidence lifecycle, and the executive/governance
       // platform pages. Org Admin / Compliance surfaces — secondary in
       // GOVERNANCE because they're org-overlay, not daily ops.
-      "admin.identity",
+      "security_center.identity",
       "workspace.intelligence_quality",
       "workspace.audit_transparency",
       "workspace.evidence_lifecycle",
@@ -348,19 +348,18 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       "operations.recovery",
       "platform.runbooks",
       "platform.runbook_document",
-      "admin.identity_access_reviews",
-      "admin.identity_permission_matrix",
-      "admin.identity_providers",
-      "admin.identity_runtime",
-      "admin.identity_scim",
-      "admin.identity_sessions",
-      "admin.identity_timeline",
+      "security_center.identity_access_reviews",
+      "security_center.identity_permission_matrix",
+      "security_center.identity_runtime",
+      "security_center.identity_scim",
+      "security_center.identity_sessions",
+      "security_center.identity_timeline",
       "platform.contact_sales_detail",
       "platform.demo_request_detail",
-      "platform.reliability",
+      "operations.reliability",
       "platform.media_graph",
-      "platform.automation",
-      "platform.analytics",
+      "operations.automation",
+      "operations.analytics",
       // Phase Final-Closure-Verification — `platform.queue_ops` (the
       // BullMQ queue triage surface at `/admin/platform/queues`) was
       // promoted from typed-URL-only to a discoverable canonical
@@ -378,7 +377,7 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       "platform.operations",
       "platform.evidence_records",
       "platform.evidence_ops",
-      "platform.security",
+      "security_center.posture",
       "platform.billing",
       // Platform Admin Control Center — final-completion read-only surfaces.
       "platform.platform_health",
