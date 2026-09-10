@@ -588,7 +588,27 @@ function inspectPage(file, apiRoutes) {
    * inside an interpolation still does not matter — normalisePath collapses
    * it to a wildcard — but what comes AFTER one always did.
    */
-  const apiLiterals = v1LiteralsIn(code);
+  /*
+   * THE PAGE **AND** ITS SECTIONS — the same rule `readsActiveWorkspace` uses.
+   *
+   * This read `code`, the page file alone, while `readsActiveWorkspace` below
+   * reads `routeCode`, the page plus its `_sections/*`. Half the classifier
+   * followed the decomposition and half did not, and for an ORCHESTRATOR page
+   * — one whose endpoints all live in its sections — that produced:
+   *
+   *   readsActiveWorkspace > 0   (seen, from routeCode)
+   *   api = []                   (not seen, from code)
+   *   → no teamRole to refine with → WORKSPACE_UNCLASSIFIED
+   *
+   * which is how `/admin/identity`, `/admin/identity/sessions` and
+   * `/admin/security` were reported as unclassified while every one of them
+   * declares `scope: "WORKSPACE"` and calls workspace-filtered endpoints —
+   * `/v1/identity/mfa-admin/policy/:teamId` and its siblings — from sections.
+   *
+   * The scope was never ambiguous in the product. The scanner was reading the
+   * page with one eye.
+   */
+  const apiLiterals = v1LiteralsIn(routeCode);
 
   /**
    * The METHOD the page actually asks for, read from the call site.
@@ -605,10 +625,10 @@ function inspectPage(file, apiRoutes) {
   const methodAt = new Map();
   let from = 0;
   for (;;) {
-    const call = code.indexOf("apiFetch(", from);
+    const call = routeCode.indexOf("apiFetch(", from);
     if (call < 0) break;
     from = call + 9;
-    const body = code.slice(call, call + 800);
+    const body = routeCode.slice(call, call + 800);
     // The SAME extractor the page scan uses. Two scanners with two different
     // stop conditions produced two spellings of one URL, so the lookup below
     // missed and the method came back unknown.
@@ -627,7 +647,7 @@ function inspectPage(file, apiRoutes) {
   }
 
   const resolved = apiLiterals
-    .flatMap((lit) => expandActionLiteral(code, lit))
+    .flatMap((lit) => expandActionLiteral(routeCode, lit))
     .map(({ literal: lit, sourceLiteral }) => {
       const r = matchRoute(apiRoutes, lit);
       // The method was read at the call site, which carries the SOURCE text.

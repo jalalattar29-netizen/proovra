@@ -87,13 +87,13 @@
 | `/admin/evidence-ops` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | evidence | /admin |
 | `/admin/evidence-ops/records` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | evidence | /admin/evidence-ops |
 | `/admin/executive` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | insight | /admin |
-| `/admin/identity` | WORKSPACE_UNCLASSIFIED | adminNavigation registry | PLATFORM_ADMIN |  | identity | /admin |
+| `/admin/identity` | WORKSPACE_CANDIDATE | adminNavigation registry | PLATFORM_ADMIN | resolveAuthorizedWorkspaceSubject, requireIdentityActor, requireStepUpForSensitiveAction, +STEP_UP, UNRESOLVED, resolveAdminWorkspace | identity | /admin |
 | `/admin/identity/access-reviews` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | resolveAuthorizedWorkspaceSubject, requireStepUpForSensitiveAction, +STEP_UP | identity | /admin/identity |
 | `/admin/identity/permission-matrix` | WORKSPACE_CANDIDATE | adminNavigation registry | PLATFORM_ADMIN | resolveAdminWorkspace, requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP | identity | /admin/identity |
-| `/admin/identity/providers` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP | identity | /admin/identity |
+| `/admin/identity/providers` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP, authorizeOrFail, AUTHORIZE(?) | identity | /admin/identity |
 | `/admin/identity/runtime` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP, requireIntegrationCronSecret, authorizeOrFail, AUTHORIZE(?) | identity | /admin/identity |
 | `/admin/identity/scim` | WORKSPACE_CANDIDATE | adminNavigation registry | PLATFORM_ADMIN | requireIdentityAdmin, requireScimAdmin, requireStepUpForSensitiveAction, +STEP_UP | identity | /admin/identity |
-| `/admin/identity/sessions` | WORKSPACE_UNCLASSIFIED | adminNavigation registry | PLATFORM_ADMIN |  | identity | /admin/identity |
+| `/admin/identity/sessions` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP, authorizeOrFail, AUTHORIZE(?), requireSecurityActor, resolveAuthorizedWorkspaceSubject | identity | /admin/identity |
 | `/admin/identity/timeline` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | requireIdentityAdmin | identity | /admin/identity |
 | `/admin/operations` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | platform | /admin |
 | `/admin/platform-health` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | platform | /admin |
@@ -109,9 +109,9 @@
 | `/admin/platform/runbooks` | PLATFORM | adminNavigation registry | RUNBOOKS_VIEW |  | runbooks | /admin/platform |
 | `/admin/platform/runbooks/:slug` | PLATFORM | handler trace | RUNBOOKS_VIEW |  | contextual | /admin/platform/runbooks |
 | `/admin/platform/signers` | WORKSPACE_CANDIDATE | handler trace | OPS_CENTER_VIEW | requirePlatformOpsActor, requireStepUpForSensitiveAction, +STEP_UP | evidence | /admin/platform |
-| `/admin/provisioning` | PLATFORM_AUDIT_SCOPED | handler trace | PLATFORM_ADMIN | requirePlatformAdmin, requireStepUpForSensitiveAction, +STEP_UP | customers | /admin |
+| `/admin/provisioning` | PLATFORM_AUDIT_SCOPED | handler trace | PLATFORM_ADMIN | requirePlatformAdmin, requireStepUpForSensitiveAction, +STEP_UP, requireAuthAndLegal | customers | /admin |
 | `/admin/search` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | security | /admin |
-| `/admin/security` | WORKSPACE_UNCLASSIFIED | adminNavigation registry | PLATFORM_ADMIN |  | security | /admin |
+| `/admin/security` | WORKSPACE_CANDIDATE | adminNavigation registry | PLATFORM_ADMIN | AUTH_ONLY, authorizeMfaAdminScope, resolveAuthorizedWorkspaceSubject, requireStepUpForSensitiveAction, requireUserReenrollment, +STEP_UP, requireAdminMember | security | /admin |
 | `/admin/support-access` | WORKSPACE_FILTERED | handler trace | PLATFORM_ADMIN | requirePlatformStaff, authorizeOrFail, requireStepUpForSensitiveAction, AUTHORIZE(?), +STEP_UP | security | /admin |
 | `/admin/timeline` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | security | /admin |
 | `/admin/users` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | customers | /admin |
@@ -150,7 +150,23 @@
 | `/admin/evidence-ops` | GET | `/v1/admin/evidence-health` | requirePlatformAdmin | AUDIT |
 | `/admin/evidence-ops/records` | GET | `/v1/admin/evidence-health/records` | requirePlatformAdmin | AUDIT |
 | `/admin/executive` | GET | `/v1/admin/executive` | requirePlatformAdmin | NONE |
-| `/admin/identity` | — | (no API call) | — | — |
+| `/admin/identity` | GET+POST | `/v1/identity/external-mappings` | resolveAuthorizedWorkspaceSubject | FILTER_CANDIDATE |
+| `/admin/identity` | DELETE | `/v1/identity/external-mappings/:id` | requireIdentityActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
+| `/admin/identity` | GET | `/v1/identity/members` | resolveAuthorizedWorkspaceSubject | AUDIT |
+| `/admin/identity` | POST | `/v1/identity/members/:id/role` | requireIdentityActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
+| `/admin/identity` | POST | `/v1/identity/members/:id/suspend` | requireIdentityActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
+| `/admin/identity` | POST | `/v1/identity/members/:id/restore` | requireIdentityActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
+| `/admin/identity` | POST | `/v1/identity/members/:id/revoke` | requireIdentityActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
+| `/admin/identity` | POST | `/v1/identity/members/:id/capabilities` | requireIdentityActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
+| `/admin/identity` | DELETE | `/v1/identity/capabilities/:id` | requireIdentityActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
+| `/admin/identity` | POST | `/v1/identity/members/:id/delegated-admin` | requireIdentityActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
+| `/admin/identity` | DELETE | `/v1/identity/delegated-admin/:id` | requireIdentityActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
+| `/admin/identity` | GET | `/v1/identity/service-accounts` | resolveAuthorizedWorkspaceSubject | FILTER_CANDIDATE |
+| `/admin/identity` | POST | `/v1/identity/service-accounts/:x` | UNRESOLVED | ? |
+| `/admin/identity` | PATCH | `/v1/identity/service-accounts/:id/hardening` | requireIdentityActor, requireStepUpForSensitiveAction, +STEP_UP | AUDIT |
+| `/admin/identity` | POST | `/v1/identity/contributor-sessions/:id/revoke` | requireIdentityActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
+| `/admin/identity` | POST | `/v1/admin/identity/sessions/reconcile-stale` | resolveAdminWorkspace, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
+| `/admin/identity` | POST | `/v1/admin/identity/runtime/reconcile` | resolveAdminWorkspace, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
 | `/admin/identity/access-reviews` | GET | `/v1/identity/access-reviews` | resolveAuthorizedWorkspaceSubject | FILTER_CANDIDATE |
 | `/admin/identity/access-reviews` | POST | `/v1/identity/access-reviews/regenerate` | resolveAuthorizedWorkspaceSubject | FILTER_CANDIDATE |
 | `/admin/identity/access-reviews` | POST | `/v1/identity/access-reviews/:id/decision` | resolveAuthorizedWorkspaceSubject, requireStepUpForSensitiveAction, +STEP_UP | FILTER |
@@ -161,6 +177,7 @@
 | `/admin/identity/providers` | GET+POST | `/v1/admin/identity/providers` | requireIdentityAdmin | FILTER |
 | `/admin/identity/providers` | POST | `/v1/admin/identity/providers/:id/transition` | requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
 | `/admin/identity/providers` | POST | `/v1/admin/identity/providers/:id/policy` | requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
+| `/admin/identity/providers` | GET | `/v1/auth/sso/readiness` | authorizeOrFail, AUTHORIZE(?) | FILTER |
 | `/admin/identity/runtime` | GET | `/v1/admin/identity/sessions` | requireIdentityAdmin | FILTER_CANDIDATE |
 | `/admin/identity/runtime` | GET | `/v1/admin/identity/quarantined-sessions` | requireIdentityAdmin | FILTER_CANDIDATE |
 | `/admin/identity/runtime` | POST | `/v1/admin/identity/sessions/:id/quarantine` | requireIdentityAdmin | FILTER_CANDIDATE |
@@ -176,12 +193,26 @@
 | `/admin/identity/scim` | POST | `/v1/scim/reconciliation/execute` | requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
 | `/admin/identity/scim` | GET | `/v1/scim/sync-failures` | requireIdentityAdmin | FILTER_CANDIDATE |
 | `/admin/identity/scim` | POST | `/v1/scim/sync-failures/:id/replay` | requireIdentityAdmin | FILTER_CANDIDATE |
-| `/admin/identity/sessions` | — | (no API call) | — | — |
+| `/admin/identity/scim` | GET | `/v1/admin/identity/scim/managed-membership` | requireScimAdmin | FILTER_CANDIDATE |
+| `/admin/identity/sessions` | GET | `/v1/admin/identity/sessions` | requireIdentityAdmin | FILTER_CANDIDATE |
+| `/admin/identity/sessions` | GET | `/v1/admin/identity/quarantined-sessions` | requireIdentityAdmin | FILTER_CANDIDATE |
+| `/admin/identity/sessions` | POST | `/v1/admin/identity/sessions/:id/quarantine` | requireIdentityAdmin | FILTER_CANDIDATE |
+| `/admin/identity/sessions` | POST | `/v1/admin/identity/sessions/:id/revoke` | requireIdentityAdmin | FILTER_CANDIDATE |
+| `/admin/identity/sessions` | POST | `/v1/admin/identity/sessions/user/:userId/revoke-all` | requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
+| `/admin/identity/sessions` | POST | `/v1/admin/identity/sessions/:id/release` | requireIdentityAdmin | FILTER_CANDIDATE |
+| `/admin/identity/sessions` | GET | `/v1/identity-security/session-policy-impact` | authorizeOrFail, AUTHORIZE(?) | FILTER |
+| `/admin/identity/sessions` | GET | `/v1/identity/sessions/:sessionId/timeline` | requireIdentityAdmin | FILTER_CANDIDATE |
+| `/admin/identity/sessions` | GET | `/v1/identity-security/devices` | requireSecurityActor | FILTER_CANDIDATE |
+| `/admin/identity/sessions` | POST | `/v1/identity-security/devices/trust` | authorizeOrFail, requireStepUpForSensitiveAction, AUTHORIZE(?), +STEP_UP | FILTER_CANDIDATE |
+| `/admin/identity/sessions` | POST | `/v1/identity-security/devices/:id/revoke` | requireSecurityActor | FILTER_CANDIDATE |
+| `/admin/identity/sessions` | GET | `/v1/identity/members` | resolveAuthorizedWorkspaceSubject | AUDIT |
+| `/admin/identity/sessions` | GET | `/v1/identity-security/risk/user/:id` | authorizeOrFail, AUTHORIZE(?) | FILTER |
 | `/admin/identity/timeline` | GET | `/v1/admin/identity/timeline` | requireIdentityAdmin | FILTER |
 | `/admin/operations` | GET | `/v1/admin/incidents` | requirePlatformAdmin | FILTER |
 | `/admin/operations` | POST | `/v1/admin/incidents/:id/acknowledge` | requirePlatformAdmin | NONE |
 | `/admin/operations` | POST | `/v1/admin/incidents/:id/resolve` | requirePlatformAdmin | NONE |
 | `/admin/operations` | POST | `/v1/admin/incidents/:id/assign` | requirePlatformAdmin | NONE |
+| `/admin/operations` | GET | `/v1/admin/security-events` | requirePlatformAdmin | FILTER |
 | `/admin/platform-health` | GET | `/v1/admin/platform-health` | requirePlatformAdmin | NONE |
 | `/admin/platform/analytics` | GET | `/v1/analytics/_window` | AUTH_ONLY | NONE |
 | `/admin/platform/analytics` | GET | `/v1/analytics/operations` | gateAnalyticsRead | AUDIT |
@@ -237,8 +268,25 @@
 | `/admin/platform/signers` | POST | `/v1/operations/signers/:id/revoke` | requirePlatformOpsActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
 | `/admin/provisioning` | POST | `/v1/admin/enterprise/provision` | requirePlatformAdmin, requireStepUpForSensitiveAction, +STEP_UP | AUDIT |
 | `/admin/provisioning` | PATCH | `/v1/admin/orgs/:id/plan` | requirePlatformAdmin, requireStepUpForSensitiveAction, +STEP_UP | AUDIT |
+| `/admin/provisioning` | GET | `/v1/orgs/:id/invites` | requireAuthAndLegal | AUDIT |
+| `/admin/provisioning` | POST | `/v1/orgs/:id/invites/:inviteId/resend` | requireAuthAndLegal | NONE |
+| `/admin/provisioning` | DELETE | `/v1/orgs/:id/invites/:inviteId` | requireAuthAndLegal | NONE |
 | `/admin/search` | GET | `/v1/admin/search` | requirePlatformAdmin | NONE |
-| `/admin/security` | — | (no API call) | — | — |
+| `/admin/security` | GET+PATCH | `/v1/identity/mfa-admin/digest-preferences` | AUTH_ONLY | NONE |
+| `/admin/security` | GET | `/v1/identity/mfa-admin/digest-preferences/preview` | AUTH_ONLY | NONE |
+| `/admin/security` | POST | `/v1/identity/mfa-admin/digest-preferences/preview/send-test` | AUTH_ONLY | FILTER_CANDIDATE |
+| `/admin/security` | GET | `/v1/identity/mfa-admin/events/:teamId` | authorizeMfaAdminScope | FILTER_CANDIDATE |
+| `/admin/security` | GET | `/v1/identity/mfa-admin/recovery-events` | AUTH_ONLY | AUDIT |
+| `/admin/security` | GET | `/v1/identity/members` | resolveAuthorizedWorkspaceSubject | AUDIT |
+| `/admin/security` | GET | `/v1/identity/mfa-admin/posture/:teamId/:userId` | authorizeMfaAdminScope | FILTER_CANDIDATE |
+| `/admin/security` | POST | `/v1/identity/mfa-admin/factors/:teamId/:userId/require-reenrollment` | authorizeMfaAdminScope, requireStepUpForSensitiveAction, requireUserReenrollment, +STEP_UP | FILTER_CANDIDATE |
+| `/admin/security` | POST | `/v1/identity/mfa-admin/trusted-devices/:teamId/:userId/reset` | authorizeMfaAdminScope, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
+| `/admin/security` | POST | `/v1/identity/mfa-admin/factors/:teamId/:userId/:factorId/revoke` | authorizeMfaAdminScope, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
+| `/admin/security` | GET+PATCH | `/v1/identity/mfa-admin/policy/:teamId` | authorizeMfaAdminScope | AUDIT |
+| `/admin/security` | POST | `/v1/identity/mfa/challenge/verify` | AUTH_ONLY | FILTER_CANDIDATE |
+| `/admin/security` | GET | `/v1/security/summary` | requireAdminMember | FILTER_CANDIDATE |
+| `/admin/security` | GET | `/v1/security/scans` | requireAdminMember | FILTER_CANDIDATE |
+| `/admin/security` | GET | `/v1/security/events` | requireAdminMember | FILTER_CANDIDATE |
 | `/admin/support-access` | GET | `/v1/support-access/grants` | requirePlatformStaff | FILTER |
 | `/admin/support-access` | GET | `/v1/break-glass/grants` | requirePlatformStaff | FILTER |
 | `/admin/support-access` | POST | `/v1/support-access/enter` | requirePlatformStaff, authorizeOrFail, requireStepUpForSensitiveAction, AUTHORIZE(?), +STEP_UP | AUDIT |
@@ -248,6 +296,7 @@
 | `/admin/support-access` | POST | `/v1/break-glass/revoke` | requirePlatformStaff, authorizeOrFail, AUTHORIZE(?) | FILTER_CANDIDATE |
 | `/admin/timeline` | GET | `/v1/admin/timeline` | requirePlatformAdmin | NONE |
 | `/admin/users` | GET | `/v1/admin/users` | requirePlatformAdmin | AUDIT |
+| `/admin/users` | GET | `/v1/admin/lifecycle-requests` | requirePlatformAdmin | NONE |
 | `/admin/users/:id` | GET | `/v1/admin/users/:id` | requirePlatformAdmin | NONE |
 | `/admin/workspaces` | GET | `/v1/admin/workspaces` | requirePlatformAdmin | NONE |
 | `/admin/workspaces/:id` | GET | `/v1/admin/workspaces/:id` | requirePlatformAdmin | AUDIT |

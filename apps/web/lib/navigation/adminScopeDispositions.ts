@@ -170,7 +170,7 @@ export const ADMIN_SCOPE_DISPOSITIONS: readonly AdminScopeDisposition[] = [
   },
   {
     route: "/admin/identity",
-    observed: "WORKSPACE_UNCLASSIFIED",
+    observed: "WORKSPACE_CANDIDATE",
     decision: "WORKSPACE_SURFACE_LABELLED",
     why:
       "The identity hub and every child call /v1/admin/identity/*, whose guard is requireIdentityAdmin — ACTIVE membership of the supplied teamId plus identity.org_policy.read. It is not a platform gate, and listSsoConnections({ teamId }) filters. A platform admin sees THEIR OWN workspace's identity configuration. NOT moved to a tenant URL: the page gate (PLATFORM_ADMIN) is currently stricter than the API, and moving it would widen the audience from platform operators to every workspace admin. That is a product decision, not a refactor.",
@@ -228,7 +228,7 @@ export const ADMIN_SCOPE_DISPOSITIONS: readonly AdminScopeDisposition[] = [
   },
   {
     route: "/admin/security",
-    observed: "WORKSPACE_UNCLASSIFIED",
+    observed: "WORKSPACE_CANDIDATE",
     decision: "WORKSPACE_SURFACE_LABELLED",
     why:
       "The page's own header calls it 'Workspace security posture' and it reads /v1/security/* and /v1/identity/mfa-admin/* for one teamId. It is a workspace surface sitting behind the platform gate; labelled, not moved, for the same reason as the identity family.",
@@ -246,7 +246,7 @@ export const ADMIN_SCOPE_DISPOSITIONS: readonly AdminScopeDisposition[] = [
      * it, which is the classifier working rather than a new finding.
      */
     route: "/admin/identity/sessions",
-    observed: "WORKSPACE_UNCLASSIFIED",
+    observed: "WORKSPACE_FILTERED",
     decision: "WORKSPACE_SURFACE_LABELLED",
     why:
       "VERIFIED by reading the sections: ActiveSessionsSection's own description is 'Every live session in the workspace you are currently in', and it reads /v1/admin/identity/sessions, /quarantined-sessions and /v1/identity/sessions/:id/timeline for one teamId resolved from lib/platform-context — the operator can never type one. Revoke, revoke-all, quarantine and release all act on that workspace, and revoke-all is step-up gated. It is a workspace surface behind the platform gate, labelled by the nav registry's scope: 'WORKSPACE' and by AdminTenantScopeNotice on the page, exactly as /admin/security and the rest of the identity family are.",
