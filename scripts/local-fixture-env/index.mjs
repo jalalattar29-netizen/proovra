@@ -247,6 +247,36 @@ function buildLocalValues({ webPort, apiPort, databaseUrl, redisUrl }) {
      */
     DOTENV_CONFIG_PATH: "scripts/local-fixture-env/no-such-env-file",
 
+    /**
+     * PV-SEC-002 — THE GUARD ABOVE PROTECTS A LOADER THE API NO LONGER USES.
+     *
+     * `DOTENV_CONFIG_PATH` neutralises `import "dotenv/config"`. Nothing in
+     * `services/api/src` imports dotenv any more — the comments there record
+     * its removal. The loader the API actually runs is its own, in
+     * `services/api/src/env.ts`: it reads `<cwd>/.env`,
+     * `<cwd>/services/api/.env` and `<cwd>/../../.env` with `readFileSync`
+     * and fills every variable still `undefined`. It never consults
+     * `DOTENV_CONFIG_PATH`.
+     *
+     * So the allowlist's completeness mattered after all, and it is not
+     * complete by design — it sets what a fixture NEEDS and leaves everything
+     * else unset, which is precisely the gap that loader fills from a
+     * developer's `services/api/.env`. Measured: the same launcher at the same
+     * commit reports `twilio {configured:true}` in a worktree holding that
+     * file and `{configured:false, reason:"missing:TWILIO_ACCOUNT_SID,…"}` in
+     * one without it.
+     *
+     * `PROOVRA_ENV_BOOTSTRAPPED` is the switch that loader already honours; it
+     * means "configuration has ALREADY been established deliberately, do not
+     * second-guess it", which is exactly a fixture's situation. Setting it
+     * here makes allowlist completeness unnecessary for the loader that is
+     * actually in use — the thing the note above was reaching for.
+     *
+     * It is scoped to the fixture environment. A developer's shell and a
+     * Production boot never carry it, so `.env` loading there is unchanged.
+     */
+    PROOVRA_ENV_BOOTSTRAPPED: "1",
+
     AUTH_JWT_SECRET: "fixture-local-only-jwt-secret-not-a-real-secret",
     API_KEY_SECRET: "fixture-local-only-api-key-secret",
     IDENTITY_SECURITY_HASH_SECRET: "fixture-local-only-identity-hash-secret",
