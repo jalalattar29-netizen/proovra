@@ -24,6 +24,8 @@ import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
+
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
 function src(rel: string): string {
@@ -292,9 +294,7 @@ describe("routes are adapters over the canonical lifecycle service", () => {
     // a creator who had lost every membership was allowed. Scoped to the
     // restore handler: an owner comparison elsewhere in this 12k-line file is a
     // different route's business.
-    const start = EVIDENCE_ROUTES.indexOf('"/v1/evidence/:id/restore"');
-    expect(start).toBeGreaterThan(-1);
-    const handler = EVIDENCE_ROUTES.slice(start, start + 1600);
+    const handler = routeSource(EVIDENCE_ROUTES, "POST", "/v1/evidence/:id/restore");
     expect(handler).not.toMatch(/ownerUserId !== /);
     expect(handler).toMatch(/action: "RESTORE_FROM_TRASH"/);
     expect(LIFECYCLE_SERVICE).toMatch(/resolveEvidenceDestructiveAccess\(/);

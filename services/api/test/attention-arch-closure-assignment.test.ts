@@ -27,6 +27,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { roleHasPermission } from "@proovra/shared";
 
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
+
 function read(rel: string): string {
   return readFileSync(fileURLToPath(new URL(`../../../${rel}`, import.meta.url)), "utf8");
 }
@@ -185,9 +187,7 @@ describe("Closure — the eligible-assignee resolver", () => {
   });
 
   it("the status-blind membership check is GONE from the assign route", () => {
-    const at = OPS_ROUTES.indexOf('"/v1/ops/incidents/:id/assign"');
-    expect(at).toBeGreaterThan(0);
-    const block = OPS_ROUTES.slice(at, at + 2600);
+    const block = routeSource(OPS_ROUTES, "POST", "/v1/ops/incidents/:id/assign");
     expect(block).not.toMatch(
       /teamMember\.findFirst\(\{\s*where: \{ teamId: body\.teamId, userId: body\.assigneeUserId \}/,
     );
@@ -200,15 +200,12 @@ describe("Closure — the eligible-assignee resolver", () => {
 
 describe("Closure — assignment authorization fails closed", () => {
   it("the picker itself requires operations.assign", () => {
-    const at = OPS_ROUTES.indexOf('"/v1/ops/assignable-operators"');
-    expect(at).toBeGreaterThan(0);
-    const block = OPS_ROUTES.slice(at, at + 900);
+    const block = routeSource(OPS_ROUTES, "GET", "/v1/ops/assignable-operators");
     expect(block).toContain('"operations.assign"');
   });
 
   it("the mutation requires operations.assign", () => {
-    const at = OPS_ROUTES.indexOf('"/v1/ops/incidents/:id/assign"');
-    const block = OPS_ROUTES.slice(at, at + 900);
+    const block = routeSource(OPS_ROUTES, "POST", "/v1/ops/incidents/:id/assign");
     expect(block).toContain(
       'requireOpsCapability(req, reply, body.teamId, "operations.assign")',
     );

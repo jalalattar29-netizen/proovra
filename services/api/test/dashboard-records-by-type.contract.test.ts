@@ -52,6 +52,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { enclosingSource, routeSource } from "../../../scripts/source-contract/index.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -163,9 +164,7 @@ describe("Phase HOME-RECORDS-BY-TYPE — route registration", () => {
     );
     // requireMember gate + member-inactive short-circuit is the same
     // pattern as the rest of /v1/dashboard/*.
-    const idx = ROUTES.indexOf("/v1/dashboard/records-by-type");
-    expect(idx).toBeGreaterThan(0);
-    const handlerSlice = ROUTES.slice(idx, idx + 800);
+    const handlerSlice = routeSource(ROUTES, "GET", "/v1/dashboard/records-by-type");
     expect(handlerSlice).toMatch(
       /const\s+member\s*=\s*await\s+requireMember\(req,\s*reply,\s*query\.teamId\)/,
     );

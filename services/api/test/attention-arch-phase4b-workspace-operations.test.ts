@@ -31,6 +31,7 @@ import {
 } from "@proovra/shared";
 
 import { resolveCapabilities } from "../src/services/platform-context/capability-registry.js";
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -115,9 +116,9 @@ describe("Phase 4B.2 — canonical Operations permissions replace D29", () => {
       ["/v1/ops/workflows/:id/escalate", "operations.assign"],
     ];
     for (const [route, permission] of expectations) {
-      const at = OPS_ROUTES.indexOf(`"${route}"`);
-      expect(at, `${route} must be registered`).toBeGreaterThan(0);
-      const block = OPS_ROUTES.slice(at, at + 2200);
+      // The whole `app.<verb>("<route>", …)` registration; throws if the route
+      // is not registered.
+      const block = enclosingSource(OPS_ROUTES, `"${route}"`, "call");
       expect(block, `${route} must require ${permission}`).toContain(
         `"${permission}"`,
       );
@@ -147,9 +148,11 @@ describe("Phase 4B.2 — canonical Operations permissions replace D29", () => {
     // Dismissing a run is the domain action this gate was written for, and it
     // is scoped in fact: `dismissRun(runId, teamId)` narrows on `team_id` in
     // SQL, so the workspace permission authorizes work in that workspace.
-    const at = OPS_ROUTES.indexOf('"/v1/ops/media-intelligence/runs/:runId/dismiss"');
-    expect(at).toBeGreaterThan(0);
-    const block = OPS_ROUTES.slice(at, at + 1200);
+    const block = enclosingSource(
+      OPS_ROUTES,
+      '"/v1/ops/media-intelligence/runs/:runId/dismiss"',
+      "call",
+    );
     expect(block).toContain("requireDomainActionOnOpsSurface");
     expect(block).toContain('"intelligence.run"');
   });
@@ -174,9 +177,7 @@ describe("Phase 4B.2 — canonical Operations permissions replace D29", () => {
       "/v1/ops/media-intelligence/runs/:runId/retry",
       "/v1/ops/media-intelligence/dlq/replay",
     ]) {
-      const at = OPS_ROUTES.indexOf(`"${route}"`);
-      expect(at).toBeGreaterThan(0);
-      const block = OPS_ROUTES.slice(at, at + 1600);
+      const block = enclosingSource(OPS_ROUTES, `"${route}"`, "call");
       // Match the CALL, not the mere presence of the name: the handler carries
       // a comment explaining which gate it moved away from, and a bare
       // substring check would read that prose as the defect it describes.
@@ -408,9 +409,8 @@ describe("Phase 4B.4 — platform isolation survives the unlock", () => {
       "/admin/platform/runbooks",
       "/admin/platform/queues",
     ]) {
-      const at = REGISTRY.indexOf(`href: "${href}"`);
-      expect(at, `${href} must be registered`).toBeGreaterThan(0);
-      const block = REGISTRY.slice(at, at + 1400);
+      // THIS entry's object literal only — never the next route's gate.
+      const block = enclosingSource(REGISTRY, `href: "${href}"`, "object");
       expect(block, `${href} must stay platform-gated`).toContain(
         'requiredActiveSpace: "PLATFORM_ADMIN"',
       );
@@ -421,9 +421,7 @@ describe("Phase 4B.4 — platform isolation survives the unlock", () => {
     const NAV = readSource(
       "../src/services/platform-context/navigation-registry.ts",
     );
-    const at = NAV.indexOf('id: "workspace.operations"');
-    expect(at).toBeGreaterThan(0);
-    const block = NAV.slice(at, at + 400);
+    const block = enclosingSource(NAV, 'id: "workspace.operations"', "object");
     expect(block).toContain('requiresCapability: "OPERATIONS_VIEW"');
     expect(block).toContain('domain: "WORKSPACE"');
     expect(block).not.toContain('requiresCapability: "OPS_CENTER_VIEW"');

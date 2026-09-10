@@ -26,6 +26,8 @@ import {
   mayInferResolutionFromAbsence,
 } from "../src/services/notifications/source-completeness.js";
 
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
+
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 }
@@ -262,20 +264,24 @@ describe("Phase 2.4 — narrowing to a workspace is not discarding", () => {
 
 describe("Phase 2.5 — every source is gated on ACCESSIBLE workspaces", () => {
   it("AccessReview is scoped to the caller's accessible workspaces", () => {
-    const start = INBOX_ROUTES.indexOf("prisma.accessReview.findMany({");
-    expect(start).toBeGreaterThan(0);
-    const block = INBOX_ROUTES.slice(start, start + 1800);
+    const block = enclosingSource(
+      INBOX_ROUTES,
+      "prisma.accessReview.findMany({",
+      "call",
+      { unique: true },
+    );
     expect(block).toMatch(/teamId: \{ in: teamIds \}/);
     // Subject-hood is not a tenancy gate; both predicates must be present.
     expect(block).toMatch(/subjectUserId: userId/);
   });
 
   it("CollaborationTeamNotification is scoped by workspaceId, not teamId", () => {
-    const start = INBOX_ROUTES.indexOf(
+    const block = enclosingSource(
+      INBOX_ROUTES,
       "prisma.collaborationTeamNotification.findMany({",
+      "call",
+      { unique: true },
     );
-    expect(start).toBeGreaterThan(0);
-    const block = INBOX_ROUTES.slice(start, start + 1600);
     expect(block).toMatch(/workspaceId: \{ in: teamIds \}/);
     // `teamId` on this model is the CollaborationTeam, a feature entity —
     // gating on it would have gated on the wrong concept entirely.

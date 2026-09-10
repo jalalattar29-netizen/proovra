@@ -16,6 +16,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
 import {
   DiscussionError,
   projectDiscussionMessage,
@@ -153,9 +154,7 @@ describe("Public verify isolation — collaboration NOT exposed", () => {
     );
     // Find the public verify route block and assert none of the
     // discussion model accessors appear inside it.
-    const start = src.indexOf('app.get("/public/verify/:id"');
-    expect(start).toBeGreaterThan(-1);
-    const verifyBlock = src.slice(start, start + 8000);
+    const verifyBlock = routeSource(src, "GET", "/public/verify/:id");
     expect(verifyBlock).not.toMatch(/discussionThread/);
     expect(verifyBlock).not.toMatch(/discussionMessage/);
     expect(verifyBlock).not.toMatch(/discussionMention/);
