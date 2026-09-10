@@ -459,6 +459,15 @@ function Shell() {
             variant="primary"
             loading={creating}
             disabled={creating || !name || !reason || creationEntitled === false}
+            disabledReason={
+              creationEntitled === false
+                ? "This workspace's plan does not include creating legal holds."
+                : !name
+                  ? "Enter a name for the hold."
+                  : !reason
+                    ? "Enter the reason for the hold."
+                    : undefined
+            }
             onClick={() => void create()}
           >
             {creating ? "Creating…" : "Create"}

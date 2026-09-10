@@ -38,7 +38,6 @@ confident wrong answer with no way to tell.
 | `/admin/provisioning` | ResultCount — pending invitation | `EXACT_TOTAL` | — | — |
 | `/admin/search` | inline — result | `CAP_DISCLOSED` | — | — |
 | `/admin/support-access` | ResultCount — support grant | `EXACT_TOTAL` | yes | yes |
-| `/admin/timeline` | ResultCount — event | `SERVER_HAS_MORE` | yes | yes |
 | `/admin/users/:id` | ResultCount — workspace membership | `CAP_DISCLOSED` | — | — |
 | `/admin/users/:id` | ResultCount — organization membership | `CAP_DISCLOSED` | — | — |
 | `/admin/users/:id` | ResultCount — payment | `CAP_DISCLOSED` | — | — |

@@ -222,7 +222,9 @@
       "surface": "/admin/operations Resolve",
       "disposition": "OWNER_DECISION_RESOLVED",
       "batch": "F",
-      "status": "OPEN"
+      "status": "FIXED",
+      "fix": "the incident projection carries the owner decision's resolution metadata — resolutionAuthority, resolvableByOperator, refusalCode — derived from the same source contract the server decides with; /admin/operations disables Resolve with a stated reason on a NO_DIRECT_RESOLUTION condition, collects the written conclusion an operator decision requires before posting it as the route's note (kept until the resolve succeeds), words the confirmation per authority, and derives the runbook destination from runbookSlug through the generated runbook catalog. The fourth refusal (RESOLUTION_NOTE_REQUIRED) gained its own copy; the page's fallback no longer claims the source is live. Note: the per-code sentences for the three original refusal codes were already in toSafeUserError's CODE_MAP on this tree — the code reaches the client — so the defect that remained was the queue offering a control the contract refuses and the missing note path",
+      "acceptanceTest": "services/api/test/operations-resolution-metadata.test.ts (every registered source + the fail-closed unregistered case, 41); apps/web/__tests__/render/admin-operations-resolution.render.test.tsx (3)"
     },
     {
       "id": "PV-STATE-001",
@@ -231,7 +233,9 @@
       "surface": "/evidence-lifecycle/destruction (+archive, webhooks, index)",
       "disposition": "FIX_REQUIRED",
       "batch": "F",
-      "status": "OPEN"
+      "status": "FIXED",
+      "fix": "destruction, archive and webhooks drop their private applyDenial (which recognised two 403 shapes and silently dropped everything else) for the segment's shared resolveLifecycleError + DenialBanner; a refused or failed read renders that fact in place of the table — never its empty-state claim — per section on webhooks; the banner names the role to ask (seven delegated tiers) and the plan feature in words instead of printing DELEGATED_ADMIN / entitlement keys; the lifecycle index says the same; the create controls state their prerequisite",
+      "acceptanceTest": "apps/web/__tests__/disabled-controls-state-a-reason.test.mjs (the lifecycle routes are in its set); web render + node suites"
     },
     {
       "id": "PV-DIS-001",
@@ -240,7 +244,9 @@
       "surface": "43 controls on 26 routes",
       "disposition": "FIX_REQUIRED",
       "batch": "F",
-      "status": "OPEN"
+      "status": "FIXED",
+      "fix": "the shared Button gained disabledReason (accessible description via aria-describedby -> a visually hidden node, a hover title, data-disabled-reason); SaveRow and PolicyToggle forward it; the organization setup wizard states its two locks once and every locked field references the statement; every disabled control on the 26 audited routes now states why or is disabled only while its own request is in flight",
+      "acceptanceTest": "apps/web/__tests__/disabled-controls-state-a-reason.test.mjs — brace-matched source guard over the audited routes: 137 unreasoned controls on the unfixed tree (scratchpad dis001-red-before.log; the DOM sweep's 43 counted only what one viewer saw disabled at rest), 0 after"
     },
     {
       "id": "PV-LANG-001",
@@ -370,7 +376,10 @@
       "id": "ADM-P1-001",
       "disposition": "VERIFIED_FIXED_ON_CURRENT_MAIN",
       "note": "source correct (admin/alerts/page.tsx:141,196-203) but no test pins the failure path — pin it",
-      "batch": "F"
+      "batch": "F",
+      "status": "FIXED",
+      "fix": "the alerts failure path is pinned from the rendered DOM: a 503, a 500 and a network failure each render an announced failure and never the empty-state claim; a successful empty read renders the empty state (the control case)",
+      "acceptanceTest": "apps/web/__tests__/render/admin-alerts-failure-path.render.test.tsx (4)"
     },
     {
       "id": "ADM-P1-002",
@@ -390,7 +399,10 @@
       "id": "ADM-P2-002",
       "disposition": "VERIFIED_FIXED_ON_CURRENT_MAIN",
       "note": "residual: ResultCount without failed= at contact-sales:598 and timeline:479",
-      "batch": "F"
+      "batch": "F",
+      "status": "FIXED",
+      "fix": "contact-sales and timeline pass failed={failure !== null} to ResultCount",
+      "acceptanceTest": "apps/web/__tests__/admin-count-truth.test.mjs (regenerated count-truth artifacts)"
     },
     {
       "id": "ADM-P2-003",
@@ -416,7 +428,9 @@
       "id": "ADM-P2-008",
       "disposition": "VERIFIED_FIXED_ON_CURRENT_MAIN",
       "note": "the states family table has no /admin/alerts entry",
-      "batch": "F"
+      "batch": "F",
+      "status": "DEFERRED_TO_BATCH_K",
+      "deferral": "The states family table is FAMILY_REP in scripts/admin-ledger/build-evidence.mjs: a route's loading/error/empty states are vouched for by a representative route's BROWSER captures in the screenshot manifest. /admin/alerts has no family and no captures of its own. Closing it truthfully needs real captures of /admin/alerts in those states from the disposable fixture (visual/states.mjs), which is Batch K's runtime work; the failure path itself is pinned now by the ADM-P1-001 render test. Adding a table entry without the captures would be a claim the ledger's own validator is built to refuse."
     },
     {
       "id": "ADM-P3-001",
@@ -488,7 +502,9 @@
       "id": "P10-c ResultCount failure/completeness",
       "disposition": "REGRESSED_ON_CURRENT_MAIN",
       "note": "two call sites omit failed=",
-      "batch": "F"
+      "batch": "F",
+      "status": "FIXED",
+      "fix": "see ADM-P2-002 — the two call sites pass failed="
     },
     {
       "id": "P10-d executive unmeasured values",

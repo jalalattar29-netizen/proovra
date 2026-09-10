@@ -214,6 +214,13 @@ function AuditTab() {
               size="sm"
               onClick={exportCsv}
               disabled={audit.kind !== "ready" || visibleEvents.length === 0}
+              disabledReason={
+                audit.kind !== "ready"
+                  ? "Events are still loading."
+                  : visibleEvents.length === 0
+                    ? "There are no events to export."
+                    : undefined
+              }
             >
               Export CSV
             </Button>

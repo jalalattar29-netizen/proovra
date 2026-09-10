@@ -366,6 +366,7 @@ function RedactionOpenForm({
         data-redaction-open-submit
         onClick={onOpen}
         disabled={busy || !evidenceId}
+        disabledReason={!evidenceId ? "Enter the ID of the evidence record to redact." : undefined}
         loading={busy}
       >
         Open project

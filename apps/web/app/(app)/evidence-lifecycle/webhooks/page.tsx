@@ -9,11 +9,14 @@ import { Button } from "../../../../components/ui/Button";
 import { DataTable, type DataTableColumn } from "../../../../components/ui/DataTable";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { StatusBadge, statusBadgeStyle } from "../../../../components/ui/StatusBadge";
-import { apiFetch, ApiError } from "../../../../lib/api";
+import { apiFetch } from "../../../../lib/api";
 import { formatUserDate, formatUserDateTime } from "../../../../lib/date";
-import { LifecycleSectionBoundary } from "../_shared";
-
-type PermissionDenialState = { denial: string; tier: string } | null;
+import {
+  DenialBanner,
+  LifecycleSectionBoundary,
+  resolveLifecycleError,
+  type LifecycleDenial,
+} from "../_shared";
 
 interface WebhookEndpoint {
   id: string;
@@ -48,37 +51,14 @@ const AVAILABLE_EVENTS = [
   "lifecycle.tier_transitioned",
 ];
 
-function applyDenial(err: unknown, setDenial: (v: PermissionDenialState) => void): void {
-  const e = err as { statusCode?: number; details?: Record<string, unknown> };
-  const denial =
-    e?.details && typeof e.details["denial"] === "string" ? e.details["denial"] : null;
-  const tier =
-    e?.details && typeof e.details["requiredTier"] === "string"
-      ? (e.details["requiredTier"] as string)
-      : "DELEGATED_ADMIN";
-  if (
-    e?.statusCode === 403 &&
-    (denial === "ENTITLEMENT_REQUIRED" || denial === "DELEGATED_ADMIN_REQUIRED")
-  ) {
-    setDenial({ denial: denial as string, tier });
-    return;
-  }
-  if (err instanceof ApiError) {
-    const d =
-      err.details && typeof err.details["denial"] === "string"
-        ? (err.details["denial"] as string)
-        : null;
-    const t =
-      err.details && typeof err.details["requiredTier"] === "string"
-        ? (err.details["requiredTier"] as string)
-        : "DELEGATED_ADMIN";
-    if (
-      err.statusCode === 403 &&
-      (d === "ENTITLEMENT_REQUIRED" || d === "DELEGATED_ADMIN_REQUIRED")
-    ) {
-      setDenial({ denial: d, tier: t });
-    }
-  }
+/**
+ * PV-STATE-001 — ONE resolver for every refusal on this page: the segment's
+ * shared `resolveLifecycleError` (product-language banner, every status),
+ * replacing a private copy that recognised two 403 shapes and silently
+ * dropped everything else — so any other failure left the page looking empty.
+ */
+function applyDenial(err: unknown, setDenial: (v: LifecycleDenial | null) => void): void {
+  setDenial(resolveLifecycleError(err));
 }
 
 export default function WebhooksPage() {
@@ -101,7 +81,11 @@ function Shell() {
   const [endpoints, setEndpoints] = useState<WebhookEndpoint[]>([]);
   const [deliveries, setDeliveries] = useState<WebhookDelivery[]>([]);
   const [busy, setBusy] = useState(false);
-  const [denial, setDenial] = useState<PermissionDenialState>(null);
+  const [denial, setDenial] = useState<LifecycleDenial | null>(null);
+  // PV-STATE-001 — each half of the page fails on its own. A half that could
+  // not be read renders that fact, never its "nothing configured yet" state.
+  const [endpointsFailed, setEndpointsFailed] = useState(false);
+  const [deliveriesFailed, setDeliveriesFailed] = useState(false);
   const [replayingId, setReplayingId] = useState<string | null>(null);
 
   // Create endpoint form
@@ -132,12 +116,18 @@ function Shell() {
               []) as WebhookDelivery[]
           : [],
       );
-      if (eRes.status === "rejected" && dRes.status === "rejected") {
+      setEndpointsFailed(eRes.status === "rejected");
+      setDeliveriesFailed(dRes.status === "rejected");
+      if (eRes.status === "rejected") {
         applyDenial(eRes.reason, setDenial);
+      } else if (dRes.status === "rejected") {
+        applyDenial(dRes.reason, setDenial);
       }
     } catch (err) {
       setEndpoints([]);
       setDeliveries([]);
+      setEndpointsFailed(true);
+      setDeliveriesFailed(true);
       applyDenial(err, setDenial);
     } finally {
       setBusy(false);
@@ -217,22 +207,7 @@ function Shell() {
         />
       }
     >
-      {denial ? (
-        <div
-          data-permission-denied={denial.denial}
-          style={{
-            padding: 10,
-            background: "#fef2f2",
-            border: "1px solid #fecaca",
-            color: "#991b1b",
-            borderRadius: 8,
-            fontSize: 12,
-            marginBottom: 10,
-          }}
-        >
-          <strong>Permission required:</strong> {denial.tier}
-        </div>
-      ) : null}
+      {denial ? <DenialBanner denial={denial} /> : null}
 
       {secretBanner ? (
         <div
@@ -312,6 +287,13 @@ function Shell() {
               variant="primary"
               loading={creating}
               disabled={creating || !url || selectedEvents.length === 0}
+              disabledReason={
+                !url
+                  ? "Enter the endpoint URL to deliver events to."
+                  : selectedEvents.length === 0
+                    ? "Choose at least one lifecycle event to subscribe to."
+                    : undefined
+              }
               onClick={() => void createEndpoint()}
             >
               {creating ? "Creating…" : "Create Endpoint"}
@@ -322,6 +304,12 @@ function Shell() {
 
       {/* Endpoints */}
       <PageSection title="Endpoints">
+        {endpointsFailed ? (
+          <p data-webhook-endpoints-unreadable style={{ margin: 0, fontSize: 13, color: "#475569" }}>
+            The endpoint list could not be read. This is not an empty list —
+            endpoints may be configured that this page cannot show.
+          </p>
+        ) : (
         <DataTable<WebhookEndpoint>
           ariaLabel="Webhook endpoints"
           columns={ENDPOINT_COLUMNS}
@@ -334,10 +322,17 @@ function Shell() {
             />
           }
         />
+        )}
       </PageSection>
 
       {/* Deliveries */}
       <PageSection title="Recent Lifecycle Webhook Deliveries">
+        {deliveriesFailed ? (
+          <p data-webhook-deliveries-unreadable style={{ margin: 0, fontSize: 13, color: "#475569" }}>
+            Delivery history could not be read. This is not a quiet history —
+            deliveries may have been attempted that this page cannot show.
+          </p>
+        ) : (
         <DataTable<WebhookDelivery>
           ariaLabel="Recent lifecycle webhook deliveries"
           columns={DELIVERY_COLUMNS}
@@ -363,6 +358,7 @@ function Shell() {
             />
           }
         />
+        )}
       </PageSection>
     </PageShell>
   );

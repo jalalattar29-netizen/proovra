@@ -212,6 +212,7 @@ export function PlatformSecurityEvents() {
         variant="secondary"
         size="sm"
         disabled={loading || cursors.length === 0}
+        disabledReason={cursors.length === 0 ? "This is the first page." : undefined}
         onClick={goPrevious}
         data-testid="admin-security-events-previous"
       >
@@ -221,6 +222,7 @@ export function PlatformSecurityEvents() {
         variant="secondary"
         size="sm"
         disabled={loading || !hasMore || !nextCursor}
+        disabledReason={!loading && (!hasMore || !nextCursor) ? "This is the last page." : undefined}
         onClick={goNext}
         data-testid="admin-security-events-next"
       >

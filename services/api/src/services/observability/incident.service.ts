@@ -1659,6 +1659,26 @@ export type IncidentProjection = {
     /** True only for OPERATOR_DECISION. */
     manualResolution: boolean;
     /**
+     * PV-OPS-001 (owner decision) — MAY AN OPERATOR RESOLVE THIS AT ALL?
+     *
+     * False exactly for NO_DIRECT_RESOLUTION: the source declares nobody may
+     * close it by hand, and it closes when that source recovers. A SOURCE_TRUTH
+     * condition is resolvable (the attempt is re-validated against a live
+     * probe); an OPERATOR_DECISION condition is resolvable. The queue used to
+     * offer Resolve on every open row and let the server refuse.
+     */
+    resolvableByOperator: boolean;
+    /**
+     * The refusal a Resolve on this condition meets when it is refused, from
+     * the same contract the server decides with (manualResolutionErrorCode):
+     *   NO_DIRECT_RESOLUTION                  -> CONDITION_NOT_DIRECTLY_RESOLVABLE (always)
+     *   SOURCE_TRUTH                          -> CONDITION_STILL_ACTIVE (while its source reports it live)
+     *   OPERATOR_DECISION + note required     -> RESOLUTION_NOTE_REQUIRED (without a conclusion)
+     *   OPERATOR_DECISION                     -> null
+     * A projection, not the verdict: the server re-decides every attempt.
+     */
+    refusalCode: string | null;
+    /**
      * True when a Resolve on this source must carry a written conclusion.
      *
      * Projected so the browser can collect the note BEFORE posting rather
@@ -1725,6 +1745,15 @@ export function projectIncident(
       cardinality: lifecycle.cardinality,
       recoveryPolicy: lifecycle.recoveryPolicy,
       manualResolution: offersManualResolution(lifecycle),
+      resolvableByOperator: lifecycle.resolutionAuthority !== "NO_DIRECT_RESOLUTION",
+      refusalCode:
+        lifecycle.resolutionAuthority === "NO_DIRECT_RESOLUTION"
+          ? "CONDITION_NOT_DIRECTLY_RESOLVABLE"
+          : lifecycle.resolutionAuthority === "SOURCE_TRUTH"
+            ? "CONDITION_STILL_ACTIVE"
+            : lifecycle.requiresResolutionNote
+              ? "RESOLUTION_NOTE_REQUIRED"
+              : null,
       /** True when this source's Resolve must carry a written conclusion. */
       requiresResolutionNote: lifecycle.requiresResolutionNote,
       discoveryState: lifecycle.discoveryState,

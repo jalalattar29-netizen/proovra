@@ -474,6 +474,7 @@ export function WorkspaceGovernancePolicySection() {
             variant="secondary"
             onClick={reset}
             disabled={busy || !dirty}
+            disabledReason={!dirty ? "There are no unsaved changes to discard." : undefined}
             data-workspace-governance-policy-reset
           >
             Discard changes
@@ -483,6 +484,15 @@ export function WorkspaceGovernancePolicySection() {
             onClick={() => void save()}
             loading={busy}
             disabled={busy || !dirty || !canManage}
+            disabledReason={
+              busy
+                ? undefined
+                : !canManage
+                  ? GOVERNANCE_READ_ONLY_REASON
+                  : !dirty
+                    ? "There are no changes to save."
+                    : undefined
+            }
             data-workspace-governance-policy-save
           >
             {busy ? "Saving…" : "Save governance policy"}
@@ -573,6 +583,7 @@ export function WorkspaceGovernancePolicySection() {
                 value={retentionValue ?? ""}
                 placeholder="No default"
                 disabled={busy || !canManage}
+                title={!canManage ? GOVERNANCE_READ_ONLY_REASON : undefined}
                 data-workspace-governance-policy-field="defaultRetentionDays"
                 onChange={(e) => {
                   const raw = e.target.value;
@@ -614,6 +625,7 @@ export function WorkspaceGovernancePolicySection() {
               <select
                 value={deletionMode}
                 disabled={busy || !canManage}
+                title={!canManage ? GOVERNANCE_READ_ONLY_REASON : undefined}
                 data-workspace-governance-policy-field="evidenceDeletionMode"
                 onChange={(e) =>
                   setDraft((p) => ({
@@ -659,6 +671,7 @@ export function WorkspaceGovernancePolicySection() {
                   value={readBool(f.key)}
                   savedValue={policy[f.key]}
                   disabled={busy || !canManage}
+                  disabledReason={!canManage ? GOVERNANCE_READ_ONLY_REASON : undefined}
                   onChange={(v) => setDraft((p) => ({ ...p, [f.key]: v }))}
                 />
               ))}
@@ -677,6 +690,10 @@ export function WorkspaceGovernancePolicySection() {
 // the pending one so an operator can never mistake a draft for the truth.
 // ---------------------------------------------------------------------------
 
+/** PV-DIS-001 — who may change the policy, said where a field is locked. */
+const GOVERNANCE_READ_ONLY_REASON =
+  "Only workspace owners and administrators can change the governance policy.";
+
 function PolicyToggle({
   fieldKey,
   label,
@@ -684,6 +701,7 @@ function PolicyToggle({
   value,
   savedValue,
   disabled,
+  disabledReason,
   onChange,
 }: {
   fieldKey: string;
@@ -692,6 +710,8 @@ function PolicyToggle({
   value: boolean;
   savedValue: boolean;
   disabled: boolean;
+  /** Why the toggle is locked; shown as its title when disabled. */
+  disabledReason?: string;
   onChange: (next: boolean) => void;
 }) {
   const changed = value !== savedValue;
@@ -710,6 +730,7 @@ function PolicyToggle({
           type="checkbox"
           checked={value}
           disabled={disabled}
+          title={disabled ? disabledReason : undefined}
           data-workspace-governance-policy-field={fieldKey}
           onChange={(e) => onChange(e.target.checked)}
         />

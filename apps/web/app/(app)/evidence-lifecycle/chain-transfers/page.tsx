@@ -236,6 +236,13 @@ function Shell() {
             variant="primary"
             loading={creating}
             disabled={creating || !toOrganizationSlug || !evidenceIds}
+            disabledReason={
+              !toOrganizationSlug
+                ? "Enter the organization to transfer the evidence to."
+                : !evidenceIds
+                  ? "Enter at least one evidence ID."
+                  : undefined
+            }
             onClick={() => void create()}
           >
             {creating ? "Creating…" : "Create Transfer"}

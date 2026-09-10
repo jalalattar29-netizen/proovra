@@ -150,6 +150,18 @@ const CODE_MAP: Record<
     severity: "warning",
   },
   /**
+   * PV-OPS-001 — the fourth refusal the resolve path can give. An
+   * operator-decided condition whose source requires a written conclusion was
+   * posted without one. It used to fall through to the generic 409 sentence,
+   * which told the operator to "review your input" without saying what input.
+   */
+  RESOLUTION_NOTE_REQUIRED: {
+    title: "Add a conclusion to resolve this",
+    message:
+      "Resolving this condition is an operator decision and must record why. Write a short conclusion and resolve again. Nothing was changed.",
+    severity: "warning",
+  },
+  /**
    * A SIGN-IN ATTEMPT FAILED — which is not the same thing as a session
    * expiring, and `UNAUTHORIZED` below says the second one.
    *

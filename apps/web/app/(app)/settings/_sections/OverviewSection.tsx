@@ -256,6 +256,7 @@ export function OverviewSection({
               size="sm"
               loading={busy}
               disabled={busy || !dirty}
+              disabledReason={!dirty ? "There are no changes to save." : undefined}
               data-cc-profile-save
             >
               Save

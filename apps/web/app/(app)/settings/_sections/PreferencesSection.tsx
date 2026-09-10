@@ -279,6 +279,7 @@ export function PreferencesSection() {
           className="set-action set-action--primary"
           onClick={() => void save()}
           disabled={busy || !dirty}
+          title={!busy && !dirty ? "There are no changes to save." : undefined}
           aria-busy={busy || undefined}
           data-cc-preferences-save
         >

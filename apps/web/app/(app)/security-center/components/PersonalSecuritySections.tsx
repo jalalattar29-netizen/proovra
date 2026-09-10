@@ -492,6 +492,17 @@ function PasswordChangeCard({
             variant="secondary"
             size="sm"
             disabled={!canSubmit}
+            disabledReason={
+              busy
+                ? undefined
+                : currentPassword.length === 0
+                  ? "Enter your current password."
+                  : !meetsPolicy(newPassword)
+                    ? "Choose a new password that meets the requirements shown above."
+                    : newPassword !== confirmPassword
+                      ? "The new password and its confirmation do not match."
+                      : undefined
+            }
             loading={busy}
             data-cc-password-submit
           >
@@ -613,6 +624,7 @@ export function StepUpVerify({
               size="sm"
               loading={busy}
               disabled={busy || value.length === 0}
+              disabledReason={value.length === 0 ? "Enter the verification code first." : undefined}
               data-cc-step-up-submit
             >
               Verify &amp; continue
@@ -1032,6 +1044,11 @@ function LoginMethodsCard({
               type="submit"
               className="app-secondary-action app-secondary-action--lg"
               disabled={busy || !meetsPolicy(newPw)}
+              title={
+                !busy && !meetsPolicy(newPw)
+                  ? "Choose a password that meets the requirements shown above."
+                  : undefined
+              }
               aria-busy={busy || undefined}
               data-cc-add-password-submit
             >
@@ -1471,6 +1488,11 @@ function MfaCard({
                   onClick={() => void verifyEnrollment()}
                   loading={busy}
                   disabled={busy || code.trim().length < 6}
+                  disabledReason={
+                    code.trim().length < 6
+                      ? "Enter the six-digit code from your authenticator app."
+                      : undefined
+                  }
                   data-cc-mfa-verify-submit
                 >
                   Verify &amp; enable
@@ -1542,6 +1564,9 @@ function MfaCard({
               size="sm"
               onClick={acknowledgeCodes}
               disabled={!codesAcknowledged}
+              disabledReason={
+                !codesAcknowledged ? "Confirm you have saved your recovery codes first." : undefined
+              }
               data-cc-mfa-codes-done
             >
               Done

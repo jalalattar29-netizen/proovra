@@ -482,6 +482,9 @@ export default function AdminTimelinePage() {
             noun="event"
             filtered={filtered}
             loading={loading}
+            // ADM-P2-002 — a failed read is a not-connected state, not zero
+            // events.
+            failed={failure !== null}
             data-testid="admin-timeline-count"
             action={
               nextCursor ? (

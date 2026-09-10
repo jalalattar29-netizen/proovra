@@ -509,6 +509,7 @@ function Shell() {
           <button
             type="button"
             disabled={creating || !evidenceIds}
+            title={!evidenceIds ? "Enter at least one evidence ID to package." : undefined}
             onClick={() => void create()}
             style={primaryButton}
           >

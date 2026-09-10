@@ -313,6 +313,7 @@ function PolicyManagementConsole() {
           data-redaction-policy-create-submit
           onClick={onCreatePolicy}
           disabled={!newName.trim()}
+          title={!newName.trim() ? "Enter a name for the policy." : undefined}
           style={primaryButton}
         >
           New policy

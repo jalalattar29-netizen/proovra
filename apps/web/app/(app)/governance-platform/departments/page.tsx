@@ -643,6 +643,13 @@ function Shell() {
               variant="enterprise"
               data-department-create-submit
               disabled={busy || !name || !slug}
+              disabledReason={
+                !name
+                  ? "Enter the department name."
+                  : !slug
+                    ? "Enter the department slug."
+                    : undefined
+              }
               onClick={() => void create()}
             >
               Create
@@ -778,6 +785,11 @@ function Shell() {
                   variant="enterprise"
                   data-department-grant-submit
                   disabled={mutating || !grantUserId.trim()}
+                  disabledReason={
+                    !grantUserId.trim()
+                      ? "Enter the user to grant the membership to."
+                      : undefined
+                  }
                   loading={mutating}
                   onClick={() => void grant()}
                 >

@@ -223,6 +223,7 @@ export default function IdentityTimelinePage() {
         variant="secondary"
         size="sm"
         disabled={events === null || cursors.length === 0}
+        disabledReason={cursors.length === 0 ? "This is the first page." : undefined}
         onClick={goPrevious}
         data-testid="admin-identity-timeline-previous"
       >
@@ -232,6 +233,7 @@ export default function IdentityTimelinePage() {
         variant="secondary"
         size="sm"
         disabled={events === null || !hasMore || !nextCursor}
+        disabledReason={events !== null && (!hasMore || !nextCursor) ? "This is the last page." : undefined}
         onClick={goNext}
         data-testid="admin-identity-timeline-next"
       >

@@ -212,6 +212,40 @@ const DENIAL_PALETTE: Record<
   UNKNOWN_ERROR: { bg: "#fef2f2", border: "#fecaca", text: "#7f1d1d" },
 };
 
+/**
+ * PV-STATE-001 — WHO can grant access, said in product language.
+ *
+ * The lifecycle pages printed the raw tier constant ("Permission required:
+ * DELEGATED_ADMIN"). A reader cannot act on a constant; they can act on "ask a
+ * compliance officer". Every tier the API can name (DELEGATED_ADMIN_TIERS) has
+ * a label here, plus the generic fallback the pages used when none was sent.
+ */
+const DELEGATED_TIER_LABELS: Record<string, string> = {
+  GLOBAL_ADMIN: "a global administrator",
+  ORG_ADMIN: "an organization administrator",
+  DEPARTMENT_ADMIN: "a department administrator",
+  WORKSPACE_ADMIN: "a workspace administrator",
+  REVIEWER_LEAD: "a reviewer lead",
+  SECURITY_OFFICER: "a security officer",
+  COMPLIANCE_OFFICER: "a compliance officer",
+  DELEGATED_ADMIN: "a delegated administrator",
+};
+
+/** The role a reader should ask, never the constant. */
+export function delegatedTierLabel(tier: string | null | undefined): string {
+  if (!tier) return DELEGATED_TIER_LABELS.DELEGATED_ADMIN;
+  return DELEGATED_TIER_LABELS[tier] ?? DELEGATED_TIER_LABELS.DELEGATED_ADMIN;
+}
+
+/** An entitlement key rendered as words ("FEATURE_LEGAL_HOLD" -> "legal hold"). */
+export function entitlementLabel(key: string): string {
+  return key
+    .replace(/^FEATURE_/i, "")
+    .replace(/[_.]+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
 export function DenialBanner({ denial }: { denial: LifecycleDenial }) {
   const palette = DENIAL_PALETTE[denial.denial];
   return (
@@ -232,13 +266,13 @@ export function DenialBanner({ denial }: { denial: LifecycleDenial }) {
       <strong style={{ display: "block", marginBottom: 2 }}>{denial.title}</strong>
       {denial.detail ? <div style={{ fontSize: 12 }}>{denial.detail}</div> : null}
       {denial.requiredTier ? (
-        <div style={{ fontSize: 11, marginTop: 4 }}>
-          Required tier: <code>{denial.requiredTier}</code>
+        <div style={{ fontSize: 12, marginTop: 4 }} data-required-tier={denial.requiredTier}>
+          Ask {delegatedTierLabel(denial.requiredTier)} to grant you access.
         </div>
       ) : null}
       {denial.missingFeature ? (
-        <div style={{ fontSize: 11, marginTop: 4 }}>
-          Missing entitlement: <code>{denial.missingFeature}</code>
+        <div style={{ fontSize: 12, marginTop: 4 }} data-missing-entitlement={denial.missingFeature}>
+          This workspace&apos;s plan does not include {entitlementLabel(denial.missingFeature)}.
         </div>
       ) : null}
     </div>

@@ -332,6 +332,7 @@ function DomainsTab() {
             size="sm"
             loading={busy === "add"}
             disabled={busy === "add" || !addDomain.trim()}
+            disabledReason={!addDomain.trim() ? "Enter the domain to add." : undefined}
             onClick={submitAdd}
           >
             {busy === "add" ? "Adding…" : "Add domain"}

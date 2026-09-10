@@ -480,6 +480,7 @@ export default function AdminPeoplePage() {
               size="sm"
               onClick={() => void load(page - 1)}
               disabled={loading || page <= 1}
+              disabledReason={page <= 1 ? "This is the first page." : undefined}
             >
               Previous
             </Button>
@@ -491,6 +492,7 @@ export default function AdminPeoplePage() {
               size="sm"
               onClick={() => void load(page + 1)}
               disabled={loading || page >= (data?.totalPages ?? 0)}
+              disabledReason={page >= (data?.totalPages ?? 0) ? "This is the last page." : undefined}
             >
               Next
             </Button>

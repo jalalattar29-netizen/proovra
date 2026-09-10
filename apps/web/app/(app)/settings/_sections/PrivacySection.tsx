@@ -692,6 +692,11 @@ function AccountClosureCard() {
                     busy ||
                     phrase.trim().toLowerCase() !== phraseExpected
                   }
+                  disabledReason={
+                    !busy && phrase.trim().toLowerCase() !== phraseExpected
+                      ? "Type the confirmation phrase exactly as shown to continue."
+                      : undefined
+                  }
                   data-cc-closure-submit
                 >
                   Request account closure
