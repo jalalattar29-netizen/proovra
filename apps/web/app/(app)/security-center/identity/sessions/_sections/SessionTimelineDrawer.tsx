@@ -37,6 +37,7 @@ import {
   type SectionState,
 } from "../../../posture/_sections/section-state";
 import { formatCellDateTime } from "../../../../../../lib/date";
+import { identifierLabel } from "@proovra/shared";
 
 type IdentityTimelineEvent = {
   id: string;
@@ -220,9 +221,14 @@ export function SessionTimelineDrawer({
                               : "info"
                         }
                       >
-                        {e.severity}
+                        {identifierLabel(e.severity)}
                       </Badge>
-                      <span className="adm-timeline__kind">{e.eventType}</span>
+                      {/* PV-LANG-003 — the summary below is the server's
+                          plain-language reading; the stored event type stays
+                          beside it as the detail quoted to support. */}
+                      <span className="adm-timeline__kind">
+                        <code data-identifier>{e.eventType}</code>
+                      </span>
                     </div>
                     <div className="adm-timeline__summary">{e.summary}</div>
                     <div className="adm-timeline__when">

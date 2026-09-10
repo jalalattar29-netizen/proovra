@@ -101,6 +101,53 @@ describe("Production fix — /integrations renders a panel, not raw JSON, when d
     );
   });
 
+  it("PV-COPY-001 — the body states the REPORTED reason, never the secret for every cause", () => {
+    // The panel said "the signing secret is not configured" whatever the API
+    // reported, including a deployment that had only switched integrations
+    // off. Each reason now has its own sentence, the secret sentence is bound
+    // to `secret_missing` alone, and an unknown reason does not guess one.
+    const stripped = PAGE
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/(^|[^:])\/\/.*$/gm, "$1");
+    const panelStart = stripped.indexOf("function IntegrationsDisabledPanel(");
+    const collapsed = stripped.slice(panelStart, panelStart + 6000).replace(/\s+/g, " ");
+    expect(collapsed).toMatch(/const reason = diagnostics\?\.reason \?\? null;/);
+    expect(collapsed).toMatch(
+      /reason === "secret_missing" \? "Integrations are disabled because the API key signing secret is not configured/,
+    );
+    expect(collapsed).toMatch(
+      /reason === "feature_flag_off" \? "Integrations are switched off for this deployment\./,
+    );
+    // The fallback names no cause.
+    const fallback = /: "(Integrations are unavailable on this deployment[^"]*)"/.exec(collapsed);
+    expect(fallback).not.toBeNull();
+    expect(fallback![1]).not.toMatch(/secret|switched off|flag/i);
+    // The body renders the chosen sentence, not a fixed one.
+    expect(collapsed).toMatch(/\{body\} <\/p>/);
+  });
+
+  it("PV-COPY-001 — the configuration flags sit behind a Technical details disclosure", () => {
+    const stripped = PAGE
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/(^|[^:])\/\/.*$/gm, "$1");
+    const panelStart = stripped.indexOf("function IntegrationsDisabledPanel(");
+    const collapsed = stripped.slice(panelStart, panelStart + 6000).replace(/\s+/g, " ");
+    expect(collapsed).toMatch(
+      /isAdmin && diagnostics \? \( <details data-testid="integrations-disabled-admin-detail"[\s\S]{0,120}<summary[^>]*> Technical details <\/summary>/,
+    );
+    // Every chip is inside the disclosure, and none is outside it.
+    const open = collapsed.indexOf("<details");
+    const close = collapsed.indexOf("</details>");
+    expect(open).toBeGreaterThan(-1);
+    expect(close).toBeGreaterThan(open);
+    const inside = collapsed.slice(open, close);
+    const outside = collapsed.slice(0, open) + collapsed.slice(close);
+    for (const chip of ["reason={diagnostics", "apiKeySecret=", "cronSecret=", "envSource="]) {
+      expect(inside, chip).toContain(chip);
+      expect(outside, chip).not.toContain(chip);
+    }
+  });
+
   it("admin reason chip is gated on isAdmin AND diagnostics presence", () => {
     // The chip must NEVER render for normal users — guarded by isAdmin.
     expect(PAGE).toMatch(/isAdmin\s*&&\s*diagnostics\s*\?/);

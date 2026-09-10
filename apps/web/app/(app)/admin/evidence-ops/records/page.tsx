@@ -47,6 +47,7 @@ import {
   formatUserDateTime,
 } from "../../../../../lib/date";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
+import { identifierLabel } from "@proovra/shared";
 import { resolveRunbookSlug } from "../../../../../lib/runbooks/slugs.generated";
 import { useUrlFilterSync } from "../../../../../lib/use-url-filter-sync";
 
@@ -252,7 +253,7 @@ export default function AdminEvidenceRecordsPage() {
       {
         key: "status",
         header: "Pipeline status",
-        render: (r) => <Badge tone="info" subtle>{r.status}</Badge>,
+        render: (r) => <Badge tone="info" subtle>{identifierLabel(r.status)}</Badge>,
       },
       {
         key: "preservation",

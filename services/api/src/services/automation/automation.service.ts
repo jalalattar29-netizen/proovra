@@ -61,6 +61,111 @@ export const AUTOMATION_ACTION_TYPES = [
 ] as const;
 export type AutomationActionType = (typeof AUTOMATION_ACTION_TYPES)[number];
 
+/**
+ * PV-ALLOW-001 — WHAT EACH ALLOWLISTED VALUE MEANS, BESIDE THE ALLOWLIST.
+ *
+ * The automation console listed the two allowlists as bare identifiers with
+ * a developer's note ("Adding a value requires a coordinated DB migration").
+ * Each value now carries an operator label and one sentence of business
+ * meaning; `internalOnly` marks the action that leaves the platform only to a
+ * destination the workspace registered. Typed as a total Record over the
+ * allowlist, so a value added to either list without an entry here does not
+ * compile.
+ */
+export type AutomationCatalogEntry = {
+  label: string;
+  description: string;
+  internalOnly?: boolean;
+};
+
+export const AUTOMATION_TRIGGER_CATALOG: Readonly<
+  Record<AutomationTriggerType, AutomationCatalogEntry>
+> = {
+  EVIDENCE_CREATED: {
+    label: "Evidence created",
+    description: "A new evidence record is created in the workspace.",
+  },
+  EVIDENCE_FINALIZED: {
+    label: "Evidence finalized",
+    description: "An evidence record finishes finalization and is sealed.",
+  },
+  EVIDENCE_REPORTED: {
+    label: "Report generated",
+    description: "A report is generated for an evidence record.",
+  },
+  PACKAGE_READY: {
+    label: "Package ready",
+    description: "A verification package finishes building and can be delivered.",
+  },
+  REVIEW_ASSIGNED: {
+    label: "Review assigned",
+    description: "A review is assigned to a reviewer.",
+  },
+  REVIEW_OVERDUE: {
+    label: "Review overdue",
+    description: "A review passes its due time without a decision.",
+  },
+  SLA_DUE_SOON: {
+    label: "SLA due soon",
+    description: "A review is approaching its service-level deadline.",
+  },
+  ESCALATION_CREATED: {
+    label: "Escalation raised",
+    description: "An escalation is raised on a review.",
+  },
+  LEGAL_HOLD_CREATED: {
+    label: "Legal hold placed",
+    description: "A legal hold is placed on records in the workspace.",
+  },
+  RETENTION_CANDIDATE_FOUND: {
+    label: "Retention candidate found",
+    description: "A record becomes eligible for its retention action.",
+  },
+  EXTERNAL_ACCESS_EXPIRING: {
+    label: "External access expiring",
+    description: "An external reviewer's access is about to expire.",
+  },
+};
+
+export const AUTOMATION_ACTION_CATALOG: Readonly<
+  Record<AutomationActionType, AutomationCatalogEntry>
+> = {
+  NOTIFY_USER: {
+    label: "Notify a person",
+    description: "Sends a notification to one workspace member.",
+  },
+  NOTIFY_ROLE: {
+    label: "Notify a role",
+    description: "Sends a notification to every member holding a role.",
+  },
+  CREATE_REVIEW_TASK: {
+    label: "Create a review task",
+    description: "Opens a review task on the record that triggered the rule.",
+  },
+  CREATE_ESCALATION: {
+    label: "Raise an escalation",
+    description: "Raises an escalation for a lead to act on.",
+  },
+  ASSIGN_REVIEWER: {
+    label: "Assign a reviewer",
+    description: "Assigns a workspace member as the reviewer.",
+  },
+  APPLY_LABEL: {
+    label: "Apply a label",
+    description: "Adds a label to the record that triggered the rule.",
+  },
+  ADD_OPERATIONAL_COMMENT: {
+    label: "Add an operational comment",
+    description: "Records a comment on the record for the operations trail.",
+  },
+  WEBHOOK_DELIVERY_INTERNAL_ONLY: {
+    label: "Deliver a signed webhook",
+    description:
+      "Posts a signed event to a webhook destination this workspace registered — one attempt, HTTPS only.",
+    internalOnly: true,
+  },
+};
+
 export const AUTOMATION_RUN_STATUSES = [
   "PENDING",
   "RUNNING",

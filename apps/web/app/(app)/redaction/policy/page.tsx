@@ -25,6 +25,7 @@ import {
   POLICY_ASSIGNMENT_SCOPES,
   REDACTION_DETECTION_KINDS,
   REDACTION_DETECTION_PROVIDERS,
+  identifierLabel,
   type PolicyAssignmentScope,
   type RedactionDetectionKind,
   type RedactionDetectionProvider,
@@ -524,7 +525,7 @@ function PolicyVersionsPanel({
               >
                 <td style={td}>v{v.versionOrdinal}</td>
                 <td style={td}>
-                  <Chip label={v.state} tone={stateTone(v.state)} />
+                  <Chip label={identifierLabel(v.state)} tone={stateTone(v.state)} />
                 </td>
                 <td style={td}>
                   <code>{v.authoredByUserId.slice(0, 8)}…</code>
@@ -741,7 +742,7 @@ function CompareColumn({
       }}
     >
       <div>
-        <strong>v{version.versionOrdinal}</strong> · {version.state}
+        <strong>v{version.versionOrdinal}</strong> · {identifierLabel(version.state)}
       </div>
       <div style={{ color: "#475569" }}>
         Providers disabled: {providersDisabled.join(", ") || "—"}
@@ -790,7 +791,9 @@ function PolicyAuditPanel({ audit }: { audit: ReadonlyArray<AuditRow> }) {
                 gap: 8,
               }}
             >
-              <code style={{ minWidth: 220 }}>{a.code}</code>
+              <span style={{ minWidth: 220 }}>
+                {identifierLabel(a.code)} <code data-identifier>{a.code}</code>
+              </span>
               <span style={{ color: "#475569" }}>
                 {formatUserDateTime(a.occurredAtUtc)}
               </span>

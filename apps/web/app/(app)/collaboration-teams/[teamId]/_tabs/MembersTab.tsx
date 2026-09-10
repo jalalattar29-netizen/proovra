@@ -27,6 +27,7 @@ import {
 } from "../../../../../lib/api/collaboration-teams";
 import {
   COLLABORATION_TEAM_ROLES,
+  identifierLabel,
   type CollaborationTeamRole,
 } from "@proovra/shared";
 import { useActiveSpace, usePlatformContext } from "../../../../../lib/platform-context";
@@ -459,6 +460,19 @@ function MemberCapacityBadge({
   );
 }
 
+/** A team role as a member reads it. EXTERNAL is the time-limited guest path. */
+const ROLE_LABEL: Readonly<Record<string, string>> = {
+  LEAD: "Lead",
+  ADMIN: "Admin",
+  MEMBER: "Member",
+  VIEWER: "Viewer",
+  EXTERNAL: "External collaborator",
+};
+
+function roleLabel(role: string): string {
+  return ROLE_LABEL[role] ?? identifierLabel(role);
+}
+
 // Map a member status to the app semantic tone contract.
 //   Active=green · Pending=amber · Suspended=amber · Removed=red · else slate.
 function memberStatusTone(status: string): AppTone {
@@ -525,7 +539,7 @@ function MemberRow({
     setBusy(true);
     try {
       await updateMember(teamId, member.id, { role });
-      await onChanged(`Role updated to ${role}.`);
+      await onChanged(`Role updated to ${roleLabel(role)}.`);
     } catch (err) {
       onError(err, { message: "Couldn't update this member's role." });
     } finally {
@@ -583,7 +597,7 @@ function MemberRow({
 
   const roleOptions = COLLABORATION_TEAM_ROLES.map((r) => ({
     value: r,
-    label: r,
+    label: roleLabel(r),
   }));
 
   return (
@@ -623,7 +637,7 @@ function MemberRow({
               disabled={busy || isLastLead}
               ariaLabel={
                 isLastLead
-                  ? "Cannot demote the last LEAD. Transfer leadership first."
+                  ? "Cannot demote the last Lead. Transfer leadership first."
                   : `Change role for ${displayName}`
               }
             />
@@ -638,12 +652,12 @@ function MemberRow({
             />
           </div>
         ) : (
-          <AppStatusText tone="slate">{member.role}</AppStatusText>
+          <AppStatusText tone="slate">{roleLabel(member.role)}</AppStatusText>
         )}
       </td>
       <td data-label="Status">
         <AppStatusText tone={memberStatusTone(member.status)}>
-          {member.status}
+          {identifierLabel(member.status)}
         </AppStatusText>
       </td>
       <td data-label="Joined">

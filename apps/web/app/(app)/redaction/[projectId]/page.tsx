@@ -22,6 +22,8 @@
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
+import { identifierLabel } from "@proovra/shared";
+
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import {
   StepUpModal,
@@ -284,7 +286,7 @@ function RedactionProjectShell({
           <p style={{ color: "#475569", fontSize: 12, margin: 0 }}>
             Evidence <code>{project.evidenceId}</code> ·{" "}
             <code>{project.artifactKind}</code> · state{" "}
-            <code data-redaction-project-state>{project.state}</code>
+            <strong data-redaction-project-state>{identifierLabel(project.state)}</strong>
           </p>
         </div>
         <button
@@ -423,9 +425,9 @@ function VersionWorkspace({
         <strong style={{ fontSize: 14 }}>
           Version v{version.versionOrdinal}
         </strong>
-        <code style={{ fontSize: 11, color: "#475569" }}>
-          state: {version.state}
-        </code>
+        <span style={{ fontSize: 11, color: "#475569" }}>
+          Status: {identifierLabel(version.state)}
+        </span>
         <span style={{ flex: 1 }} />
         <small style={{ color: "#475569", fontSize: 11 }}>
           {version.regionCount} regions ·{" "}
@@ -475,8 +477,9 @@ function VersionWorkspace({
             fontSize: 13,
           }}
         >
-          Audio redaction uses time-range regions only. Add regions
-          via the API <code>AUDIO_RANGE_MS</code> region kind.
+          Audio redaction uses time-range regions only. Add them through
+          the API as time-range regions (region kind{" "}
+          <code data-identifier>AUDIO_RANGE_MS</code>).
         </div>
       )}
 

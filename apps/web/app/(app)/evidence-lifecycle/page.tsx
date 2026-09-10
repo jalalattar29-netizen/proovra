@@ -535,9 +535,9 @@ function LoadedDashboard({ dashboard }: { dashboard: LifecycleDashboard }) {
           }}
         >
           <strong>Advanced lifecycle metrics are gated.</strong> Your
-          workspace doesn&apos;t have the <code>FEATURE_LIFECYCLE_DASHBOARD</code>{" "}
-          entitlement, so per-tile counts may not back-fill from older
-          activity. Contact your account team to enable it.
+          workspace&apos;s plan doesn&apos;t include the lifecycle dashboard,
+          so per-tile counts may not back-fill from older activity. Contact
+          your account team to enable it.
         </div>
       ) : null}
       <CapabilityLauncherRow caps={caps} />

@@ -51,6 +51,7 @@ import { EmptyState } from "../../../../../components/ui/EmptyState";
 import { DataTable, type DataTableColumn } from "../../../../../components/ui/DataTable";
 import { formatCellDateTime } from "../../../../../lib/date";
 import { Badge, type BadgeTone } from "../../../../../components/ui/Badge";
+import { accessReviewKindLabel } from "../../../../../lib/labels/identityOrgLabels";
 
 type AccessReview = {
   id: string;
@@ -314,7 +315,9 @@ export default function AccessReviewsPage() {
       header: "Kind",
       render: (r) => (
         <div data-access-review-row={r.id}>
-          <span className="adm-help" style={{ fontSize: 11 }}>{r.kind}</span>
+          <span className="adm-help" style={{ fontSize: 11 }}>
+            {accessReviewKindLabel(r.kind)}
+          </span>
           {rowResult && rowResult.rowId === r.id ? (
             <div
               data-access-review-result={rowResult.ok ? "ok" : "failed"}

@@ -43,6 +43,8 @@ import { ResultCount } from "../../../../components/ui/ResultCount";
 import { formatRelativeTime, formatUserDateTime } from "../../../../lib/date";
 import { humaniseResourceType } from "../../../../lib/audit/auditPresentation";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
+import { identifierLabel } from "@proovra/shared";
+import { billingProviderLabel, planLabel } from "../../../../lib/labels/adminPlatformLabels";
 
 type Subject = {
   userId: string | null;
@@ -259,7 +261,7 @@ export default function AdminBillingPage() {
       header: "Plan",
       render: (r) => (
         <span>
-          {r.provider} {r.plan}
+          {billingProviderLabel(r.provider)} {planLabel(r.plan)}
         </span>
       ),
     },
@@ -268,7 +270,7 @@ export default function AdminBillingPage() {
       header: "Status",
       render: (r) => (
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          <Badge tone={STATUS_TONE[r.status] ?? "neutral"}>{r.status}</Badge>
+          <Badge tone={STATUS_TONE[r.status] ?? "neutral"}>{identifierLabel(r.status)}</Badge>
           {r.cancelAtPeriodEnd ? (
             <Badge tone="pending" title="Provider-confirmed: will not renew">
               Cancels at period end
@@ -343,11 +345,11 @@ export default function AdminBillingPage() {
         <span style={{ fontWeight: 600 }}>{formatMoney(r.amountCents, r.currency)}</span>
       ),
     },
-    { key: "provider", header: "Provider", render: (r) => r.provider },
+    { key: "provider", header: "Provider", render: (r) => billingProviderLabel(r.provider) },
     {
       key: "status",
       header: "Status",
-      render: (r) => <Badge tone={STATUS_TONE[r.status] ?? "neutral"}>{r.status}</Badge>,
+      render: (r) => <Badge tone={STATUS_TONE[r.status] ?? "neutral"}>{identifierLabel(r.status)}</Badge>,
     },
     {
       key: "createdAt",
@@ -472,7 +474,7 @@ export default function AdminBillingPage() {
                   tone={STATUS_TONE[s.status] ?? "neutral"}
                   subtle={focus !== s.status}
                 >
-                  {s.status}: {s.count}
+                  {identifierLabel(s.status)}: {s.count}
                 </Badge>
               ))}
               {detail.subscriptions.pendingCancellation > 0 ? (
@@ -737,8 +739,8 @@ export default function AdminBillingPage() {
                   >
                     {detail.reconciliation.runHistory.value!.map((r) => (
                       <li key={r.id} style={{ marginBottom: 6 }}>
-                        <strong>{humaniseResourceType(r.kind) ?? r.kind}</strong> ·{" "}
-                        {humaniseResourceType(r.status) ?? r.status} · scanned{" "}
+                        <strong>{humaniseResourceType(r.kind) ?? identifierLabel(r.kind)}</strong> ·{" "}
+                        {humaniseResourceType(r.status) ?? identifierLabel(r.status)} · scanned{" "}
                         {r.scanned}
                         {r.failed > 0 ? `, ${r.failed} failed` : ""} ·{" "}
                         <span title={formatUserDateTime(r.startedAtUtc)}>

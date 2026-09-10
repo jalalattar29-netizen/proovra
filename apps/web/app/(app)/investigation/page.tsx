@@ -58,6 +58,23 @@ import {
   type CrossEvidenceFinding,
 } from "../../../lib/api/intelligence";
 import { formatUserDateTime } from "../../../lib/date";
+import { identifierLabel } from "@proovra/shared";
+
+/** PV-LANG-003 — a cross-evidence entity kind (EvidenceEntityKind) as a word. */
+const ENTITY_KIND_LABEL: Readonly<Record<string, string>> = {
+  PERSON: "Person",
+  EMAIL: "Email address",
+  PHONE: "Phone number",
+  ORG: "Organization",
+  LOCATION: "Location",
+  DATE: "Date",
+  REFERENCE_ID: "Reference ID",
+  URL: "Web address",
+};
+
+function entityKindLabel(kind: string): string {
+  return ENTITY_KIND_LABEL[kind] ?? identifierLabel(kind);
+}
 // =============================================================================
 // Types
 // =============================================================================
@@ -981,7 +998,7 @@ function CrossEvidenceFindingsCard({
         return (
           <Card key={`${f.kind}:${f.normalizedValue}`} padding="comfortable">
             <div style={rowHeaderStyle}>
-              <span style={signalTypeStyle}>{f.kind}</span>
+              <span style={signalTypeStyle}>{entityKindLabel(f.kind)}</span>
               <Badge tone="neutral" subtle>
                 {f.evidenceCount} records
               </Badge>

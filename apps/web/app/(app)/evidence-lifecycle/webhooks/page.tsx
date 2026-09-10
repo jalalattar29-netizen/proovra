@@ -9,6 +9,7 @@ import { Button } from "../../../../components/ui/Button";
 import { DataTable, type DataTableColumn } from "../../../../components/ui/DataTable";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { StatusBadge, statusBadgeStyle } from "../../../../components/ui/StatusBadge";
+import { webhookDeliveryStateLabel } from "../../../../lib/labels/governanceReviewLabels";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDate, formatUserDateTime } from "../../../../lib/date";
 import {
@@ -393,7 +394,7 @@ const DELIVERY_COLUMNS: DataTableColumn<WebhookDelivery>[] = [
   {
     key: "state",
     header: "State",
-    render: (d) => <span style={statusBadgeStyle(d.state)}>{d.state}</span>,
+    render: (d) => <span style={statusBadgeStyle(d.state)}>{webhookDeliveryStateLabel(d.state)}</span>,
   },
   { key: "attempts", header: "Attempts", render: (d) => d.attemptCount },
   { key: "status", header: "Status", render: (d) => d.responseStatus ?? "—" },

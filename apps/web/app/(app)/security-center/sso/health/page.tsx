@@ -37,6 +37,10 @@ import {
 } from "../../../../../components/ui/DataTable";
 import { EmptyState } from "../../../../../components/ui/EmptyState";
 import { formatCellDateTime } from "../../../../../lib/date";
+import {
+  identityProviderLabel,
+  ssoFailureReasonLabel,
+} from "../../../../../lib/labels/identityOrgLabels";
 
 type SsoConnectionHealthStatus =
   | "HEALTHY"
@@ -187,7 +191,15 @@ function SsoHealthContent() {
       key: "reason",
       header: "Reason",
       render: (b) => (
-        <code style={{ fontFamily: "monospace", fontSize: 12 }}>{b.reason}</code>
+        <span style={{ display: "grid", gap: 1 }}>
+          <span style={{ fontSize: 12.5 }}>{ssoFailureReasonLabel(b.reason)}</span>
+          <code
+            data-identifier
+            style={{ fontFamily: "monospace", fontSize: 11 }}
+          >
+            {b.reason}
+          </code>
+        </span>
       ),
     },
     { key: "count24h", header: "24h", align: "right" },
@@ -285,7 +297,7 @@ function SsoHealthContent() {
                 >
                   <div>
                     <h3 style={{ margin: 0, fontSize: 15 }}>
-                      {c.provider}{" "}
+                      {identityProviderLabel(c.provider)}{" "}
                       <span className="app-field-help" style={{ fontWeight: 400 }}>
                         ({c.connectionId.slice(0, 8)}…)
                       </span>

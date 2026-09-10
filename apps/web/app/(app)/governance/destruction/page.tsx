@@ -26,8 +26,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   GOVERNANCE_RECONCILIATION_KINDS,
+  identifierLabel,
   type GovernanceReconciliationKind,
 } from "@proovra/shared";
+import { reconciliationKindLabel } from "../../../../lib/labels/governanceReviewLabels";
 
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
@@ -524,7 +526,7 @@ function DestructionQueuePageInner() {
       header: "Run",
       render: (r) => (
         <div data-reconciliation-run-row={r.id}>
-          <div style={{ fontWeight: 600, fontSize: 13 }}>{r.kind}</div>
+          <div style={{ fontWeight: 600, fontSize: 13 }}>{reconciliationKindLabel(r.kind)}</div>
           <div style={mutedStyle}>
             {r.trigger}
             {r.teamId === null ? " · platform-wide" : ""}
@@ -1068,7 +1070,8 @@ function TimelineModal({
                     flexWrap: "wrap",
                   }}
                 >
-                  <span style={eventTypeBadgeStyle}>{e.eventType}</span>
+                  <span style={eventTypeBadgeStyle}>{identifierLabel(e.eventType)}</span>
+                  <code data-identifier style={mutedStyle}>{e.eventType}</code>
                   {e.fromState && e.fromState !== e.toState ? (
                     <span style={transitionTextStyle}>
                       {e.fromState} → {e.toState}

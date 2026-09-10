@@ -21,6 +21,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { identifierLabel, securityEventLabel } from "@proovra/shared";
 
 import {
   PageSection,
@@ -37,6 +38,7 @@ import { ResultCount } from "../../../../../components/ui/ResultCount";
 import { apiFetch } from "../../../../../lib/api";
 import { formatUserDateTime } from "../../../../../lib/date";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
+import { presentOutcome } from "../../../../../lib/security/securityEventLabels";
 
 type SeverityBucket = "CRITICAL" | "HIGH" | "WARNING" | "INFO";
 
@@ -156,11 +158,14 @@ export function PlatformSecurityEvents() {
         header: "Event",
         render: (r) => (
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 620 }}>{r.eventType}</div>
+            {/* PV-LANG-001 — the label first; the stored identifier is the detail. */}
+            <div style={{ fontWeight: 620 }}>{securityEventLabel(r.eventType)}</div>
             <div style={{ fontSize: 12, color: "var(--ink-muted)", marginTop: 2 }}>
+              <code data-identifier style={{ fontSize: 11 }}>{r.eventType}</code>
+              {" · "}
               {r.origin === "ADMIN_AUDIT" ? "Admin audit" : "Security event"}
-              {r.category ? ` · ${r.category}` : ""}
-              {r.outcome ? ` · ${r.outcome}` : ""}
+              {r.category ? ` · ${identifierLabel(r.category)}` : ""}
+              {r.outcome ? ` · ${presentOutcome(r.outcome)}` : ""}
             </div>
           </div>
         ),
@@ -168,7 +173,9 @@ export function PlatformSecurityEvents() {
       {
         key: "severity",
         header: "Severity",
-        render: (r) => <Badge tone={SEVERITY_TONE[r.severity]}>{r.severity}</Badge>,
+        render: (r) => (
+          <Badge tone={SEVERITY_TONE[r.severity]}>{identifierLabel(r.severity)}</Badge>
+        ),
       },
       {
         key: "subject",

@@ -61,6 +61,7 @@ import { formatUserDate, formatUtcAuditDateTime } from "../../../../../../lib/da
 import { Card } from "../../../../../../components/ui/Card";
 import { Badge } from "../../../../../../components/ui/Badge";
 import { Button } from "../../../../../../components/ui/Button";
+import { orgAuditEventLabel } from "../../../../../../lib/labels/identityOrgLabels";
 
 // ---------------------------------------------------------------------------
 // Wire types — mirror the existing org REST surface.
@@ -495,7 +496,9 @@ function Overview() {
                   flexWrap: "wrap",
                 }}
               >
-                <span style={{ fontWeight: 600 }}>{e.eventType}</span>
+                <span style={{ fontWeight: 600 }}>
+                  {orgAuditEventLabel(e.eventType)}
+                </span>
                 <span style={subtleText}>
                   {formatUtcAuditDateTime(e.createdAt)}
                 </span>

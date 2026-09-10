@@ -51,6 +51,7 @@ import {
 // PHASE 12 VERTICAL A (2026-07-30) — server-authoritative legal acceptance
 // status + the accept action that clears the 428 legal gate.
 import { LegalAcceptanceStatusCard } from "./LegalAcceptanceStatusCard";
+import { identifierLabel } from "@proovra/shared";
 
 type LegalAcceptanceItem = {
   id: string;
@@ -74,20 +75,25 @@ type CookieConsentRecord = {
  * Semantic classification per policy key — consent, contract acceptance,
  * and acknowledgement are NOT legally equivalent and are labeled apart.
  */
-const POLICY_PRESENTATION: Record<
-  string,
-  { title: string; kind: string }
-> = {
-  terms: { title: "Terms of Service accepted", kind: "Contract acceptance" },
-  privacy: { title: "Privacy notice acknowledged", kind: "Acknowledgement" },
-  cookies: { title: "Cookie policy accepted", kind: "Consent" },
+type PolicyPresentation = { title: string; acceptanceType: string };
+
+const POLICY_PRESENTATION: Record<string, PolicyPresentation> = {
+  terms: {
+    title: "Terms of Service accepted",
+    acceptanceType: "Contract acceptance",
+  },
+  privacy: {
+    title: "Privacy notice acknowledged",
+    acceptanceType: "Acknowledgement",
+  },
+  cookies: { title: "Cookie policy accepted", acceptanceType: "Consent" },
 };
 
-function presentPolicy(key: string): { title: string; kind: string } {
+function presentPolicy(key: string): PolicyPresentation {
   return (
     POLICY_PRESENTATION[key] ?? {
       title: `${key} accepted`,
-      kind: "Acceptance",
+      acceptanceType: "Acceptance",
     }
   );
 }
@@ -267,7 +273,7 @@ function DataExportCard() {
             >
               <span className="set-privacy__export">
                 <AppStatusText tone={EXPORT_STATUS_TONE[r.status] ?? "slate"} size="sm">
-                  {EXPORT_STATUS_LABEL[r.status] ?? r.status}
+                  {EXPORT_STATUS_LABEL[r.status] ?? identifierLabel(r.status)}
                 </AppStatusText>
                 <span className="set-privacy__export-meta">
                   Requested {formatUserDateTime(r.requestedAtUtc)}
@@ -557,7 +563,7 @@ function AccountClosureCard() {
       {open && req ? (
         <div className="mt-3" data-cc-closure-status={req.status}>
           <p style={{ ...muted, color: "var(--ink-primary, #0f172a)" }}>
-            {CLOSURE_STATUS_LABEL[req.status] ?? req.status}
+            {CLOSURE_STATUS_LABEL[req.status] ?? identifierLabel(req.status)}
             {req.status === "COOLING_OFF" && req.coolingOffEndsAtUtc
               ? ` — your account closes after ${formatUserDateTime(req.coolingOffEndsAtUtc)} unless you cancel.`
               : ""}
@@ -819,7 +825,9 @@ function PolicyHistory({
                       className="set-privacy__row"
                     >
                       <span className="set-privacy__row-name">{p.title}</span>
-                      <span className="set-privacy__row-kind">{p.kind}</span>
+                      <span className="set-privacy__row-kind">
+                        {p.acceptanceType}
+                      </span>
                       <span className="set-privacy__row-meta">
                         v{item.policyVersion}
                       </span>

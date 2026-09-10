@@ -1158,6 +1158,10 @@ export {
   FILE_SECURITY_SCAN_STATUSES,
   SECURITY_EVENT_SEVERITIES,
   SECURITY_EVENT_TYPES,
+  // PV-LANG-001 — the one operator-facing label for an event type.
+  securityEventLabel,
+  // PV-LANG-003 — the generic reading of any stored identifier.
+  identifierLabel,
   classifyFileValidation,
   hasDoubleExtension,
   isDangerousExtension,

@@ -44,6 +44,10 @@ import {
   sectionMuted,
   type SectionState,
 } from "../../../posture/_sections/section-state";
+import {
+  riskSignalLabel,
+  workspaceRoleLabel,
+} from "../../../../../../lib/labels/identityOrgLabels";
 
 type Member = { userId: string; role: string; status: string };
 
@@ -183,7 +187,19 @@ export function UserRiskSection() {
     {
       key: "kind",
       header: "Signal",
-      render: (s) => <span style={{ fontSize: 12.5, fontWeight: 600 }}>{s.kind}</span>,
+      render: (s) => (
+        <span style={{ display: "grid", gap: 1 }}>
+          <span style={{ fontSize: 12.5, fontWeight: 600 }}>
+            {riskSignalLabel(s.kind)}
+          </span>
+          <code
+            data-identifier
+            style={{ fontSize: 11, color: "var(--ink-muted)" }}
+          >
+            {s.kind}
+          </code>
+        </span>
+      ),
     },
     {
       key: "reason",
@@ -226,7 +242,7 @@ export function UserRiskSection() {
             <option value="">Select a member…</option>
             {members.data.map((m) => (
               <option key={m.userId} value={m.userId}>
-                {m.role} · {m.userId.slice(0, 8)}…
+                {workspaceRoleLabel(m.role)} · {m.userId.slice(0, 8)}…
               </option>
             ))}
           </select>

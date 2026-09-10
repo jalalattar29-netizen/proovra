@@ -100,6 +100,7 @@ import {
 import {
   searchReadinessHasUsableResults,
   type SearchReadinessProjection,
+  identifierLabel,
 } from "@proovra/shared";
 // The guidance column stands in for the Inspector while nothing is selected,
 // so the region is never an empty white gutter. Every list in it is real.
@@ -1786,7 +1787,7 @@ function SearchInner() {
                     index must not be reading two different stories, which is
                     how 'catching up' survived in support for so long. */}
                 {readiness
-                  ? `${readiness.state} · ${readiness.indexedCount}/${readiness.eligibleCount} indexed`
+                  ? `${identifierLabel(readiness.state)} · ${readiness.indexedCount}/${readiness.eligibleCount} indexed`
                   : `${searchHealth.index.evidenceIndexed}/${searchHealth.index.evidenceTotal} indexed`}
               </AppStatusBadge>
             );

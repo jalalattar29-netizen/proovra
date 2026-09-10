@@ -3622,9 +3622,22 @@ function IntegrationsDisabledPanel(props: {
     | null;
 }): JSX.Element {
   const { isAdmin, diagnostics } = props;
+  // PV-COPY-001 — the body names the reason the API reported, and only that
+  // reason. It used to state "the signing secret is not configured" for every
+  // cause, including a deployment that had simply switched integrations off.
+  // Without diagnostics (everyone but an administrator) the reason is not
+  // known here, and the copy does not guess one.
+  const reason = diagnostics?.reason ?? null;
+  const body =
+    reason === "secret_missing"
+      ? "Integrations are disabled because the API key signing secret is not configured in the running API environment."
+      : reason === "feature_flag_off"
+        ? "Integrations are switched off for this deployment. API keys, webhooks and connectors stay unavailable until a platform administrator turns them on."
+        : "Integrations are unavailable on this deployment right now, so API keys, webhooks and connectors cannot be created or used.";
   return (
     <section
       data-testid="integrations-disabled-panel"
+      data-integrations-disabled-reason={reason ?? "unknown"}
       style={{
         marginTop: 12,
         padding: 16,
@@ -3645,14 +3658,24 @@ function IntegrationsDisabledPanel(props: {
           marginBottom: 0,
         }}
       >
-        Integrations are disabled because the API key signing secret is not
-        configured in the running API environment.
+        {body}
       </p>
+      {/*
+        PV-COPY-001 — the configuration flags are support detail, not the
+        message. They sit behind a disclosure an administrator opens when
+        triaging, instead of leading the panel beside the explanation.
+      */}
       {isAdmin && diagnostics ? (
-        <div
+        <details
           data-testid="integrations-disabled-admin-detail"
+          style={{ marginTop: 12 }}
+        >
+          <summary style={{ fontSize: 13, cursor: "pointer" }}>
+            Technical details
+          </summary>
+        <div
           style={{
-            marginTop: 12,
+            marginTop: 8,
             display: "flex",
             flexWrap: "wrap",
             gap: 6,
@@ -3725,6 +3748,7 @@ function IntegrationsDisabledPanel(props: {
             envSource={diagnostics.envSourceHint}
           </span>
         </div>
+        </details>
       ) : null}
       <p
         style={{

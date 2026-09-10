@@ -591,7 +591,10 @@ describe("PROOF 1 — authorized happy path delegates to the canonical service",
     expect(res.statusCode).toBe(200);
     const events = json(res)["events"] as Array<Record<string, unknown>>;
     expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({ id: "se-2", kind: "session_revoked", summary: "Session Revoked" });
+    // PV-LANG-001 — the ONE shared label (sentence case, acronyms kept), not
+    // a per-route title-casing of the identifier.
+    expect(events[0]).toMatchObject({ id: "se-2", kind: "session_revoked", label: "Session revoked" });
+    expect(events[0]).not.toHaveProperty("summary");
     // Scoped to the authorized workspace; blank kinds tokens dropped rather
     // than turned into an empty-string filter.
     expect(hits("securityEvent.findMany")[0].args).toMatchObject({

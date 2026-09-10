@@ -65,7 +65,8 @@ type TimelineEvent = {
   severity: "INFO" | "WARNING" | "HIGH";
   occurredAtUtc: string;
   actor?: TimelineActor | null;
-  summary: string;
+  /** PV-LANG-001 — the server's operator label for `kind`. */
+  label: string;
 };
 
 const FILTERS: { label: string; kinds: string }[] = [
@@ -261,16 +262,23 @@ export default function IdentityTimelinePage() {
     {
       key: "kind",
       header: "Event",
+      // PV-LANG-001 — the event reads as words; the stored identifier stays
+      // beneath it as the detail an operator quotes to support. The separate
+      // "Summary" column repeated the identifier title-cased and is gone.
       render: (e) => (
-        <code
-          style={{
-            fontFamily:
-              "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-            fontSize: 12,
-          }}
-        >
-          {e.kind}
-        </code>
+        <span style={{ display: "grid", gap: 1 }}>
+          <span style={{ fontSize: 12.5, fontWeight: 600 }}>{e.label}</span>
+          <code
+            style={{
+              fontFamily:
+                "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+              fontSize: 11,
+              color: "var(--ink-muted)",
+            }}
+          >
+            {e.kind}
+          </code>
+        </span>
       ),
     },
     {
@@ -321,11 +329,6 @@ export default function IdentityTimelinePage() {
           </span>
         );
       },
-    },
-    {
-      key: "summary",
-      header: "Summary",
-      render: (e) => <span style={{ fontSize: 12 }}>{e.summary}</span>,
     },
   ];
 

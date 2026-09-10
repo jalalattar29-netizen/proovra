@@ -44,6 +44,7 @@ import { AccessGate } from "../../../../../components/access/AccessGate";
 import { Badge } from "../../../../../components/ui/Badge";
 import { Button } from "../../../../../components/ui/Button";
 import { formatCellDateTime } from "../../../../../lib/date";
+import { identifierLabel } from "@proovra/shared";
 import {
   AdmInline,
   AdmOverlay,
@@ -144,6 +145,18 @@ type ReproducibilityOutcome =
   | "retention_drift"
   | "artifact_missing"
   | "not_applicable";
+
+const REPRODUCIBILITY_OUTCOME_LABEL: Record<string, string> = {
+  match: "Matches",
+  artifact_drift: "Artifact changed",
+  retention_drift: "Retention changed",
+  artifact_missing: "Artifact missing",
+  not_applicable: "Not applicable",
+};
+
+function reproducibilityOutcomeLabel(outcome: string): string {
+  return REPRODUCIBILITY_OUTCOME_LABEL[outcome] ?? identifierLabel(outcome);
+}
 
 type ReproducibilityCheck = {
   field: string;
@@ -788,8 +801,11 @@ function ReproducibilityResultPanel({
   return (
     <div>
       <Badge tone={palette} data-testid="verify-outcome">
+        {reproducibilityOutcomeLabel(report.outcome)}
+      </Badge>{" "}
+      <code data-identifier style={{ fontSize: 11 }}>
         {report.outcome}
-      </Badge>
+      </code>
       <p style={{ marginTop: 8, fontSize: 13 }}>{report.summary}</p>
       {report.checks.length > 0 ? (
         <div className="apf-table-wrap">

@@ -369,7 +369,12 @@ describe("Signers — POST /v1/operations/custody-attestations/:id/verify (no co
     });
     await click(screen.getByTestId("verify-att-1"));
     const panel = screen.getByTestId("verify-result");
-    expect(panel.textContent).toContain("verified");
+    // PV-LANG-003 — the label reads "Verified"; the stored outcome stays as
+    // the declared identifier beside it.
+    expect(panel.textContent).toContain("Verified");
+    expect(
+      panel.querySelector("code[data-identifier]")?.textContent?.trim(),
+    ).toBe("verified");
     expect(panel.textContent).toContain(
       "Signature matches the recorded custody event.",
     );
@@ -1402,8 +1407,13 @@ describe("Exports — POST /v1/operations/exports/:id/verify (no confirm)", () =
     expect(verifies).toHaveLength(1);
     expect(JSON.parse(verifies[0].body as string)).toEqual({ teamId: WS });
     const result = screen.getByTestId("verify-result");
+    // PV-LANG-003 — the badge carries the label; the stored outcome is the
+    // declared secondary identifier beside it.
     expect(
       within(result).getByTestId("verify-outcome").textContent,
+    ).toBe("Matches");
+    expect(
+      result.querySelector("code[data-identifier]")?.textContent?.trim(),
     ).toBe("match");
     expect(result.textContent).toContain(
       "The manifest re-derives byte-for-byte.",

@@ -32,6 +32,8 @@ import { Badge, type BadgeTone } from "../../../../components/ui/Badge";
 import { severityTone } from "../../../../components/ui/StatusBadge";
 import { DataTable } from "../../../../components/ui/DataTable";
 import { FilterBar } from "../../../../components/ui/FilterBar";
+import { identifierLabel } from "@proovra/shared";
+import { escalationReasonLabel } from "../../../../lib/labels/governanceReviewLabels";
 
 type EscalationStatus =
   | "OPEN"
@@ -236,7 +238,7 @@ function EscalationsConsolePageInner() {
             header: "Severity",
             render: (e) => (
               <Badge tone={severityTone(e.severity)} subtle>
-                {e.severity}
+                {identifierLabel(e.severity)}
               </Badge>
             ),
           },
@@ -244,7 +246,7 @@ function EscalationsConsolePageInner() {
             key: "reason",
             header: "Reason",
             render: (e) => (
-              <span className="app-table__muted">{e.reason}</span>
+              <span className="app-table__muted">{escalationReasonLabel(e.reason)}</span>
             ),
           },
           {
@@ -252,7 +254,7 @@ function EscalationsConsolePageInner() {
             header: "Status",
             render: (e) => (
               <Badge tone={statusTone(e.status)} subtle>
-                {e.status}
+                {identifierLabel(e.status)}
               </Badge>
             ),
           },

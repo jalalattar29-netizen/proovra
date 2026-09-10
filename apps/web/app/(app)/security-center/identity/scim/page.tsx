@@ -52,6 +52,11 @@ import { ManagedMembershipSection } from "./_sections/ManagedMembershipSection";
 import { Badge, type BadgeTone } from "../../../../../components/ui/Badge";
 import { formatCellDateTime } from "../../../../../lib/date";
 import { statusTone } from "../../../../../components/ui/StatusBadge";
+import { identifierLabel } from "@proovra/shared";
+import {
+  scimDriftCategoryLabel,
+  scimFailureLabel,
+} from "../../../../../lib/labels/identityOrgLabels";
 
 // ============================================================================
 // PHASE 12B — denial classification.
@@ -614,7 +619,9 @@ function TokensTab({ teamId }: { teamId: string }) {
     {
       key: "status",
       header: "Status",
-      render: (t) => <Badge tone={statusTone(t.status)}>{t.status}</Badge>,
+      render: (t) => (
+        <Badge tone={statusTone(t.status)}>{identifierLabel(t.status)}</Badge>
+      ),
     },
     {
       key: "scopes",
@@ -1125,7 +1132,7 @@ function DriftTab({ teamId }: { teamId: string }) {
                       </td>
                       <td>
                         <span className="adm-help" style={{ fontSize: 11 }}>
-                          {i.category}
+                          {scimDriftCategoryLabel(i.category)}
                         </span>
                       </td>
                       <td>
@@ -1139,7 +1146,8 @@ function DriftTab({ teamId }: { teamId: string }) {
                             {i.subject.label ?? "—"}
                           </div>
                           <div className="adm-help">
-                            {i.subject.kind} · {i.subject.id.slice(0, 12)}…
+                            {identifierLabel(i.subject.kind)} ·{" "}
+                            {i.subject.id.slice(0, 12)}…
                           </div>
                         </div>
                       </td>
@@ -1288,7 +1296,12 @@ function ReplayTab({ teamId }: { teamId: string }) {
       key: "type",
       header: "Type",
       render: (f) => (
-        <span className="adm-help" style={{ fontSize: 11 }}>{f.eventType}</span>
+        <span style={{ display: "grid", gap: 1 }}>
+          <span style={{ fontSize: 12 }}>{scimFailureLabel(f.eventType)}</span>
+          <code data-identifier className="adm-help" style={{ fontSize: 11 }}>
+            {f.eventType}
+          </code>
+        </span>
       ),
     },
     {
@@ -1300,7 +1313,7 @@ function ReplayTab({ teamId }: { teamId: string }) {
               : f.severity === "WARNING"
                 ? "pending"
                 : "neutral"}>
-          {f.severity}
+          {identifierLabel(f.severity)}
         </Badge>
       ),
     },

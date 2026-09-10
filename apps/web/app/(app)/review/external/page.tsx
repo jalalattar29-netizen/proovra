@@ -35,6 +35,7 @@ import {
   EXTERNAL_REVIEWER_ROLES,
   PORTAL_AUTH_METHODS,
   WATERMARK_POLICIES,
+  identifierLabel,
   type ExternalReviewerRole,
   type PortalAuthMethod,
 } from "@proovra/shared";
@@ -51,6 +52,10 @@ import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useToast, PageShell, PageHeader } from "../../../../components/ui";
 import { Card } from "../../../../components/ui/Card";
 import { EmptyState } from "../../../../components/ui/EmptyState";
+import {
+  bulkInvitationOutcomeLabel,
+  invitationDeliveryProviderLabel,
+} from "../../../../lib/labels/governanceReviewLabels";
 import {
   useActiveSpace,
   useCan,
@@ -670,7 +675,7 @@ function InvitationsTable({
                 </td>
                 <td style={td}>{r.inviteEmail}</td>
                 <td style={td}>
-                  <code>{r.role}</code>
+                  {identifierLabel(r.role)}
                 </td>
                 <td style={td}>
                   <Chip
@@ -686,7 +691,7 @@ function InvitationsTable({
                     <Chip
                       data-delivery-chip={r.latestDelivery.status}
                       tone={deliveryTone(r.latestDelivery.status)}
-                      label={r.latestDelivery.status}
+                      label={identifierLabel(r.latestDelivery.status)}
                     />
                   ) : (
                     <span style={{ color: "var(--ink-muted, #94a3b8)" }}>—</span>
@@ -840,7 +845,7 @@ function InvitationDetailDrawer({
           tone={row.grantState === "REVOKED" ? "warn" : row.expired ? "warn" : "ok"}
           label={`State: ${row.grantState ?? "—"}`}
         />
-        <Chip tone="muted" label={`Role: ${row.role}`} />
+        <Chip tone="muted" label={`Role: ${identifierLabel(row.role)}`} />
         <Chip tone="info" label={`Auth: ${row.authMethod}`} />
         {row.mfaRequired ? <Chip tone="warn" label="MFA required" /> : null}
         <Chip tone="muted" label={`Watermark: ${row.watermarkPolicy}`} />
@@ -1046,12 +1051,13 @@ function InvitationDetailDrawer({
                     <Chip
                       data-delivery-status={d.status}
                       tone={deliveryTone(d.status)}
-                      label={d.status}
+                      label={identifierLabel(d.status)}
                     />
                   </td>
                   <td style={td}>{d.attempt}</td>
                   <td style={td}>
-                    <code>{d.provider}</code>
+                    {invitationDeliveryProviderLabel(d.provider)}{" "}
+                    <code data-identifier>{d.provider}</code>
                   </td>
                   <td style={td}>
                     {formatUserDateTime(d.queuedAtUtc)}
@@ -1148,7 +1154,9 @@ function InvitationDetailDrawer({
                   gap: 8,
                 }}
               >
-                <code style={{ minWidth: 220 }}>{a.code}</code>
+                <span style={{ minWidth: 220 }}>
+                  {identifierLabel(a.code)} <code data-identifier>{a.code}</code>
+                </span>
                 <span style={{ color: "var(--ink-secondary, #475569)" }}>
                   {formatUserDateTime(a.occurredAtUtc)}
                 </span>
@@ -1538,9 +1546,9 @@ function BulkInvitePanel({
                     <td style={td}>{p.organization ?? "—"}</td>
                     <td style={td}>
                       {p.valid ? (
-                        <Chip tone="ok" label="VALID" />
+                        <Chip tone="ok" label="Valid" />
                       ) : (
-                        <Chip tone="warn" label="INVALID_EMAIL" />
+                        <Chip tone="warn" label={bulkInvitationOutcomeLabel("INVALID_EMAIL")} />
                       )}
                     </td>
                   </tr>
@@ -1562,7 +1570,7 @@ function BulkInvitePanel({
             >
               {EXTERNAL_REVIEWER_ROLES.map((r) => (
                 <option key={r} value={r}>
-                  {r}
+                  {identifierLabel(r)}
                 </option>
               ))}
             </select>
@@ -1747,7 +1755,7 @@ function BulkInvitePanel({
                           ? "info"
                           : "warn"
                       }
-                      label={r.outcome}
+                      label={bulkInvitationOutcomeLabel(r.outcome)}
                     />
                   </td>
                   <td style={td}>

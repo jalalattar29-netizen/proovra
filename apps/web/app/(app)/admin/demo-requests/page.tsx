@@ -973,7 +973,7 @@ export default function AdminDemoRequestsPage() {
                           marginTop: 10,
                         }}
                       >
-                        <Badge tone={statusTone(item.status)}>{item.status}</Badge>
+                        <Badge tone={statusTone(item.status)}>{titleCaseToken(item.status)}</Badge>
                         <Badge tone={priorityTone(item.priority)}>
                           {item.priority}
                         </Badge>

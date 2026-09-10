@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { identifierLabel } from "@proovra/shared";
+
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
 import { Card } from "../../../../components/ui/Card";
@@ -134,7 +136,7 @@ function Shell() {
       header: "State",
       render: (r) => (
         <span data-destruction-state={r.state} style={statusBadgeStyle(r.state)}>
-          {r.state}
+          {identifierLabel(r.state)}
         </span>
       ),
     },

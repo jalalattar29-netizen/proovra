@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import {
   GOVERNANCE_POLICY_KINDS,
+  identifierLabel,
   type DepartmentProjection,
   type GovernancePolicyKind,
   type GovernancePolicyProjection,
@@ -22,6 +23,7 @@ import { apiFetch, ApiError } from "../../../../lib/api";
 import { formatUserDate } from "../../../../lib/date";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useTenantGuard } from "../../../../lib/platform-context";
+import { permissionDenialCopy } from "../../../../lib/labels/governanceReviewLabels";
 
 /**
  * PHASE 12B CLUSTER 10 — `GET /v1/governance/policies/effective`.
@@ -194,7 +196,7 @@ function Shell() {
         </span>
       ),
     },
-    { key: "kind", header: "Kind", render: (p) => <code>{p.kind}</code> },
+    { key: "kind", header: "Kind", render: (p) => identifierLabel(p.kind) },
     { key: "slug", header: "Slug", render: (p) => <code>{p.slug}</code> },
     {
       key: "enforcementMode",
@@ -228,12 +230,12 @@ function Shell() {
         </span>
       ),
     },
-    { key: "kind", header: "Kind", render: (p) => <code>{p.kind}</code> },
+    { key: "kind", header: "Kind", render: (p) => identifierLabel(p.kind) },
     { key: "slug", header: "Slug", render: (p) => <code>{p.slug}</code> },
     {
       key: "state",
       header: "State",
-      render: (p) => <Badge tone="governance">{p.state}</Badge>,
+      render: (p) => <Badge tone="governance">{identifierLabel(p.state)}</Badge>,
     },
     { key: "enforcementMode", header: "Enforcement", render: (p) => p.enforcementMode },
     { key: "version", header: "Version", render: (p) => `v${p.version}` },
@@ -272,7 +274,8 @@ function Shell() {
           padding="compact"
           data-permission-denied={denial.denial}
         >
-          <strong>Permission required:</strong> {denial.tier}
+          <strong>{permissionDenialCopy(denial.denial, denial.tier).title}</strong>{" "}
+          {permissionDenialCopy(denial.denial, denial.tier).detail}
         </Card>
       ) : null}
 
@@ -340,7 +343,7 @@ function Shell() {
               onChange={(v) => setKindFilter(v as GovernancePolicyKind | "ALL")}
               options={[
                 { value: "ALL", label: "All kinds" },
-                ...GOVERNANCE_POLICY_KINDS.map((k) => ({ value: k, label: k })),
+                ...GOVERNANCE_POLICY_KINDS.map((k) => ({ value: k, label: identifierLabel(k) })),
               ]}
             />
             <FilterBar.Select

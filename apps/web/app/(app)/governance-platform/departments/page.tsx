@@ -64,6 +64,7 @@ import { apiFetch, ApiError } from "../../../../lib/api";
 import { formatUserDate } from "../../../../lib/date";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useTeamId, useTenantGuard } from "../../../../lib/platform-context";
+import { departmentRoleLabel } from "../../../../lib/labels/governanceReviewLabels";
 
 // ---------------------------------------------------------------------------
 // Bounded failure vocabulary.
@@ -468,7 +469,7 @@ function Shell() {
     {
       key: "role",
       header: "Role",
-      render: (m) => <Badge tone="governance">{m.role}</Badge>,
+      render: (m) => <Badge tone="governance">{departmentRoleLabel(m.role)}</Badge>,
     },
     {
       key: "state",
@@ -777,7 +778,7 @@ function Shell() {
                 >
                   {DEPARTMENT_MEMBERSHIP_ROLES.map((r) => (
                     <option key={r} value={r}>
-                      {r}
+                      {departmentRoleLabel(r)}
                     </option>
                   ))}
                 </select>

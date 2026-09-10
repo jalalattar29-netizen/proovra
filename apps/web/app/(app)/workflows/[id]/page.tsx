@@ -37,6 +37,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 
 import type { WorkflowInstanceStatus } from "@proovra/shared";
+import { identifierLabel } from "@proovra/shared";
 
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
@@ -50,6 +51,16 @@ import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 // / LEGAL_HOLD / ARCHIVED / RETAINED / ACTIVE) had no producer route
 // and no UI control wired to them — they are gone from the contract.
 type InstanceStatus = WorkflowInstanceStatus;
+
+/** PV-LANG-003 — timeline event kinds (evidence-workflow-engine) as words. */
+const TIMELINE_KIND_LABEL: Readonly<Record<string, string>> = {
+  "instance.created": "Created",
+  "instance.submitted": "Submitted",
+  "instance.approved": "Approved",
+  "instance.closed": "Closed",
+  "step.satisfied": "Step satisfied",
+  "step.waived": "Step waived",
+};
 
 // Phase C — the workflow-instance detail view is being retired in
 // favor of the canonical reviewer console (EvidenceReviewWorkflow /
@@ -354,7 +365,7 @@ function WorkflowInstancePageInner() {
                 </div>
               </div>
               <span style={statusBadgeStyle(instance.status)}>
-                {instance.status}
+                {identifierLabel(instance.status)}
               </span>
             </div>
             {counts ? (
@@ -481,7 +492,9 @@ function WorkflowInstancePageInner() {
                         </div>
                       ) : null}
                     </div>
-                    <span style={stepStatusBadgeStyle(s.status)}>{s.status}</span>
+                    <span style={stepStatusBadgeStyle(s.status)}>
+                      {identifierLabel(s.status)}
+                    </span>
                     {showLegacyStepControls &&
                     s.status !== "SATISFIED" &&
                     s.status !== "WAIVED" &&
@@ -552,7 +565,9 @@ function WorkflowInstancePageInner() {
                         {formatUserDateTime(e.occurredAtUtc)}
                       </div>
                     </div>
-                    <span style={timelineKindBadge}>{e.kind}</span>
+                    <span style={timelineKindBadge}>
+                      {TIMELINE_KIND_LABEL[e.kind] ?? identifierLabel(e.kind)}
+                    </span>
                   </li>
                 ))}
               </ul>

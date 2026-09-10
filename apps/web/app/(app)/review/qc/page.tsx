@@ -32,7 +32,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { QC_FAILURE_REASONS, QC_VERDICTS } from "@proovra/shared";
+import { QC_FAILURE_REASONS, QC_VERDICTS, identifierLabel } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OperationalEmptyState } from "../../../../components/operational";
@@ -332,7 +332,7 @@ function QcTable({
                 <td style={td}>
                   <code>{r.workflowId.slice(0, 8)}…</code>
                 </td>
-                <td style={td}>{r.state}</td>
+                <td style={td}>{identifierLabel(r.state)}</td>
                 <td style={td}>
                   {r.verdict ? (
                     <code

@@ -31,8 +31,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { identifierLabel } from "@proovra/shared";
+
 import { apiFetch } from "../../../../lib/api";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
+import { intelligenceProviderLabel } from "../../../../lib/labels/workspaceOpsLabels";
 import { useTenantGuard } from "../../../../lib/platform-context";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 
@@ -92,6 +95,38 @@ type Async<T> =
   | { kind: "ready"; data: T }
   | { kind: "denied"; reason: string }
   | { kind: "error"; message: string };
+
+// PV-LANG-003 — record states and correction kinds as a reviewer reads them.
+const RECORD_STATE_LABEL: Readonly<Record<string, string>> = {
+  INGESTED: "Not yet reviewed",
+  IN_REVIEW: "In review",
+  ACCEPTED: "Accepted",
+  REJECTED: "Rejected",
+  CORRECTED: "Corrected",
+  SUPERSEDED: "Replaced by a newer run",
+};
+
+function recordStateLabel(state: string): string {
+  return RECORD_STATE_LABEL[state] ?? identifierLabel(state);
+}
+
+const CORRECTION_KIND_LABEL: Readonly<Record<string, string>> = {
+  OCR_TEXT: "OCR text",
+  OCR_REGION: "OCR region",
+  TRANSCRIPT_TEXT: "Transcript text",
+  TRANSCRIPT_TIMING: "Transcript timing",
+  SPEAKER_LABEL: "Speaker label",
+  SPEAKER_DIARIZATION_MERGE: "Merge speakers",
+  SPEAKER_DIARIZATION_SPLIT: "Split a speaker",
+  ENTITY_TYPE: "Entity type",
+  ENTITY_VALUE: "Entity value",
+  LAYOUT_BLOCK: "Layout block",
+  VIDEO_LABEL: "Video label",
+};
+
+function correctionKindLabel(kind: string): string {
+  return CORRECTION_KIND_LABEL[kind] ?? identifierLabel(kind);
+}
 
 function denialOf(err: unknown): string | null {
   const e = err as {
@@ -427,12 +462,12 @@ export function IntelligenceRecordsPanel() {
               >
                 <td style={td}>
                   <code>{r.id.slice(0, 8)}…</code>
-                  <div style={muted}>{r.label ?? r.kind}</div>
+                  <div style={muted}>{r.label ?? identifierLabel(r.kind)}</div>
                 </td>
-                <td style={td}>{r.modality}</td>
-                <td style={td}>{r.provider}</td>
-                <td style={td}>{r.state}</td>
-                <td style={td}>{r.finalConfidenceBand}</td>
+                <td style={td}>{identifierLabel(r.modality)}</td>
+                <td style={td}>{intelligenceProviderLabel(r.provider)}</td>
+                <td style={td}>{recordStateLabel(r.state)}</td>
+                <td style={td}>{identifierLabel(r.finalConfidenceBand)}</td>
                 <td style={td}>{r.correctionCount}</td>
                 <td style={td}>
                   <button
@@ -492,8 +527,8 @@ export function IntelligenceRecordsPanel() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div>
                         <strong>v{v.versionNumber}</strong>{" "}
-                        <span style={chip}>{v.kind}</span>{" "}
-                        <span style={chip}>{v.state}</span>
+                        <span style={chip}>{correctionKindLabel(v.kind)}</span>{" "}
+                        <span style={chip}>{identifierLabel(v.state)}</span>
                         {v.isCurrent ? (
                           <span style={{ ...chip, background: "#dcfce7" }}>
                             current
@@ -561,7 +596,7 @@ export function IntelligenceRecordsPanel() {
               >
                 {correctionKinds.map((k) => (
                   <option key={k} value={k}>
-                    {k}
+                    {correctionKindLabel(k)}
                   </option>
                 ))}
               </select>

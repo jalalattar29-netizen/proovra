@@ -47,6 +47,11 @@ import {
   useStepUpAction,
 } from "../../../../../components/identity-security/StepUpModal";
 import { formatUserDateTime } from "../../../../../lib/date";
+import { identifierLabel } from "@proovra/shared";
+import {
+  mfaFactorKindLabel,
+  workspaceRoleLabel,
+} from "../../../../../lib/labels/identityOrgLabels";
 import {
   NoWorkspaceSelected,
   SectionDenied,
@@ -272,7 +277,7 @@ export function MfaMemberPostureSection() {
           <div style={{ fontSize: 12.5, fontWeight: 600, overflowWrap: "anywhere" }}>
             {f.label}
           </div>
-          <div style={sectionMuted}>{f.kind}</div>
+          <div style={sectionMuted}>{mfaFactorKindLabel(f.kind)}</div>
         </div>
       ),
     },
@@ -280,7 +285,9 @@ export function MfaMemberPostureSection() {
       key: "status",
       header: "Status",
       render: (f) => (
-        <Badge tone={f.status === "ACTIVE" ? "verified" : "neutral"}>{f.status}</Badge>
+        <Badge tone={f.status === "ACTIVE" ? "verified" : "neutral"}>
+          {identifierLabel(f.status)}
+        </Badge>
       ),
     },
     {
@@ -314,7 +321,9 @@ export function MfaMemberPostureSection() {
       key: "status",
       header: "Status",
       render: (d) => (
-        <Badge tone={d.status === "ACTIVE" ? "verified" : "neutral"}>{d.status}</Badge>
+        <Badge tone={d.status === "ACTIVE" ? "verified" : "neutral"}>
+          {identifierLabel(d.status)}
+        </Badge>
       ),
     },
     {
@@ -356,7 +365,7 @@ export function MfaMemberPostureSection() {
               <option value="">Select a member…</option>
               {members.data.map((m) => (
                 <option key={m.userId} value={m.userId}>
-                  {m.role} · {m.userId.slice(0, 8)}…
+                  {workspaceRoleLabel(m.role)} · {m.userId.slice(0, 8)}…
                 </option>
               ))}
             </select>

@@ -498,6 +498,13 @@ export type AutomationRuleFormProps = {
   rule?: AutomationRule | null;
   triggerTypes: readonly string[];
   actionTypes: readonly string[];
+  /**
+   * PV-ALLOW-001 — the server's operator label for each allowlisted value.
+   * An option shows its label; a value the catalog does not name shows the
+   * identifier rather than nothing.
+   */
+  triggerLabels?: Readonly<Record<string, string>>;
+  actionLabels?: Readonly<Record<string, string>>;
   canManage: boolean;
   onSaved: () => void | Promise<void>;
   onCancel: () => void;
@@ -509,6 +516,8 @@ export function AutomationRuleForm({
   rule = null,
   triggerTypes,
   actionTypes,
+  triggerLabels,
+  actionLabels,
   canManage,
   onSaved,
   onCancel,
@@ -738,7 +747,8 @@ export function AutomationRuleForm({
           style={{ fontSize: 12, color: "#7f1d1d", margin: "0 0 8px" }}
         >
           You have view-only access to automation. Creating and editing rules
-          needs the AUTOMATION_MANAGE capability (workspace owner or admin).
+          needs permission to manage automation, which workspace owners and
+          admins hold.
         </p>
       ) : null}
 
@@ -799,7 +809,7 @@ export function AutomationRuleForm({
           >
             {triggerTypes.map((t) => (
               <option key={t} value={t}>
-                {t}
+                {triggerLabels?.[t] ?? t}
               </option>
             ))}
           </select>
@@ -828,7 +838,7 @@ export function AutomationRuleForm({
           >
             {actionTypes.map((a) => (
               <option key={a} value={a}>
-                {a}
+                {actionLabels?.[a] ?? a}
               </option>
             ))}
           </select>

@@ -562,7 +562,7 @@ function MfaRecoveryAdminBody() {
               <div data-cc-mfa-recovery-empty>
                 <EmptyState
                   compact
-                  title="No recovery codes generated"
+                  title="No pending recovery requests"
                   purpose="No pending MFA recovery requests. When a member requests a lost-factor reset, it appears here for admin review."
                 />
               </div>

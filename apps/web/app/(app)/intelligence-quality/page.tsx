@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import {
   EXECUTIVE_METRICS_RANGES,
+  identifierLabel,
   type ExecutiveMetricsRange,
   type ProviderQualityProjection,
   type ProviderQualityRow,
@@ -22,6 +23,7 @@ import {
 
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../lib/api";
+import { intelligenceProviderLabel } from "../../../lib/labels/workspaceOpsLabels";
 import { IntelligenceRecordsPanel } from "./_sections/IntelligenceRecordsPanel";
 
 export default function IntelligenceQualityPage() {
@@ -180,7 +182,15 @@ function ProviderTable({ rows }: { rows: ReadonlyArray<ProviderQualityRow> }) {
         {rows.map((r) => (
           <tr key={r.provider} data-intelligence-quality-provider-row={r.provider}>
             <td style={td}>#{r.rank}</td>
-            <td style={td}><code>{r.provider}</code></td>
+            <td style={td}>
+              {intelligenceProviderLabel(r.provider)}
+              <code
+                data-identifier
+                style={{ display: "block", fontSize: 11, color: "var(--ink-muted)" }}
+              >
+                {r.provider}
+              </code>
+            </td>
             <td style={td}>{r.callCount}</td>
             <td style={td}>{r.failureRatePct}%</td>
             <td style={td}>{r.recordCount}</td>
@@ -233,6 +243,15 @@ function ReviewerTable({ rows }: { rows: ReadonlyArray<ReviewerQualityRow> }) {
   );
 }
 
+/**
+ * PV-LANG-003 — a TEAM row aggregates the workspace itself (its target is the
+ * workspace id; intelligence-quality.service), so it reads as "Workspace".
+ */
+function qualityScopeLabel(scope: TeamQualityRow["scope"]): string {
+  if (scope === "TEAM" || scope === "WORKSPACE") return "Workspace";
+  return identifierLabel(scope);
+}
+
 function TeamTable({ rows }: { rows: ReadonlyArray<TeamQualityRow> }) {
   if (rows.length === 0) {
     return <p style={{ color: "#475569", fontSize: 12 }}>No team data in window.</p>;
@@ -258,7 +277,7 @@ function TeamTable({ rows }: { rows: ReadonlyArray<TeamQualityRow> }) {
             key={`${r.scope}:${r.scopeTargetId}`}
             data-intelligence-quality-team-row={`${r.scope}:${r.scopeTargetId}`}
           >
-            <td style={td}>{r.scope}</td>
+            <td style={td}>{qualityScopeLabel(r.scope)}</td>
             <td style={td}><code>{r.scopeTargetId.slice(0, 8)}…</code></td>
             <td style={td}>{r.recordCount}</td>
             <td style={td}>{r.correctionCount}</td>

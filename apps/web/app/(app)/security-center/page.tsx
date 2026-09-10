@@ -32,6 +32,7 @@ import {
 } from "../../../components/ui/DataTable";
 import { EmptyState } from "../../../components/ui/EmptyState";
 import { StatusBadge } from "../../../components/ui/StatusBadge";
+import { sessionRevocationScopeLabel } from "../../../lib/labels/identityOrgLabels";
 // Phase IA-collapse — `PersonalSecuritySections` (password, my sessions,
 // security events) moved to the new Account Security home at
 // `/settings/security` (route id `account.security`). This page is now
@@ -309,7 +310,8 @@ function SecurityCenterPageInner() {
       render: (r) => (
         <div>
           <div style={{ fontWeight: 600 }}>
-            {r.userId.slice(0, 8)}… <span style={chipStyle}>{r.scope}</span>
+            {r.userId.slice(0, 8)}…{" "}
+            <span style={chipStyle}>{sessionRevocationScopeLabel(r.scope)}</span>
           </div>
           <div style={mutedStyle}>
             reason {r.reason} · at {formatUtcAuditDateTime(r.revokedAtUtc)}

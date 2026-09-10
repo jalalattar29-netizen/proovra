@@ -48,6 +48,7 @@ import {
   TEMPORARY_ELEVATION_MAX_SECONDS,
   TEMPORARY_ELEVATION_MIN_SECONDS,
   TemporaryElevationSchema,
+  securityEventLabel,
   type Permission,
   type ScimScope,
   type SsoConnectionStatus,
@@ -1092,9 +1093,10 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
             ...actor,
             displayName: actor.userId ? displayNames.get(actor.userId) ?? null : null,
           },
-          // SecurityEvent.details is sanitised by Phase 21; we surface
-          // the eventType + a short summary derived from it.
-          summary: humaniseEventType(e.eventType),
+          // SecurityEvent.details is sanitised by Phase 21 and never projected;
+          // the row carries the eventType and the ONE operator label for it
+          // (PV-LANG-001 — the old per-route humaniser title-cased acronyms).
+          label: securityEventLabel(e.eventType),
         };
       });
       return reply.code(200).send({
@@ -1224,13 +1226,6 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
       return reply.code(200).send({ result });
     },
   );
-}
-
-function humaniseEventType(eventType: string): string {
-  // Operator-safe transform: snake_case → "Snake case".
-  return eventType
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 // =============================================================================

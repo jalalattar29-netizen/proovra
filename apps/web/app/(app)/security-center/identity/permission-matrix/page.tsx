@@ -52,6 +52,11 @@ import { ResultCount } from "../../../../../components/ui/ResultCount";
 
 import { Badge } from "../../../../../components/ui/Badge";
 import { statusTone } from "../../../../../components/ui/StatusBadge";
+import { identifierLabel } from "@proovra/shared";
+import {
+  permissionLabel,
+  workspaceRoleLabel,
+} from "../../../../../lib/labels/identityOrgLabels";
 
 type Outcome = "ALLOW" | "DENY" | "STEP_UP_REQUIRED" | "NOT_APPLICABLE";
 
@@ -304,14 +309,21 @@ export default function PermissionMatrixPage() {
       key: "permission",
       header: "Permission",
       render: (r) => (
-        <span
-          style={{
-            fontFamily:
-              "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-            fontSize: 12,
-          }}
-        >
-          {r.permission}
+        <span style={{ display: "grid", gap: 1 }}>
+          <span style={{ fontSize: 12.5, fontWeight: 600 }}>
+            {permissionLabel(r.permission)}
+          </span>
+          <code
+            data-identifier
+            style={{
+              fontFamily:
+                "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+              fontSize: 11,
+              color: "var(--ink-muted)",
+            }}
+          >
+            {r.permission}
+          </code>
         </span>
       ),
     },
@@ -453,7 +465,7 @@ export default function PermissionMatrixPage() {
                   key={r.role}
                   variant="admin"
                   padding="compact"
-                  title={r.role}
+                  title={workspaceRoleLabel(r.role)}
                   subtitle={`${r.allowed.length} of ${r.total} permissions`}
                   data-role-matrix-role={r.role}
                 >
@@ -480,7 +492,7 @@ export default function PermissionMatrixPage() {
                            permissions below the fold are unreachable. */
                         tabIndex={0}
                         role="group"
-                        aria-label={`${r.role} permissions`}
+                        aria-label={`${workspaceRoleLabel(r.role)} permissions`}
                         className="adm-mono"
                         style={{
                           margin: 0,
@@ -492,7 +504,15 @@ export default function PermissionMatrixPage() {
                         }}
                       >
                         {r.allowed.map((p) => (
-                          <li key={p.permission}>{p.permission}</li>
+                          <li key={p.permission}>
+                            {permissionLabel(p.permission)}{" "}
+                            <code
+                              data-identifier
+                              style={{ color: "var(--ink-muted)" }}
+                            >
+                              {p.permission}
+                            </code>
+                          </li>
                         ))}
                       </ul>
                       {/* THE CARD SAID 93 AND SHOWED 12.
@@ -583,8 +603,11 @@ export default function PermissionMatrixPage() {
                 }}
               >
                 <KV k="Member" v={shortId(snapshot.userId)} mono />
-                <KV k="Canonical role" v={snapshot.canonicalRole} />
-                <KV k="Status" v={snapshot.status} />
+                <KV
+                  k="Canonical role"
+                  v={workspaceRoleLabel(snapshot.canonicalRole)}
+                />
+                <KV k="Status" v={identifierLabel(snapshot.status)} />
                 <KV
                   k="Capability grants"
                   v={String(snapshot.capabilityGrantCount)}

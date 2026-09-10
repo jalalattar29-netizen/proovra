@@ -64,6 +64,7 @@ import { formatUserDateTime } from "../../../../../../lib/date";
 import { Card } from "../../../../../../components/ui/Card";
 import { Badge, type BadgeTone } from "../../../../../../components/ui/Badge";
 import { EmptyState } from "../../../../../../components/ui/EmptyState";
+import { identityProviderLabel } from "../../../../../../lib/labels/identityOrgLabels";
 
 // ---------------------------------------------------------------------------
 // Per-panel bounded state machine (mirrors the /operations page). A single
@@ -495,7 +496,9 @@ function SsoHealthSection({ panel }: { panel: PanelState<SsoHealthSnapshot> }) {
               {panel.data.connections.map((c) => (
                 <li key={c.connectionId} style={rowStyle} data-sso-connection={c.connectionId}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600 }}>{c.provider}</div>
+                    <div style={{ fontWeight: 600 }}>
+                      {identityProviderLabel(c.provider)}
+                    </div>
                     <div style={mutedStyle}>
                       Cert{" "}
                       <Badge tone={CERT_TONE[c.cert.expiryBand]} subtle>

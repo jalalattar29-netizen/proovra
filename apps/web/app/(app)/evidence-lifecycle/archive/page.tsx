@@ -31,6 +31,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { identifierLabel } from "@proovra/shared";
+
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
 import { Card } from "../../../../components/ui/Card";
@@ -428,7 +430,7 @@ const TRANSITION_COLUMNS: DataTableColumn<ArchiveTransition>[] = [
   { key: "evidenceId", header: "Evidence ID", render: (t) => <code>{t.evidenceId}</code> },
   { key: "from", header: "From", render: (t) => TIER_LABELS[t.fromTier] ?? t.fromTier },
   { key: "to", header: "To", render: (t) => TIER_LABELS[t.toTier] ?? t.toTier },
-  { key: "state", header: "State", render: (t) => <strong>{t.state}</strong> },
+  { key: "state", header: "State", render: (t) => <strong>{identifierLabel(t.state)}</strong> },
   { key: "initiated", header: "Initiated", render: (t) => safeDate(t.initiatedAtUtc) },
 ];
 

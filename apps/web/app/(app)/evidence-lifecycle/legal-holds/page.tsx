@@ -25,6 +25,8 @@ import { notifyApiError } from "../../../../lib/feedback/notify";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useTeamId } from "../../../../lib/platform-context";
 import { LifecycleSectionBoundary } from "../_shared";
+import { permissionDenialCopy } from "../../../../lib/labels/governanceReviewLabels";
+import { identifierLabel } from "@proovra/shared";
 
 type PermissionDenialState = { denial: string; tier: string } | null;
 
@@ -346,7 +348,7 @@ function Shell() {
       header: "Scope",
       render: (h) => (
         <span data-legal-hold-scope={h.scope ?? h.kind}>
-          {SCOPE_LABEL[h.scope ?? h.kind] ?? h.kind}
+          {SCOPE_LABEL[h.scope ?? h.kind] ?? identifierLabel(h.kind)}
         </span>
       ),
     },
@@ -397,7 +399,8 @@ function Shell() {
             marginBottom: 10,
           }}
         >
-          <strong>Permission required:</strong> {denial.tier}
+          <strong>{permissionDenialCopy(denial.denial, denial.tier).title}</strong>{" "}
+          {permissionDenialCopy(denial.denial, denial.tier).detail}
         </div>
       ) : null}
 

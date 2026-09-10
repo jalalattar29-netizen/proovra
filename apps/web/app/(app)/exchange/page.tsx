@@ -33,6 +33,8 @@ import {
 import { formatUserDate, formatUserDateTime } from "../../../lib/date";
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import { usePlatformContext } from "../../../lib/platform-context";
+import { identifierLabel } from "@proovra/shared";
+import { permissionDenialCopy } from "../../../lib/labels/governanceReviewLabels";
 
 type PermissionDenialState = { denial: string; tier: string } | null;
 
@@ -418,7 +420,8 @@ function Shell() {
             marginBottom: 10,
           }}
         >
-          <strong>Permission required:</strong> {denial.tier}
+          <strong>{permissionDenialCopy(denial.denial, denial.tier).title}</strong>{" "}
+          {permissionDenialCopy(denial.denial, denial.tier).detail}
         </div>
       ) : null}
 
@@ -558,12 +561,10 @@ function Shell() {
             ) : (
               packages.map((pkg) => (
                 <tr key={pkg.id} data-exchange-package-row={pkg.id}>
-                  <td style={td}>
-                    <code>{pkg.kind}</code>
-                  </td>
+                  <td style={td}>{identifierLabel(pkg.kind)}</td>
                   <td style={td}>{pkg.evidenceIds.length}</td>
                   <td style={td}>
-                    <strong>{pkg.state}</strong>
+                    <strong>{identifierLabel(pkg.state)}</strong>
                   </td>
                   <td style={td}>{formatUserDate(pkg.createdAt)}</td>
                   <td style={td}>

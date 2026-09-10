@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { ENTITLEMENT_KEYS, PRODUCT_LINES } from "@proovra/shared";
+import { ENTITLEMENT_KEYS, PRODUCT_LINES, identifierLabel } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { apiFetch, ApiError } from "../../../lib/api";
 import { formatUserDate } from "../../../lib/date";
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
+import { permissionDenialCopy } from "../../../lib/labels/governanceReviewLabels";
 
 type PermissionDenialState = { denial: string; tier: string } | null;
 
@@ -235,7 +236,8 @@ function Shell() {
             marginBottom: 10,
           }}
         >
-          <strong>Permission required:</strong> {denial.tier}
+          <strong>{permissionDenialCopy(denial.denial, denial.tier).title}</strong>{" "}
+          {permissionDenialCopy(denial.denial, denial.tier).detail}
         </div>
       ) : null}
 
@@ -476,7 +478,7 @@ function Shell() {
                   <td style={td}>
                     <code>{e.key}</code>
                   </td>
-                  <td style={td}>{e.kind}</td>
+                  <td style={td}>{identifierLabel(e.kind)}</td>
                   <td style={td}>{String(e.value)}</td>
                   <td style={td}>{e.source}</td>
                   <td style={td}>

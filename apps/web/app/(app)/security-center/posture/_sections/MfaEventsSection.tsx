@@ -22,6 +22,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { securityEventLabel } from "@proovra/shared";
 
 import { apiFetch } from "../../../../../lib/api";
 import { useTeamId, useTenantGuard } from "../../../../../lib/platform-context";
@@ -246,8 +247,12 @@ export function MfaEventsSection() {
       key: "eventType",
       header: "Event",
       render: (r) => (
-        <span style={{ fontSize: 12.5, fontWeight: 600, overflowWrap: "anywhere" }}>
-          {r.eventType}
+        // PV-LANG-001 — the label first; the stored identifier is the detail.
+        <span style={{ display: "grid", gap: 1, overflowWrap: "anywhere" }}>
+          <span style={{ fontSize: 12.5, fontWeight: 600 }}>
+            {securityEventLabel(r.eventType)}
+          </span>
+          <code style={{ fontSize: 11, color: "var(--ink-muted)" }}>{r.eventType}</code>
         </span>
       ),
     },

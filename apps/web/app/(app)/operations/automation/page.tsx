@@ -30,7 +30,7 @@
  */
 
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type CSSProperties } from "react";
 
 import { apiFetch } from "../../../../lib/api";
 import {
@@ -46,6 +46,7 @@ import "../../admin/platform/admin-platform.css";
 import { AutomationRuleForm } from "../../../../components/automation/AutomationRuleForm";
 import { AutomationRuleToggle } from "../../../../components/automation/AutomationRuleToggle";
 import type { AutomationRule } from "../../../../components/automation/types";
+import { identifierLabel } from "@proovra/shared";
 import { formatUserDateTime } from "../../../../lib/date";
 import { ResultCount } from "../../../../components/ui/ResultCount";
 import { FilterBar } from "../../../../components/ui/FilterBar";
@@ -65,13 +66,105 @@ type AutomationRun = {
   createdAt: string;
 };
 
+/** PV-ALLOW-001 — one allowlisted value, as the server describes it. */
+type CatalogEntry = {
+  value: string;
+  label: string;
+  description: string;
+  internalOnly?: boolean;
+};
+
 type RulesEnvelope = {
   rules: AutomationRule[];
   allowlist: {
     triggerTypes: readonly string[];
     actionTypes: readonly string[];
   };
+  /** Absent from an older API; every read below falls back to the identifier. */
+  catalog?: {
+    triggers: readonly CatalogEntry[];
+    actions: readonly CatalogEntry[];
+  };
 };
+
+/** value → label for one catalog list (empty when the API sent none). */
+function catalogLabels(
+  entries: readonly CatalogEntry[] | undefined,
+): Readonly<Record<string, string>> {
+  const labels: Record<string, string> = {};
+  for (const entry of entries ?? []) labels[entry.value] = entry.label;
+  return labels;
+}
+
+const catalogListStyle: CSSProperties = {
+  listStyle: "none",
+  margin: 0,
+  padding: 0,
+  display: "grid",
+  gap: 10,
+  fontSize: 12.5,
+};
+
+/** One allowlisted value in the reference list: label, meaning, identifier. */
+function CatalogItem({
+  value,
+  entries,
+}: {
+  value: string;
+  entries: readonly CatalogEntry[] | undefined;
+}): JSX.Element {
+  const entry = entries?.find((e) => e.value === value);
+  return (
+    <li data-automation-catalog-value={value}>
+      <strong style={{ display: "block" }}>{entry?.label ?? value}</strong>
+      {entry ? (
+        <span style={{ display: "block", color: "var(--ink-secondary)" }}>
+          {entry.description}
+          {entry.internalOnly ? " Only to destinations this workspace registered." : ""}
+        </span>
+      ) : null}
+      {entry ? (
+        <code style={{ fontSize: 11, color: "var(--ink-muted)" }}>{value}</code>
+      ) : null}
+    </li>
+  );
+}
+
+/**
+ * A trigger or action as an operator reads it: the label, with the stored
+ * identifier beneath as the detail support asks for.
+ */
+function CatalogValue({
+  value,
+  labels,
+}: {
+  value: string;
+  labels: Readonly<Record<string, string>>;
+}): JSX.Element {
+  const label = labels[value];
+  if (!label) return <code style={{ fontSize: 12 }}>{value}</code>;
+  return (
+    <span style={{ display: "grid", gap: 1 }}>
+      <span>{label}</span>
+      <code style={{ fontSize: 11, color: "var(--ink-muted)" }}>{value}</code>
+    </span>
+  );
+}
+
+/** A run status as an operator reads it — the same words as the status filter. */
+const RUN_STATUS_LABEL: Readonly<Record<string, string>> = {
+  PENDING: "Pending",
+  RUNNING: "Running",
+  RETRY_SCHEDULED: "Retry scheduled",
+  SUCCEEDED: "Succeeded",
+  FAILED: "Failed",
+  SKIPPED: "Skipped",
+  DEAD_LETTERED: "Gave up after retries",
+};
+
+function runStatusLabel(status: string): string {
+  return RUN_STATUS_LABEL[status] ?? identifierLabel(status);
+}
 
 type LoadState =
   | { status: "loading" }
@@ -263,6 +356,8 @@ function AutomationPageInner(): JSX.Element {
   }
 
   const { envelope, runs, runsTotal, runsLimit, runsError } = state;
+  const triggerLabels = catalogLabels(envelope.catalog?.triggers);
+  const actionLabels = catalogLabels(envelope.catalog?.actions);
   const enabledCount = envelope.rules.filter((r) => r.enabled).length;
   const editingRule =
     formMode.kind === "edit"
@@ -396,6 +491,8 @@ function AutomationPageInner(): JSX.Element {
             teamId={teamId}
             triggerTypes={envelope.allowlist.triggerTypes}
             actionTypes={envelope.allowlist.actionTypes}
+            triggerLabels={triggerLabels}
+            actionLabels={actionLabels}
             canManage={canManage}
             onSaved={() =>
               afterSave(
@@ -414,6 +511,8 @@ function AutomationPageInner(): JSX.Element {
             rule={editingRule}
             triggerTypes={envelope.allowlist.triggerTypes}
             actionTypes={envelope.allowlist.actionTypes}
+            triggerLabels={triggerLabels}
+            actionLabels={actionLabels}
             canManage={canManage}
             onSaved={() => afterSave("Rule updated.")}
             onCancel={closeForm}
@@ -489,10 +588,10 @@ function AutomationPageInner(): JSX.Element {
                       ) : null}
                     </td>
                     <td>
-                      <code style={{ fontSize: 12 }}>{r.triggerType}</code>
+                      <CatalogValue value={r.triggerType} labels={triggerLabels} />
                     </td>
                     <td>
-                      <code style={{ fontSize: 12 }}>{r.actionType}</code>
+                      <CatalogValue value={r.actionType} labels={actionLabels} />
                     </td>
                     <td data-automation-rule-enabled={String(r.enabled)}>
                       {r.enabled ? "Yes" : "No"}
@@ -586,7 +685,7 @@ function AutomationPageInner(): JSX.Element {
             options={[
               { value: "", label: "All statuses" },
               { value: "FAILED", label: "Failed" },
-              { value: "DEAD_LETTERED", label: "Dead-lettered" },
+              { value: "DEAD_LETTERED", label: "Gave up after retries" },
               { value: "RETRY_SCHEDULED", label: "Retry scheduled" },
               { value: "RUNNING", label: "Running" },
               { value: "PENDING", label: "Pending" },
@@ -627,14 +726,14 @@ function AutomationPageInner(): JSX.Element {
                       {formatUserDateTime(r.createdAt)}
                     </td>
                     <td>
-                      <code style={{ fontSize: 12 }}>{r.triggerType}</code>
+                      <CatalogValue value={r.triggerType} labels={triggerLabels} />
                     </td>
                     <td>
                       <code style={{ fontSize: 12 }}>
                         {r.targetType}:{r.targetId.slice(0, 8)}…
                       </code>
                     </td>
-                    <td data-automation-run-status={r.status}>{r.status}</td>
+                    <td data-automation-run-status={r.status}>{runStatusLabel(r.status)}</td>
                     <td style={{ color: "var(--ink-muted)", fontSize: 12 }}>
                       {r.reason ?? ""}
                     </td>
@@ -653,32 +752,42 @@ function AutomationPageInner(): JSX.Element {
         )}
       </section>
 
-      {/* Allowlist reference */}
+      {/*
+        PV-ALLOW-001 — WHAT A RULE CAN RESPOND TO, AND WHAT IT CAN DO.
+        This listed two columns of bare identifiers under "Bounded allowlists"
+        with a developer's note about DB migrations, in a fixed two-column
+        grid that crushed both lists on a narrow screen. Each value is now its
+        label and one sentence of meaning from the server catalog, the
+        identifier is the secondary detail, and the columns wrap.
+      */}
       <section className="apf-section" data-automation-allowlists>
         <header className="apf-section-head">
-          <h2 className="apf-section-title">Bounded allowlists</h2>
+          <h2 className="apf-section-title">What rules can respond to and do</h2>
           <span className="apf-section-note">
-            Read-only. Adding a value requires a coordinated DB migration.
+            The platform defines these. New triggers and actions arrive with
+            product releases.
           </span>
         </header>
-        <div style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr" }}>
+        <div
+          style={{
+            display: "grid",
+            gap: 16,
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))",
+          }}
+        >
           <div>
-            <h3 style={{ fontSize: 13 }}>Trigger types</h3>
-            <ul style={{ fontSize: 12, color: "var(--ink-secondary)" }}>
+            <h3 style={{ fontSize: 13 }}>Triggers</h3>
+            <ul style={catalogListStyle} data-automation-catalog="triggers">
               {envelope.allowlist.triggerTypes.map((t) => (
-                <li key={t}>
-                  <code>{t}</code>
-                </li>
+                <CatalogItem key={t} value={t} entries={envelope.catalog?.triggers} />
               ))}
             </ul>
           </div>
           <div>
-            <h3 style={{ fontSize: 13 }}>Action types</h3>
-            <ul style={{ fontSize: 12, color: "var(--ink-secondary)" }}>
+            <h3 style={{ fontSize: 13 }}>Actions</h3>
+            <ul style={catalogListStyle} data-automation-catalog="actions">
               {envelope.allowlist.actionTypes.map((a) => (
-                <li key={a}>
-                  <code>{a}</code>
-                </li>
+                <CatalogItem key={a} value={a} entries={envelope.catalog?.actions} />
               ))}
             </ul>
           </div>

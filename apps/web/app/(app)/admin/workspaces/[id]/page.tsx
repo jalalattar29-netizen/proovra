@@ -21,6 +21,14 @@ import { apiFetch } from "../../../../../lib/api";
 import { formatUserDateTime } from "../../../../../lib/date";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useAdminEntityCrumb } from "../../../../../components/admin/AdminEntityCrumb";
+import { identifierLabel } from "@proovra/shared";
+import {
+  billingCycleLabel,
+  billingProviderLabel,
+  planLabel,
+  storageAddonLabel,
+  workspaceKindLabel,
+} from "../../../../../lib/labels/adminPlatformLabels";
 
 /**
  * PLATFORM ADMIN — Workspace detail (ADM-027).
@@ -209,14 +217,16 @@ export default function AdminWorkspaceDetailPage() {
   }, [load]);
 
   const subscriptionColumns: DataTableColumn<Detail["subscriptions"][number]>[] = [
-    { key: "provider", header: "Provider", render: (s) => s.provider },
-    { key: "plan", header: "Plan", render: (s) => s.plan },
+    { key: "provider", header: "Provider", render: (s) => billingProviderLabel(s.provider) },
+    { key: "plan", header: "Plan", render: (s) => planLabel(s.plan) },
     {
       key: "status",
       header: "Status",
       render: (s) => (
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          <Badge tone={s.status === "ACTIVE" ? "verified" : "neutral"}>{s.status}</Badge>
+          <Badge tone={s.status === "ACTIVE" ? "verified" : "neutral"}>
+            {identifierLabel(s.status)}
+          </Badge>
           {s.cancelAtPeriodEnd ? (
             <Badge tone="pending" title="Active, but will not renew">
               Cancels at period end
@@ -256,7 +266,7 @@ export default function AdminWorkspaceDetailPage() {
           title={detail?.name ?? "Workspace"}
           subtitle={
             detail
-              ? `${detail.kind} workspace · created ${formatUserDateTime(detail.createdAt)}`
+              ? `${workspaceKindLabel(detail.kind)} workspace · created ${formatUserDateTime(detail.createdAt)}`
               : undefined
           }
           secondaryActions={
@@ -302,7 +312,7 @@ export default function AdminWorkspaceDetailPage() {
                   <span style={{ fontFamily: "monospace", fontSize: 12 }}>{detail.id}</span>
                 </Field>
                 <Field label="Kind">
-                  <Badge tone="governance">{detail.kind}</Badge>
+                  <Badge tone="governance">{workspaceKindLabel(detail.kind)}</Badge>
                 </Field>
                 <Field label="Lifecycle">
                   {detail.lifecycle === "LIVE" ? (
@@ -378,7 +388,7 @@ export default function AdminWorkspaceDetailPage() {
               {detail.commercial ? (
                 <FieldGrid>
                   <Field label="Effective plan">
-                    <Badge tone="governance">{detail.commercial.plan}</Badge>
+                    <Badge tone="governance">{planLabel(detail.commercial.plan)}</Badge>
                   </Field>
                   <Field label="Commercial lifecycle">
                     <Badge tone={LIFECYCLE_TONE[detail.commercial.lifecycleState] ?? "neutral"}>
@@ -459,7 +469,7 @@ export default function AdminWorkspaceDetailPage() {
                               : "risk"
                         }
                       >
-                        {detail.commercial.enterpriseContract.status}
+                        {identifierLabel(detail.commercial.enterpriseContract.status)}
                       </Badge>
                       {detail.commercial.enterpriseContract.legacyDerived ? (
                         <div
@@ -627,7 +637,8 @@ export default function AdminWorkspaceDetailPage() {
                       tone={a.status === "ACTIVE" ? "verified" : "neutral"}
                       subtle
                     >
-                      {a.addonKey} · {a.status} · {a.billingCycle}
+                      {storageAddonLabel(a.addonKey)} · {identifierLabel(a.status)} ·{" "}
+                      {billingCycleLabel(a.billingCycle)}
                     </Badge>
                   ))}
                 </div>
@@ -646,7 +657,10 @@ export default function AdminWorkspaceDetailPage() {
                 <ul style={{ margin: 0, paddingInlineStart: 18, fontSize: 13.5 }}>
                   {detail.recentActivity.map((a) => (
                     <li key={a.id} style={{ marginBottom: 6 }}>
-                      <strong>{a.eventType}</strong>{" "}
+                      <strong>{identifierLabel(a.eventType)}</strong>{" "}
+                      <code data-identifier style={{ fontSize: 11, color: "var(--ink-muted)" }}>
+                        {a.eventType}
+                      </code>{" "}
                       <span style={{ color: "var(--ink-muted)" }}>
                         {formatUserDateTime(a.createdAt)}
                       </span>

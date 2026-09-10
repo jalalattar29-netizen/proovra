@@ -41,6 +41,10 @@ import { Badge } from "../../../../components/ui/Badge";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { FilterBar } from "../../../../components/ui/FilterBar";
 import { DataTable, type DataTableColumn } from "../../../../components/ui/DataTable";
+import {
+  retentionConflictLabel,
+  retentionDecisionReasonLabel,
+} from "../../../../lib/labels/governanceReviewLabels";
 
 type PolicyStatus = "ACTIVE" | "PAUSED" | "SUPERSEDED" | "ARCHIVED";
 type PolicyScope = "WORKSPACE" | "EVIDENCE_TYPE" | "CASE" | "REGULATORY";
@@ -642,7 +646,8 @@ function RetentionPoliciesPageInner() {
               </div>
             </div>
             <p style={{ ...mutedStyle, marginTop: 10, marginBottom: 0 }}>
-              Engine reason: <code>{effective.reason}</code>
+              {retentionDecisionReasonLabel(effective.reason)}{" "}
+              <code data-identifier>{effective.reason}</code>
             </p>
             {effective.conflicts.length > 0 ? (
               <ul style={{ ...listStyle, marginTop: 10 }}>
@@ -653,7 +658,7 @@ function RetentionPoliciesPageInner() {
                     data-effective-retention-conflict={c.code}
                   >
                     <Badge tone="risk" subtle>
-                      {c.code}
+                      {retentionConflictLabel(c.code)}
                     </Badge>{" "}
                     {c.detail}
                   </li>

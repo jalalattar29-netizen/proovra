@@ -62,6 +62,10 @@ import {
   type RowResult,
   type SurfaceFailure,
 } from "./identity-admin-shared";
+import {
+  permissionLabel,
+  workspaceRoleLabel,
+} from "../../../../../lib/labels/identityOrgLabels";
 
 type StepUpControl = {
   runStepUpAction: <T>(action: (headers?: Record<string, string>) => Promise<T>) => Promise<T>;
@@ -443,7 +447,9 @@ export function MembersSection({
     {
       key: "role",
       header: "Role",
-      render: (m) => <Badge tone="governance">{m.role}</Badge>,
+      render: (m) => (
+        <Badge tone="governance">{workspaceRoleLabel(m.role)}</Badge>
+      ),
     },
     {
       key: "status",
@@ -767,7 +773,12 @@ export function MembersSection({
                       }}
                     >
                       <span>
-                        <code style={{ fontSize: 12 }}>{g.permission}</code>
+                        <span style={{ fontWeight: 600 }}>
+                          {permissionLabel(g.permission)}
+                        </span>{" "}
+                        <code data-identifier style={{ fontSize: 12 }}>
+                          {g.permission}
+                        </code>
                         <span className="adm-help" style={{ display: "block" }}>
                           granted {fmt(g.grantedAtUtc)}
                           {g.expiresAtUtc ? ` · expires ${fmt(g.expiresAtUtc)}` : ""}

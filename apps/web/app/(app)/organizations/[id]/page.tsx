@@ -59,6 +59,11 @@ import { Card } from "../../../../components/ui/Card";
 import { Button } from "../../../../components/ui/Button";
 import { Badge, type BadgeTone } from "../../../../components/ui/Badge";
 import { EmptyState } from "../../../../components/ui/EmptyState";
+import { identifierLabel } from "@proovra/shared";
+import {
+  planLabel,
+  workspaceBillingStatusLabel,
+} from "../../../../lib/labels/identityOrgLabels";
 import {
   StepUpVerify,
   extractStepUp,
@@ -490,7 +495,7 @@ function OrganizationDetailInner() {
         </Badge>
         <span data-pill="status">
           <Badge tone="verified" subtle>
-            {org.data.status}
+            {identifierLabel(org.data.status)}
           </Badge>
         </span>
         <span style={{ fontSize: 12.5, color: "var(--ink-muted, #94a3b8)" }}>
@@ -657,14 +662,14 @@ function OrganizationDetailInner() {
                 >
                   Members in the Admin console
                 </Link>
-                , pick a role, and share the invite token URL. Audited as{" "}
-                <code>ORG_INVITE_CREATED</code>.
+                , pick a role, and share the invite token URL. Each
+                invitation is recorded in the audit timeline.
               </li>
               <li data-onboarding-step="set-legal-metadata">
                 <strong>Set legal metadata.</strong> Fill name, legal name,
                 and legal email in the <strong>Settings</strong> panel below
                 so audit timeline events and exports carry your org’s
-                identity. Audited as <code>ORG_UPDATED</code>.
+                identity. Each change is recorded in the audit timeline.
               </li>
               <li data-onboarding-step="bind-workspace">
                 <strong>Bind a workspace.</strong> Workspaces are where
@@ -1056,7 +1061,7 @@ function OrganizationDetailInner() {
                       <>
                         <span data-pill="workspace-plan">
                           <Badge tone="governance" subtle>
-                            {w.billing.plan}
+                            {planLabel(w.billing.plan)}
                           </Badge>
                         </span>
                         <span data-pill="workspace-billing-status">
@@ -1068,7 +1073,7 @@ function OrganizationDetailInner() {
                             }
                             subtle
                           >
-                            {w.billing.status}
+                            {workspaceBillingStatusLabel(w.billing.status)}
                           </Badge>
                         </span>
                         {w.billing.overSeatLimit && (
@@ -1511,7 +1516,7 @@ function OrgLifecycleControls({
         {openClosure && req ? (
           <div className="mt-2" data-org-closure-status={req.status}>
             <p style={{ margin: "6px 0 0" }}>
-              {ORG_CLOSURE_STATUS_LABEL[req.status] ?? req.status}
+              {ORG_CLOSURE_STATUS_LABEL[req.status] ?? identifierLabel(req.status)}
               {req.status === "COOLING_OFF" && req.coolingOffEndsAtUtc
                 ? ` — closes after ${formatUserDate(req.coolingOffEndsAtUtc)} unless cancelled.`
                 : ""}

@@ -36,6 +36,7 @@ import {
 import { ApiError } from "../../../lib/api";
 // PHASE 7 §10.7/§10.G — tenant-aware lifecycle fetch (re-scope on switch).
 import { usePlatformContext } from "../../../lib/platform-context";
+import { delegatedTierLabel } from "../../../lib/labels/governanceReviewLabels";
 
 // ---------------------------------------------------------------------------
 // 1. Denial / error → resolved UI state
@@ -217,25 +218,11 @@ const DENIAL_PALETTE: Record<
  *
  * The lifecycle pages printed the raw tier constant ("Permission required:
  * DELEGATED_ADMIN"). A reader cannot act on a constant; they can act on "ask a
- * compliance officer". Every tier the API can name (DELEGATED_ADMIN_TIERS) has
- * a label here, plus the generic fallback the pages used when none was sent.
+ * compliance officer". The tier map lives in lib/labels/governanceReviewLabels
+ * so the exchange / packaging / policy pages outside this segment say the same
+ * words; it is re-exported here for the lifecycle pages.
  */
-const DELEGATED_TIER_LABELS: Record<string, string> = {
-  GLOBAL_ADMIN: "a global administrator",
-  ORG_ADMIN: "an organization administrator",
-  DEPARTMENT_ADMIN: "a department administrator",
-  WORKSPACE_ADMIN: "a workspace administrator",
-  REVIEWER_LEAD: "a reviewer lead",
-  SECURITY_OFFICER: "a security officer",
-  COMPLIANCE_OFFICER: "a compliance officer",
-  DELEGATED_ADMIN: "a delegated administrator",
-};
-
-/** The role a reader should ask, never the constant. */
-export function delegatedTierLabel(tier: string | null | undefined): string {
-  if (!tier) return DELEGATED_TIER_LABELS.DELEGATED_ADMIN;
-  return DELEGATED_TIER_LABELS[tier] ?? DELEGATED_TIER_LABELS.DELEGATED_ADMIN;
-}
+export { delegatedTierLabel };
 
 /** An entitlement key rendered as words ("FEATURE_LEGAL_HOLD" -> "legal hold"). */
 export function entitlementLabel(key: string): string {

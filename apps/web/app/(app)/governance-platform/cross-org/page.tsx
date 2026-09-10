@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import type { CrossOrgReviewGrantProjection } from "@proovra/shared";
+import { identifierLabel, type CrossOrgReviewGrantProjection } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
@@ -91,7 +91,7 @@ function Shell() {
       header: "Scope",
       render: (g) => `${g.scope.slice(0, 80)}${g.scope.length > 80 ? "…" : ""}`,
     },
-    { key: "state", header: "State", render: (g) => <Badge tone="governance">{g.state}</Badge> },
+    { key: "state", header: "State", render: (g) => <Badge tone="governance">{identifierLabel(g.state)}</Badge> },
     {
       key: "externalGrant",
       header: "External grant",

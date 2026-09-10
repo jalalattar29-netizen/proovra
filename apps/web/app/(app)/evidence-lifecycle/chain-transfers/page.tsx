@@ -12,6 +12,8 @@ import { statusBadgeStyle } from "../../../../components/ui/StatusBadge";
 import { apiFetch, ApiError } from "../../../../lib/api";
 import { formatUserDate } from "../../../../lib/date";
 import { LifecycleSectionBoundary } from "../_shared";
+import { identifierLabel } from "@proovra/shared";
+import { permissionDenialCopy } from "../../../../lib/labels/governanceReviewLabels";
 
 type PermissionDenialState = { denial: string; tier: string } | null;
 
@@ -152,7 +154,7 @@ function Shell() {
     {
       key: "state",
       header: "State",
-      render: (t) => <span style={statusBadgeStyle(t.state)}>{t.state}</span>,
+      render: (t) => <span style={statusBadgeStyle(t.state)}>{identifierLabel(t.state)}</span>,
     },
     { key: "created", header: "Created", render: (t) => safeDate(t.createdAtUtc) },
   ];
@@ -197,7 +199,8 @@ function Shell() {
             marginBottom: 10,
           }}
         >
-          <strong>Permission required:</strong> {denial.tier}
+          <strong>{permissionDenialCopy(denial.denial, denial.tier).title}</strong>{" "}
+          {permissionDenialCopy(denial.denial, denial.tier).detail}
         </div>
       ) : null}
 

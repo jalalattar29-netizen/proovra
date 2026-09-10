@@ -40,6 +40,8 @@ import {
   SectionLoadingSkeleton,
   useLifecycleFetch,
 } from "../_shared";
+import { identifierLabel } from "@proovra/shared";
+import { retentionTemplateLabel } from "../../../../lib/labels/governanceReviewLabels";
 
 interface RetentionPolicy {
   id: string;
@@ -243,9 +245,9 @@ function Shell() {
       >
         <p style={{ margin: 0, fontSize: 12, color: "#475569", marginBottom: 10 }}>
           Policies apply to the chosen scope. Create one per workspace, department,
-          or case. Use <code>CORPORATE_5Y</code> for most workspaces, or{" "}
-          <code>CUSTOM</code> with an explicit number of years for a bespoke
-          retention window.
+          or case. Use <strong>{retentionTemplateLabel("CORPORATE_5Y")}</strong> for
+          most workspaces, or <strong>{retentionTemplateLabel("CUSTOM")}</strong> with
+          an explicit number of years for a bespoke retention window.
         </p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
           <label style={labelStyle}>
@@ -266,7 +268,7 @@ function Shell() {
             >
               {RETENTION_TEMPLATES.map((t) => (
                 <option key={t} value={t}>
-                  {t}
+                  {retentionTemplateLabel(t)}
                 </option>
               ))}
             </select>
@@ -409,7 +411,7 @@ const POLICY_COLUMNS: DataTableColumn<RetentionPolicy>[] = [
   { key: "template", header: "Template", render: (p) => <code>{p.template}</code> },
   { key: "scope", header: "Scope", render: (p) => p.scopeKind },
   { key: "target", header: "Target", render: (p) => p.scopeTargetId ?? "—" },
-  { key: "state", header: "State", render: (p) => <strong>{p.state}</strong> },
+  { key: "state", header: "State", render: (p) => <strong>{identifierLabel(p.state)}</strong> },
   { key: "expires", header: "Expires", render: (p) => formatDate(p.expiresAtUtc) },
   { key: "created", header: "Created", render: (p) => formatDate(p.createdAtUtc) },
 ];
