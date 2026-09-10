@@ -1491,15 +1491,78 @@ meaningless unless `git status` is clean.
 
 ## AD. THE COMMIT
 
-Staged: the 22 modified files plus this report. Deliberately **not** staged —
-untracked audit artifacts from earlier, unrelated work that were already in the
-tree before this pass began:
+Two commits. `c3a92a42` staged the 22 modified files plus this report;
+`9e53343c` staged the four generated artifacts regenerated against a CI-shaped
+tree, plus the §D rewrite this report needed once CI disproved the first
+diagnosis (§AE).
+
+Deliberately **not** staged in either — untracked audit artifacts from earlier,
+unrelated work that were already in the tree before this pass began, one of
+which turned out to be the cause of §D:
 
 - `audit-output/current/admin-enterprise-product-audit.json`
 - `docs/admin/audits/ADMIN_ENTERPRISE_PRODUCT_AUDIT.md`
 - `docs/admin/audits/FINAL_ADVERSARIAL_E2E_CLOSURE_AUDIT.md`
 
-`git fetch origin` first; rebase only if `origin/main` moved. **No force push**,
-under any circumstance.
+`git fetch origin` before each push; rebase only if `origin/main` moved (it did
+not). **No force push**, under any circumstance — including to tidy the first
+commit's diagnosis, which is why the correction is a second commit.
+
+---
+
+## AE. THE PUSHES — TWO, BECAUSE THE FIRST DID NOT CLOSE `build-test`
+
+### AE.1 `c3a92a42` — the recovery
+
+```
+$ git fetch origin
+$ git rev-list --left-right --count origin/main...HEAD
+0	1                      # nothing to rebase onto; one commit ahead
+
+$ git push origin main     # no --force, no --force-with-lease
+   ec92bc6a..c3a92a42  main -> main
+
+$ git fetch origin
+$ git rev-list --left-right --count origin/main...HEAD
+0	0
+```
+
+23 files, +2762 / −232, fast-forward. The commit message was amended once
+**before** pushing, because its first draft described the ioredis fix as landed
+and that fix was subsequently reverted (§R.1). A message that misdescribes its
+own diff is worse than an amend it never needed.
+
+### AE.2 `9e53343c` — the artifact fix that the first push proved necessary
+
+`build-test` came back red on `c3a92a42`, at the same step 6, and that is what
+produced §D.2. Regenerating against a CI-shaped tree changed four generated
+files; the fix is a second commit rather than an amend, because `c3a92a42` was
+already pushed and rewriting published history to tidy a diagnosis is not worth
+a force push — which §0 forbids in any case.
+
+```
+$ git push origin main
+   c3a92a42..9e53343c  main -> main
+
+$ git fetch origin
+$ git rev-list --left-right --count origin/main...HEAD
+0	0
+```
+
+5 files, +131 / −30, fast-forward. `origin/main` is `9e53343c`.
+
+The working tree carries no uncommitted tracked change. Three untracked files
+remain, unstaged, and one of them is the cause of §D — restored to the tree it
+was found in rather than committed or deleted, because it is not this pass's
+work to publish or destroy:
+
+```
+?? audit-output/current/admin-enterprise-product-audit.json
+?? docs/admin/audits/ADMIN_ENTERPRISE_PRODUCT_AUDIT.md
+?? docs/admin/audits/FINAL_ADVERSARIAL_E2E_CLOSURE_AUDIT.md
+```
+
+Neither push used `--force`. Neither needed a rebase: `origin/main` did not
+move during this pass.
 
 ---
