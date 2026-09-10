@@ -1,0 +1,261 @@
+/* ===========================================================================
+   PUBLIC WORKSPACE INVITATION — `/invite/[token]`
+   ===========================================================================
+
+   Scoped to this route. Nothing here is a new design system: the colours are
+   the canonical feedback tokens `ProovraSystemState` already paints with
+   (pearl #F7F8FC ground, #FFFFFF card, #E7ECF4 hairline, #0F172A ink,
+   #475569 muted), and the composition primitive supplies the symbol, the
+   status label, the heading, the message and the actions. This file positions
+   that primitive and styles the one thing it does not own — the labelled
+   invitation facts.
+
+   WHAT IS DELIBERATELY ABSENT
+   ---------------------------------------------------------------------------
+   No green and no teal, in any state, including success. The retired
+   treatment this replaces used `site-velvet-bg` under an rgba(8,18,22,0.84)
+   scrim with an rgba(158,216,207,0.08) teal glow, a `panel-silver` card, and
+   rgba(79,112,107,0.22) borders over #1d3136 ink. None of it survives here,
+   and the accepted state is violet rather than green because a green success
+   page is exactly what this journey was asked not to be.
+
+   No background image. The old page loaded two full-bleed photographs to
+   render two sentences.
+
+   LOGICAL PROPERTIES ONLY
+   ---------------------------------------------------------------------------
+   The root layout sets `<html dir>` from the locale, so `inline-start` /
+   `inline-end` are used throughout and Arabic mirrors without a second
+   stylesheet.
+   =========================================================================== */
+
+.invite-shell {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 100dvh;
+  background: #f7f8fc;
+  /*
+    THE INHERITED INK, WHICH WAS STILL THE LEGACY TEAL.
+
+    Measured in a real browser on this page: every element under the shell that
+    did not set its own colour computed to `rgb(36, 55, 59)` — #24373b, the
+    global `--foreground` token, which is a dark teal. The card's own text was
+    fine (the state primitive and this file set their colours explicitly), so
+    the page LOOKED migrated while 32 computed colours on it were not — the
+    header's nav links among them.
+
+    `--foreground` is global and is deliberately NOT changed: other surfaces
+    depend on it and this task is "no green in the invitation experience", not
+    "delete the token". Declaring the canonical ink here scopes the correction
+    to this route, and nothing below it can inherit teal any more.
+  */
+  color: #0f172a;
+}
+
+/* The transaction sits high on the page rather than dead-centre: centring a
+   short card in a tall viewport is what produced the "enormous empty hero"
+   the redesign was asked to remove. `center` on the cross axis, a bounded
+   block-start offset on the main axis. */
+.invite-main {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-inline: 20px;
+  padding-block: clamp(28px, 7vh, 72px) 56px;
+}
+
+/* CONTENT-DRIVEN. No min-height, no aspect ratio, no fixed width — the card is
+   exactly as tall as what it has to say, which is the difference between the
+   accepted state (four lines) and the ready state (four lines plus five
+   facts). */
+.invite-card {
+  inline-size: 100%;
+  max-inline-size: 660px;
+  background: #ffffff;
+  border: 1px solid #e7ecf4;
+  border-radius: 16px;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 12px 32px rgba(15, 23, 42, 0.07);
+  padding: clamp(22px, 4vw, 36px);
+}
+
+/* ---------------------------------------------------------------------------
+   THE LABELLED FACTS
+   --------------------------------------------------------------------------- */
+
+/* A two-column definition list on desktop, stacked on a phone. `auto` for the
+   label column so a long localised label cannot squeeze the value, and
+   `minmax(0, 1fr)` for the value so a long workspace name wraps instead of
+   widening the card. */
+.invite-facts {
+  display: grid;
+  gap: 10px 20px;
+  margin-block: 20px 4px;
+  padding-block: 18px;
+  border-block: 1px solid #eef1f7;
+  inline-size: 100%;
+}
+
+.invite-facts > div {
+  display: grid;
+  grid-template-columns: minmax(96px, auto) minmax(0, 1fr);
+  gap: 4px 20px;
+  align-items: baseline;
+}
+
+.invite-facts dt {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.invite-facts dd {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #0f172a;
+  /* A workspace name, an organization name and an email are all
+     caller-supplied and can be long with no spaces. Break rather than
+     overflow — this is the requirement that a 60-character team name must not
+     scroll the page sideways at 320px. */
+  overflow-wrap: anywhere;
+}
+
+.invite-facts time {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------------------
+   LOADING
+   --------------------------------------------------------------------------- */
+
+/* Holds the facts' height so the card does not jump when the lookup answers.
+   Four rows because that is the common shape. */
+.invite-facts--loading > div {
+  grid-template-columns: minmax(96px, auto) minmax(0, 1fr);
+}
+
+.invite-skel {
+  display: block;
+  block-size: 12px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #eef1f7 0%, #f7f8fc 50%, #eef1f7 100%);
+  background-size: 200% 100%;
+  animation: invite-skel-sweep 1.4s ease-in-out infinite;
+}
+
+.invite-skel--label {
+  inline-size: 68px;
+}
+
+.invite-skel--value {
+  inline-size: min(240px, 70%);
+  block-size: 14px;
+}
+
+@keyframes invite-skel-sweep {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+/* REDUCED MOTION. The sweep is decorative; the skeleton still communicates
+   "loading" as a shape, and `aria-busy` on the card communicates it to a
+   screen reader regardless. */
+@media (prefers-reduced-motion: reduce) {
+  .invite-skel {
+    animation: none;
+    background: #eef1f7;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   THE TRUST / LEGAL LINE
+   --------------------------------------------------------------------------- */
+
+/* `/login`, `/register` and `/reset-password` all mount MarketingHeader with
+   NO footer, and this page follows them — so the legal destinations a public
+   page has to keep reachable live here in one line rather than as a marketing
+   directory above the decision. */
+.invite-trust {
+  margin-block: 22px 0;
+  padding-block-start: 16px;
+  border-block-start: 1px solid #eef1f7;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: #64748b;
+  inline-size: 100%;
+}
+
+.invite-trust a {
+  color: #475569;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.invite-trust a:hover {
+  color: #0f172a;
+}
+
+/* The canonical focus ring, matching the app primitives rather than inventing
+   a second one. */
+.invite-trust a:focus-visible {
+  outline: 2px solid #7c3aed;
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* ---------------------------------------------------------------------------
+   NARROW
+   --------------------------------------------------------------------------- */
+
+@media (max-width: 560px) {
+  .invite-main {
+    padding-inline: 14px;
+    padding-block: 20px 40px;
+  }
+
+  .invite-card {
+    border-radius: 14px;
+    padding: 20px 18px;
+  }
+
+  /* Labels above values below ~560px: two columns at 320px leaves the value
+     column too narrow for an email address, and a wrapped email under a
+     right-aligned label reads as two unrelated fragments. */
+  .invite-facts > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .invite-facts {
+    gap: 14px 0;
+  }
+}
+
+/* The primitive's action row wraps on its own; this makes each control
+   full-width on a phone so the primary is a comfortable target rather than a
+   short button beside a shorter one. */
+@media (max-width: 420px) {
+  .invite-card [data-system-state-actions] {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    inline-size: 100%;
+  }
+
+  .invite-card [data-system-state-actions] > a,
+  .invite-card [data-system-state-actions] > button {
+    inline-size: 100%;
+    justify-content: center;
+  }
+}

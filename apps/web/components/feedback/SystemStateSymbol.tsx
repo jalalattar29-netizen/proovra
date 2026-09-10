@@ -76,6 +76,32 @@ export function SystemStateSymbol({
     );
   }
 
+  // A LIVE invitation → mail + person. Deliberately NOT the mail-and-clock
+  // glyph below: that one reads as "something timed out", which is the wrong
+  // first impression for an invitation that is perfectly good.
+  if (kind === "invitation-ready") {
+    return (
+      <svg {...common}>
+        <path d="M8 14h20a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V16a2 2 0 0 1 2-2Z" />
+        <path d="M6.5 15 18 24l11.5-9" />
+        <circle cx="35" cy="20" r="4.5" />
+        <path d="M28.5 34c1.2-4 3.6-6 6.5-6s5.3 2 6.5 6" />
+      </svg>
+    );
+  }
+
+  // ACCEPTED → mail + check. A check, not a filled badge, and it takes the
+  // caller's tone rather than carrying a colour of its own.
+  if (kind === "invitation-accepted") {
+    return (
+      <svg {...common}>
+        <path d="M8 12h20a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V14a2 2 0 0 1 2-2Z" />
+        <path d="M6.5 13 18 22l11.5-9" />
+        <path d="m27 33 4.5 4.5L41 28" />
+      </svg>
+    );
+  }
+
   // invitation / token → mail + clock
   if (
     kind === "invitation-expired" ||

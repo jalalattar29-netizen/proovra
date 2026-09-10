@@ -51,6 +51,10 @@ import {
   resolveWorkspaceSeatState,
 } from "../billing/workspace-seats.service.js";
 import { organizationLifecycleApplies } from "./workspace-kind.js";
+import {
+  maskInvitedEmail,
+  type WorkspaceInvitationLookup,
+} from "@proovra/shared";
 
 export class WorkspaceInvitationError extends Error {
   readonly code: string;
@@ -575,4 +579,138 @@ export async function acceptWorkspaceInvitation(
     "Too many people are joining this workspace at once. Try again in a moment.",
     409,
   );
+}
+
+
+// =============================================================================
+// Look up — the READ path, added 2026-09-10
+// =============================================================================
+
+/**
+ * Describe an invitation without consuming it.
+ *
+ * =============================================================================
+ * WHY THIS HAD TO EXIST
+ * =============================================================================
+ * Until now the invitation domain was MUTATION-ONLY. There was no way to learn
+ * anything about a token except by POSTing it to `accept`, and the public
+ * `/invite/[token]` page did exactly that — from a `useEffect` on mount, with
+ * no button and no confirmation. Opening the link WAS accepting the invitation.
+ *
+ * That is not a presentation defect that a redesign can paint over:
+ *
+ *   - a recipient could not see which workspace, which role or which mailbox
+ *     they were joining before they had already joined it;
+ *   - an expired or revoked link was indistinguishable from a live one until
+ *     the mutation had already been attempted;
+ *   - a signed-out recipient was sent to sign in with no idea whether the
+ *     invitation was still good, and a mail scanner that followed the link
+ *     while the recipient happened to have a live session accepted on their
+ *     behalf.
+ *
+ * This is a READ. It writes nothing, claims nothing, and provisions nothing.
+ *
+ * =============================================================================
+ * WHAT IT IS NOT
+ * =============================================================================
+ * It is not a second invitation system and not a second authority. It resolves
+ * status through `invitationStatus()` — the same function `accept` uses — and
+ * reads the same `TeamInvite` row. Every refusal `accept` can still throw is
+ * unchanged; this only lets the page ask before it acts.
+ *
+ * =============================================================================
+ * DISCLOSURE
+ * =============================================================================
+ * The token is the bearer credential, so the audience of this endpoint is the
+ * audience of the email that carried it. Even so it discloses as little as it
+ * can:
+ *
+ *   - an unknown token gets `null` — not "no such invitation for workspace X",
+ *     and not a different shape from a spent one, so the response cannot be
+ *     used to test whether a workspace or an invitation ever existed;
+ *   - `context` is populated ONLY for PENDING. A spent, revoked or expired
+ *     token does not name the workspace again;
+ *   - the invited address is MASKED, which is enough for the recipient to
+ *     recognise the mailbox and not enough to harvest it;
+ *   - no `workspaceId`, `organizationId`, `inviteId` or `acceptedByUserId`
+ *     leaves this function.
+ *
+ * The workspace-liveness checks mirror `accept` exactly — same closure test,
+ * same `organizationLifecycleApplies` predicate — so the page never invites
+ * someone to accept into a workspace that would refuse them, and never calls
+ * that refusal "expired".
+ */
+export async function lookupWorkspaceInvitation(
+  input: { rawToken: string },
+  client: PrismaClient = defaultPrisma,
+): Promise<WorkspaceInvitationLookup | null> {
+  const invite = await client.teamInvite.findFirst({
+    where: { tokenHash: hashToken(input.rawToken) },
+    select: {
+      email: true,
+      role: true,
+      expiresAt: true,
+      acceptedAt: true,
+      revokedAt: true,
+      teamId: true,
+    },
+  });
+  // Unknown token: one indistinguishable answer. The caller turns this into a
+  // single opaque state, so a guessed token learns nothing a typo would not.
+  if (!invite) return null;
+
+  const status = invitationStatus(invite);
+  if (status !== "PENDING") {
+    // Truthful about WHICH terminal state, silent about the workspace.
+    return { state: status, context: null };
+  }
+
+  const workspace = await client.team.findUnique({
+    where: { id: invite.teamId },
+    select: {
+      name: true,
+      closedAtUtc: true,
+      workspaceKind: true,
+      organization: { select: { name: true, status: true } },
+    },
+  });
+
+  // A missing or closed workspace, or a non-ACTIVE customer organization, is
+  // the same answer `accept` gives (WORKSPACE_NOT_ACCEPTING_MEMBERS). Saying
+  // "expired" here would be a lie, and offering Accept would be a control that
+  // cannot succeed.
+  if (!workspace || workspace.closedAtUtc !== null) {
+    return { state: "NOT_ACCEPTING_MEMBERS", context: null };
+  }
+  if (
+    organizationLifecycleApplies(workspace.workspaceKind ?? "UNKNOWN") &&
+    workspace.organization?.status !== "ACTIVE"
+  ) {
+    return { state: "NOT_ACCEPTING_MEMBERS", context: null };
+  }
+
+  /*
+    THE ORGANIZATION NAME IS OMITTED WHEN IT IS NOT A SECOND FACT.
+
+    A personal or owned workspace is backed by an internal SYSTEM container
+    whose name is not a customer-facing organization, and a workspace whose
+    name already equals its organization's would render the same string twice
+    under two labels. Both cases are `null` — the page then shows one name,
+    which is the truth.
+  */
+  const orgName = organizationLifecycleApplies(workspace.workspaceKind ?? "UNKNOWN")
+    ? (workspace.organization?.name ?? null)
+    : null;
+
+  return {
+    state: "PENDING",
+    context: {
+      workspaceName: workspace.name,
+      organizationName:
+        orgName && orgName !== workspace.name ? orgName : null,
+      role: String(invite.role),
+      invitedEmailMasked: maskInvitedEmail(invite.email),
+      expiresAtUtc: invite.expiresAt.toISOString(),
+    },
+  };
 }

@@ -35,6 +35,19 @@ export type SystemStateContext = "authenticated" | "public";
 /** full-page paints the page canvas; contained sits inside a surface. */
 export type SystemStatePresentation = "full-page" | "contained";
 
+/**
+ * The restrained semantic accent applied to the SYMBOL only.
+ *
+ * The composition is deliberately ink-coloured — a state does not become
+ * clearer by being loud — so this tints one 40px line glyph and nothing else.
+ * Status is always carried by the label and the heading as well, never by
+ * colour alone (WCAG 1.4.1).
+ *
+ * `neutral` is the default and the historical behaviour: every caller that
+ * does not pass a tone renders exactly as it did before this prop existed.
+ */
+export type SystemStateTone = "neutral" | "info" | "success" | "warning" | "error";
+
 export type SystemStateKind =
   | "not-found"
   | "forbidden"
@@ -47,6 +60,18 @@ export type SystemStateKind =
   | "invitation-expired"
   | "invitation-invalid"
   | "invitation-revoked"
+  /**
+   * A LIVE invitation, and one just accepted (2026-09-10).
+   *
+   * Every other kind here describes something that went wrong, because until
+   * now every surface that reached this primitive had. The public invitation
+   * page needs the same composition — symbol, status label, heading, message,
+   * actions — for the states where nothing is wrong at all, and cloning the
+   * primitive to get it would have produced a second visual language for the
+   * one journey that most needs to look trustworthy.
+   */
+  | "invitation-ready"
+  | "invitation-accepted"
   | "token-expired";
 
 export type SystemStateAction = {
@@ -141,6 +166,17 @@ export const SYSTEM_STATE_PRESETS: Record<SystemStateKind, Preset> = {
     message:
       "Access for this link was withdrawn. Ask an administrator to send a new invitation.",
   },
+  "invitation-ready": {
+    statusLabel: "Invitation",
+    title: "You've been invited to a workspace",
+    message:
+      "Review the details below, then continue to accept this invitation.",
+  },
+  "invitation-accepted": {
+    statusLabel: "Invitation",
+    title: "Invitation accepted",
+    message: "You now have access to this workspace.",
+  },
   "token-expired": {
     statusLabel: "Link expired",
     title: "This link has expired",
@@ -174,6 +210,21 @@ export interface ProovraSystemStateProps {
   minHeight?: string;
   /** data-testid passthrough. */
   testId?: string;
+  /**
+   * Restrained accent for the symbol. Defaults to `neutral`, which is the
+   * pre-existing ink treatment.
+   */
+  tone?: SystemStateTone;
+  /**
+   * Structured content between the message and the actions.
+   *
+   * `detail` is a single `<p>`, which is right for one line of context and
+   * wrong for a definition list — the invitation page has to show workspace,
+   * role and invited address as labelled facts. A generic slot keeps that
+   * knowledge at the call site instead of teaching this primitive about
+   * invitations.
+   */
+  children?: ReactNode;
 }
 
 export function ProovraSystemState({
@@ -188,6 +239,8 @@ export function ProovraSystemState({
   supportReference,
   minHeight,
   testId,
+  tone = "neutral",
+  children,
 }: ProovraSystemStateProps) {
   const preset = SYSTEM_STATE_PRESETS[kind];
   const resolvedTitle = title ?? preset.title;
@@ -279,10 +332,16 @@ export function ProovraSystemState({
       data-system-state-kind={kind}
       data-system-state-context={context}
       data-system-state-presentation={presentation}
+      data-system-state-tone={tone}
       data-testid={testId}
     >
       <div style={column}>
-        <span aria-hidden style={symbol}>
+        <span
+          aria-hidden
+          style={
+            tone === "neutral" ? symbol : { ...symbol, color: TONE_INK[tone] }
+          }
+        >
           <SystemStateSymbol kind={kind} size={isFull ? 54 : 40} />
         </span>
 
@@ -291,6 +350,7 @@ export function ProovraSystemState({
         <h1 style={titleS}>{resolvedTitle}</h1>
         <p style={messageS}>{resolvedMessage}</p>
         {detail ? <p style={detailStyle}>{detail}</p> : null}
+        {children}
 
         {actions.length > 0 ? (
           <div style={actionsRow} data-system-state-actions>
@@ -336,7 +396,7 @@ function renderAction(a: SystemStateAction, big: boolean) {
       >
         {a.label}
         {a.external ? (
-          <span aria-hidden="true" style={{ marginLeft: 5 }}>
+          <span aria-hidden="true" style={{ marginInlineStart: 5 }}>
             ↗
           </span>
         ) : null}
@@ -373,7 +433,12 @@ const columnBase: CSSProperties = {
   display: "flex",
   flexDirection: "column",
   alignItems: "flex-start",
-  textAlign: "left",
+  // LOGICAL, not physical (2026-09-10). `textAlign: "left"` does not mirror
+  // under `dir="rtl"`, and the root layout sets `dir` from the locale — so
+  // every Arabic reader of every one of this primitive's surfaces got a
+  // left-aligned column inside a right-to-left page. `start` is identical in
+  // LTR and correct in RTL.
+  textAlign: "start",
   width: "100%",
 };
 
@@ -494,6 +559,19 @@ const btnBaseLarge: CSSProperties = {
   padding: "0 22px",
   borderRadius: 11,
   fontSize: "0.9375rem",
+};
+
+/**
+ * One value per tone, and each is a token already used elsewhere in PROOVRA
+ * feedback: violet for information and confirmation (the product accent —
+ * NOT green, which this journey deliberately does not use), amber for a
+ * condition the reader may be able to resolve, red for one they cannot.
+ */
+const TONE_INK: Record<Exclude<SystemStateTone, "neutral">, string> = {
+  info: "#5B3FBF",
+  success: "#5B3FBF",
+  warning: "#B45309",
+  error: "#B3261E",
 };
 
 const primaryBtnColors: CSSProperties = {

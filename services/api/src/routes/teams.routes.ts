@@ -45,6 +45,7 @@ import { getEmailService } from "../services/email.service.js";
 import {
   WorkspaceInvitationError,
   acceptWorkspaceInvitation,
+  lookupWorkspaceInvitation,
   createWorkspaceInvitation,
   projectInvitation,
   resendWorkspaceInvitation,
@@ -52,6 +53,7 @@ import {
 } from "../services/identity/workspace-invitation.service.js";
 import { emitTenantAudit, emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
+import { enforceRateLimit } from "../services/rate-limit.js";
 import { verifyAccountStepUp } from "../services/identity-security/account-step-up.service.js";
 import { evaluateWorkspaceClosurePreflight } from "../services/identity/account-lifecycle-preflight.service.js";
 // PHASE 13 §4 (2026-08-17) — tenant destruction must take the AI rows with it;
@@ -2123,6 +2125,103 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       return reply.code(204).send();
     }
+  );
+
+  /**
+   * POST /v1/teams/invites/lookup — DESCRIBE an invitation, consume nothing.
+   *
+   * ---------------------------------------------------------------------------
+   * WHY POST, FOR A READ
+   * ---------------------------------------------------------------------------
+   * Because the token must not travel in a URL. WCR-20 moved the collaboration
+   * accept token out of the request path for exactly this reason — a live
+   * credential in a path "reaches access logs, proxy logs, APM traces and
+   * `Referer` headers" — and a lookup carries the same credential. A GET with
+   * the token in the path would re-introduce the defect the repository already
+   * decided against, so the body form is used here from the start.
+   *
+   * ---------------------------------------------------------------------------
+   * WHY UNAUTHENTICATED
+   * ---------------------------------------------------------------------------
+   * The recipient of an invitation does not have an account yet in the case the
+   * invitation exists to solve. The public page has to be able to say "you are
+   * invited to Northgate as a Member, sign in to continue" BEFORE there is a
+   * session, or it is back to sending people to a sign-in screen for an
+   * invitation that may already be dead.
+   *
+   * The token is the bearer credential, so this endpoint's audience is the
+   * audience of the email. It is bounded accordingly: the service returns
+   * `null` for an unknown token, names the workspace only for PENDING, masks
+   * the invited address, and emits no internal id of any kind.
+   *
+   * ---------------------------------------------------------------------------
+   * WHY RATE LIMITED
+   * ---------------------------------------------------------------------------
+   * An unauthenticated endpoint that answers questions about a 256-bit token is
+   * not brute-forceable in any practical sense, but it is addressable by
+   * anybody, and an endpoint anybody can address in a loop is a cost. The
+   * canonical limiter is keyed by IP; the failure mode of the limiter itself is
+   * to degrade to its in-memory store rather than to fail open on Redis loss.
+   */
+  app.post<{ Body: { token?: unknown } }>(
+    "/v1/teams/invites/lookup",
+    async (req, reply) => {
+      void reply.header("Referrer-Policy", "no-referrer");
+      void reply.header("Cache-Control", "no-store");
+
+      const rl = await enforceRateLimit({
+        key: `workspace-invite-lookup:${req.ip ?? "unknown"}`,
+        max: 30,
+        windowSec: 60,
+      });
+      if (!rl.allowed) {
+        // `resetAtMs` is what the limiter reports; Retry-After is seconds, and
+        // never below 1 — a `Retry-After: 0` invites an immediate retry.
+        const retryAfterSec = Math.max(
+          1,
+          Math.ceil((rl.resetAtMs - Date.now()) / 1000),
+        );
+        void reply.header("Retry-After", String(retryAfterSec));
+        return reply.code(429).send({
+          error: {
+            code: "rate_limited",
+            message: "Too many attempts. Try again in a moment.",
+            requestId: req.id ?? null,
+          },
+        });
+      }
+
+      const parsed = z
+        .object({ token: z.string().min(8).max(512) })
+        .safeParse(req.body);
+      if (!parsed.success) {
+        // A malformed body is answered exactly like an unknown token, so the
+        // shape of the request cannot be used to distinguish "you sent
+        // nonsense" from "that invitation does not exist".
+        return reply.code(404).send({
+          error: {
+            code: "INVITE_NOT_FOUND",
+            message: "This invitation link is not available.",
+            requestId: req.id ?? null,
+          },
+        });
+      }
+
+      const view = await lookupWorkspaceInvitation({
+        rawToken: parsed.data.token,
+      });
+      if (!view) {
+        return reply.code(404).send({
+          error: {
+            code: "INVITE_NOT_FOUND",
+            message: "This invitation link is not available.",
+            requestId: req.id ?? null,
+          },
+        });
+      }
+
+      return reply.code(200).send(view);
+    },
   );
 
   app.post(

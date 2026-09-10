@@ -300,6 +300,19 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
     disposition: "internal",
     why: "A retired endpoint answering a legacy client, not a person.",
   },
+  INVITE_NOT_FOUND: {
+    disposition: "generic",
+    why:
+      "DELIBERATELY VAGUE, and the vagueness is the feature. This is the one " +
+      "answer `POST /v1/teams/invites/lookup` and the accept path both give " +
+      "for a token that does not resolve — unknown, malformed, or never " +
+      "issued — so the response cannot be used to test whether an " +
+      "invitation, a workspace or an organization exists. The public " +
+      "invitation page renders it as 'This invitation link isn't available' " +
+      "with no context block at all, which is the same surface a genuinely " +
+      "malformed token gets without a request being sent. Specific copy here " +
+      "would turn the endpoint into an enumeration oracle.",
+  },
   COLLABORATION_TEAM_INVITE_RETIRED: {
     disposition: "internal",
     why:

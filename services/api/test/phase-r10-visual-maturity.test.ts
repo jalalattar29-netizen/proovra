@@ -718,10 +718,21 @@ describe("R10 Group 14 — CSS hygiene", () => {
     //     route, split out when platform observability and workspace health
     //     stopped sharing one page.
     //
-    // Twenty-nine stylesheets for a product with this many routes is a
-    // stylesheet per surface, which is the intended shape. What the number
-    // catches is a per-COMPONENT explosion, and it still would.
-    expect(CSS_FILES.length).toBeLessThanOrEqual(29);
+    // 29 → 30 (2026-09-10). One more, the same shape a third time:
+    //
+    //   app/invite/invite.css  the public workspace-invitation route. It
+    //     replaces a page whose entire visual layer was inline Tailwind
+    //     arbitrary values — two full-bleed `<img>` backgrounds, four stacked
+    //     `bg-[linear-gradient(...)]` / `bg-[radial-gradient(...)]` overlays, a
+    //     `border-[rgba(79,112,107,0.22)]` card and `text-[#1d3136]` ink, all
+    //     duplicated across two of its states. That is 1 stylesheet replacing
+    //     ~30 inline arbitrary-value declarations, and it is the only way this
+    //     route can carry its own media queries and reduced-motion rule.
+    //
+    // Thirty stylesheets for a product with this many routes is a stylesheet
+    // per surface, which is the intended shape. What the number catches is a
+    // per-COMPONENT explosion, and it still would.
+    expect(CSS_FILES.length).toBeLessThanOrEqual(30);
   });
 });
 

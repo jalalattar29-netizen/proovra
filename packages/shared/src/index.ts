@@ -190,6 +190,27 @@ export {
 } from "./collaboration-team-billing-codes.js";
 export type { CollaborationTeamBillingErrorCode } from "./collaboration-team-billing-codes.js";
 
+// The WORKSPACE invitation contract — one vocabulary for the API that decides
+// and the public /invite/[token] page that renders. The public page used to
+// classify outcomes by substring match over the human-readable message, so
+// rewording a sentence in the service silently reclassified a state in the
+// browser; the refusal union lives here so neither side can drift.
+export {
+  WORKSPACE_INVITE_TOKEN_PREFIX,
+  WORKSPACE_INVITATION_LOOKUP_STATES,
+  WORKSPACE_INVITATION_REFUSAL_CODES,
+  WORKSPACE_INVITATION_RETRYABLE_CODES,
+  isWellFormedWorkspaceInviteToken,
+  isWorkspaceInvitationRefusalCode,
+  maskInvitedEmail,
+} from "./workspace-invitation-contract.js";
+export type {
+  WorkspaceInvitationLookup,
+  WorkspaceInvitationLookupState,
+  WorkspaceInvitationContext,
+  WorkspaceInvitationRefusalCode,
+} from "./workspace-invitation-contract.js";
+
 // PROOVRA Phase 10 — Shared (cross-surface) billing error-code vocabulary.
 // Broader than the collaboration-team union: includes UPGRADE_REQUIRED as
 // the generic catch-all for non-collaboration-team billing-guarded
