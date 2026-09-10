@@ -82,8 +82,8 @@ export async function buildTestCallerDiagnostic(capabilityArtifact) {
   const dynamicResolutions = new Map(
     (loadManifest("dynamic-resolutions.json").entries ?? []).map((e) => [e.site, e.class]),
   );
-  const consumerResolutions = new Map(
-    (loadManifest("consumer-resolutions.json").entries ?? []).map((e) => [e.site, e.routes]),
+  const consumerResolutions = consumersMod.buildConsumerResolutions(
+    loadManifest("consumer-resolutions.json").entries ?? [],
   );
 
   // The SAME analyzer, opted into the test trees. Not a second parser: if this

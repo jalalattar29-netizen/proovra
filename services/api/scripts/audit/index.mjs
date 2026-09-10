@@ -394,10 +394,19 @@ const print = (title, body) => {
 // ===========================================================================
 
 async function main(argv) {
-  if (argv.includes("--engine-check")) return engineCheck();
-  if (argv.includes("--closure-check")) return closureCheck();
+  // The working-tree freeze and baseline describe the checkout AS IT IS,
+  // untracked files included; that is their purpose.
   if (argv.includes("--freeze")) return freeze();
   if (argv.includes("--phase1-baseline")) return phase1Baseline();
+
+  // Every other mode reads or writes the authoritative artifacts, and those
+  // describe only what git tracks. A stray file in their directories is
+  // refused before anything is generated or checked (see engine/tracked.mjs).
+  const { assertNoUntrackedAuthoritative } = await import("./engine/tracked.mjs");
+  assertNoUntrackedAuthoritative();
+
+  if (argv.includes("--engine-check")) return engineCheck();
+  if (argv.includes("--closure-check")) return closureCheck();
 
   const { governance, facts } = await regenerate();
   print("REGENERATED", {

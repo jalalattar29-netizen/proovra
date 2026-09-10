@@ -100,6 +100,14 @@ jobs:
       - name: Audit engine integrity
         run: pnpm audit:architecture --engine-check
 
+      # ADM-P2-001 — every endpoint a runbook tells an operator to call must
+      # be a registered route with the stated method and its required query
+      # parameters. The gate existed and ran nowhere, so a runbook kept
+      # telling operators to curl an endpoint that does not exist. Static:
+      # it reads docs/runbooks and the committed capability map, nothing else.
+      - name: Runbook endpoint integrity
+        run: pnpm --filter proovra-api run verify:runbook-endpoints
+
       - name: Lint
         run: pnpm -r lint
 

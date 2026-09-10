@@ -261,9 +261,7 @@ describe("Phase 32.7.5 — adjacent readiness subsystems unchanged", () => {
   const SRC = readApi("src/runtime/runtime-readiness.ts");
 
   it("Redis ping still uses Phase 32.7.3 explicit connect-then-ping ordering", () => {
-    const fnIdx = SRC.indexOf("async function checkRedis");
-    expect(fnIdx).toBeGreaterThan(-1);
-    const fnSlice = SRC.slice(fnIdx, fnIdx + 4000);
+    const fnSlice = checkRedisSource(SRC);
     const connectIdx = fnSlice.indexOf("pingClient.connect()");
     const pingIdx = fnSlice.indexOf("pingClient.ping()");
     expect(connectIdx).toBeGreaterThan(-1);
@@ -280,3 +278,17 @@ describe("Phase 32.7.5 — adjacent readiness subsystems unchanged", () => {
     expect(BOUND_SRC).toMatch(/event:\s*"governance\.schema_unavailable"/);
   });
 });
+
+/**
+ * The source of `checkRedis`, from its declaration to the next top-level
+ * function. These assertions used fixed 3000/4000/5000-character windows, so
+ * a comment added inside the function pushed a branch out of the window and
+ * failed tests about behaviour nobody changed — and a window longer than the
+ * function could match text in the NEXT function. The function is the unit.
+ */
+function checkRedisSource(src: string): string {
+  const start = src.indexOf("async function checkRedis");
+  if (start < 0) throw new Error("checkRedis not found in runtime-readiness.ts");
+  const next = src.slice(start + 1).search(/\n(?:export\s+)?(?:async\s+)?function\s/);
+  return next < 0 ? src.slice(start) : src.slice(start, start + 1 + next);
+}

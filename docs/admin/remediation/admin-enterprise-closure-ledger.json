@@ -255,7 +255,9 @@
       "surface": "humaniseEventType",
       "disposition": "FIX_REQUIRED",
       "batch": "G",
-      "status": "OPEN"
+      "status": "FIXED",
+      "fix": "one operator label for an event type, in the shared package: securityEventLabel (sentence case, a conventional-acronym table — SSO, SCIM, SAML, MFA, TOTP, RBAC, SLA, API, AI … — and a named-override slot) over a generic identifierLabel. The identity timeline projects `label` from it and the per-route humaniseEventType (which title-cased every word despite its own comment) is deleted; the platform security-event feed and the MFA events table show the label with the stored type as secondary detail",
+      "acceptanceTest": "packages/shared/tests/security-event-labels.test.mjs (every one of the 382 SECURITY_EVENT_TYPES: no mangled acronym, sentence case, no underscore); services/api/test/phase-12b-identity-admin-console-matrix.test.ts pins label 'Session revoked' and no `summary`"
     },
     {
       "id": "PV-LANG-002",
@@ -264,7 +266,9 @@
       "surface": "Identity Audit Event/Summary",
       "disposition": "FIX_REQUIRED",
       "batch": "G",
-      "status": "OPEN"
+      "status": "FIXED",
+      "fix": "the Identity Audit Event column shows the label with the identifier beneath it; the Summary column, which repeated the identifier title-cased, is removed",
+      "acceptanceTest": "see PV-LANG-001; web typecheck + render suites"
     },
     {
       "id": "PV-LANG-003",
@@ -273,7 +277,9 @@
       "surface": "198 raw strings on 63 routes",
       "disposition": "FIX_REQUIRED",
       "batch": "G",
-      "status": "OPEN"
+      "status": "FIXED",
+      "fix": "a standing detector, apps/web/scripts/raw-operator-language.mjs, parses every product .tsx with the TypeScript compiler and reports an enum-valued field rendered as JSX text or a text prop (including through a condition, a `??` fallback and a template), and identifier-shaped literals in copy. The stored identifier is allowed only as declared secondary detail (`<code data-identifier>`) or through a reasoned `raw-identifier-ok:` marker at the site. All 89 files the audit cited, at their current paths, were fixed through label modules (lib/labels/adminPlatformLabels, identityOrgLabels, governanceReviewLabels, workspaceOpsLabels) and the shared identifierLabel; StatusBadge now reads identifierLabel instead of swapping underscores for spaces. The audit's `.reason` sites were triaged against their producers: machine codes are labelled (SSO failure reasons, the retention engine's picked_<scope> reasons, escalation reasons), server- or user-written sentences are unchanged with the producer cited in the agent reports",
+      "acceptanceTest": "apps/web/__tests__/raw-operator-language.test.mjs (6): the 89 audited files are held to zero (180 findings on the unfixed tree with the first detector, 22 more found by the extended one, 0 after); the app-wide count is a ratchet at 247 (394 before); render test admin-mutations-platform-ops updated to pin the label plus the declared identifier"
     },
     {
       "id": "PV-ALLOW-001",
@@ -282,7 +288,9 @@
       "surface": "automation allowlists",
       "disposition": "FIX_REQUIRED",
       "batch": "G",
-      "status": "OPEN"
+      "status": "FIXED",
+      "fix": "AUTOMATION_TRIGGER_CATALOG / AUTOMATION_ACTION_CATALOG sit beside the allowlists as total Records (a value added without a label does not compile); the rules envelope carries `catalog`; the rules and runs tables and the rule editor's options show the label with the identifier as secondary detail; the reference section is product copy in a wrapping grid",
+      "acceptanceTest": "services/api/test/automation-catalog.test.ts (coverage, product language, the one internal-only action)"
     },
     {
       "id": "PV-COPY-001",
@@ -291,7 +299,9 @@
       "surface": "/integrations unavailable panel",
       "disposition": "FIX_REQUIRED",
       "batch": "G",
-      "status": "OPEN"
+      "status": "FIXED",
+      "fix": "the disabled panel's body states the reason the API reported and only that one: the signing-secret sentence is bound to secret_missing, feature_flag_off has its own sentence, and an unknown reason (everyone without diagnostics) names no cause; the configuration flags moved behind a Technical details disclosure",
+      "acceptanceTest": "services/api/test/production-integrations-disabled-panel.test.ts (two new cases, red on the unfixed page)"
     },
     {
       "id": "PV-COPY-002",
@@ -300,7 +310,9 @@
       "surface": "/security-center/mfa-recovery empty state",
       "disposition": "FIX_REQUIRED",
       "batch": "G",
-      "status": "OPEN"
+      "status": "FIXED",
+      "fix": "the empty state is titled 'No pending recovery requests'",
+      "acceptanceTest": "apps/web/__tests__/batch-g-operator-copy.test.mjs (red on the unfixed page)"
     },
     {
       "id": "PV-I18N-001",
@@ -310,7 +322,9 @@
       "note": "renderButton already passes locale:'en'; the German text comes from Google's iframe honouring the browser/account language — fix via the GSI script hl parameter",
       "disposition": "FIX_REQUIRED",
       "batch": "G",
-      "status": "OPEN"
+      "status": "FIXED",
+      "fix": "the Google Identity script is loaded with hl=en so its button language follows the page, not the browser",
+      "acceptanceTest": "apps/web/__tests__/batch-g-operator-copy.test.mjs (red on the unfixed file)"
     },
     {
       "id": "PV-DOC-001",
@@ -319,7 +333,9 @@
       "surface": "automation-actions.service.ts header",
       "disposition": "FIX_REQUIRED",
       "batch": "G",
-      "status": "OPEN"
+      "status": "FIXED",
+      "fix": "the actions service header lists all eight allowlisted actions, WEBHOOK_DELIVERY_INTERNAL_ONLY with its E3.2 constraints",
+      "acceptanceTest": "services/api/test/automation-catalog.test.ts (red on the unfixed header)"
     },
     {
       "id": "PV-A11Y-001",
@@ -359,7 +375,9 @@
       "surface": "apps/web/scripts/dev-admin-fixture.mjs",
       "disposition": "FIX_REQUIRED",
       "batch": "I",
-      "status": "OPEN"
+      "status": "FIXED",
+      "fix": "two real false-success paths closed in dev-admin-fixture.mjs: a build that exits 0 without writing BUILD_ID is now a failure (the audit's recommended check), and the SIGINT/SIGTERM/SIGHUP handlers exited 0 — a cancelled build or server reported success — and now exit 128+signal; a spawn error and a signal-killed build are named. The audit's own exit-0 observation is most likely the pipeline trap (a `| tail` reports tail's status), reproduced during this batch on the runbook gate, and is recorded as such rather than claimed as the root cause",
+      "acceptanceTest": "apps/web/__tests__/dev-admin-fixture-build-exit.test.mjs runs the real script with `npx` stubbed on PATH (asserting the build was reached first): a failing build exits with its status; a '0 but no BUILD_ID' build fails — red 1/2 on the unfixed script"
     },
     {
       "id": "PV-INV-001",
@@ -368,7 +386,9 @@
       "surface": "apps/web/scripts/admin-inventory.mjs",
       "disposition": "FIX_REQUIRED",
       "batch": "I",
-      "status": "OPEN"
+      "status": "FIXED",
+      "fix": "admin-inventory.mjs blanks comments with the TypeScript parser (trivia between real tokens, offsets preserved) and reads registrations from the syntax tree — string, template or hoisted `const` path, /v1 or not — so the inventory reads 1,145 routes (1,141 call sites, 0 unresolved) where it read 1,108. One classification moved: GET /v1/support-access/grants from FILTER to FILTER_CANDIDATE, because the old slice ran into the next handler's teamId filter",
+      "acceptanceTest": "apps/web/__tests__/admin-inventory-route-count.test.mjs (5): phantom-block and string cases, JSX/regex cases, constant/non-/v1 resolution, syntax-tree count equals the text count with no unresolved first argument, and the registrations the old reader missed are present"
     }
   ],
   "phase9": [
@@ -393,7 +413,10 @@
       "id": "ADM-P2-001",
       "disposition": "REGRESSED_ON_CURRENT_MAIN",
       "note": "never landed: docs/runbooks/retention-precedence.md still cites POST /v1/internal/governance/retention-reconciliation/run and the gate exempts it with a false reason; gate is not wired into CI",
-      "batch": "I"
+      "batch": "I",
+      "status": "FIXED",
+      "fix": "retention-precedence.md rewritten against the code: there is no binding table (the effective policy is resolved on read — GET /v1/governance/retention-policies/effective), the sweep acts on evidence.retention_until_utc and only opens reviews, reconciliation runs in the worker at startup and every RETENTION_RECONCILIATION_INTERVAL_MS with no HTTP trigger and no team filter, and the containment is to deny a review opened under the wrong policy. The false exemption is gone, an exemption no runbook cites is now STALE_EXEMPTION, the effective route's teamId is a required query parameter, the runbook catalog is regenerated, and the gate runs in ci.yml build-test",
+      "acceptanceTest": "services/api/scripts/verify-runbook-endpoints.mjs: exit 1 (NO_SUCH_ROUTE at retention-precedence.md:51) with the exemption removed and the old text, exit 0 after; ci.yml step 'Runbook endpoint integrity'"
     },
     {
       "id": "ADM-P2-002",
@@ -522,13 +545,17 @@
       "id": "P10-g admin E2E conservation",
       "disposition": "VERIFIED_FIXED_ON_CURRENT_MAIN",
       "note": "scripts/admin-shard-accounting.mjs prose/default still say 4 shards while the workflow runs 5",
-      "batch": "I"
+      "batch": "I",
+      "status": "FIXED",
+      "fix": "admin-shard-accounting.mjs: the header no longer says four, the default shard count is five (the workflow passes five), and the conservation message uses the count it was given"
     },
     {
       "id": "P10-h Playwright isolation",
       "disposition": "RUNTIME_SUCCESS_PROOF_REQUIRED",
       "note": "apps/web/playwright.config.ts has no testIgnore for admin-control-plane specs",
-      "batch": "I"
+      "batch": "I",
+      "status": "FIXED",
+      "fix": "apps/web/playwright.config.ts ignores admin-control-plane/**: `playwright test --list` went from 101 tests in 10 files (97 of them fixture-only admin specs) to 4 tests in 1 file"
     },
     {
       "id": "P10-i continueGuest removed",
@@ -538,7 +565,9 @@
       "id": "P10-j runbook endpoint gate",
       "disposition": "REGRESSED_ON_CURRENT_MAIN",
       "note": "see ADM-P2-001",
-      "batch": "I"
+      "batch": "I",
+      "status": "FIXED",
+      "fix": "see ADM-P2-001"
     },
     {
       "id": "P10-k admin CP CI runner wired",
@@ -758,9 +787,61 @@
       "surface": "apps/web/scripts/admin-inventory.mjs (and every regex comment stripper like it)",
       "finding": "codeOf() strips /* ... */ before // comments with regexes, so a `/*` inside a line comment (a Batch E comment mentioning `/v1/orgs/*`) opened a phantom block comment that swallowed real code up to the next `*/`: six API route registrations vanished from the inventory (1108 -> 1102) and one handler gate flipped from AUDIT to NONE, with no failure except a stale-markdown check",
       "batch": "I",
-      "status": "OPEN",
+      "status": "FIXED",
       "interimFix": "the comment reworded in services/api/src/routes/organizations.routes.ts; the regenerated completion ledger is byte-identical to the committed one again (1108 routes)",
-      "plannedFix": "strip comments with the TypeScript scanner (string/template/regex aware) in every source-scanning audit script, and pin the traced-route count against the route registrations the real parser finds"
+      "plannedFix": "strip comments with the TypeScript scanner (string/template/regex aware) in every source-scanning audit script, and pin the traced-route count against the route registrations the real parser finds",
+      "fix": "root fix in admin-inventory.mjs (see PV-INV-001); no regex comment stripper remains in the inventory",
+      "acceptanceTest": "apps/web/__tests__/admin-inventory-route-count.test.mjs"
+    },
+    {
+      "id": "WCC-NEW-024",
+      "severity": "P2",
+      "surface": "apps/web/app/(app)/organizations/[id]/admin/audit/page.tsx",
+      "finding": "two of the org audit page's eight filter options (ORG_INVITE_CREATED, ORG_INVITE_ACCEPTED) are not event types the API writes — invitations are recorded as ORG_MEMBER_INVITED / ORG_MEMBER_ACCEPTED — so either filter showed an empty timeline for an organization that had invited people",
+      "batch": "G",
+      "status": "FIXED",
+      "fix": "the options carry the catalog's names",
+      "acceptanceTest": "apps/web/__tests__/org-audit-filter-catalog.test.mjs (every option is in ORG_AUDIT_EVENT_TYPES; red on the unfixed page)"
+    },
+    {
+      "id": "WCC-NEW-025",
+      "severity": "P2",
+      "surface": "services/api/scripts/capability-authority (consumer-resolutions.json lookup)",
+      "finding": "reviewed resolutions for ambiguous consumer calls were keyed by file:line, so Batch G's import lines above two answered calls turned them back into AmbiguousConsumerSites and failed the audit engine check with neither call changed",
+      "batch": "I",
+      "status": "FIXED",
+      "fix": "an entry may name its call by identity (file, enclosing function, method, path shape) in a `match` block; the lookup tries the line, then the identity; the generator and the test-caller diagnostic build the lookup through one function; every entry whose call the analyzer reads was given its identity and the two moved entries their current lines",
+      "acceptanceTest": "services/api/test/consumer-resolution-identity.test.ts (3); `pnpm audit:architecture --engine-check` INSTRUMENT problems 1 -> 0",
+      "residual": "origin-resolutions.json and dynamic-resolutions.json are still keyed by line (same class, currently green)"
+    },
+    {
+      "id": "WCC-NEW-026",
+      "severity": "P2",
+      "surface": "services/api/scripts/audit/engine (governance inventory, freshness hashes)",
+      "finding": "the audit engine walked its candidate roots on disk, so an untracked file became part of the committed inventory and the working tree, a clean clone and a CI checkout could disagree (local PASS, CI STALE)",
+      "batch": "I",
+      "status": "FIXED",
+      "fix": "engine/tracked.mjs: the inventory and the freshness hashes read only git's index; every mode except --freeze/--phase1-baseline refuses an untracked file in audit-output/current or docs/architecture before generating or checking",
+      "acceptanceTest": "identical-output proof across working tree / tracked-only clone / CI checkout is part of Batch L's clean-clone regeneration"
+    },
+    {
+      "id": "WCC-NEW-027",
+      "severity": "P2",
+      "surface": "source-contract tests with fixed character windows",
+      "finding": "tests slice source with fixed budgets (`SRC.slice(idx, idx + 3000)`), so a comment inside the function under test fails behaviour tests nobody changed, and a budget longer than the function reads the next one; 347 such slices across 152 test files",
+      "batch": "I",
+      "status": "IN_PROGRESS",
+      "fix": "checkRedis: the seven fixed windows in phase-32-6-1 and phase-32-7-5 now read the function from its declaration to the next top-level function",
+      "acceptanceTest": "mutation proof: checkRedis grown by a 60-line comment — bounded tests 51/51 pass, the HEAD fixed-window versions fail 7; source restored byte-for-byte"
+    },
+    {
+      "id": "WCC-NEW-028",
+      "severity": "P3",
+      "surface": "raw identifiers outside the PV-LANG-003 audited surfaces",
+      "finding": "the detector finds 247 raw identifier renders in product files the audit did not cite, plus enum-valued fields outside its field list (targetType, errorCode, failureCode, priority, grant/auth/watermark states on external review)",
+      "batch": "G",
+      "status": "RATCHETED",
+      "fix": "the app-wide count is a ceiling that only moves down (raw-operator-language.test.mjs)"
     }
   ],
   "ownerDecisionImplementation": {
@@ -783,6 +864,20 @@
     }
   },
   "redBefore": {
-    "batchE": "services/api/test/step-up-totp-org-boundary.integration.test.ts against the pre-Batch-E API (13c81c83, 17 product files reverted): 18 of 19 cases fail; the one that passes is the PV-OD-002 viewer read, behaviour-preserving by design (VIEWER already held identity.org_policy.read; the explicit capabilities make that grant a named decision). All files restored byte-identical (sha256)."
+    "batchE": "services/api/test/step-up-totp-org-boundary.integration.test.ts against the pre-Batch-E API (13c81c83, 17 product files reverted): 18 of 19 cases fail; the one that passes is the PV-OD-002 viewer read, behaviour-preserving by design (VIEWER already held identity.org_policy.read; the explicit capabilities make that grant a named decision). All files restored byte-identical (sha256).",
+    "batchG": {
+      "PV-LANG-003": "180 detector findings in the 89 audited files on the unfixed tree; 22 more from the extended detector; 0 after (scratchpad lang003-audited-findings.txt)",
+      "PV-COPY-001 / PV-DOC-001 / LANG-001 pin": "HEAD product files: production-integrations-disabled-panel + automation-catalog + phase-12b console matrix — 3 failed of 149",
+      "PV-COPY-002 / PV-I18N-001": "batch-g-operator-copy.test.mjs 0/2 on HEAD files",
+      "WCC-NEW-024": "org-audit-filter-catalog.test.mjs 0/1 on HEAD page"
+    },
+    "batchI": {
+      "PV-TOOL-001": "dev-admin-fixture-build-exit.test.mjs 1/2 on the unfixed script (exit 0 without BUILD_ID)",
+      "ADM-P2-001": "verify-runbook-endpoints exit 1, NO_SUCH_ROUTE retention-precedence.md:51, once the false exemption was removed",
+      "PV-INV-001": "committed inventory 1,108 API routes against 1,141 app.<method>( call sites",
+      "P10-h": "playwright --list: 101 tests in 10 files, 97 admin-control-plane",
+      "WCC-NEW-025": "engine-check INSTRUMENT AmbiguousConsumerSites = 2 after Batch G",
+      "WCC-NEW-027": "checkRedis mutation: HEAD fixed-window tests 7 failed"
+    }
   }
 }

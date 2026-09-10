@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * PROVE THE FOUR ADMIN SHARDS TOGETHER RAN THE WHOLE SUITE.
+ * PROVE THE ADMIN SHARDS TOGETHER RAN THE WHOLE SUITE.
  *
  * =============================================================================
  * WHY COUNTING PER SHARD IS NOT ENOUGH
@@ -29,7 +29,9 @@ import { join } from "node:path";
 
 const [dir, expectedRaw, shardsRaw] = process.argv.slice(2);
 const EXPECTED = Number(expectedRaw ?? 97);
-const SHARDS = Number(shardsRaw ?? 4);
+// The workflow passes the shard count explicitly (playwright-e2e.yml runs
+// five). The default matches it so a hand run reads the same way.
+const SHARDS = Number(shardsRaw ?? 5);
 
 function die(msg, detail) {
   console.error(`\nADMIN SHARD ACCOUNTING — FAIL\n  ${msg}`);
@@ -115,7 +117,7 @@ if (duplicates.length > 0) {
 
 if (unique !== EXPECTED) {
   die(
-    `the four shards executed ${unique} unique tests, expected ${EXPECTED}.`,
+    `the ${SHARDS} shards executed ${unique} unique tests, expected ${EXPECTED}.`,
     unique < EXPECTED
       ? `  ${EXPECTED - unique} test(s) were never executed by any shard.`
       : `  ${unique - EXPECTED} more than the suite is supposed to contain.`,

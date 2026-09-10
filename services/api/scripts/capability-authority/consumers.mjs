@@ -876,7 +876,7 @@ export function attachConsumers(routeIds, consumers, matches, resolutions = new 
     // as AMBIGUOUS and answered ONCE, by a human, in the resolutions manifest —
     // with the file and line that has to be read to answer it.
     const site = `${c.file}:${c.line}`;
-    const resolved = resolutions.get(site);
+    const resolved = resolutions.get(site) ?? resolutions.get(consumerIdentity(c));
     if (resolved !== undefined) {
       let credited = false;
       for (const id of resolved) {
@@ -893,6 +893,36 @@ export function attachConsumers(routeIds, consumers, matches, resolutions = new 
   }
 
   return { byRoute, unmatched, ambiguous };
+}
+
+/**
+ * WHAT A REVIEWED RESOLUTION IS ABOUT, INDEPENDENT OF ITS LINE NUMBER.
+ *
+ * `consumer-resolutions.json` answered each ambiguous call by `file:line`, so
+ * an import added above the call moved it and the reviewed answer stopped
+ * applying: two label edits in Batch G turned two answered calls back into
+ * AmbiguousConsumerSites and failed the engine check, with nothing about the
+ * calls themselves changed. A comment must not be able to do that.
+ *
+ * An entry may therefore also name the call by what it IS — its file, the
+ * function it sits in, its method and its path shape — in a `match` block.
+ * The line stays as the place a reviewer read; the identity is what matches.
+ */
+export function consumerIdentity(c) {
+  return `${c.file}|${c.method ?? "*"}|${c.caller ?? ""}|${c.path}`;
+}
+
+/** The lookup `attachConsumers` reads: every entry by site, and by identity when it has one. */
+export function buildConsumerResolutions(entries = []) {
+  const map = new Map();
+  for (const e of entries) {
+    map.set(e.site, e.routes);
+    if (e.match) {
+      const file = e.site.replace(/:\d+$/, "");
+      map.set(consumerIdentity({ file, ...e.match }), e.routes);
+    }
+  }
+  return map;
 }
 
 // Re-exported so the generator has exactly one import surface.

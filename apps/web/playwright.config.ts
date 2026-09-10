@@ -19,6 +19,15 @@ const WEB_BASE = process.env.WEB_BASE ?? "http://localhost:3000";
 
 export default defineConfig({
   testDir: "./e2e",
+  /*
+   * P10-h — the admin control-plane specs live under ./e2e but are NOT this
+   * config's to run. They sign in as seeded fixture personas and need the
+   * fixture API and a production build; their own config
+   * (e2e/admin-control-plane/playwright.config.ts) and CI job provide both.
+   * Collected here they were 97 of this config's 101 tests, each certain to
+   * fail against the Home V2 stack this file describes.
+   */
+  testIgnore: ["admin-control-plane/**"],
   timeout: 60_000,
   expect: { timeout: 10_000 },
   fullyParallel: false,

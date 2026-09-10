@@ -596,13 +596,16 @@ jobs:
           if-no-files-found: error
 
   # ===========================================================================
-  # 97/97 ACCOUNTING ACROSS THE FOUR SHARDS
+  # 97/97 ACCOUNTING ACROSS THE FIVE SHARDS
   # ===========================================================================
   # Five green shards do not by themselves mean the suite ran. Sharding can
   # silently drop tests — an unbalanced or misconfigured split is exactly the
-  # defect this change fixes, and it presented as three fast green shards and
-  # one cancelled one. So the shards report what they executed and this job
-  # proves the union: 97 unique, none missing, none run twice, all four exit 0.
+  # defect this change fixes, and it once presented as three fast green shards
+  # and one cancelled one. So the shards report what they executed and this job
+  # proves the union: 97 unique, none missing, none run twice, all five exit 0.
+  # The shard count appears in the matrix, the --shard argument, the step name
+  # and the accounting call; admin-shard-workflow-consistency.test.mjs holds
+  # them to one value.
   admin-control-plane-accounting:
     runs-on: ubuntu-latest
     needs: admin-control-plane

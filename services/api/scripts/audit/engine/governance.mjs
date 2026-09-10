@@ -24,6 +24,7 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
+import { trackedFileSet } from "./tracked.mjs";
 import path from "node:path";
 
 import {
@@ -431,11 +432,16 @@ function classify(r, text) {
 export function buildInventory() {
   const files = [];
   const textOf = new Map();
+  // Audit self-inventory — only what git tracks. An untracked file on disk is
+  // not part of the release CI checks out, so inventorying it made the
+  // committed artifact describe a tree nobody else has (see tracked.mjs).
+  const tracked = trackedFileSet();
   for (const root of CANDIDATE_ROOTS) {
     const absRoot = path.join(REPO, root);
     if (!existsSync(absRoot)) continue;
     for (const f of walk(absRoot)) {
       const r = rel(f);
+      if (!tracked.has(r)) continue;
       if (!/\.(ts|tsx|mjs|mts|js|json|md|ya?ml)$/.test(r)) continue;
       let text = "";
       try {

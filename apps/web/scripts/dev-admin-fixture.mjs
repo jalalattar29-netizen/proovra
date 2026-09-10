@@ -233,10 +233,15 @@ function restoreTsconfig() {
     }
   }
 }
-for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
+// PV-TOOL-001 — an interrupted run is not a successful one. These handlers
+// exited 0, so a build or server stopped by SIGTERM (a cancelled CI job, a
+// timeout) reported success to whatever launched it. 128 + signal number is
+// the conventional status a shell would have reported.
+const SIGNAL_EXIT = { SIGHUP: 129, SIGINT: 130, SIGTERM: 143 };
+for (const sig of Object.keys(SIGNAL_EXIT)) {
   process.on(sig, () => {
     restoreTsconfig();
-    process.exit(0);
+    process.exit(SIGNAL_EXIT[sig]);
   });
 }
 process.on("exit", restoreTsconfig);
@@ -297,9 +302,27 @@ if (MODE === "production" && BUILD_ONLY) {
     env: { ...CHILD_ENV, NODE_ENV: "production" },
   });
   restoreTsconfig();
+  if (built.error) {
+    console.error(`dev-admin-fixture: next build could not start (${built.error.message}).`);
+    process.exit(1);
+  }
   if (built.status !== 0) {
-    console.error(`dev-admin-fixture: next build failed (exit ${built.status}).`);
-    process.exit(built.status ?? 1);
+    console.error(
+      `dev-admin-fixture: next build failed (${built.signal ? `signal ${built.signal}` : `exit ${built.status}`}).`,
+    );
+    // A build killed by a signal has a null status; that is a failure too.
+    process.exit(built.status || 1);
+  }
+  // PV-TOOL-001 — the build's own exit code is not the proof; the build is.
+  // A "successful" build that left no BUILD_ID would let this step pass and
+  // the serve step fail later with "no build at …", which points nowhere.
+  try {
+    readFileSync(resolve(WEB_ROOT, DIST_DIR, "BUILD_ID"), "utf8");
+  } catch {
+    console.error(
+      `dev-admin-fixture: next build exited 0 but left no BUILD_ID in ${DIST_DIR}; treating it as a failed build.`,
+    );
+    process.exit(1);
   }
   console.log("dev-admin-fixture: build complete.");
   process.exit(0);

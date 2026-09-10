@@ -45,6 +45,11 @@
     },
     {
       "site": "apps/web/app/(app)/organizations/[id]/admin/reports/page.tsx:212",
+      "match": {
+        "method": "GET",
+        "caller": "ReportsTab",
+        "path": "/v1/orgs/<interp>/reports/<interp>"
+      },
       "helper": "download(report) -> `${API_BASE}/v1/orgs/${orgId}/reports/${report.file}`",
       "callSitesRead": [
         "apps/web/app/(app)/organizations/[id]/admin/reports/page.tsx:77-132"
@@ -101,7 +106,12 @@
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "apps/web/app/(app)/workflows/[id]/page.tsx:226",
+      "site": "apps/web/app/(app)/workflows/[id]/page.tsx:237",
+      "match": {
+        "method": "POST",
+        "caller": "performAction",
+        "path": "/v1/workflows/instances/<interp><interp>"
+      },
       "helper": "performAction(path, body, confirmMessage) -> `/v1/workflows/instances/${instanceId}${path}`",
       "callSitesRead": [
         "apps/web/app/(app)/workflows/[id]/page.tsx:499"
@@ -141,6 +151,11 @@
     },
     {
       "site": "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:344",
+      "match": {
+        "method": "POST",
+        "caller": "WorkflowOperationsSection",
+        "path": "/v1/ops/workflows/<interp>/<interp>"
+      },
       "helper": "`/v1/ops/workflows/${workflow.id}/${availability.action}` where action: WorkflowActionKey",
       "callSitesRead": [
         "apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:50-58"
@@ -187,6 +202,11 @@
     },
     {
       "site": "apps/web/lib/useGlobalRuntimeState.ts:356",
+      "match": {
+        "method": "GET",
+        "caller": "tickOnce",
+        "path": "/v1/runtime/status"
+      },
       "helper": "two web surfaces read the TENANT-SAFE runtime status through apiFetch",
       "callSitesRead": [
         "apps/web/lib/useGlobalRuntimeState.ts:356",
@@ -199,7 +219,12 @@
       "reviewedAtUtc": "2026-09-08"
     },
     {
-      "site": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:136",
+      "site": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:138",
+      "match": {
+        "method": "POST",
+        "caller": "EscalationsConsolePageInner",
+        "path": "/v1/reviewer-ops/escalations/<interp>/<interp>"
+      },
       "helper": "the escalations console posts through one act(label, id, path, body) helper whose ACTION segment every call site supplies",
       "callSitesRead": [
         "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:302",

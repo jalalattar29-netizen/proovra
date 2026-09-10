@@ -287,8 +287,7 @@ describe("Phase 32.6.1 — runtime-readiness Redis live ping", () => {
   });
 
   it("ping client is bounded: connectTimeout 500ms, maxRetriesPerRequest 0, retryStrategy returns null", () => {
-    const idx = SRC.indexOf("async function checkRedis");
-    const slice = SRC.slice(idx, idx + 3000);
+    const slice = checkRedisSource(SRC);
     expect(slice).toMatch(/connectTimeout: 500/);
     expect(slice).toMatch(/maxRetriesPerRequest: 0/);
     expect(slice).toMatch(/retryStrategy: \(\) => null/);
@@ -296,41 +295,29 @@ describe("Phase 32.6.1 — runtime-readiness Redis live ping", () => {
   });
 
   it("ping uses bounded 1s timeout via withTimeout helper", () => {
-    const idx = SRC.indexOf("async function checkRedis");
-    const slice = SRC.slice(idx, idx + 3000);
+    const slice = checkRedisSource(SRC);
     expect(slice).toMatch(/withTimeout\(pingClient\.ping\(\), null, 1000\)/);
   });
 
   it("REDIS_URL missing → DEGRADED (not CRITICAL — env may legitimately be unset in dev)", () => {
-    const idx = SRC.indexOf("async function checkRedis");
-    const slice = SRC.slice(idx, idx + 3000);
+    const slice = checkRedisSource(SRC);
     expect(slice).toMatch(/reasonCode: "redis_not_configured"/);
     expect(slice).toMatch(/status: "DEGRADED",[\s\S]{0,200}reasonCode: "redis_not_configured"/);
   });
 
   it("ping success → HEALTHY with measured latency", () => {
-    const idx = SRC.indexOf("async function checkRedis");
-    const slice = SRC.slice(idx, idx + 3000);
+    const slice = checkRedisSource(SRC);
     expect(slice).toMatch(/status: "HEALTHY",[\s\S]{0,400}latencyMs/);
   });
 
   it("ping failure → CRITICAL with bounded error message slice", () => {
-    const idx = SRC.indexOf("async function checkRedis");
-    // Phase 32.7.3 — function body widened with the
-    // explicit-connect race-fix comment; the previous 3000-char
-    // window no longer reaches the CRITICAL branch. Widen to 5000
-    // (consistent with the sibling `finally` test below).
-    const slice = SRC.slice(idx, idx + 5000);
+    const slice = checkRedisSource(SRC);
     expect(slice).toMatch(/status: "CRITICAL",[\s\S]{0,400}reasonCode: "redis_unreachable"/);
     expect(slice).toMatch(/err\.message\.slice\(0, 120\)/);
   });
 
   it("ping client is always disconnected in a finally block (no socket leak)", () => {
-    const idx = SRC.indexOf("async function checkRedis");
-    // Phase 32.7.1 — function body widened to surface triage
-    // metadata; the previous 3000-char window no longer reaches
-    // the `} finally {` block. Widen to 5000.
-    const slice = SRC.slice(idx, idx + 5000);
+    const slice = checkRedisSource(SRC);
     expect(slice).toMatch(/} finally \{[\s\S]{0,400}pingClient\.disconnect\(\)/);
   });
 });
@@ -405,3 +392,17 @@ describe("Phase 32.6.1 — Redis connection event observability", () => {
     expect(QUEUE_SRC).toMatch(/void import\("\.\/logger\.js"\)\.then\(\(\{ logger \}\) =>/);
   });
 });
+
+/**
+ * The source of `checkRedis`, from its declaration to the next top-level
+ * function. These assertions used fixed 3000/4000/5000-character windows, so
+ * a comment added inside the function pushed a branch out of the window and
+ * failed tests about behaviour nobody changed — and a window longer than the
+ * function could match text in the NEXT function. The function is the unit.
+ */
+function checkRedisSource(src: string): string {
+  const start = src.indexOf("async function checkRedis");
+  if (start < 0) throw new Error("checkRedis not found in runtime-readiness.ts");
+  const next = src.slice(start + 1).search(/\n(?:export\s+)?(?:async\s+)?function\s/);
+  return next < 0 ? src.slice(start) : src.slice(start, start + 1 + next);
+}

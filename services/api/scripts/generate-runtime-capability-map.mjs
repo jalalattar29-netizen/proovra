@@ -44,7 +44,11 @@ import {
   classifyRouteAuth,
   isUnreachableAliasRegistration,
 } from "./capability-authority/routes.mjs";
-import { analyzeConsumers, attachConsumers } from "./capability-authority/consumers.mjs";
+import {
+  analyzeConsumers,
+  attachConsumers,
+  buildConsumerResolutions,
+} from "./capability-authority/consumers.mjs";
 import { resolveCall, resolveValueDeclaration, ts } from "./capability-authority/call-graph.mjs";
 // PHASE 13 §B — mutation closure, derived over the SAME resolved call graph
 // this generator already builds for tenancy. One graph, one traversal
@@ -323,7 +327,7 @@ export function build() {
 
   const originResolutions = new Map(originManifest.entries.map((e) => [e.site, e.verdict]));
   const dynamicResolutions = new Map(dynamicManifest.entries.map((e) => [e.site, e.class]));
-  const consumerResolutions = new Map(consumerManifest.entries.map((e) => [e.site, e.routes]));
+  const consumerResolutions = buildConsumerResolutions(consumerManifest.entries);
 
   // --- analysis ----------------------------------------------------------
   const index = indexApiFunctions();

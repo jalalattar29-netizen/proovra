@@ -13,7 +13,7 @@
   artefact that backs it.
 -->
 
-**35 routes** · 35 completed · 0 pending · 1108 API routes traced
+**35 routes** · 35 completed · 0 pending · 1145 API routes traced
 
 ## Status
 
@@ -176,7 +176,7 @@
 | `/admin/provisioning` | POST | `/v1/orgs/:id/invites/:inviteId/resend` | requireAuthAndLegal | NONE |
 | `/admin/provisioning` | DELETE | `/v1/orgs/:id/invites/:inviteId` | requireAuthAndLegal | NONE |
 | `/admin/search` | GET | `/v1/admin/search` | requirePlatformAdmin | NONE |
-| `/admin/support-access` | GET | `/v1/support-access/grants` | requirePlatformStaff | FILTER |
+| `/admin/support-access` | GET | `/v1/support-access/grants` | requirePlatformStaff | FILTER_CANDIDATE |
 | `/admin/support-access` | GET | `/v1/break-glass/grants` | requirePlatformStaff | FILTER |
 | `/admin/support-access` | POST | `/v1/support-access/enter` | requirePlatformStaff, authorizeOrFail, requireStepUpForSensitiveAction, AUTHORIZE(?), +STEP_UP | AUDIT |
 | `/admin/support-access` | POST | `/v1/support-access/revoke` | requirePlatformStaff | FILTER_CANDIDATE |
@@ -234,38 +234,38 @@
 
 | Route | Lines | cards/tables/sections | Open findings |
 | --- | --- | --- | --- |
-| `/admin` | 999 | 0c/0t/10s |  |
+| `/admin` | 1001 | 0c/0t/10s |  |
 | `/admin/adoption` | 283 | 0c/1t/1s |  |
 | `/admin/alerts` | 318 | 1c/0t/1s |  |
 | `/admin/audit` | 1106 | 3c/1t/2s |  |
-| `/admin/billing` | 764 | 7c/5t/9s |  |
+| `/admin/billing` | 766 | 7c/5t/9s |  |
 | `/admin/contact-sales` | 840 | 3c/1t/0s |  |
 | `/admin/contact-sales/:id` | 676 | 5c/0t/0s |  |
 | `/admin/costs` | 670 | 8c/3t/10s |  |
 | `/admin/customers` | 555 | 0c/1t/0s |  |
-| `/admin/customers/:id` | 1214 | 12c/1t/0s |  |
+| `/admin/customers/:id` | 1224 | 12c/1t/0s |  |
 | `/admin/dashboard` | 946 | 9c/3t/9s |  |
 | `/admin/demo-requests` | 1340 | 3c/0t/2s |  |
 | `/admin/demo-requests/:id` | 536 | 5c/0t/0s |  |
 | `/admin/evidence-ops` | 790 | 4c/0t/7s |  |
-| `/admin/evidence-ops/records` | 628 | 2c/1t/0s |  |
+| `/admin/evidence-ops/records` | 629 | 2c/1t/0s |  |
 | `/admin/executive` | 731 | 4c/2t/8s |  |
 | `/admin/operations` | 731 | 2c/2t/2s |  |
 | `/admin/platform-health` | 568 | 3c/0t/4s |  |
-| `/admin/platform/exports` | 844 | 0c/4t/0s |  |
-| `/admin/platform/media-graph` | 1133 | 0c/1t/6s |  |
-| `/admin/platform/observability` | 1663 | 0c/2t/0s |  |
+| `/admin/platform/exports` | 860 | 0c/4t/0s |  |
+| `/admin/platform/media-graph` | 1135 | 0c/1t/6s |  |
+| `/admin/platform/observability` | 1664 | 0c/2t/0s |  |
 | `/admin/platform/queues` | 880 | 0c/2t/0s |  |
 | `/admin/platform/readiness` | 624 | 8c/0t/6s |  |
-| `/admin/platform/recovery` | 641 | 0c/2t/0s |  |
-| `/admin/platform/runbooks` | 197 | 1c/0t/0s |  |
+| `/admin/platform/recovery` | 653 | 0c/2t/0s |  |
+| `/admin/platform/runbooks` | 199 | 1c/0t/0s |  |
 | `/admin/platform/runbooks/:slug` | 233 | 0c/0t/0s |  |
-| `/admin/platform/signers` | 1216 | 0c/3t/0s |  |
+| `/admin/platform/signers` | 1223 | 0c/3t/0s |  |
 | `/admin/provisioning` | 775 | 13c/1t/4s |  |
 | `/admin/search` | 410 | 1c/0t/0s |  |
 | `/admin/support-access` | 1150 | 6c/2t/4s |  |
-| `/admin/timeline` | 507 | 0c/1t/1s |  |
-| `/admin/users` | 507 | 2c/2t/1s |  |
-| `/admin/users/:id` | 711 | 7c/2t/6s |  |
+| `/admin/timeline` | 529 | 0c/1t/1s |  |
+| `/admin/users` | 510 | 2c/2t/1s |  |
+| `/admin/users/:id` | 720 | 7c/2t/6s |  |
 | `/admin/workspaces` | 465 | 1c/1t/0s |  |
-| `/admin/workspaces/:id` | 664 | 6c/1t/6s |  |
+| `/admin/workspaces/:id` | 678 | 6c/1t/6s |  |
