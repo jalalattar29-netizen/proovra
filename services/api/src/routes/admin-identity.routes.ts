@@ -119,6 +119,7 @@ import {
 import { runtimeRiskRecomputeSweep } from "../services/access-control/runtime-risk.service.js";
 import { sweepTrustedDeviceDecay } from "../services/access-control/trusted-device-decay.service.js";
 import { sweepGeoCache } from "../services/access-control/geo-intelligence.service.js";
+import { resolveSecurityEventActor } from "../services/security/security-event.service.js";
 import {
   SESSION_QUARANTINE_REASONS,
   type SessionQuarantineReason,
@@ -974,7 +975,10 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
       const q = z
         .object({
           teamId: z.string().uuid(),
+          /** Events ABOUT this user — the event's stored subject column. */
           subjectUserId: z.string().uuid().optional(),
+          /** Events this user PERFORMED — the actor each event recorded. */
+          actorUserId: z.string().uuid().optional(),
           kinds: z.string().max(2000).optional(),
           limit: z.coerce.number().int().min(1).max(500).optional(),
           /**
@@ -1014,12 +1018,22 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
       // demotes this route's recorded scope from proof to candidate.)
       const kindsWhere = kinds ? { eventType: { in: kinds } } : {};
       const severityWhere = q.severity ? { severity: q.severity } : {};
+      // PV-AUD-001 — both user filters are PREDICATES and nothing else. This
+      // route used to copy `subjectUserId` into every row's actor, so filtering
+      // by a user made that user the author of events they never performed.
+      // A filter narrows the set; it never answers "who did this".
+      const subjectWhere = q.subjectUserId ? { userId: q.subjectUserId } : {};
+      const actorWhere = q.actorUserId
+        ? { details: { path: ["actorUserId"], equals: q.actorUserId } }
+        : {};
       const orderBy = [{ createdAt: "desc" as const }, { id: "desc" as const }];
       const events = await prisma.securityEvent.findMany({
         where: {
           teamId: q.teamId,
           ...kindsWhere,
           ...severityWhere,
+          ...subjectWhere,
+          ...actorWhere,
           ...(after ? keysetAfter("createdAt", after) : {}),
         },
         orderBy,
@@ -1040,6 +1054,8 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
                   teamId: q.teamId,
                   ...kindsWhere,
                   ...severityWhere,
+                  ...subjectWhere,
+                  ...actorWhere,
                   ...keysetAfter("createdAt", { at: last.createdAt, id: last.id }),
                 },
                 orderBy,
@@ -1048,16 +1064,39 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
               })
             ).length > 0
           : false;
-      const projected = events.map((e) => ({
-        id: e.id,
-        kind: e.eventType,
-        severity: e.severity,
-        occurredAtUtc: e.createdAt.toISOString(),
-        actorUserId: q.subjectUserId ?? null,
-        // SecurityEvent.details is sanitised by Phase 21; we surface
-        // the eventType + a short summary derived from it.
-        summary: humaniseEventType(e.eventType),
-      }));
+      // The actor comes from what each event RECORDED — the one resolver the
+      // security-events list uses too, so the two surfaces cannot disagree
+      // about who acted. Names are looked up for the acting users on this page
+      // only; an id with no account left keeps its reference and no name.
+      const actors = events.map((e) => resolveSecurityEventActor(e));
+      const actorIds = [
+        ...new Set(actors.map((a) => a.userId).filter((id): id is string => id !== null)),
+      ];
+      const displayNames = new Map<string, string | null>();
+      if (actorIds.length > 0) {
+        const users = await prisma.user.findMany({
+          where: { id: { in: actorIds } },
+          select: { id: true, displayName: true },
+        });
+        for (const u of users) displayNames.set(u.id, u.displayName?.trim() || null);
+      }
+      const projected = events.map((e, i) => {
+        const actor = actors[i];
+        return {
+          id: e.id,
+          kind: e.eventType,
+          severity: e.severity,
+          occurredAtUtc: e.createdAt.toISOString(),
+          actorUserId: actor.userId,
+          actor: {
+            ...actor,
+            displayName: actor.userId ? displayNames.get(actor.userId) ?? null : null,
+          },
+          // SecurityEvent.details is sanitised by Phase 21; we surface
+          // the eventType + a short summary derived from it.
+          summary: humaniseEventType(e.eventType),
+        };
+      });
       return reply.code(200).send({
         events: projected,
         nextCursor:

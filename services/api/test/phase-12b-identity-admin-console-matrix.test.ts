@@ -393,7 +393,11 @@ vi.mock("../src/db.js", () => ({
         return { id: "tm-1", status: H.memberStatus };
       },
     },
-    user: { findUnique: async () => ({ currentWorkspaceId: H.currentWorkspaceId }) },
+    user: {
+      findUnique: async () => ({ currentWorkspaceId: H.currentWorkspaceId }),
+      // The timeline names the acting users on a page (PV-AUD-001).
+      findMany: async () => [],
+    },
     team: {
       findUnique: async (a: { where: { id: string } }) =>
         a.where.id === "22222222-2222-4222-8222-222222222222"

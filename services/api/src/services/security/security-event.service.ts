@@ -764,6 +764,129 @@ function buildSafeSummaryFromDetails(input: EmitSecurityEventInput): string {
 }
 
 // -----------------------------------------------------------------------------
+// WHO ACTED — read from what the event recorded, never from who is reading.
+// -----------------------------------------------------------------------------
+
+/**
+ * PV-AUD-001 — THE ONE AUTHORITY FOR A SECURITY EVENT'S ACTOR.
+ *
+ * The identity timeline used to project `actorUserId: q.subjectUserId ?? null`
+ * — the READER'S FILTER, not the event. Unfiltered, every row read "System";
+ * filtered by a user, every row claimed that user had acted, whoever really
+ * did. On an audit surface that is the one answer that must never be derived
+ * from the question.
+ *
+ * Emitters record the acting user in `details.actorUserId` (the convention
+ * every identity writer already follows; `SecurityEvent.userId` is the event's
+ * SUBJECT, e.g. the admin a digest was addressed to). This function reads only
+ * that recorded data, in this order:
+ *
+ *   1. an explicit `details.actorType` the writer stated — including
+ *      SUPPORT_CONTEXT when it acted under a support or break-glass grant;
+ *   2. a recorded `details.actorUserId` — a person;
+ *   3. an event type whose ONLY writers are machine processes, verified by
+ *      reading them — the writer is fixed by code, so the actor is known even
+ *      for rows written before they stated it;
+ *   4. otherwise NOT_RECORDED. Never "System" by default: saying System for an
+ *      event that simply did not record its actor is a guess dressed as a fact.
+ */
+export type SecurityEventActorType =
+  | "HUMAN"
+  | "SERVICE"
+  | "WORKER"
+  | "SYSTEM"
+  | "SUPPORT_CONTEXT";
+
+export type SecurityEventActor = {
+  /** Null only when the event recorded no actor at all. */
+  type: SecurityEventActorType | null;
+  /** The acting user, when a person (or a support operator) acted. */
+  userId: string | null;
+  /** The grant a support operator acted under, when there was one. */
+  supportGrantId: string | null;
+  /** Where the answer came from — so a reader can tell recorded from derived. */
+  source: "RECORDED" | "EVENT_AUTHORITY" | "NOT_RECORDED";
+};
+
+const ACTOR_TYPES = new Set<SecurityEventActorType>([
+  "HUMAN",
+  "SERVICE",
+  "WORKER",
+  "SYSTEM",
+  "SUPPORT_CONTEXT",
+]);
+
+const ACTOR_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Event types written ONLY by a machine process. Each entry was verified by
+ * reading its writer; a type written anywhere on a request path does not
+ * belong here, however system-like its name.
+ */
+export const MACHINE_AUTHORED_SECURITY_EVENTS: Readonly<
+  Record<string, "WORKER" | "SYSTEM">
+> = Object.freeze({
+  // services/worker/src/integrity-rejection.service.ts — the report worker's
+  // hash re-check, inside its own transaction.
+  evidence_integrity_rejected: "WORKER",
+  // services/worker/src/mfa-challenge-gc.ts — the scheduled challenge sweep.
+  mfa_challenge_gc_completed: "WORKER",
+  // services/worker/src/mfa-recovery-digest.ts — the scheduled digest sender.
+  mfa_recovery_digest_failed: "WORKER",
+});
+
+function detailString(details: Record<string, unknown> | null, key: string): string | null {
+  if (!details) return null;
+  const v = details[key];
+  return typeof v === "string" && v.trim().length > 0 ? v.trim() : null;
+}
+
+export function resolveSecurityEventActor(row: {
+  eventType: string;
+  details: unknown;
+}): SecurityEventActor {
+  const details =
+    row.details && typeof row.details === "object" && !Array.isArray(row.details)
+      ? (row.details as Record<string, unknown>)
+      : null;
+  const recordedUser = detailString(details, "actorUserId");
+  const userId = recordedUser && ACTOR_UUID.test(recordedUser) ? recordedUser : null;
+  const supportGrantId =
+    detailString(details, "supportGrantId") ?? detailString(details, "breakGlassGrantId");
+  const statedType = detailString(details, "actorType") as SecurityEventActorType | null;
+
+  if (statedType && ACTOR_TYPES.has(statedType)) {
+    return { type: statedType, userId, supportGrantId, source: "RECORDED" };
+  }
+  // A grant id with no stated type still says who was acting and how: a
+  // support operator inside the customer's workspace, not the customer.
+  if (supportGrantId && userId) {
+    return { type: "SUPPORT_CONTEXT", userId, supportGrantId, source: "RECORDED" };
+  }
+  if (userId) {
+    return { type: "HUMAN", userId, supportGrantId: null, source: "RECORDED" };
+  }
+  const machine = MACHINE_AUTHORED_SECURITY_EVENTS[row.eventType];
+  if (machine) {
+    return { type: machine, userId: null, supportGrantId: null, source: "EVENT_AUTHORITY" };
+  }
+  return { type: null, userId: null, supportGrantId: null, source: "NOT_RECORDED" };
+}
+
+/**
+ * The `details` fields an emitter writes to record who acted. Emitters spread
+ * this into their details so the writer, not a later reader, states the actor.
+ */
+export function recordedActorDetails(actor: {
+  userId: string;
+  supportGrantId?: string | null;
+}): { actorUserId: string; actorType: SecurityEventActorType; supportGrantId?: string } {
+  return actor.supportGrantId
+    ? { actorUserId: actor.userId, actorType: "SUPPORT_CONTEXT", supportGrantId: actor.supportGrantId }
+    : { actorUserId: actor.userId, actorType: "HUMAN" };
+}
+
+// -----------------------------------------------------------------------------
 // Read helpers — used by the /security operations UI.
 // -----------------------------------------------------------------------------
 
@@ -974,6 +1097,7 @@ export function projectSecurityEvent(row: DbSecurityEvent): {
   webhookEndpointId: string | null;
   details: ReturnType<typeof projectSecurityEventDetails>;
   createdAt: string;
+  actor: SecurityEventActor;
 } {
   // Phase 32.7.2 — extract the legacy relation IDs from the
   // consolidated `details` blob. `emitSecurityEvent` folds them in
@@ -1004,5 +1128,6 @@ export function projectSecurityEvent(row: DbSecurityEvent): {
     webhookEndpointId: readString("webhookEndpointId"),
     details: projectSecurityEventDetails(row.details),
     createdAt: row.createdAt.toISOString(),
+    actor: resolveSecurityEventActor(row),
   };
 }

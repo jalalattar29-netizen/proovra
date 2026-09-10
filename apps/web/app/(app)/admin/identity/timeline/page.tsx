@@ -44,12 +44,27 @@ const SEVERITY_TONE: Record<TimelineEvent["severity"], BadgeTone> = {
   INFO: "info",
 };
 
+/**
+ * WHO ACTED, AS THE EVENT RECORDED IT.
+ *
+ * The server resolves this from the event itself (security-event.service.ts
+ * `resolveSecurityEventActor`). `source: "NOT_RECORDED"` means the event never
+ * said who acted — it is rendered as exactly that, not as "System".
+ */
+type TimelineActor = {
+  type: "HUMAN" | "SERVICE" | "WORKER" | "SYSTEM" | "SUPPORT_CONTEXT" | null;
+  userId: string | null;
+  displayName: string | null;
+  supportGrantId: string | null;
+  source: "RECORDED" | "EVENT_AUTHORITY" | "NOT_RECORDED";
+};
+
 type TimelineEvent = {
   id: string;
   kind: string;
   severity: "INFO" | "WARNING" | "HIGH";
   occurredAtUtc: string;
-  actorUserId: string | null;
+  actor?: TimelineActor | null;
   summary: string;
 };
 
@@ -267,11 +282,31 @@ export default function IdentityTimelinePage() {
        * opens to answer "who changed our SSO" — showed what happened and never
        * who. The presenter is the same one the Admin Audit table uses, so the
        * two surfaces cannot describe the same actor two ways.
+       *
+       * PV-AUD-001 — the type used to be inferred here as
+       * `actorUserId ? "HUMAN" : "SYSTEM"`, which turned "this event did not
+       * record who acted" into "the system did it". The type is now the
+       * server's answer from the event itself, and an unrecorded actor says so.
        */
       render: (e) => {
+        const recorded = e.actor && e.actor.source !== "NOT_RECORDED" && e.actor.type;
+        if (!e.actor || !recorded) {
+          return (
+            <span
+              style={{ fontSize: 12, fontStyle: "italic" }}
+              title="This event did not record who performed it."
+            >
+              Not recorded
+            </span>
+          );
+        }
         const actor = presentActor({
-          actorType: e.actorUserId ? "HUMAN" : "SYSTEM",
-          userId: e.actorUserId,
+          actorType: e.actor.type,
+          userId: e.actor.userId,
+          actorDisplay: e.actor.displayName,
+          actorAuthority: e.actor.supportGrantId
+            ? `Support grant …${e.actor.supportGrantId.slice(-6)}`
+            : null,
         });
         return (
           <span style={{ display: "grid", gap: 1, fontSize: 12 }}>
