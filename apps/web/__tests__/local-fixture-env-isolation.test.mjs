@@ -321,3 +321,93 @@ test("dotenv cannot fill a gap the allowlist leaves", () => {
     "the path must NOT exist — that is the entire mechanism",
   );
 });
+
+// ===========================================================================
+// PV-SEC-002 — THE GAP THE DOTENV GUARD DOES NOT COVER.
+// ===========================================================================
+// The test above pins DOTENV_CONFIG_PATH, which neutralises
+// `import "dotenv/config"`. But `services/api/src` no longer imports dotenv
+// anywhere: the loader the API actually runs is its OWN, in
+// `services/api/src/env.ts`, which reads <cwd>/.env, <cwd>/services/api/.env
+// and <cwd>/../../.env with readFileSync and fills every variable still
+// undefined. It never consults DOTENV_CONFIG_PATH.
+//
+// So the guard protects a mechanism that is gone, while the mechanism that
+// exists is ungoverned. These tests spawn a REAL child through the loader and
+// assert on what that child can see.
+//
+// The switch the loader already honours is PROOVRA_ENV_BOOTSTRAPPED=1, which
+// means "configuration has ALREADY been established deliberately; do not
+// second-guess it". The fixture environment is exactly that situation.
+
+const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import("node:fs");
+const { tmpdir } = await import("node:os");
+const { join, sep } = await import("node:path");
+
+/**
+ * Start a child through the API's own env loader, with `cwd` pointing at a
+ * throwaway tree that contains a services/api/.env holding one marker.
+ * Returns what the child could see.
+ */
+function readMarkerThroughApiEnvLoader({ env }) {
+  const root = mkdtempSync(join(tmpdir(), "pv-envleak-"));
+  try {
+    mkdirSync(join(root, "services", "api"), { recursive: true });
+    writeFileSync(
+      join(root, "services", "api", ".env"),
+      "PROOVRA_LEAK_CANARY=this-value-exists-only-in-a-dot-env-file\n",
+      "utf8",
+    );
+    const envTs = resolve(process.cwd(), "services/api/src/env.ts").split(sep).join("/");
+    // The probe is a FILE, and tsx is invoked through its CLI entry with the
+    // current node binary. `-e` plus `shell: true` cannot survive Windows
+    // quoting here — the semicolon terminates the command line.
+    const probe = join(root, "probe.mjs");
+    writeFileSync(
+      probe,
+      `await import(${JSON.stringify("file://" + envTs)});\n` +
+        `process.stdout.write(process.env.PROOVRA_LEAK_CANARY ?? "__absent__");\n`,
+      "utf8",
+    );
+    const tsxCli = resolve(process.cwd(), "services/api/node_modules/tsx/dist/cli.mjs");
+    const out = execFileSync(process.execPath, [tsxCli, probe], {
+      cwd: root, env, encoding: "utf8",
+    });
+    return out.trim().split("\n").pop();
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+test("a value that exists only in services/api/.env is NOT visible to a fixture process", () => {
+  const seen = readMarkerThroughApiEnvLoader({ env: buildLocalFixtureEnv() });
+  assert.equal(
+    seen,
+    "__absent__",
+    "the API env loader back-filled a variable the fixture allowlist deliberately left unset — " +
+      "the allowlist is only as good as the loaders that respect it",
+  );
+});
+
+test("the fixture environment declares the bootstrap mode the API env loader honours", () => {
+  const env = buildLocalFixtureEnv();
+  assert.equal(
+    env.PROOVRA_ENV_BOOTSTRAPPED,
+    "1",
+    "services/api/src/env.ts skips every .env file when this is '1'. Setting it is what makes " +
+      "allowlist completeness unnecessary for the loader that is actually in use.",
+  );
+});
+
+test("ordinary local development still loads .env when NOT in fixture mode", () => {
+  // The fix must not change how a developer or Production boots. Without the
+  // bootstrap flag the loader behaves exactly as before.
+  const ordinary = { ...process.env };
+  delete ordinary.PROOVRA_ENV_BOOTSTRAPPED;
+  const seen = readMarkerThroughApiEnvLoader({ env: ordinary });
+  assert.equal(
+    seen,
+    "this-value-exists-only-in-a-dot-env-file",
+    "a normal process must still read services/api/.env — this fix is scoped to fixture mode",
+  );
+});
