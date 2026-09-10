@@ -23,12 +23,12 @@ import * as React from "react";
 
 import Link from "next/link";
 
-// The ONE timestamp layer. `toLocaleString()` here would render the machine's
-// locale and an ambiguous offset ("GMT+2"), which is why
-// `packages/shared/test/timestamp-policy.contract.test.ts` forbids direct
-// formatting outside it — a guard that caught this line before it shipped.
-import { formatTimestampForDashboard } from "@proovra/shared";
-
+/*
+ * The `formatTimestampForDashboard` import was REMOVED with
+ * `ReconciliationStaleNotice` (2026-09-10) — that banner was its only consumer
+ * in this file. The timestamp-policy contract still forbids direct formatting
+ * outside that one layer; this file simply no longer formats a timestamp.
+ */
 import { ProovraSupportReference } from "../../../../components/feedback/ProovraSupportReference";
 import type { SafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { IconOperations, IconSpinner } from "./icons";
@@ -429,42 +429,29 @@ export function ReconciliationFailedNotice({
   );
 }
 
-/**
- * The last complete check is older than the freshness window.
+/*
+ * =============================================================================
+ * `ReconciliationStaleNotice` WAS DELETED HERE (2026-09-10).
+ * =============================================================================
+ * It rendered "These conditions may be out of date. The last complete check
+ * was <time>. A new one is being scheduled." with a "Check again" button, on
+ * every read whose last complete run had aged past the freshness window.
  *
- * Distinct from FAILED: this workspace WAS seen completely, just not recently.
- * Saying so is more useful than either hiding it or calling it broken.
+ * Its own docblock said the important thing: "this workspace WAS seen
+ * completely, just not recently". The data under the banner was correct. And
+ * the sentence "a new one is being scheduled" described something that had
+ * ALREADY happened — `ensureWorkspaceOperationsFreshness` lists STALE among
+ * the five states that want a fresh run and starts one on the same read — so
+ * the banner announced a scheduled check and then offered a button to schedule
+ * it.
+ *
+ * Removed as PRESENTATION, not as semantics. `readiness: "STALE"` is untouched
+ * on the wire, and `mayAssertOperationsClear` still returns
+ * `{ clear: false, reason: "STALE" }`, so a stale workspace still cannot be
+ * reported clear. The refusal never lived here.
+ *
+ * The component is deleted rather than left exported-and-unused: an exported
+ * renderer with no call site is the orphan pattern this codebase removes on
+ * sight, and keeping it would invite a future surface to bring the banner back
+ * without the reasoning above.
  */
-export function ReconciliationStaleNotice({
-  completedAtUtc,
-  onRetry,
-}: {
-  completedAtUtc: string | null;
-  onRetry?: () => void;
-}) {
-  return (
-    <div className="app-alert app-alert--warn" data-ops-stale="true" role="status">
-      <div>
-        <strong>These conditions may be out of date.</strong>{" "}
-        <span>
-          The last complete check
-          {completedAtUtc ? (
-            <>
-              {" "}
-              was{" "}
-              <time dateTime={completedAtUtc}>
-                {formatTimestampForDashboard(completedAtUtc)}
-              </time>
-            </>
-          ) : null}
-          . A new one is being scheduled.
-        </span>
-      </div>
-      {onRetry ? (
-        <button type="button" className="app-secondary-action" onClick={onRetry}>
-          Check again
-        </button>
-      ) : null}
-    </div>
-  );
-}

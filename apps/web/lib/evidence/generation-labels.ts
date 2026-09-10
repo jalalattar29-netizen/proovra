@@ -98,14 +98,27 @@ export const DOWNLOAD_PACKAGE_LABEL = "Download Verification Package ZIP";
  * state is a compile error here rather than a silent "missing".
  */
 export function caseOutputNeedsAttention(state: EvidenceOutputState): boolean {
+  /*
+   * THE FALSE GROUP, and why each member is in it. Stated here rather than
+   * between the `case` labels: a comment sitting between two labels is a
+   * non-empty case body to `no-fallthrough`, which is what turned this switch
+   * into two lint errors (`apps/web` lint, exit 1) on the first CI run after
+   * the closure that introduced it.
+   *
+   *   READY           it is not absent at all.
+   *   NOT_INCLUDED    the plan and this record's funding exclude it — the
+   *                   product working as sold, not a gap in the case file.
+   *   NOT_APPLICABLE  the record cannot carry the output (not finalized, or
+   *                   its integrity check failed). No action sits behind it.
+   *   QUEUED
+   *   GENERATING      in flight. The system owes an answer and is producing
+   *                   one; a case dashboard that flags this trains its reader
+   *                   to ignore the flag.
+   */
   switch (state) {
     case "READY":
-    // Not included, and not applicable to this record: neither is a gap in the
-    // case file, and neither has an action behind it.
     case "NOT_INCLUDED":
     case "NOT_APPLICABLE":
-    // In flight. The system owes an answer and is producing one; a case
-    // dashboard that flags this trains its reader to ignore the flag.
     case "QUEUED":
     case "GENERATING":
       return false;

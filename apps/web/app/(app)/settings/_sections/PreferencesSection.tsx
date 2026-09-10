@@ -19,7 +19,6 @@ import { useEffect, useState } from "react";
 import { supportedLocales, type Locale } from "@proovra/shared";
 import { useToast } from "../../../../components/ui";
 import { AppListbox } from "../../../../components/app-primitives/AppListbox";
-import { Button } from "../../../../components/ui/Button";
 import { apiFetch } from "../../../../lib/api";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useAuth, useLocale } from "../../../providers";
@@ -244,16 +243,47 @@ export function PreferencesSection() {
         </div>
       ) : null}
 
+      {/*
+        SAVE — on the canonical Settings action, not the marketing button.
+
+        THE ARTIFACT AND ITS CAUSE. This was
+        `<Button variant="secondary">` from `components/ui/Button` — the
+        legacy marketing control, which wraps its label in
+        `<span style={{display:"inline-flex"}}>`. Because that component
+        paints itself with INLINE styles, `settings.css` could only reclaim
+        it with `!important` attribute selectors, and the purple group did so
+        on both the button AND `[data-cc-preferences-save] *` — every
+        descendant, i.e. that label span.
+
+        At rest the two fills agree and nothing shows. The hover rule
+        repaints only the BUTTON (`--set-accent-strong`), so the span kept
+        `--set-accent`: a differently-coloured, square-cornered rectangle
+        exactly the width of "Save preferences", sitting behind the text
+        inside the rounded button. The same defect was found and fixed for
+        `[data-cc-revoke-others]` — that stylesheet comment says it plainly:
+        the button owns its background, its children do not.
+
+        Fixed at the cause on both sides. Here: the canonical
+        `set-action set-action--primary`, a plain `<button>` with a text
+        child and no inner element to paint, and no inline styling for the
+        stylesheet to fight. In `settings.css`: the descendant arms of the
+        purple group no longer paint a background.
+
+        Behaviour is untouched — same change-gate (`dirty`), same `busy`
+        lock, same `save()`, same `data-cc-preferences-save` hook. Language,
+        timezone, auto-detect and the UTC audit semantics are not involved.
+      */}
       <div>
-        <Button
-          variant="secondary"
+        <button
+          type="button"
+          className="set-action set-action--primary"
           onClick={() => void save()}
-          loading={busy}
           disabled={busy || !dirty}
+          aria-busy={busy || undefined}
           data-cc-preferences-save
         >
-          Save preferences
-        </Button>
+          {busy ? "Saving…" : "Save preferences"}
+        </button>
       </div>
     </div>
   );

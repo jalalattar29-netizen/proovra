@@ -180,6 +180,7 @@ function SettingsWorkspace() {
           : null,
         orgAdminOrgId: ui.orgAdminOrgId,
         isEnterpriseWorkspace: envelope?.flags?.isEnterpriseWorkspace === true,
+        planFeatures: envelope?.planFeatures ?? null,
       }),
     [envelope, ui.orgAdminOrgId],
   );

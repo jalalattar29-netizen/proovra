@@ -735,17 +735,44 @@
   outline-offset: 2px;
 }
 
-/* PURPLE — the action a section exists to perform. */
+/* PURPLE — the action a section exists to perform.
+
+   THE BUTTON OWNS ITS BACKGROUND; ITS CHILDREN DO NOT.
+
+   This group used to name `[data-…] *` alongside each button and hand the
+   whole declaration — the accent FILL included — to every descendant. It is
+   the identical defect recorded under the destructive group below, and it
+   was live on `Save preferences`: `components/ui/Button` wraps its label in
+   a span, the span took an opaque `--set-accent`, and the hover rule
+   repaints only the BUTTON. Hovering left a square-cornered rectangle in the
+   REST colour, exactly the width of the label, behind the text of a rounded
+   button. `[data-cc-password-submit]` is the same component and had the same
+   latent defect.
+
+   The fill is now the button's alone. The descendant arm below carries only
+   what a child genuinely needs — the ink, because a `<span>` inside a button
+   does not inherit `-webkit-text-fill-color` reliably — over a transparent
+   background, so every state the button paints is the state the reader sees.
+   `Save preferences` no longer needs any of this: it is a plain `<button>` on
+   `.set-action--primary` with a text child. The attribute hooks stay for the
+   two call sites still rendering the legacy component. */
 .settings-page-shell .set-main [data-cc-password-submit],
-.settings-page-shell .set-main [data-cc-password-submit] *,
 .settings-page-shell .set-main [data-contact-factor-send],
-.settings-page-shell .set-main [data-contact-factor-send] *,
 .settings-page-shell .set-main [data-cc-preferences-save],
-.settings-page-shell .set-main [data-cc-preferences-save] *,
 .set-action--primary {
   background: var(--set-accent) !important;
   background-image: none !important;
   border-color: var(--set-accent) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  box-shadow: none !important;
+}
+
+.settings-page-shell .set-main [data-cc-password-submit] *,
+.settings-page-shell .set-main [data-contact-factor-send] *,
+.settings-page-shell .set-main [data-cc-preferences-save] * {
+  background: transparent !important;
+  background-image: none !important;
   color: #ffffff !important;
   -webkit-text-fill-color: #ffffff !important;
   box-shadow: none !important;

@@ -421,3 +421,267 @@ test("the sign-out confirmation asks with a warning tone", () => {
     /title: "Sign out other sessions\?"[\s\S]{0,400}tone: "warning"/,
   );
 });
+
+// ===========================================================================
+// POST-CLOSURE UI/UX RECOVERY (2026-09-10)
+// ===========================================================================
+//
+// Four controls were wrong in four different ways, and each is pinned here so
+// the correction cannot be undone silently:
+//
+//   * Billing "View plans" on a Free account rendered as the pale outline
+//     secondary — the only call to action in the storage card, looking
+//     disabled.
+//   * The Settings Workspace card's CTA said "Open workspace settings" and
+//     opened AI & assistance.
+//   * "Save preferences" carried a second, differently-coloured surface behind
+//     its label.
+//   * Three billing hooks were still painted by a dead `.ui-button` block.
+
+const SETTINGS_PAGE = read("app/(app)/settings/page.tsx");
+const SETTINGS_NAV = read("lib/settings/settingsNavigation.ts");
+const BILLING_CSS = read("app/(app)/billing/billing.css");
+
+/**
+ * TS/TSX with comments removed.
+ *
+ * Not cosmetic: these corrections are all DELETIONS of a wrong control, and the
+ * deletion is explained in a comment at the site — which names the label, the
+ * handler and the class that were removed. A test that searches raw source
+ * therefore finds the retired thing in the prose recording its retirement, and
+ * either fails on a fixed file or, worse, matches the comment and passes on a
+ * broken one. Both happened on the first run of this block.
+ *
+ * `{/* … *\/}` collapses to `{}`, which no assertion here looks at.
+ */
+const stripTs = (src: string) =>
+  src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^[ \t]*\/\/.*$/gm, "");
+
+const PREFERENCES_LIVE = stripTs(PREFERENCES);
+const SETTINGS_OVERVIEW_LIVE = stripTs(SETTINGS_OVERVIEW);
+
+// ------------------------------------------------------------ SAVE PREFERENCES
+
+test("Save preferences is the canonical Settings primary, not the marketing button", () => {
+  const at = PREFERENCES_LIVE.indexOf("data-cc-preferences-save");
+  assert.ok(at > 0, "the save hook must exist");
+  const open = PREFERENCES_LIVE.lastIndexOf("<", at);
+  const tag = PREFERENCES_LIVE.slice(open, PREFERENCES_LIVE.indexOf(">", at) + 1);
+  assert.ok(
+    tag.startsWith("<button"),
+    `save must be a native <button> (got ${tag.slice(0, 24)})`,
+  );
+  assert.match(
+    tag,
+    /className="set-action set-action--primary"/,
+    "save must use the canonical Settings primary action",
+  );
+  assert.doesNotMatch(
+    tag,
+    /variant="(secondary|primary)"/,
+    "save must not carry a legacy Button variant",
+  );
+  // The legacy component is no longer imported at all, so it cannot come back
+  // by accident on the next edit to this section.
+  assert.doesNotMatch(
+    PREFERENCES_LIVE,
+    /^import[\s\S]*?from "[^"]*components\/ui\/Button";$/m,
+    "PreferencesSection must not import the legacy marketing Button",
+  );
+});
+
+test("the save control has no inner surface for a rule to paint", () => {
+  // THE ARTIFACT. `components/ui/Button` wraps its label in a
+  // `<span style={{display:"inline-flex"}}>`, and settings.css reclaimed the
+  // button with `[data-cc-preferences-save] *` — the span included. At rest
+  // both fills agreed; the hover rule repaints only the BUTTON, so the span
+  // kept the rest colour and showed as a square-cornered rectangle exactly the
+  // width of "Save preferences", behind the text of a rounded button.
+  const at = PREFERENCES_LIVE.indexOf("data-cc-preferences-save");
+  const open = PREFERENCES_LIVE.lastIndexOf("<", at);
+  const close = PREFERENCES_LIVE.indexOf("</button>", at);
+  assert.ok(close > open, "save must be a native <button> with a text child");
+  assert.doesNotMatch(
+    PREFERENCES_LIVE.slice(open, close),
+    /<span/,
+    "the save label must not be wrapped in a span",
+  );
+
+  // And the stylesheet no longer hands a FILL to descendants of the purple
+  // group. The descendant arm may carry ink; it may not carry a background.
+  const css = stripCss(SETTINGS_CSS);
+  const descendantBlocks = css
+    .split("}")
+    .filter((b) => /\[data-cc-preferences-save\] \*/.test(b));
+  assert.ok(
+    descendantBlocks.length > 0,
+    "the descendant arm should still exist, carrying ink only",
+  );
+  for (const block of descendantBlocks) {
+    assert.match(
+      block,
+      /background:\s*transparent/,
+      `a descendant of the save button must not be given a fill: ${block
+        .trim()
+        .slice(0, 120)}`,
+    );
+    assert.ok(
+      !/background:\s*var\(--set-accent\)/.test(block),
+      "the accent fill must belong to the button alone",
+    );
+  }
+});
+
+// -------------------------------------------------------- BILLING "VIEW PLANS"
+
+test("Free View plans is the canonical DARK action, not a coral CTA", () => {
+  const at = STORAGE.indexOf("data-billing-storage-upgrade");
+  assert.ok(at > 0, "the storage upgrade hook must exist");
+  const open = STORAGE.lastIndexOf("<", at);
+  const tag = STORAGE.slice(open, STORAGE.indexOf(">", at) + 1);
+  assert.match(
+    tag,
+    /\bapp-secondary-action\b/,
+    "it must be the canonical action, not a local control",
+  );
+  assert.match(
+    tag,
+    /\bapp-secondary-action--filled\b/,
+    "high emphasis is the canonical FILLED modifier",
+  );
+  assert.match(
+    tag,
+    /\bapp-secondary-action--lg\b/,
+    "it must keep the canonical height and typography",
+  );
+  // No one-off colour anywhere on it: a hex here would be a second definition
+  // of a control the primitive layer already owns.
+  assert.doesNotMatch(tag, /style=\{/, "no inline style on a canonical action");
+  const label = STORAGE.slice(at, STORAGE.indexOf("</button>", at));
+  assert.match(label, /View plans/, "the label must be unchanged");
+});
+
+test("the filled modifier is a real dark primitive with all four states", () => {
+  const css = stripCss(PRIMITIVES);
+  assert.match(
+    css,
+    /\.app-secondary-action--filled \{[\s\S]{0,400}background: var\(--app-ink-heading/,
+    "filled must be the dark ground from the token layer",
+  );
+  assert.match(
+    css,
+    /\.app-secondary-action--filled \{[\s\S]{0,400}color: #f/i,
+    "filled must carry a white label",
+  );
+  assert.match(
+    css,
+    /\.app-secondary-action--filled:hover:not\(:disabled\)/,
+    "filled must define its own hover, or it would take the lavender tint",
+  );
+  // Focus and disabled are inherited from the base class rather than redefined
+  // — which is the point of using the primitive.
+  assert.match(css, /\.app-secondary-action:focus-visible/);
+  assert.match(css, /\.app-secondary-action:disabled/);
+});
+
+test("View plans behaviour and destination are untouched", () => {
+  // A VISUAL change only. Same handler, same gate, same entitlement question.
+  assert.match(STORAGE, /data-billing-storage-upgrade[\s\S]{0,80}View plans/);
+  assert.match(STORAGE, /onClick=\{onChoosePlan\}/);
+  assert.match(STORAGE, /locked\.unlockedByPlan \?/);
+});
+
+test("billing.css no longer paints the three converted actions", () => {
+  const css = stripCss(BILLING_CSS);
+  for (const hook of [
+    '[data-billing-evidence-action="SEE_PLANS"].ui-button',
+    "[data-billing-storage-upgrade].ui-button",
+    "[data-billing-recheck].ui-button",
+  ]) {
+    assert.ok(
+      !css.includes(hook),
+      `billing.css still declares ${hook}, a selector no element can match`,
+    );
+  }
+});
+
+// ---------------------------------------------- SETTINGS WORKSPACE CARD ROUTE
+
+test("the Workspace card never routes to AI and assistance", () => {
+  // THE BUG. `pane === "workspace"` renders `<AiSection />`; the rail label was
+  // renamed to "AI & assistance" on 2026-09-03 because Settings hosts no
+  // workspace-defaults domain, and this CTA was not renamed with it. So the one
+  // control that promised workspace settings opened AI assistance.
+  const gridAt = SETTINGS_OVERVIEW_LIVE.indexOf('testId="workspace"');
+  assert.ok(gridAt > 0, "the workspace summary card must exist");
+  const live = SETTINGS_OVERVIEW_LIVE.slice(
+    gridAt,
+    SETTINGS_OVERVIEW_LIVE.indexOf('testId="plan"'),
+  );
+  assert.ok(
+    !/onOpen\("workspace"\)/.test(live),
+    "the Workspace card must not open the AI pane",
+  );
+  assert.ok(
+    !/Open workspace settings/.test(live),
+    "the label that named a destination it did not reach must be gone",
+  );
+  // And it was NOT relabelled to justify the wrong route.
+  assert.ok(
+    !/AI settings|AI & assistance/.test(live),
+    "renaming the control to match a wrong destination is not the fix",
+  );
+});
+
+test("the Workspace card's action is resolved by the canonical navigation model", () => {
+  // Decision rule (A): a canonical workspace-administration destination exists
+  // — members, invitations, seats, roles, ownership — so the CTA goes there,
+  // resolved through the route registry rather than hardcoded.
+  assert.match(
+    SETTINGS_NAV,
+    /workspaceAdminHref/,
+    "the model must expose the resolved destination",
+  );
+  assert.match(
+    SETTINGS_NAV,
+    /routeIsOffered\("workspace\.people"/,
+    "the destination must be permission-resolved, not assumed",
+  );
+  // `routeIsOffered`, not `routeLoads`: a rendered CTA is navigation, and for a
+  // nav-plan-gated route the resolver can answer `canLoad: true` while
+  // `canSeeNav` is false. Reading only `canLoad` offered `/people` to an actor
+  // with no capabilities at all — caught by the behavioural case in
+  // settings-architecture.test.ts, not by review.
+  assert.match(
+    SETTINGS_NAV,
+    /return access\.canLoad && access\.canSeeNav;/,
+    "the offer predicate must require BOTH",
+  );
+  assert.match(
+    SETTINGS_OVERVIEW,
+    /model\.workspaceAdminHref \?/,
+    "the card must render the action only when the route resolves",
+  );
+  // Rule (C)/(D): when it does not resolve — a Personal Space — there is no
+  // action at all, rather than a control that opens the wrong thing.
+  assert.match(
+    SETTINGS_OVERVIEW,
+    /model\.workspaceAdminHref \?[\s\S]{0,400}: null/,
+    "an unresolvable destination must render NO action",
+  );
+});
+
+test("AI and assistance is still reachable under its own name", () => {
+  // Removing the mislabelled shortcut must not remove the destination. The rail
+  // entry that names the pane correctly is what the shortcut was duplicating.
+  assert.match(
+    SETTINGS_NAV,
+    /label: "AI & assistance"/,
+    "the AI pane must keep its own correctly-named rail entry",
+  );
+  assert.match(
+    SETTINGS_PAGE,
+    /pane === "workspace" \?[\s\S]{0,120}<AiSection \/>/,
+    "the AI pane itself is unchanged — only the label that lied about it",
+  );
+});

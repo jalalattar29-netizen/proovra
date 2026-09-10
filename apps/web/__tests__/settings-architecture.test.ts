@@ -19,6 +19,7 @@ import {
   type SettingsUiContextInput,
 } from "../lib/settings/settingsUiContext";
 import { resolveSettingsNavigation } from "../lib/settings/settingsNavigation";
+import { getRouteDefinition } from "../lib/navigation/routeRegistry";
 
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (rel: string): string => readFileSync(resolve(APP_ROOT, rel), "utf8");
@@ -509,5 +510,148 @@ test("an organization MEMBER can see AI & assistance, read-only", () => {
   assert.ok(
     labels.includes("AI & assistance"),
     `an org member must reach it read-only; got ${labels.join(", ") || "(none)"}`,
+  );
+});
+
+// ===========================================================================
+// THE WORKSPACE CARD'S DESTINATION (2026-09-10)
+// ===========================================================================
+//
+// The Settings Overview "Workspace" card carried a control labelled "Open
+// workspace settings" whose handler was `onOpen("workspace")`. The `workspace`
+// PANE renders `<AiSection />` — its rail label was renamed to "AI &
+// assistance" on 2026-09-03 precisely because Settings hosts no
+// workspace-defaults domain, and this CTA was never renamed with it.
+//
+// So the only control on the page promising workspace settings opened AI
+// assistance, duplicating a rail entry that already opens the same pane under
+// its true name. It was NOT fixed by relabelling it "AI settings": that keeps a
+// wrong route and hides the contradiction again.
+//
+// It now resolves the destination that genuinely IS workspace administration
+// through the canonical route registry, and renders NOTHING when that route
+// would refuse the actor. These are the behavioural assertions for that: the
+// resolver is called, not described.
+
+const WORKSPACE_ADMIN_HREF = "/people";
+
+test("an organization admin gets a real workspace-administration destination", () => {
+  const nav = resolveSettingsNavigation({
+    activeSpace: { type: "ORGANIZATION", id: "o-1", displayName: "Acme" },
+    isPlatformAdmin: false,
+    capabilities: {
+      ACCOUNT_SETTINGS_VIEW: true,
+      SETTINGS_VIEW: true,
+      TEAM_VIEW: true,
+      TEAM_MANAGE_MEMBERS: true,
+    },
+    accountPlan: "TEAM",
+    personalSpace: { id: "p-1" },
+    orgAdminOrgId: "o-1",
+    isEnterpriseWorkspace: false,
+    planFeatures: { teamCollaborationIncluded: true },
+  } as never);
+
+  assert.equal(
+    nav.workspaceAdminHref,
+    WORKSPACE_ADMIN_HREF,
+    "the card must point at members & access, the canonical workspace-admin surface",
+  );
+});
+
+test("the destination is NEVER the AI pane", () => {
+  // The regression this exists to catch: any future edit that points the card
+  // back at AI, by href or by pane id.
+  for (const space of [
+    { type: "ORGANIZATION" as const, id: "o-1" },
+    { type: "PERSONAL" as const, id: "p-1" },
+  ]) {
+    const nav = resolveSettingsNavigation({
+      activeSpace: { ...space, displayName: "X" },
+      isPlatformAdmin: false,
+      capabilities: {
+        ACCOUNT_SETTINGS_VIEW: true,
+        SETTINGS_VIEW: true,
+        TEAM_VIEW: true,
+        TEAM_MANAGE_MEMBERS: true,
+      },
+      accountPlan: "PRO",
+      personalSpace: { id: "p-1" },
+      orgAdminOrgId: space.type === "ORGANIZATION" ? "o-1" : null,
+      isEnterpriseWorkspace: false,
+      planFeatures: { teamCollaborationIncluded: true },
+    } as never);
+    const href = nav.workspaceAdminHref;
+    if (href === null) continue;
+    assert.ok(
+      !/ai|assist/i.test(href),
+      `${space.type}: the workspace card must not route to AI (got ${href})`,
+    );
+  }
+});
+
+test("AI & assistance keeps its own rail entry, under its own name", () => {
+  // Removing a mislabelled shortcut must not remove the destination.
+  const nav = resolveSettingsNavigation({
+    activeSpace: { type: "ORGANIZATION", id: "o-1", displayName: "Acme" },
+    isPlatformAdmin: false,
+    capabilities: {
+      ACCOUNT_SETTINGS_VIEW: true,
+      SETTINGS_VIEW: true,
+      TEAM_VIEW: true,
+      TEAM_MANAGE_MEMBERS: true,
+    },
+    accountPlan: "TEAM",
+    personalSpace: { id: "p-1" },
+    orgAdminOrgId: "o-1",
+    isEnterpriseWorkspace: false,
+    planFeatures: { teamCollaborationIncluded: true },
+  } as never);
+  const labels = nav.groups.flatMap((g) => g.items.map((i) => i.label));
+  assert.ok(
+    labels.includes("AI & assistance"),
+    `the AI pane must stay reachable by name; got ${labels.join(", ") || "(none)"}`,
+  );
+  // And the pane is still in the allowed set — the card's CTA was the only
+  // thing removed.
+  assert.ok(
+    nav.allowed.has("workspace"),
+    "the AI pane must remain openable",
+  );
+});
+
+test("a destination the actor cannot reach is not offered at all", () => {
+  // Decision rules (C)/(D): no canonical destination for this actor means NO
+  // control, rather than one that opens the wrong thing. A capability-less
+  // actor cannot administer members.
+  const nav = resolveSettingsNavigation({
+    activeSpace: { type: "ORGANIZATION", id: "o-1", displayName: "Acme" },
+    isPlatformAdmin: false,
+    capabilities: {},
+    accountPlan: null,
+    personalSpace: { id: "p-1" },
+    orgAdminOrgId: null,
+    isEnterpriseWorkspace: false,
+    // The plan DOES include collaboration, so the nav gate is open. What is
+    // missing is TEAM_VIEW — which is the point: the refusal has to come from
+    // the capability, not from a plan flag that happens to be off.
+    planFeatures: { teamCollaborationIncluded: true },
+  } as never);
+  assert.equal(
+    nav.workspaceAdminHref,
+    null,
+    "an unresolvable destination must be null, so the card renders no action",
+  );
+});
+
+test("the href is the registry's, not a literal spelled out twice", () => {
+  // If `workspace.people` is ever re-routed, this test must follow it rather
+  // than pin the old path — that is the whole reason the resolver is used.
+  const route = getRouteDefinition("workspace.people");
+  assert.ok(route, "workspace.people must exist in the canonical registry");
+  assert.equal(
+    route.href,
+    WORKSPACE_ADMIN_HREF,
+    "this test's expectation is the registry's own href",
   );
 });

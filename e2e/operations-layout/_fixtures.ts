@@ -1077,10 +1077,54 @@ export async function openOperations(
   resetOpsCalls();
   resetShellRuntimeCalls();
   await installApi(page, context, options);
+  await suppressConsentOverlay(page);
   await page.goto(`/operations${options.query ?? ""}`, {
     waitUntil: "domcontentloaded",
   });
   await page.waitForLoadState("networkidle").catch(() => undefined);
+}
+
+/**
+ * STOP THE CONSENT BANNER INTERCEPTING EVERY POINTER EVENT ON THIS PAGE.
+ *
+ * MEASURED (2026-09-10), on the first execution of this project in this
+ * session: 13 of the `operations-a11y` cases failed, and the failure
+ * screenshots all show the same thing — the workbench rendered correctly,
+ * with real summary figures — behind the "Privacy Preferences" dialog, which
+ * `#cc-main` overlays on first visit. The row menu, the inspector, the
+ * remediation control and the RTL reading-order probe were all clicking the
+ * overlay. Counts came back 0 because the elements under it never received the
+ * event.
+ *
+ * This project provisions no storage state and no consent decision, so EVERY
+ * navigation is a first visit. Nothing in it ever dismissed the banner, which
+ * is why the whole a11y file was unusable — and, since `operations-layout` is
+ * an opt-in project that no workflow runs (`playwright-e2e.yml` names
+ * `--project=chromium`), nothing reported it.
+ *
+ * NOT a new idea and not a workaround invented here: this is the same
+ * `#cc-main` suppression `apps/web/e2e/admin-control-plane/_fixture-login.ts`
+ * already documents and relies on, for the identical measured symptom
+ * ("intercepts pointer events"). An init script runs before the first paint of
+ * every navigation, so the overlay can never take a pointer event at any
+ * viewport — which matters here because this project's whole purpose is to
+ * measure 390px, 768px and desktop, and the banner is largest relative to the
+ * page exactly where the tests are tightest.
+ *
+ * It suppresses the OVERLAY, not the product's consent behaviour: no decision
+ * is recorded, no analytics are enabled, and nothing consents on behalf of an
+ * automated run. The privacy-hardening assertions that check the banner exists
+ * and defaults to necessary-only live in their own suites and are untouched.
+ */
+async function suppressConsentOverlay(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const style = document.createElement("style");
+    style.textContent =
+      "#cc-main{display:none!important;pointer-events:none!important}";
+    const attach = () => document.head?.appendChild(style);
+    if (document.head) attach();
+    else document.addEventListener("DOMContentLoaded", attach, { once: true });
+  });
 }
 
 export async function setDirection(

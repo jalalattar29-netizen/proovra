@@ -375,12 +375,27 @@ test("filtered empty is NOT clear", async ({ page }) => {
   await expect(page.locator('[data-ops-empty="filtered"]')).toBeVisible();
 });
 
-test("truncated is NOT clear, and announces itself", async ({ page }) => {
+/*
+  TRUNCATED IS NOT CLEAR — AND NOT A FAILURE EITHER.
+
+  This asserted a visible `[data-ops-degraded]` alert. That page-level notice
+  is gone (2026-09-10): `completeness.complete` is `nextCursor === null`, so it
+  fired on every ordinary full first page and told the operator that part of
+  the list "could not be loaded" when nothing had failed.
+
+  The two properties that matter both remain, and are both asserted here: the
+  page cannot say clear (the refusal is `mayAssertAllClear`, decided on the
+  server), and there is a control that reaches the rest of the collection. The
+  false-clear sweep further down enumerates this scenario as well.
+*/
+test("truncated is NOT clear, and offers the rest of the collection", async ({
+  page,
+}) => {
   await openOperations(page, "team-admin", { scenario: "truncated" });
   await expect(page.locator('[data-ops-empty="clear"]')).toHaveCount(0);
-  const degraded = page.locator("[data-ops-degraded]");
-  await expect(degraded).toBeVisible();
-  expect(await degraded.getAttribute("role")).toBe("alert");
+  await expect(page.locator("[data-ops-load-more]")).toBeVisible();
+  // No page-level alarm for the ordinary case.
+  await expect(page.locator("[data-ops-degraded]")).toHaveCount(0);
 });
 
 test("a failed incident read is unavailable, never clear", async ({ page }) => {

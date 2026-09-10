@@ -1247,49 +1247,28 @@
 }
 
 /* ---------------------------------------------------------------------------
- * BILLING (2026-09-03) — the rest of the purchase/administration actions
+ * BILLING (2026-09-03, RETIRED 2026-09-10) — the purchase/administration
+ * actions, and why nothing is painted here any more.
  *
- * "Start Team subscription", "Buy credits" and "Add storage" already moved to
- * dark ink. These are the remaining actions of the same kind: they open a
- * choice that ends in money, or they reconcile against the payment provider.
- * The violet stays for the page's own primary path and for support.
+ * This block painted `[data-billing-evidence-action="SEE_PLANS"]`,
+ * `[data-billing-storage-upgrade]` and `[data-billing-recheck]` dark ink,
+ * with a dark hover and a violet focus ring — but every selector was qualified
+ * with `.ui-button`, the class the legacy marketing button component adds.
+ * All three controls are native canonical actions now
+ * (`app-secondary-action`, two of them `--filled`), so not one of these
+ * rules matched anything: the block was a second authority for three buttons,
+ * describing a treatment the primitive layer already owns.
+ *
+ * Verified before deletion — the three hooks appear on exactly three elements
+ * in the tree (BillingOverview.tsx:714, StorageAndHistory.tsx:144 and :433)
+ * and none of them is a `.ui-button`.
+ *
+ * The dark treatment did not go away with the rules. It IS
+ * `app-secondary-action--filled`: the same `--app-ink-heading` ground, the
+ * same dark hover that keeps the label white, and the shared lavender
+ * focus-visible ring and disabled opacity — declared once, in
+ * `components/app-primitives/app-primitives.css`, for every surface.
  * ------------------------------------------------------------------------- */
-
-.bill-page [data-billing-evidence-action="SEE_PLANS"].ui-button,
-.bill-page [data-billing-storage-upgrade].ui-button,
-.bill-page [data-billing-recheck].ui-button,
-.bill-panel [data-billing-evidence-action="SEE_PLANS"].ui-button,
-.bill-panel [data-billing-storage-upgrade].ui-button,
-.bill-panel [data-billing-recheck].ui-button {
-  background: var(--ink-primary) !important;
-  background-image: none !important;
-  border: 1px solid var(--ink-primary) !important;
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
-  box-shadow: none !important;
-  border-radius: 10px !important;
-}
-
-.bill-page [data-billing-evidence-action="SEE_PLANS"].ui-button:hover:not(:disabled),
-.bill-page [data-billing-storage-upgrade].ui-button:hover:not(:disabled),
-.bill-page [data-billing-recheck].ui-button:hover:not(:disabled),
-.bill-panel [data-billing-evidence-action="SEE_PLANS"].ui-button:hover:not(:disabled),
-.bill-panel [data-billing-storage-upgrade].ui-button:hover:not(:disabled),
-.bill-panel [data-billing-recheck].ui-button:hover:not(:disabled) {
-  /* A dark neutral step — never the violet the secondary treatment reaches
-     for on hover, which is what made these read as violet in disguise. */
-  background: #2c3648 !important;
-  border-color: #2c3648 !important;
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
-}
-
-.bill-page [data-billing-evidence-action="SEE_PLANS"].ui-button:focus-visible,
-.bill-page [data-billing-storage-upgrade].ui-button:focus-visible,
-.bill-page [data-billing-recheck].ui-button:focus-visible {
-  outline: 2px solid var(--accent-500, #7c3aed) !important;
-  outline-offset: 2px !important;
-}
 
 /* GET HELP — room around the label.
    The button was sized to its text with the compact padding a small button

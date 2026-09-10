@@ -491,8 +491,32 @@
 
 .opsw-more {
   display: flex;
+  /*
+   * Wraps and centres, so the pagination failure message sits UNDER the button
+   * on a narrow viewport rather than squeezing it. `align-items: center` keeps
+   * the two aligned while they share a row on desktop.
+   */
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: center;
+  gap: 8px;
   margin-block-start: 14px;
+}
+
+/*
+ * A FAILED NEXT PAGE, said quietly and in place.
+ *
+ * Deliberately not `app-alert`: this is one line beside the control that
+ * produced it, not a page-level state, and the whole point of moving it here
+ * was to stop a pagination hiccup rendering as a banner. `--ink-secondary`
+ * rather than a danger colour for the same reason — nothing already on screen
+ * became untrue.
+ */
+.opsw-more__error {
+  font: var(--font-meta);
+  color: var(--ink-secondary);
+  text-align: center;
+  overflow-wrap: anywhere;
 }
 
 /* --------------------------------------------------------------------------

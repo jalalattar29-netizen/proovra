@@ -119,7 +119,6 @@ import {
   ReconcilingNotice,
   ReconciliationFailedNotice,
   ReconciliationStalledNotice,
-  ReconciliationStaleNotice,
   RefreshingNotice,
   RestrictedState,
   UnavailableState,
@@ -314,6 +313,15 @@ function OperationsWorkbench() {
    */
   const [sla, setSla] = React.useState<SlaEnvelope | null>(null);
   const [nextCursor, setNextCursor] = React.useState<string | null>(null);
+  /*
+   * A FAILED NEXT PAGE, reported where it happened.
+   *
+   * Separate from `mutationError` on purpose: that one is for a failed
+   * acknowledge/resolve/suppress and renders at the top of the page. A
+   * pagination failure belongs beside the pagination control.
+   */
+  const [loadMoreError, setLoadMoreError] =
+    React.useState<SafeUserError | null>(null);
   const [loadingMore, setLoadingMore] = React.useState(false);
   const [refreshing, setRefreshing] = React.useState(false);
   const [lastLoadedAtUtc, setLastLoadedAtUtc] = React.useState<string | null>(
@@ -846,6 +854,7 @@ function OperationsWorkbench() {
     if (!teamId || !nextCursor || loadingMore) return;
     const seq = requestSeq.current;
     setLoadingMore(true);
+    setLoadMoreError(null);
     void apiFetch(
       `/v1/ops/incidents?${incidentsQuery({ teamId, filters, cursor: nextCursor })}`,
       { method: "GET" },
@@ -862,7 +871,24 @@ function OperationsWorkbench() {
         setNextCursor(v.pagination?.nextCursor ?? null);
       })
       .catch((err) => {
-        setMutationError(
+        if (seq !== requestSeq.current) return;
+        /*
+          OPERATIONS PRESENTATION CLEANUP (2026-09-10) — A PAGINATION FAILURE
+          IS REPORTED AT THE PAGINATION CONTROL.
+
+          This called `setMutationError`, which renders `InlineMutationError` at
+          the very TOP of the page — above the summary strip, potentially a full
+          screen away from the button that was pressed, and in the component
+          reserved for a failed acknowledge/resolve/suppress. So "the next page
+          did not load" arrived looking like a failed mutation, and the reader
+          had to scroll away from the control to find out.
+
+          The failure is now local state, rendered inside the same `opsw-more`
+          container as the button. Nothing about the loaded
+          rows changes: `nextCursor` is untouched, so the cursor is still valid
+          and pressing retry resumes from exactly where the read stopped.
+        */
+        setLoadMoreError(
           toSafeUserError(err, { message: "Could not load more conditions." }),
         );
       })
@@ -1514,12 +1540,38 @@ function OperationsWorkbench() {
         />
       ) : null}
 
-      {incidents.kind === "ready" && !complete ? (
-        <DegradedNotice
-          what="Part of the condition list"
-          message="More conditions exist than were returned."
-        />
-      ) : null}
+      {/*
+        OPERATIONS PRESENTATION CLEANUP (2026-09-10) — THE PAGINATION BANNER IS
+        GONE.
+
+        A `DegradedNotice` stood here on `!complete`, reading
+
+          "Part of the condition list could not be loaded.
+           More conditions exist than were returned.
+           Anything shown below may be incomplete."
+
+        `complete` is `page.nextCursor === null`. It means ONE thing: this read
+        did not reach the end of the collection. So the sentence was wrong in
+        its first clause — nothing failed to load — and the alert fired on every
+        workspace with more than one page of conditions, as a permanent warning
+        about ordinary pagination. Pressing Load 50 more then appended the last page
+        and the banner vanished, which is why the page felt unstable: a warning
+        that disappears when you scroll teaches the reader to distrust warnings.
+
+        NOTHING IS HIDDEN. Truncation is still represented, twice, and stably:
+        the count beside the list reads `N+` while a next page exists, and the
+        Load 50 more control is present exactly while there is more to load. Both
+        sit next to the data they describe and neither moves.
+
+        AND NO SAFETY PROPERTY MOVED. The refusal to report "all clear" over an
+        incomplete read is enforced server-side by `mayAssertOperationsClear`
+        (`INCIDENT_READ_INCOMPLETE`), projected as `mayAssertAllClear` and read
+        by `mayAssertClear` below. `complete` is still consumed there. The
+        banner was never the guard; it was a description of the guard.
+
+        The three notices that DO change what the numbers mean — FAILED,
+        STALLED and PARTIAL — are untouched and remain below.
+      */}
 
       {/*
         WORKSPACE-SCOPE CONVERGENCE (§16) — the reconciliation banner.
@@ -1543,12 +1595,38 @@ function OperationsWorkbench() {
           onRetry={checkAgain}
           retryable={partialIsRetryable}
         />
-      ) : readiness === "STALE" ? (
-        <ReconciliationStaleNotice
-          completedAtUtc={reconciliation?.completedAtUtc ?? null}
-          onRetry={checkAgain}
-        />
       ) : null}
+      {/*
+        OPERATIONS PRESENTATION CLEANUP (2026-09-10) — THE STALE BANNER IS GONE.
+
+        It read "These conditions may be out of date. The last complete check
+        was <time>. A new one is being scheduled." with a "Check again" button.
+
+        Every part of that is true, and none of it needed a page-level warning:
+
+          * STALE means the workspace WAS seen COMPLETELY, just not inside the
+            freshness window. The data below it is correct, only older.
+          * "A new one is being scheduled" is not a promise, it is a
+            description of what already happened. `ensureWorkspaceOperationsFreshness`
+            treats STALE as one of the five states that "want a fresh run" and
+            calls `reconcileWorkspaceOperations` on the very read that produced
+            this response — so by the time the banner rendered, the new run was
+            already claimed or running.
+          * "Check again" therefore asked the operator to trigger the thing the
+            page had just triggered on their behalf.
+
+        AND NO SAFETY PROPERTY MOVED. `mayAssertOperationsClear` returns
+        `{ clear: false, reason: "STALE" }` for this readiness, server-side, in
+        the one canonical rule — so a stale workspace still cannot be reported
+        clear, whether or not a banner says so. That refusal is pinned by the
+        enumerated "NEVER says clear when the server withholds permission"
+        test, which covers STALE explicitly.
+
+        FAILED, STALLED and PARTIAL are deliberately NOT removed. Each of those
+        genuinely changes what the numbers mean — data from an earlier check, an
+        abandoned run, or counts that are a floor — and an operator must know.
+        Only the benign, self-healing state loses its banner.
+      */}
 
       {readiness === "RUNNING" ? <ReconcilingNotice /> : null}
 
@@ -1753,6 +1831,24 @@ function OperationsWorkbench() {
               >
                 {loadingMore ? "Loading…" : `Load ${PAGE_SIZE} more`}
               </button>
+              {/*
+                COMPACT, AND NEXT TO THE CONTROL THAT FAILED.
+
+                The cursor is deliberately NOT cleared on failure, so the rows
+                already on screen stay and pressing the button again resumes
+                from the same position. `role="status"` rather than `alert`:
+                nothing about the loaded conditions became untrue, one further
+                read did not arrive.
+              */}
+              {loadMoreError ? (
+                <span
+                  className="opsw-more__error"
+                  role="status"
+                  data-ops-load-more-error
+                >
+                  {loadMoreError.message}
+                </span>
+              ) : null}
             </div>
           ) : null}
         </>

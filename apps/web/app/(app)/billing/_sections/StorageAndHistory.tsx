@@ -122,8 +122,24 @@ export function StorageAddonsSection({
                * on the reasoning that the overview owns the page's single
                * filled CTA; that hierarchy note is preserved here because it is
                * still the reason "Manage storage" beside it was left alone.
+               *
+               * THE CANONICAL DARK ACTION (2026-09-10) —
+               * `app-secondary-action--filled`.
+               *
+               * It rendered as the pale OUTLINE secondary, which on a Free
+               * account is the only call to action in the storage card and read
+               * as a disabled-looking afterthought. `--filled` is the stack's
+               * one solid neutral control (`app-primitives.css`): dark
+               * `--app-ink-heading` ground, white label, its own dark hover
+               * that keeps the label white, and the shared lavender
+               * focus-visible ring and disabled opacity from the base class.
+               *
+               * Reused, not restyled. No inline background, no one-off colour:
+               * a hex here would be a second definition of a control the
+               * primitive layer already owns, and it is exactly how the old
+               * coral marketing CTA leaked onto app surfaces.
                */
-              className="app-secondary-action app-secondary-action--lg"
+              className="app-secondary-action app-secondary-action--filled app-secondary-action--lg"
               onClick={onChoosePlan}
               data-billing-storage-upgrade
             >

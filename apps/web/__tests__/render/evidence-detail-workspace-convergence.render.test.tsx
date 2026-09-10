@@ -378,6 +378,57 @@ function makeWorkspace(): unknown {
       evidenceId: EVIDENCE_ID,
       status: "REPORTED",
       finalized: true,
+      /*
+        THE CANONICAL THREE-AXIS PROJECTION, WHICH THIS FIXTURE WAS MISSING.
+
+        `artifactStatus.outputs` became the thing the page renders on
+        2026-09-08 and this fixture was not updated with it, so
+        `describeReportArtifactStatus` — `outputs.report.state` — threw
+        "Cannot read properties of undefined (reading 'report')" on every one of
+        this file's 39 cases. It went unseen because `test:render` was invoked
+        by no workflow and no aggregate script: 1,099 render tests that ran only
+        when somebody remembered the command.
+
+        Verified pre-existing rather than assumed: the same expression is in
+        `_lib.tsx` at 214315a5, the last fully green commit, and this file's
+        last change was 2026-09-08.
+
+        The shape below is the server's own (`EvidenceOutputProjection`), for a
+        record whose report and package are both generated and downloadable —
+        which is what the legacy blocks beside it already say.
+      */
+      outputs: {
+        report: {
+          eligibility: "ELIGIBLE",
+          ineligibilityReason: null,
+          notApplicableReason: null,
+          generation: "SUCCEEDED",
+          terminalReasonClass: null,
+          terminalReasonCode: null,
+          attemptCount: 1,
+          requestedAtUtc: iso("2026-07-04T05:23:00Z"),
+          completedAtUtc: iso("2026-07-04T05:23:22Z"),
+          availability: "AVAILABLE",
+          state: "READY",
+          action: "DOWNLOAD",
+          actionUnavailableReason: null,
+        },
+        verificationPackage: {
+          eligibility: "ELIGIBLE",
+          ineligibilityReason: null,
+          notApplicableReason: null,
+          generation: "SUCCEEDED",
+          terminalReasonClass: null,
+          terminalReasonCode: null,
+          attemptCount: 1,
+          requestedAtUtc: iso("2026-07-04T05:23:00Z"),
+          completedAtUtc: iso("2026-07-04T05:23:22Z"),
+          availability: "AVAILABLE",
+          state: "READY",
+          action: "DOWNLOAD",
+          actionUnavailableReason: null,
+        },
+      },
       report: {
         state: "AVAILABLE",
         available: true,

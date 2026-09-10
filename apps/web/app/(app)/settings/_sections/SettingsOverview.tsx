@@ -227,9 +227,36 @@ export function SettingsOverview({
           }
           facts={workspaceFacts}
           action={
-            /* No action where there is nothing to open: a personal space has
-               no workspace settings destination, and a button that opens
-               nothing is worse than no button. */
+            /*
+              No action where there is nothing to open: a personal space has
+              no workspace settings destination, and a button that opens
+              nothing is worse than no button.
+
+              SETTINGS NAVIGATION CORRECTION (2026-09-10) — THE AI FALLBACK IS
+              GONE.
+
+              The second branch used to be `can("workspace")` →
+              `onOpen("workspace")` under the label "Open workspace settings".
+              The `workspace` PANE renders `<AiSection />`; its rail label was
+              renamed to "AI & assistance" on 2026-09-03 precisely because
+              Settings hosts no workspace-defaults domain, and this CTA was not
+              renamed with it. So the only control on the page that promised
+              workspace settings opened AI assistance — a label that did not
+              match its destination, duplicating a rail entry that already
+              opens the same pane under its true name.
+
+              It is NOT renamed to "AI settings": this is the Workspace card,
+              AI has its own rail entry, and relabelling a control to justify a
+              wrong route is how the contradiction became invisible the first
+              time.
+
+              It now points at the destination that genuinely IS workspace
+              administration — members, invitations, seats, roles, ownership
+              transfer, closure — resolved by the canonical navigation model
+              through `resolveRouteAccess`. When that route would refuse this
+              actor, `workspaceAdminHref` is null and the card renders no
+              action, which is the correct outcome for a Personal Space.
+            */
             can("members") ? (
               <button
                 type="button"
@@ -239,15 +266,14 @@ export function SettingsOverview({
               >
                 Manage members
               </button>
-            ) : can("workspace") ? (
-              <button
-                type="button"
+            ) : model.workspaceAdminHref ? (
+              <Link
                 className="set-action set-action--ink"
-                onClick={() => onOpen("workspace")}
-                data-settings-open="workspace"
+                href={model.workspaceAdminHref}
+                data-settings-workspace-admin
               >
-                Open workspace settings
-              </button>
+                Manage workspace access
+              </Link>
             ) : null
           }
         />

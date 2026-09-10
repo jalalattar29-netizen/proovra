@@ -239,10 +239,71 @@ describe("BILLING PLAN SELECTION (live PostgreSQL 16)", () => {
 
       expect(p.actions.canBuyStorageAddon).toBe(false);
       expect(p.storageAddons ?? null).toBeNull();
+      /*
+       * PRODUCT OPTION B (2026-09-10) — THE SENTENCE NAMES BOTH ROUTES NOW.
+       *
+       * This pinned "Additional storage is available with Pro and Team." and
+       * that pin is what turned the Clean DB job red: the copy was extended
+       * when a genuine evidence-credit customer became able to buy storage,
+       * and a Free account looking at a full meter was previously told a
+       * subscription was the only way up when it was not.
+       *
+       * REPINNED, NOT RELAXED — still an exact-equality assertion on the
+       * SERVER-composed reason, which is the point of the original test: the
+       * page does not compose this sentence.
+       *
+       * The two assertions above are UNCHANGED and are the ones that carry the
+       * commercial semantics. They still hold because the entitlement signal is
+       * a settled credit-ledger GRANT, not a wallet balance, and
+       * `setAccountPlan` writes only `entitlement.credits` — so a Free tenant
+       * seeded with any number of credits still has no grant row and still
+       * cannot buy. The companion test below proves the other direction.
+       */
       expect(p.storageAddonsLocked?.reason).toBe(
-        "Additional storage is available with Pro and Team.",
+        "Additional storage is available with Pro and Team, and with Pay-per-evidence once you have bought an evidence credit.",
       );
       expect(p.storageAddonsLocked?.unlockedByPlan).toBe("PRO");
+    });
+
+    it("CAN buy storage capacity once it holds a settled evidence credit", async () => {
+      /*
+       * PRODUCT OPTION B, PROVEN AGAINST LIVE POSTGRES.
+       *
+       * The dead end this closes: an evidence-credit buyer is a FREE account by
+       * design, FREE could buy no storage, and the 250 MB it includes is filled
+       * by the very records the credits paid for. The customer held paid credits
+       * they could not spend and had no purchasable remedy.
+       *
+       * The qualifying fact is a settled ledger GRANT and deliberately not a
+       * balance: the customer who most needs storage is the one who has SPENT
+       * their credits. That distinction is only observable against a real
+       * database, which is why this belongs in the integration project — the
+       * unit suite can prove the pure policy but not that this projection reads
+       * the ledger.
+       *
+       * The row is written the way the production grant path writes one: a
+       * PURCHASE entry with a provider reference. No plan is changed.
+       */
+      const t = await seedPersonalTenant(deps, "FREE", { credits: 1 });
+      await prisma.evidenceCreditLedgerEntry.create({
+        data: {
+          userId: t.owner.userId,
+          entryType: "PURCHASE",
+          creditsDelta: 1,
+          balanceAfter: 1,
+          provider: "STRIPE",
+          providerRef: `p7-option-b-${t.owner.userId}`,
+        },
+      });
+
+      const p = await projectFor(t.owner.userId);
+
+      // The plan did NOT move. This is the whole product decision.
+      expect(p.plan.planKey).toBe("FREE");
+      // …and the capability did.
+      expect(p.actions.canBuyStorageAddon).toBe(true);
+      expect(p.storageAddonsLocked ?? null).toBeNull();
+      expect((p.storageAddons?.offers ?? []).length).toBeGreaterThan(0);
     });
   });
 

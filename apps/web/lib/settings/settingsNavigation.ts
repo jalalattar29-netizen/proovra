@@ -25,7 +25,11 @@
  * envelope all resolve the same way: the entry is not offered.
  */
 
-import { ROUTE_REGISTRY, type RouteDefinition } from "../navigation/routeRegistry";
+import {
+  ROUTE_REGISTRY,
+  type PlanFeatureGateKey,
+  type RouteDefinition,
+} from "../navigation/routeRegistry";
 import type { CapabilityKey } from "../platform-context/types";
 import { resolveRouteAccess } from "../navigation/routeAccessResolver";
 
@@ -72,6 +76,33 @@ export type SettingsNavModel = {
   groups: SettingsNavGroup[];
   /** Flat lookup for the shell's pane resolution and deep links. */
   allowed: Set<SettingsPaneId>;
+  /**
+   * WHERE "workspace settings" ACTUALLY LIVES, when it exists for this actor.
+   *
+   * ---------------------------------------------------------------------------
+   * SETTINGS NAVIGATION CORRECTION (2026-09-10)
+   * ---------------------------------------------------------------------------
+   * The Settings Overview "Workspace" card offered a button labelled
+   * "Open workspace settings" whose handler was `onOpen("workspace")` — and the
+   * `workspace` PANE renders `<AiSection />`. The 2026-09-03 pass had already
+   * renamed that pane's rail label to "AI & assistance" for exactly this
+   * reason ("there is no General domain here to fill; there is an AI one, and
+   * the destination names it"), and the summary card's CTA was not updated
+   * with it. So the one control on the page that says "workspace settings"
+   * opened AI assistance, next to a rail entry that opens the same pane under
+   * its real name.
+   *
+   * This is a RESOLVED HREF, not a new pane and not a new rail item. Settings
+   * gains no surface: it points at the canonical workspace administration
+   * route that already exists (`workspace.people` — members, invitations,
+   * seats, roles, ownership transfer, closure), through the SAME
+   * `resolveRouteAccess` every other destination here passes through.
+   *
+   * `null` is the honest answer for a Personal Space, which has no workspace
+   * administration surface at all — the summary card's own comment has said so
+   * since it was written, and the AI fallback was the thing contradicting it.
+   */
+  workspaceAdminHref: string | null;
 };
 
 export type SettingsNavInput = {
@@ -93,6 +124,19 @@ export type SettingsNavInput = {
    * console it used to gate by hand now has a registry entry.
    */
   isEnterpriseWorkspace: boolean;
+  /**
+   * The SERVER-computed `envelope.planFeatures` projection.
+   *
+   * Needed because `routeIsOffered` asks a NAVIGATION question, and the
+   * resolver answers it from this projection for every route carrying
+   * `navPlanFeature`. Without it the answer is "not included" for all of
+   * them — which is how the Workspace card's new destination came back null
+   * for an organization admin who can plainly administer members.
+   *
+   * Never a plan-name comparison: same fail-closed booleans the sidebar and
+   * the route gate read, from the same envelope.
+   */
+  planFeatures: Partial<Record<PlanFeatureGateKey, boolean | null>> | null;
 };
 
 /** True iff the canonical route would actually load for this actor. */
@@ -109,11 +153,65 @@ function routeLoads(routeId: string, input: SettingsNavInput): boolean {
       ? { id: input.activeSpace.id, status: "active" }
       : null,
     personalSpace: input.personalSpace,
+    /*
+      `planFeatures` IS DELIBERATELY NOT PASSED HERE, and that is a scope
+      decision rather than an oversight.
+
+      Without it, a route carrying `navPlanFeature` takes the resolver's early
+      `{canLoad: true, canSeeNav: false}` return and its `requiredCapabilities`
+      are never evaluated — so `routeLoads` can answer true for an actor who
+      holds none of them. That is a real pre-existing gap, found while
+      resolving the Workspace card's destination (see `routeIsOffered`).
+
+      Supplying it here would make this predicate stricter for every rail item
+      that uses it, on every plan, which is a change to what operators see in
+      Settings and is not what this pass is for. It is recorded in the recovery
+      report instead, and the NEW destination uses the corrected predicate.
+    */
     // Several workspace destinations are in `ENTERPRISE_ONLY_ROUTE_IDS`, and
     // the resolver fails them closed without this. Same server-projected flag
     // the shell reads — never a plan-name comparison.
     isEnterpriseWorkspace: input.isEnterpriseWorkspace,
   }).canLoad;
+}
+
+/**
+ * True iff this actor should be OFFERED a link to the route — which is a
+ * stricter question than whether the route would load.
+ *
+ * `routeLoads` reads `canLoad`, and for a route carrying `navPlanFeature` the
+ * resolver returns `{canLoad: true, canSeeNav: false}` when the plan does not
+ * include the feature: the surface stays reachable for existing data, but it is
+ * deliberately absent from navigation. A rendered CTA is navigation.
+ *
+ * Caught by its own test rather than by reasoning. The Workspace card's new
+ * destination was resolved with `routeLoads`, and the "an actor who cannot
+ * reach it is offered nothing" case came back with `/people` for an actor
+ * holding no capabilities at all — because `workspace.people` IS nav-plan-gated
+ * (FREE and PAYG have one seat), so the early return fired and the
+ * `TEAM_VIEW` requirement below it was never evaluated.
+ *
+ * `routeLoads` is left alone: its existing callers decide whether a PANE the
+ * rail already lists can open, which is the `canLoad` question. This is a
+ * second, narrower predicate rather than a change to theirs.
+ */
+function routeIsOffered(routeId: string, input: SettingsNavInput): boolean {
+  const route = ROUTE_BY_ID.get(routeId);
+  if (!route) return false;
+  const access = resolveRouteAccess({
+    route,
+    activeSpaceType: input.activeSpace?.type ?? null,
+    isPlatformAdmin: input.isPlatformAdmin,
+    capabilities: input.capabilities ?? {},
+    accountPlan: input.accountPlan,
+    workspace: input.activeSpace
+      ? { id: input.activeSpace.id, status: "active" }
+      : null,
+    personalSpace: input.personalSpace,
+    planFeatures: input.planFeatures ?? null,
+    isEnterpriseWorkspace: input.isEnterpriseWorkspace,
+  });
+  return access.canLoad && access.canSeeNav;
 }
 
 /** A server-projected capability, read strictly. Absent or loading = no. */
@@ -320,7 +418,22 @@ export function resolveSettingsNavigation(
   const allowed = new Set<SettingsPaneId>(["overview"]);
   for (const group of groups) for (const item of group.items) allowed.add(item.id);
 
-  return { overview, groups, allowed };
+  /*
+   * SETTINGS NAVIGATION CORRECTION (2026-09-10) — see `workspaceAdminHref`.
+   *
+   * Asked through the canonical resolver, so a route that would refuse this
+   * actor produces `null` rather than a button that lands on a refusal. A
+   * Personal Space fails it by construction (`workspace.people` requires a
+   * workspace membership surface), which is exactly the answer the Workspace
+   * card needs in order to render no action at all.
+   */
+  const workspaceAdminRoute = ROUTE_BY_ID.get("workspace.people");
+  const workspaceAdminHref =
+    workspaceAdminRoute && routeIsOffered("workspace.people", input)
+      ? workspaceAdminRoute.href
+      : null;
+
+  return { overview, groups, allowed, workspaceAdminHref };
 }
 
 /**

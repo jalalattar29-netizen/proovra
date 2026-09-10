@@ -856,11 +856,32 @@ describe("Operations — an all-clear is a claim about a COMPLETE read", () => {
     expect(q('[data-ops-empty="filtered"]')).not.toBeNull();
   });
 
-  it("an empty TRUNCATED read is not clear, and says so", async () => {
+  /*
+    AN EMPTY TRUNCATED READ IS STILL NOT CLEAR — AND THE REFUSAL IS THE SERVER'S.
+
+    This asserted `[data-ops-degraded]`, the page-level alert that said "Part of
+    the condition list could not be loaded. More conditions exist than were
+    returned. Anything shown below may be incomplete." That alert is gone, and
+    its removal took away no safety property: `completeness.complete` is
+    literally `nextCursor === null` (`ops.routes.ts`), so the alert fired on
+    ORDINARY pagination — every full first page of a large workspace — and said
+    a read had partly failed when nothing had failed at all.
+
+    What actually prevents a false all-clear is `mayAssertAllClear`, decided by
+    `mayAssertOperationsClear` on the server and enumerated by the sweep at the
+    end of this file over all six refusing readiness states. That is asserted
+    here too, unchanged.
+
+    The assertion the alert was standing in for is now the one below it: no
+    page-level alert is raised for a truncated read. Both directions are pinned
+    — the page must not claim clear, and must not cry failure either.
+  */
+  it("an empty TRUNCATED read is not clear, and raises no page-level alert", async () => {
     incidentsReply = () => list([], { complete: false, nextCursor: "c" });
     await mount(envelope(TEAM_ADMIN));
     expect(q('[data-ops-empty="clear"]')).toBeNull();
-    expect(q("[data-ops-degraded]")).not.toBeNull();
+    expect(document.body.textContent).not.toMatch(/could not be loaded/i);
+    expect(q("[data-ops-degraded]")).toBeNull();
   });
 
   it("a FAILED incident read shows unavailable, never clear", async () => {
@@ -1766,7 +1787,28 @@ describe("Operations — reconciliation state is visible, and gates the all-clea
     expect(panel.textContent).not.toMatch(/select |prisma|postgres|:\/\//i);
   });
 
-  it("a STALE run says the conditions may be out of date", async () => {
+  /*
+    A STALE RUN IS HANDLED, NOT ANNOUNCED.
+
+    This asserted `[data-ops-stale="true"]` — "These conditions may be out of
+    date. The last reconciliation run is older than this workspace's freshness
+    window. A new one is being scheduled." with a "Check again" button beside
+    it. Three sentences of machinery, on the ordinary path, for something the
+    product had already done: the very read that renders this page calls
+    `ensureWorkspaceOperationsFreshness`, which schedules a run for NEVER_RUN,
+    STALE, PARTIAL, FAILED and STALLED alike. The banner asked the operator to
+    request what was already in flight.
+
+    What is NOT presentational is the refusal to claim all-clear over a stale
+    run, and that is the server's: `mayAssertOperationsClear` returns
+    `{clear:false, reason:"STALE"}`. STALE is one of the six states in the
+    sweep below, so the property the banner was mistaken for is pinned there.
+
+    FAILED, STALLED and PARTIAL keep their notices — see the two tests above.
+    Those are not "we are already fixing it": a run that failed or stopped
+    halfway is a condition of the workspace, and the operator has to know.
+  */
+  it("a STALE run neither claims clear nor lectures the operator about it", async () => {
     summaryReply = () =>
       summary({
         readiness: "STALE",
@@ -1774,7 +1816,10 @@ describe("Operations — reconciliation state is visible, and gates the all-clea
         clearRefusalReason: "STALE",
       });
     await mount(envelope(TEAM_ADMIN));
-    expect(q('[data-ops-stale="true"]')).not.toBeNull();
+    expect(q('[data-ops-stale="true"]')).toBeNull();
+    expect(document.body.textContent).not.toMatch(/may be out of date/i);
+    // The queue itself is untouched: removing the banner removed a banner.
+    expect(rowIds()).toEqual(["i-crit", "i-high", "i-old"]);
   });
 
   it("the page NEVER says clear when the server withholds permission", async () => {
@@ -3469,5 +3514,136 @@ describe("Operations — the summary grid adapts to its container", () => {
     // column count rather than a second strip being defined.
     expect((src.match(/^\.opsw-summary__grid\s*\{/gm) ?? []).length).toBe(1);
     expect(src).not.toMatch(/opsw-summary--(mobile|narrow|compact)/);
+  });
+});
+
+// ===========================================================================
+// 21. "Load 50 more" — the control that replaced the truncation banner
+// ===========================================================================
+//
+// OPERATIONS PRESENTATION CLEANUP (2026-09-10).
+//
+// Two page-level notices were removed from the ordinary path: the truncation
+// alert ("Part of the condition list could not be loaded…") and the staleness
+// notice ("These conditions may be out of date…"). Neither was carrying a
+// safety property — `complete` is `nextCursor === null`, and staleness is
+// auto-rescheduled by the same read — but the truncation alert WAS the only
+// thing on screen that mentioned there was more to see.
+//
+// So the pagination control now has to be right, and this block is the proof
+// that it is. Every claim the removal rests on is asserted: the first page is
+// the first page, the next page APPENDS, the order is the server's, nothing
+// arrives twice, the filters travel with the cursor, exhaustion takes the
+// control away, and a failed next page is reported next to the button rather
+// than as a page-level alarm.
+
+describe("Operations — paging through a truncated queue", () => {
+  const PAGE_ONE = [
+    incident({ id: "p1-a", title: "Trusted timestamp failed" }),
+    incident({ id: "p1-b", title: "Report generation failed", category: "REPORT" }),
+  ];
+  const PAGE_TWO = [
+    incident({ id: "p2-a", title: "Bitcoin anchoring stalled" }),
+    incident({ id: "p2-b", title: "Intake delivery failed" }),
+  ];
+
+  /** Page 1 with a cursor, then page 2 that ends the collection. */
+  function paged(over: { secondCursor?: string | null } = {}) {
+    let call = 0;
+    return () => {
+      call += 1;
+      return call === 1
+        ? list(PAGE_ONE, { nextCursor: "cur-1", complete: false })
+        : list(PAGE_TWO, {
+            nextCursor: over.secondCursor ?? null,
+            complete: (over.secondCursor ?? null) === null,
+          });
+    };
+  }
+
+  async function pressMore() {
+    const more = q("[data-ops-load-more]") as HTMLButtonElement;
+    expect(more).not.toBeNull();
+    await act(async () => {
+      fireEvent.click(more);
+    });
+    await settle();
+  }
+
+  it("shows the first page and offers the next, with no page-level warning", async () => {
+    incidentsReply = paged();
+    await mount(envelope(TEAM_ADMIN));
+    expect(rowIds()).toEqual(["p1-a", "p1-b"]);
+    expect(q("[data-ops-load-more]")).not.toBeNull();
+    // THE BANNER THAT WAS REMOVED. A full first page of a large workspace is
+    // the ordinary case, and it must not look like a partial failure.
+    expect(q("[data-ops-degraded]")).toBeNull();
+    expect(document.body.textContent).not.toMatch(/could not be loaded/i);
+    expect(document.body.textContent).not.toMatch(/may be incomplete/i);
+  });
+
+  it("appends the next page in the server's order, without duplicating the first", async () => {
+    incidentsReply = paged();
+    await mount(envelope(TEAM_ADMIN));
+    await pressMore();
+    // Appended, not replaced; the server's order, not re-sorted in the
+    // browser; and each id exactly once.
+    expect(rowIds()).toEqual(["p1-a", "p1-b", "p2-a", "p2-b"]);
+    expect(new Set(rowIds()).size).toBe(rowIds().length);
+    // The narrow renderer paged with it — one model, two renderers.
+    expect(cardIds()).toEqual(rowIds());
+  });
+
+  it("sends the cursor, and keeps the filters that produced page 1", async () => {
+    currentSearch = "severity=CRITICAL&q=timestamp";
+    incidentsReply = paged();
+    await mount(envelope(TEAM_ADMIN));
+    await pressMore();
+    const second = lastListQuery();
+    expect(second).toMatch(/cursor=cur-1/);
+    expect(second).toMatch(/severity=CRITICAL/);
+    expect(second).toMatch(/q=timestamp/);
+  });
+
+  it("takes the control away once the collection is exhausted", async () => {
+    incidentsReply = paged();
+    await mount(envelope(TEAM_ADMIN));
+    await pressMore();
+    // Page 2 returned `nextCursor: null`, which is the ONLY thing that means
+    // "that was all of it".
+    expect(q("[data-ops-load-more]")).toBeNull();
+  });
+
+  it("keeps offering the control while the server still has a cursor", async () => {
+    incidentsReply = paged({ secondCursor: "cur-2" });
+    await mount(envelope(TEAM_ADMIN));
+    await pressMore();
+    expect(q("[data-ops-load-more]")).not.toBeNull();
+    expect(q("[data-ops-degraded]")).toBeNull();
+  });
+
+  it("reports a failed next page AT THE CONTROL, and keeps the rows already read", async () => {
+    let call = 0;
+    incidentsReply = () => {
+      call += 1;
+      if (call === 1) return list(PAGE_ONE, { nextCursor: "cur-1", complete: false });
+      throw apiFailure(503);
+    };
+    await mount(envelope(TEAM_ADMIN));
+    await pressMore();
+
+    const inline = q("[data-ops-load-more-error]") as HTMLElement;
+    expect(inline).not.toBeNull();
+    // `status`, not `alert`: nothing about the conditions already on screen
+    // became untrue — one further read did not arrive.
+    expect(inline.getAttribute("role")).toBe("status");
+    // It is INSIDE the pagination block, beside the button that failed, not at
+    // the top of the page where a failed acknowledge is reported.
+    expect(inline.closest(".opsw-more")).not.toBeNull();
+    // The rows survive, the cursor survives, so pressing again resumes.
+    expect(rowIds()).toEqual(["p1-a", "p1-b"]);
+    expect(q("[data-ops-load-more]")).not.toBeNull();
+    // And the provider's own words never reach the reader.
+    expect(document.body.textContent).not.toMatch(/request failed|503/i);
   });
 });
