@@ -140,7 +140,9 @@ const FORBIDDEN_SUBSTRINGS = Object.freeze([
 /** Value shapes that are credentials regardless of which variable holds them. */
 const CREDENTIAL_SHAPES = Object.freeze([
   { name: "AWS access key id", re: /(^|[^A-Z0-9])(AKIA|ASIA)[0-9A-Z]{16}([^A-Z0-9]|$)/ },
-  { name: "Stripe key", re: /\b(sk|rk)_(live|test)_[A-Za-z0-9]{8,}/ },
+  { name: "Stripe key", re: /\b(sk|rk|pk)_(live|test)_[A-Za-z0-9]{8,}/ },
+  { name: "Stripe webhook secret", re: /\bwhsec_[A-Za-z0-9]{16,}/ },
+  { name: "Twilio API key sid", re: /\bSK[0-9a-f]{32}\b/i },
   { name: "Resend key", re: /\bre_[A-Za-z0-9]{16,}/ },
   { name: "OpenAI key", re: /\bsk-[A-Za-z0-9_-]{20,}/ },
   { name: "Twilio account sid", re: /\bAC[0-9a-f]{32}\b/i },
@@ -148,6 +150,14 @@ const CREDENTIAL_SHAPES = Object.freeze([
   { name: "PEM private key", re: /-----BEGIN [A-Z ]*PRIVATE KEY-----/ },
   { name: "JWT", re: /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\./ },
 ]);
+
+/**
+ * Variable NAMES that hold a credential for an external provider. Matched on
+ * provider prefix AND credential suffix, so a feature flag such as
+ * `AWS_SECRETS_ENABLED` is not mistaken for a secret.
+ */
+const PROVIDER_CREDENTIAL_NAME =
+  /^(NEXT_PUBLIC_)?(STRIPE|PAYPAL|TWILIO|SENTRY|AWS|R2|CLOUDFLARE|RESEND|OPENAI|ANTHROPIC|SAML_IDP|GOOGLE_CLIENT|APPLE_CLIENT)(_[A-Z0-9]+)*_(KEY|SECRET|TOKEN|SID|DSN|PASSWORD|CLIENT_ID|ACCESS_KEY_ID|SECRET_ACCESS_KEY|WEBHOOK_ID)$/;
 
 const LOCAL_HOSTS = /^(localhost|127\.0\.0\.1|\[?::1\]?|0\.0\.0\.0|host\.docker\.internal|minio|postgres|redis)$/i;
 
@@ -231,21 +241,31 @@ function buildLocalValues({ webPort, apiPort, databaseUrl, redisUrl }) {
     // the fixture session on every API restart and turned a verification run
     // into a debugging run.
     /**
-     * Neutralise dotenv outright.
+     * Neutralise `import "dotenv/config"`, for any script that still uses it.
      *
-     * Borrowed from services/api/test/setup/safe-environment.ts, which solved
-     * the SAME incident for test processes after a Point-7 run booted the API
-     * in-process, initialised Sentry with the production DSN, and read the
-     * production evidence bucket. Its note is worth repeating: an allowlist is
-     * sufficient only if it is COMPLETE, and this makes completeness
-     * unnecessary.
-     *
-     * `import "dotenv/config"` honours DOTENV_CONFIG_PATH. Pointed at a file
-     * that does not exist, it loads nothing — so services/api/.env cannot fill
-     * a variable this allowlist happens not to set. Belt and braces, and the
-     * braces are the ones that were already proven here.
+     * Borrowed from services/api/test/setup/safe-environment.ts. It covers the
+     * dotenv package ONLY: pointed at a file that does not exist, dotenv loads
+     * nothing. It is NOT what protects the API, the worker or the web app —
+     * none of them load .env through dotenv. Their three loader boundaries
+     * are the two switches below (PV-SEC-002).
      */
     DOTENV_CONFIG_PATH: "scripts/local-fixture-env/no-such-env-file",
+
+    /**
+     * PV-SEC-002 — THE WEB APP'S .env LOADER, SWITCHED OFF AT ITS OWN BOUNDARY.
+     *
+     * `next dev`, `next build` and `next start` load `.env`, `.env.local` and
+     * `.env.<mode>[.local]` from `apps/web` through `@next/env`, filling every
+     * variable the process does not already carry. `@next/env` skips applying
+     * those files when `__NEXT_PROCESSED_ENV` is set — the marker Next itself
+     * sets after its first pass so child processes do not re-apply them.
+     *
+     * Setting it here makes the web half of a fixture hold only this
+     * allowlist, exactly as `PROOVRA_ENV_BOOTSTRAPPED` does for the API and
+     * the worker. Every `NEXT_PUBLIC_*` value a fixture build inlines is set
+     * explicitly above, so nothing a build needs comes from a file.
+     */
+    __NEXT_PROCESSED_ENV: "true",
 
     /**
      * PV-SEC-002 — THE GUARD ABOVE PROTECTS A LOADER THE API NO LONGER USES.
@@ -450,6 +470,15 @@ export function findEnvironmentLeaks(env, { allow = [] } = {}) {
         leaks.push(`${name} → looks like a ${shape.name}`);
         break;
       }
+    }
+
+    // A PayPal client secret, an AWS or R2 secret access key, a Sentry auth
+    // token: many live credentials have no distinctive SHAPE, only a
+    // distinctive NAME. A fixture never needs a real one — every value this
+    // module sets is marked `fixture-local-only` — so any other value under a
+    // provider credential name is refused.
+    if (PROVIDER_CREDENTIAL_NAME.test(name) && !value.startsWith("fixture-local-only")) {
+      leaks.push(`${name} → holds a value for an external provider credential`);
     }
   }
 
