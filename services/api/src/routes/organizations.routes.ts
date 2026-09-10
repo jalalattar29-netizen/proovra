@@ -48,6 +48,7 @@ import { getAuthUserId } from "../auth.js";
 import {
   checkOrgAccess,
   listOrgAdminSurfaces,
+  orgAccessDenial,
 } from "../services/organization/org-access.js";
 // P0 remediation (2026-07-21) — admin org-member removal revokes sessions.
 import { revokeAllSessionsForUser } from "../services/identity-security/session-revocation.service.js";
@@ -367,11 +368,14 @@ export async function organizationsRoutes(app: FastifyInstance) {
 
       const access = await checkOrgAccess(prisma, { orgId, userId });
       if (access.kind !== "ok") {
-        // Both "not_found" and "forbidden" return 403 — non-members
-        // cannot distinguish "org exists but you're not in it" from
-        // "org doesn't exist". This is the same defense-in-depth
-        // pattern used by Phase 2.6B/C/D aggregators.
-        return reply.code(403).send({ message: "Forbidden" });
+        // PV-ORG-001 — the one org-denial convention for the /v1/orgs
+        // family: a non-member is told exactly what a caller asking about a missing
+        // organization is told (404); an ACTIVE member without the role is
+        // refused (403). This route and its sub-resources used to answer a
+        // non-member 403 while the policy/billing/governance sub-resources
+        // answered 404 — disclosing existence on some and not others.
+        const denial = orgAccessDenial(access);
+        return reply.code(denial.status).send(denial.body);
       }
 
       const org = await prisma.organization.findUnique({
@@ -394,9 +398,11 @@ export async function organizationsRoutes(app: FastifyInstance) {
         },
       });
       if (!org) {
-        // Should be impossible given checkOrgAccess returned "ok",
-        // but defense in depth.
-        return reply.code(403).send({ message: "Forbidden" });
+        // Should be impossible given checkOrgAccess returned "ok" — it means
+        // the organization was deleted between the two reads. If it happens,
+        // it is a missing organization and is answered as one (PV-ORG-001).
+        const denial = orgAccessDenial({ kind: "not_found" });
+        return reply.code(denial.status).send(denial.body);
       }
 
       // Aggregate counts at the GOVERNANCE level only — member count
@@ -494,7 +500,8 @@ export async function organizationsRoutes(app: FastifyInstance) {
 
       const access = await checkOrgAccess(prisma, { orgId, userId });
       if (access.kind !== "ok") {
-        return reply.code(403).send({ message: "Forbidden" });
+        const denial = orgAccessDenial(access);
+        return reply.code(denial.status).send(denial.body);
       }
 
       // ARCH-004 — the ADMINISTRATION roster deliberately shows every
@@ -586,7 +593,8 @@ export async function organizationsRoutes(app: FastifyInstance) {
 
       const access = await checkOrgAccess(prisma, { orgId, userId });
       if (access.kind !== "ok") {
-        return reply.code(403).send({ message: "Forbidden" });
+        const denial = orgAccessDenial(access);
+        return reply.code(denial.status).send(denial.body);
       }
 
       const canSeeBilling =
@@ -720,7 +728,8 @@ export async function organizationsRoutes(app: FastifyInstance) {
         minRole: "ORG_ADMIN",
       });
       if (access.kind !== "ok") {
-        return reply.code(403).send({ message: "Forbidden" });
+        const denial = orgAccessDenial(access);
+        return reply.code(denial.status).send(denial.body);
       }
 
       const result = await prisma.$transaction(async (tx) => {
@@ -829,7 +838,8 @@ export async function organizationsRoutes(app: FastifyInstance) {
         minRole: "ORG_ADMIN",
       });
       if (access.kind !== "ok") {
-        return reply.code(403).send({ message: "Forbidden" });
+        const denial = orgAccessDenial(access);
+        return reply.code(denial.status).send(denial.body);
       }
 
       // Cannot invite at a role strictly greater than the actor's own.
@@ -1162,7 +1172,8 @@ export async function organizationsRoutes(app: FastifyInstance) {
         minRole: "ORG_ADMIN",
       });
       if (access.kind !== "ok") {
-        return reply.code(403).send({ message: "Forbidden" });
+        const denial = orgAccessDenial(access);
+        return reply.code(denial.status).send(denial.body);
       }
 
       const now = new Date();
@@ -1233,7 +1244,8 @@ export async function organizationsRoutes(app: FastifyInstance) {
         minRole: "ORG_ADMIN",
       });
       if (access.kind !== "ok") {
-        return reply.code(403).send({ message: "Forbidden" });
+        const denial = orgAccessDenial(access);
+        return reply.code(denial.status).send(denial.body);
       }
 
       const result = await prisma.$transaction(async (tx) => {
@@ -1329,7 +1341,8 @@ export async function organizationsRoutes(app: FastifyInstance) {
         minRole: "ORG_ADMIN",
       });
       if (access.kind !== "ok") {
-        return reply.code(403).send({ message: "Forbidden" });
+        const denial = orgAccessDenial(access);
+        return reply.code(denial.status).send(denial.body);
       }
 
       const result = await prisma.$transaction(async (tx) => {
@@ -1485,7 +1498,8 @@ export async function organizationsRoutes(app: FastifyInstance) {
         minRole: "ORG_ADMIN",
       });
       if (access.kind !== "ok") {
-        return reply.code(403).send({ message: "Forbidden" });
+        const denial = orgAccessDenial(access);
+        return reply.code(denial.status).send(denial.body);
       }
 
       const result = await prisma.$transaction(async (tx) => {
@@ -1606,7 +1620,8 @@ export async function organizationsRoutes(app: FastifyInstance) {
         minRole: "ORG_ADMIN",
       });
       if (access.kind !== "ok") {
-        return reply.code(403).send({ message: "Forbidden" });
+        const denial = orgAccessDenial(access);
+        return reply.code(denial.status).send(denial.body);
       }
 
       const result = await prisma.$transaction(async (tx) => {
@@ -1799,8 +1814,8 @@ export async function organizationsRoutes(app: FastifyInstance) {
           minRole: "ORG_ADMIN",
         });
         if (access.kind !== "ok") {
-          // Same shape the sibling member-administration routes use.
-          return reply.code(403).send({ message: "Forbidden" });
+          const denial = orgAccessDenial(access);
+          return reply.code(denial.status).send(denial.body);
         }
 
         const target = await prisma.organizationMembership.findFirst({
@@ -2114,6 +2129,12 @@ export async function organizationsRoutes(app: FastifyInstance) {
         minRole: "ORG_OWNER",
       });
       if (access.kind !== "ok") {
+        // PV-ORG-001 — a non-member is concealed like a missing org; an
+        // ACTIVE member without the role keeps the specific refusal.
+        if (access.kind === "not_found") {
+          const denial = orgAccessDenial(access);
+          return reply.code(denial.status).send(denial.body);
+        }
         return reply.code(403).send({ error: { code: "owner_required" } });
       }
       if (body.targetUserId === userId) {
@@ -2264,6 +2285,12 @@ export async function organizationsRoutes(app: FastifyInstance) {
           minRole: "ORG_ADMIN",
         });
         if (access.kind !== "ok") {
+          // PV-ORG-001 — a non-member is concealed like a missing org; an
+          // ACTIVE member without the role keeps the specific refusal.
+          if (access.kind === "not_found") {
+            const denial = orgAccessDenial(access);
+            return reply.code(denial.status).send(denial.body);
+          }
           return reply.code(403).send({ error: { code: "admin_required" } });
         }
         try {
@@ -2324,6 +2351,12 @@ export async function organizationsRoutes(app: FastifyInstance) {
         minRole: "ORG_OWNER",
       });
       if (access.kind !== "ok") {
+        // PV-ORG-001 — a non-member is concealed like a missing org; an
+        // ACTIVE member without the role keeps the specific refusal.
+        if (access.kind === "not_found") {
+          const denial = orgAccessDenial(access);
+          return reply.code(denial.status).send(denial.body);
+        }
         return reply.code(403).send({ error: { code: "owner_required" } });
       }
       const [latest, preflight] = await Promise.all([
@@ -2369,6 +2402,12 @@ export async function organizationsRoutes(app: FastifyInstance) {
         minRole: "ORG_OWNER",
       });
       if (access.kind !== "ok") {
+        // PV-ORG-001 — a non-member is concealed like a missing org; an
+        // ACTIVE member without the role keeps the specific refusal.
+        if (access.kind === "not_found") {
+          const denial = orgAccessDenial(access);
+          return reply.code(denial.status).send(denial.body);
+        }
         return reply.code(403).send({ error: { code: "owner_required" } });
       }
 
@@ -2510,6 +2549,12 @@ export async function organizationsRoutes(app: FastifyInstance) {
         minRole: "ORG_OWNER",
       });
       if (access.kind !== "ok") {
+        // PV-ORG-001 — a non-member is concealed like a missing org; an
+        // ACTIVE member without the role keeps the specific refusal.
+        if (access.kind === "not_found") {
+          const denial = orgAccessDenial(access);
+          return reply.code(denial.status).send(denial.body);
+        }
         return reply.code(403).send({ error: { code: "owner_required" } });
       }
 
@@ -2607,7 +2652,8 @@ export async function organizationsRoutes(app: FastifyInstance) {
         minRole: "ORG_AUDITOR",
       });
       if (access.kind !== "ok") {
-        return reply.code(403).send({ message: "Forbidden" });
+        const denial = orgAccessDenial(access);
+        return reply.code(denial.status).send(denial.body);
       }
 
       // The cursor encodes the LAST id of the previous page; we

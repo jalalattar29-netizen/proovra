@@ -304,6 +304,44 @@ export const StepUpPurposeSchema = z.enum(STEP_UP_PURPOSES);
 export type StepUpPurpose = z.infer<typeof StepUpPurposeSchema>;
 
 // -----------------------------------------------------------------------------
+// PV-STEPUP-001 — WHICH SECOND FACTORS MAY SATISFY A STEP-UP, PER PURPOSE.
+//
+// Step-up used to be implemented on the one-time-code provider alone, so a
+// verified authenticator app — the factor the product enrols by default —
+// could not satisfy it: an enterprise that mandates authenticator apps and
+// forbids SMS could use no sensitive control, and SMS became the effective
+// floor for the most privileged actions. Owner decision PV-OD-011: a verified
+// TOTP factor satisfies step-up; SMS and WhatsApp remain supported.
+//
+// The policy is EXPLICIT and TOTAL: every purpose names the factor kinds that
+// satisfy it. Today every purpose accepts all three. A purpose that must
+// demand a stronger factor narrows its own entry here — deliberately, where a
+// reviewer sees it and a test pins it — never by an implicit default.
+// -----------------------------------------------------------------------------
+
+export const STEP_UP_FACTOR_KINDS = ["TOTP", "SMS", "WHATSAPP"] as const;
+export type StepUpFactorKind = (typeof STEP_UP_FACTOR_KINDS)[number];
+
+export const STEP_UP_PURPOSE_FACTOR_POLICY: Readonly<
+  Record<StepUpPurpose, ReadonlyArray<StepUpFactorKind>>
+> = Object.freeze(
+  STEP_UP_PURPOSES.reduce(
+    (policy, purpose) => {
+      policy[purpose] = STEP_UP_FACTOR_KINDS;
+      return policy;
+    },
+    {} as Record<StepUpPurpose, ReadonlyArray<StepUpFactorKind>>,
+  ),
+);
+
+/** The factor kinds that may satisfy a step-up for this purpose. */
+export function stepUpFactorKindsFor(
+  purpose: StepUpPurpose,
+): ReadonlyArray<StepUpFactorKind> {
+  return STEP_UP_PURPOSE_FACTOR_POLICY[purpose] ?? STEP_UP_FACTOR_KINDS;
+}
+
+// -----------------------------------------------------------------------------
 // Phase 4 closure — Step-up purpose backward-compatibility aliases.
 //
 // When the integration routes were first wired (Phase 10/19) we did not

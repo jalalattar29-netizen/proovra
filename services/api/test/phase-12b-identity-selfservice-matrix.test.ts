@@ -1763,16 +1763,53 @@ describe("MFA enrolment and factor lifecycle", () => {
     expect(JSON.parse(res.body)).toMatchObject({ hasMfa: false, factors: [], recoveryCodesRemaining: 0 });
   });
 
-  it("enroll/start begins enrolment for the SESSION subject, not a declared one", async () => {
+  it("enroll/start begins enrolment for the SESSION subject", async () => {
     const res = await app.inject({
       method: "POST", url: "/v1/identity/mfa/enroll/start",
-      payload: { label: "Work phone", userId: OTHER },
+      payload: { label: "Work phone" },
     });
     expect(res.statusCode).toBe(200);
     expect(called("beginTotpEnrollment")).toHaveLength(1);
     expect(callInput("beginTotpEnrollment")).toMatchObject({ userId: ACTOR, label: "Work phone" });
     // The account name is resolved server-side from the caller's own record.
     expect(callInput("beginTotpEnrollment").accountName).toBe("actor@example.com");
+  });
+
+  /*
+   * PV-API-002 — the body is strict. A declared subject used to be tolerated
+   * and overridden by the session subject; it is now REFUSED, which is the
+   * stronger guarantee, and nothing is enrolled. As with the step-up body
+   * above, the exact status of a raw ZodError is the harness's (no error
+   * handler here), so the refusal and its zero side effects are what is pinned.
+   */
+  it("enroll/start refuses a caller-declared subject outright, enrolling nothing", async () => {
+    const res = await app.inject({
+      method: "POST", url: "/v1/identity/mfa/enroll/start",
+      payload: { label: "Work phone", userId: OTHER },
+    });
+    expect(res.statusCode).toBeGreaterThanOrEqual(400);
+    expect(called("beginTotpEnrollment")).toHaveLength(0);
+  });
+
+  it("enroll/start refuses a phone-factor kind with a pointer to the contact-factor route", async () => {
+    for (const kind of ["SMS", "WHATSAPP"]) {
+      const res = await app.inject({
+        method: "POST", url: "/v1/identity/mfa/enroll/start",
+        payload: { label: "Work phone", kind },
+      });
+      // A DomainError carries its own status, so even the bare harness
+      // renders the bounded 400 and its public code.
+      expect(res.statusCode, kind).toBe(400);
+      expect(JSON.parse(res.body).code, kind).toBe("MFA_ENROLL_WRONG_ROUTE");
+    }
+    expect(called("beginTotpEnrollment")).toHaveLength(0);
+    // Naming what the route does is accepted.
+    const ok = await app.inject({
+      method: "POST", url: "/v1/identity/mfa/enroll/start",
+      payload: { kind: "TOTP" },
+    });
+    expect(ok.statusCode).toBe(200);
+    expect(called("beginTotpEnrollment")).toHaveLength(1);
   });
 
   it("enroll/verify activates the factor and returns recovery codes exactly once", async () => {

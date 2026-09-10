@@ -51,9 +51,20 @@ import { Button } from "../../../../../../components/ui/Button";
 import {
   ALL_ORG_ROLES as ALL_ROLES,
   ORG_ROLE_LABEL as ROLE_LABEL,
+  ORG_ROLE_RANK,
   canManageMembers,
   type OrgRole,
 } from "../_lib/orgRoles";
+
+/**
+ * PV-DIS-003 — a role above the caller's own is not offered as if it could be
+ * granted: the API refuses an invite or a role change "at a role greater than
+ * your own", and the picker used to list every role and let the server say no.
+ * Such an option is present but disabled, and says why in its own text.
+ */
+function roleAboveCaller(role: OrgRole, callerRole: OrgRole | null): boolean {
+  return callerRole !== null && ORG_ROLE_RANK[role] > ORG_ROLE_RANK[callerRole];
+}
 
 interface OrgResponse {
   organizationId: string;
@@ -514,11 +525,16 @@ function MembersTab() {
                 data-testid="invite-role-select"
                 style={{ ...fieldInput, cursor: "pointer" }}
               >
-                {ALL_ROLES.map((r) => (
-                  <option key={r} value={r}>
-                    {ROLE_LABEL[r]}
-                  </option>
-                ))}
+                {ALL_ROLES.map((r) => {
+                  const above = roleAboveCaller(r, callerRole);
+                  return (
+                    <option key={r} value={r} disabled={above}>
+                      {above
+                        ? `${ROLE_LABEL[r]} — above your role`
+                        : ROLE_LABEL[r]}
+                    </option>
+                  );
+                })}
               </select>
             </label>
             <Button
@@ -526,10 +542,21 @@ function MembersTab() {
               variant="primary"
               disabled={inviteFormBusy || !inviteEmail.trim()}
               loading={inviteFormBusy}
+              aria-describedby="invite-submit-hint"
               data-testid="invite-submit"
             >
               {inviteFormBusy ? "Sending…" : "Send invite"}
             </Button>
+            {/* PV-DIS-003 — the button's prerequisites, stated where it is
+                disabled rather than discovered by trying. */}
+            <p
+              id="invite-submit-hint"
+              data-testid="invite-submit-hint"
+              style={{ gridColumn: "1 / -1", margin: 0, fontSize: 12, color: "var(--ink-secondary, #475569)" }}
+            >
+              Enter the invitee&apos;s email address to send an invite. You
+              can invite at your own role or below.
+            </p>
           </form>
         )}
         {inviteFormError ? (
@@ -628,11 +655,16 @@ function MembersTab() {
                           cursor: busy ? "not-allowed" : "pointer",
                         }}
                       >
-                        {ALL_ROLES.map((r) => (
-                          <option key={r} value={r}>
-                            {ROLE_LABEL[r]}
-                          </option>
-                        ))}
+                        {ALL_ROLES.map((r) => {
+                          const above = roleAboveCaller(r, callerRole);
+                          return (
+                            <option key={r} value={r} disabled={above && r !== m.role}>
+                              {above && r !== m.role
+                                ? `${ROLE_LABEL[r]} — above your role`
+                                : ROLE_LABEL[r]}
+                            </option>
+                          );
+                        })}
                       </select>
                     ) : (
                       <Badge tone="neutral" subtle>
@@ -679,6 +711,8 @@ function MembersTab() {
                       memberLabel={m.displayName ?? m.email ?? "this member"}
                       canManage={canMutate}
                       isSelf={m.userId === currentUserId}
+                      targetRole={m.role}
+                      callerRole={callerRole}
                       status={m.status}
                       suspendedAtUtc={m.suspendedAtUtc}
                       suspensionReason={m.suspensionReason}

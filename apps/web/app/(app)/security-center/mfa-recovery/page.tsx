@@ -62,13 +62,12 @@ type ConfirmAction =
   | null;
 
 export default function MfaRecoveryAdminPage() {
-  // R8.1.5 — canonical PageRouteGate. The /security-center parent
-  // page uses the same `workspace.security_center` route id; this
-  // sub-page is a dedicated admin lifecycle surface inside that
-  // gated area, so we reuse the same id (the gate already enforces
-  // the workspace-admin permission contract via ROUTE_REGISTRY).
+  // PV-API-001 — this page gates on ITS OWN registry entry
+  // (`security_center.mfa_recovery`: organization workspaces,
+  // SECURITY_CENTER_VIEW). It used to borrow the landing's id, so its
+  // placement rule lived on a different route than the one it rendered.
   return (
-    <PageRouteGate routeId="workspace.security_center">
+    <PageRouteGate routeId="security_center.mfa_recovery">
       <MfaRecoveryAdminBody />
     </PageRouteGate>
   );
@@ -107,6 +106,8 @@ function MfaRecoveryAdminBody() {
   const teamId = useTeamId();
   const [requests, setRequests] = useState<AdminRecoveryRequest[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // A refusal is not an empty queue: when set, the table is not rendered.
+  const [refused, setRefused] = useState(false);
   const [pendingAction, setPendingAction] = useState<ConfirmAction>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -123,9 +124,12 @@ function MfaRecoveryAdminBody() {
   const [toast, setToast] = useState<string | null>(null);
 
   // Operational reload. Pulls the bounded admin queue from
-  // /v1/identity/mfa-admin/recovery-requests/:teamId. The API
-  // returns 403 to non-admin viewers; we surface that as an
-  // explicit message rather than an empty list.
+  // /v1/identity/mfa-admin/recovery-requests/:teamId.
+  //
+  // PV-API-001 — the list now answers through the same concealed gate as the
+  // rest of the MFA-admin family: a viewer who is not an owner or
+  // administrator of this workspace receives 404, never a bare 403. Either is
+  // a REFUSAL and says so; neither may render as an empty queue.
   const reload = async () => {
     if (!teamId) return;
     try {
@@ -134,12 +138,17 @@ function MfaRecoveryAdminBody() {
         { method: "GET" },
       );
       setRequests(r.requests ?? []);
+      setRefused(false);
       setError(null);
     } catch (err) {
-      if (err instanceof ApiError && err.statusCode === 403) {
+      if (
+        err instanceof ApiError &&
+        (err.statusCode === 403 || err.statusCode === 404)
+      ) {
         setError(
-          "You must be an organization OWNER or ADMIN to view MFA recovery requests.",
+          "MFA recovery requests are visible to this workspace's owners and administrators.",
         );
+        setRefused(true);
         setRequests([]);
         return;
       }
@@ -501,7 +510,7 @@ function MfaRecoveryAdminBody() {
           title="Switch to a workspace to view MFA recovery requests"
           purpose="Lost-factor recovery requests are scoped to a workspace. Open a workspace you administer to review the queue."
         />
-      ) : (
+      ) : refused ? null : (
         <PageSection title="Pending requests">
           <div data-cc-mfa-recovery-table>
           <DataTable<AdminRecoveryRequest>

@@ -171,10 +171,32 @@ export function verifyTotpCode(
     period?: number;
   } = {},
 ): boolean {
+  return matchTotpStep(secret, userCode, options) !== null;
+}
+
+/**
+ * The time step a user-supplied code belongs to, within the ±`window`
+ * tolerance, or null when it matches none.
+ *
+ * WCC-NEW-008 — a caller that must enforce SINGLE USE needs to know WHICH step
+ * matched, not only that one did: a code stays valid for up to three steps
+ * (about 90 s), and "accept it once" means "accept no code from a step at or
+ * before the last one accepted". Same timing-safe comparison as before.
+ */
+export function matchTotpStep(
+  secret: Buffer,
+  userCode: string,
+  options: {
+    nowSeconds?: number;
+    window?: number;
+    digits?: number;
+    period?: number;
+  } = {},
+): number | null {
   const cleaned = (userCode ?? "").replace(/\s+/g, "");
   const digits = options.digits ?? TOTP_DIGITS;
-  if (!/^\d+$/.test(cleaned)) return false;
-  if (cleaned.length !== digits) return false;
+  if (!/^\d+$/.test(cleaned)) return null;
+  if (cleaned.length !== digits) return null;
 
   const nowSeconds = options.nowSeconds ?? Math.floor(Date.now() / 1000);
   const window = options.window ?? TOTP_DEFAULT_WINDOW;
@@ -183,17 +205,21 @@ export function verifyTotpCode(
 
   const userBuf = Buffer.from(cleaned, "utf8");
 
+  let matched: number | null = null;
+  // Every candidate is compared, even after a match, so the loop's duration
+  // does not reveal which step matched.
   for (let delta = -window; delta <= window; delta += 1) {
     const candidate = computeTotpCode(secret, currentStep + delta, digits);
     const candidateBuf = Buffer.from(candidate, "utf8");
     if (
       candidateBuf.length === userBuf.length &&
-      timingSafeEqual(candidateBuf, userBuf)
+      timingSafeEqual(candidateBuf, userBuf) &&
+      matched === null
     ) {
-      return true;
+      matched = currentStep + delta;
     }
   }
-  return false;
+  return matched;
 }
 
 /**

@@ -39,7 +39,6 @@ import {
   TRUST_CENTER_SECTIONS,
 } from "@proovra/shared";
 
-import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 // PHASE 12B CLUSTER 10 / 14 — canonical authorization. `resolveWorkspace`
@@ -48,7 +47,10 @@ import { requireAuth } from "../middleware/auth.js";
 // Evidence-Operations department + effective-policy routes compose BOTH:
 // resolveWorkspace for the authoritative teamId, then `authorizeOrFail` for
 // ACTIVE membership + lifecycle + capability + audit + anti-enumeration.
-import { authorizeOrFail } from "../middleware/authorize.js";
+import {
+  authorizeOrFail,
+  evaluateCurrentWorkspace,
+} from "../middleware/authorize.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 import { emitTrustEvent } from "../services/trust/trust-and-governance-audit.service.js";
 import {
@@ -144,20 +146,45 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * WCC-NEW-009 — THE POINTER IS A HINT, NOT A GRANT.
+ *
+ * Every trust-center, status, department, delegated-admin, policy and
+ * access-review route in this file takes its tenant from here, and this used
+ * to return `User.currentWorkspaceId` as-is: the caller's own last-visited
+ * pointer, with no membership, status or lifecycle check. A member removed
+ * from a workspace — whose pointer still named it — went on reading its
+ * access-review campaigns, departments and policies through every route below
+ * that has no tier guard of its own.
+ *
+ * The pointer is now only a CANDIDATE, revalidated in full by the canonical
+ * primitive (evaluateCurrentWorkspace -> evaluateAuthorizedWorkspace):
+ * workspace existence, EXPLICIT ACTIVE membership, access expiry,
+ * Organization lifecycle and the support-access guard. The baseline
+ * permission is `governance.policy.read`, which every member role holds
+ * (OWNER, ADMIN, REVIEWER, CONTRIBUTOR, VIEWER) and EXTERNAL_CONTRIBUTOR does
+ * not — so no member loses a surface they had, and a non-member gains none.
+ * Routes that demand more still demand it (their tier guards are unchanged).
+ *
+ * Any refusal answers exactly as a missing pointer always did, so a stale
+ * pointer is indistinguishable from none and the response contract the
+ * consoles read is unchanged.
+ */
 async function resolveWorkspace(
   req: FastifyRequest,
   reply: FastifyReply,
 ): Promise<{ teamId: string; userId: string } | null> {
-  const userId = getAuthUserId(req);
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { currentWorkspaceId: true },
+  const outcome = await evaluateCurrentWorkspace(req, {
+    permission: "governance.policy.read",
   });
-  if (!user?.currentWorkspaceId) {
+  if (!outcome.allowed) {
     reply.code(403).send({ denial: "WORKSPACE_NOT_FOUND" });
     return null;
   }
-  return { teamId: user.currentWorkspaceId, userId };
+  return {
+    teamId: outcome.context.workspaceId,
+    userId: outcome.context.userId,
+  };
 }
 
 function trustDegradedReason(

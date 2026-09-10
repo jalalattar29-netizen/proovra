@@ -146,6 +146,11 @@ test("VIEWER has only read-ish permissions", () => {
     // org policy) but never mutate them.
     "identity.member.read",
     "identity.org_policy.read",
+    // PV-OD-002 — the SSO configuration (never its secrets) and the identity
+    // audit trail are read surfaces a read-only auditor needs. Named here so
+    // the grant is a decision; neither carries any mutation.
+    "identity.sso.read",
+    "identity.audit.read",
     // ATTENTION ARCHITECTURE PHASE 4B (2026-08-22) — tenant Operations.
     //
     // `operations.view` is READ-ONLY by construction and belongs on this

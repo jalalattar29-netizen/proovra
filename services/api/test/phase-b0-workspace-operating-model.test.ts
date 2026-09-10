@@ -177,8 +177,11 @@ describe("Phase B0 — organization governance write surfaces", () => {
     expect(ORG_AUDIT_SERVICE).toContain('"ORG_POLICY_RETENTION_PUBLISHED"');
   });
 
-  it("billing rollup is gated at ORG_BILLING_ADMIN minimum", () => {
-    expect(GOV_ROUTES).toContain('minRole: "ORG_BILLING_ADMIN"');
+  it("billing rollup is gated on the explicit billing role set, not a precedence minimum (WCC-NEW-006)", () => {
+    // `minRole: "ORG_BILLING_ADMIN"` admitted ORG_SECURITY_ADMIN, which shares
+    // the billing admin's precedence rank.
+    expect(GOV_ROUTES).toContain("roles: ORG_BILLING_ROLES");
+    expect(GOV_ROUTES).not.toContain('minRole: "ORG_BILLING_ADMIN"');
   });
 
   it("billing rollup returns counts only — no card tokens, no Stripe ids", () => {
@@ -188,12 +191,19 @@ describe("Phase B0 — organization governance write surfaces", () => {
       'app.get(\n    "/v1/orgs/:id/billing/rollup"',
     );
     expect(registerIdx).toBeGreaterThan(0);
-    // PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — the window grew
-    // with the handler (it now resolves the org contract once before the
-    // rollup loop). Widening it makes the `not.toMatch` below scan MORE
-    // source, so the payment-instrument guard is strictly stronger, not
-    // weaker; only the `toContain` needed the extra room.
-    const handlerSlice = GOV_ROUTES.slice(registerIdx, registerIdx + 4_500);
+    // The slice is the WHOLE handler — from its registration to the next
+    // one — rather than a fixed character budget. A fixed window broke each
+    // time the handler grew (2026-09-07, then again when WCC-NEW-006
+    // documented its role gate): the `toContain` fell off the end while the
+    // `not.toMatch` payment-instrument guard silently scanned LESS than the
+    // handler. Bounded by the next registration, both are exact.
+    const nextReg = GOV_ROUTES.slice(registerIdx + 1).search(
+      /\n {2}app\.(get|post|put|patch|delete)\(/,
+    );
+    const handlerSlice = GOV_ROUTES.slice(
+      registerIdx,
+      nextReg >= 0 ? registerIdx + 1 + nextReg : undefined,
+    );
     expect(handlerSlice).not.toMatch(
       /stripeSubscriptionId|stripeCustomerId|cardLast4/,
     );
@@ -201,13 +211,17 @@ describe("Phase B0 — organization governance write surfaces", () => {
     expect(handlerSlice).toContain("planCounts");
   });
 
-  it("write endpoints emit anti-enumeration 404 — never 403 — on access denial", () => {
-    // `requireOrgAdmin` and `requireOrgMember` both return `code: 404`
-    // for any non-OK outcome (not_found / forbidden) so org existence
-    // is not enumerable.
-    expect(GOV_ROUTES).toMatch(
-      /if \(result\.kind !== "ok"\)[\s\S]*?return\s*\{\s*ok:\s*false,\s*code:\s*404/,
-    );
+  it("write endpoints render access denial through the one org-denial convention", () => {
+    // PV-ORG-001 — `requireOrgAdmin` and `requireOrgMember` both return
+    // orgAccessDenial(result): org existence is never disclosed to a
+    // NON-member (404, identical to a missing org), and an ACTIVE member
+    // without the role is told so (403).
+    const gates =
+      GOV_ROUTES.match(
+        /if \(result\.kind !== "ok"\) return \{ ok: false, denial: orgAccessDenial\(result\) \}/g,
+      ) ?? [];
+    expect(gates).toHaveLength(2);
+    expect(GOV_ROUTES).not.toMatch(/ok:\s*false,\s*code:\s*40[34]/);
   });
 });
 

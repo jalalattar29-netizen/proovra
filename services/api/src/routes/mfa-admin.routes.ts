@@ -70,7 +70,6 @@ import {
   requireUserReenrollment,
   resetTrustedDevicesForUser,
   revokeUserFactor,
-  type MfaAdminScopeFailure,
 } from "../services/security/mfa-admin-lifecycle.service.js";
 import {
   approveRecoveryRequest,
@@ -148,20 +147,6 @@ function readOptionalSessionUserId(req: FastifyRequest): string | null {
     return typeof payload.sub === "string" ? payload.sub : null;
   } catch {
     return null;
-  }
-}
-
-function mapScopeFailure(reason: MfaAdminScopeFailure): {
-  code: number;
-  message: string;
-} {
-  switch (reason) {
-    case "admin_not_in_team":
-      return { code: 403, message: "admin_not_in_team" };
-    case "admin_not_admin":
-      return { code: 403, message: "admin_not_admin" };
-    case "target_not_in_team":
-      return { code: 404, message: "target_not_in_team" };
   }
 }
 
@@ -595,21 +580,22 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
     "/v1/identity/mfa-admin/recovery-requests/:teamId",
     { preHandler: requireAuth },
     async (req, reply) => {
-      const actorUserId = getAuthUserId(req);
-      if (!actorUserId) throw new AppError(ErrorCode.UNAUTHORIZED, "Sign in.");
       const params = TeamParams.parse(req.params);
-      // Re-use the admin scope check via posture (sets up the same
-      // OWNER/ADMIN check on the team).
-      const guard = await readUserMfaPosture({
+      /*
+       * PV-API-001 — THE FAMILY'S GATE, NOT A SIDE ROUTE THROUGH POSTURE.
+       *
+       * This list authorized through `readUserMfaPosture` + `mapScopeFailure`,
+       * the only route in the module that did: it answered a bare-string
+       * `403 {"error":"admin_not_in_team"}` outside the error envelope, with no
+       * request id, while every sibling answers the SAME concealed 404 through
+       * `authorizeMfaAdminScope` (anti-enumerated, org-lifecycle aware,
+       * permission-decision audited). One gate, one envelope, one convention.
+       */
+      const scope = await authorizeMfaAdminScope(req, reply, {
         teamId: params.teamId,
-        actorUserId,
-        targetUserId: actorUserId,
+        permission: "identity.org_policy.read",
       });
-      if (!guard.ok) {
-        const m = mapScopeFailure(guard.reason!);
-        reply.code(m.code);
-        return { error: m.message };
-      }
+      if (!scope) return;
       const requests = await listPendingRecoveryRequests({
         teamId: params.teamId,
       });

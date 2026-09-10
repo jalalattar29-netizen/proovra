@@ -57,15 +57,22 @@ describe("Phase 5 — access gate (org-admin, ORG_AUDITOR+, anti-enumeration)", 
     expect(handler).toContain('minRole: "ORG_AUDITOR"');
   });
 
-  it("returns an anti-enumeration 404 on any non-OK access outcome", () => {
+  it("renders every non-OK access outcome through the one org-denial convention", () => {
     const idx = ROUTES_SRC.indexOf(
       '"/v1/orgs/:id/governance/control-center"',
     );
     const handler = ROUTES_SRC.slice(idx, idx + 1_400);
-    // requireOrgAdmin returns code:404 for both not_found + forbidden;
-    // the handler replies with access.code (never a distinct 403).
-    expect(handler).toMatch(/reply\.code\(access\.code\)/);
-    expect(handler).not.toMatch(/reply\.code\(403\)/);
+    // PV-ORG-001 — requireOrgAdmin hands back orgAccessDenial(result): a 404
+    // byte-identical to a missing org for a NON-member (existence is never
+    // disclosed to one), a 403 for an ACTIVE member without the role. The
+    // handler sends exactly that — never a hand-written status of its own.
+    expect(handler).toMatch(
+      /reply\.code\(access\.denial\.status\)\.send\(access\.denial\.body\)/,
+    );
+    expect(handler).not.toMatch(/reply\.code\(40[34]\)/);
+    expect(ROUTES_SRC).toMatch(
+      /if \(result\.kind !== "ok"\) return \{ ok: false, denial: orgAccessDenial\(result\) \}/,
+    );
   });
 });
 

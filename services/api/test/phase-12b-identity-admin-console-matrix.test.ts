@@ -511,7 +511,7 @@ const ELEVATION = { teamId: TEAM, userId: SUBJECT, permission: "identity.member.
 
 const OPS: Op[] = [
   // providers
-  { name: "GET providers", method: "GET", url: `/v1/admin/identity/providers?teamId=${TEAM}`, service: "listSsoConnections", perm: "identity.org_policy.read", gate: "member", ok: 200 },
+  { name: "GET providers", method: "GET", url: `/v1/admin/identity/providers?teamId=${TEAM}`, service: "listSsoConnections", perm: "identity.sso.read", gate: "member", ok: 200 },
   { name: "POST providers", method: "POST", url: "/v1/admin/identity/providers", payload: NEW_PROVIDER, service: "createSsoConnection", perm: "identity.external_mapping.manage", gate: "member", ok: 201 },
   { name: "POST providers/:id/transition", method: "POST", url: `/v1/admin/identity/providers/${CONN}/transition`, payload: { teamId: TEAM, nextStatus: "DISABLED" }, service: "transitionSsoConnection", perm: "identity.external_mapping.manage", gate: "member", ok: 200 },
   // permission + role matrix, elevations
@@ -526,7 +526,7 @@ const OPS: Op[] = [
   { name: "GET sessions", method: "GET", url: `/v1/admin/identity/sessions?teamId=${TEAM}`, service: "listActiveSessions", perm: "identity.org_policy.read", gate: "member", ok: 200 },
   { name: "POST sessions/:id/revoke", method: "POST", url: `/v1/admin/identity/sessions/${SESSION}/revoke`, payload: { teamId: TEAM, reason: "OPERATOR_REVOKED" }, service: "revokeActiveSession", perm: "identity.contributor_session.revoke", gate: "member", ok: 200 },
   { name: "POST sessions/user/:userId/revoke-all", method: "POST", url: `/v1/admin/identity/sessions/user/${SUBJECT}/revoke-all`, payload: { teamId: TEAM, reason: "MEMBER_SUSPENDED" }, service: "revokeAllSessionsForUserAdmin", perm: "identity.contributor_session.revoke", gate: "member", ok: 200 },
-  { name: "GET timeline", method: "GET", url: `/v1/admin/identity/timeline?teamId=${TEAM}`, service: "securityEvent.findMany", perm: "identity.org_policy.read", gate: "member", ok: 200 },
+  { name: "GET timeline", method: "GET", url: `/v1/admin/identity/timeline?teamId=${TEAM}`, service: "securityEvent.findMany", perm: "identity.audit.read", gate: "member", ok: 200 },
   // Phase 3: this route MUTATES — it re-evaluates and rewrites the session's
   // risk score — so it takes a write permission. It previously fell through to
   // the read default, `identity.org_policy.read`, which let a read-only member

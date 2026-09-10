@@ -2,7 +2,7 @@
  * THE Admin control-plane navigation registry.
  *
  * ===========================================================================
- * ONE REGISTRY, FIVE CONSUMERS
+ * ONE REGISTRY, FOUR CONSUMERS
  * ===========================================================================
  * The navigation, the breadcrumb trail, the active-state resolver and the
  * route-governance tests all read THIS file. The previous list was flat and

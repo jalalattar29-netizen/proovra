@@ -276,6 +276,16 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   WEBHOOK_ENDPOINT_EVENTS_INVALID: { disposition: "customer", where: "global" },
   WEBHOOK_ENDPOINT_EVENT_UNKNOWN: { disposition: "customer", where: "global" },
   SCIM_TOKEN_ROTATE_CONFLICT: { disposition: "customer", where: "global" },
+  // PV-OD-012 — a domain write whose step-up has no workspace to be made in
+  // is refused, never waved through; the copy names the one remedy.
+  STEP_UP_WORKSPACE_REQUIRED: { disposition: "customer", where: "global" },
+  // PV-API-002 — refused when an API caller sends a phone-factor kind to the
+  // authenticator-app enrolment route. The product's own screens enrol phones
+  // through the contact-factor route and never send it.
+  MFA_ENROLL_WRONG_ROUTE: {
+    disposition: "internal",
+    why: "Raised only for an API caller that sends kind SMS/WHATSAPP to the authenticator-app enrolment route; no product screen sends it — phone enrolment calls the contact-factor route.",
+  },
 
   // -- Feature availability -------------------------------------------------
   FEATURE_DISABLED: { disposition: "customer", where: "global" },

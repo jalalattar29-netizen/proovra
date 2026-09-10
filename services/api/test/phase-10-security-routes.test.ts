@@ -10,6 +10,8 @@ import Fastify, { type FastifyInstance } from "fastify";
 const H = vi.hoisted(() => ({
   actorUserId: "admin-1",
   authAllowed: true,
+  /** PV-ORG-001 — which denial checkOrgAccess reports when authAllowed is false. */
+  orgDenial: "forbidden" as "forbidden" | "not_found",
   stepUpSent: false,
   readiness: {
     hasActiveSsoConnection: true, ssoConnectionTested: true, hasVerifiedDomain: true,
@@ -54,8 +56,11 @@ vi.mock("../src/services/identity-security/step-up-middleware.js", () => ({
 }));
 // Canonical services — assert the routes CALL them (behavioral), not re-impl.
 // PHASE 12 CORRECTION 1 — the org-keyed OrganizationSecurityPolicy authority.
-vi.mock("../src/services/organization/org-access.js", () => ({
-  checkOrgAccess: async () => (H.authAllowed ? { kind: "ok", orgId: "org-1", role: "ORG_ADMIN" } : { kind: "forbidden" }),
+// The REAL module (its pure `orgAccessDenial` rendering included), with only
+// the gate's decision replaced.
+vi.mock("../src/services/organization/org-access.js", async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
+  checkOrgAccess: async () => (H.authAllowed ? { kind: "ok", orgId: "org-1", role: "ORG_ADMIN" } : { kind: H.orgDenial }),
 }));
 vi.mock("../src/services/identity/org-security-policy.service.js", () => ({
   resolveOrgPolicyByOrgId: async () => {
@@ -128,7 +133,7 @@ const EMG = "55555555-5555-4555-8555-555555555555";
 
 let app: FastifyInstance;
 beforeEach(async () => {
-  H.authAllowed = true; H.stepUpSent = false; H.writes.length = 0;
+  H.authAllowed = true; H.orgDenial = "forbidden"; H.stepUpSent = false; H.writes.length = 0;
   H.emergencyAllow = true; H.emergencyReason = "forbidden_action"; H.emergencyAction = "";
   H.supportContext = { grantId: "sag-1", supportActorUserId: "support-1", organizationId: ORG, teamId: null, mode: "READ_ONLY", reason: "ticket", expiresAtUtc: new Date(Date.now() + 3600_000).toISOString() };
   H.supportContextReason = "no_grant"; H.supportAllow = true; H.supportDenyReason = "support_read_only"; H.supportActionSeen = "";
@@ -210,10 +215,23 @@ describe("§10.1/§10.7 — PATCH security policy (authorized + step-up)", () =>
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.body).readiness.ok).toBe(true);
   });
-  it("non-org-admin → 404 (anti-enumeration), ZERO write", async () => {
+  // PV-ORG-001 — one convention for the org family: a NON-member is told
+  // exactly what a caller asking about a missing org is told (404); an ACTIVE
+  // member without the role is told the truth (403). Neither writes.
+  it("non-member → 404 identical to a missing org, ZERO write", async () => {
     H.authAllowed = false;
+    H.orgDenial = "not_found";
     const res = await app.inject({ method: "PATCH", url: "/v1/security-policy", headers: stepUpHeaders, payload: { organizationId: ORG, ssoRequired: true } });
     expect(res.statusCode).toBe(404);
+    expect(JSON.parse(res.body)).toEqual({ error: { code: "not_found" } });
+    expect(H.writes).toEqual([]);
+  });
+  it("member without the org-admin role → 403 forbidden, ZERO write", async () => {
+    H.authAllowed = false;
+    H.orgDenial = "forbidden";
+    const res = await app.inject({ method: "PATCH", url: "/v1/security-policy", headers: stepUpHeaders, payload: { organizationId: ORG, ssoRequired: true } });
+    expect(res.statusCode).toBe(403);
+    expect(JSON.parse(res.body)).toEqual({ error: { code: "forbidden" } });
     expect(H.writes).toEqual([]);
   });
 });

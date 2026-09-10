@@ -31,8 +31,13 @@ import {
   STEP_UP_TTL_DEFAULT_SECONDS,
   STEP_UP_TTL_MAX_SECONDS,
   purposeSatisfies,
+  stepUpFactorKindsFor,
+  type StepUpFactorKind,
   type StepUpPurpose,
 } from "@proovra/shared";
+import { openSecret } from "../security/mfa-secret-storage.js";
+import { claimTotpStep, requireTotpSecret } from "../security/mfa.service.js";
+import { matchTotpStep } from "../security/mfa-totp.js";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
@@ -114,7 +119,7 @@ export type StartStepUpInput = {
    * it. It selects among what the user HOLDS; it can never introduce a
    * destination.
    */
-  channel?: "SMS" | "WHATSAPP" | null;
+  channel?: StepUpFactorKind | null;
   reason?: string | null;
   ttlSeconds?: number | null;
   ipAddress?: string | null;
@@ -131,7 +136,20 @@ export type StartStepUpInput = {
 
 export type StartStepUpResult = {
   challenge: prismaPkg.StepUpChallenge;
+  /** PV-STEPUP-001 — the factor kind this challenge is answered with. */
+  method: StepUpFactorKind;
+  /** The enrolled phone's mask when a code was sent; null for TOTP. */
+  destinationMask: string | null;
 };
+
+/**
+ * PV-STEPUP-001 — an authenticator-app challenge is refused to start once
+ * this many of its challenges were DENIED within the window. Each challenge
+ * admits one code attempt, so this bounds guessing at five codes per quarter
+ * hour per factor, against a 10^6 code space.
+ */
+const TOTP_MAX_DENIALS_PER_WINDOW = 5;
+const TOTP_DENIAL_WINDOW_MS = 15 * 60 * 1000;
 
 export async function startStepUpChallenge(
   input: StartStepUpInput,
@@ -142,53 +160,83 @@ export async function startStepUpChallenge(
    *
    * Nothing downstream may see a caller-supplied destination, so the factor
    * lookup happens before any provider call. An account with no enrolled,
-   * verified, unrevoked contact factor CANNOT elevate — it receives a stable
-   * `enrollment_required` denial and every step-up-gated mutation refuses.
+   * verified, unrevoked factor that this purpose accepts — an authenticator
+   * app or a contact factor (PV-STEPUP-001) — CANNOT elevate: it receives a
+   * stable `enrollment_required` denial and every step-up-gated mutation
+   * refuses.
    *
    * That is deliberately a refusal and not a fallback to the old behaviour:
    * "no factor" used to mean "use whatever number arrived", which is the
    * defect. It now means the gate cannot be satisfied, which is what a gate
    * with nothing to check against should say.
    */
-  const factor = await resolveActiveContactFactor(
+  const factor = await resolveStepUpFactor(
     {
       userId: input.userId,
-      factorId: input.factorId ?? undefined,
-      kind: input.channel ?? undefined,
+      purpose: input.purpose,
+      factorId: input.factorId ?? null,
+      channel: input.channel ?? null,
     },
     client,
   );
   if (!factor) throw new StepUpError("enrollment_required");
 
-  const resolved = await resolveStepUpDestination(
-    { userId: input.userId, factorId: factor.factorId },
-    client,
-  );
-
-  // Translate Verify errors -> StepUpError codes so the route surface
-  // is uniform.
-  let verification;
-  try {
-    verification = await startVerification(
-      {
-        teamId: input.teamId,
-        channel: resolved.kind,
-        phoneE164OrRaw: resolved.destination,
+  let verificationAttemptId: string | null = null;
+  let generation = factor.generation;
+  if (factor.method === "TOTP") {
+    /**
+     * PV-STEPUP-001 — an authenticator code is checked here; nothing is sent.
+     *
+     * What the one-time-code path gets from the provider's own rate limit,
+     * this path enforces itself. Each challenge admits ONE code attempt — a
+     * wrong code DENIES it — so the guessing rate is the rate at which
+     * challenges can be started, and that is bounded by the recent denials
+     * recorded against this factor.
+     */
+    const recentDenials = await client.stepUpChallenge.count({
+      where: {
         initiatedByUserId: input.userId,
-        purpose: `STEP_UP:${input.purpose}`,
-        ipAddress: input.ipAddress ?? null,
-        userAgent: input.userAgent ?? null,
+        factorId: factor.factorId,
+        status: prismaPkg.StepUpChallengeStatus.DENIED,
+        createdAt: { gte: new Date(Date.now() - TOTP_DENIAL_WINDOW_MS) },
       },
+    });
+    if (recentDenials >= TOTP_MAX_DENIALS_PER_WINDOW) {
+      throw new StepUpError("rate_limited");
+    }
+  } else {
+    const resolved = await resolveStepUpDestination(
+      { userId: input.userId, factorId: factor.factorId },
       client,
     );
-  } catch (err) {
-    if (err instanceof VerificationError) {
-      throw new StepUpError(mapVerifyErrorToStepUp(err.code));
+    generation = resolved.generation;
+
+    // Translate Verify errors -> StepUpError codes so the route surface
+    // is uniform.
+    let verification;
+    try {
+      verification = await startVerification(
+        {
+          teamId: input.teamId,
+          channel: resolved.kind,
+          phoneE164OrRaw: resolved.destination,
+          initiatedByUserId: input.userId,
+          purpose: `STEP_UP:${input.purpose}`,
+          ipAddress: input.ipAddress ?? null,
+          userAgent: input.userAgent ?? null,
+        },
+        client,
+      );
+    } catch (err) {
+      if (err instanceof VerificationError) {
+        throw new StepUpError(mapVerifyErrorToStepUp(err.code));
+      }
+      throw err;
     }
-    throw err;
-  }
-  if (verification.status === "rate_limited") {
-    throw new StepUpError("rate_limited");
+    if (verification.status === "rate_limited") {
+      throw new StepUpError("rate_limited");
+    }
+    verificationAttemptId = verification.attempt.id;
   }
 
   const ttl = clampTtl(input.ttlSeconds ?? null);
@@ -210,7 +258,9 @@ export async function startStepUpChallenge(
       resourceKind: input.resourceKind ?? null,
       resourceId: input.resourceId ?? null,
       status: prismaPkg.StepUpChallengeStatus.PENDING,
-      verificationAttemptId: verification.attempt.id,
+      // Null for an authenticator-app challenge: nothing was sent, so there
+      // is no provider attempt to bind. The factor binding below still is.
+      verificationAttemptId,
       expiresAtUtc: expiresAt,
       reason: input.reason?.slice(0, 400) ?? null,
       sessionIdHash: input.sessionIdHash ?? null,
@@ -226,7 +276,7 @@ export async function startStepUpChallenge(
        * the legitimate holder had approved moments earlier.
        */
       factorId: factor.factorId,
-      factorGeneration: resolved.generation,
+      factorGeneration: generation,
     },
   });
   safeEmitSecurityEvent(
@@ -237,6 +287,7 @@ export async function startStepUpChallenge(
       details: {
         actorUserId: input.userId,
         purpose: input.purpose,
+        method: factor.method,
         resourceKind: input.resourceKind ?? null,
         resourceId: input.resourceId ?? null,
       },
@@ -253,11 +304,16 @@ export async function startStepUpChallenge(
     resourceId: challenge.id,
     metadata: {
       purpose: input.purpose,
+      method: factor.method,
       resourceKind: input.resourceKind ?? null,
       resourceId: input.resourceId ?? null,
     },
   }, client);
-  return { challenge };
+  return {
+    challenge,
+    method: factor.method,
+    destinationMask: factor.destinationMask,
+  };
 }
 
 // -----------------------------------------------------------------------------
@@ -342,16 +398,12 @@ export async function checkStepUpChallenge(
       revokedAt: null,
       verifiedAtUtc: { not: null },
     },
-    select: { generation: true },
+    select: { generation: true, kind: true },
   });
   if (!boundFactor || boundFactor.generation !== row.factorGeneration) {
     throw new StepUpError("challenge_not_found");
   }
 
-  const resolvedDestination = await resolveStepUpDestination(
-    { userId: input.userId, factorId: row.factorId },
-    client,
-  );
   if (row.expiresAtUtc.getTime() <= Date.now()) {
     await client.stepUpChallenge.update({
       where: { id: row.id },
@@ -372,79 +424,66 @@ export async function checkStepUpChallenge(
     throw new StepUpError("challenge_expired");
   }
 
-  let verifyResult;
-  try {
-    verifyResult = await checkVerification(
-      {
-        teamId: input.teamId,
-        // NEW-058: the destination comes from the FACTOR that authorised this
-        // challenge, re-resolved above — never from the request.
-        phoneE164OrRaw: resolvedDestination.destination,
-        code: input.code,
-        initiatedByUserId: input.userId,
-        ipAddress: input.ipAddress ?? null,
-        userAgent: input.userAgent ?? null,
-        /**
-         * PHASE 13 (NEW-055) — the attempt THIS challenge started.
-         *
-         * `startStepUpChallenge` persists `verificationAttemptId`, and nothing
-         * read it: the verification lookup independently took the most recent
-         * STARTED attempt for the recipient, so two concurrent challenges on
-         * one number let the code minted for the second approve the first. The
-         * binding the schema records is now the binding that is enforced.
-         */
-        verificationAttemptId: row.verificationAttemptId ?? null,
-      },
+  if (boundFactor.kind === "TOTP") {
+    /**
+     * PV-STEPUP-001 — an authenticator-app challenge is answered against the
+     * bound factor's own secret, and a matching code is CLAIMED: its time step
+     * is recorded atomically, so the code cannot approve a second challenge or
+     * a sign-in, nor race a concurrent request (WCC-NEW-008). A wrong or
+     * replayed code spends the challenge exactly as a wrong SMS code does.
+     */
+    const accepted = await verifyStepUpTotp(
+      { userId: input.userId, factorId: row.factorId, code: input.code },
       client,
     );
-  } catch (err) {
-    if (err instanceof VerificationError) {
-      // Don't leak Verify's exact code surface; surface a generic
-      // denial. Phase 18 already audited the specific reason.
-      await client.stepUpChallenge.update({
-        where: { id: row.id },
-        data: { status: prismaPkg.StepUpChallengeStatus.DENIED },
-      });
-      safeEmitSecurityEvent(
+    if (!accepted) {
+      await recordStepUpDenial(input, row, client);
+      throw new StepUpError("denied");
+    }
+  } else {
+    const resolvedDestination = await resolveStepUpDestination(
+      { userId: input.userId, factorId: row.factorId },
+      client,
+    );
+    let verifyResult;
+    try {
+      verifyResult = await checkVerification(
         {
           teamId: input.teamId,
-          eventType: "step_up_denied",
-          severity: "WARNING",
-          details: {
-            actorUserId: input.userId,
-            purpose: row.purpose,
-          },
+          // NEW-058: the destination comes from the FACTOR that authorised
+          // this challenge, re-resolved above — never from the request.
+          phoneE164OrRaw: resolvedDestination.destination,
+          code: input.code,
+          initiatedByUserId: input.userId,
+          ipAddress: input.ipAddress ?? null,
+          userAgent: input.userAgent ?? null,
+          /**
+           * PHASE 13 (NEW-055) — the attempt THIS challenge started.
+           *
+           * `startStepUpChallenge` persists `verificationAttemptId`, and
+           * nothing read it: the verification lookup independently took the
+           * most recent STARTED attempt for the recipient, so two concurrent
+           * challenges on one number let the code minted for the second
+           * approve the first. The binding the schema records is now the
+           * binding that is enforced.
+           */
+          verificationAttemptId: row.verificationAttemptId ?? null,
         },
         client,
       );
-      // Fire a FAILED_OTP_BURST signal best-effort.
-      await maybeFireFailedOtpBurst(
-        { teamId: input.teamId, userId: input.userId },
-        client,
-      );
+    } catch (err) {
+      if (err instanceof VerificationError) {
+        // Don't leak Verify's exact code surface; surface a generic
+        // denial. Phase 18 already audited the specific reason.
+        await recordStepUpDenial(input, row, client);
+        throw new StepUpError("denied");
+      }
+      throw err;
+    }
+    if (verifyResult.status !== "approved") {
+      await recordStepUpDenial(input, row, client);
       throw new StepUpError("denied");
     }
-    throw err;
-  }
-  if (verifyResult.status !== "approved") {
-    await client.stepUpChallenge.update({
-      where: { id: row.id },
-      data: { status: prismaPkg.StepUpChallengeStatus.DENIED },
-    });
-    safeEmitSecurityEvent(
-      {
-        teamId: input.teamId,
-        eventType: "step_up_denied",
-        severity: "WARNING",
-        details: { actorUserId: input.userId, purpose: row.purpose },
-      },
-      client,
-    );
-    await maybeFireFailedOtpBurst(
-      { teamId: input.teamId, userId: input.userId },
-      client,
-    );
-    throw new StepUpError("denied");
   }
   const approved = await client.stepUpChallenge.update({
     where: { id: row.id },
@@ -642,6 +681,146 @@ export async function consumeApprovedChallenge(
 // -----------------------------------------------------------------------------
 // Helpers
 // -----------------------------------------------------------------------------
+
+type StepUpFactor = {
+  method: StepUpFactorKind;
+  factorId: string;
+  generation: number;
+  destinationMask: string | null;
+};
+
+/**
+ * PV-STEPUP-001 — the factor a step-up challenge is answered with.
+ *
+ * Only kinds the purpose's policy admits are considered (the policy is total;
+ * see STEP_UP_PURPOSE_FACTOR_POLICY). With no preference the account's
+ * authenticator app wins — it involves no provider, no delivery and no phone
+ * number — and the verified phone is the fallback. A named channel or
+ * `factorId` NARROWS the choice among factors the account already holds; it
+ * can never introduce one (NEW-058). Null means there is nothing this purpose
+ * accepts, which the caller turns into `enrollment_required`.
+ */
+async function resolveStepUpFactor(
+  input: {
+    userId: string;
+    purpose: StepUpPurpose;
+    factorId: string | null;
+    channel: StepUpFactorKind | null;
+  },
+  client: PrismaClient,
+): Promise<StepUpFactor | null> {
+  const allowed = stepUpFactorKindsFor(input.purpose);
+  const channel = input.channel;
+  if (channel !== null && !allowed.includes(channel)) return null;
+
+  if (allowed.includes("TOTP") && (channel === null || channel === "TOTP")) {
+    const totp = await client.mfaFactor.findFirst({
+      where: {
+        userId: input.userId,
+        kind: "TOTP",
+        status: "ACTIVE",
+        revokedAt: null,
+        verifiedAtUtc: { not: null },
+        ...(input.factorId ? { id: input.factorId } : {}),
+      },
+      select: { id: true, generation: true },
+      orderBy: { verifiedAtUtc: "desc" },
+    });
+    if (totp) {
+      return {
+        method: "TOTP",
+        factorId: totp.id,
+        generation: totp.generation,
+        destinationMask: null,
+      };
+    }
+  }
+  if (channel === "TOTP") return null;
+
+  const contact = await resolveActiveContactFactor(
+    {
+      userId: input.userId,
+      factorId: input.factorId ?? undefined,
+      kind: channel ?? undefined,
+    },
+    client,
+  );
+  if (!contact || !allowed.includes(contact.kind)) return null;
+  return {
+    method: contact.kind,
+    factorId: contact.factorId,
+    generation: contact.generation,
+    destinationMask: contact.destinationMask,
+  };
+}
+
+/**
+ * PV-STEPUP-001 — verify an authenticator code against the factor the
+ * challenge is bound to, and CLAIM its time step so the code cannot be
+ * accepted again — here, at sign-in, or by a concurrent request
+ * (WCC-NEW-008). False for a wrong code, a replayed code, or a factor that
+ * is no longer an active authenticator of this user.
+ */
+async function verifyStepUpTotp(
+  input: { userId: string; factorId: string; code: string },
+  client: PrismaClient,
+): Promise<boolean> {
+  const factor = await client.mfaFactor.findFirst({
+    where: {
+      id: input.factorId,
+      userId: input.userId,
+      kind: "TOTP",
+      status: "ACTIVE",
+      revokedAt: null,
+    },
+    select: {
+      id: true,
+      secretCiphertext: true,
+      secretIv: true,
+      secretAuthTag: true,
+      secretKekId: true,
+      digits: true,
+      periodSeconds: true,
+    },
+  });
+  if (!factor) return false;
+  const secret = openSecret(requireTotpSecret(factor));
+  const step = matchTotpStep(secret, input.code, {
+    digits: factor.digits,
+    period: factor.periodSeconds,
+  });
+  if (step === null) return false;
+  return claimTotpStep(client, factor.id, step, factor.periodSeconds);
+}
+
+/**
+ * A refused check: the challenge is spent (one attempt per challenge), the
+ * denial is recorded, and the failed-OTP burst detector is told. The caller
+ * throws the generic `denied` so no branch is distinguishable from outside.
+ */
+async function recordStepUpDenial(
+  input: { teamId: string; userId: string },
+  row: { id: string; purpose: string },
+  client: PrismaClient,
+): Promise<void> {
+  await client.stepUpChallenge.update({
+    where: { id: row.id },
+    data: { status: prismaPkg.StepUpChallengeStatus.DENIED },
+  });
+  safeEmitSecurityEvent(
+    {
+      teamId: input.teamId,
+      eventType: "step_up_denied",
+      severity: "WARNING",
+      details: { actorUserId: input.userId, purpose: row.purpose },
+    },
+    client,
+  );
+  await maybeFireFailedOtpBurst(
+    { teamId: input.teamId, userId: input.userId },
+    client,
+  );
+}
 
 function clampTtl(value: number | null): number {
   if (value === null || value === undefined) return STEP_UP_TTL_DEFAULT_SECONDS;

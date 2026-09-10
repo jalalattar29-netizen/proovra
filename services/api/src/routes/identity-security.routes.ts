@@ -38,6 +38,7 @@ import { z } from "zod";
 import * as prismaPkg from "@prisma/client";
 import {
   MFA_POLICY_LEVELS,
+  STEP_UP_FACTOR_KINDS,
   STEP_UP_PURPOSES,
   isValidDeviceCookieValue,
   type StepUpPurpose,
@@ -144,8 +145,13 @@ function handleStepUpError(reply: FastifyReply, err: unknown): boolean {
       reply.code(403).send({
         error: {
           code: "STEP_UP_ENROLLMENT_REQUIRED",
+          // PV-STEPUP-001 — the denial names what satisfies it and where to
+          // set it up. An authenticator app counts (PV-OD-011); "enrol a
+          // device" used to send an authenticator-app user looking for a phone.
           message:
-            "This action needs a verified second factor. Enrol a device in Security settings, then try again.",
+            "This action needs a verified second factor — an authenticator app or a verified phone. Set one up in Settings → Security, then try again.",
+          acceptedFactors: STEP_UP_FACTOR_KINDS,
+          remedy: "/settings#security",
         },
       });
       return true;
@@ -188,7 +194,13 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
      * fixed, not tolerated.
      */
     factorId: z.string().uuid().optional(),
-    channel: z.enum(["SMS", "WHATSAPP"]).optional(),
+    /**
+     * PV-STEPUP-001 — a factor KIND the account already holds, never a
+     * destination. TOTP answers with an authenticator app. Omitted, the
+     * server chooses: the authenticator app when the account has one, else
+     * the verified phone — within the purpose's factor policy.
+     */
+    channel: z.enum(STEP_UP_FACTOR_KINDS).optional(),
     reason: z.string().min(1).max(400).optional(),
   }).strict();
 
@@ -216,9 +228,14 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
           // authenticated request rather than any caller-supplied field.
           sessionIdHash: req.user?.sessionIdHash ?? null,
         });
-        return reply
-          .code(200)
-          .send({ challenge: projectStepUpChallenge(result.challenge) });
+        return reply.code(200).send({
+          challenge: projectStepUpChallenge(result.challenge),
+          // PV-STEPUP-001 — which factor answers this challenge, so a client
+          // never claims a code was sent when none was; the phone's mask only
+          // when one was.
+          method: result.method,
+          destinationMask: result.destinationMask,
+        });
       } catch (err) {
         if (handleStepUpError(reply, err)) return;
         throw err;

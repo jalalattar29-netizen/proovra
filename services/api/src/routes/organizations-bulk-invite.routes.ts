@@ -52,7 +52,10 @@ import { getPlanCapabilities } from "../services/plan-catalog.service.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { getAuthUserId } from "../auth.js";
-import { checkOrgAccess } from "../services/organization/org-access.js";
+import {
+  checkOrgAccess,
+  orgAccessDenial,
+} from "../services/organization/org-access.js";
 import type { OrgRole } from "../services/organization/organization-resolver.service.js";
 import { emitOrgAuditEvent } from "../services/organization/org-audit.service.js";
 // Macro-Wave A2 — durable invite delivery: outbox row committed in the
@@ -303,19 +306,22 @@ export function csvToRows(
 }
 
 // ---------------------------------------------------------------------------
-// Gate — SAME requireOrgAdmin contract as organizations-governance.routes.ts.
-// Anti-enumeration: 404 for both not_found and forbidden.
+// Gate — SAME requireOrgAdmin contract as organizations-governance.routes.ts:
+// the one org-denial rendering (PV-ORG-001).
 // ---------------------------------------------------------------------------
 async function requireOrgAdmin(input: {
   orgId: string;
   userId: string;
-}): Promise<{ ok: true; role: OrgRole } | { ok: false; code: number }> {
+}): Promise<
+  | { ok: true; role: OrgRole }
+  | { ok: false; denial: ReturnType<typeof orgAccessDenial> }
+> {
   const result = await checkOrgAccess(prisma, {
     orgId: input.orgId,
     userId: input.userId,
     minRole: "ORG_ADMIN",
   });
-  if (result.kind !== "ok") return { ok: false, code: 404 };
+  if (result.kind !== "ok") return { ok: false, denial: orgAccessDenial(result) };
   return { ok: true, role: result.role };
 }
 
@@ -749,14 +755,16 @@ export async function organizationsBulkInviteRoutes(app: FastifyInstance) {
   ): Promise<{ orgId: string; userId: string; role: OrgRole } | null> {
     const parsed = UuidParam.safeParse((req.params as { id: string }).id);
     if (!parsed.success) {
-      reply.code(404).send({ message: "Organization not found", code: "org_not_found" });
+      // A malformed id names no organization: the not-found rendering.
+      const denial = orgAccessDenial({ kind: "not_found" });
+      reply.code(denial.status).send(denial.body);
       return null;
     }
     const orgId = parsed.data;
     const userId = getAuthUserId(req);
     const access = await requireOrgAdmin({ orgId, userId });
     if (!access.ok) {
-      reply.code(access.code).send({ message: "Organization not found", code: "org_not_found" });
+      reply.code(access.denial.status).send(access.denial.body);
       return null;
     }
     return { orgId, userId, role: access.role };

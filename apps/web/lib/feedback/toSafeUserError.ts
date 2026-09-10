@@ -79,6 +79,12 @@ const CODE_MAP: Record<
     message: "A record can't be linked to itself. Enter a different evidence record ID.",
     severity: "warning",
   },
+  STEP_UP_WORKSPACE_REQUIRED: {
+    title: "Join a workspace first",
+    message:
+      "Changing a verified domain needs a step-up confirmation, which is made in a workspace. Join a workspace in this organization, then try again.",
+    severity: "warning",
+  },
   PAYMENTS_UNAVAILABLE: {
     title: "Payments unavailable",
     message:

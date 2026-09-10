@@ -12,11 +12,21 @@
  *
  * Gating (every endpoint):
  *   - requireAuth + legal acceptance.
- *   - ORG_ADMIN or ORG_SECURITY_ADMIN on the org (checkOrgAccess).
+ *   - PV-OD-012 — an explicit role set, not precedence: reads take
+ *     ORG_DOMAIN_READ_ROLES (owner, admin, security admin, auditor), writes
+ *     take ORG_DOMAIN_WRITE_ROLES (owner, admin, security admin). Precedence
+ *     (`minRole: ORG_SECURITY_ADMIN`) also admitted ORG_BILLING_ADMIN, which
+ *     shares that rank — a billing admin could add, verify and remove the
+ *     identity boundary SSO is checked against.
+ *   - PV-ORG-001 — denials render through `orgAccessDenial`: a non-member is
+ *     told exactly what a caller asking about a missing org is told.
  *   - Enterprise feature gate (`ssoScim`) at the ORG level — domain
  *     verification is an enterprise identity feature.
  *   - verify + delete additionally require step-up (sensitive: they change the
- *     identity boundary that gates SSO logins).
+ *     identity boundary that gates SSO logins), bound to a workspace of the
+ *     organization the ACTOR belongs to, and REFUSED when there is none —
+ *     never skipped. Adding a domain does not step up: an unverified claim
+ *     changes no boundary until it is verified, which does.
  *
  * Every mutation writes an OrganizationAuditEvent inside its own transaction
  * (DOMAIN_ADDED / DOMAIN_VERIFIED / DOMAIN_REMOVED). DNS challenge tokens are
@@ -31,7 +41,13 @@ import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { getAuthUserId } from "../auth.js";
-import { checkOrgAccess } from "../services/organization/org-access.js";
+import { conflictRefusal } from "../errors.js";
+import {
+  checkOrgAccess,
+  orgAccessDenial,
+  ORG_DOMAIN_READ_ROLES,
+  ORG_DOMAIN_WRITE_ROLES,
+} from "../services/organization/org-access.js";
 import { emitOrgAuditEvent } from "../services/organization/org-audit.service.js";
 import { resolveOrgEnterpriseFeatureGate } from "../services/enterprise-gate-resolvers.service.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
@@ -61,18 +77,40 @@ async function requireAuthAndLegal(
 }
 
 /**
- * Resolves a representative workspace (Team) id for the org so the step-up
- * middleware (which is team-scoped) has a teamId to bind the challenge and
- * risk snapshot to. Any workspace of the org is acceptable — org admins act
- * across the org, not a single workspace.
+ * The workspace a domain step-up is bound to (step-up challenges are
+ * workspace-scoped): the ACTOR's own earliest ACTIVE workspace in this
+ * organization.
+ *
+ * PV-OD-012 — this used to be the organization's first workspace whoever the
+ * actor was, which failed three ways. A security admin who was not a member of
+ * that workspace could never start the challenge; the page bound its challenge
+ * to whichever workspace happened to be active, so the two rarely met; and an
+ * organization with no workspace at all SKIPPED the step-up — the gate failed
+ * open. The list response now names this workspace so the page binds to the
+ * same one, and a caller with none is refused.
  */
-async function resolveOrgTeamId(orgId: string): Promise<string | null> {
+async function resolveStepUpWorkspace(
+  orgId: string,
+  userId: string,
+): Promise<string | null> {
   const team = await prisma.team.findFirst({
-    where: { organizationId: orgId },
+    where: {
+      organizationId: orgId,
+      members: { some: { userId, status: "ACTIVE" } },
+    },
     select: { id: true },
     orderBy: { createdAt: "asc" },
   });
   return team?.id ?? null;
+}
+
+/** Fail closed: a domain write that cannot be stepped up does not happen. */
+function stepUpWorkspaceRequired() {
+  return conflictRefusal({
+    code: "STEP_UP_WORKSPACE_REQUIRED",
+    message:
+      "Changing a verified domain needs a step-up confirmation, which is made in a workspace. Join a workspace in this organization, then try again.",
+  });
 }
 
 function dnsChallenge(domain: string, token: string) {
@@ -98,10 +136,11 @@ export async function organizationDomainsRoutes(app: FastifyInstance) {
       const access = await checkOrgAccess(prisma, {
         orgId,
         userId,
-        minRole: "ORG_SECURITY_ADMIN",
+        roles: ORG_DOMAIN_WRITE_ROLES,
       });
       if (access.kind !== "ok") {
-        return reply.code(403).send({ error: { code: "forbidden" } });
+        const denial = orgAccessDenial(access);
+        return reply.code(denial.status).send(denial.body);
       }
 
       const gate = await resolveOrgEnterpriseFeatureGate(orgId, "ssoScim");
@@ -185,10 +224,11 @@ export async function organizationDomainsRoutes(app: FastifyInstance) {
       const access = await checkOrgAccess(prisma, {
         orgId,
         userId,
-        minRole: "ORG_SECURITY_ADMIN",
+        roles: ORG_DOMAIN_WRITE_ROLES,
       });
       if (access.kind !== "ok") {
-        return reply.code(403).send({ error: { code: "forbidden" } });
+        const denial = orgAccessDenial(access);
+        return reply.code(denial.status).send(denial.body);
       }
 
       const gate = await resolveOrgEnterpriseFeatureGate(orgId, "ssoScim");
@@ -207,19 +247,18 @@ export async function organizationDomainsRoutes(app: FastifyInstance) {
       }
 
       // Step-up AFTER permission + resource resolution, BEFORE the mutation.
-      const teamId = await resolveOrgTeamId(orgId);
-      if (teamId) {
-        const stepUp = await requireStepUpForSensitiveAction({
-          req,
-          reply,
-          teamId,
-          userId,
-          purpose: "ORG_DOMAIN_VERIFY",
-          resourceKind: "organization_domain",
-          resourceId: row.id,
-        });
-        if (stepUp.sent) return; // response already written
-      }
+      const teamId = await resolveStepUpWorkspace(orgId, userId);
+      if (!teamId) throw stepUpWorkspaceRequired();
+      const stepUp = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId,
+        userId,
+        purpose: "ORG_DOMAIN_VERIFY",
+        resourceKind: "organization_domain",
+        resourceId: row.id,
+      });
+      if (stepUp.sent) return; // response already written
 
       if (row.verifiedAt) {
         return reply.code(200).send({
@@ -277,10 +316,11 @@ export async function organizationDomainsRoutes(app: FastifyInstance) {
       const access = await checkOrgAccess(prisma, {
         orgId,
         userId,
-        minRole: "ORG_ADMIN",
+        roles: ORG_DOMAIN_READ_ROLES,
       });
       if (access.kind !== "ok") {
-        return reply.code(403).send({ error: { code: "forbidden" } });
+        const denial = orgAccessDenial(access);
+        return reply.code(denial.status).send(denial.body);
       }
 
       const gate = await resolveOrgEnterpriseFeatureGate(orgId, "ssoScim");
@@ -303,7 +343,18 @@ export async function organizationDomainsRoutes(app: FastifyInstance) {
         take: 200,
       });
 
+      // PV-OD-012 — what THIS viewer may do, decided here, so the page never
+      // offers an auditor a control the server refuses; and the workspace a
+      // write's step-up will be bound to, so the page binds its challenge to
+      // the same one (null: no workspace to step up in — writes are refused).
+      const viewerCanManage = ORG_DOMAIN_WRITE_ROLES.includes(access.role);
+      const stepUpWorkspaceId = viewerCanManage
+        ? await resolveStepUpWorkspace(orgId, userId)
+        : null;
+
       return reply.code(200).send({
+        viewerCanManage,
+        stepUpWorkspaceId,
         domains: rows.map((r) => ({
           id: r.id,
           domain: r.domain,
@@ -335,10 +386,11 @@ export async function organizationDomainsRoutes(app: FastifyInstance) {
       const access = await checkOrgAccess(prisma, {
         orgId,
         userId,
-        minRole: "ORG_SECURITY_ADMIN",
+        roles: ORG_DOMAIN_WRITE_ROLES,
       });
       if (access.kind !== "ok") {
-        return reply.code(403).send({ error: { code: "forbidden" } });
+        const denial = orgAccessDenial(access);
+        return reply.code(denial.status).send(denial.body);
       }
 
       const gate = await resolveOrgEnterpriseFeatureGate(orgId, "ssoScim");
@@ -356,19 +408,18 @@ export async function organizationDomainsRoutes(app: FastifyInstance) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
 
-      const teamId = await resolveOrgTeamId(orgId);
-      if (teamId) {
-        const stepUp = await requireStepUpForSensitiveAction({
-          req,
-          reply,
-          teamId,
-          userId,
-          purpose: "ORG_DOMAIN_REMOVE",
-          resourceKind: "organization_domain",
-          resourceId: row.id,
-        });
-        if (stepUp.sent) return;
-      }
+      const teamId = await resolveStepUpWorkspace(orgId, userId);
+      if (!teamId) throw stepUpWorkspaceRequired();
+      const stepUp = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId,
+        userId,
+        purpose: "ORG_DOMAIN_REMOVE",
+        resourceKind: "organization_domain",
+        resourceId: row.id,
+      });
+      if (stepUp.sent) return;
 
       await prisma.$transaction(async (tx) => {
         await tx.organizationDomain.delete({ where: { id: row.id } });

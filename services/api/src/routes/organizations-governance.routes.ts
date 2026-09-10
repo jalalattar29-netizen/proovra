@@ -52,7 +52,11 @@ import { getPlanCapabilities } from "../services/plan-catalog.service.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { getAuthUserId } from "../auth.js";
-import { checkOrgAccess } from "../services/organization/org-access.js";
+import {
+  checkOrgAccess,
+  orgAccessDenial,
+  ORG_BILLING_ROLES,
+} from "../services/organization/org-access.js";
 import type { OrgRole } from "../services/organization/organization-resolver.service.js";
 import { emitOrgAuditEvent } from "../services/organization/org-audit.service.js";
 import { buildOrgGovernanceControlCenter } from "../services/organization/org-governance-control-center.service.js";
@@ -89,33 +93,40 @@ const RetentionTemplateBody = z.object({
 
 const RETENTION_POLICY_KEY = "retention.default";
 
+type OrgGate =
+  | { ok: true; role: OrgRole }
+  | { ok: false; denial: ReturnType<typeof orgAccessDenial> };
+
 async function requireOrgAdmin(input: {
   orgId: string;
   userId: string;
   minRole?: OrgRole;
-}): Promise<{ ok: true; role: OrgRole } | { ok: false; code: number }> {
+  /** An explicit role set; precedence is then not consulted (WCC-NEW-006). */
+  roles?: ReadonlyArray<OrgRole>;
+}): Promise<OrgGate> {
   const result = await checkOrgAccess(prisma, {
     orgId: input.orgId,
     userId: input.userId,
-    minRole: input.minRole ?? "ORG_ADMIN",
+    ...(input.roles
+      ? { roles: input.roles }
+      : { minRole: input.minRole ?? "ORG_ADMIN" }),
   });
-  if (result.kind !== "ok") {
-    // Anti-enumeration: same status code (404) for both
-    // `not_found` and `forbidden`.
-    return { ok: false, code: 404 };
-  }
+  // PV-ORG-001 — the one convention: a non-member is told exactly what a
+  // caller asking about a missing org is told (404 not_found); an ACTIVE
+  // member without the role is told the truth (403 forbidden).
+  if (result.kind !== "ok") return { ok: false, denial: orgAccessDenial(result) };
   return { ok: true, role: result.role };
 }
 
 async function requireOrgMember(input: {
   orgId: string;
   userId: string;
-}): Promise<{ ok: true; role: OrgRole } | { ok: false; code: number }> {
+}): Promise<OrgGate> {
   const result = await checkOrgAccess(prisma, {
     orgId: input.orgId,
     userId: input.userId,
   });
-  if (result.kind !== "ok") return { ok: false, code: 404 };
+  if (result.kind !== "ok") return { ok: false, denial: orgAccessDenial(result) };
   return { ok: true, role: result.role };
 }
 
@@ -137,10 +148,7 @@ export async function organizationsGovernanceRoutes(app: FastifyInstance) {
 
       const access = await requireOrgAdmin({ orgId, userId });
       if (!access.ok) {
-        return reply.code(access.code).send({
-          message: "Organization not found",
-          code: "org_not_found",
-        });
+        return reply.code(access.denial.status).send(access.denial.body);
       }
 
       const value: Prisma.InputJsonValue = {
@@ -219,10 +227,7 @@ export async function organizationsGovernanceRoutes(app: FastifyInstance) {
 
       const access = await requireOrgMember({ orgId, userId });
       if (!access.ok) {
-        return reply.code(access.code).send({
-          message: "Organization not found",
-          code: "org_not_found",
-        });
+        return reply.code(access.denial.status).send(access.denial.body);
       }
 
       const policy = await prisma.organizationPolicy.findUnique({
@@ -285,19 +290,20 @@ export async function organizationsGovernanceRoutes(app: FastifyInstance) {
       const userId = getAuthUserId(req);
       const orgId = UuidParam.parse((req.params as { id: string }).id);
 
-      // Billing rollup is governance-visible — ORG_BILLING_ADMIN +
-      // higher only. ORG_MEMBER + ORG_AUDITOR see counts via the
-      // org overview elsewhere.
+      // Billing rollup is governance-visible — the billing specialist and
+      // the full administrators only. ORG_MEMBER + ORG_AUDITOR see counts via
+      // the org overview elsewhere.
+      //
+      // WCC-NEW-006 — an explicit role set, not `minRole: ORG_BILLING_ADMIN`:
+      // the security admin shares that precedence rank and was admitted to
+      // the organization's billing rollup through the tie.
       const access = await requireOrgAdmin({
         orgId,
         userId,
-        minRole: "ORG_BILLING_ADMIN",
+        roles: ORG_BILLING_ROLES,
       });
       if (!access.ok) {
-        return reply.code(access.code).send({
-          message: "Organization not found",
-          code: "org_not_found",
-        });
+        return reply.code(access.denial.status).send(access.denial.body);
       }
 
       const workspaces = await prisma.team.findMany({
@@ -451,10 +457,7 @@ export async function organizationsGovernanceRoutes(app: FastifyInstance) {
         minRole: "ORG_AUDITOR",
       });
       if (!access.ok) {
-        return reply.code(access.code).send({
-          message: "Organization not found",
-          code: "org_not_found",
-        });
+        return reply.code(access.denial.status).send(access.denial.body);
       }
 
       const envelope = await buildOrgGovernanceControlCenter({ orgId });

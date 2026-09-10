@@ -39,6 +39,8 @@ const ORG_AUDITOR = "55555555-5555-4555-8555-555555555555";
 const ORG_MEMBER = "66666666-6666-4666-8666-666666666666";
 const OUTSIDER = "77777777-7777-4777-8777-777777777777";
 const MANAGED_IDENTITY = "88888888-8888-4888-8888-888888888888";
+/** WCC-NEW-006 — the security specialist, who shares the billing admin's rank. */
+const ORG_SECURITY = "99999999-9999-4999-8999-999999999999";
 
 const ORG_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const ORG_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -49,6 +51,7 @@ const ROLES: Record<string, string> = {
   [ORG_OWNER]: "ORG_OWNER",
   [ORG_ADMIN]: "ORG_ADMIN",
   [ORG_BILLING]: "ORG_BILLING_ADMIN",
+  [ORG_SECURITY]: "ORG_SECURITY_ADMIN",
   [ORG_AUDITOR]: "ORG_AUDITOR",
   [ORG_MEMBER]: "ORG_MEMBER",
 };
@@ -114,24 +117,36 @@ vi.mock("../src/services/identity/identity-mode.service.js", () => ({
 }));
 
 // The real role comparison, exercised through its canonical entry point.
-vi.mock("../src/services/organization/org-access.js", () => {
+// The REAL module (its role sets included — the service reads
+// ORG_BILLING_ROLES from it), with only the gate's decision replaced.
+vi.mock("../src/services/organization/org-access.js", async (importOriginal) => {
+  const real = (await importOriginal()) as Record<string, unknown>;
   const RANK: Record<string, number> = {
     ORG_OWNER: 5,
     ORG_ADMIN: 4,
     ORG_BILLING_ADMIN: 3,
+    ORG_SECURITY_ADMIN: 3,
     ORG_AUDITOR: 2,
     ORG_MEMBER: 1,
   };
   return {
+    ...real,
     checkOrgAccess: async (
       _client: unknown,
-      input: { orgId: string; userId: string; minRole: string },
+      input: { orgId: string; userId: string; minRole?: string; roles?: string[] },
     ) => {
       if (input.orgId !== ORG_A) return { kind: "not_found" as const };
       const role = ROLES[input.userId];
       if (!role) return { kind: "not_found" as const };
       if (H.inactive.has(input.userId)) return { kind: "not_found" as const };
-      return (RANK[role] ?? 0) >= (RANK[input.minRole] ?? 0)
+      // An explicit role set is honoured exactly as the real gate does:
+      // membership in the set, precedence not consulted.
+      if (input.roles) {
+        return input.roles.includes(role)
+          ? { kind: "ok" as const, role }
+          : { kind: "forbidden" as const };
+      }
+      return (RANK[role] ?? 0) >= (RANK[input.minRole ?? "ORG_MEMBER"] ?? 0)
         ? { kind: "ok" as const, role }
         : { kind: "forbidden" as const };
     },
@@ -156,6 +171,14 @@ describe("BILLING — who is offered which account", () => {
     expect([...accounts[0].capabilities].sort()).toEqual(
       [...ALL_BILLING_CAPABILITIES].sort(),
     );
+  });
+
+  it("ORG_SECURITY_ADMIN — the billing admin's precedence rank — is NOT offered the organization account (WCC-NEW-006)", async () => {
+    const { listBillingAccountsForViewer } = await load();
+    const accounts = await listBillingAccountsForViewer(ORG_SECURITY);
+    // Amounts, history and the contract belong to the billing specialist and
+    // the full administrators; sharing a rank is not sharing the role.
+    expect(accounts.filter((a) => a.type === "ORGANIZATION")).toEqual([]);
   });
 
   it("a managed enterprise identity is offered NO personal account", async () => {

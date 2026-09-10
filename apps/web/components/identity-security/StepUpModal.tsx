@@ -111,10 +111,26 @@ type ModalState =
        * against, and there is no route that would return the full value.
        */
       destinationMask: string | null;
+      /**
+       * PV-STEPUP-001 — which factor this challenge is answered with. The
+       * server chooses (an authenticator app when the account has one, else
+       * the enrolled phone) and says which, so the label never claims a code
+       * was sent when none was.
+       */
+      method: StepUpMethod;
+      /** A switch to the other factor was refused; shown beside the form. */
+      notice: string | null;
     }
   | { kind: "enrollment_required" }
-  | { kind: "failed"; reason: string }
+  | {
+      kind: "failed";
+      reason: string;
+      /** Present when starting again can succeed (e.g. a rejected code). */
+      restart: { details: StepUpRequiredDetails; teamId: string | null } | null;
+    }
   | { kind: "retrying" };
+
+export type StepUpMethod = "TOTP" | "SMS" | "WHATSAPP";
 
 export function useStepUpAction({
   teamId,
@@ -170,50 +186,42 @@ export function useStepUpAction({
     }
   }, []);
 
+  /**
+   * Start a challenge — on entry, or to SWITCH factor while one is in hand.
+   *
+   * PV-STEPUP-001 — the server chooses the factor (an authenticator app when
+   * the account holds one, otherwise the enrolled phone), subject to the
+   * purpose's factor policy, and answers WHICH, with the phone's mask when a
+   * code was sent. The modal no longer pre-reads the contact-factor roster:
+   * that roster knows nothing of authenticator apps, so it told an account
+   * holding only TOTP that it had "no verified device" — the exact denial
+   * PV-OD-011 retires. The server's `STEP_UP_ENROLLMENT_REQUIRED` is the
+   * authority and the only source of that answer.
+   *
+   * The body never carries a destination (NEW-058): `channel` names a factor
+   * KIND the account already holds, never a number, and is sent only when the
+   * operator asked to switch.
+   */
   const startChallenge = useCallback(
-    async () => {
-      if (state.kind !== "starting") return;
+    async (preferred?: StepUpMethod) => {
+      const previous = state.kind === "verifying" ? state : null;
+      const from =
+        state.kind === "starting"
+          ? { details: state.details, teamId: state.teamId }
+          : previous && preferred
+            ? { details: previous.details, teamId: previous.teamId }
+            : null;
+      if (!from) return;
       if (!teamId) {
-        setState({ kind: "failed", reason: "Workspace context required." });
+        setState({
+          kind: "failed",
+          reason: "Workspace context required.",
+          restart: null,
+        });
         return;
       }
-      /**
-       * PHASE 13 (NEW-058) — resolve the enrolled factor BEFORE minting a
-       * challenge, for two reasons.
-       *
-       * The mask is the only thing this modal can honestly tell the operator
-       * about where the code went, and an account with no ACTIVE factor cannot
-       * elevate at all — so asking the server for a challenge it must refuse
-       * would spend a rate-limit slot to reach a denial we can already name.
-       * The server's own `STEP_UP_ENROLLMENT_REQUIRED` remains the authority;
-       * this is the same answer, one round-trip earlier.
-       */
-      let destinationMask: string | null = null;
       try {
-        const roster = (await apiFetch(
-          "/v1/identity-security/contact-factors",
-          { method: "GET" },
-        )) as { factors?: Array<{ status?: string; destinationMask?: string }> };
-        const active = Array.isArray(roster?.factors)
-          ? roster.factors.find((f) => f?.status === "ACTIVE")
-          : undefined;
-        if (!active) {
-          setState({ kind: "enrollment_required" });
-          return;
-        }
-        destinationMask =
-          typeof active.destinationMask === "string"
-            ? active.destinationMask
-            : null;
-      } catch {
-        // A roster we could not read is NOT proof of "no factor" — fall
-        // through and let the server decide, which is the authority anyway.
-        destinationMask = null;
-      }
-      try {
-        // `apiFetch` returns the PARSED body and throws on non-2xx. It has no
-        // `.json()` — calling one threw a TypeError that this catch reported as
-        // "Could not start step-up challenge", so the flow could never begin.
+        // `apiFetch` returns the PARSED body and throws on non-2xx.
         const json = (await apiFetch(
           "/v1/identity-security/step-up/start",
           {
@@ -221,74 +229,97 @@ export function useStepUpAction({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               teamId,
-              purpose: state.details.purpose,
-              resourceKind: state.details.resourceKind,
-              resourceId: state.details.resourceId,
-              /**
-               * PHASE 13 (NEW-058) — `phone` IS GONE FROM THIS BODY, AND ITS
-               * ABSENCE IS THE FIX.
-               *
-               * `StartBody` is `.strict()` and no longer declares the field, so
-               * a request that still carried it was rejected at validation —
-               * which meant the step-up gate was unreachable from the product
-               * for a SECOND reason on top of the one NEW-057 fixed. The
-               * destination is now resolved server-side from the account's
-               * ACTIVE, verified factor; there is nothing for a caller to
-               * choose, which is exactly the property that makes an approved
-               * challenge mean something.
-               *
-               * PHASE 13 (NEW-057) — the server's enum is UPPERCASE.
-               *
-               * This sent `"sms"`. `StartBody` declares
-               * `z.enum(["SMS", "WHATSAPP"])`, and Zod does not case-fold an
-               * enum, so every start request was rejected at validation and
-               * this modal dropped straight to its failed state with "Could
-               * not start step-up challenge."
-               *
-               * The blast radius is the whole step-up gate, not one surface:
-               * evidence publication and withdrawal, reviewer approve/reject,
-               * escalation resolve, bulk reviewer operations, evidence
-               * destruction approve and execute, governance policy update, and
-               * department membership grant/revoke are ALL reached through this
-               * modal. Every one of them was unreachable.
-               */
-              channel: "SMS",
+              purpose: from.details.purpose,
+              resourceKind: from.details.resourceKind,
+              resourceId: from.details.resourceId,
+              ...(preferred ? { channel: preferred } : {}),
             }),
           },
-        )) as { challenge: { id: string } };
+        )) as {
+          challenge: { id: string };
+          method?: StepUpMethod;
+          destinationMask?: string | null;
+        };
         setState({
           kind: "verifying",
-          details: state.details,
+          details: from.details,
           teamId,
           challengeId: json.challenge.id,
-          destinationMask,
+          method: json.method ?? "SMS",
+          destinationMask:
+            typeof json.destinationMask === "string"
+              ? json.destinationMask
+              : null,
+          notice: null,
         });
       } catch (err) {
         const e = err as ApiErrorLike;
-        // The server's stable, actionable denial for an account with nothing
-        // to send a code to. It is deliberately NOT bucketed with "that code
-        // was wrong": one means "enrol a device", the other means "try again",
-        // and collapsing them leaves every gated feature looking broken with
-        // no way for this modal to offer the one thing that fixes it.
-        if (e?.code === "STEP_UP_ENROLLMENT_REQUIRED" || e?.statusCode === 403) {
+        // The server's stable, actionable denial for an account with no
+        // second factor it can use here. It is deliberately NOT bucketed with
+        // "that code was wrong": one means "set up a factor", the other means
+        // "try again".
+        const enrollment =
+          e?.code === "STEP_UP_ENROLLMENT_REQUIRED" || e?.statusCode === 403;
+        if (previous) {
+          // A refused SWITCH leaves the challenge already in hand usable.
+          setState({
+            ...previous,
+            notice: enrollment
+              ? preferred === "TOTP"
+                ? "This account has no authenticator app set up."
+                : "This account has no verified phone set up."
+              : toSafeUserError(e, {
+                  message: "Could not switch verification method.",
+                }).message,
+          });
+          return;
+        }
+        if (enrollment) {
           setState({ kind: "enrollment_required" });
           return;
         }
         setState({
           kind: "failed",
-          reason: toSafeUserError(e, { message: "Could not start step-up challenge." }).message,
+          reason: toSafeUserError(e, {
+            message: "Could not start step-up challenge.",
+          }).message,
+          restart: null,
         });
       }
     },
     [state, teamId],
   );
 
+  /** Start over after a refusal that another attempt can overcome. */
+  const restart = useCallback(() => {
+    if (state.kind !== "failed" || !state.restart) return;
+    setState({
+      kind: "starting",
+      details: state.restart.details,
+      teamId: state.restart.teamId,
+    });
+  }, [state]);
+
   const verifyAndRetry = useCallback(
     async (code: string) => {
       if (state.kind !== "verifying") return;
+      const restartFrom = { details: state.details, teamId: state.teamId };
+      // A rejected code is recoverable by starting again, so the failure
+      // offers exactly that. An authenticator code is single-use: the likeliest
+      // cause of a rejection straight after a sign-in is re-entering the code
+      // that sign-in already spent.
+      const rejected: ModalState = {
+        kind: "failed",
+        reason:
+          state.method === "TOTP"
+            ? "That code was not accepted. Each authenticator code works once — wait for the next one, then start again."
+            : "That code was not accepted. Start again to receive a new code.",
+        restart: restartFrom,
+      };
+      let json: { status: string };
       try {
         // Same contract as `startChallenge`: the parsed body IS the result.
-        const json = (await apiFetch(
+        json = (await apiFetch(
           "/v1/identity-security/step-up/check",
           {
             method: "POST",
@@ -304,49 +335,57 @@ export function useStepUpAction({
             }),
           },
         )) as { status: string };
-        if (json.status !== "approved") {
-          setState({
-            kind: "failed",
-            reason: "Step-up was not approved. Restart to try again.",
-          });
-          return;
-        }
-        // Retry the original action exactly once with the challenge
-        // id in the header. The middleware consumes it atomically.
-        setState({ kind: "retrying" });
-        const onSuccess = onSuccessRef.current;
-        const onFail = onFailureRef.current;
-        const action = pendingActionRef.current;
-        if (!action) {
-          setState({ kind: "idle" });
-          return;
-        }
-        try {
-          const value = await action({
-            "x-proovra-step-up-challenge-id": state.challengeId,
-          });
-          pendingActionRef.current = null;
-          onSuccessRef.current = null;
-          onFailureRef.current = null;
-          setState({ kind: "idle" });
-          if (onSuccess) onSuccess(value);
-        } catch (err) {
-          pendingActionRef.current = null;
-          onSuccessRef.current = null;
-          onFailureRef.current = null;
-          setState({
-            kind: "failed",
-            reason:
-              toSafeUserError(err, { message: "Action failed after step-up." }).message,
-          });
-          if (onFail) onFail(err);
-        }
       } catch (err) {
-        const e = err as { message?: string };
+        const e = err as ApiErrorLike;
+        if (e?.statusCode === 400) {
+          setState(rejected);
+          return;
+        }
         setState({
           kind: "failed",
-          reason: toSafeUserError(e, { message: "Could not verify step-up code." }).message,
+          reason: toSafeUserError(e, {
+            message: "Could not verify step-up code.",
+          }).message,
+          restart: restartFrom,
         });
+        return;
+      }
+      if (json.status !== "approved") {
+        setState(rejected);
+        return;
+      }
+      // Retry the original action exactly once with the challenge
+      // id in the header. The middleware consumes it atomically.
+      setState({ kind: "retrying" });
+      const onSuccess = onSuccessRef.current;
+      const onFail = onFailureRef.current;
+      const action = pendingActionRef.current;
+      if (!action) {
+        setState({ kind: "idle" });
+        return;
+      }
+      try {
+        const value = await action({
+          "x-proovra-step-up-challenge-id": state.challengeId,
+        });
+        pendingActionRef.current = null;
+        onSuccessRef.current = null;
+        onFailureRef.current = null;
+        setState({ kind: "idle" });
+        if (onSuccess) onSuccess(value);
+      } catch (err) {
+        pendingActionRef.current = null;
+        onSuccessRef.current = null;
+        onFailureRef.current = null;
+        setState({
+          kind: "failed",
+          reason:
+            toSafeUserError(err, { message: "Action failed after step-up." }).message,
+          // The elevation was spent on this attempt; there is nothing to
+          // restart from inside the modal.
+          restart: null,
+        });
+        if (onFail) onFail(err);
       }
     },
     [state],
@@ -359,9 +398,18 @@ export function useStepUpAction({
       cancel,
       closeIdle,
       startChallenge,
+      restart,
       verifyAndRetry,
     }),
-    [state, runStepUpAction, cancel, closeIdle, startChallenge, verifyAndRetry],
+    [
+      state,
+      runStepUpAction,
+      cancel,
+      closeIdle,
+      startChallenge,
+      restart,
+      verifyAndRetry,
+    ],
   );
 }
 
@@ -387,7 +435,7 @@ export function StepUpModal({
 }: {
   control: ReturnType<typeof useStepUpAction>;
 }) {
-  const { state, cancel, startChallenge, verifyAndRetry } = control;
+  const { state, cancel, startChallenge, restart, verifyAndRetry } = control;
   const [code, setCode] = useState("");
   const codeRef = useRef<HTMLInputElement | null>(null);
   /**
@@ -411,7 +459,9 @@ export function StepUpModal({
     } else if (state.kind === "verifying") {
       setTimeout(() => codeRef.current?.focus(), 0);
     }
-    if (state.kind === "idle") startedRef.current = false;
+    // Re-armed on every exit from `starting`, so "Start again" after a
+    // rejected code (failed -> starting) mints exactly one new challenge.
+    if (state.kind !== "starting") startedRef.current = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.kind]);
 
@@ -490,7 +540,7 @@ export function StepUpModal({
         {state.kind === "starting" ? (
           <div data-step-up-form="sending" role="status" aria-live="polite">
             <p style={{ margin: 0, fontSize: 13, color: "#475569" }}>
-              Sending a one-time code to your enrolled device…
+              Preparing your verification…
             </p>
             <div style={actionsRow}>
               <button
@@ -514,8 +564,9 @@ export function StepUpModal({
         {state.kind === "enrollment_required" ? (
           <div data-step-up-enrollment-required>
             <p style={{ margin: 0, fontSize: 13, color: "#475569" }}>
-              This action needs a verified device, and this account does not
-              have one yet. Enrol a phone under{" "}
+              This action needs a verified second factor — an authenticator
+              app or a verified phone — and this account has neither yet. Set
+              one up under{" "}
               <a href="/settings#security" data-step-up-enroll-link>
                 Settings → Security
               </a>
@@ -551,14 +602,17 @@ export function StepUpModal({
                 marginBottom: 4,
               }}
             >
-              {state.destinationMask
-                ? `Verification code (sent to ${state.destinationMask})`
-                : "Verification code (sent to your enrolled device)"}
+              {state.method === "TOTP"
+                ? "Code from your authenticator app"
+                : state.destinationMask
+                  ? `Verification code (sent to ${state.destinationMask})`
+                  : "Verification code (sent to your verified phone)"}
             </label>
             <input
               id="step-up-code"
               ref={codeRef}
               data-step-up-code-input
+              data-step-up-method={state.method}
               type="text"
               inputMode="numeric"
               autoComplete="one-time-code"
@@ -567,6 +621,33 @@ export function StepUpModal({
               required
               style={inputStyle}
             />
+            {/*
+             * PV-STEPUP-001 — both factor kinds satisfy step-up, so the
+             * operator can answer with whichever is at hand. A switch that
+             * the account cannot make (nothing enrolled of that kind) keeps
+             * the current challenge and says why.
+             */}
+            {state.notice ? (
+              <p
+                role="status"
+                data-step-up-switch-notice
+                style={{ margin: "8px 0 0", fontSize: 12, color: "#475569" }}
+              >
+                {state.notice}
+              </p>
+            ) : null}
+            <button
+              type="button"
+              data-step-up-switch
+              onClick={() =>
+                void startChallenge(state.method === "TOTP" ? "SMS" : "TOTP")
+              }
+              style={switchButtonStyle}
+            >
+              {state.method === "TOTP"
+                ? "Use a text message instead"
+                : "Use an authenticator app instead"}
+            </button>
             <div style={actionsRow}>
               <button
                 type="button"
@@ -610,10 +691,20 @@ export function StepUpModal({
                 type="button"
                 onClick={cancel}
                 data-step-up-cancel
-                style={primaryButtonStyle}
+                style={state.restart ? secondaryButtonStyle : primaryButtonStyle}
               >
                 Close
               </button>
+              {state.restart ? (
+                <button
+                  type="button"
+                  onClick={restart}
+                  data-step-up-restart
+                  style={primaryButtonStyle}
+                >
+                  Start again
+                </button>
+              ) : null}
             </div>
           </div>
         ) : null}
@@ -645,6 +736,17 @@ const primaryButtonStyle = {
   background: "#0f172a",
   border: 0,
   borderRadius: 6,
+  cursor: "pointer",
+} as const;
+
+const switchButtonStyle = {
+  marginTop: 8,
+  padding: 0,
+  fontSize: 12,
+  color: "#1d4ed8",
+  background: "none",
+  border: 0,
+  textDecoration: "underline",
   cursor: "pointer",
 } as const;
 

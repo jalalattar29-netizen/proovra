@@ -16,10 +16,11 @@
  *     ownership / reviewer assignments.
  *   - Cross-org enumeration MUST return the same response shape as
  *     "org doesn't exist" so non-members cannot infer org existence
- *     by observing the response code. The Phase 2.6B/C/D pattern
- *     used here: 403 for authed non-members on a real org, 404 for
- *     truly missing org. Either is acceptable from the route's
- *     standpoint; defense-in-depth happens at the test layer.
+ *     by observing the response code. PV-ORG-001 makes that ONE rule,
+ *     decided here rather than per route: a caller with no ACTIVE
+ *     membership receives `not_found` exactly as for a missing org, and
+ *     only an ACTIVE member who lacks the role receives `forbidden`.
+ *     `orgAccessDenial` is the one HTTP rendering of both.
  *   - This module is READ-ONLY. No org rows are mutated here.
  */
 
@@ -47,21 +48,53 @@ export type OrgAccessOutcome =
   | { kind: "forbidden" };
 
 /**
- * Resolve whether `userId` has at least `minRole` in org `orgId`.
+ * PV-ORG-001 — THE ONE HTTP RENDERING OF AN ORG ACCESS DENIAL.
  *
- * - Returns `{kind:"not_found"}` if the org doesn't exist (route
- *   layer SHOULD still respond 403 for defense-in-depth, but this
- *   helper distinguishes the case for logging).
- * - Returns `{kind:"forbidden"}` if the user is not a member, or
- *   is a member at a lower precedence than `minRole`.
- * - Returns `{kind:"ok"}` if the membership exists at sufficient
- *   precedence.
+ * /v1/orgs/* answered denials four ways: 403 `{message:"Forbidden"}` for a
+ * missing org AND a non-member on some routes, 403 `{error:{code}}` on others,
+ * 404 for everything on a third family and 404 `NOT_FOUND` on a fourth. The
+ * first concealed but told a MEMBER nothing true; the third hid a role
+ * shortfall from a member who is entitled to know they are one.
  *
- * Does NOT throw. Caller is the source of truth for HTTP status.
+ * One convention now: `not_found` (no such org, or no ACTIVE membership in
+ * it) is a 404 byte-identical to a missing org; `forbidden` (an ACTIVE member
+ * without the role, or a member of a suspended / archived org) is a 403.
+ * Pure data, so this module stays free of Fastify.
+ */
+export function orgAccessDenial(outcome: { kind: "not_found" | "forbidden" }): {
+  status: 403 | 404;
+  body: { error: { code: "not_found" | "forbidden" } };
+} {
+  return outcome.kind === "not_found"
+    ? { status: 404, body: { error: { code: "not_found" } } }
+    : { status: 403, body: { error: { code: "forbidden" } } };
+}
+
+/**
+ * Resolve whether `userId` may act in org `orgId`.
+ *
+ * - `{kind:"not_found"}` — the org does not exist, OR the caller holds no
+ *   ACTIVE membership in it (PV-ORG-001: indistinguishable by design).
+ * - `{kind:"forbidden"}` — an ACTIVE member whose role does not qualify, or
+ *   a member of a suspended / archived org.
+ * - `{kind:"ok"}` — an ACTIVE member whose role qualifies.
+ *
+ * A role qualifies by `minRole` precedence, OR — when `roles` is given — by
+ * being IN that explicit set, and precedence is then not consulted. Use
+ * `roles` wherever a precedence tie would admit the wrong specialist:
+ * ORG_SECURITY_ADMIN and ORG_BILLING_ADMIN share rank 3, so
+ * `minRole: "ORG_SECURITY_ADMIN"` admits a billing admin too.
+ *
+ * Does NOT throw. `orgAccessDenial` renders the two denials.
  */
 export async function checkOrgAccess(
   prisma: PrismaClient,
-  input: { orgId: string; userId: string; minRole?: OrgRole },
+  input: {
+    orgId: string;
+    userId: string;
+    minRole?: OrgRole;
+    roles?: ReadonlyArray<OrgRole>;
+  },
 ): Promise<OrgAccessOutcome> {
   const minRole: OrgRole = input.minRole ?? "ORG_MEMBER";
   const requiredRank = ORG_ROLE_PRECEDENCE[minRole];
@@ -71,14 +104,6 @@ export async function checkOrgAccess(
     select: { id: true, status: true },
   });
   if (!org) return { kind: "not_found" };
-  // Lifecycle Phase 6 — a closed (ARCHIVED) organization is dark for
-  // every org surface at once. Memberships are retained for history but
-  // grant nothing anymore.
-  // PHASE 4 §7.6 (2026-07-22) — SUSPENDED halts every org surface too;
-  // unlike ARCHIVED it is reversible (platform-operator resume).
-  if (org.status === "ARCHIVED" || org.status === "SUSPENDED") {
-    return { kind: "forbidden" };
-  }
 
   /**
    * PHASE 12 CORRECTIVE PASS §2 (ARCH-004, 2026-08-07) — EXISTENCE IS NOT
@@ -101,24 +126,76 @@ export async function checkOrgAccess(
     where: { organizationId: input.orgId, userId: input.userId },
     select: { role: true, status: true, validUntilUtc: true },
   });
-  if (!membership) return { kind: "forbidden" };
+  // PV-ORG-001 — no membership: the same answer as no organization.
+  if (!membership) return { kind: "not_found" };
   if (
     !organizationMembershipGrantsAccess({
       status: membership.status,
       validUntilUtc: membership.validUntilUtc,
     })
   ) {
-    // Indistinguishable from "not a member". A suspended operator must not be
-    // able to tell a suspension apart from a removal by the response.
+    // Indistinguishable from "not a member" — and therefore, since PV-ORG-001,
+    // from "no such organization". A suspended operator must not be able to
+    // tell a suspension apart from a removal by the response.
+    return { kind: "not_found" };
+  }
+
+  // Lifecycle Phase 6 — a closed (ARCHIVED) organization is dark for
+  // every org surface at once. Memberships are retained for history but
+  // grant nothing anymore.
+  // PHASE 4 §7.6 (2026-07-22) — SUSPENDED halts every org surface too;
+  // unlike ARCHIVED it is reversible (platform-operator resume).
+  // Checked AFTER membership, so a non-member of a closed org is concealed
+  // like any other non-member rather than told the org is closed.
+  if (org.status === "ARCHIVED" || org.status === "SUSPENDED") {
     return { kind: "forbidden" };
   }
 
   const actualRole = membership.role as OrgRole;
-  const actualRank = ORG_ROLE_PRECEDENCE[actualRole];
-  if (actualRank < requiredRank) return { kind: "forbidden" };
+  if (input.roles) {
+    if (!input.roles.includes(actualRole)) return { kind: "forbidden" };
+  } else if (ORG_ROLE_PRECEDENCE[actualRole] < requiredRank) {
+    return { kind: "forbidden" };
+  }
 
   return { kind: "ok", orgId: input.orgId, role: actualRole };
 }
+
+/**
+ * PV-OD-012 — VERIFIED-DOMAIN ADMINISTRATION, BY EXPLICIT ROLE.
+ *
+ * A verified domain is the identity boundary SSO sign-in is checked against.
+ * Owner decision: the security specialist reads AND writes it (writes under
+ * step-up, confirmation and audit); the auditor reads it and writes nothing.
+ * Named sets, not precedence: rank would also admit ORG_BILLING_ADMIN, which
+ * shares the security specialist's rank and has no business with the
+ * identity boundary.
+ */
+export const ORG_DOMAIN_READ_ROLES: ReadonlyArray<OrgRole> = [
+  "ORG_OWNER",
+  "ORG_ADMIN",
+  "ORG_SECURITY_ADMIN",
+  "ORG_AUDITOR",
+];
+export const ORG_DOMAIN_WRITE_ROLES: ReadonlyArray<OrgRole> = [
+  "ORG_OWNER",
+  "ORG_ADMIN",
+  "ORG_SECURITY_ADMIN",
+];
+
+/**
+ * WCC-NEW-006 — ORGANIZATION BILLING, BY EXPLICIT ROLE.
+ *
+ * `minRole: "ORG_BILLING_ADMIN"` admitted ORG_SECURITY_ADMIN through the
+ * shared rank, so the security specialist saw the organization's billing
+ * rollup and its billing account — amounts, history and contract. Billing
+ * belongs to the billing specialist and the full administrators.
+ */
+export const ORG_BILLING_ROLES: ReadonlyArray<OrgRole> = [
+  "ORG_OWNER",
+  "ORG_ADMIN",
+  "ORG_BILLING_ADMIN",
+];
 
 /**
  * Convenience matrix shape consumed by future capability surfaces.

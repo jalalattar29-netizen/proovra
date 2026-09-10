@@ -231,8 +231,13 @@ describe("Phase 8 Group 3 — bulk-invite route plugin contract", () => {
   it("gates every endpoint with the ORG_ADMIN requireOrgAdmin + requireAuth chain", () => {
     expect(ROUTE_SRC).toMatch(/checkOrgAccess\(prisma, \{[\s\S]*?minRole: "ORG_ADMIN"/);
     expect(ROUTE_SRC).toContain("const preHandler = [requireAuth, requireLegalAcceptance]");
-    // Anti-enumeration: not_found AND forbidden both return 404.
-    expect(ROUTE_SRC).toMatch(/if \(result\.kind !== "ok"\) return \{ ok: false, code: 404 \}/);
+    // PV-ORG-001 — the one org-denial convention: 404 identical to a missing
+    // org for a non-member, 403 for an ACTIVE member without the role.
+    expect(ROUTE_SRC).toMatch(
+      /if \(result\.kind !== "ok"\) return \{ ok: false, denial: orgAccessDenial\(result\) \}/,
+    );
+    expect(ROUTE_SRC).toContain("reply.code(access.denial.status).send(access.denial.body)");
+    expect(ROUTE_SRC).not.toContain("org_not_found");
   });
 
   it("enforces the 200-row cap WITHOUT silently dropping (truthful truncation note)", () => {

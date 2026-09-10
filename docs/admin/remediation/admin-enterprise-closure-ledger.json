@@ -158,7 +158,9 @@
       "surface": "every step-up gated control",
       "disposition": "OWNER_DECISION_RESOLVED",
       "batch": "E",
-      "status": "OPEN"
+      "status": "FIXED",
+      "fix": "per-purpose factor policy (STEP_UP_PURPOSE_FACTOR_POLICY, total); the server prefers a verified authenticator app and falls back to the verified phone; `channel` names a factor KIND the account holds; start returns method + mask; a TOTP challenge binds factor+generation with no provider attempt and is checked against that factor's secret; guessing bounded at one attempt per challenge and 5 denials per 15 min per factor (429); the enrolment denial names the accepted factors and /settings#security; the modal lets the server choose, switches factor, never claims a code was sent, and offers Start again after a rejected code",
+      "acceptanceTest": "services/api/test/step-up-totp-org-boundary.integration.test.ts (6 step-up cases, live PG)"
     },
     {
       "id": "PV-API-002",
@@ -167,7 +169,9 @@
       "surface": "POST /v1/identity/mfa/enroll/start",
       "disposition": "FIX_REQUIRED",
       "batch": "E",
-      "status": "OPEN"
+      "status": "FIXED",
+      "fix": "POST /v1/identity/mfa/enroll/start is strict; kind SMS/WHATSAPP is a 400 MFA_ENROLL_WRONG_ROUTE naming the contact-factor route; nothing is enrolled",
+      "acceptanceTest": "services/api/test/step-up-totp-org-boundary.integration.test.ts; services/api/test/phase-12b-identity-selfservice-matrix.test.ts"
     },
     {
       "id": "PV-API-001",
@@ -176,7 +180,9 @@
       "surface": "GET /v1/identity/mfa-admin/recovery-requests/:teamId",
       "disposition": "FIX_REQUIRED",
       "batch": "E",
-      "status": "OPEN"
+      "status": "FIXED",
+      "fix": "GET /v1/identity/mfa-admin/recovery-requests/:teamId authorizes through authorizeMfaAdminScope (concealed 404 envelope) instead of the posture detour's bare-string 403; the page gates on security_center.mfa_recovery and renders a refusal, never an empty queue",
+      "acceptanceTest": "services/api/test/step-up-totp-org-boundary.integration.test.ts; services/api/test/phase-12b-identity-recovery-org-matrix.test.ts"
     },
     {
       "id": "PV-ORG-001",
@@ -185,7 +191,9 @@
       "surface": "/v1/orgs/:id family",
       "disposition": "FIX_REQUIRED",
       "batch": "E",
-      "status": "OPEN"
+      "status": "FIXED",
+      "fix": "checkOrgAccess reports no ACTIVE membership as not_found (identical to a missing org); orgAccessDenial is the one rendering (404 not_found / 403 forbidden) across organizations, governance, reports, bulk-invite, enterprise-security and domains; owner/admin_required stay member-only after concealment",
+      "acceptanceTest": "services/api/test/step-up-totp-org-boundary.integration.test.ts (nine-endpoint family, non-member vs missing org byte-identical; member 403)"
     },
     {
       "id": "PV-DIS-003",
@@ -194,8 +202,8 @@
       "surface": "/security-center/sso, /organizations/:id/admin/members",
       "disposition": "FIX_REQUIRED",
       "batch": "E",
-      "status": "PARTIAL",
-      "note": "Ingest metadata, Add rotation cert, Install/rotate key and the verified-domain checkbox state their prerequisite (aria-describedby); organization members Send invite / Suspend remain for Batch E/F"
+      "status": "FIXED",
+      "note": "SSO controls stated their prerequisite in Batch D; organization members now: the invite button names its prerequisites (aria-describedby), roles above the caller's own are disabled with their reason in the option text (invite and role change), and suspend/restore on an owner row is disabled for a non-owner with the reason linked to the buttons"
     },
     {
       "id": "PV-A11Y-002",
@@ -427,7 +435,8 @@
       "disposition": "REGRESSED_ON_CURRENT_MAIN",
       "note": "adminNavigation.ts banner still says FIVE CONSUMERS over a list of four",
       "batch": "D",
-      "status": "OPEN"
+      "status": "FIXED",
+      "fix": "the adminNavigation registry banner reads ONE REGISTRY, FOUR CONSUMERS, matching the four it names (its own text explains why there is no fifth)"
     },
     {
       "id": "ADM-P3-005",
@@ -574,7 +583,9 @@
       "surface": "org role rank",
       "finding": "ORG_SECURITY_ADMIN and ORG_BILLING_ADMIN share rank 3, so minRole ORG_SECURITY_ADMIN gates admit billing admins",
       "batch": "E",
-      "status": "OPEN"
+      "status": "FIXED",
+      "fix": "checkOrgAccess takes an explicit roles set and every gate that the rank tie misdirected uses one: verified domains (ORG_DOMAIN_READ_ROLES / ORG_DOMAIN_WRITE_ROLES, see WCC-NEW-019), the organization billing rollup and the organization billing account (ORG_BILLING_ROLES = owner, admin, billing admin). No `minRole: ORG_SECURITY_ADMIN` or `minRole: ORG_BILLING_ADMIN` gate remains in services/api/src",
+      "acceptanceTest": "services/api/test/step-up-totp-org-boundary.integration.test.ts (security admin refused the rollup and the billing account; billing admin allowed); billing-account-authorization.test.ts; phase-4-org-billing-rollup.test.ts"
     },
     {
       "id": "WCC-NEW-007",
@@ -582,7 +593,9 @@
       "surface": "organization domain verify/remove",
       "finding": "step-up skipped when the organization has no workspace",
       "batch": "E",
-      "status": "OPEN"
+      "status": "FIXED",
+      "fix": "see WCC-NEW-020 — the domain step-up is bound to the actor's own workspace in the organization and refused (409 STEP_UP_WORKSPACE_REQUIRED) when there is none; it is never skipped",
+      "acceptanceTest": "services/api/test/step-up-totp-org-boundary.integration.test.ts (no-workspace refusal)"
     },
     {
       "id": "WCC-NEW-008",
@@ -590,15 +603,19 @@
       "surface": "verifyActiveTotp",
       "finding": "no time-step reuse protection; required before TOTP may satisfy step-up",
       "batch": "E",
-      "status": "OPEN"
+      "status": "FIXED",
+      "fix": "matchTotpStep + claimTotpStep: lastUsedAt records the start of the claimed time step and a claim succeeds only for a strictly later step, as one conditional UPDATE — at sign-in and at step-up",
+      "acceptanceTest": "services/api/test/step-up-totp-org-boundary.integration.test.ts (replay refused, concurrent exactly-one, sign-in replay refused)"
     },
     {
       "id": "WCC-NEW-009",
       "severity": "P2",
       "surface": "governance-platform access-review reads",
-      "finding": "resolveWorkspace reads currentWorkspaceId without a membership/permission check — to verify",
+      "finding": "CONFIRMED (was 'to verify'): trust-and-governance.routes.ts resolveWorkspace returned User.currentWorkspaceId — the caller's own navigation pointer — as the tenant with no membership, status or lifecycle check, for all 51 trust-center, status, department, delegated-admin, policy and access-review routes. A member removed from a workspace, or any user whose pointer named it, read its access-review campaigns through every route without a tier guard of its own",
       "batch": "E",
-      "status": "OPEN"
+      "status": "FIXED",
+      "fix": "resolveWorkspace revalidates the pointer through the canonical evaluateCurrentWorkspace -> evaluateAuthorizedWorkspace (existence, explicit ACTIVE membership, access expiry, Organization lifecycle, support-access guard) at governance.policy.read, which every member role holds and EXTERNAL_CONTRIBUTOR does not; any refusal answers exactly as a missing pointer always did",
+      "acceptanceTest": "services/api/test/step-up-totp-org-boundary.integration.test.ts (revoked member and never-member refused; active member allowed); phase-12-trust-administration-matrix.test.ts (revalidation runs on every route; a stale pointer authorizes nothing and never reaches the capability gate)"
     },
     {
       "id": "WCC-NEW-010",
@@ -606,7 +623,9 @@
       "surface": "account step-up",
       "finding": "advertises method 'mfa' when any factor exists though only TOTP can pass",
       "batch": "E",
-      "status": "OPEN"
+      "status": "FIXED",
+      "fix": "verifyAccountStepUp advertises `mfa` only for a verified, unrevoked authenticator-app factor — the only factor its proof (verifyActiveTotp) can pass",
+      "acceptanceTest": "services/api/test/step-up-totp-org-boundary.integration.test.ts (a phone-only account is not offered mfa)"
     },
     {
       "id": "WCC-NEW-011",
@@ -678,6 +697,54 @@
       "status": "FIXED",
       "fix": "each stale citation re-pointed at the SAME line text in the current file (mapped from the pre-Batch-C tree e65cf986, every move printed and reviewed); the analyzer reports zero on all five instruments. route-dispositions.json citations are informational and are reconciled once against the final tree in Batch L",
       "acceptanceTest": "services/api/test/phase-12-capability-analyzer-adversarial.test.ts 38/39, phase-12-route-consumer-authority.test.ts (instrument integrity); the map-freshness case regenerates in Batch L"
+    },
+    {
+      "id": "WCC-NEW-019",
+      "severity": "P1",
+      "surface": "/v1/orgs/:orgId/domains",
+      "finding": "domain writes gated on minRole ORG_SECURITY_ADMIN, and ORG_BILLING_ADMIN shares that precedence rank, so a billing admin could add, verify and remove the identity boundary SSO sign-in is checked against",
+      "batch": "E",
+      "status": "FIXED",
+      "fix": "checkOrgAccess takes an explicit roles set; domain reads take ORG_DOMAIN_READ_ROLES (owner, admin, security admin, auditor), writes ORG_DOMAIN_WRITE_ROLES (owner, admin, security admin)",
+      "acceptanceTest": "services/api/test/step-up-totp-org-boundary.integration.test.ts; phase-12b-identity-recovery-org-matrix.test.ts (OD-012 cases)"
+    },
+    {
+      "id": "WCC-NEW-020",
+      "severity": "P1",
+      "surface": "domain verify/remove step-up",
+      "finding": "the step-up was bound to the organization's FIRST workspace regardless of the actor — a security admin outside it could never complete it, the page bound its challenge to the active workspace instead — and an organization with no workspace SKIPPED the step-up entirely (fail open)",
+      "batch": "E",
+      "status": "FIXED",
+      "fix": "bound to the actor's own earliest ACTIVE workspace in the organization; none -> 409 STEP_UP_WORKSPACE_REQUIRED (fail closed); the list names stepUpWorkspaceId and viewerCanManage and the page binds to it",
+      "acceptanceTest": "services/api/test/step-up-totp-org-boundary.integration.test.ts (no-workspace refusal; owner end-to-end removal)"
+    },
+    {
+      "id": "WCC-NEW-021",
+      "severity": "P3",
+      "surface": "POST /v1/identity/mfa/enroll/start",
+      "finding": "a loose body silently ignored `kind` and any declared subject; a request for a phone factor started an authenticator enrolment it never asked for",
+      "batch": "E",
+      "status": "FIXED",
+      "fix": "see PV-API-002"
+    },
+    {
+      "id": "WCC-NEW-022",
+      "severity": "P3",
+      "surface": "GET /v1/orgs/:id",
+      "finding": "the defence-in-depth branch for an organization deleted between the access check and the read answered 403 Forbidden — the one remaining place a missing organization was not answered as missing",
+      "batch": "E",
+      "status": "FIXED",
+      "fix": "renders orgAccessDenial({kind:'not_found'})"
+    },
+    {
+      "id": "WCC-NEW-023",
+      "severity": "P2",
+      "surface": "apps/web/scripts/admin-inventory.mjs (and every regex comment stripper like it)",
+      "finding": "codeOf() strips /* ... */ before // comments with regexes, so a `/*` inside a line comment (a Batch E comment mentioning `/v1/orgs/*`) opened a phantom block comment that swallowed real code up to the next `*/`: six API route registrations vanished from the inventory (1108 -> 1102) and one handler gate flipped from AUDIT to NONE, with no failure except a stale-markdown check",
+      "batch": "I",
+      "status": "OPEN",
+      "interimFix": "the comment reworded in services/api/src/routes/organizations.routes.ts; the regenerated completion ledger is byte-identical to the committed one again (1108 routes)",
+      "plannedFix": "strip comments with the TypeScript scanner (string/template/regex aware) in every source-scanning audit script, and pin the traced-route count against the route registrations the real parser finds"
     }
   ],
   "ownerDecisionImplementation": {
@@ -685,6 +752,21 @@
       "status": "FIXED",
       "fix": "GET /v1/orgs/:id projects organizationKind; a SYSTEM organization (provisioned for a workspace) hides Open Admin and the admin deep links, and a direct URL renders a bounded not-available state with a sales path instead of the console",
       "followUp": "live-PG proof with an explicit CUSTOMER organization in Batch K"
+    },
+    "PV-OD-002": {
+      "status": "FIXED",
+      "fix": "identity.sso.read and identity.audit.read added (ADMIN, REVIEWER, VIEWER; bidirectional VIEWER allow-list updated); GET /v1/admin/identity/providers and /timeline gate on them"
+    },
+    "PV-OD-011": {
+      "status": "FIXED",
+      "fix": "verified TOTP satisfies step-up (see PV-STEPUP-001); single-use enforced (WCC-NEW-008)"
+    },
+    "PV-OD-012": {
+      "status": "FIXED",
+      "fix": "security admin reads+writes verified domains (writes under step-up, confirmation and audit), auditor reads only, billing admin neither (see WCC-NEW-019/020)"
     }
+  },
+  "redBefore": {
+    "batchE": "services/api/test/step-up-totp-org-boundary.integration.test.ts against the pre-Batch-E API (13c81c83, 17 product files reverted): 18 of 19 cases fail; the one that passes is the PV-OD-002 viewer read, behaviour-preserving by design (VIEWER already held identity.org_policy.read; the explicit capabilities make that grant a named decision). All files restored byte-identical (sha256)."
   }
 }

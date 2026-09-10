@@ -328,7 +328,7 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const q = TeamIdQuery.parse(req.query ?? {});
-      const actor = await requireIdentityAdmin(req, reply, q.teamId);
+      const actor = await requireIdentityAdmin(req, reply, q.teamId, "identity.sso.read");
       if (!actor) return;
       const providers = await listSsoConnections({ teamId: q.teamId });
       // Phase 3 — surface the owning org's verified-domain count so the UI can
@@ -993,7 +993,7 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
           cursor: z.string().trim().min(1).max(512).optional(),
         })
         .parse(req.query ?? {});
-      const actor = await requireIdentityAdmin(req, reply, q.teamId);
+      const actor = await requireIdentityAdmin(req, reply, q.teamId, "identity.audit.read");
       if (!actor) return;
       const after = decodeKeysetCursor(q.cursor);
       if (after === null) {
