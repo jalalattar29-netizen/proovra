@@ -11,27 +11,79 @@
  */
 
 import { expect, test, type Page } from "@playwright/test";
-import { signInAsFixtureUser } from "./_fixture-login";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+
+import {
+  passwordSignInCount,
+  resetPasswordSignInCount,
+  signInAsFixtureUser,
+} from "./_fixture-login";
 
 const WEB = process.env.PROOVRA_FIXTURE_WEB_BASE ?? "http://localhost:3331";
 const PASSWORD = "fixture-local-only-password";
 const PLATFORM_ADMIN = "platform-admin@fixture.local";
 
 /**
- * This file kept its own sign-in, and it was the weakest of the eight copies in
- * this suite: it read back only the email after filling, clicked the submit
- * button that the matrix specs abandoned as unstable at narrow widths, and then
- * waited sixty seconds for a URL change without ever looking at the
- * authentication response. In CI it produced a mute timeout — 96 of 97 tests
- * passed and this one said only that a navigation had not happened.
+ * ONE REAL SIGN-IN FOR THE WHOLE FILE, THEN ISOLATED CONTEXTS FROM IT.
  *
- * It now uses the shared helper, which waits for the auth response, arms that
- * wait before submitting, and fails immediately with the status and stable
- * error code when sign-in is refused. See _fixture-login.ts.
+ * Every test here used to perform its own password login. The API limits
+ * logins to ten per IP per sixty seconds (`auth:email-login:ip:<ip>`), and the
+ * whole suite reaches it as 127.0.0.1, so seven logins from this file alone
+ * spent most of the shared allowance — two of these tests then failed with
+ * HTTP 429 RATE_LIMITED before reaching a single product assertion.
+ *
+ * These are information-architecture tests: breadcrumbs, headings, navigation
+ * geometry. They need an authenticated Platform Admin; they do not need to
+ * re-prove password authentication seven times. `admin-journey-console.spec.ts`
+ * remains the authority for the real sign-in journey and is untouched.
+ *
+ * So the password login happens ONCE, in `beforeAll`, and its storage state
+ * seeds a fresh context per test. Playwright still gives every test its own
+ * context, cookies and storage, and still closes it — isolation is unchanged
+ * and no test depends on another running first.
+ *
+ * The state file is written to the OS temp directory, never into the
+ * repository, and holds only what Playwright serialises for the session.
  */
-async function signIn(page: Page, email: string) {
-  await signInAsFixtureUser(page, email, { web: WEB, password: PASSWORD });
-}
+const STORAGE_STATE = path.join(
+  os.tmpdir(),
+  `proovra-admin-phase6-state-${process.pid}.json`,
+);
+
+test.beforeAll(async ({ browser }) => {
+  resetPasswordSignInCount();
+  /*
+   * `storageState: undefined` on purpose. `test.use({ storageState })` below
+   * also applies to contexts created from the `browser` fixture, so without
+   * this the sign-in context tries to read the very file it exists to write.
+   */
+  const context = await browser.newContext({ storageState: undefined });
+  const page = await context.newPage();
+  try {
+    await signInAsFixtureUser(page, PLATFORM_ADMIN, { web: WEB, password: PASSWORD });
+    await context.storageState({ path: STORAGE_STATE });
+  } finally {
+    await context.close();
+  }
+});
+
+test.afterAll(async () => {
+  /*
+   * The contract, proven by the fixture rather than by counting source text:
+   * this file performs exactly one password login however its helpers are
+   * arranged. If someone reintroduces a per-test sign-in, this fails here
+   * instead of surfacing as a 429 in an unrelated shard days later.
+   */
+  expect(
+    passwordSignInCount(),
+    "admin journey tests must authenticate once, not per test — the login limiter is shared by the whole suite",
+  ).toBe(1);
+  await fs.rm(STORAGE_STATE, { force: true });
+});
+
+test.use({ storageState: STORAGE_STATE });
 
 function collectConsole(page: Page) {
   const errors: string[] = [];
@@ -63,7 +115,6 @@ const crumbs = (page: Page) => page.locator('nav[aria-label="Breadcrumb"] li');
 test.describe("PHASE 6 — Admin information architecture", () => {
   test("every section of the console is reachable and renders one H1", async ({ page }) => {
     const errors = collectConsole(page);
-    await signIn(page, PLATFORM_ADMIN);
 
     const sections = [
       "/admin",
@@ -98,7 +149,6 @@ test.describe("PHASE 6 — Admin information architecture", () => {
      * The catalog was the twelfth entry of a thirteen-entry Operations
      * section; it is a top-level destination now.
      */
-    await signIn(page, PLATFORM_ADMIN);
     await page.goto(`${WEB}/admin`, { waitUntil: "networkidle", timeout: 90_000 });
     const link = page.locator('a[href="/admin/platform/runbooks"]').first();
     await expect(link, "Runbooks is not offered in navigation").toBeVisible({ timeout: 20_000 });
@@ -114,7 +164,6 @@ test.describe("PHASE 6 — Admin information architecture", () => {
      * breadcrumb: nothing naming the runbook, nothing back to the catalog, on
      * the one surface an operator reaches mid-incident.
      */
-    await signIn(page, PLATFORM_ADMIN);
     await page.goto(`${WEB}/admin/platform/runbooks/tsa-timestamp-failure`, {
       waitUntil: "networkidle",
       timeout: 90_000,
@@ -141,7 +190,6 @@ test.describe("PHASE 6 — Admin information architecture", () => {
      * is the last one: the return lands on the FILTERED list, not on page one
      * of everything.
      */
-    await signIn(page, PLATFORM_ADMIN);
     await page.goto(`${WEB}/admin/customers?search=Northwind`, {
       waitUntil: "networkidle",
       timeout: 90_000,
@@ -193,7 +241,6 @@ test.describe("PHASE 6 — Admin information architecture", () => {
     page,
   }) => {
     // §16 — semantic nav, aria-current, a visible current item.
-    await signIn(page, PLATFORM_ADMIN);
     await page.goto(`${WEB}/admin/customers`, { waitUntil: "networkidle", timeout: 90_000 });
 
     await expect(page.locator('nav[aria-label="Breadcrumb"]')).toHaveCount(1);
@@ -206,7 +253,6 @@ test.describe("PHASE 6 — Admin information architecture", () => {
   }) => {
     // §16 — 320px is the floor this console has to hold.
     await page.setViewportSize({ width: 320, height: 720 });
-    await signIn(page, PLATFORM_ADMIN);
     for (const href of ["/admin", "/admin/customers", "/admin/platform/runbooks"]) {
       await page.goto(`${WEB}${href}`, { waitUntil: "networkidle", timeout: 90_000 });
       const overflow = await page.evaluate(
@@ -222,7 +268,6 @@ test.describe("PHASE 6 — Admin information architecture", () => {
      * operator must still have a way back to the collection. The entity crumb
      * falls back to the type name rather than going blank.
      */
-    await signIn(page, PLATFORM_ADMIN);
     await page.goto(`${WEB}/admin/customers/00000000-0000-4000-8000-00000000dead`, {
       waitUntil: "networkidle",
       timeout: 90_000,

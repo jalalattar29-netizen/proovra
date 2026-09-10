@@ -52,6 +52,26 @@ import { expect, type Page } from "@playwright/test";
 const AUTH_PATH = "/v1/auth/email/login";
 
 /**
+ * HOW MANY REAL PASSWORD LOGINS THIS WORKER HAS PERFORMED.
+ *
+ * The login limiter is keyed by IP — `auth:email-login:ip:<ip>` at ten per
+ * sixty seconds — and every test in the suite reaches the API as 127.0.0.1, so
+ * they all share one bucket. A spec that signs in per test spends the whole
+ * allowance on itself and then refuses its neighbours, which is exactly what
+ * happened: two Phase-6 tests failed with HTTP 429 before reaching a single
+ * product assertion.
+ *
+ * This counter lets a spec PROVE it authenticates once rather than asserting it
+ * by counting occurrences in its own source, which would pass while the calls
+ * moved into a helper.
+ */
+let passwordSignIns = 0;
+export const passwordSignInCount = () => passwordSignIns;
+export const resetPasswordSignInCount = () => {
+  passwordSignIns = 0;
+};
+
+/**
  * STOP THE CONSENT BANNER INTERCEPTING THE SUBMIT BUTTON.
  *
  * Measured, at 320px: the banner overlays the login form, and the click on
@@ -121,6 +141,7 @@ export async function signInAsFixtureUser(
 ): Promise<void> {
   // Before the first navigation: the overlay must never be able to take a
   // pointer event meant for the form.
+  passwordSignIns += 1;
   await suppressConsentOverlay(page);
   await page.goto(`${web}/login`, { waitUntil: "networkidle", timeout: 90_000 });
   await dismissConsent(page);

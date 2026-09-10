@@ -283,7 +283,10 @@ async function main() {
     "apps/web/e2e/admin-control-plane/playwright.config.ts",
   ];
   if (SHARD) args.push(`--shard=${SHARD}`);
-  if (GREP) args.push("-g", GREP);
+  // QUOTED. `shell: true` joins these into a command string, so a pattern
+  // containing spaces or `|` is otherwise split by the shell — which turned
+  // "labelled.landmark|phone width" into an attempt to run `phone`.
+  if (GREP) args.push("-g", JSON.stringify(GREP));
   console.log(`[suite] run${GREP ? ` (grep ${GREP})` : ""}${SHARD ? ` (shard ${SHARD})` : ""}`);
   const r = run("pnpm", args, {
     env: {
