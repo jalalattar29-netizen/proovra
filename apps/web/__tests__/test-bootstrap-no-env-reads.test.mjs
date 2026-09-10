@@ -44,3 +44,37 @@ test('API test preload never inspects repository env files, including for finger
   assert.equal(actual.fileValueRecognized, false);
   assert.equal(actual.bootstrapped, '1');
 });
+import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
+const apiRequire = createRequire(new URL('../../../services/api/package.json', import.meta.url));
+const prismaConfig = new URL('../../../services/api/prisma.config.ts', import.meta.url).href;
+test('Prisma configuration never reads env files in a bootstrapped fixture', () => {
+  const code = `
+    import fs from 'node:fs';
+    import { syncBuiltinESMExports } from 'node:module';
+    const attempts = [];
+    for (const name of ['existsSync', 'readFileSync']) {
+      const original = fs[name];
+      fs[name] = function (path, ...args) {
+        if (/(^|[\\\\/])\\.env(?:$|\\.)/.test(String(path))) {
+          attempts.push(name);
+          if (name === 'existsSync') return true;
+          return 'PRISMA_FILE_ONLY_CANARY=fixture-only-canary';
+        }
+        return original.call(this, path, ...args);
+      };
+    }
+    syncBuiltinESMExports();
+    process.env.PROOVRA_ENV_BOOTSTRAPPED = '1';
+    process.env.DATABASE_URL = 'postgresql://fixture:fixture@127.0.0.1:1/config_test';
+    await import(${JSON.stringify(prismaConfig)});
+    process.stdout.write(JSON.stringify({attempts, leaked: process.env.PRISMA_FILE_ONLY_CANARY ?? null}));
+  `;
+  const result = spawnSync(process.execPath, ['--import', pathToFileURL(apiRequire.resolve('tsx/esm')).href, '--input-type=module', '-e', code], {
+    encoding: 'utf8', timeout: 10000,
+    env: Object.fromEntries(Object.entries(process.env).filter(([key]) =>
+      /^(PATH|PATHEXT|SYSTEMROOT|WINDIR|COMSPEC|TEMP|TMP|USERPROFILE|APPDATA|LOCALAPPDATA)$/i.test(key))),
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout), {attempts: [], leaked: null});
+});

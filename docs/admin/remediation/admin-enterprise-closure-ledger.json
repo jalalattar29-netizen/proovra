@@ -402,6 +402,22 @@
       "status": "FIXED",
       "fix": "Fingerprint inherited process values only; never inspect repository env files. Keep the inherited-value oracle and socket guard.",
       "acceptanceTest": "apps/web/__tests__/test-bootstrap-no-env-reads.test.mjs; 1/1 failed before and 1/1 passed after; existing fixture suite 23/23 passed",
+      "finalCommit": [
+        "c2682c1c"
+      ]
+    },
+    {
+      "id": "WCC-NEW-030",
+      "audit": "resumed remediation inspection",
+      "severity": "P1",
+      "surface": "Prisma CLI config loader",
+      "currentSource": "services/api/prisma.config.ts",
+      "currentRuntime": "Intercepted two env reads and canary propagation before fix; zero reads and no propagation after fix",
+      "disposition": "FIX_REQUIRED",
+      "batch": "B-followup",
+      "status": "FIXED",
+      "fix": "Honor PROOVRA_ENV_BOOTSTRAPPED before checking or reading env files",
+      "acceptanceTest": "apps/web/__tests__/test-bootstrap-no-env-reads.test.mjs; Prisma regression red before, green after; isolation total 25 passed, zero skipped",
       "finalCommit": []
     }
   ],
@@ -909,6 +925,24 @@
       {
         "command": "focused API source-contract tests (six modified files)",
         "passed": 157,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "command": "full web suite",
+        "passed": 3184,
+        "failed": 2,
+        "skipped": 4,
+        "failures": [
+          "deletion proof stale",
+          "runbook catalog stale"
+        ],
+        "skipReason": "four pre-existing live HTTP checks require fixture web server; not credited as passes"
+      },
+      {
+        "command": "full render suite",
+        "files": 53,
+        "passed": 1113,
         "failed": 0,
         "skipped": 0
       }
