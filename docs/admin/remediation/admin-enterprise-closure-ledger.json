@@ -425,6 +425,20 @@
       "finalCommit": [
         "c5c71c99"
       ]
+    },
+    {
+      "id": "WCC-NEW-031",
+      "audit": "resumed browser verification",
+      "severity": "P2",
+      "surface": "admin control-plane Playwright worker configuration",
+      "currentSource": "apps/web/e2e/admin-control-plane/playwright.config.ts",
+      "currentRuntime": "All five keyboard/RTL tests reached fallback port 3311 while the server ran on configured port 3317; after propagating resolved origins, 5/5 passed",
+      "disposition": "FIX_REQUIRED",
+      "batch": "I-followup",
+      "status": "FIXED",
+      "fix": "Publish resolved WEB_BASE and API_BASE to worker environment before discovery",
+      "acceptanceTest": "admin-fixture-origin-propagation.test.mjs (custom port and explicit origin); admin-tabs-rtl-skiplink.spec.ts 5/5, zero retries",
+      "finalCommit": []
     }
   ],
   "phase9": [
@@ -963,6 +977,33 @@
         "passed": 8,
         "failed": 0,
         "skipped": 0
+      },
+      {
+        "command": "four P1/domain integration suites",
+        "passed": 48,
+        "failed": 0,
+        "skipped": 0,
+        "database": "proovra_wcc_resume_test_20260910"
+      },
+      {
+        "command": "production fixture web build",
+        "result": "PASS",
+        "dist": "node_modules/.cache/wcc-resume-next-prod"
+      },
+      {
+        "command": "admin-tabs-rtl-skiplink.spec.ts",
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "command": "full API unit suite before final regeneration",
+        "passed": 24775,
+        "failed": 5,
+        "skipped": 1,
+        "passedFiles": 801,
+        "failedFiles": 7,
+        "failures": "stale generated architecture/capability artifacts and self-reference test rewriting those artifacts; final frozen-source rerun required"
       }
     ],
     "finalIntegration": "NOT_RUN"
