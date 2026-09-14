@@ -12,7 +12,6 @@ import { EnterpriseGovernanceSecurity } from "../components/marketing/Enterprise
 import { IntegrationsComplianceSection } from "../components/marketing/IntegrationsComplianceSection";
 import { ImportantClarification } from "../components/marketing/ImportantClarification";
 import { EnterpriseFooter } from "../components/marketing/EnterpriseFooter";
-import { MARKETING_LINKS } from "../components/marketing/tokens";
 import { RevealSection } from "../components/motion";
 
 export default function HomePage() {
@@ -22,10 +21,7 @@ export default function HomePage() {
       style={{ fontFamily: "var(--font-jakarta), Inter, system-ui, sans-serif" }}
     >
       <MarketingHeader />
-      <HeroSection
-        sampleReportHref={MARKETING_LINKS.sampleReport}
-        requestDemoHref={MARKETING_LINKS.requestDemo}
-      />
+      <HeroSection />
       <RevealSection direction="up"><TrustedStandards /></RevealSection>
       <RevealSection direction="right"><VerifyInstantly /></RevealSection>
       <RevealSection direction="left"><EvidenceLifecycle /></RevealSection>
