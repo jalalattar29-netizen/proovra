@@ -470,11 +470,11 @@ describe("K5-B — external review, exchange, organizations (live PostgreSQL 16)
         purpose: "EXTERNAL_REVIEW_GRANT_ISSUE",
         resourceKind: "external_review_grant_bulk",
       });
-      // Byte-for-byte the body BulkInvitePanel.onIssueBulk sends
-      // (apps/web/app/(app)/review/external/page.tsx). It names a PACKAGE scope
-      // with no package id, which the grant service can never satisfy — so the
-      // product console cannot invite anyone. Reported to the lead; the API
-      // contract itself is proven satisfiable by the test above.
+      // The body BulkInvitePanel.onIssueBulk USED to send (D16): a PACKAGE
+      // scope with no package id, which the grant service can never satisfy.
+      // The console now requires a real target (external-bulk-invite-scope
+      // render suite); this case keeps proving the API refuses the empty scope
+      // and writes nothing. The satisfiable contract is proven above.
       const res = await call({
         method: "POST",
         url: "/v1/external-review/invitations/bulk",

@@ -41,6 +41,7 @@ import {
 } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { Button } from "../../../../components/ui/Button";
 import {
   StepUpModal,
   useStepUpAction,
@@ -61,6 +62,19 @@ import {
   useCan,
   useTeamId,
 } from "../../../../lib/platform-context";
+
+import {
+  BulkInviteScopePicker,
+  SCOPE_REQUIRED_REASON,
+  defaultScopeFor,
+  type BulkInviteScopeState,
+} from "./_components/BulkInviteScopePicker";
+import {
+  bulkIssueBannerText,
+  bulkOutcomeReason,
+  tallyBulkOutcome,
+  type BulkIssueTally,
+} from "./_components/bulkInviteOutcome";
 
 // ---------------------------------------------------------------------------
 // PHASE 4 — Per-action capability gating.
@@ -257,13 +271,16 @@ function ExternalReviewManagementConsole() {
     text: string;
   } | null>(null);
 
-  const refresh = useCallback(async () => {
+  // Resolves true only when the list was actually reread, so a caller can
+  // tell a confirmed change apart from one it could not confirm.
+  const refresh = useCallback(async (): Promise<boolean> => {
     try {
       const res = await apiFetch("/v1/external-review/invitations", {
         method: "GET",
       });
       setRows((res?.invitations ?? []) as InvitationRow[]);
       setListDenied(false);
+      return true;
     } catch (err) {
       // eslint-disable-next-line no-console
       console.warn("[external-review] invitations list refresh failed", {
@@ -275,6 +292,7 @@ function ExternalReviewManagementConsole() {
       const denial = denialFromError(err);
       setRows([]);
       setListDenied(denial === "NOT_PERMITTED");
+      return false;
     }
   }, []);
 
@@ -503,11 +521,20 @@ function ExternalReviewManagementConsole() {
       {tab === "bulk" ? (
         <BulkInvitePanel
           caps={caps}
+          teamId={teamId}
           stepUp={stepUp}
-          onCompleted={(text) => {
-            setBanner({ tone: "ok", text });
-            void refresh();
-            setTab("active");
+          onCompleted={async (tally) => {
+            // Reread the invitation list first; the banner counts only the
+            // rows that were actually issued. Stay on this tab whenever a
+            // row was not issued, so its reason stays on screen.
+            const reloaded = await refresh();
+            const clean =
+              tally.issued > 0 && tally.issued === tally.total && reloaded;
+            setBanner({
+              tone: clean ? "ok" : "warn",
+              text: bulkIssueBannerText(tally, reloaded),
+            });
+            if (clean) setTab("active");
           }}
         />
       ) : (
@@ -1288,14 +1315,22 @@ function BreakGlassReveal({
 
 function BulkInvitePanel({
   caps,
+  teamId,
   stepUp,
   onCompleted,
 }: {
   caps: ExternalReviewCapabilities;
+  teamId: string | null;
   stepUp: ReturnType<typeof useStepUpAction>;
-  onCompleted: (msg: string) => void;
+  onCompleted: (tally: BulkIssueTally) => Promise<void>;
 }) {
   const { addToast } = useToast();
+  // D16 — every grant needs ONE target in this workspace. Without it the
+  // API answers each row POLICY_DENIED and writes nothing.
+  const [scope, setScope] = useState<BulkInviteScopeState>({
+    target: null,
+    blockedReason: SCOPE_REQUIRED_REASON,
+  });
   const [pasted, setPasted] = useState("");
   const [hours, setHours] = useState(72);
   const [defaultRole, setDefaultRole] = useState<ExternalReviewerRole>(
@@ -1333,6 +1368,8 @@ function BulkInvitePanel({
     }
     if (parsed.length === 0) return;
     if (parsed.length > BULK_INVITATION_MAX_ROWS) return;
+    const target = scope.target;
+    if (!target || scope.blockedReason) return;
     setBusy(true);
     try {
       const allowedDomainList = allowedDomains
@@ -1357,7 +1394,7 @@ function BulkInvitePanel({
             defaultRole,
             defaultWatermarkPolicy: defaultWatermark,
             defaultMfaRequired: defaultMfa,
-            defaultScope: { kind: "PACKAGE" },
+            defaultScope: defaultScopeFor(target),
             rows: parsed.map((p) => ({
               inviteEmail: p.email,
               displayName: p.displayName,
@@ -1372,17 +1409,15 @@ function BulkInvitePanel({
           }),
         }),
       );
+      const resultRows = (
+        Array.isArray(res?.rows) ? res.rows : []
+      ) as BulkOutcomeRow[];
       setOutcomes({
-        bulkBatchId: res.bulkBatchId,
-        summary: res.summary as Record<string, number>,
-        rows: res.rows as BulkOutcomeRow[],
+        bulkBatchId: typeof res?.bulkBatchId === "string" ? res.bulkBatchId : "",
+        summary: (res?.summary ?? {}) as Record<string, number>,
+        rows: resultRows,
       });
-      const invited =
-        (res.rows as BulkOutcomeRow[]).filter((r) => r.outcome === "INVITED")
-          .length ?? 0;
-      onCompleted(
-        `Bulk invite: ${invited}/${parsed.length} invitations sent.`,
-      );
+      await onCompleted(tallyBulkOutcome(resultRows));
     } catch (err) {
       const code = (err as { code?: string })?.code;
       if (code === "STEP_UP_CANCEL") {
@@ -1430,6 +1465,7 @@ function BulkInvitePanel({
   }, [
     caps.canBulkInvite,
     parsed,
+    scope,
     hours,
     defaultRole,
     defaultWatermark,
@@ -1441,6 +1477,19 @@ function BulkInvitePanel({
     stepUp,
     addToast,
   ]);
+
+  // The first reason that applies, stated on the disabled control.
+  const submitBlockedReason: string | null = !caps.canBulkInvite
+    ? "You do not have permission to bulk issue invitations"
+    : scope.blockedReason
+      ? scope.blockedReason
+      : !scope.target
+        ? SCOPE_REQUIRED_REASON
+        : parsed.length === 0
+          ? "Paste at least one reviewer email to issue invitations."
+          : parsed.length > BULK_INVITATION_MAX_ROWS
+            ? `Issue at most ${BULK_INVITATION_MAX_ROWS} invitations at a time.`
+            : null;
 
   return (
     <section
@@ -1484,10 +1533,12 @@ function BulkInvitePanel({
         </p>
       </header>
 
+      <BulkInviteScopePicker teamId={teamId} onChange={setScope} />
+
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "2fr 1fr",
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))",
           gap: 12,
         }}
       >
@@ -1667,60 +1718,44 @@ function BulkInvitePanel({
       </div>
 
       <div>
-        <button
-          type="button"
+        <Button
+          variant="primary"
           data-bulk-issue-submit
           data-capability-allowed={caps.canBulkInvite ? "true" : "false"}
           onClick={onIssueBulk}
-          disabled={
-            !caps.canBulkInvite ||
-            busy ||
-            parsed.length === 0 ||
-            parsed.length > BULK_INVITATION_MAX_ROWS
-          }
-          title={
-            !caps.canBulkInvite
-              ? "You do not have permission to bulk issue invitations"
-              : undefined
-          }
-          style={{
-            ...primaryActionStyle,
-            background:
-              !caps.canBulkInvite ||
-              busy ||
-              parsed.length === 0 ||
-              parsed.length > BULK_INVITATION_MAX_ROWS
-                ? "var(--ink-muted, #94a3b8)"
-                : "var(--ink-primary, #0f172a)",
-            cursor:
-              !caps.canBulkInvite ||
-              busy ||
-              parsed.length === 0 ||
-              parsed.length > BULK_INVITATION_MAX_ROWS
-                ? "not-allowed"
-                : "pointer",
-          }}
+          loading={busy}
+          disabled={submitBlockedReason !== null}
+          disabledReason={submitBlockedReason ?? undefined}
         >
           {busy
             ? "Issuing…"
             : `Issue ${parsed.length} invitation${parsed.length === 1 ? "" : "s"}`}
-        </button>
+        </Button>
       </div>
 
       {outcomes ? (
         <section data-bulk-outcomes>
           <strong style={{ fontSize: 12 }}>
-            Batch <code>{outcomes.bulkBatchId.slice(0, 8) || "(no batch)"}…</code>
+            {outcomes.bulkBatchId ? (
+              <>
+                Batch{" "}
+                <code data-identifier>{outcomes.bulkBatchId.slice(0, 8)}…</code>
+              </>
+            ) : (
+              "Nothing was sent"
+            )}
           </strong>
-          <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
             {Object.entries(outcomes.summary).map(([k, v]) => (
               <Chip
                 key={k}
+                data-bulk-summary={k}
                 tone={k === "INVITED" ? "ok" : k === "FAILED" ? "warn" : "muted"}
-                label={`${k}: ${v}`}
+                label={`${bulkInvitationOutcomeLabel(k)}: ${v}`}
               />
             ))}
           </div>
+          <div style={{ overflowX: "auto" }}>
           <table
             data-bulk-outcome-table
             style={{
@@ -1734,8 +1769,8 @@ function BulkInvitePanel({
               <tr style={{ textAlign: "left", color: "var(--ink-muted, #94a3b8)" }}>
                 <th style={th}>Email</th>
                 <th style={th}>Outcome</th>
-                <th style={th}>Grant</th>
-                <th style={th}>Denial</th>
+                <th style={th}>Access</th>
+                <th style={th}>Reason</th>
               </tr>
             </thead>
             <tbody>
@@ -1759,15 +1794,29 @@ function BulkInvitePanel({
                     />
                   </td>
                   <td style={td}>
-                    {r.grantId ? <code>{r.grantId.slice(0, 8)}…</code> : "—"}
+                    {r.grantId ? (
+                      <>
+                        Created{" "}
+                        <code data-identifier>{r.grantId.slice(0, 8)}…</code>
+                      </>
+                    ) : (
+                      "Not created"
+                    )}
                   </td>
-                  <td style={td}>
-                    {r.denial ? <code>{r.denial}</code> : "—"}
+                  <td style={td} data-bulk-outcome-reason>
+                    {bulkOutcomeReason(r) ?? "—"}
+                    {r.denial ? (
+                      <>
+                        {" "}
+                        <code data-identifier>{r.denial}</code>
+                      </>
+                    ) : null}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
         </section>
       ) : null}
     </section>
