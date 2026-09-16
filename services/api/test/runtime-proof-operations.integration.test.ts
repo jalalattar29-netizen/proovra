@@ -338,7 +338,7 @@ describe("K8 operations — platform and workspace operations mutations (live Po
         prisma.securityEvent.findFirst({
           where: {
             teamId: A.teamId,
-            eventType: "queue_job_replay_succeeded",
+            eventType: "queue_job_cancelled",
             details: { path: ["jobId"], equals: jobId },
           },
         }),
@@ -349,6 +349,16 @@ describe("K8 operations — platform and workspace operations mutations (live Po
         queueName: "mi-exif",
         reason: payload.reason,
       });
+      // D26 — the cancel is in the canonical audit trail, attributed.
+      const audit = await prisma.adminAuditLog.findFirst({
+        where: { action: "operations.queue_job.cancelled", resourceId: { contains: jobId } },
+      });
+      expect(audit).toMatchObject({ userId: operatorId, workspaceId: A.teamId, outcome: "success" });
+      expect(
+        await prisma.securityEvent.count({
+          where: { eventType: "queue_job_replay_succeeded", details: { path: ["jobId"], equals: jobId } },
+        }),
+      ).toBe(0);
 
       const again = await call({ method: "POST", url, token: operatorToken, payload });
       expect(again.statusCode).toBe(404);

@@ -325,6 +325,8 @@ export const SECURITY_EVENT_TYPES = [
   "queue_job_replay_forbidden",
   "queue_job_replay_succeeded",
   "queue_job_replay_failed",
+  // D26 — a cancel is its own operator decision, not a replay outcome.
+  "queue_job_cancelled",
   "queue_worker_stalled_detected",
   // Phase P2.5 — DR validation.
   "backup_validation_started",

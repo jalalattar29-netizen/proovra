@@ -154,20 +154,48 @@ export async function cancelJob(input: {
     };
   }
   try {
+    const previousState = await job.getState().catch(() => null);
     await job.remove();
     bump("queue_replay_total");
+    // D26 — this recorded the removal as `queue_job_replay_succeeded` and
+    // wrote no audit row, so the Admin audit could not answer "who cancelled
+    // this job, and why". A cancel is its own event, and the canonical audit
+    // row carries the actor, the job and the reason.
     safeEmitSecurityEvent({
       teamId: input.teamId,
-      eventType: "queue_job_replay_succeeded",
+      eventType: "queue_job_cancelled",
       severity: "INFO",
       details: {
         actorUserId: input.actorUserId,
         action: "cancel",
         queueName: input.queueName,
         jobId: input.jobId,
+        jobName: job.name,
         reason,
       },
     });
+    await emitTenantAudit({
+      action: "operations.queue_job.cancelled",
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      actorAuthority: "PLATFORM_OPS",
+      workspaceId: input.teamId,
+      resourceType: QUEUE_JOB_RESOURCE_TYPE,
+      resourceId: queueJobCorrelationRef(input.queueName, input.jobId),
+      targetDisplay: `${input.queueName} · ${job.name}`,
+      previousState: previousState ? String(previousState).toUpperCase() : null,
+      requestedState: "REMOVED",
+      resultingState: "REMOVED",
+      reasonCode: "OPERATOR_CANCELLED",
+      metadata: {
+        action: "cancel",
+        queueName: input.queueName,
+        jobId: input.jobId,
+        jobName: job.name,
+        reason,
+      },
+    }).catch(() => null);
     return {
       ok: true,
       action: "cancel",
