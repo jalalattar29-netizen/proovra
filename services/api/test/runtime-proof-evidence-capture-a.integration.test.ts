@@ -768,28 +768,58 @@ describe("K3 runtime proof — evidence capture (part A)", () => {
       expect(Number(row.part_size_bytes)).toBe(5_242_880);
     });
 
-    it("POST .../parts/:partIndex/verified — the server hash moves the part to VERIFIED", async () => {
+    it("POST .../parts/:partIndex/verified — only the internal service may report the server hash (D3)", async () => {
       const { teamA } = harness.fixtures;
       const serverSha256 = createHash("sha256").update("part-0-bytes").digest("hex");
-      const res = await call("POST", `/v1/uploads/sessions/${sessionId}/parts/0/verified`, teamA.ownerToken, {
-        teamId: teamA.teamId,
-        serverSha256,
-      });
-      expect(res.statusCode, res.body).toBe(200);
+      const url = `/v1/uploads/sessions/${sessionId}/parts/0/verified`;
+      const payload = { teamId: teamA.teamId, serverSha256 };
+
+      // The uploader's own session can no longer vouch for the hash.
+      const owner = await call("POST", url, teamA.ownerToken, payload);
+      expect(owner.statusCode, owner.body).toBe(401);
+      expect((await part(0)).state).toBe("UPLOADED_UNVERIFIED");
+
+      const token = "d3-internal-service-token-for-tests";
+      process.env.INTERNAL_SERVICE_TOKEN = token;
+      try {
+        const wrong = await harness.app.inject({
+          method: "POST",
+          url,
+          headers: { "content-type": "application/json", "x-internal-service-token": "not-the-token-value" },
+          payload,
+        });
+        expect(wrong.statusCode).toBe(401);
+        const res = await harness.app.inject({
+          method: "POST",
+          url,
+          headers: { "content-type": "application/json", "x-internal-service-token": token },
+          payload,
+        });
+        expect(res.statusCode, res.body).toBe(200);
+      } finally {
+        delete process.env.INTERNAL_SERVICE_TOKEN;
+      }
       const row = await part(0);
       expect(row.state).toBe("VERIFIED");
       expect(row.server_sha256).toBe(serverSha256);
       expect(row.verified_at_utc).toBeInstanceOf(Date);
     });
 
-    it("the three part routes refuse a viewer (403) and conceal the session from another tenant (404), leaving part 1 untouched", async () => {
+    it("the user part routes refuse a viewer (403) and conceal the session from another tenant (404); verified refuses every user session; part 1 is untouched", async () => {
       const { teamA, teamB } = harness.fixtures;
       const sha = createHash("sha256").update("x").digest("hex");
       const bodies: Array<[string, Json]> = [
         ["presign", { teamId: teamA.teamId }],
         ["uploaded", { teamId: teamA.teamId, partEtag: '"e"' }],
-        ["verified", { teamId: teamA.teamId, serverSha256: sha }],
       ];
+      // D3 — machine-only: any user session, member or not, is 401.
+      for (const token of [teamA.viewerToken, teamB.ownerToken]) {
+        const verified = await call("POST", `/v1/uploads/sessions/${sessionId}/parts/1/verified`, token, {
+          teamId: teamA.teamId,
+          serverSha256: sha,
+        });
+        expect(verified.statusCode, verified.body).toBe(401);
+      }
       for (const [action, payload] of bodies) {
         // A viewer is a member without evidence.create.
         const viewer = await call("POST", `/v1/uploads/sessions/${sessionId}/parts/1/${action}`, teamA.viewerToken, payload);
@@ -805,12 +835,6 @@ describe("K3 runtime proof — evidence capture (part A)", () => {
         teamId: teamB.teamId,
       });
       expect(own.statusCode).toBe(404);
-      const own2 = await call("POST", `/v1/uploads/sessions/${sessionId}/parts/1/verified`, teamB.ownerToken, {
-        teamId: teamB.teamId,
-        serverSha256: sha,
-      });
-      expect(own2.statusCode).toBe(400);
-      expect(json(own2).error).toMatchObject({ code: "upload_session_denied", reason: "invalid_part_index" });
       const row = await part(1);
       expect(row).toMatchObject({ state: "PENDING", part_etag: null, server_sha256: null, presigned_at_utc: null });
     });

@@ -62,13 +62,22 @@ describe("Phase 30.5 — every route is auth + authorize-gated", () => {
   // should have 11 routes total. The invariants below apply to all
   // of them.
   const TOTAL_ROUTES = 11;
+  // D3 (2026-09-16) — /verified is machine-only: it answers the internal
+  // service credential and no user session. The other ten are user routes
+  // and keep every check below.
+  const USER_ROUTES = TOTAL_ROUTES - 1;
+  const VERIFIED = '"/v1/uploads/sessions/:sessionId/parts/:partIndex/verified"';
 
-  it("every app.post + app.get block declares { preHandler: requireAuth }", () => {
+  it("every user route declares { preHandler: requireAuth }; the machine route requires the internal credential", () => {
     const handlerBlocks = ROUTES_SRC.match(
       /app\.(?:post|get)\([\s\S]*?\)\s*;/g,
     ) ?? [];
     expect(handlerBlocks.length).toBe(TOTAL_ROUTES);
-    for (const block of handlerBlocks) {
+    const machine = handlerBlocks.filter((b) => b.includes(VERIFIED));
+    expect(machine).toHaveLength(1);
+    expect(machine[0]).toMatch(/if \(!\(await requireInternalServiceAuth\(req, reply\)\)\) return;/);
+    expect(machine[0]).not.toMatch(/preHandler:\s*requireAuth/);
+    for (const block of handlerBlocks.filter((b) => !b.includes(VERIFIED))) {
       expect(block).toMatch(/preHandler:\s*requireAuth/);
     }
   });
@@ -77,7 +86,7 @@ describe("Phase 30.5 — every route is auth + authorize-gated", () => {
     const authorizeCalls = ROUTES_SRC.match(
       /await authorizeOrFail\(\s*req,\s*reply,\s*\{[\s\S]*?\}\s*\)/g,
     ) ?? [];
-    expect(authorizeCalls.length).toBe(TOTAL_ROUTES);
+    expect(authorizeCalls.length).toBe(USER_ROUTES);
     for (const call of authorizeCalls) {
       expect(call).toMatch(/antiEnumeration:\s*true/);
     }
@@ -86,7 +95,7 @@ describe("Phase 30.5 — every route is auth + authorize-gated", () => {
   it("every authorize call returns early on null actor (no implicit allow)", () => {
     const earlyReturns =
       ROUTES_SRC.match(/if\s*\(!actor\)\s*return\s*;/g) ?? [];
-    expect(earlyReturns.length).toBe(TOTAL_ROUTES);
+    expect(earlyReturns.length).toBe(USER_ROUTES);
   });
 
   it("read routes use evidence.read; write routes use evidence.create", () => {
@@ -96,9 +105,10 @@ describe("Phase 30.5 — every route is auth + authorize-gated", () => {
       ROUTES_SRC.match(/permission:\s*"evidence\.create"/g) ?? [];
     // GET single + GET status = 2 reads.
     expect(readCalls.length).toBe(2);
-    // 5 original writes (create/uploaded/verified/complete/abort) +
-    // 4 multipart writes (initiate/presign/complete/abort) = 9.
-    expect(writeCalls.length).toBe(9);
+    // 4 original user writes (create/uploaded/complete/abort) +
+    // 4 multipart writes (initiate/presign/complete/abort) = 8. The fifth
+    // original write, /verified, is machine-only (D3).
+    expect(writeCalls.length).toBe(8);
   });
 });
 
@@ -331,12 +341,15 @@ describe("Phase 30.5 — verified path requires trusted server hash", () => {
     expect(schema!).not.toMatch(/serverSha256[\s\S]*?\.nullable\(\)/);
   });
 
-  it("verified route requires evidence.create — never silently accepts contributor-only roles", () => {
+  it("verified route is machine-only — the uploader can never vouch for their own hash (D3)", () => {
     const block = ROUTES_SRC.match(
       /"\/v1\/uploads\/sessions\/:sessionId\/parts\/:partIndex\/verified"[\s\S]*?app\./,
     )?.[0];
     expect(block).toBeTruthy();
-    expect(block!).toMatch(/permission:\s*"evidence\.create"/);
+    // It used to accept any member holding evidence.create — the uploader.
+    expect(block!).toMatch(/requireInternalServiceAuth\(req, reply\)/);
+    expect(block!).not.toMatch(/preHandler:\s*requireAuth/);
+    expect(block!).not.toMatch(/permission:\s*"evidence\.create"/);
   });
 });
 
