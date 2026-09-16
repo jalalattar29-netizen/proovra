@@ -14,6 +14,7 @@
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { apiFetch } from "../../lib/api";
 import {
@@ -32,6 +33,7 @@ import { RuntimeStatusBanner } from "../operational";
 // every data-governance-* attribute, tab-state hook, honesty note and the
 // canonical `app-tabs` hero/tab structure are preserved.
 import { Card } from "../ui/Card";
+import { ExportSnapshotsPanel } from "./ExportSnapshotsPanel";
 import { Badge } from "../ui/Badge";
 import { hasRunbook, resolveRunbookSlug } from "../../lib/runbooks/slugs.generated";
 import type { GovernanceControlPlaneEnvelope, SectionStatus } from "./types";
@@ -65,7 +67,20 @@ export function GovernanceControlPlane() {
   // active-space id directly; loading is a transient state.
   const teamId = useActiveSpaceId();
   const [state, setState] = useState<LoadState>({ status: "loading" });
-  const [tab, setTab] = useState<TabKey>("posture");
+  const router = useRouter();
+  const params = useSearchParams();
+  const fromUrl = params.get("tab");
+  const tabKeys: TabKey[] = ["posture", "preservation", "retention", "exports", "policy", "incidents"];
+  const urlTab = tabKeys.includes(fromUrl as TabKey) ? fromUrl as TabKey : "posture";
+  const [tab, setTabState] = useState<TabKey>(urlTab);
+  useEffect(() => { setTabState(urlTab); }, [urlTab]);
+  const setTab = (next: TabKey) => {
+    setTabState(next);
+    const query = new URLSearchParams(params.toString());
+    if (next === "posture") query.delete("tab");
+    else query.set("tab", next);
+    router.replace("/governance" + (query.size ? "?" + query.toString() : ""), { scroll: false });
+  };
 
   const load = useCallback(async () => {
     if (!teamId) return;
@@ -189,7 +204,17 @@ export function GovernanceControlPlane() {
               Subsections handle their own status (ok / not_applicable) via
               the standard SectionStatus contract; team-only mutating
               actions are gated at the route level. */}
-          <nav className="app-tabs" role="tablist" aria-label="Governance tabs">
+          <nav className="app-tabs" role="tablist" aria-label="Governance tabs" onKeyDown={event => {
+            const direction = getComputedStyle(event.currentTarget).direction === "rtl" ? -1 : 1;
+            const at = tabKeys.indexOf(tab);
+            const next = event.key === "Home" ? 0 : event.key === "End" ? tabKeys.length - 1
+              : event.key === "ArrowRight" ? (at + direction + tabKeys.length) % tabKeys.length
+              : event.key === "ArrowLeft" ? (at - direction + tabKeys.length) % tabKeys.length : null;
+            if (next === null) return;
+            event.preventDefault();
+            setTab(tabKeys[next]);
+            document.getElementById("governance-tab-" + tabKeys[next])?.focus();
+          }}>
             {(
               [
                 ["posture", "Posture"],
@@ -204,6 +229,9 @@ export function GovernanceControlPlane() {
                 key={key}
                 type="button"
                 role="tab"
+                id={"governance-tab-" + key}
+                aria-controls={"governance-panel-" + key}
+                tabIndex={tab === key ? 0 : -1}
                 aria-selected={tab === key}
                 className={`app-tab ${tab === key ? "is-active" : ""}`}
                 onClick={() => setTab(key)}
@@ -214,12 +242,24 @@ export function GovernanceControlPlane() {
             ))}
           </nav>
 
-          {tab === "posture" && <PostureTab env={env} />}
-          {tab === "preservation" && <PreservationTab env={env} />}
-          {tab === "retention" && <RetentionTab env={env} />}
-          {tab === "exports" && <ExportTab env={env} />}
-          {tab === "policy" && <PolicyTab env={env} isAdmin={isAdmin} />}
-          {tab === "incidents" && <IncidentsTab env={env} />}
+          <div id="governance-panel-posture" role="tabpanel" aria-labelledby="governance-tab-posture" hidden={tab !== "posture"} tabIndex={0}>
+            {tab === "posture" && <PostureTab env={env} />}
+          </div>
+          <div id="governance-panel-preservation" role="tabpanel" aria-labelledby="governance-tab-preservation" hidden={tab !== "preservation"} tabIndex={0}>
+            {tab === "preservation" && <PreservationTab env={env} />}
+          </div>
+          <div id="governance-panel-retention" role="tabpanel" aria-labelledby="governance-tab-retention" hidden={tab !== "retention"} tabIndex={0}>
+            {tab === "retention" && <RetentionTab env={env} />}
+          </div>
+          <div id="governance-panel-exports" role="tabpanel" aria-labelledby="governance-tab-exports" hidden={tab !== "exports"} tabIndex={0}>
+            {tab === "exports" && <><ExportTab env={env} /><ExportSnapshotsPanel teamId={env.workspace.id} /></>}
+          </div>
+          <div id="governance-panel-policy" role="tabpanel" aria-labelledby="governance-tab-policy" hidden={tab !== "policy"} tabIndex={0}>
+            {tab === "policy" && <PolicyTab env={env} isAdmin={isAdmin} />}
+          </div>
+          <div id="governance-panel-incidents" role="tabpanel" aria-labelledby="governance-tab-incidents" hidden={tab !== "incidents"} tabIndex={0}>
+            {tab === "incidents" && <IncidentsTab env={env} />}
+          </div>
         </>
       )}
     </div>

@@ -356,27 +356,6 @@
       "reviewedAtUtc": "2026-08-16"
     },
     {
-      "routeId": "GET /v1/governance/export-snapshots",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Export-lineage snapshot list has no product surface and no machine caller.",
-      "evidence": "reg services/api/src/routes/governance-operations.routes.ts:228. The backing service functions have route-only callers: services/api/src/services/governance-lifecycle/export-lineage.service.ts:152 captureExportSnapshot, :368 getExportSnapshot, :378 listExportSnapshots, :411 verifyExportSnapshotHash — referenced only from services/api/src/routes/governance-operations.routes.ts:210/242/260/278/284. Reports surface uses a different gate: apps/web/components/reports-experience/ReportsIndex.tsx:47 and apps/web/components/governance/GovernedExportAction.tsx:124 call `/v1/governance/export-eligibility`.",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
-      "routeId": "GET /v1/governance/export-snapshots/:id",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Export-lineage snapshot read has no product surface and no machine caller.",
-      "evidence": "reg services/api/src/routes/governance-operations.routes.ts:252. The backing service functions have route-only callers: services/api/src/services/governance-lifecycle/export-lineage.service.ts:152 captureExportSnapshot, :368 getExportSnapshot, :378 listExportSnapshots, :411 verifyExportSnapshotHash — referenced only from services/api/src/routes/governance-operations.routes.ts:210/242/260/278/284. Reports surface uses a different gate: apps/web/components/reports-experience/ReportsIndex.tsx:47 and apps/web/components/governance/GovernedExportAction.tsx:124 call `/v1/governance/export-eligibility`.",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
-      "routeId": "GET /v1/governance/export-snapshots/:id/verify",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Export-lineage snapshot verify has no product surface and no machine caller.",
-      "evidence": "reg services/api/src/routes/governance-operations.routes.ts:270. The backing service functions have route-only callers: services/api/src/services/governance-lifecycle/export-lineage.service.ts:152 captureExportSnapshot, :368 getExportSnapshot, :378 listExportSnapshots, :411 verifyExportSnapshotHash — referenced only from services/api/src/routes/governance-operations.routes.ts:210/242/260/278/284. Reports surface uses a different gate: apps/web/components/reports-experience/ReportsIndex.tsx:47 and apps/web/components/governance/GovernedExportAction.tsx:124 call `/v1/governance/export-eligibility`.",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
       "routeId": "GET /v1/governance/legal-holds",
       "disposition": "COMPATIBILITY_TOMBSTONE",
       "reason": "Explicitly declared COMPATIBILITY_TEMPORARY adapter over the single canonical Legal-Hold authority; canonical route is product-connected.",
@@ -1036,13 +1015,6 @@
       "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
       "reason": "Moderation/abuse-response leg of the publication state machine; not presented on any surface.",
       "evidence": "reg services/api/src/routes/governance.routes.ts:900 app.post(\"/v1/governance/evidence/:id/suspend\") calling suspendPublicVerify (imported at governance.routes.ts:66-71). No apps/web or apps/mobile call site for `/suspend` under /v1/governance.",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
-      "routeId": "POST /v1/governance/export-snapshots",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Export-lineage snapshot capture has no product surface and no machine caller.",
-      "evidence": "reg services/api/src/routes/governance-operations.routes.ts:193. The backing service functions have route-only callers: services/api/src/services/governance-lifecycle/export-lineage.service.ts:152 captureExportSnapshot, :368 getExportSnapshot, :378 listExportSnapshots, :411 verifyExportSnapshotHash — referenced only from services/api/src/routes/governance-operations.routes.ts:210/242/260/278/284. Reports surface uses a different gate: apps/web/components/reports-experience/ReportsIndex.tsx:47 and apps/web/components/governance/GovernedExportAction.tsx:124 call `/v1/governance/export-eligibility`.",
       "reviewedAtUtc": "2026-08-16"
     },
     {
