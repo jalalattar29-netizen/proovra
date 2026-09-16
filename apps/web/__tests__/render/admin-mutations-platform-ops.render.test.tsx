@@ -137,14 +137,19 @@ vi.mock("../../components/navigation/PageRouteGate", () => ({
 }));
 
 // Step-up is PASSTHROUGH: the ceremony has its own suite; this file proves the
-// wrapped action fires exactly once with the right payload.
+// wrapped action fires exactly once with the right payload. The counter lets
+// a case prove an action went THROUGH the wrapper (D25).
+const stepUpCalls = vi.hoisted(() => ({ count: 0 }));
 vi.mock("../../components/identity-security/StepUpModal", () => {
   // One stable control object, for the same dep-array reason as above.
   const control = {
     state: { kind: "idle" },
     runStepUpAction: async (
       fn: (headers?: Record<string, string>) => Promise<unknown>,
-    ) => fn({}),
+    ) => {
+      stepUpCalls.count += 1;
+      return fn({});
+    },
     cancel: () => {},
     closeIdle: () => {},
     startChallenge: async () => {},
@@ -1224,8 +1229,12 @@ describe("Queues — the replay dialog IS the confirmation", () => {
     const failedReadsBefore = gets(
       `/v1/operations/queues/${QUEUE}/failed`,
     ).length;
+    const stepUpsBefore = stepUpCalls.count;
     await click(within(dialog).getByRole("button", { name: "Retry attempt" }));
     await settle();
+    // D25 — the API gates retry like replay, so the page sends it through the
+    // step-up wrapper (a 401 STEP_UP_REQUIRED would open the challenge).
+    expect(stepUpCalls.count).toBe(stepUpsBefore + 1);
 
     const retries = posts(
       `/v1/operations/queues/${QUEUE}/jobs/job-safe-1/retry`,

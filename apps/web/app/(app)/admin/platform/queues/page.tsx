@@ -270,34 +270,23 @@ function OperationsQueuesContent() {
       setError(null);
       setSuccess(null);
       try {
-        if (action === "replay" && replayTarget.category === "requires_step_up") {
-          await stepUp.runStepUpAction(async (headers) => {
-            return await apiFetch(
-              `/v1/operations/queues/${encodeURIComponent(
-                selectedQueue,
-              )}/jobs/${encodeURIComponent(replayTarget.jobId)}/replay`,
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  ...(headers ?? {}),
-                },
-                body: JSON.stringify({
-                  teamId,
-                  reason: replayReason.trim(),
-                  expectedJobName: replayTarget.jobName,
-                }),
-              },
-            );
-          });
-        } else {
-          await apiFetch(
+        // D25 — the API gates RETRY exactly as it gates replay (both derive
+        // the step-up need from the real job), so both go through the step-up
+        // wrapper. It is transparent when no step-up is needed; a 401
+        // STEP_UP_REQUIRED opens the challenge and resumes the same request.
+        // Retry used to be sent bare, so retrying a signing-bearing job from
+        // this page could only ever show an error.
+        await stepUp.runStepUpAction(async (headers) => {
+          return await apiFetch(
             `/v1/operations/queues/${encodeURIComponent(
               selectedQueue,
             )}/jobs/${encodeURIComponent(replayTarget.jobId)}/${action}`,
             {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: {
+                "Content-Type": "application/json",
+                ...(headers ?? {}),
+              },
               body: JSON.stringify({
                 teamId,
                 reason: replayReason.trim(),
@@ -305,7 +294,7 @@ function OperationsQueuesContent() {
               }),
             },
           );
-        }
+        });
         setSuccess(`Job ${action} recorded.`);
         setReplayTarget(null);
         setReplayReason("");
@@ -314,7 +303,7 @@ function OperationsQueuesContent() {
       } catch (err) {
         const code = (err as { code?: string })?.code;
         if (code === "STEP_UP_CANCEL") {
-          setError("Step-up cancelled — no replay was performed.");
+          setError(`Step-up cancelled — no ${action} was performed.`);
         } else {
           setError(
             toSafeUserError(err, { message: `${action} failed.` }).message,
