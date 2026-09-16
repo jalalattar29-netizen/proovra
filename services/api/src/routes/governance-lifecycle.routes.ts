@@ -982,8 +982,8 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
         });
       }
       if (await denyIfTeamNotEnterprise(reply, body.teamId, "destructionGovernance")) return;
-      // Step-up required when entering destruction or terminal states.
-      if (body.toState === "PENDING_DESTRUCTION" || body.toState === "DESTROYED") {
+      // Step-up required when entering destruction (DESTROYED is refused above).
+      if (body.toState === "PENDING_DESTRUCTION") {
         const gate = await requireStepUpForSensitiveAction({
           req, reply,
           teamId: body.teamId,
