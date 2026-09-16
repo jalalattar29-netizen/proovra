@@ -346,7 +346,7 @@
       "batch": "H",
       "status": "FIXED_PENDING_BROWSER_PROOF",
       "fix": "Replace 44 nested main render branches with div containers; shell provides MainLandmarkContext so full-page feedback keeps one main both inside and outside the shell",
-      "acceptanceTest": "main-landmark-ownership.test.mjs red before, green after; main-landmark-ownership.render.test.tsx 7/7; full render 1113/1113; capture/layout contracts 37/37"
+      "acceptanceTest": "main-landmark-ownership.test.mjs red before, green after; main-landmark-ownership.render.test.tsx 7/7; full render 1113/1113; capture/layout contracts 37/37; main-landmark-ownership.test.mjs widened from five roots to every page and component (plus role=\"main\"), with the shell and marketing page as the only owners — a planted <main> in components/ui fails it"
     },
     {
       "id": "PV-NAV-001",
@@ -356,8 +356,8 @@
       "disposition": "FIX_REQUIRED",
       "batch": "H",
       "status": "FIXED_PENDING_BROWSER_PROOF",
-      "fix": "Remove duplicated Governance item on retention; canonical OperationalBreadcrumb marks the current item with aria-current=page",
-      "acceptanceTest": "main-landmark-ownership.test.mjs red before, green after; main-landmark-ownership.render.test.tsx 7/7; full render 1113/1113; capture/layout contracts 37/37"
+      "fix": "Remove duplicated Governance item on retention; canonical OperationalBreadcrumb marks the current item with aria-current=page; the trail is now decided by breadcrumbTrail(): a crumb repeating the group title or the previous crumb is dropped for every page (/governance/destruction still passed its group crumb)",
+      "acceptanceTest": "main-landmark-ownership.test.mjs red before, green after; main-landmark-ownership.render.test.tsx 7/7; full render 1113/1113; capture/layout contracts 37/37; apps/web/__tests__/breadcrumb-trail.test.ts (3; 1 fails on the unfixed component)"
     },
     {
       "id": "PV-DUP-002",
@@ -740,8 +740,9 @@
       "surface": "PageRouteGate denial panels",
       "finding": "render a second <main> on every denied route",
       "batch": "H",
-      "status": "PARTIAL",
-      "note": "organization-admin layout <main> -> <div> (17 routes); PageRouteGate denial panels remain for Batch H"
+      "status": "FIXED_PENDING_BROWSER_PROOF",
+      "note": "organization-admin layout <main> -> <div> (17 routes); PageRouteGate denial panels remain for Batch H",
+      "fix": "PageRouteGate denial panels render <div> (3c5a57c6); covered by the widened main-landmark-ownership guard"
     },
     {
       "id": "WCC-NEW-013",
