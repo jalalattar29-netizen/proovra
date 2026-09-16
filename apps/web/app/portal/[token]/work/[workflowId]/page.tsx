@@ -15,16 +15,22 @@
  *   * REVIEW_OPENED activity is emitted on first mount.
  */
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
-import { EXTERNAL_DECISION_VERDICTS, type ExternalDecisionVerdict, type ExternalPortalProjection } from "@proovra/shared";
+import {
+  EXTERNAL_DECISION_VERDICTS,
+  identifierLabel,
+  type ExternalDecisionVerdict,
+  type ExternalPortalProjection,
+} from "@proovra/shared";
 
 import { WatermarkOverlay } from "../../../../../components/external-portal/WatermarkOverlay";
 
 import {
   authenticate,
   fetchComments,
+  fetchDecisions,
   fetchPortalDashboard,
   getSessionId,
   markReviewOpened,
@@ -32,8 +38,28 @@ import {
   setBearer,
   submitDecision,
   type PortalComment,
+  type PortalDecision,
 } from "../../../../../lib/external-portal/portal-client";
 import { formatUserDateTime } from "../../../../../lib/date";
+import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
+
+/**
+ * Batch J — the reviewer's recorded decision, read back from
+ * GET /v1/portal/work/:workflowId/decisions (scoped server-side to this
+ * reviewer's grant). A reviewer who reloads now sees what they recorded;
+ * a submission is announced only once this reread shows it.
+ */
+type DecisionState =
+  | { kind: "idle" }
+  | { kind: "loading" }
+  | { kind: "ready"; decision: PortalDecision | null }
+  | { kind: "denied" }
+  | { kind: "failed"; message: string };
+
+function portalStatus(err: unknown): number {
+  const s = (err as { status?: unknown } | null)?.status;
+  return typeof s === "number" ? s : 0;
+}
 
 export default function PortalReviewPage({
   params,
@@ -50,6 +76,35 @@ export default function PortalReviewPage({
   const [denial, setDenial] = useState<string | null>(null);
   const [verdictRationale, setVerdictRationale] = useState("");
   const [decisionStatus, setDecisionStatus] = useState<string | null>(null);
+  const [decisionState, setDecisionState] = useState<DecisionState>({ kind: "idle" });
+  const [deciding, setDeciding] = useState(false);
+  const decisionSeq = useRef(0);
+
+  const loadDecision = useCallback(async (): Promise<PortalDecision | null | undefined> => {
+    const seq = ++decisionSeq.current;
+    setDecisionState((prev) => (prev.kind === "ready" ? prev : { kind: "loading" }));
+    try {
+      const rows = await fetchDecisions(workflowId);
+      const mine = rows.find((d) => d.workflowId === workflowId) ?? null;
+      if (seq === decisionSeq.current) setDecisionState({ kind: "ready", decision: mine });
+      return mine;
+    } catch (err) {
+      if (seq === decisionSeq.current) {
+        const status = portalStatus(err);
+        setDecisionState(
+          status === 403 || status === 404
+            ? { kind: "denied" }
+            : {
+                kind: "failed",
+                message: toSafeUserError(err, {
+                  message: "Your recorded decision could not be loaded. Refresh to try again.",
+                }).message,
+              },
+        );
+      }
+      return undefined;
+    }
+  }, [workflowId]);
 
   const reauth = useCallback(async () => {
     setBearer(decodeURIComponent(token));
@@ -74,11 +129,15 @@ export default function PortalReviewPage({
       setProjection(proj);
       const c = await fetchComments(workflowId);
       setComments(c);
+      const caps = proj.reviewer.capabilities as ReadonlyArray<string>;
+      if (caps.includes("portal.decide") || caps.includes("portal.history.read")) {
+        void loadDecision();
+      }
     } catch (err) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setDenial(((err as any)?.denial ?? "TOKEN_INVALID") as string);
     }
-  }, [reauth, workflowId]);
+  }, [reauth, workflowId, loadDecision]);
 
   useEffect(() => {
     let cancelled = false;
@@ -107,31 +166,57 @@ export default function PortalReviewPage({
         );
         return;
       }
+      if (deciding) return;
+      setDeciding(true);
+      setDecisionStatus(null);
       try {
-        const res = await submitDecision({
-          workflowId,
-          verdict,
-          rationale:
-            verdict === "APPROVE" ? undefined : verdictRationale.slice(0, 600),
-        });
-        setDecisionStatus(
-          `Decision ${verdict} recorded${res.replaced ? " (replaced)" : ""}.`,
-        );
-        setVerdictRationale("");
-        await refresh();
-      } catch (err) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        setDecisionStatus(`Refused: ${((err as any)?.denial ?? "RATE_LIMITED")}`);
+        let replaced = false;
+        try {
+          const res = await submitDecision({
+            workflowId,
+            verdict,
+            rationale:
+              verdict === "APPROVE" ? undefined : verdictRationale.slice(0, 600),
+          });
+          replaced = res.replaced;
+        } catch (err) {
+          const status = portalStatus(err);
+          setDecisionStatus(
+            status === 403
+              ? "Your role cannot record a decision on this review."
+              : status === 409
+                ? "The decision was not accepted. Check the rationale and try again."
+                : toSafeUserError(err, {
+                    message: "Your decision could not be recorded. Nothing was changed.",
+                  }).message,
+          );
+          return;
+        }
+        const reread = await loadDecision();
+        if (reread && reread.verdict === verdict) {
+          setDecisionStatus(
+            `Decision recorded: ${identifierLabel(verdict)}${replaced ? ". It replaces your previous decision." : "."}`,
+          );
+          setVerdictRationale("");
+        } else {
+          setDecisionStatus(
+            reread === undefined
+              ? "Your decision was sent, but it could not be reloaded to confirm it. Refresh before deciding again."
+              : "Your decision was sent, but the saved record does not show it yet. Refresh before deciding again.",
+          );
+        }
+      } finally {
+        setDeciding(false);
       }
     },
-    [workflowId, verdictRationale, refresh],
+    [workflowId, verdictRationale, deciding, loadDecision],
   );
 
   if (denial) {
     return (
       <main style={{ padding: 40, textAlign: "center" }}>
         <h1 style={{ fontSize: 20 }}>Portal access denied</h1>
-        <code>{denial}</code>
+        <p>{identifierLabel(denial)}</p>
       </main>
     );
   }
@@ -165,7 +250,7 @@ export default function PortalReviewPage({
         <span style={{ flex: 1 }} />
         <small style={{ color: "#475569" }}>
           Reviewer: {projection.reviewer.email} · Role:{" "}
-          {projection.reviewer.role}
+          {identifierLabel(projection.reviewer.role)}
         </small>
       </header>
 
@@ -210,6 +295,9 @@ export default function PortalReviewPage({
             onRationale={setVerdictRationale}
             onDecide={onSubmitDecision}
             status={decisionStatus}
+            busy={deciding}
+            decision={decisionState}
+            onRetry={() => void loadDecision()}
           />
           <CommentsPanel
             comments={comments}
@@ -250,14 +338,21 @@ function DecisionPanel({
   onRationale,
   onDecide,
   status,
+  busy,
+  decision,
+  onRetry,
 }: {
   capabilities: ReadonlyArray<string>;
   rationale: string;
   onRationale: (v: string) => void;
   onDecide: (v: ExternalDecisionVerdict) => Promise<void>;
   status: string | null;
+  busy: boolean;
+  decision: DecisionState;
+  onRetry: () => void;
 }) {
   const canDecide = capabilities.includes("portal.decide");
+  const canReadHistory = canDecide || capabilities.includes("portal.history.read");
   return (
     <section
       data-portal-decision-panel
@@ -269,6 +364,40 @@ function DecisionPanel({
       }}
     >
       <h3 style={{ fontSize: 13, marginTop: 0 }}>Decision</h3>
+      <div data-portal-recorded-decision style={{ fontSize: 12, marginBottom: 8, overflowWrap: "anywhere" }}>
+        {!canReadHistory ? (
+          <p style={{ margin: 0 }}>Your role cannot view recorded decisions for this review.</p>
+        ) : decision.kind === "idle" || decision.kind === "loading" ? (
+          <p role="status" style={{ margin: 0 }}>Loading your recorded decision…</p>
+        ) : decision.kind === "denied" ? (
+          <p role="alert" style={{ margin: 0 }}>Your recorded decision is not available for this review.</p>
+        ) : decision.kind === "failed" ? (
+          <p role="alert" style={{ margin: 0 }}>
+            {decision.message}{" "}
+            <button type="button" onClick={onRetry} style={btnPrimary}>
+              Retry
+            </button>
+          </p>
+        ) : decision.decision ? (
+          <dl style={{ margin: 0, display: "grid", gap: 2 }}>
+            <dt style={{ fontWeight: 600 }}>Your recorded decision</dt>
+            <dd style={{ margin: 0 }}>{identifierLabel(decision.decision.verdict)}</dd>
+            <dt style={{ fontWeight: 600 }}>Recorded</dt>
+            <dd style={{ margin: 0 }}>
+              <time dateTime={decision.decision.submittedAtUtc}>
+                {formatUserDateTime(decision.decision.submittedAtUtc)}
+              </time>
+            </dd>
+            <dt style={{ fontWeight: 600 }}>Rationale</dt>
+            <dd style={{ margin: 0 }}>{decision.decision.rationale ?? "No rationale recorded."}</dd>
+          </dl>
+        ) : (
+          <p style={{ margin: 0 }}>You have not recorded a decision for this review yet.</p>
+        )}
+        {canDecide && decision.kind === "ready" && decision.decision ? (
+          <p style={{ margin: "4px 0 0" }}>Submitting again replaces this decision.</p>
+        ) : null}
+      </div>
       {!canDecide ? (
         <p style={{ color: "#475569", fontSize: 12 }}>
           Your role is read-only for decisions. You may still annotate
@@ -297,6 +426,8 @@ function DecisionPanel({
                 key={v}
                 type="button"
                 data-portal-decision-btn={v}
+                disabled={busy}
+                aria-busy={busy || undefined}
                 onClick={() => onDecide(v as ExternalDecisionVerdict)}
                 style={{
                   padding: "4px 10px",
@@ -311,16 +442,17 @@ function DecisionPanel({
                   color: "#fafafa",
                   fontSize: 11,
                   fontWeight: 600,
-                  cursor: "pointer",
+                  cursor: busy ? "not-allowed" : "pointer",
                 }}
               >
-                {v}
+                {identifierLabel(v)}
               </button>
             ))}
           </div>
           {status ? (
             <small
               data-portal-decision-status
+              role="status"
               style={{ color: "#475569", display: "block", marginTop: 6 }}
             >
               {status}

@@ -1031,13 +1031,18 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
       let revokedOtherSessions = 0;
       if (body.revokeOtherSessions) {
         const currentHash =
-          (req as unknown as { sessionIdHash?: string }).sessionIdHash ?? null;
+          req.user?.sessionIdHash ?? null;
         const where: {
           userId: string;
           revokedAtUtc: null;
           NOT?: { sessionIdHash: string };
         } = { userId, revokedAtUtc: null };
         if (currentHash) where.NOT = { sessionIdHash: currentHash };
+        // Revoke the TOKENS (RevokedSession, what requireAuth reads), not only the list.
+        const targets = await prisma.authenticatedSession.findMany({ where, select: { sessionIdHash: true, teamId: true } });
+        for (const t of targets) {
+          await revokeSession({ userId, sessionIdHash: t.sessionIdHash, teamId: t.teamId, reason: "PASSWORD_CHANGED", actorUserId: userId });
+        }
         const upd = await prisma.authenticatedSession.updateMany({
           where,
           data: {
@@ -1098,7 +1103,7 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
         },
       });
       const currentHash =
-        (req as unknown as { sessionIdHash?: string }).sessionIdHash ?? null;
+        req.user?.sessionIdHash ?? null;
       return reply.code(200).send({
         sessions: rows.map((r) => ({
           id: r.id,
@@ -1140,7 +1145,7 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
         return reply.code(stepUp.denial.status).send(stepUp.denial.body);
       }
       const currentHash =
-        (req as unknown as { sessionIdHash?: string }).sessionIdHash ?? null;
+        req.user?.sessionIdHash ?? null;
       const where: {
         userId: string;
         revokedAtUtc: null;
@@ -1230,7 +1235,7 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
         return reply.code(stepUp.denial.status).send(stepUp.denial.body);
       }
       const currentHash =
-        (req as unknown as { sessionIdHash?: string }).sessionIdHash ?? null;
+        req.user?.sessionIdHash ?? null;
       const target = await prisma.authenticatedSession.findFirst({
         where: { id: params.id, userId, revokedAtUtc: null },
         select: { id: true, sessionIdHash: true },

@@ -96,11 +96,15 @@ export async function establishPortalSession(input: {
   existingSessionId?: string | null;
   ip?: string | null;
   userAgent?: string | null;
+  /** Only the token exchange (POST /v1/portal/auth) accepts an invitation. */
+  acceptInvited?: boolean;
 }): Promise<EstablishSessionResult> {
   const prisma = input.prisma ?? defaultPrisma;
 
   // 1. Look up the grant by token.
-  const lookup = await lookupExternalReviewGrantByToken(input.rawToken, prisma);
+  const lookup = await lookupExternalReviewGrantByToken(input.rawToken, prisma, {
+    acceptInvited: input.acceptInvited === true,
+  });
   if (!lookup.ok) {
     const denial: "TOKEN_INVALID" | "TOKEN_EXPIRED" | "TOKEN_REVOKED" =
       lookup.reason === "grant_expired"

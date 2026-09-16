@@ -444,6 +444,16 @@ async function grantScopeHasActiveLegalHold(
 export async function lookupExternalReviewGrantByToken(
   rawToken: string,
   client: PrismaClient = defaultPrisma,
+  /**
+   * K2 (2026-09-16) — `acceptInvited` is passed ONLY by the portal token
+   * exchange (POST /v1/portal/auth), which is where an invitation is accepted.
+   * Without it an INVITED grant was refused here as `not_active`, so the
+   * acceptance that route performs AFTER this lookup could never run and an
+   * invited reviewer could never open the portal. The INVITED grant is judged
+   * by the same engine as an ACTIVE one (revocation, expiry, legal hold all
+   * still refuse) and only then transitioned. Every other caller is unchanged.
+   */
+  options: { acceptInvited?: boolean } = {},
 ): Promise<LookupGrantResult> {
   if (!rawToken || rawToken.length === 0) {
     return { ok: false, reason: "token_unknown" };
@@ -481,8 +491,9 @@ export async function lookupExternalReviewGrantByToken(
     );
     // Evaluate against the canonical shared engine. Treat expired /
     // revoked / blocked as bounded denial reasons.
+    const accepting = options.acceptInvited === true && grant.state === "INVITED";
     const decision = evaluateExternalReviewAccess({
-      state: grant.state,
+      state: accepting ? "ACTIVE" : grant.state,
       expiresAtUtc: grant.expiresAtUtc,
       hasActiveLegalHold,
       nowIsoUtc: new Date().toISOString(),
@@ -501,6 +512,15 @@ export async function lookupExternalReviewGrantByToken(
                 ? "grant_blocked_by_legal_hold"
                 : "grant_not_active";
       return { ok: false, reason };
+    }
+    if (accepting) {
+      // The invited reviewer accepts; the inviting operator is recorded as the
+      // approving actor, as the legacy accept route does.
+      const accepted = await transitionExternalReviewGrant(
+        { grantId: grant.id, teamId: grant.teamId, toState: "ACTIVE", actorUserId: grant.invitedByUserId },
+        client,
+      );
+      return accepted.ok ? { ok: true, grant: accepted.grant } : { ok: false, reason: "grant_not_active" };
     }
     return { ok: true, grant };
   } catch (err) {

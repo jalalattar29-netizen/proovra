@@ -430,6 +430,28 @@ async function resolvePortalSession(
 // Routes
 // ---------------------------------------------------------------------------
 
+/**
+ * K4 / D51 (2026-09-16) — body-less POST routes (opening a review, signing
+ * out) tolerate a client that declares `content-type: application/json` with
+ * no body. Fastify's JSON parser refuses such a request with a 400 before the
+ * handler runs, so neither action was ever recorded from the portal. An empty
+ * request declares nothing to parse, so the header is dropped for it.
+ */
+function acceptEmptyJsonBody(
+  req: FastifyRequest,
+  _reply: FastifyReply,
+  done: (err?: Error) => void,
+): void {
+  const h = req.raw.headers;
+  if (
+    h["transfer-encoding"] === undefined &&
+    (h["content-length"] === undefined || h["content-length"] === "0")
+  ) {
+    delete h["content-type"];
+  }
+  done();
+}
+
 export async function externalPortalRoutes(app: FastifyInstance) {
   // =========================================================================
   // INTERNAL — Invitation management
@@ -807,6 +829,8 @@ export async function externalPortalRoutes(app: FastifyInstance) {
         existingSessionId: body.existingSessionId ?? null,
         ip: req.ip,
         userAgent: (req.headers["user-agent"] as string | undefined) ?? null,
+        // The token exchange is where an invitation is accepted (INVITED -> ACTIVE).
+        acceptInvited: true,
       });
       if (!sess.ok) return reply.code(401).send({ denial: sess.denial });
       // Best-effort flip INVITED → ACTIVE on first arrival.
@@ -830,6 +854,7 @@ export async function externalPortalRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/portal/logout",
+    { onRequest: acceptEmptyJsonBody },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const s = await resolvePortalSession(req, reply);
       if (!s) return reply;
@@ -983,16 +1008,29 @@ export async function externalPortalRoutes(app: FastifyInstance) {
         .object({ workflowId: z.string().uuid() })
         .parse(req.params);
       if (!(await requireWorkflowInScope(s, workflowId, reply))) return reply;
+      // Scoped to the session grant and projected to bounded fields: the
+      // unscoped list returned every external reviewer's row for the
+      // workflow, including their email addresses and rationale.
       const rows = await listExternalDecisionsForWorkflow({
         teamId: s.teamId,
         workflowId,
+        grantId: s.grantId,
       });
-      return reply.code(200).send({ decisions: rows });
+      return reply.code(200).send({
+        decisions: rows.map((row) => ({
+          id: row.id,
+          workflowId: row.workflowId,
+          verdict: row.verdict,
+          rationale: row.rationale,
+          submittedAtUtc: row.submittedAtUtc.toISOString(),
+        })),
+      });
     },
   );
 
   app.post(
     "/v1/portal/work/:workflowId/view",
+    { onRequest: acceptEmptyJsonBody },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const s = await resolvePortalSession(req, reply);
       if (!s) return reply;

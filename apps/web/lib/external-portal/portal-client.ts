@@ -21,6 +21,8 @@ import type {
   ExternalDecisionVerdict,
 } from "@proovra/shared";
 
+import { apiBaseUrl } from "../api";
+
 const SS_SESSION_KEY = "proovra.portal.session.v1";
 
 let bearerToken: string | null = null;
@@ -64,8 +66,11 @@ async function portalFetch(
   path: string,
   init: RequestInit = {},
 ): Promise<unknown> {
+  // D51 — a JSON content type is declared only when there is a body. It was
+  // sent on every request, and the API refuses an empty body that claims to be
+  // JSON, so body-less POSTs (opening a review, signing out) answered 400.
   const headers: Record<string, string> = {
-    "content-type": "application/json",
+    ...(init.body !== undefined && init.body !== null ? { "content-type": "application/json" } : {}),
     ...((init.headers as Record<string, string>) ?? {}),
   };
   if (bearerToken) {
@@ -74,7 +79,10 @@ async function portalFetch(
   const sid = getSessionId();
   if (sid) headers["x-portal-session"] = sid;
 
-  const res = await fetch(path, { ...init, headers });
+  // The API is a different origin, and next.config has no /v1 rewrite: a
+  // relative path resolves against the WEB origin and 404s (AUDIT-002). The
+  // origin comes from the one authority.
+  const res = await fetch(`${apiBaseUrl()}${path}`, { ...init, headers });
   if (!res.ok) {
     let denial: string | null = null;
     try {
@@ -194,6 +202,31 @@ export async function submitDecision(input: {
     },
   )) as { decisionId: string; replaced: boolean };
   return res;
+}
+
+/**
+ * Batch J — the decision this reviewer recorded for a workflow.
+ *
+ *   GET /v1/portal/work/:workflowId/decisions  (portal.decide | portal.history.read)
+ *
+ * The server scopes the list to the session grant, so it only ever holds
+ * this reviewer's own row (one per grant + workflow; a resubmission
+ * replaces it).
+ */
+export type PortalDecision = {
+  id: string;
+  workflowId: string;
+  verdict: ExternalDecisionVerdict;
+  rationale: string | null;
+  submittedAtUtc: string;
+};
+
+export async function fetchDecisions(workflowId: string): Promise<PortalDecision[]> {
+  const res = (await portalFetch(
+    `/v1/portal/work/${encodeURIComponent(workflowId)}/decisions`,
+    { method: "GET" },
+  )) as { decisions?: PortalDecision[] } | null;
+  return Array.isArray(res?.decisions) ? res.decisions : [];
 }
 
 // ---------------------------------------------------------------------------
