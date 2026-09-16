@@ -25,7 +25,7 @@
 
 import React from "react";
 import { describe, it, expect, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 
 import { ManagePlanDrawer } from "../../app/(app)/billing/_sections/ManagePlanDrawer";
 import {
@@ -244,6 +244,35 @@ describe("the manage-plan drawer offers the moves the server listed", () => {
     const down = screen.getByRole("button", { name: "Move to Pro" });
     expect(up.getAttribute("data-billing-manage-offer-action")).toBe("UPGRADE");
     expect(down.getAttribute("data-billing-manage-offer-action")).toBe("DOWNGRADE");
+  });
+
+  it("paid PRO Move to Team invokes changePlan flow, not checkout", () => {
+    const changed: PlanOffer[] = [];
+    render(
+      <ManagePlanDrawer
+        open
+        projection={personal({
+          plan: {
+            ...personal().plan,
+            planKey: "PRO",
+            displayName: "Pro",
+            model: "MONTHLY",
+            lifecycle: "ACTIVE",
+          },
+          planOffers: [OFFER_TEAM],
+        })}
+        onClose={noop}
+        onChangePlan={(offer) => changed.push(offer)}
+        onCancel={noop}
+        changeBusyPlan={null}
+        cancelBusy={false}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Move to Team" }));
+
+    expect(changed.map((offer) => offer.planKey)).toEqual(["TEAM"]);
+    expect(changed[0]?.action).toBe("UPGRADE");
   });
 
   it("a downgrade is not dressed as a destructive action", () => {

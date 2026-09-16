@@ -53,6 +53,10 @@ import {
 } from "../billing-pricing.service.js";
 import { syncPlanForSubscription } from "./subscription-lifecycle.handlers.js";
 import { resolveCommercialContext } from "./commercial-context.service.js";
+import {
+  findLivePersonalBaseSubscription,
+  type LiveBaseSubscriptionRow,
+} from "./base-subscription.service.js";
 
 /** The plans a person may hold self-service, in order. */
 const SELF_SERVICE_LADDER: readonly prismaPkg.PlanType[] = [
@@ -61,24 +65,7 @@ const SELF_SERVICE_LADDER: readonly prismaPkg.PlanType[] = [
   prismaPkg.PlanType.TEAM,
 ];
 
-const LIVE_STATUSES: readonly prismaPkg.SubscriptionStatus[] = [
-  prismaPkg.SubscriptionStatus.ACTIVE,
-  prismaPkg.SubscriptionStatus.PAST_DUE,
-  prismaPkg.SubscriptionStatus.TRIALING,
-];
-
-export type PersonalSubscriptionRow = {
-  id: string;
-  provider: prismaPkg.PaymentProvider;
-  providerSubId: string;
-  status: prismaPkg.SubscriptionStatus;
-  plan: prismaPkg.PlanType;
-  currentPeriodEnd: Date | null;
-  cancelAtPeriodEnd: boolean;
-  pendingPlan: prismaPkg.PlanType | null;
-  pendingPlanEffectiveAtUtc: Date | null;
-  teamId: string | null;
-};
+export type PersonalSubscriptionRow = LiveBaseSubscriptionRow;
 
 export type PersonalPlanTransition =
   /** Already there. A no-op that must not reach a provider. */
@@ -112,22 +99,7 @@ export type PersonalPlanTransition =
 export async function findLivePersonalSubscription(
   userId: string,
 ): Promise<PersonalSubscriptionRow | null> {
-  return prisma.subscription.findFirst({
-    where: { userId, status: { in: [...LIVE_STATUSES] } },
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      provider: true,
-      providerSubId: true,
-      status: true,
-      plan: true,
-      currentPeriodEnd: true,
-      cancelAtPeriodEnd: true,
-      pendingPlan: true,
-      pendingPlanEffectiveAtUtc: true,
-      teamId: true,
-    },
-  });
+  return findLivePersonalBaseSubscription(userId);
 }
 
 /** Refuse the two plan values that are not self-service, by name. */
@@ -169,6 +141,12 @@ export async function resolvePersonalPlanTransition(input: {
   assertSelfServicePlan(input.targetPlan);
 
   const subscription = await findLivePersonalSubscription(input.userId);
+  const entitled = subscription
+    ? await resolveCommercialContext({
+        type: "PERSONAL_ACCOUNT",
+        userId: input.userId,
+      })
+    : null;
 
   /*
    * BILLING PLAN-SELECTION CORRECTION (2026-08-31) — the ENTITLEMENT decides
@@ -188,11 +166,7 @@ export async function resolvePersonalPlanTransition(input: {
    * route turns this into 409 CHECKOUT_REQUIRED naming the route that can do it.
    */
   if (subscription) {
-    const entitled = await resolveCommercialContext({
-      type: "PERSONAL_ACCOUNT",
-      userId: input.userId,
-    });
-    if (entitled.scope.plan === prismaPkg.PlanType.FREE) {
+    if (entitled?.scope.plan === prismaPkg.PlanType.FREE) {
       return input.targetPlan === prismaPkg.PlanType.FREE
         ? { kind: "NO_CHANGE", currentPlan: prismaPkg.PlanType.FREE }
         : { kind: "NEW_SUBSCRIPTION", targetPlan: input.targetPlan };
@@ -213,7 +187,8 @@ export async function resolvePersonalPlanTransition(input: {
   // The plan a scheduled change is heading for counts as the current one for
   // this comparison. Without it, a TEAM customer who has already scheduled a
   // downgrade to PRO and asks for PRO again would be told they are upgrading.
-  const effectivePlan = subscription.pendingPlan ?? subscription.plan;
+  const effectivePlan =
+    subscription.pendingPlan ?? entitled?.scope.plan ?? subscription.plan;
 
   if (effectivePlan === input.targetPlan) {
     return { kind: "NO_CHANGE", currentPlan: effectivePlan };

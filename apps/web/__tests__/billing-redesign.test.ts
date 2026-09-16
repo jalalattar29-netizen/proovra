@@ -722,8 +722,16 @@ test("FREE never reaches the paid plan-transition route", () => {
   assert.match(transition, /resolveCommercialContext/);
   assert.match(
     transition,
-    /entitled\.scope\.plan === prismaPkg\.PlanType\.FREE/,
+    /entitled\?\.scope\.plan === prismaPkg\.PlanType\.FREE/,
   );
+  assert.match(transition, /findLivePersonalBaseSubscription/);
+  const baseResolver = readRaw(
+    "../../../services/api/src/services/billing/base-subscription.service.ts",
+  );
+  assert.match(baseResolver, /SELF_SERVICE_BASE_SUBSCRIPTION_PLANS/);
+  assert.match(baseResolver, /prismaPkg\.PlanType\.PRO/);
+  assert.match(baseResolver, /prismaPkg\.PlanType\.TEAM/);
+  assert.match(baseResolver, /providerSubId: \{ not: "" \}/);
   assert.match(transition, /kind: "NEW_SUBSCRIPTION"/);
 });
 

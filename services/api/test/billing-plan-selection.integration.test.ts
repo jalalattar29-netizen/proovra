@@ -96,7 +96,7 @@ describe("BILLING PLAN SELECTION (live PostgreSQL 16)", () => {
    */
   async function seedSubscriptionRow(
     userId: string,
-    plan: "PRO" | "TEAM",
+    plan: "PAYG" | "PRO" | "TEAM" | "ENTERPRISE",
     over: Record<string, unknown> = {},
   ) {
     return prisma.subscription.create({
@@ -110,6 +110,21 @@ describe("BILLING PLAN SELECTION (live PostgreSQL 16)", () => {
         cancelAtPeriodEnd: false,
         teamId: null,
         ...over,
+      },
+    });
+  }
+
+  async function seedStorageAddonOnly(userId: string) {
+    return prisma.workspaceStorageAddon.create({
+      data: {
+        ownerUserId: userId,
+        teamId: null,
+        addonKey: "PERSONAL_10_GB",
+        extraStorageBytes: 10n * 1024n * 1024n * 1024n,
+        billingCycle: "MONTHLY",
+        status: "ACTIVE",
+        paymentProvider: "STRIPE",
+        externalSubscriptionId: `sa-${randomUUID()}`,
       },
     });
   }
@@ -332,6 +347,172 @@ describe("BILLING PLAN SELECTION (live PostgreSQL 16)", () => {
       });
     });
   }
+
+  it("normal PRO subscription with teamId NULL moves to TEAM through plan change", async () => {
+    const t = await seedPersonalTenant(deps, "PRO", { credits: 0 });
+    await seedSubscriptionRow(t.owner.userId, "PRO", { teamId: null });
+
+    const p = await projectFor(t.owner.userId);
+    const team = (p.planOffers ?? []).find((o) => o.planKey === "TEAM");
+    expect(p.plan.accessKind).toBe("SUBSCRIPTION");
+    expect(team?.action).toBe("UPGRADE");
+
+    const transition = await resolveTransition({
+      userId: t.owner.userId,
+      targetPlan: "TEAM" as never,
+    });
+    expect(transition.kind).toBe("UPGRADE");
+
+    const entitlement = await prisma.entitlement.findFirstOrThrow({
+      where: { userId: t.owner.userId, active: true },
+      select: { plan: true },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(entitlement.plan).toBe("PRO");
+  });
+
+  it("legacy live PRO base subscription with teamId NON_NULL moves to TEAM through plan change", async () => {
+    const t = await seedPersonalTenant(deps, "PRO", { credits: 0 });
+    await seedSubscriptionRow(t.owner.userId, "PRO", { teamId: t.personalTeamId });
+
+    const p = await projectFor(t.owner.userId);
+    const team = (p.planOffers ?? []).find((o) => o.planKey === "TEAM");
+    expect(p.actions.planManagement.mode).toBe("MANAGE");
+    expect(p.actions.secondaryPlanAction).toBeUndefined();
+    expect(team?.action).toBe("UPGRADE");
+
+    const transition = await resolveTransition({
+      userId: t.owner.userId,
+      targetPlan: "TEAM" as never,
+    });
+    expect(transition.kind).toBe("UPGRADE");
+  });
+
+  it("effective PRO + live TEAM/TRIALING/teamId NON_NULL reproduces production as a plan change, not checkout", async () => {
+    const t = await seedPersonalTenant(deps, "PRO", { credits: 0 });
+    await seedSubscriptionRow(t.owner.userId, "TEAM", {
+      status: "TRIALING",
+      teamId: t.personalTeamId,
+    });
+
+    const p = await projectFor(t.owner.userId);
+    const team = (p.planOffers ?? []).find((o) => o.planKey === "TEAM");
+
+    expect(p.plan.planKey).toBe("PRO");
+    expect(p.plan.accessKind).toBe("SUBSCRIPTION");
+    expect(p.actions.planManagement.mode).toBe("MANAGE");
+    expect(p.actions.secondaryPlanAction).toBeUndefined();
+    expect(team?.action).toBe("UPGRADE");
+
+    const transition = await resolveTransition({
+      userId: t.owner.userId,
+      targetPlan: "TEAM" as never,
+    });
+    expect(transition.kind).toBe("UPGRADE");
+  });
+
+  it("historical canceled legacy rows do not hide the one live base row", async () => {
+    const t = await seedPersonalTenant(deps, "PRO", { credits: 0 });
+    for (let i = 0; i < 6; i += 1) {
+      await seedSubscriptionRow(t.owner.userId, "TEAM", {
+        status: "CANCELED",
+        teamId: t.personalTeamId,
+      });
+    }
+    await seedSubscriptionRow(t.owner.userId, "TEAM", {
+      status: "TRIALING",
+      teamId: t.personalTeamId,
+    });
+
+    const p = await projectFor(t.owner.userId);
+    const team = (p.planOffers ?? []).find((o) => o.planKey === "TEAM");
+    expect(p.plan.accessKind).toBe("SUBSCRIPTION");
+    expect(team?.action).toBe("UPGRADE");
+
+    const transition = await resolveTransition({
+      userId: t.owner.userId,
+      targetPlan: "TEAM" as never,
+    });
+    expect(transition.kind).toBe("UPGRADE");
+  });
+
+  it("paid entitlement with no live subscription remains granted and starts checkout", async () => {
+    const t = await seedPersonalTenant(deps, "PRO", { credits: 0 });
+    await seedSubscriptionRow(t.owner.userId, "TEAM", {
+      status: "CANCELED",
+      teamId: t.personalTeamId,
+    });
+
+    const p = await projectFor(t.owner.userId);
+    const team = (p.planOffers ?? []).find((o) => o.planKey === "TEAM");
+    expect(p.plan.accessKind).toBe("GRANTED");
+    expect(team?.action).toBe("CHECKOUT");
+
+    const transition = await resolveTransition({
+      userId: t.owner.userId,
+      targetPlan: "TEAM" as never,
+    });
+    expect(transition.kind).toBe("NEW_SUBSCRIPTION");
+  });
+
+  it("a live non-base plan row is not a base subscription", async () => {
+    const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
+    await seedSubscriptionRow(t.owner.userId, "PAYG", {
+      status: "ACTIVE",
+      teamId: null,
+    });
+
+    const p = await projectFor(t.owner.userId);
+    expect(p.plan.accessKind).toBe("FREE");
+    expect(p.actions.planManagement.mode).toBe("CHOOSE");
+    for (const offer of p.planOffers ?? []) {
+      expect(offer.action).toBe("CHECKOUT");
+    }
+
+    const transition = await resolveTransition({
+      userId: t.owner.userId,
+      targetPlan: "PRO" as never,
+    });
+    expect(transition.kind).toBe("NEW_SUBSCRIPTION");
+  });
+
+  it("a live base-plan row without provider subscription identity is not a base subscription", async () => {
+    const t = await seedPersonalTenant(deps, "PRO", { credits: 0 });
+    await seedSubscriptionRow(t.owner.userId, "PRO", {
+      providerSubId: "",
+      status: "ACTIVE",
+      teamId: null,
+    });
+
+    const p = await projectFor(t.owner.userId);
+    const team = (p.planOffers ?? []).find((o) => o.planKey === "TEAM");
+    expect(p.plan.accessKind).toBe("GRANTED");
+    expect(team?.action).toBe("CHECKOUT");
+
+    const transition = await resolveTransition({
+      userId: t.owner.userId,
+      targetPlan: "TEAM" as never,
+    });
+    expect(transition.kind).toBe("NEW_SUBSCRIPTION");
+  });
+
+  it("storage add-on only is not a base plan subscription", async () => {
+    const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
+    await seedStorageAddonOnly(t.owner.userId);
+
+    const p = await projectFor(t.owner.userId);
+    expect(p.plan.accessKind).toBe("FREE");
+    expect(p.actions.planManagement.mode).toBe("CHOOSE");
+    for (const offer of p.planOffers ?? []) {
+      expect(offer.action).toBe("CHECKOUT");
+    }
+
+    const transition = await resolveTransition({
+      userId: t.owner.userId,
+      targetPlan: "PRO" as never,
+    });
+    expect(transition.kind).toBe("NEW_SUBSCRIPTION");
+  });
 
   it("a scheduled change is REVIEWED, not re-offered", async () => {
     const t = await seedPersonalTenant(deps, "TEAM", { credits: 0 });

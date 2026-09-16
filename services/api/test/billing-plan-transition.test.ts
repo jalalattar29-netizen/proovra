@@ -60,7 +60,29 @@ vi.mock("../src/db.js", () => {
                   const keys = Object.keys(data).sort().join(",");
                   H.writes.push(keys ? `${call}:${keys}` : call);
                 }
-                if (call === "subscription.findFirst") return H.subscription;
+                if (call === "subscription.findFirst") {
+                  const where = (args?.where ?? {}) as {
+                    userId?: string;
+                    status?: { in?: string[] };
+                    plan?: { in?: string[] };
+                    providerSubId?: { not?: string };
+                  };
+                  if (!H.subscription) return null;
+                  if (where.userId && where.userId !== "user-1") return null;
+                  if (where.status?.in && !where.status.in.includes(String(H.subscription.status))) {
+                    return null;
+                  }
+                  if (where.plan?.in && !where.plan.in.includes(String(H.subscription.plan))) {
+                    return null;
+                  }
+                  if (
+                    where.providerSubId?.not !== undefined &&
+                    String(H.subscription.providerSubId ?? "") === where.providerSubId.not
+                  ) {
+                    return null;
+                  }
+                  return H.subscription;
+                }
                 if (call === "subscription.findUnique")
                   return H.subscription ? { userId: "user-1" } : null;
                 if (method === "findMany") return [];
@@ -264,11 +286,41 @@ describe("resolvePersonalPlanTransition — one answer to 'what is this change'"
     expect((t as { subscription: { teamId: string | null } }).subscription.teamId).toBe("ws-legacy");
   });
 
-  it("a live ENTERPRISE subscription is refused, not guessed at", async () => {
+  it("effective PRO + live legacy TEAM row is still a PRO → TEAM change", async () => {
+    /*
+     * Production-confirmed legacy shape: the provider row says TEAM/TRIALING
+     * and still carries a team id, while the commercial entitlement says PRO.
+     * The row proves there is a base subscription to change; the entitlement
+     * decides the direction.
+     */
+    H.subscription = live({
+      plan: "TEAM",
+      status: "TRIALING",
+      teamId: "ws-legacy",
+    });
+    H.entitledPlan = "PRO";
+
+    const t = await resolvePersonalPlanTransition({
+      userId: "user-1",
+      targetPlan: "TEAM" as never,
+    });
+
+    expect(t.kind).toBe("UPGRADE");
+    expect((t as { subscription: { plan: string; teamId: string | null } }).subscription.plan).toBe("TEAM");
+    expect((t as { subscription: { teamId: string | null } }).subscription.teamId).toBe("ws-legacy");
+  });
+
+  it("a live ENTERPRISE subscription is not a self-service base subscription", async () => {
     H.subscription = live({ plan: "ENTERPRISE" });
-    await expect(
-      resolvePersonalPlanTransition({ userId: "user-1", targetPlan: "PRO" as never }),
-    ).rejects.toMatchObject({ publicCode: "PLAN_CHANGE_NOT_AVAILABLE" });
+
+    const found = await findLivePersonalSubscription("user-1");
+    expect(found).toBeNull();
+
+    const transition = await resolvePersonalPlanTransition({
+      userId: "user-1",
+      targetPlan: "PRO" as never,
+    });
+    expect(transition.kind).toBe("NEW_SUBSCRIPTION");
   });
 
   it("the live-subscription lookup is not filtered by teamId", async () => {
@@ -277,6 +329,46 @@ describe("resolvePersonalPlanTransition — one answer to 'what is this change'"
     H.subscription = live({ teamId: "ws-legacy" });
     const found = await findLivePersonalSubscription("user-1");
     expect(found?.id).toBe("sub-1");
+  });
+
+  it("a normal PRO ACTIVE row with teamId NULL and provider identity is a base subscription", async () => {
+    H.subscription = live({
+      plan: "PRO",
+      status: "ACTIVE",
+      teamId: null,
+      providerSubId: "sub_ext_1",
+    });
+
+    const found = await findLivePersonalSubscription("user-1");
+    expect(found?.plan).toBe("PRO");
+    expect(found?.teamId).toBeNull();
+  });
+
+  it("a legacy TEAM TRIALING row with teamId NON_NULL and provider identity is a base subscription", async () => {
+    H.subscription = live({
+      plan: "TEAM",
+      status: "TRIALING",
+      teamId: "ws-legacy",
+      providerSubId: "sub_ext_1",
+    });
+
+    const found = await findLivePersonalSubscription("user-1");
+    expect(found?.plan).toBe("TEAM");
+    expect(found?.status).toBe("TRIALING");
+    expect(found?.teamId).toBe("ws-legacy");
+  });
+
+  it("a live row without provider subscription identity is not a base subscription", async () => {
+    H.subscription = live({ providerSubId: "" });
+
+    const found = await findLivePersonalSubscription("user-1");
+    expect(found).toBeNull();
+
+    const transition = await resolvePersonalPlanTransition({
+      userId: "user-1",
+      targetPlan: "TEAM" as never,
+    });
+    expect(transition.kind).toBe("NEW_SUBSCRIPTION");
   });
 });
 

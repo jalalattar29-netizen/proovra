@@ -82,6 +82,7 @@ import {
   resolveCheckoutCurrency,
   type BillingCurrency,
 } from "../billing-pricing.service.js";
+import { findLivePersonalBaseSubscription } from "./base-subscription.service.js";
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -1034,23 +1035,23 @@ export async function buildBillingAccountProjection(input: {
   const usage = await getWorkspaceUsage(scope);
 
   // ---- Subscription -------------------------------------------------------
-  const subscription = await prisma.subscription.findFirst({
-    where:
-      account.type === "PERSONAL"
-        ? { userId: account.id, teamId: null }
-        : { teamId: account.id },
-    orderBy: { updatedAt: "desc" },
-    select: {
-      provider: true,
-      status: true,
-      currentPeriodEnd: true,
-      cancelAtPeriodEnd: true,
-      // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the scheduled
-      // change, so the plan card can say what is coming and when.
-      pendingPlan: true,
-      pendingPlanEffectiveAtUtc: true,
-    },
-  });
+  const subscription =
+    account.type === "PERSONAL"
+      ? await findLivePersonalBaseSubscription(account.id)
+      : await prisma.subscription.findFirst({
+          where: { teamId: account.id },
+          orderBy: { updatedAt: "desc" },
+          select: {
+            provider: true,
+            status: true,
+            currentPeriodEnd: true,
+            cancelAtPeriodEnd: true,
+            // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the scheduled
+            // change, so the plan card can say what is coming and when.
+            pendingPlan: true,
+            pendingPlanEffectiveAtUtc: true,
+          },
+        });
 
   const wallet =
     account.type === "PERSONAL"
