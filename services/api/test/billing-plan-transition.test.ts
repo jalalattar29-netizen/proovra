@@ -556,6 +556,7 @@ describe("applyPersonalPlanChange — PayPal", () => {
     const out = await paypal("UPGRADE");
     expect(H.planApplied).toBeNull();
     expect(out.effectiveAtUtc).toBe(PERIOD_END.toISOString());
+    expect(out.providerConfirmed).toBe(false);
     expect(H.writes.join("|")).toMatch(/pendingPlan/);
   });
 

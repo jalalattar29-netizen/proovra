@@ -7,9 +7,7 @@ import {
   resolveStorageAddonEntitlement,
   type PlanType,
 } from "@proovra/shared-billing";
-// P1-2 / PRODUCT OPTION B — the ledger fact the storage-addon policy needs, and
-// the ONE offer catalog that says which rows a subject may buy.
-import { hasSettledEvidenceCreditGrant } from "../services/billing/evidence-credits.service.js";
+// The ONE offer catalog that says which storage rows a subject may buy.
 import { storageAddonOffersForPlan } from "../services/workspace-usage.service.js";
 import { requireAuth } from "../middleware/auth.js";
 // BILLING DEPENDENT-CANCELLATION CONVERGENCE (2026-08-27) — `cancelPayPalSubscription`
@@ -329,8 +327,24 @@ async function duplicateSubscriptionRefusal(
   code: string;
   details: Record<string, unknown>;
 } | null> {
-  const live = await findLivePersonalSubscription(userId);
-  if (!live) return null;
+  /*
+   * BILLING PLAN-SELECTION CORRECTION (2026-09-16) — ask the transition
+   * authority whether checkout is actually legal.
+   *
+   * This used to call `findLivePersonalSubscription` directly. That answered
+   * "is there any non-terminal Subscription row?", not "does this account
+   * currently have a provider-backed paid subscription that must be changed".
+   * Those are not the same thing: a FREE account can carry a stale/provider row
+   * after cancellation, reconciliation lag or old-model migration, and the
+   * canonical resolver already knows that FREE entitlement + paid target is a
+   * NEW_SUBSCRIPTION. The checkout guard must preserve the second-subscription
+   * protection without overriding that authority.
+   */
+  const transition = await resolvePersonalPlanTransition({
+    userId,
+    targetPlan: plan,
+  });
+  if (transition.kind === "NEW_SUBSCRIPTION") return null;
 
   // An EXPLICIT reply rather than a throw. This refusal is an expected,
   // actionable answer — like `CHECKOUT_REQUIRED` and `CANCELLATION_REQUIRED`
@@ -449,30 +463,20 @@ async function assertStorageAddonAllowed(params: {
 
   /*
    * ==========================================================================
-   * P1-2 / PRODUCT OPTION B (2026-09-10) — THE SERVER GATE, ON THE CANONICAL
+   * FREE storage policy (2026-09-16) — THE SERVER GATE, ON THE CANONICAL
    * CAPABILITY.
    * ==========================================================================
-   * `scope.plan === FREE` was a plan comparison standing in for a commercial
-   * decision, and it was the ENFORCEMENT half of the evidence-credit dead end:
-   * a credit buyer's subscription is FREE by design, so this refused the one
-   * purchase that could have freed them from the 250 MB ceiling they had
-   * already filled with records they had paid for.
-   *
-   * The decision moves to `resolveStorageAddonEntitlement`, the same policy the
-   * Billing projection and the offer catalog read, so the button, the drawer
-   * and this gate cannot disagree. The FACT it needs is read from the ledger:
-   * a settled PURCHASE or ADMIN_GRANT row, never a balance, never a query
-   * parameter, never anything a client can assert.
+   * Every normal FREE personal account may buy supported personal storage
+   * add-ons. This increases bytes only: no plan change, no evidence credit, no
+   * report/package entitlement. The button, drawer, checkout gate and webhook
+   * all read the same entitlement/catalog answer.
    */
   const storageAddons = resolveStorageAddonEntitlement({
     plan: scope.plan as PlanType,
-    hasSettledEvidenceCreditGrant: await hasSettledEvidenceCreditGrant(
-      params.userId,
-    ),
   });
   if (!storageAddons.storageAddonsPurchasable) {
     const err: Error & { statusCode?: number; code?: string } = new Error(
-      "Extra storage is available with Pro and Team, or with Pay-per-evidence once you have bought an evidence credit.",
+      "Extra storage is not available for this account.",
     );
     err.statusCode = 409;
     err.code = "STORAGE_ADDON_NOT_INCLUDED";
@@ -480,17 +484,17 @@ async function assertStorageAddonAllowed(params: {
   }
 
   /*
-   * An evidence-credit customer buys from the SINGLE_OCCUPANT catalog — the
-   * same rows PRO buys, checked here against the offer catalog rather than
-   * re-listed, so one list governs what is offered and what is accepted.
+   * FREE buys from the SINGLE_OCCUPANT catalog — the same rows PRO buys,
+   * checked here against the offer catalog rather than re-listed, so one list
+   * governs what is offered and what is accepted.
    */
-  if (storageAddons.source === "EVIDENCE_CREDIT") {
-    const offered = storageAddonOffersForPlan(scope.plan, {
-      hasSettledEvidenceCreditGrant: true,
-    }).some((offer) => offer.key === params.addonKey);
+  if (storageAddons.source === "FREE_STORAGE") {
+    const offered = storageAddonOffersForPlan(scope.plan).some(
+      (offer) => offer.key === params.addonKey,
+    );
     if (!offered) {
       const err: Error & { statusCode?: number } = new Error(
-        "This storage add-on is not available for Pay-per-evidence.",
+        "This storage add-on is not available for Free.",
       );
       err.statusCode = 400;
       throw err;

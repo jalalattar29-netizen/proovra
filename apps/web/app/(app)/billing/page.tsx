@@ -759,6 +759,17 @@ function BillingPageInner() {
         }
 
         const on = formatDate(result.effectiveAtUtc ?? null);
+        if (!result.providerConfirmed) {
+          addToast(
+            on
+              ? `Your change to ${offer.displayName} is pending with your payment provider and is expected on ${on}.`
+              : `Your change to ${offer.displayName} is pending with your payment provider.`,
+            "info",
+          );
+          refresh();
+          return;
+        }
+
         addToast(
           result.outcome === "UPGRADE"
             ? `You are on ${offer.displayName}.`

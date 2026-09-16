@@ -233,56 +233,27 @@ describe("BILLING PLAN SELECTION (live PostgreSQL 16)", () => {
       expect(after.plan).toBe("TEAM");
     });
 
-    it("cannot buy storage capacity, and is told which plans include it", async () => {
+    it("can buy personal storage capacity without changing plan or credits", async () => {
       const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
       const p = await projectFor(t.owner.userId);
 
-      expect(p.actions.canBuyStorageAddon).toBe(false);
-      expect(p.storageAddons ?? null).toBeNull();
-      /*
-       * PRODUCT OPTION B (2026-09-10) — THE SENTENCE NAMES BOTH ROUTES NOW.
-       *
-       * This pinned "Additional storage is available with Pro and Team." and
-       * that pin is what turned the Clean DB job red: the copy was extended
-       * when a genuine evidence-credit customer became able to buy storage,
-       * and a Free account looking at a full meter was previously told a
-       * subscription was the only way up when it was not.
-       *
-       * REPINNED, NOT RELAXED — still an exact-equality assertion on the
-       * SERVER-composed reason, which is the point of the original test: the
-       * page does not compose this sentence.
-       *
-       * The two assertions above are UNCHANGED and are the ones that carry the
-       * commercial semantics. They still hold because the entitlement signal is
-       * a settled credit-ledger GRANT, not a wallet balance, and
-       * `setAccountPlan` writes only `entitlement.credits` — so a Free tenant
-       * seeded with any number of credits still has no grant row and still
-       * cannot buy. The companion test below proves the other direction.
-       */
-      expect(p.storageAddonsLocked?.reason).toBe(
-        "Additional storage is available with Pro and Team, and with Pay-per-evidence once you have bought an evidence credit.",
-      );
-      expect(p.storageAddonsLocked?.unlockedByPlan).toBe("PRO");
+      expect(p.plan.planKey).toBe("FREE");
+      expect(p.actions.canBuyStorageAddon).toBe(true);
+      expect(p.storageAddonsLocked ?? null).toBeNull();
+      expect((p.storageAddons?.offers ?? []).map((offer) => offer.key)).toEqual([
+        "PERSONAL_10_GB",
+        "PERSONAL_50_GB",
+        "PERSONAL_200_GB",
+      ]);
+      expect(p.wallet?.availableCredits).toBe(0);
     });
 
-    it("CAN buy storage capacity once it holds a settled evidence credit", async () => {
+    it("keeps the same storage catalogue after a settled evidence credit", async () => {
       /*
-       * PRODUCT OPTION B, PROVEN AGAINST LIVE POSTGRES.
-       *
-       * The dead end this closes: an evidence-credit buyer is a FREE account by
-       * design, FREE could buy no storage, and the 250 MB it includes is filled
-       * by the very records the credits paid for. The customer held paid credits
-       * they could not spend and had no purchasable remedy.
-       *
-       * The qualifying fact is a settled ledger GRANT and deliberately not a
-       * balance: the customer who most needs storage is the one who has SPENT
-       * their credits. That distinction is only observable against a real
-       * database, which is why this belongs in the integration project — the
-       * unit suite can prove the pure policy but not that this projection reads
-       * the ledger.
-       *
-       * The row is written the way the production grant path writes one: a
-       * PURCHASE entry with a provider reference. No plan is changed.
+       * FINAL FREE STORAGE POLICY (2026-09-16): evidence credits and storage
+       * are separate commercial dimensions. A settled credit grant must not be
+       * required for the catalogue, and must not change which storage SKUs a
+       * normal FREE personal account sees.
        */
       const t = await seedPersonalTenant(deps, "FREE", { credits: 1 });
       await prisma.evidenceCreditLedgerEntry.create({
@@ -300,10 +271,13 @@ describe("BILLING PLAN SELECTION (live PostgreSQL 16)", () => {
 
       // The plan did NOT move. This is the whole product decision.
       expect(p.plan.planKey).toBe("FREE");
-      // …and the capability did.
       expect(p.actions.canBuyStorageAddon).toBe(true);
       expect(p.storageAddonsLocked ?? null).toBeNull();
-      expect((p.storageAddons?.offers ?? []).length).toBeGreaterThan(0);
+      expect((p.storageAddons?.offers ?? []).map((offer) => offer.key)).toEqual([
+        "PERSONAL_10_GB",
+        "PERSONAL_50_GB",
+        "PERSONAL_200_GB",
+      ]);
     });
   });
 

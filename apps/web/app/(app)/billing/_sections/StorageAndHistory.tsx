@@ -75,8 +75,8 @@ export function StorageAddonsSection({
    */
   onManageStorage: () => void;
   /**
-   * FREE has no add-on catalogue, so its card offers the PLAN chooser rather
-   * than a purchase drawer with an empty "Capacity" section and a dead button.
+   * Fallback for genuinely locked accounts. Normal FREE personal accounts now
+   * receive personal storage offers and use `onManageStorage`.
    */
   onChoosePlan: () => void;
   onCancelAddon: (addonId: string) => void;
@@ -109,13 +109,9 @@ export function StorageAddonsSection({
             <button
               type="button"
               /*
-               * "View plans", not "Add storage" or "Manage storage".
-               *
-               * This button does not open the capacity catalogue and must not
-               * pretend to: FREE cannot buy a recurring storage add-on at all,
-               * so the destination is the plan chooser and the label says so.
-               * A customer who presses "Add storage" and lands on a list of
-               * plans has been told something untrue about their own account.
+               * "View plans", not "Add storage" or "Manage storage": this
+               * branch is only for accounts the server says cannot buy a
+               * storage add-on from the current catalog.
                *
                * PROMOTED to the canonical primary action alongside the other
                * self-serve purchase entry points. It read as secondary before,

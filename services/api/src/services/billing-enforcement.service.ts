@@ -41,6 +41,36 @@ import {
 // which is exactly how the credit spend came to run outside the completion
 // transaction. The wallet takes `EvidenceCreditClient` and it is REQUIRED.
 
+type EvidenceCapacitySettlementClient = EvidenceCreditClient &
+  Pick<prismaPkg.Prisma.TransactionClient, "$executeRaw" | "team" | "evidence">;
+
+type EvidenceCapacityCursor = { createdAt: Date; id: string };
+
+function createdBeforeEvidenceWhere(cursor: EvidenceCapacityCursor) {
+  return {
+    AND: [
+      {
+        OR: [
+          { createdAt: { lt: cursor.createdAt } },
+          { createdAt: cursor.createdAt, id: { lt: cursor.id } },
+        ],
+      },
+    ],
+  };
+}
+
+async function lockEvidenceCapacitySubject(
+  scope: WorkspaceScope,
+  client: EvidenceCapacitySettlementClient,
+) {
+  const subject = scope.teamId
+    ? `team:${scope.teamId}`
+    : `personal:${scope.ownerUserId}`;
+  await client.$executeRaw`
+    SELECT pg_advisory_xact_lock(hashtext(${`evidence-capacity:${subject}`}))
+  `;
+}
+
 /**
  * Canonical entry point used by routes to build a WorkspaceScope for the
  * authenticated requester. `params.ownerUserId` MUST be the requester's
@@ -416,16 +446,19 @@ export async function countPersonalEvidenceRecords(
      * window differs, so the predicate stays in one place.
      */
     createdSince?: Date | null;
+    createdBeforeEvidence?: EvidenceCapacityCursor | null;
+    client?: Pick<prismaPkg.Prisma.TransactionClient, "team" | "evidence">;
   },
 ): Promise<number> {
-  const personalTeam = await prisma.team.findFirst({
+  const db = options?.client ?? prisma;
+  const personalTeam = await db.team.findFirst({
     where: { ownerUserId, isPersonal: true },
     select: { id: true },
   });
 
   const excludeEvidenceId = options?.excludeEvidenceId ?? null;
 
-  return prisma.evidence.count({
+  return db.evidence.count({
     where: {
       ownerUserId,
       deletedAt: null,
@@ -436,6 +469,9 @@ export async function countPersonalEvidenceRecords(
       ],
       ...(excludeEvidenceId ? { NOT: { id: excludeEvidenceId } } : {}),
       ...(options?.createdSince ? { createdAt: { gte: options.createdSince } } : {}),
+      ...(options?.createdBeforeEvidence
+        ? createdBeforeEvidenceWhere(options.createdBeforeEvidence)
+        : {}),
     },
   });
 }
@@ -581,6 +617,11 @@ export async function getWorkspaceAvailableStorageBytes(
  * transaction is the atomic boundary: if the completion rolls back, so does
  * the spend.
  *
+ * The same transaction also takes a subject-level PostgreSQL advisory lock
+ * before evaluating plan capacity. The per-evidence lock in the finalize path
+ * only protects duplicate retries of the same row; this lock serializes two
+ * different rows competing for the same final included FREE/PRO/TEAM slot.
+ *
  * Returns the funding source, which decides that record's outputs (see
  * `resolveEvidenceOutputEntitlements`) — a credit-funded record earns its
  * report and verification package even on a FREE account, because the
@@ -591,7 +632,7 @@ export async function settleEvidenceCompletionFunding(
     scope: WorkspaceScope;
     evidenceId: string;
   },
-  client: EvidenceCreditClient,
+  client: EvidenceCapacitySettlementClient,
 ): Promise<{ funding: EvidenceFundingSource }> {
   const { scope } = params;
 
@@ -615,7 +656,7 @@ export async function settleEvidenceCompletionFunding(
    * and UNEXPECTED, because there is no legitimate caller for which this is
    * false: it is a programming error, not a commercial outcome.
    */
-  const subject = await prisma.evidence.findUnique({
+  const subject = await client.evidence.findUnique({
     where: { id: params.evidenceId },
     select: { ownerUserId: true, teamId: true },
   });
@@ -668,6 +709,22 @@ export async function settleEvidenceCompletionFunding(
     return { funding: "EVIDENCE_CREDIT" };
   }
 
+  await lockEvidenceCapacitySubject(scope, client);
+
+  const settlingEvidence = await client.evidence.findUnique({
+    where: { id: params.evidenceId },
+    select: { id: true, createdAt: true },
+  });
+  if (!settlingEvidence) {
+    throw new DomainError("Evidence record not found for funding settlement", {
+      httpStatus: 404,
+      publicCode: "EVIDENCE_NOT_FOUND",
+      publicMessage: "This evidence record could not be found.",
+      reportability: "OPERATIONAL_WARNING",
+      severity: "warning",
+    });
+  }
+
   const caps = getPlanCapabilities(scope.plan);
   const effectiveLifetimeCap =
     scope.commercialLimits?.effectiveLifetimeRecordCap ?? caps.maxEvidenceRecords;
@@ -701,17 +758,18 @@ export async function settleEvidenceCompletionFunding(
   ) {
     const since = new Date(Date.now() - THIRTY_DAYS_MS);
     const priorMonthlyCount = scope.teamId
-      ? await prisma.evidence.count({
+      ? await client.evidence.count({
           where: {
             teamId: scope.teamId,
             deletedAt: null,
             createdAt: { gte: since },
-            id: { not: params.evidenceId },
+            ...createdBeforeEvidenceWhere(settlingEvidence),
           },
         })
       : await countPersonalEvidenceRecords(scope.ownerUserId, {
           createdSince: since,
-          excludeEvidenceId: params.evidenceId,
+          createdBeforeEvidence: settlingEvidence,
+          client,
         });
 
     if (priorMonthlyCount < monthlyCap) return { funding: "PLAN" };
@@ -754,7 +812,8 @@ export async function settleEvidenceCompletionFunding(
   // caller can get wrong, and the admission decision at completion now asks
   // exactly the question the creation gate asks.
   const priorRecordCount = await countPersonalEvidenceRecords(scope.ownerUserId, {
-    excludeEvidenceId: params.evidenceId,
+    createdBeforeEvidence: settlingEvidence,
+    client,
   });
 
   const admission = resolvePersonalEvidenceAdmission({

@@ -133,6 +133,30 @@ describe("ADMIN — evidence credit grant (live PostgreSQL 16)", () => {
     }
   }
 
+  async function createPendingPersonalEvidence(
+    t: PersonalTenant,
+    offsetMs: number,
+  ) {
+    return prisma.evidence.create({
+      data: {
+        ownerUserId: t.owner.userId,
+        teamId: t.personalTeamId,
+        organizationId: t.personalOrganizationId,
+        type: "PHOTO",
+        createdAt: new Date(Date.now() + offsetMs),
+      },
+      select: { id: true },
+    });
+  }
+
+  async function settlePersonal(t: PersonalTenant, evidenceId: string) {
+    const scope = await resolveScope({
+      ownerUserId: t.owner.userId,
+      teamId: null,
+    });
+    return prisma.$transaction((tx) => settle({ scope, evidenceId }, tx as never));
+  }
+
   beforeAll(async () => {
     const { bootIntegrationHarness } = await import("./integration-harness.js");
     harness = await bootIntegrationHarness();
@@ -446,6 +470,64 @@ describe("ADMIN — evidence credit grant (live PostgreSQL 16)", () => {
 
       // Still PRO. The allowance did not move; the wallet paid for the excess.
       expect((await planOf(t.owner.userId)).plan).toBe("PRO");
+    });
+
+    it("FREE final slot is serialized: two boundary completions cannot both settle as PLAN", async () => {
+      const t = await seedPersonalTenant(deps, "FREE");
+      await holdExactly(t, 2);
+
+      const first = await createPendingPersonalEvidence(t, 1);
+      const second = await createPendingPersonalEvidence(t, 2);
+
+      const results = await Promise.allSettled([
+        settlePersonal(t, first.id),
+        settlePersonal(t, second.id),
+      ]);
+
+      const planFunded = results.filter(
+        (r): r is PromiseFulfilledResult<{ funding: "PLAN" | "EVIDENCE_CREDIT" }> =>
+          r.status === "fulfilled" && r.value.funding === "PLAN",
+      );
+      expect(planFunded).toHaveLength(1);
+      expect(results.filter((r) => r.status === "rejected")).toHaveLength(1);
+      expect(
+        await prisma.evidenceCreditLedgerEntry.count({
+          where: { evidenceId: { in: [first.id, second.id] } },
+        }),
+      ).toBe(0);
+    });
+
+    it("PRO final slot is serialized and the next concurrent record may spend one credit", async () => {
+      const t = await seedPersonalTenant(deps, "PRO");
+      await holdExactly(t, 99);
+      await grant({
+        userId: t.owner.userId,
+        credits: 1,
+        reason: "final slot race",
+        idempotencyKey: "PRO-RACE-CREDIT",
+      });
+
+      const first = await createPendingPersonalEvidence(t, 1);
+      const second = await createPendingPersonalEvidence(t, 2);
+
+      const results = await Promise.all([
+        settlePersonal(t, first.id),
+        settlePersonal(t, second.id),
+      ]);
+
+      expect(results.map((r) => r.funding).sort()).toEqual([
+        "EVIDENCE_CREDIT",
+        "PLAN",
+      ]);
+      expect(await creditsOf(t.owner.userId)).toBe(0);
+      expect(
+        await prisma.evidenceCreditLedgerEntry.count({
+          where: {
+            evidenceId: { in: [first.id, second.id] },
+            entryType: "CONSUMPTION",
+          },
+        }),
+      ).toBe(1);
     });
 
     it("a shared workspace never spends the member's granted credits", async () => {

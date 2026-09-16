@@ -868,63 +868,30 @@ export function resolveWorkspaceIntakeEntitlement(input: {
 
 /**
  * ============================================================================
- * P1-2 / PRODUCT OPTION B (2026-09-10) — THE STORAGE ADD-ON ENTITLEMENT.
+ * FINAL COMMERCIAL RESIDUAL CLOSURE (2026-09-16) — THE STORAGE ADD-ON
+ * ENTITLEMENT.
  * ============================================================================
  * "May this subject buy additional storage?" — one decision, in the one pure
- * commercial policy package, shaped exactly like
- * {@link resolveWorkspaceIntakeEntitlement} above because it is the same kind
- * of question: a capability the PLAN may grant, OR the evidence-credit product
- * may grant, and nothing else.
+ * commercial policy package.
  *
- * ----------------------------------------------------------------------------
- * THE DEAD END THIS CLOSES
- * ----------------------------------------------------------------------------
- * An evidence-credit buyer is a FREE account by design — that is the whole
- * point of `EVIDENCE_CREDIT_PRODUCT` — and FREE could buy no storage at all.
- * So a customer could buy credits, record evidence with them, fill the 250 MB
- * that FREE includes, and then hold paid credits they had no way to spend,
- * with no purchasable remedy anywhere in the product. Meanwhile the Pricing
- * page advertised 5 GB for that column (see P1-2 in the pricing service), so
- * the customer had been told the ceiling was twenty times higher than it was.
- *
- * Product Option B: keep FREE as FREE, keep credits record-level, and let a
- * genuine evidence-credit customer buy storage.
- *
- * ----------------------------------------------------------------------------
- * WHY "HAS EVER BEEN GRANTED CREDITS" AND NOT "HAS A POSITIVE BALANCE"
- * ----------------------------------------------------------------------------
- * The intake gate above uses the BALANCE, and correctly: an intake link with
- * an empty wallet is a collection surface that cannot fund what it collects.
- *
- * A balance is the wrong signal here, and dangerously so. The customer who
- * most needs storage is the one who has SPENT their credits — those spends are
- * exactly the records occupying the space. A balance rule would deny the
- * add-on at the precise moment it is needed, and would flicker on and off as
- * the wallet moved, which is not how a purchasing right should behave.
- *
- * So the signal is the narrowest DURABLE one that means "this is genuinely an
- * evidence-credit customer": at least one settled credit GRANT exists in the
- * ledger. That row is written only by a verified provider webhook, by the
- * reconciler re-reading settled provider state, or by an audited platform-admin
- * grant. A failed payment, an abandoned checkout, a cart, a query parameter and
- * a frontend boolean produce no such row, and the ledger never deletes one — so
- * the right, once earned, does not evaporate.
+ * FREE storage is now explicit Product policy: every normal FREE personal
+ * account may buy the supported personal storage add-ons. That increases bytes
+ * only. It does not change the plan, grant evidence credits, raise evidence
+ * record capacity, or make ordinary FREE records eligible for reports/packages.
  *
  * ENTERPRISE is deliberately absent from the plan arm: an Organization's
  * capacity is a term of its contract, never a self-service purchase.
  */
 export function resolveStorageAddonEntitlement(input: {
   plan: PlanType;
-  /**
-   * Has this subject ever been granted evidence credits through a settled
-   * path? Supplied by the host adapter, which reads the ledger; this module
-   * reads no database.
-   */
-  hasSettledEvidenceCreditGrant: boolean;
 }): {
   storageAddonsPurchasable: boolean;
-  source: "PLAN" | "EVIDENCE_CREDIT" | "NONE";
+  source: "PLAN" | "FREE_STORAGE" | "NONE";
 } {
+  if (input.plan === "FREE") {
+    return { storageAddonsPurchasable: true, source: "FREE_STORAGE" };
+  }
+
   if (
     input.plan === "PRO" ||
     input.plan === "TEAM" ||
@@ -941,23 +908,13 @@ export function resolveStorageAddonEntitlement(input: {
     return { storageAddonsPurchasable: true, source: "PLAN" };
   }
   /*
-   * ENTERPRISE IS EXCLUDED BEFORE THE CREDIT ARM, NOT AFTER IT.
-   *
-   * Caught by this closure's own test. The credit arm was reached for ANY plan
-   * that was not PRO/TEAM/PAYG, so an Organization on ENTERPRISE that happened
-   * to hold a historical credit grant would have been offered a self-service
-   * storage purchase — replacing a term of a signed agreement with a card
-   * payment, which is the one thing the Enterprise path must never do.
-   *
-   * Stated as its own branch rather than folded into the condition below so
-   * the reason is legible: an Organization's capacity comes from its contract,
-   * and the absence of a self-service option there is a decision, not a gap.
+   * ENTERPRISE is stated as its own branch rather than folded into the final
+   * denial so the reason is legible: an Organization's capacity comes from its
+   * contract, and the absence of a self-service option there is a decision,
+   * not a gap.
    */
   if (input.plan === "ENTERPRISE") {
     return { storageAddonsPurchasable: false, source: "NONE" };
-  }
-  if (input.hasSettledEvidenceCreditGrant) {
-    return { storageAddonsPurchasable: true, source: "EVIDENCE_CREDIT" };
   }
   return { storageAddonsPurchasable: false, source: "NONE" };
 }

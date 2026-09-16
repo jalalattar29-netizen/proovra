@@ -560,7 +560,7 @@ async function applyPayPalPlanChange(args: {
     targetPlan: transition.targetPlan,
     effectiveAtUtc: subscription.currentPeriodEnd?.toISOString() ?? null,
     approvalUrl,
-    providerConfirmed: approvalUrl === null,
+    providerConfirmed: false,
   };
 }
 

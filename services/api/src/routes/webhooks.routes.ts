@@ -262,14 +262,6 @@ async function assertWebhookStorageAddonAllowed(params: {
     throw err;
   }
 
-  if (entitlement.plan === prismaPkg.PlanType.FREE) {
-    const err: Error & { statusCode?: number } = new Error(
-      "FREE plan cannot receive storage add-ons"
-    );
-    err.statusCode = 409;
-    throw err;
-  }
-
   if (
     entitlement.plan === prismaPkg.PlanType.PAYG &&
     params.addonKey !== prismaPkg.StorageAddonKey.PERSONAL_10_GB &&

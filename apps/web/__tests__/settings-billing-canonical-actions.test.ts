@@ -429,9 +429,9 @@ test("the sign-out confirmation asks with a warning tone", () => {
 // Four controls were wrong in four different ways, and each is pinned here so
 // the correction cannot be undone silently:
 //
-//   * Billing "View plans" on a Free account rendered as the pale outline
-//     secondary — the only call to action in the storage card, looking
-//     disabled.
+//   * Billing "View plans" on a locked storage account rendered as the pale
+//     outline secondary — the only call to action in that storage card,
+//     looking disabled.
 //   * The Settings Workspace card's CTA said "Open workspace settings" and
 //     opened AI & assistance.
 //   * "Save preferences" carried a second, differently-coloured surface behind
@@ -532,9 +532,9 @@ test("the save control has no inner surface for a rule to paint", () => {
   }
 });
 
-// -------------------------------------------------------- BILLING "VIEW PLANS"
+// ------------------------------------------------ LOCKED STORAGE "VIEW PLANS"
 
-test("Free View plans is the canonical DARK action, not a coral CTA", () => {
+test("locked storage View plans is the canonical DARK action, not a coral CTA", () => {
   const at = STORAGE.indexOf("data-billing-storage-upgrade");
   assert.ok(at > 0, "the storage upgrade hook must exist");
   const open = STORAGE.lastIndexOf("<", at);
@@ -585,7 +585,7 @@ test("the filled modifier is a real dark primitive with all four states", () => 
 });
 
 test("View plans behaviour and destination are untouched", () => {
-  // A VISUAL change only. Same handler, same gate, same entitlement question.
+  // A VISUAL change only. Same fallback handler, same gate, same entitlement question.
   assert.match(STORAGE, /data-billing-storage-upgrade[\s\S]{0,80}View plans/);
   assert.match(STORAGE, /onClick=\{onChoosePlan\}/);
   assert.match(STORAGE, /locked\.unlockedByPlan \?/);

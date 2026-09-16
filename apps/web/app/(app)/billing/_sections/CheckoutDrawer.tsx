@@ -288,8 +288,9 @@ export function CheckoutDrawer({
         {nothingToBuy ? (
           /*
            * Defence in depth. Nothing on the page opens this drawer with an
-           * empty catalogue any more — the FREE storage card offers a plan
-           * instead of an empty purchase — but a drawer that CAN render an
+           * empty catalogue for normal FREE storage any more — the FREE
+           * storage card opens the personal capacity catalogue — but a drawer
+           * that CAN render an
            * empty "Capacity" heading above a dead payment button will
            * eventually be opened that way by something.
            */

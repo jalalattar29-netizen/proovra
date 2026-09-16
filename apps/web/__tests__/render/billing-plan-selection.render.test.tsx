@@ -142,15 +142,25 @@ function free(over: Partial<BillingAccountProjection> = {}): BillingAccountProje
       creditsAvailable: 0,
       next: { allowed: true, funding: "PLAN" },
     },
-    storageAddonsLocked: {
-      reason: "Additional storage is available with Pro and Team.",
-      unlockedByPlan: "PRO",
+    storageAddons: {
+      offers: [
+        {
+          key: "PERSONAL_10_GB",
+          label: "+10 GB",
+          storageBytes: "10737418240",
+          storageLabel: "10 GB",
+          priceCents: 300,
+          currency: "USD",
+          billingCycle: "MONTHLY",
+        },
+      ],
+      active: [],
     },
     actions: {
       canStartCheckout: true,
       planManagement: { label: "Choose a plan", mode: "CHOOSE", enabled: true },
       canBuyEvidenceCredits: true,
-      canBuyStorageAddon: false,
+      canBuyStorageAddon: true,
       canRequestCancellation: false,
       contactAccountManager: false,
       manageLabel: null,
@@ -920,7 +930,7 @@ describe("the Evidence card", () => {
 // ===========================================================================
 
 describe("the FREE storage card", () => {
-  it("says how much is used, which plans include more, and opens the chooser", async () => {
+  it("says how much is used and opens the storage drawer", async () => {
     const user = userEvent.setup();
     let chose = 0;
     let managed = 0;
@@ -939,36 +949,32 @@ describe("the FREE storage card", () => {
       />,
     );
 
-    expect(container.textContent).toMatch(/0 B of 250 MB used/);
-    expect(container.textContent).toMatch(
-      /Additional storage is available with Pro and Team\./,
-    );
+    expect(container.textContent).toMatch(/0 B of 250 MB/);
 
     const cta = container.querySelector<HTMLButtonElement>(
-      "[data-billing-storage-upgrade]",
+      "[data-billing-manage-storage]",
     )!;
-    expect(cta.textContent).toBe("View plans");
-    // The labels that would describe a destination this button does not have.
-    expect(container.textContent).not.toMatch(/Add storage/);
+    expect(cta.textContent).toBe("Add storage");
+    expect(container.textContent).not.toMatch(/View plans/);
     expect(container.textContent).not.toMatch(/Manage storage/);
 
     await user.click(cta);
-    expect(chose).toBe(1);
-    // It must NEVER open the capacity catalogue: FREE cannot buy from it.
-    expect(managed).toBe(0);
+    expect(chose).toBe(0);
+    expect(managed).toBe(1);
   });
 
-  it("shows no capacity options to an account that cannot buy them", () => {
+  it("shows capacity options to a Free account in the storage drawer", () => {
     const { container } = render(
-      <StorageAddonsSection
+      <CheckoutDrawer
+        open
+        intent={{ kind: "STORAGE" }}
         projection={free()}
-        onManageStorage={noop}
-        onChoosePlan={noop}
-        onCancelAddon={noop}
-        cancelBusyId={null}
+        onClose={noop}
+        onCompleted={noop}
+        onError={noop}
       />,
     );
-    expect(container.querySelector("[data-billing-addon-option]")).toBeNull();
+    expect(container.querySelector("[data-billing-addon-option]")).not.toBeNull();
   });
 
   it("a PRO subscriber opens the real storage selection instead", async () => {

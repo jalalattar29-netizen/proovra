@@ -54,6 +54,11 @@ const web = (rel: string) =>
     fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url)),
     "utf8",
   );
+const sharedBilling = (rel: string) =>
+  readFileSync(
+    fileURLToPath(new URL(`../../../packages/shared-billing/src/${rel}`, import.meta.url)),
+    "utf8",
+  );
 const mobile = (rel: string) =>
   readFileSync(
     fileURLToPath(new URL(`../../../apps/mobile/${rel}`, import.meta.url)),
@@ -467,33 +472,22 @@ describe("P1-2 — Pay-per-evidence advertises what a buyer receives", () => {
 });
 
 // ===========================================================================
-// P1-2 / PRODUCT OPTION B — storage add-ons for an evidence-credit customer
+// FREE storage policy — storage add-ons are available to normal FREE users
 // ===========================================================================
 
-describe("PRODUCT OPTION B — a credit customer is not trapped at the Free ceiling", () => {
-  it("BEHAVIOUR: FREE with a settled credit grant MAY buy storage add-ons", () => {
+describe("FREE storage — storage is independent from evidence credits", () => {
+  it("BEHAVIOUR: FREE may buy personal storage add-ons without a credit grant", () => {
     const decision = resolveStorageAddonEntitlement({
       plan: "FREE",
-      hasSettledEvidenceCreditGrant: true,
     });
     expect(decision.storageAddonsPurchasable).toBe(true);
-    expect(decision.source).toBe("EVIDENCE_CREDIT");
-  });
-
-  it("BEHAVIOUR: FREE with NO credit grant may not", () => {
-    const decision = resolveStorageAddonEntitlement({
-      plan: "FREE",
-      hasSettledEvidenceCreditGrant: false,
-    });
-    expect(decision.storageAddonsPurchasable).toBe(false);
-    expect(decision.source).toBe("NONE");
+    expect(decision.source).toBe("FREE_STORAGE");
   });
 
   it("BEHAVIOUR: PRO and TEAM are unchanged, and grant it from the PLAN", () => {
     for (const plan of ["PRO", "TEAM"] as const) {
       const decision = resolveStorageAddonEntitlement({
         plan,
-        hasSettledEvidenceCreditGrant: false,
       });
       expect(decision.storageAddonsPurchasable).toBe(true);
       expect(decision.source).toBe("PLAN");
@@ -503,7 +497,6 @@ describe("PRODUCT OPTION B — a credit customer is not trapped at the Free ceil
   it("BEHAVIOUR: ENTERPRISE is NOT self-service — capacity is a contract term", () => {
     const decision = resolveStorageAddonEntitlement({
       plan: "ENTERPRISE",
-      hasSettledEvidenceCreditGrant: true,
     });
     expect(decision.storageAddonsPurchasable).toBe(false);
   });
@@ -513,7 +506,6 @@ describe("PRODUCT OPTION B — a credit customer is not trapped at the Free ceil
     // pre-ledger PAYG buyer may have no credit-grant row to qualify through.
     const decision = resolveStorageAddonEntitlement({
       plan: "PAYG",
-      hasSettledEvidenceCreditGrant: false,
     });
     expect(decision.storageAddonsPurchasable).toBe(true);
     expect(decision.source).toBe("PLAN");
@@ -531,36 +523,14 @@ describe("PRODUCT OPTION B — a credit customer is not trapped at the Free ceil
     ]);
   });
 
-  it("WIRING: the fact is a SETTLED ledger grant, never a balance or a client value", () => {
-    /*
-     * A balance would deny the add-on at the exact moment it is needed — the
-     * customer who most needs storage is the one who has SPENT their credits,
-     * because those spends are the records occupying the space.
-     */
-    // Stripped: the docblock explains why CONSUMPTION is excluded, and that
-    // sentence must not satisfy nor break the assertion.
-    const credits = strip(api("services/billing/evidence-credits.service.ts"));
-    const fn = credits.slice(
-      credits.indexOf("export async function hasSettledEvidenceCreditGrant"),
-      /*
-       * Bounded to the NEXT export, not to a magic character count.
-       *
-       * A `+ 900` slice ran past the end of this function into
-       * `resolveEvidenceFunding`, which legitimately reads CONSUMPTION — so the
-       * assertion below was failing on a neighbour's code. A test that reads
-       * more than the thing it is about will eventually be right about the
-       * wrong function.
-       */
-      credits.indexOf(
-        "export async function resolveEvidenceFunding",
-      ),
+  it("WIRING: storage eligibility no longer depends on settled credit history", () => {
+    const catalog = strip(sharedBilling("plan-catalog.ts"));
+    const resolver = catalog.slice(
+      catalog.indexOf("export function resolveStorageAddonEntitlement"),
+      catalog.indexOf("export function resolvePersonalEvidenceAdmission"),
     );
-    expect(fn).toMatch(/entryType/);
-    expect(fn).toMatch(/PURCHASE/);
-    expect(fn).toMatch(/ADMIN_GRANT/);
-    // Not a wallet balance, and not a spend.
-    expect(fn).not.toMatch(/credits\s*:\s*\{\s*gte/);
-    expect(fn).not.toMatch(/CONSUMPTION/);
+    expect(resolver).not.toMatch(/hasSettledEvidenceCreditGrant/);
+    expect(resolver).not.toMatch(/EVIDENCE_CREDIT/);
   });
 
   it("WIRING: the server GATE is the canonical capability, not a plan comparison", () => {
@@ -571,7 +541,7 @@ describe("PRODUCT OPTION B — a credit customer is not trapped at the Free ceil
      */
     const routes = strip(api("routes/billing.routes.ts"));
     expect(routes).toMatch(/resolveStorageAddonEntitlement\(/);
-    expect(routes).toMatch(/hasSettledEvidenceCreditGrant\(/);
+    expect(routes).not.toMatch(/hasSettledEvidenceCreditGrant\(/);
     expect(routes).toMatch(/STORAGE_ADDON_NOT_INCLUDED/);
     // The plan-name refusal is gone.
     expect(routes).not.toMatch(
@@ -589,7 +559,7 @@ describe("PRODUCT OPTION B — a credit customer is not trapped at the Free ceil
     // The projection must not compare a plan name to decide eligibility.
     expect(projection).not.toMatch(/addonsEligible\s*=\s*scope\.plan\s*!==\s*"FREE"/);
     expect(projection).toMatch(/storageAddonOffersForPlan\(/);
-    expect(projection).toMatch(/hasSettledEvidenceCreditGrant\(/);
+    expect(projection).not.toMatch(/hasSettledEvidenceCreditGrant\(/);
   });
 
   it("WIRING: only ONE module decides storage-addon eligibility", () => {

@@ -1008,12 +1008,12 @@ test("Evidence is ONE card with one purchase entry point", () => {
   assert.equal(pageBuys.length, 0, "the purchase belongs to the Evidence card alone");
 });
 
-test("FREE storage says a plan is what the button opens", () => {
+test("locked storage fallback says a plan is what the button opens", () => {
   const storage = read(STORAGE_HISTORY);
 
   assert.match(storage, /data-billing-storage-upgrade/);
   assert.match(storage, /View plans/);
-  // It calls the CHOOSER, never the capacity catalogue FREE cannot buy from.
+  // It calls the CHOOSER, never the capacity catalogue this account cannot buy from.
   assert.match(storage, /onClick=\{onChoosePlan\}/);
   // The words that would describe a destination this button does not have.
   const locked = storage.slice(0, storage.indexOf("const addons = projection.storageAddons"));
@@ -1025,20 +1025,13 @@ test("FREE storage says a plan is what the button opens", () => {
     "../../../services/api/src/services/billing/billing-account-projection.service.ts",
   );
   /*
-   * P1-2 / PRODUCT OPTION B (2026-09-10) — the sentence now names BOTH routes.
-   *
-   * It used to end at "…with Pro and Team.", and that was the customer-facing
-   * half of the evidence-credit dead end: a Free account looking at a full
-   * meter was told the only way up was a subscription, while the cheaper route
-   * — buy an evidence credit, then buy storage — existed and was not mentioned.
-   *
-   * Still pinned strictly, and still asserted on the SERVER: the point of the
-   * original test is that the page does not compose this reason, and that is
-   * unchanged.
+   * FINAL FREE STORAGE POLICY (2026-09-16): normal FREE personal accounts do
+   * not use this branch any more; they receive the personal storage catalogue.
+   * This fallback remains server-composed for genuinely ineligible accounts.
    */
   assert.match(
     projection,
-    /Additional storage is available with Pro and Team, and with Pay-per-evidence once you have bought an evidence credit\./,
+    /Additional storage is not available for this account\./,
   );
 });
 
@@ -1325,10 +1318,9 @@ test("a silent agreement is never rendered as a limit of zero", () => {
   assert.match(dto, /limit: number \| null; pendingInvites/);
 });
 
-test("FREE explains why storage add-ons are absent, and offers the move", () => {
-  // Found in browser verification: a FREE customer saw a full 250 MB meter,
-  // no way to add capacity, and no explanation — left to guess whether the
-  // feature was missing, broken, or simply not theirs.
+test("locked storage explains why add-ons are absent, and offers the move", () => {
+  // Normal FREE personal accounts receive storage offers now. The locked branch
+  // is still kept for account kinds the server explicitly marks ineligible.
   const storage = read(STORAGE_HISTORY);
   assert.match(storage, /data-billing-storage-locked/);
   assert.match(storage, /storageAddonsLocked/);

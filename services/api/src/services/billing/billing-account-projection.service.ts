@@ -76,9 +76,6 @@ import { listStorageAddonDefinitions } from "../billing.service.js";
 // catalogue decision, and the ONE personal-evidence counter, both shared with
 // the enforcement path so the meter cannot disagree with the gate.
 import { storageAddonOffersForPlan } from "../workspace-usage.service.js";
-// P1-2 / PRODUCT OPTION B — the ledger fact the canonical storage-addon policy
-// needs. Read once per projection; the DECISION stays in shared-billing.
-import { hasSettledEvidenceCreditGrant } from "./evidence-credits.service.js";
 import {
   getPlanPriceCents,
   getStorageAddonPriceCents,
@@ -509,13 +506,8 @@ export type BillingAccountProjection = {
     active: ActiveStorageAddon[];
   };
   /**
-   * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — why storage add-ons are
-   * NOT on offer, when a higher tier would put them there.
-   *
-   * FREE cannot buy storage: the server refuses it, so the surface offered
-   * nothing — and said nothing either. A customer looking at a full 250 MB
-   * meter with no way to add capacity and no explanation has been left to
-   * guess whether the feature is missing, broken, or simply not theirs.
+   * Why storage add-ons are not on offer for this account. Normal FREE
+   * personal accounts are eligible now; this is for genuinely locked cases.
    *
    * Composed HERE because "which tier unlocks this" is a commercial fact. The
    * page renders the sentence and the action; it does not work out either.
@@ -974,17 +966,8 @@ function describeOffer(
 function offersFor(params: {
   plan: prismaPkg.PlanType;
   currency: BillingCurrency;
-  /**
-   * P1-2 / PRODUCT OPTION B — a FREE account that is genuinely an
-   * evidence-credit customer may buy storage. The fact is resolved ONCE per
-   * projection and handed here; the DECISION stays in the canonical policy the
-   * offer catalog consults.
-   */
-  hasSettledEvidenceCreditGrant: boolean;
 }): StorageAddonOffer[] {
-  return storageAddonOffersForPlan(params.plan, {
-    hasSettledEvidenceCreditGrant: params.hasSettledEvidenceCreditGrant,
-  })
+  return storageAddonOffersForPlan(params.plan)
     .map((d) => ({
       key: d.key,
       label: d.label,
@@ -1482,26 +1465,11 @@ export async function buildBillingAccountProjection(input: {
 
   // ---- Storage add-ons ----------------------------------------------------
   /*
-   * P1-2 / PRODUCT OPTION B (2026-09-10) — THE CANONICAL CAPABILITY, NOT A
-   * PLAN COMPARISON.
-   *
-   * This was `scope.plan !== "FREE"`, which is a plan name standing in for a
-   * commercial decision — and it was the browser-visible half of the dead end
-   * an evidence-credit customer hit: their subscription is FREE by design, so
-   * the drawer offered nothing while Pricing advertised 5 GB.
-   *
-   * The decision now comes from `resolveStorageAddonEntitlement` through the
-   * offer catalog, and the fact it needs — has this account ever been granted
-   * credits through a settled path — is read ONCE here.
+   * FREE storage policy (2026-09-16) — every normal FREE personal account may
+   * buy the supported personal storage add-ons. The offer catalog reads the
+   * shared entitlement authority; no credit-ledger qualification is involved.
    */
-  const hasCreditGrant =
-    account.type === "PERSONAL"
-      ? await hasSettledEvidenceCreditGrant(scope.ownerUserId)
-      : false;
-  const addonsEligible =
-    storageAddonOffersForPlan(scope.plan, {
-      hasSettledEvidenceCreditGrant: hasCreditGrant,
-    }).length > 0;
+  const addonsEligible = storageAddonOffersForPlan(scope.plan).length > 0;
 
   // THE banner decision, made once, on the server.
   const storageFull = storage.state === "MEASURED" && storage.limitReached;
@@ -1635,18 +1603,7 @@ export async function buildBillingAccountProjection(input: {
     ...(!addonsEligible && account.type === "PERSONAL" && scope.plan === "FREE"
       ? {
           storageAddonsLocked: {
-            // One line. The sentence this replaces said the same thing three
-            // times — that extra storage is part of Pro and Team, that the
-            // current plan has its own, and that more can be added after
-            // moving up — in a card whose whole job is to say which plans
-            // include it.
-            /*
-             * P1-2 — the second route to the same capability is named, because
-             * it is the cheaper one and a Free account looking at a full meter
-             * should not be told Pro is the only way up when it is not.
-             */
-            reason:
-              "Additional storage is available with Pro and Team, and with Pay-per-evidence once you have bought an evidence credit.",
+            reason: "Additional storage is not available for this account.",
             unlockedByPlan: "PRO",
           },
         }
@@ -1658,7 +1615,6 @@ export async function buildBillingAccountProjection(input: {
               ? offersFor({
                   plan: scope.plan,
                   currency,
-                  hasSettledEvidenceCreditGrant: hasCreditGrant,
                 })
               : [],
             active: await activeAddonsFor({

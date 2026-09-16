@@ -175,6 +175,11 @@ describe("checkout refuses a SECOND subscription", () => {
   ] as const) {
     it(`${label}: an account with a live subscription is sent to CHANGE, not to buy again`, async () => {
       H.live = { id: "sub-1", plan: "PRO" };
+      H.transition = {
+        kind: "UPGRADE",
+        targetPlan: "TEAM",
+        subscription: { id: "sub-1", plan: "PRO", providerSubId: "x" },
+      };
       const res = await app.inject({
         method: "POST",
         url,
@@ -193,8 +198,22 @@ describe("checkout refuses a SECOND subscription", () => {
       expect(H.calls).not.toContain("paypalCheckout");
     });
 
+    it(`${label}: a stale live row does not block a resolver-approved checkout`, async () => {
+      H.live = { id: "stale-sub", plan: "TEAM" };
+      H.transition = { kind: "NEW_SUBSCRIPTION", targetPlan: "PRO" };
+      const res = await app.inject({
+        method: "POST",
+        url,
+        headers: JSON_HEADERS,
+        payload: { plan: "PRO" },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(H.calls).toContain(label === "Stripe" ? "stripeCheckout" : "paypalCheckout");
+    });
+
     it(`${label}: with nothing live, the checkout proceeds`, async () => {
       H.live = null;
+      H.transition = { kind: "NEW_SUBSCRIPTION", targetPlan: "TEAM" };
       const res = await app.inject({
         method: "POST",
         url,

@@ -135,30 +135,21 @@ function maxBigInt(a: bigint, b: bigint): bigint {
  * policy — so that this function, the Billing projection, the checkout gate and
  * the Pricing page cannot each decide it.
  *
- * `hasSettledEvidenceCreditGrant` is threaded in rather than looked up here,
- * because this module is synchronous and its callers already hold the fact (or
- * can resolve it once per request). Defaulting it to `false` keeps every
- * existing caller's behaviour byte-identical until it opts in.
+ * FREE now has the same personal storage catalog as PRO. The entitlement
+ * authority decides whether a plan may buy storage at all; this function only
+ * maps an eligible plan/source to the catalog rows it may buy.
  */
-export function storageAddonOffersForPlan(
-  plan: prismaPkg.PlanType,
-  options?: { hasSettledEvidenceCreditGrant?: boolean },
-) {
+export function storageAddonOffersForPlan(plan: prismaPkg.PlanType) {
   const entitlement = resolveStorageAddonEntitlement({
     plan: plan as PlanType,
-    hasSettledEvidenceCreditGrant:
-      options?.hasSettledEvidenceCreditGrant === true,
   });
   if (!entitlement.storageAddonsPurchasable) return [];
 
   /*
-   * The EVIDENCE-CREDIT catalog. A credit customer's subscription is FREE, so
-   * there is no plan tier to key on — the offers are the personal ones, which
-   * are the right size for a single-occupant workspace and are the same rows
-   * PRO buys. Nothing here grants a PRO entitlement: the offers are a
-   * purchasable capacity, and buying one adds capacity and nothing else.
+   * The FREE catalog. A storage add-on for a FREE account buys bytes and
+   * nothing else, so it uses the personal rows PRO uses without granting PRO.
    */
-  if (entitlement.source === "EVIDENCE_CREDIT") {
+  if (entitlement.source === "FREE_STORAGE") {
     return STORAGE_ADDON_OFFERS.filter(
       (offer) => offer.billingShape === "SINGLE_OCCUPANT",
     );
@@ -187,9 +178,9 @@ export function storageAddonOffersForPlan(
           offer.key === prismaPkg.StorageAddonKey.PERSONAL_50_GB,
       );
 
-    // FREE buys no recurring storage, and ENTERPRISE is contract-managed:
-    // an Organization's capacity comes from its contract, never a
-    // self-service catalogue.
+    // ENTERPRISE is contract-managed: an Organization's capacity comes from
+    // its contract, never a self-service catalogue. FREE returned above
+    // through the explicit FREE_STORAGE source.
     default:
       return [];
   }
