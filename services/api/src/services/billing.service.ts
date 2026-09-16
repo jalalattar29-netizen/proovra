@@ -8,6 +8,10 @@ import {
   decidePaymentTransition,
   observedStateFromPaymentStatus,
 } from "./billing/reconciliation/payment-status.js";
+import {
+  decideSubscriptionTransition,
+  observedStateFromSubscriptionStatus,
+} from "./billing/subscription-status.js";
 // COMMERCIAL CLOSURE (2026-09-08) — the canonical capability table, read by the
 // downgrade grandfather below to learn whether the target plan has a lifetime
 // record cap at all.
@@ -468,6 +472,7 @@ export async function upsertSubscription(params: {
   plan: prismaPkg.PlanType;
   currentPeriodEnd?: Date | null;
   teamId?: string | null;
+  observedAtUtc?: Date | null;
 }) {
   const existing = await prisma.subscription.findUnique({
     where: {
@@ -482,6 +487,7 @@ export async function upsertSubscription(params: {
       plan: true,
       teamId: true,
       currentPeriodEnd: true,
+      providerStateAtUtc: true,
       userId: true,
       // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — read so a landed
       // schedule can be cleared below.
@@ -527,6 +533,26 @@ export async function upsertSubscription(params: {
     throw err;
   }
 
+  if (existing) {
+    const decision = decideSubscriptionTransition({
+      current: existing.status,
+      currentObservedAtUtc: existing.providerStateAtUtc,
+      observed: observedStateFromSubscriptionStatus(params.status),
+      observedAtUtc: params.observedAtUtc ?? null,
+    });
+
+    if (!decision.apply && decision.reason !== "ALREADY_THAT_STATUS") {
+      return prisma.subscription.findUniqueOrThrow({
+        where: {
+          provider_providerSubId: {
+            provider: params.provider,
+            providerSubId: params.providerSubId,
+          },
+        },
+      });
+    }
+  }
+
   const subscription = await prisma.subscription.upsert({
     where: {
       provider_providerSubId: {
@@ -539,6 +565,9 @@ export async function upsertSubscription(params: {
       plan: params.plan,
       currentPeriodEnd: params.currentPeriodEnd ?? null,
       teamId: params.teamId ?? null,
+      ...(params.observedAtUtc
+        ? { providerStateAtUtc: params.observedAtUtc }
+        : {}),
       // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — a SCHEDULED plan
       // change is cleared the moment it stops being in the future.
       //
@@ -569,6 +598,9 @@ export async function upsertSubscription(params: {
       plan: params.plan,
       currentPeriodEnd: params.currentPeriodEnd ?? null,
       teamId: params.teamId ?? null,
+      ...(params.observedAtUtc
+        ? { providerStateAtUtc: params.observedAtUtc }
+        : {}),
     },
   });
 

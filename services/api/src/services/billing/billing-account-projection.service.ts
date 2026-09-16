@@ -1083,11 +1083,14 @@ export async function buildBillingAccountProjection(input: {
       : null;
 
   /*
-   * A subscription ROW that is not terminal. Necessary for a manageable
-   * subscription, and — this is the correction — not sufficient.
+   * A base subscription row that the canonical resolver considers commercial
+   * authority. PayPal approval-pending rows are stored as TRIALING but are not
+   * a paid relationship yet, so they are deliberately absent here.
    */
   const subscriptionRowLive = Boolean(
-    subscription && subscription.status !== prismaPkg.SubscriptionStatus.CANCELED,
+    account.type === "PERSONAL"
+      ? personalBaseState?.hasLiveBaseSubscription
+      : subscription && subscription.status !== prismaPkg.SubscriptionStatus.CANCELED,
   );
 
   /*

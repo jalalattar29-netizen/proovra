@@ -66,10 +66,34 @@ vi.mock("../src/db.js", () => {
                     status?: { in?: string[] };
                     plan?: { in?: string[] };
                     providerSubId?: { not?: string };
+                    OR?: Array<{
+                      status?: string | { in?: string[] };
+                      provider?: string;
+                    }>;
                   };
                   if (!H.subscription) return null;
                   if (where.userId && where.userId !== "user-1") return null;
                   if (where.status?.in && !where.status.in.includes(String(H.subscription.status))) {
+                    return null;
+                  }
+                  if (
+                    where.OR &&
+                    !where.OR.some((clause) => {
+                      if (
+                        clause.provider &&
+                        clause.provider !== String(H.subscription?.provider)
+                      ) {
+                        return false;
+                      }
+                      if (typeof clause.status === "string") {
+                        return clause.status === String(H.subscription?.status);
+                      }
+                      if (clause.status?.in) {
+                        return clause.status.in.includes(String(H.subscription?.status));
+                      }
+                      return true;
+                    })
+                  ) {
                     return null;
                   }
                   if (where.plan?.in && !where.plan.in.includes(String(H.subscription.plan))) {
@@ -271,10 +295,16 @@ describe("resolvePersonalPlanTransition — one answer to 'what is this change'"
     expect(t.kind).toBe("UPGRADE");
   });
 
-  it("a TRIALING subscription is live too", async () => {
+  it("a Stripe TRIALING subscription is authoritative live base subscription state", async () => {
     H.subscription = live({ plan: "PRO", status: "TRIALING" });
     const t = await resolvePersonalPlanTransition({ userId: "user-1", targetPlan: "TEAM" as never });
     expect(t.kind).toBe("UPGRADE");
+  });
+
+  it("a PayPal TRIALING subscription is pending checkout, not live base authority", async () => {
+    H.subscription = live({ plan: "PRO", status: "TRIALING", provider: "PAYPAL" });
+    const t = await resolvePersonalPlanTransition({ userId: "user-1", targetPlan: "TEAM" as never });
+    expect(t.kind).toBe("NEW_SUBSCRIPTION");
   });
 
   it("a LEGACY row carrying a teamId is still that person's subscription", async () => {
@@ -286,12 +316,12 @@ describe("resolvePersonalPlanTransition — one answer to 'what is this change'"
     expect((t as { subscription: { teamId: string | null } }).subscription.teamId).toBe("ws-legacy");
   });
 
-  it("effective PRO + live TEAM/TRIALING legacy row is already a provider transition", async () => {
+  it("effective PRO + TEAM/TRIALING legacy row is not selected as a provider transition", async () => {
     /*
-     * Production-confirmed legacy shape: the provider row says TEAM/TRIALING
-     * and still carries a team id, while the commercial entitlement says PRO.
-     * The row proves there is a base subscription, but TEAM is already the
-     * provider target. Asking for TEAM again must not revise TEAM to TEAM.
+     * Production-confirmed shape: PayPal can create a TEAM/TRIALING row while
+     * the buyer has not approved the agreement and entitlement correctly
+     * remains PRO. That row is not commercial authority and must not be the
+     * thing plan-change or cancellation selects.
      */
     H.subscription = live({
       plan: "TEAM",
@@ -306,11 +336,8 @@ describe("resolvePersonalPlanTransition — one answer to 'what is this change'"
       targetPlan: "TEAM" as never,
     });
 
-    expect(t.kind).toBe("PROVIDER_TRANSITION_IN_PROGRESS");
-    expect((t as { currentPlan: string }).currentPlan).toBe("PRO");
+    expect(t.kind).toBe("NEW_SUBSCRIPTION");
     expect((t as { targetPlan: string }).targetPlan).toBe("TEAM");
-    expect((t as { subscription: { plan: string; teamId: string | null } }).subscription.plan).toBe("TEAM");
-    expect((t as { subscription: { teamId: string | null } }).subscription.teamId).toBe("ws-legacy");
     expect(H.providerCalls).toEqual([]);
     expect(H.writes).toEqual([]);
   });
@@ -349,18 +376,17 @@ describe("resolvePersonalPlanTransition — one answer to 'what is this change'"
     expect(found?.teamId).toBeNull();
   });
 
-  it("a legacy TEAM TRIALING row with teamId NON_NULL and provider identity is a base subscription", async () => {
+  it("a legacy TEAM TRIALING row with teamId NON_NULL and provider identity is not a live base subscription", async () => {
     H.subscription = live({
       plan: "TEAM",
       status: "TRIALING",
       teamId: "ws-legacy",
+      provider: "PAYPAL",
       providerSubId: "sub_ext_1",
     });
 
     const found = await findLivePersonalSubscription("user-1");
-    expect(found?.plan).toBe("TEAM");
-    expect(found?.status).toBe("TRIALING");
-    expect(found?.teamId).toBe("ws-legacy");
+    expect(found).toBeNull();
   });
 
   it("a live row without provider subscription identity is not a base subscription", async () => {

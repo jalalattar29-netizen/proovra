@@ -58,8 +58,8 @@ export function storageAddonStatusFromSubscription(
  * Apply ONE established subscription fact to the canonical plan state.
  *
  * Moved verbatim from `webhooks.routes.ts` so the verified and the polled path
- * share one implementation. The only addition is `providerStateAtUtc`, which
- * the ordering guard in the reconciliation service records after this returns.
+ * share one implementation. Provider observations carry their own timestamp
+ * when one exists; `upsertSubscription` owns the monotonic stale-event guard.
  */
 export async function syncPlanForSubscription(params: {
   userId: string;
@@ -69,8 +69,9 @@ export async function syncPlanForSubscription(params: {
   providerSubId: string;
   status: prismaPkg.SubscriptionStatus;
   currentPeriodEnd?: Date | null;
+  observedAtUtc?: Date | null;
 }) {
-  await upsertSubscription({
+  const subscription = await upsertSubscription({
     userId: params.userId,
     provider: params.provider,
     providerSubId: params.providerSubId,
@@ -78,6 +79,7 @@ export async function syncPlanForSubscription(params: {
     plan: params.plan,
     currentPeriodEnd: params.currentPeriodEnd ?? null,
     teamId: params.teamId ?? null,
+    observedAtUtc: params.observedAtUtc ?? null,
   });
 
   // ===========================================================================
@@ -100,16 +102,16 @@ export async function syncPlanForSubscription(params: {
   // owner's personal entitlement rather than dropped. The paid right survives
   // the model change; only where it is recorded moves.
 
-  if (params.status === prismaPkg.SubscriptionStatus.CANCELED) {
+  if (subscription.status === prismaPkg.SubscriptionStatus.CANCELED) {
     await setPersonalPlan(params.userId, prismaPkg.PlanType.FREE);
     return;
   }
 
-  if (params.status === prismaPkg.SubscriptionStatus.TRIALING) {
+  if (subscription.status === prismaPkg.SubscriptionStatus.TRIALING) {
     return;
   }
 
-  if (params.status === prismaPkg.SubscriptionStatus.ACTIVE) {
-    await setPersonalPlan(params.userId, params.plan);
+  if (subscription.status === prismaPkg.SubscriptionStatus.ACTIVE) {
+    await setPersonalPlan(params.userId, subscription.plan);
   }
 }

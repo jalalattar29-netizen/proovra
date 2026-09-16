@@ -203,11 +203,14 @@ function paid(
 const continueButton = () =>
   document.querySelector<HTMLButtonElement>("[data-billing-checkout-continue]")!;
 
-const mountChooser = (projection = free()) =>
+const mountChooser = (
+  projection = free(),
+  intent: React.ComponentProps<typeof CheckoutDrawer>["intent"] = { kind: "PLAN" },
+) =>
   render(
     <CheckoutDrawer
       open
-      intent={{ kind: "PLAN" }}
+      intent={intent}
       projection={projection}
       onClose={noop}
       onCompleted={noop}
@@ -342,6 +345,35 @@ describe("the FREE plan chooser", () => {
 
     await user.click(screen.getByRole("radio", { name: /Team/ }));
     expect(continueButton().textContent).toBe("Continue with Team");
+  });
+
+  it("renders both paid plans when opened with no preferred target", () => {
+    const { container } = mountChooser();
+
+    expect(container.querySelector('[data-billing-plan-option="PRO"]')).not.toBeNull();
+    expect(container.querySelector('[data-billing-plan-option="TEAM"]')).not.toBeNull();
+  });
+
+  it("preselecting Pro does not remove Team from the chooser", () => {
+    const { container } = mountChooser(free(), { kind: "PLAN", planKey: "PRO" });
+
+    expect(
+      container
+        .querySelector('[data-billing-plan-option="PRO"]')
+        ?.getAttribute("data-billing-plan-selected"),
+    ).toBe("true");
+    expect(container.querySelector('[data-billing-plan-option="TEAM"]')).not.toBeNull();
+  });
+
+  it("preselecting Team does not remove Pro from the chooser", () => {
+    const { container } = mountChooser(free(), { kind: "PLAN", planKey: "TEAM" });
+
+    expect(
+      container
+        .querySelector('[data-billing-plan-option="TEAM"]')
+        ?.getAttribute("data-billing-plan-selected"),
+    ).toBe("true");
+    expect(container.querySelector('[data-billing-plan-option="PRO"]')).not.toBeNull();
   });
 
   it("cannot continue until a plan is chosen", () => {

@@ -252,13 +252,20 @@ const SUBSCRIPTION_STATUS_ALLOWED: Record<string, string> = {
   // decides whether a subject is entitled to anything.
   "services/billing/billing-account-projection.service.ts":
     "DISPLAY: maps provider status → a lifecycle LABEL (grace verdict still comes from commercial-context)",
+  "services/billing-checkout.service.ts":
+    "PROVIDER INTERACTION: persists PayPal approval attempts as pending provider state after creation",
   "services/billing/subscription-cancellation.service.ts":
     "PROVIDER INTERACTION: idempotency check against the terminal status; no capability decision",
   // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — SELECTION and
-  // PROVIDER INTERACTION. The transition authority names the three live
-  // statuses to find the ONE subscription a person holds, and hands the status
+  // PROVIDER INTERACTION. The base-subscription authority names the
+  // authoritative live statuses to find the ONE subscription a person holds,
+  // and the transition authority hands the status
   // it applies to `syncPlanForSubscription`. It makes no active/grace decision:
   // that stays `commercial-context.service.ts`.
+  "services/billing/base-subscription.service.ts":
+    "CANONICAL SELECTION: personal base-subscription discovery; no active/grace capability decision",
+  "services/billing/pending-checkout-attempt.service.ts":
+    "MUTATION GATE: pending provider checkout discovery; catalog/live entitlement stay elsewhere",
   "services/billing/plan-transition.service.ts":
     "SELECTION: finds the one live subscription; applies status through the shared handler — no active/grace decision",
 };

@@ -33,6 +33,14 @@ const H = vi.hoisted(() => ({
   capabilityDenied: false,
   /** Set to make the personal-space gate deny (managed identity). */
   personalSpaceDenied: false,
+  /** What the pending checkout gate answers for PayPal checkout. */
+  pendingAttempt: null as null | {
+    state: "PENDING_SAME_TARGET" | "PENDING_DIFFERENT_TARGET";
+    provider: "PAYPAL";
+    targetPlan: "PRO" | "TEAM";
+    pendingPlan?: "PRO" | "TEAM";
+    subscriptionId: string;
+  },
 }));
 
 vi.mock("../src/middleware/auth.js", () => ({
@@ -106,6 +114,22 @@ vi.mock("../src/services/billing/plan-transition.service.js", () => ({
   },
 }));
 
+vi.mock("../src/services/billing/pending-checkout-attempt.service.js", async () => {
+  const actual = await vi.importActual<Record<string, unknown>>(
+    "../src/services/billing/pending-checkout-attempt.service.js",
+  );
+  return {
+    ...actual,
+    withPendingProviderCheckoutGate: async (input: { create: () => Promise<unknown> }) => {
+      H.calls.push("pendingCheckoutGate");
+      if (H.pendingAttempt) {
+        return { kind: "BLOCKED", attempt: H.pendingAttempt };
+      }
+      return { kind: "CREATED", result: await input.create() };
+    },
+  };
+});
+
 vi.mock("../src/services/billing-checkout.service.js", () => ({
   createStripeCheckoutSession: async () => {
     H.calls.push("stripeCheckout");
@@ -161,6 +185,7 @@ beforeEach(async () => {
   H.calls.length = 0;
   H.capabilityDenied = false;
   H.personalSpaceDenied = false;
+  H.pendingAttempt = null;
   app = await buildApp();
 });
 
@@ -222,6 +247,102 @@ describe("checkout refuses a SECOND subscription", () => {
       });
       expect(res.statusCode).toBe(200);
     });
+
+    if (label === "PayPal") {
+      it("PayPal: same-target pending approval refuses without creating a duplicate provider subscription", async () => {
+        H.transition = { kind: "NEW_SUBSCRIPTION", targetPlan: "PRO" };
+        H.pendingAttempt = {
+          state: "PENDING_SAME_TARGET",
+          provider: "PAYPAL",
+          targetPlan: "PRO",
+          subscriptionId: "sub-pending",
+        };
+
+        const res = await app.inject({
+          method: "POST",
+          url,
+          headers: JSON_HEADERS,
+          payload: { plan: "PRO" },
+        });
+
+        expect(res.statusCode).toBe(409);
+        expect(res.json()).toMatchObject({ code: "PAYPAL_APPROVAL_PENDING" });
+        expect(H.calls).toContain("pendingCheckoutGate");
+        expect(H.calls).not.toContain("paypalCheckout");
+      });
+
+      it("PayPal: same-target TEAM pending approval refuses without creating a duplicate provider subscription", async () => {
+        H.transition = { kind: "NEW_SUBSCRIPTION", targetPlan: "TEAM" };
+        H.pendingAttempt = {
+          state: "PENDING_SAME_TARGET",
+          provider: "PAYPAL",
+          targetPlan: "TEAM",
+          subscriptionId: "sub-pending",
+        };
+
+        const res = await app.inject({
+          method: "POST",
+          url,
+          headers: JSON_HEADERS,
+          payload: { plan: "TEAM" },
+        });
+
+        expect(res.statusCode).toBe(409);
+        expect(res.json()).toMatchObject({ code: "PAYPAL_APPROVAL_PENDING" });
+        expect(H.calls).not.toContain("paypalCheckout");
+      });
+
+      it("PayPal: cross-target pending approval refuses deterministically without creating a conflicting provider subscription", async () => {
+        H.transition = { kind: "NEW_SUBSCRIPTION", targetPlan: "TEAM" };
+        H.pendingAttempt = {
+          state: "PENDING_DIFFERENT_TARGET",
+          provider: "PAYPAL",
+          targetPlan: "TEAM",
+          pendingPlan: "PRO",
+          subscriptionId: "sub-pending",
+        };
+
+        const res = await app.inject({
+          method: "POST",
+          url,
+          headers: JSON_HEADERS,
+          payload: { plan: "TEAM" },
+        });
+
+        expect(res.statusCode).toBe(409);
+        expect(res.json()).toMatchObject({
+          code: "PAYPAL_DIFFERENT_PLAN_PENDING",
+          details: { pendingPlan: "PRO", requestedPlan: "TEAM" },
+        });
+        expect(H.calls).toContain("pendingCheckoutGate");
+        expect(H.calls).not.toContain("paypalCheckout");
+      });
+
+      it("PayPal: TEAM pending then PRO selected also refuses deterministically", async () => {
+        H.transition = { kind: "NEW_SUBSCRIPTION", targetPlan: "PRO" };
+        H.pendingAttempt = {
+          state: "PENDING_DIFFERENT_TARGET",
+          provider: "PAYPAL",
+          targetPlan: "PRO",
+          pendingPlan: "TEAM",
+          subscriptionId: "sub-pending",
+        };
+
+        const res = await app.inject({
+          method: "POST",
+          url,
+          headers: JSON_HEADERS,
+          payload: { plan: "PRO" },
+        });
+
+        expect(res.statusCode).toBe(409);
+        expect(res.json()).toMatchObject({
+          code: "PAYPAL_DIFFERENT_PLAN_PENDING",
+          details: { pendingPlan: "TEAM", requestedPlan: "PRO" },
+        });
+        expect(H.calls).not.toContain("paypalCheckout");
+      });
+    }
 
     it(`${label}: a workspace target is refused outright, not ignored`, async () => {
       const res = await app.inject({
@@ -430,5 +551,23 @@ describe("POST /v1/billing/subscription/cancel", () => {
     });
     expect(res.statusCode).toBe(404);
     expect(res.json()).toMatchObject({ error: { code: "SUBSCRIPTION_NOT_FOUND" } });
+  });
+
+  it("Account C shape answers no-live-subscription and reaches no provider", async () => {
+    H.live = null;
+    H.transition = { kind: "NEW_SUBSCRIPTION", targetPlan: "TEAM" };
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/billing/subscription/cancel",
+      headers: JSON_HEADERS,
+      payload: {},
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).toMatchObject({ error: { code: "SUBSCRIPTION_NOT_FOUND" } });
+    expect(H.calls).toContain("findLive");
+    expect(H.calls).not.toContain("applyAtProvider");
+    expect(H.calls).not.toContain("paypalCheckout");
   });
 });

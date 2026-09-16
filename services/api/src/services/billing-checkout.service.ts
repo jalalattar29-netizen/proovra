@@ -7,6 +7,7 @@ import {
 } from "./paypal.service.js";
 import { isPayPalRecurringPlan } from "./paypal-plan-map.service.js";
 import { getStorageAddonDefinition } from "./billing.service.js";
+import { syncPlanForSubscription } from "./billing/subscription-lifecycle.handlers.js";
 import {
   getPlanPriceCents,
   getStorageAddonCurrency,
@@ -380,6 +381,21 @@ export async function createPayPalCheckout(params: {
     returnUrl: successUrl,
     cancelUrl,
   });
+
+  const subscriptionId = String(
+    (subscription as { id?: string } | undefined)?.id ?? "",
+  ).trim();
+  if (subscriptionId) {
+    await syncPlanForSubscription({
+      userId: params.userId,
+      plan: params.plan,
+      provider: prismaPkg.PaymentProvider.PAYPAL,
+      providerSubId: subscriptionId,
+      status: prismaPkg.SubscriptionStatus.TRIALING,
+      currentPeriodEnd: null,
+      teamId: params.teamId ?? null,
+    });
+  }
 
   return {
     mode: "subscription" as const,

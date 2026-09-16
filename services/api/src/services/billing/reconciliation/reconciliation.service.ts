@@ -567,6 +567,7 @@ async function reconcileSubscriptions(ctx: {
       providerSubId: binding.providerSubId,
       status,
       currentPeriodEnd: observation.currentPeriodEndUtc,
+      observedAtUtc: observation.observedAtUtc,
     });
     await stampProviderState(binding.id, observation.observedAtUtc);
     ctx.summary.subscriptionsUpdated += 1;

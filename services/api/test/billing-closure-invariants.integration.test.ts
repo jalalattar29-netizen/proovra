@@ -249,6 +249,149 @@ describe("BILLING CLOSURE — contract allowances and PAYG invariants (live Post
   // =========================================================================
   // PAYG is not an assignable plan
   // =========================================================================
+  // =========================================================================
+  // PayPal checkout concurrency — real PostgreSQL advisory-lock proof
+  // =========================================================================
+  describe("PayPal checkout concurrency gate", () => {
+    it("serializes concurrent same-target checkout attempts for one user", async () => {
+      const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
+      const { withPendingProviderCheckoutGate } = await import(
+        "../src/services/billing/pending-checkout-attempt.service.js"
+      );
+
+      let createCalls = 0;
+
+      const attempt = () =>
+        withPendingProviderCheckoutGate({
+          userId: t.owner.userId,
+          provider: "PAYPAL",
+          targetPlan: "PRO",
+          create: async () => {
+            createCalls += 1;
+
+            await prisma.subscription.create({
+              data: {
+                userId: t.owner.userId,
+                plan: "PRO",
+                status: "TRIALING",
+                provider: "PAYPAL",
+                providerSubId: `race-same-${randomUUID()}`,
+              },
+            });
+
+            return { created: true };
+          },
+        });
+
+      const results = await Promise.all([attempt(), attempt()]);
+
+      expect(createCalls).toBe(1);
+
+      const created = results.filter((result) => result.kind === "CREATED");
+      const blocked = results.filter((result) => result.kind === "BLOCKED");
+
+      expect(created).toHaveLength(1);
+      expect(blocked).toHaveLength(1);
+
+      const blockedResult = blocked[0];
+      expect(blockedResult?.kind).toBe("BLOCKED");
+
+      if (blockedResult?.kind === "BLOCKED") {
+        expect(blockedResult.attempt.state).toBe("PENDING_SAME_TARGET");
+        expect(blockedResult.attempt.provider).toBe("PAYPAL");
+        expect(blockedResult.attempt.targetPlan).toBe("PRO");
+      }
+
+      const persisted = await prisma.subscription.findMany({
+        where: {
+          userId: t.owner.userId,
+          provider: "PAYPAL",
+          status: "TRIALING",
+          plan: "PRO",
+          providerSubId: { startsWith: "race-same-" },
+        },
+      });
+
+      expect(persisted).toHaveLength(1);
+    });
+
+    it("serializes concurrent cross-target PRO/TEAM checkout attempts for one user", async () => {
+      const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
+      const { withPendingProviderCheckoutGate } = await import(
+        "../src/services/billing/pending-checkout-attempt.service.js"
+      );
+
+      let createCalls = 0;
+
+      const attempt = (targetPlan: "PRO" | "TEAM") =>
+        withPendingProviderCheckoutGate({
+          userId: t.owner.userId,
+          provider: "PAYPAL",
+          targetPlan,
+          create: async () => {
+            createCalls += 1;
+
+            await prisma.subscription.create({
+              data: {
+                userId: t.owner.userId,
+                plan: targetPlan,
+                status: "TRIALING",
+                provider: "PAYPAL",
+                providerSubId: `race-cross-${randomUUID()}`,
+              },
+            });
+
+            return { created: true, targetPlan };
+          },
+        });
+
+      const results = await Promise.all([attempt("PRO"), attempt("TEAM")]);
+
+      expect(createCalls).toBe(1);
+
+      const created = results.filter((result) => result.kind === "CREATED");
+      const blocked = results.filter((result) => result.kind === "BLOCKED");
+
+      expect(created).toHaveLength(1);
+      expect(blocked).toHaveLength(1);
+
+      const createdResult = created[0];
+      const blockedResult = blocked[0];
+
+      expect(createdResult?.kind).toBe("CREATED");
+      expect(blockedResult?.kind).toBe("BLOCKED");
+
+      if (createdResult?.kind === "CREATED" && blockedResult?.kind === "BLOCKED") {
+        expect(blockedResult.attempt.state).toBe("PENDING_DIFFERENT_TARGET");
+
+        if (blockedResult.attempt.state === "PENDING_DIFFERENT_TARGET") {
+          expect(blockedResult.attempt.provider).toBe("PAYPAL");
+          expect(blockedResult.attempt.pendingPlan).toBe(
+            createdResult.result.targetPlan,
+          );
+          expect(blockedResult.attempt.targetPlan).not.toBe(
+            createdResult.result.targetPlan,
+          );
+        }
+      }
+
+      const persisted = await prisma.subscription.findMany({
+        where: {
+          userId: t.owner.userId,
+          provider: "PAYPAL",
+          status: "TRIALING",
+          providerSubId: { startsWith: "race-cross-" },
+        },
+      });
+
+      expect(persisted).toHaveLength(1);
+      expect(persisted[0]?.plan).toBe(
+        createdResult?.kind === "CREATED"
+          ? createdResult.result.targetPlan
+          : undefined,
+      );
+    });
+  });
   describe("legacy PAYG invariants", () => {
     it("the single plan writer refuses PAYG", async () => {
       const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });

@@ -232,6 +232,77 @@ describe("BILLING PLAN SELECTION (live PostgreSQL 16)", () => {
       }
     });
 
+    it("FREE plus PayPal TEAM/TRIALING still receives both purchase options", async () => {
+      const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
+      await seedSubscriptionRow(t.owner.userId, "TEAM", {
+        status: "TRIALING",
+        provider: "PAYPAL",
+        teamId: t.personalTeamId,
+      });
+
+      const p = await projectFor(t.owner.userId);
+
+      expect(p.plan.accessKind).toBe("FREE");
+      expect(p.actions.planManagement.mode).toBe("CHOOSE");
+      expect(p.actions.canRequestCancellation).toBe(false);
+      expect(p.plan.providerTransition ?? null).toBeNull();
+      expect((p.planOffers ?? []).map((o) => o.planKey).sort()).toEqual([
+        "PRO",
+        "TEAM",
+      ]);
+      for (const offer of p.planOffers ?? []) {
+        expect(offer.action).toBe("CHECKOUT");
+      }
+    });
+
+    it("FREE plus PayPal PRO/TRIALING still receives both purchase options", async () => {
+      const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
+      await seedSubscriptionRow(t.owner.userId, "PRO", {
+        status: "TRIALING",
+        provider: "PAYPAL",
+        teamId: null,
+      });
+
+      const p = await projectFor(t.owner.userId);
+
+      expect(p.plan.accessKind).toBe("FREE");
+      expect(p.actions.planManagement.mode).toBe("CHOOSE");
+      expect(p.actions.canRequestCancellation).toBe(false);
+      expect(p.plan.providerTransition ?? null).toBeNull();
+      expect((p.planOffers ?? []).map((o) => o.planKey).sort()).toEqual([
+        "PRO",
+        "TEAM",
+      ]);
+      for (const offer of p.planOffers ?? []) {
+        expect(offer.action).toBe("CHECKOUT");
+      }
+    });
+
+    it("paid entitlement plus Stripe PRO/TRIALING is managed as a provider subscription", async () => {
+      const t = await seedPersonalTenant(deps, "PRO", { credits: 0 });
+      await seedSubscriptionRow(t.owner.userId, "PRO", {
+        status: "TRIALING",
+        provider: "STRIPE",
+        teamId: null,
+      });
+
+      const p = await projectFor(t.owner.userId);
+
+      expect(p.plan.planKey).toBe("PRO");
+      expect(p.plan.accessKind).toBe("SUBSCRIPTION");
+      expect(p.actions.planManagement.mode).toBe("MANAGE");
+      expect(p.actions.canRequestCancellation).toBe(true);
+
+      const team = (p.planOffers ?? []).find((o) => o.planKey === "TEAM");
+      expect(team?.action).toBe("UPGRADE");
+
+      const transition = await resolveTransition({
+        userId: t.owner.userId,
+        targetPlan: "TEAM" as never,
+      });
+      expect(transition.kind).toBe("UPGRADE");
+    });
+
     it("has no scheduled plan change written by asking", async () => {
       const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
       const row = await seedSubscriptionRow(t.owner.userId, "TEAM");
@@ -388,7 +459,7 @@ describe("BILLING PLAN SELECTION (live PostgreSQL 16)", () => {
     expect(transition.kind).toBe("UPGRADE");
   });
 
-  it("effective PRO + live TEAM/TRIALING/teamId NON_NULL is an in-progress provider transition", async () => {
+  it("effective PRO + TEAM/TRIALING/teamId NON_NULL is granted access, not an in-progress provider transition", async () => {
     const t = await seedPersonalTenant(deps, "PRO", { credits: 0 });
     await seedSubscriptionRow(t.owner.userId, "TEAM", {
       status: "TRIALING",
@@ -400,22 +471,22 @@ describe("BILLING PLAN SELECTION (live PostgreSQL 16)", () => {
     const team = (p.planOffers ?? []).find((o) => o.planKey === "TEAM");
 
     expect(p.plan.planKey).toBe("PRO");
-    expect(p.plan.accessKind).toBe("SUBSCRIPTION");
-    expect(p.actions.planManagement.mode).toBe("REVIEW_PROVIDER_TRANSITION");
-    expect(p.actions.secondaryPlanAction).toBeUndefined();
-    expect(team).toBeUndefined();
-    expect(p.plan.providerTransition).toMatchObject({
-      state: "IN_PROGRESS",
-      targetPlanKey: "TEAM",
-      displayName: "Team",
-      providerLabel: "PayPal",
+    expect(p.plan.accessKind).toBe("GRANTED");
+    expect(p.actions.planManagement.mode).toBe("VIEW_ACCESS");
+    expect(p.actions.canRequestCancellation).toBe(false);
+    expect(p.actions.secondaryPlanAction).toEqual({
+      kind: "START_SUBSCRIPTION",
+      planKey: "TEAM",
+      label: "Start Team subscription",
     });
+    expect(team?.action).toBe("CHECKOUT");
+    expect(p.plan.providerTransition ?? null).toBeNull();
 
     const transition = await resolveTransition({
       userId: t.owner.userId,
       targetPlan: "TEAM" as never,
     });
-    expect(transition.kind).toBe("PROVIDER_TRANSITION_IN_PROGRESS");
+    expect(transition.kind).toBe("NEW_SUBSCRIPTION");
 
     const entitlement = await prisma.entitlement.findFirstOrThrow({
       where: { userId: t.owner.userId, active: true },
@@ -425,7 +496,7 @@ describe("BILLING PLAN SELECTION (live PostgreSQL 16)", () => {
     expect(entitlement.plan).toBe("PRO");
   });
 
-  it("historical canceled legacy rows do not hide the one live base row", async () => {
+  it("historical canceled legacy rows plus a PayPal TRIALING row do not become a live base subscription", async () => {
     const t = await seedPersonalTenant(deps, "PRO", { credits: 0 });
     for (let i = 0; i < 6; i += 1) {
       await seedSubscriptionRow(t.owner.userId, "TEAM", {
@@ -435,21 +506,23 @@ describe("BILLING PLAN SELECTION (live PostgreSQL 16)", () => {
     }
     await seedSubscriptionRow(t.owner.userId, "TEAM", {
       status: "TRIALING",
+      provider: "PAYPAL",
       teamId: t.personalTeamId,
     });
 
     const p = await projectFor(t.owner.userId);
     const team = (p.planOffers ?? []).find((o) => o.planKey === "TEAM");
-    expect(p.plan.accessKind).toBe("SUBSCRIPTION");
-    expect(p.actions.planManagement.mode).toBe("REVIEW_PROVIDER_TRANSITION");
-    expect(team).toBeUndefined();
-    expect(p.plan.providerTransition?.targetPlanKey).toBe("TEAM");
+    expect(p.plan.accessKind).toBe("GRANTED");
+    expect(p.actions.planManagement.mode).toBe("VIEW_ACCESS");
+    expect(p.actions.canRequestCancellation).toBe(false);
+    expect(team?.action).toBe("CHECKOUT");
+    expect(p.plan.providerTransition ?? null).toBeNull();
 
     const transition = await resolveTransition({
       userId: t.owner.userId,
       targetPlan: "TEAM" as never,
     });
-    expect(transition.kind).toBe("PROVIDER_TRANSITION_IN_PROGRESS");
+    expect(transition.kind).toBe("NEW_SUBSCRIPTION");
   });
 
   it("paid entitlement with no live subscription remains granted and starts checkout", async () => {

@@ -72,6 +72,10 @@ import {
   findLivePersonalSubscription,
   resolvePersonalPlanTransition,
 } from "../services/billing/plan-transition.service.js";
+import {
+  pendingCheckoutHttpResponse,
+  withPendingProviderCheckoutGate,
+} from "../services/billing/pending-checkout-attempt.service.js";
 import { reconcileBillingAccount } from "../services/billing/reconciliation/reconciliation.service.js";
 import {
   abandonPendingPayment,
@@ -1890,12 +1894,23 @@ export async function billingRoutes(app: FastifyInstance) {
         capability: "BILLING_MANAGE",
       });
 
-      const result = await createPayPalCheckout({
+      const gated = await withPendingProviderCheckoutGate({
         userId,
-        plan: body.plan,
-        currency: body.currency,
-        teamId: body.teamId ?? null,
+        provider: prismaPkg.PaymentProvider.PAYPAL,
+        targetPlan: body.plan,
+        create: () =>
+          createPayPalCheckout({
+            userId,
+            plan: body.plan,
+            currency: body.currency,
+            teamId: body.teamId ?? null,
+          }),
       });
+      if (gated.kind === "BLOCKED") {
+        return reply.code(409).send(pendingCheckoutHttpResponse(gated.attempt));
+      }
+
+      const result = gated.result;
 
       const resourceId =
         "subscription" in result

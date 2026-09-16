@@ -128,6 +128,31 @@ function parsePayPalSubscriptionStatus(
   return prismaPkg.SubscriptionStatus.CANCELED;
 }
 
+function dateFromIso(value: unknown): Date | null {
+  if (typeof value !== "string" || value.trim() === "") return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function dateFromUnixSeconds(value: unknown): Date | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  return new Date(value * 1000);
+}
+
+function paypalSubscriptionObservedAt(event: unknown): Date | null {
+  const record =
+    event && typeof event === "object" ? (event as Record<string, unknown>) : {};
+  const resource =
+    record.resource && typeof record.resource === "object"
+      ? (record.resource as Record<string, unknown>)
+      : {};
+  return (
+    dateFromIso(resource.update_time) ??
+    dateFromIso(resource.create_time) ??
+    dateFromIso(record.create_time)
+  );
+}
+
 function tryParseAddonContextFromCustomId(raw: unknown): {
   userId?: string;
   teamId?: string | null;
@@ -545,6 +570,9 @@ export async function webhooksRoutes(app: FastifyInstance) {
         subscription.metadata?.storageAddonKey
       );
       const stripeStatus = parseStripeSubscriptionStatus(subscription.status);
+      const stripeObservedAt = dateFromUnixSeconds(
+        (event as { created?: unknown }).created,
+      );
 
       if (userId && plan) {
         await syncPlanForSubscription({
@@ -557,6 +585,7 @@ export async function webhooksRoutes(app: FastifyInstance) {
           currentPeriodEnd: subscription.current_period_end
             ? new Date(subscription.current_period_end * 1000)
             : null,
+          observedAtUtc: stripeObservedAt,
         });
       }
 
@@ -1102,6 +1131,7 @@ export async function webhooksRoutes(app: FastifyInstance) {
         const paypalStatus = parsePayPalSubscriptionStatus(
           event.resource.status
         );
+        const observedAtUtc = paypalSubscriptionObservedAt(event);
 
         if (parsed.userId && parsed.plan) {
           await syncPlanForSubscription({
@@ -1114,6 +1144,7 @@ export async function webhooksRoutes(app: FastifyInstance) {
             currentPeriodEnd: event.resource.billing_info?.next_billing_time
               ? new Date(event.resource.billing_info.next_billing_time)
               : null,
+            observedAtUtc,
           });
         }
 
