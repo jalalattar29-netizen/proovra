@@ -261,14 +261,18 @@ function SsoAdminContent() {
     setCertResult((prev) => ({ ...prev, [connectionId]: null }));
     setCertError((prev) => ({ ...prev, [connectionId]: null }));
     try {
-      const result = await apiFetch(
-        `/v1/auth/saml/${encodeURIComponent(connectionId)}/certificate-next`,
-        {
-          method: "PUT",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ certificate: base64 }),
-        },
-      ) as { ok: boolean; certNextFingerprint: string };
+      // D10 — adding a rotation certificate changes which IdP signatures are
+      // accepted, so the backend demands step-up exactly as for promotion.
+      const result = (await stepUp.runStepUpAction(async (headers) =>
+        apiFetch(
+          `/v1/auth/saml/${encodeURIComponent(connectionId)}/certificate-next`,
+          {
+            method: "PUT",
+            headers: { "content-type": "application/json", ...(headers ?? {}) },
+            body: JSON.stringify({ certificate: base64 }),
+          },
+        ),
+      )) as { ok: boolean; certNextFingerprint: string };
       setCertResult((prev) => ({
         ...prev,
         [connectionId]: `Next cert added. Fingerprint: ${result.certNextFingerprint}`,

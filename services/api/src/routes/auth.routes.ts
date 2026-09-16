@@ -62,6 +62,7 @@ import { recordAuthenticatedSession } from "../services/access-control/session-i
 // PHASE 11 — canonical internal URL builder (destination-URL construction
 // only; this file's identity/session/MFA logic is untouched).
 import { absoluteInternalUrl, internalNavPath } from "@proovra/shared";
+import { revokeAllSessionsForUser } from "../services/identity-security/session-revocation.service.js";
 
 // Phase E10.1 — DEF-037 closure. Per-IP rate limits on the public,
 // unauthenticated email login and password-reset-request surfaces.
@@ -1213,12 +1214,21 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.code(400).send({ message: res.reason });
     }
 
+    // D13 — a reset is how an account is taken back. Every session issued
+    // before it ends, so whoever held the old password is signed out too.
+    await revokeAllSessionsForUser({
+      userId: res.userId,
+      reason: "PASSWORD_CHANGED",
+      actorUserId: res.userId,
+    });
+
     auditAuthEvent(req, {
       userId: null,
       action: "auth.password_reset_confirm",
       outcome: "success",
       metadata: {
         passwordChanged: true,
+        sessionsRevoked: true,
       },
     });
 

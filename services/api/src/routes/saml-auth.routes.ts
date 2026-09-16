@@ -96,6 +96,7 @@ import { detectAndScoreSession } from "../services/access-control/suspicious-ses
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { bump } from "../services/ops/metrics.service.js";
+import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 // PHASE 11 — canonical safe-destination helper + internal URL builder.
 // Used ONLY to validate/compose the post-login destination string; the
 // issuer/audience/nonce/RelayState/signed-state protections above are
@@ -1520,6 +1521,19 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
       }
       const actorUserId = (req as FastifyRequest & { user?: { sub?: string } })
         .user?.sub as string;
+      // D10 — a certificate slot decides which IdP signatures this connection
+      // accepts (both slots verify from the moment they are set). Changing it
+      // is an identity trust change, stepped up like creating the connection.
+      const stepUp = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: authz.teamId,
+        userId: actorUserId,
+        purpose: "EXTERNAL_IDENTITY_LINK",
+        resourceKind: "sso_connection",
+        resourceId: connectionId,
+      });
+      if (stepUp.sent) return;
       const conn = { id: connectionId, teamId: authz.teamId };
 
       const body = z
@@ -1614,6 +1628,17 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
       }
       const actorUserId = (req as FastifyRequest & { user?: { sub?: string } })
         .user?.sub as string;
+      // D10 — promotion replaces the certificate a live connection trusts.
+      const stepUp = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: authz.teamId,
+        userId: actorUserId,
+        purpose: "EXTERNAL_IDENTITY_LINK",
+        resourceKind: "sso_connection",
+        resourceId: connectionId,
+      });
+      if (stepUp.sent) return;
 
       const conn = await prisma.ssoConnection.findUnique({
         where: { id: connectionId },

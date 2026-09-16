@@ -348,7 +348,15 @@ describe("K1 identity-auth (B) — workspace identity administration (live Postg
       expect(unchanged.samlCertificate).toBe(CERT_CURRENT);
       expect(unchanged.samlCertificateNext).toBe(CERT_NEXT);
 
-      const res = await call({ method: "DELETE", url: url(connA), token: ownerToken });
+      // D10 — promotion changes which IdP certificate is trusted, so even the
+      // owner is refused without a step-up bound to this connection.
+      const unstepped = await call({ method: "DELETE", url: url(connA), token: ownerToken });
+      expect(unstepped.statusCode).toBe(401);
+      expect(code(unstepped)).toBe("STEP_UP_REQUIRED");
+      expect((await prisma.ssoConnection.findUniqueOrThrow({ where: { id: connA } })).samlCertificateNext).toBe(CERT_NEXT);
+
+      const challengeId = await ownerStepUp("EXTERNAL_IDENTITY_LINK", "sso_connection", connA);
+      const res = await call({ method: "DELETE", url: url(connA), token: ownerToken, challengeId });
       expect(res.statusCode, res.body).toBe(200);
       expect(json(res)).toEqual({ ok: true, certFingerprint: fp(CERT_NEXT) });
       const row = await prisma.ssoConnection.findUniqueOrThrow({ where: { id: connA } });
@@ -365,7 +373,12 @@ describe("K1 identity-auth (B) — workspace identity administration (live Postg
         action: "next_cert_promoted",
       });
 
-      const again = await call({ method: "DELETE", url: url(connA), token: ownerToken });
+      const again = await call({
+        method: "DELETE",
+        url: url(connA),
+        token: ownerToken,
+        challengeId: await ownerStepUp("EXTERNAL_IDENTITY_LINK", "sso_connection", connA),
+      });
       expect(again.statusCode).toBe(409);
       expect(code(again)).toBe("no_next_certificate");
       // Organization B's own connection is untouched by all of this.

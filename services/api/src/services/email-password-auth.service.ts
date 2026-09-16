@@ -372,6 +372,15 @@ export async function resetPasswordWithToken(params: {
     };
   }
 
+  // D24 — the same floor as a password change. The reset form enforces it;
+  // the server did not, so a direct call could set an eight-character password.
+  if (!isPasswordPolicyCompliant(params.newPassword)) {
+    return {
+      ok: false as const,
+      reason: "weak_new_password" as const
+    };
+  }
+
   const newHash = hashPassword(params.newPassword);
 
   await prisma.$transaction([
@@ -401,7 +410,8 @@ export async function resetPasswordWithToken(params: {
   ]);
 
   return {
-    ok: true as const
+    ok: true as const,
+    userId: rec.userId
   };
 }
 

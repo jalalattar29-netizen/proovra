@@ -416,6 +416,19 @@ describe("K1 identity-auth (A) — personal sign-in and account security (live P
       expect(requested.statusCode).toBe(200);
       const token = mailedToken(p.email);
       expect(token).toEqual(expect.any(String));
+      // The session the old password opened is live before the reset.
+      expect((await call({ method: "GET", url: "/v1/auth/me", token: p.token })).statusCode).toBe(200);
+
+      // D24 — the server holds the same floor as a password change; a weak
+      // password is refused and the token stays usable.
+      const weak = await call({
+        method: "POST",
+        url: "/v1/auth/password-reset/confirm",
+        payload: { token, newPassword: "short-pw" },
+      });
+      expect(weak.statusCode).toBe(400);
+      expect(json(weak)).toEqual({ message: "weak_new_password" });
+      expect((await prisma.passwordResetToken.findFirstOrThrow({ where: { userId: p.id } })).usedAt).toBeNull();
 
       const res = await call({
         method: "POST",
@@ -429,6 +442,12 @@ describe("K1 identity-auth (A) — personal sign-in and account security (live P
       expect(verifyPassword("Old-Password-1234", after.passwordHash as string)).toBe(false);
       const row = await prisma.passwordResetToken.findFirstOrThrow({ where: { userId: p.id } });
       expect(row.usedAt).not.toBeNull();
+      // D13 — the reset ends every session issued before it.
+      expect((await call({ method: "GET", url: "/v1/auth/me", token: p.token })).statusCode).toBe(401);
+      const revoked = await prisma.revokedSession.findFirst({
+        where: { userId: p.id, scope: "ALL_FOR_USER", reason: "PASSWORD_CHANGED" },
+      });
+      expect(revoked).not.toBeNull();
       // The route's audit is deliberately actor-less (pre-session); it is
       // the public success row written for this request.
       const audit = await auditRow("auth.password_reset_confirm", {
