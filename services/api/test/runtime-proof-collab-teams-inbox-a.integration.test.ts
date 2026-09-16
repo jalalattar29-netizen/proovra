@@ -253,6 +253,12 @@ describe("K5-A — collaboration, threads, inbox, schedule, workspace admin (liv
         resourceType: "collaboration_team",
         outcome: "success",
       });
+      // D19 — one deletion, one record.
+      expect(
+        await prisma.adminAuditLog.count({
+          where: { action: "collaboration_team.deleted", resourceId: group.id, outcome: "success" },
+        }),
+      ).toBe(1);
     });
 
     it("DELETE /v1/collaboration-teams/:teamId/members/:memberId — the LEAD removes a member (status REMOVED); a MEMBER cannot remove anyone", async () => {
