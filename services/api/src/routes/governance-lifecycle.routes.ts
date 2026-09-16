@@ -964,6 +964,23 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
       // of state machine pointers must be permission-gated and audited.
       const ok = await requireMember(req, reply, body.teamId, "governance.policy.manage");
       if (!ok) return;
+      // D1 (2026-09-16) — DESTROYED is not a pointer an operator may set.
+      // This route moves the lifecycle state only; it never touches storage.
+      // Forcing DESTROYED here produced a destroyed-looking record whose
+      // files were still in the bucket and still downloadable. Destruction
+      // happens only through an approved destruction review, whose executor
+      // deletes every object, verifies they are gone, and then records the
+      // state and certificate.
+      if (body.toState === "DESTROYED") {
+        return reply.code(409).send({
+          error: {
+            code: "LIFECYCLE_DESTRUCTION_REQUIRES_REVIEW",
+            message:
+              "A record is destroyed only by executing an approved destruction review. Open a destruction review for this record instead.",
+          },
+          canonical: "/v1/governance/destruction-reviews",
+        });
+      }
       if (await denyIfTeamNotEnterprise(reply, body.teamId, "destructionGovernance")) return;
       // Step-up required when entering destruction or terminal states.
       if (body.toState === "PENDING_DESTRUCTION" || body.toState === "DESTROYED") {

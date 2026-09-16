@@ -273,6 +273,10 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   EVIDENCE_RELATIONSHIP_SELF_LINK: { disposition: "customer", where: "global" },
   PAYMENTS_UNAVAILABLE: { disposition: "customer", where: "global" },
   LEGAL_POLICY_VERSION_NOT_CURRENT: { disposition: "customer", where: "global" },
+  LIFECYCLE_DESTRUCTION_REQUIRES_REVIEW: {
+    disposition: "internal",
+    why: "Answered only by the admin lifecycle override, which no product surface calls; destruction is offered through destruction reviews.",
+  },
   EXPORT_SNAPSHOT_CURSOR_INVALID: { disposition: "customer", where: "global" },
   WEBHOOK_ENDPOINT_URL_INVALID: { disposition: "customer", where: "global" },
   WEBHOOK_ENDPOINT_EVENTS_INVALID: { disposition: "customer", where: "global" },
