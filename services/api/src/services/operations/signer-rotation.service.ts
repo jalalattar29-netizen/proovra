@@ -23,7 +23,10 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { safeEmitSecurityEvent } from "../security/security-event.service.js";
+import {
+  emitSecurityEvent,
+  safeEmitSecurityEvent,
+} from "../security/security-event.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { bump } from "../ops/metrics.service.js";
 // Phase O1.5 — bounded signer rotation spans. Attributes carry only
@@ -47,6 +50,7 @@ import {
   getSignerControlStates,
   getEffectiveSignerStatus,
   isTransitionAllowed,
+  registerDiscoveredSigners,
   transitionSignerControlState,
   type SignerControlStatus,
 } from "./signer-control-state.service.js";
@@ -366,8 +370,17 @@ async function promoteStagedSignerInner(
       };
     }
   }
-  bump("signer_rotation_total");
-  safeEmitSecurityEvent({
+  /*
+   * K8 (2026-09-16) — THE PROMOTION EVENT IS THE PROMOTION.
+   *
+   * `listStagedSigners` derives the signer's state from this row, and it was
+   * written fire-and-forget: the operator was told "Signer promoted" before —
+   * or without — the row existing, and the console reload that follows the 200
+   * could still show the signer as staged. It is awaited now. `signer_promoted`
+   * is a reviewed routine event with no incident mapping, so awaiting
+   * `emitSecurityEvent` directly skips nothing `safeEmitSecurityEvent` did.
+   */
+  const recorded = await emitSecurityEvent({
     teamId: input.teamId,
     eventType: "signer_promoted",
     severity: "WARNING",
@@ -380,7 +393,12 @@ async function promoteStagedSignerInner(
       keyVersion: target.keyVersion,
       reason: input.reason.trim().slice(0, 240),
     },
-  });
+  }, client);
+  if (!recorded) {
+    // Never report a promotion that left no record.
+    throw new Error("signer promotion could not be recorded");
+  }
+  bump("signer_rotation_total");
   return { ok: true, promotedAtUtc: new Date().toISOString() };
 }
 
@@ -531,6 +549,20 @@ async function runSignerLifecycleTransition(
       };
     }
   }
+
+  /*
+   * K8 (2026-09-16) — A LISTED SIGNER MUST BE TRANSITIONABLE.
+   *
+   * Only env-configured signers are registered in `signer_control_state` (by
+   * `listAllSigners`). A STAGED signer is listed with Retire/Revoke buttons and
+   * passes the existence check above, but it had no row, so the transition
+   * answered `not_found` and the route said 404 "No configured signer" for a
+   * signer the console had just shown. Registration is the discovery default
+   * (ACTIVE, ON CONFLICT DO NOTHING) — the status `getEffectiveSignerStatus`
+   * already reports for an unregistered signer — so this materialises the
+   * state the checks above were made against; it never overwrites a decision.
+   */
+  await registerDiscoveredSigners([input.signerId]);
 
   const outcome = await transitionSignerControlState({
     signerId: input.signerId,
