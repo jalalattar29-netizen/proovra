@@ -1257,6 +1257,8 @@ export async function billingRoutes(app: FastifyInstance) {
       auditBillingAction(req, {
         userId,
         action: "billing.account_reconciled",
+        // K7 — the audit row names the account it reconciled.
+        resourceId: account.id,
         outcome: "success",
         metadata: {
           accountType: account.type,
@@ -1338,6 +1340,8 @@ export async function billingRoutes(app: FastifyInstance) {
       auditBillingAction(req, {
         userId,
         action: "billing.payment_rechecked",
+        // K7 — the audit row names the payment that was re-checked.
+        resourceId: params.data.paymentId,
         outcome: "success",
         metadata: {
           accountType: account.type,
@@ -1392,6 +1396,8 @@ export async function billingRoutes(app: FastifyInstance) {
       auditBillingAction(req, {
         userId,
         action: "billing.payment_cancelled",
+        // K7 — the audit row names the payment that was stopped.
+        resourceId: params.data.paymentId,
         outcome: "success",
         metadata: {
           accountType: account.type,
@@ -1466,6 +1472,8 @@ export async function billingRoutes(app: FastifyInstance) {
       auditBillingAction(req, {
         userId,
         action: "billing.payment_abandoned",
+        // K7 — the audit row names the payment the decision was about.
+        resourceId: params.data.paymentId,
         outcome: "success",
         metadata: {
           accountType: account.type,
@@ -1672,6 +1680,8 @@ export async function billingRoutes(app: FastifyInstance) {
       auditBillingAction(req, {
         userId,
         action: "billing.storage_addon_cancellation_retry",
+        // K7 — the audit row names the account whose obligations were retried.
+        resourceId: account.id,
         outcome: "success",
         metadata: {
           accountType: account.type,
