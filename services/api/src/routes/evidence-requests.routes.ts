@@ -158,6 +158,39 @@ function sendFeatureDisabled(reply: FastifyReply): boolean {
 
 const ParamsId = z.object({ id: z.string().uuid() });
 
+/** The reviewer's justification for a transition that requires one. */
+const TransitionNoteBody = z.object({
+  reviewerNote: z.string().max(4000).nullable().optional(),
+});
+
+/**
+ * K3 (2026-09-16) — a request may only name a reviewer who belongs to ITS
+ * workspace. `POST /:id/assign` enforced this; create and PATCH wrote the
+ * client-supplied id unchecked, so a request in one workspace could name
+ * another tenant's user — and sending an INTERNAL_USER request emails that
+ * reviewer the request title and a link. Same rule as `/assign`.
+ */
+async function assigneeBelongsToWorkspace(
+  teamId: string,
+  assignedReviewerUserId: string | null | undefined,
+): Promise<boolean> {
+  if (!assignedReviewerUserId) return true;
+  const target = await prisma.teamMember.findUnique({
+    where: { teamId_userId: { teamId, userId: assignedReviewerUserId } },
+    select: { userId: true },
+  });
+  return target !== null;
+}
+
+function sendAssigneeNotMember(reply: FastifyReply): void {
+  reply.code(400).send({
+    error: {
+      code: "assignee_not_workspace_member",
+      message: "Assigned reviewer must be a member of the workspace.",
+    },
+  });
+}
+
 // -----------------------------------------------------------------------------
 // Routes
 // -----------------------------------------------------------------------------
@@ -192,6 +225,10 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
           }
           throw err;
         }
+      }
+
+      if (!(await assigneeBelongsToWorkspace(body.teamId, body.assignedReviewerUserId))) {
+        return sendAssigneeNotMember(reply);
       }
 
       try {
@@ -386,6 +423,10 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       if (sendFeatureDisabled(reply)) return;
       const { id } = ParamsId.parse(req.params);
+      // K3 (2026-09-16) — the service REQUIRES a justification for CANCELLED
+      // (REQUIRE_REVIEWER_NOTE_ON_TRANSITION), but this route never read one,
+      // so every cancellation was refused with 422 reviewer_note_required.
+      const body = TransitionNoteBody.parse(req.body ?? {});
       const existing = await getEvidenceRequest(id);
       if (!existing)
         return reply.code(404).send({ error: { code: "request_not_found" } });
@@ -398,6 +439,9 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
           teamId: existing.teamId,
           actorUserId: ok.userId,
           to: "CANCELLED",
+          reviewerNote: body.reviewerNote ?? null,
+          // The justification is kept on the request's event trail.
+          payload: { reviewerNote: body.reviewerNote ?? null },
         });
         return reply
           .code(200)
@@ -416,6 +460,8 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       if (sendFeatureDisabled(reply)) return;
       const { id } = ParamsId.parse(req.params);
+      // K3 (2026-09-16) — CLOSED requires a justification; see CANCEL above.
+      const body = TransitionNoteBody.parse(req.body ?? {});
       const existing = await getEvidenceRequest(id);
       if (!existing)
         return reply.code(404).send({ error: { code: "request_not_found" } });
@@ -428,6 +474,8 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
           teamId: existing.teamId,
           actorUserId: ok.userId,
           to: "CLOSED",
+          reviewerNote: body.reviewerNote ?? null,
+          payload: { reviewerNote: body.reviewerNote ?? null },
         });
         return reply
           .code(200)
@@ -702,6 +750,10 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
         return reply.code(404).send({ error: { code: "request_not_found" } });
       const ok = await requireMember(req, reply, existing.teamId, "evidence_request.create");
       if (!ok) return;
+
+      if (!(await assigneeBelongsToWorkspace(existing.teamId, body.assignedReviewerUserId))) {
+        return sendAssigneeNotMember(reply);
+      }
 
       try {
         const row = await editDraftEvidenceRequest({

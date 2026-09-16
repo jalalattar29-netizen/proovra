@@ -8406,7 +8406,12 @@ return {
         .string()
         .uuid()
         .parse((req.params as { relationshipId: string }).relationshipId);
-      await getEvidenceWithReadAccess(userId, id);
+      // K3 (2026-09-16) — removing a link is a WRITE. This route asked only
+      // for read access, so a workspace VIEWER (evidence.read and nothing
+      // else) could delete any relationship on any record they could see.
+      // The canonical per-record loader answers the operation-specific
+      // question and conceals a refusal as the same 404.
+      await getEvidenceWithRecordAccess(userId, id, "evidence.update_metadata");
 
       const relationship = await prisma.evidenceRelationship.findUnique({
         where: { id: relationshipId },
