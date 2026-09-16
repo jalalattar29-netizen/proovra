@@ -272,6 +272,8 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   // coverage test holds each one to the service that throws it.
   EVIDENCE_RELATIONSHIP_SELF_LINK: { disposition: "customer", where: "global" },
   PAYMENTS_UNAVAILABLE: { disposition: "customer", where: "global" },
+  LEGAL_POLICY_VERSION_NOT_CURRENT: { disposition: "customer", where: "global" },
+  EXPORT_SNAPSHOT_CURSOR_INVALID: { disposition: "customer", where: "global" },
   WEBHOOK_ENDPOINT_URL_INVALID: { disposition: "customer", where: "global" },
   WEBHOOK_ENDPOINT_EVENTS_INVALID: { disposition: "customer", where: "global" },
   WEBHOOK_ENDPOINT_EVENT_UNKNOWN: { disposition: "customer", where: "global" },

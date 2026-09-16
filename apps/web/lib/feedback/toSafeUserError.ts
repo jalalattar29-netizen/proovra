@@ -85,6 +85,17 @@ const CODE_MAP: Record<
       "Changing a verified domain needs a step-up confirmation, which is made in a workspace. Join a workspace in this organization, then try again.",
     severity: "warning",
   },
+  LEGAL_POLICY_VERSION_NOT_CURRENT: {
+    title: "Our policies were updated",
+    message:
+      "The policy versions on this page are no longer current. Reload the page and review the current versions before accepting.",
+    severity: "warning",
+  },
+  EXPORT_SNAPSHOT_CURSOR_INVALID: {
+    title: "The list has changed",
+    message: "This page of snapshots no longer matches your filters. Reload the list to start again from the first page.",
+    severity: "warning",
+  },
   PAYMENTS_UNAVAILABLE: {
     title: "Payments unavailable",
     message:
