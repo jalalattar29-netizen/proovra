@@ -140,12 +140,19 @@ export type PlanSummary = {
   graceEndsAtUtc?: string | null;
   billingOwnerMissing: boolean;
   /** A provider-accepted change that has not taken effect yet. */
-  scheduledChange?: {
-    planKey: string;
-    displayName: string;
-    effectiveAtUtc: string | null;
+    scheduledChange?: {
+      planKey: string;
+      displayName: string;
+      effectiveAtUtc: string | null;
+    };
+    providerTransition?: {
+      state: "IN_PROGRESS";
+      targetPlanKey: string;
+      displayName: string;
+      providerLabel: string | null;
+      effectiveAtUtc: string | null;
+    };
   };
-};
 
 export type EnterpriseContractSummary = {
   status: string;
@@ -297,6 +304,7 @@ export type BillingAccountProjection = {
         | "CHOOSE"
         | "MANAGE"
         | "REVIEW_SCHEDULED"
+        | "REVIEW_PROVIDER_TRANSITION"
         | "VIEW_ACCESS"
         | "VIEW_AGREEMENT";
       enabled: boolean;
@@ -559,8 +567,13 @@ export async function requestCancellation(): Promise<CancellationResult> {
 
 /** What the server did about a requested plan change. */
 export type PlanChangeResult = {
-  outcome: "UPGRADE" | "DOWNGRADE" | "NO_CHANGE";
+  outcome:
+    | "UPGRADE"
+    | "DOWNGRADE"
+    | "NO_CHANGE"
+    | "PROVIDER_TRANSITION_IN_PROGRESS";
   plan: string;
+  currentPlan?: string;
   /** DOWNGRADE: when the lower tier takes over. UPGRADE: null — it already has. */
   effectiveAtUtc?: string | null;
   /** PayPal only, and only when the buyer must authorise the revised agreement. */

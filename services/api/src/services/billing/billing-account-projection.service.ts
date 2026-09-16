@@ -82,7 +82,11 @@ import {
   resolveCheckoutCurrency,
   type BillingCurrency,
 } from "../billing-pricing.service.js";
-import { findLivePersonalBaseSubscription } from "./base-subscription.service.js";
+import {
+  derivePersonalBaseSubscriptionState,
+  findLivePersonalBaseSubscription,
+  type LiveBaseSubscriptionRow,
+} from "./base-subscription.service.js";
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -269,6 +273,13 @@ export type PlanSummary = {
   scheduledChange?: {
     planKey: string;
     displayName: string;
+    effectiveAtUtc: string | null;
+  };
+  providerTransition?: {
+    state: "IN_PROGRESS";
+    targetPlanKey: string;
+    displayName: string;
+    providerLabel: string | null;
     effectiveAtUtc: string | null;
   };
 };
@@ -569,6 +580,7 @@ export type BillingAccountProjection = {
         | "CHOOSE"
         | "MANAGE"
         | "REVIEW_SCHEDULED"
+        | "REVIEW_PROVIDER_TRANSITION"
         /** A granted tier: real access, no billing relationship to manage. */
         | "VIEW_ACCESS"
         /** Enterprise: the agreement, and who can change it. */
@@ -826,6 +838,7 @@ function planOffersFor(params: {
   hasLiveSubscription: boolean;
   currency: BillingCurrency;
   showAmounts: boolean;
+  blockedTargetPlan?: "PRO" | "TEAM" | null;
 }): PlanOffer[] {
   const LADDER: ReadonlyArray<"PRO" | "TEAM"> = ["PRO", "TEAM"];
 
@@ -848,7 +861,10 @@ function planOffersFor(params: {
 
   const current = rank(params.currentPlan);
 
-  return LADDER.filter((planKey) => rank(planKey) !== current).map((planKey) => {
+  return LADDER.filter(
+    (planKey) =>
+      rank(planKey) !== current && planKey !== params.blockedTargetPlan,
+  ).map((planKey) => {
     const up = rank(planKey) > current;
     const action = !params.hasLiveSubscription
       ? ("CHECKOUT" as const)
@@ -1053,6 +1069,14 @@ export async function buildBillingAccountProjection(input: {
           },
         });
 
+  const personalBaseState =
+    account.type === "PERSONAL"
+      ? derivePersonalBaseSubscriptionState({
+          effectivePlan: scope.plan,
+          subscription: subscription as LiveBaseSubscriptionRow | null,
+        })
+      : null;
+
   const wallet =
     account.type === "PERSONAL"
       ? await readEvidenceCreditWallet(account.id)
@@ -1158,6 +1182,23 @@ export async function buildBillingAccountProjection(input: {
             planKey: subscription.pendingPlan,
             displayName: getPlanCapabilities(subscription.pendingPlan).displayName,
             effectiveAtUtc: iso(subscription.pendingPlanEffectiveAtUtc ?? null),
+          },
+        }
+      : {}),
+    ...(personalBaseState?.providerTransition
+      ? {
+          providerTransition: {
+            state: "IN_PROGRESS" as const,
+            targetPlanKey: personalBaseState.providerTransition.targetPlan,
+            displayName: getPlanCapabilities(
+              personalBaseState.providerTransition.targetPlan,
+            ).displayName,
+            providerLabel: providerLabel(
+              personalBaseState.providerTransition.provider,
+            ),
+            effectiveAtUtc: iso(
+              personalBaseState.providerTransition.effectiveAtUtc,
+            ),
           },
         }
       : {}),
@@ -1594,6 +1635,11 @@ export async function buildBillingAccountProjection(input: {
             hasLiveSubscription: liveSubscription,
             currency,
             showAmounts,
+            blockedTargetPlan:
+              (personalBaseState?.providerTransition?.targetPlan as
+                | "PRO"
+                | "TEAM"
+                | undefined) ?? null,
           }),
         }
       : {}),
@@ -1640,7 +1686,7 @@ export async function buildBillingAccountProjection(input: {
         label: !canManage
           ? "View plan"
           : liveSubscription
-            ? subscription?.pendingPlan
+            ? subscription?.pendingPlan || personalBaseState?.providerTransition
               ? "Review plan change"
               : "Manage plan"
             : accessKind === "GRANTED"
@@ -1649,7 +1695,9 @@ export async function buildBillingAccountProjection(input: {
                 "View access details"
               : "Choose a plan",
         mode: liveSubscription
-          ? subscription?.pendingPlan
+          ? personalBaseState?.providerTransition
+            ? ("REVIEW_PROVIDER_TRANSITION" as const)
+            : subscription?.pendingPlan
             ? ("REVIEW_SCHEDULED" as const)
             : ("MANAGE" as const)
           : accessKind === "GRANTED"

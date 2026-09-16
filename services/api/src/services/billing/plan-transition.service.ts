@@ -54,6 +54,7 @@ import {
 import { syncPlanForSubscription } from "./subscription-lifecycle.handlers.js";
 import { resolveCommercialContext } from "./commercial-context.service.js";
 import {
+  derivePersonalBaseSubscriptionState,
   findLivePersonalBaseSubscription,
   type LiveBaseSubscriptionRow,
 } from "./base-subscription.service.js";
@@ -81,6 +82,12 @@ export type PersonalPlanTransition =
   /** Down the ladder, on the existing subscription, effective at period end. */
   | {
       kind: "DOWNGRADE";
+      targetPlan: prismaPkg.PlanType;
+      subscription: PersonalSubscriptionRow;
+    }
+  | {
+      kind: "PROVIDER_TRANSITION_IN_PROGRESS";
+      currentPlan: prismaPkg.PlanType;
       targetPlan: prismaPkg.PlanType;
       subscription: PersonalSubscriptionRow;
     }
@@ -184,11 +191,28 @@ export async function resolvePersonalPlanTransition(input: {
     return { kind: "CANCELLATION", subscription };
   }
 
+  const state = derivePersonalBaseSubscriptionState({
+    effectivePlan: entitled?.scope.plan ?? subscription.plan,
+    subscription,
+  });
+
+  if (
+    state.providerTransition &&
+    input.targetPlan === state.providerTransition.targetPlan
+  ) {
+    return {
+      kind: "PROVIDER_TRANSITION_IN_PROGRESS",
+      currentPlan: state.effectivePlan,
+      targetPlan: state.providerTransition.targetPlan,
+      subscription,
+    };
+  }
+
   // The plan a scheduled change is heading for counts as the current one for
   // this comparison. Without it, a TEAM customer who has already scheduled a
   // downgrade to PRO and asks for PRO again would be told they are upgrading.
   const effectivePlan =
-    subscription.pendingPlan ?? entitled?.scope.plan ?? subscription.plan;
+    subscription.pendingPlan ?? state.effectivePlan;
 
   if (effectivePlan === input.targetPlan) {
     return { kind: "NO_CHANGE", currentPlan: effectivePlan };

@@ -286,16 +286,17 @@ describe("resolvePersonalPlanTransition — one answer to 'what is this change'"
     expect((t as { subscription: { teamId: string | null } }).subscription.teamId).toBe("ws-legacy");
   });
 
-  it("effective PRO + live legacy TEAM row is still a PRO → TEAM change", async () => {
+  it("effective PRO + live TEAM/TRIALING legacy row is already a provider transition", async () => {
     /*
      * Production-confirmed legacy shape: the provider row says TEAM/TRIALING
      * and still carries a team id, while the commercial entitlement says PRO.
-     * The row proves there is a base subscription to change; the entitlement
-     * decides the direction.
+     * The row proves there is a base subscription, but TEAM is already the
+     * provider target. Asking for TEAM again must not revise TEAM to TEAM.
      */
     H.subscription = live({
       plan: "TEAM",
       status: "TRIALING",
+      provider: "PAYPAL",
       teamId: "ws-legacy",
     });
     H.entitledPlan = "PRO";
@@ -305,9 +306,13 @@ describe("resolvePersonalPlanTransition — one answer to 'what is this change'"
       targetPlan: "TEAM" as never,
     });
 
-    expect(t.kind).toBe("UPGRADE");
+    expect(t.kind).toBe("PROVIDER_TRANSITION_IN_PROGRESS");
+    expect((t as { currentPlan: string }).currentPlan).toBe("PRO");
+    expect((t as { targetPlan: string }).targetPlan).toBe("TEAM");
     expect((t as { subscription: { plan: string; teamId: string | null } }).subscription.plan).toBe("TEAM");
     expect((t as { subscription: { teamId: string | null } }).subscription.teamId).toBe("ws-legacy");
+    expect(H.providerCalls).toEqual([]);
+    expect(H.writes).toEqual([]);
   });
 
   it("a live ENTERPRISE subscription is not a self-service base subscription", async () => {

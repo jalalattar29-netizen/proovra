@@ -817,6 +817,18 @@ export async function billingRoutes(app: FastifyInstance) {
         });
       }
 
+      if (transition.kind === "PROVIDER_TRANSITION_IN_PROGRESS") {
+        return reply.code(200).send({
+          outcome: "PROVIDER_TRANSITION_IN_PROGRESS",
+          plan: transition.targetPlan,
+          currentPlan: transition.currentPlan,
+          effectiveAtUtc:
+            transition.subscription.currentPeriodEnd?.toISOString() ?? null,
+          approvalUrl: null,
+          providerConfirmed: false,
+        });
+      }
+
       if (transition.kind === "NEW_SUBSCRIPTION") {
         // Nothing live to change. This is a purchase, and a purchase needs a
         // payment method, which needs a checkout — so the answer names the

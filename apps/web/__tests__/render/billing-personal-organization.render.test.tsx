@@ -275,6 +275,57 @@ describe("the manage-plan drawer offers the moves the server listed", () => {
     expect(changed[0]?.action).toBe("UPGRADE");
   });
 
+  it("paid PRO with TEAM pending at PayPal shows in-progress state, not another move", () => {
+    const changed: PlanOffer[] = [];
+    render(
+      <ManagePlanDrawer
+        open
+        projection={personal({
+          plan: {
+            ...personal().plan,
+            planKey: "PRO",
+            displayName: "Pro",
+            model: "MONTHLY",
+            lifecycle: "TRIALING",
+            paymentProviderLabel: "PayPal",
+            providerTransition: {
+              state: "IN_PROGRESS",
+              targetPlanKey: "TEAM",
+              displayName: "Team",
+              providerLabel: "PayPal",
+              effectiveAtUtc: null,
+            },
+          },
+          actions: {
+            ...personal().actions,
+            planManagement: {
+              label: "Review plan change",
+              mode: "REVIEW_PROVIDER_TRANSITION",
+              enabled: true,
+            },
+          },
+          planOffers: [],
+        })}
+        onClose={noop}
+        onChangePlan={(offer) => changed.push(offer)}
+        onCancel={noop}
+        changeBusyPlan={null}
+        cancelBusy={false}
+      />,
+    );
+
+    expect(screen.getByText("Pro")).toBeTruthy();
+    expect(screen.getByText("Plan change in progress")).toBeTruthy();
+    expect(screen.getByText("Team")).toBeTruthy();
+    expect(screen.getByText("Awaiting confirmation from PayPal")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Move to Team" })).toBeNull();
+    expect(screen.queryByText("Starts immediately.")).toBeNull();
+    expect(screen.queryByRole("radio", { name: "Card" })).toBeNull();
+    expect(screen.queryByRole("radio", { name: "PayPal" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Cancel subscription" })).toBeTruthy();
+    expect(changed).toEqual([]);
+  });
+
   it("a downgrade is not dressed as a destructive action", () => {
     // It destroys nothing. Painting it the same red as "cancel my
     // subscription" would discourage a legitimate choice by implying a

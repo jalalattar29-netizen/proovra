@@ -304,6 +304,39 @@ describe("POST /v1/billing/subscription/plan", () => {
     expect(H.calls).not.toContain("applyAtProvider");
   });
 
+  it("an already-targeted provider transition answers without revising again", async () => {
+    H.transition = {
+      kind: "PROVIDER_TRANSITION_IN_PROGRESS",
+      currentPlan: "PRO",
+      targetPlan: "TEAM",
+      subscription: {
+        id: "sub-1",
+        plan: "TEAM",
+        status: "TRIALING",
+        provider: "PAYPAL",
+        providerSubId: "x",
+        currentPeriodEnd: new Date("2026-12-01T00:00:00.000Z"),
+      },
+    };
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/billing/subscription/plan",
+      headers: JSON_HEADERS,
+      payload: { plan: "TEAM" },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      outcome: "PROVIDER_TRANSITION_IN_PROGRESS",
+      currentPlan: "PRO",
+      plan: "TEAM",
+      providerConfirmed: false,
+      approvalUrl: null,
+    });
+    expect(H.calls).not.toContain("applyAtProvider");
+    expect(H.calls).not.toContain("stripeCheckout");
+    expect(H.calls).not.toContain("paypalCheckout");
+  });
+
   it("with nothing live, it names the route that CAN subscribe instead of pretending", async () => {
     H.transition = { kind: "NEW_SUBSCRIPTION", targetPlan: "PRO" };
     const res = await app.inject({

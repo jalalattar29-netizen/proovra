@@ -138,6 +138,29 @@ export function ManagePlanDrawer({
           </div>
         </section>
 
+        {plan.providerTransition ? (
+          <section data-billing-provider-transition>
+            <h3 className="bill-section__heading">Plan change in progress</h3>
+            <div className="bill-summary">
+              <p className="bill-panel__lead">
+                <bdi>{plan.providerTransition.displayName}</bdi>
+              </p>
+              <p className="bill-summary__note">
+                {[
+                  plan.providerTransition.providerLabel
+                    ? `Awaiting confirmation from ${plan.providerTransition.providerLabel}`
+                    : "Awaiting confirmation from your payment provider",
+                  plan.providerTransition.effectiveAtUtc
+                    ? `Expected ${formatDate(plan.providerTransition.effectiveAtUtc)}`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+            </div>
+          </section>
+        ) : null}
+
         {/* ---- Moving between tiers ---------------------------------------
             Each move is a BUTTON and one line about that move — never a
             paragraph repeated under every option. The paragraph this replaces
@@ -151,6 +174,7 @@ export function ManagePlanDrawer({
             change, and the matrix says access information only. -------- */}
         {offers.length > 0 &&
         !plan.scheduledChange &&
+        !plan.providerTransition &&
         plan.accessKind === "SUBSCRIPTION" ? (
           <section>
             <h3 className="bill-section__heading">Change plan</h3>

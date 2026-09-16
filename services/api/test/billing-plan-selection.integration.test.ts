@@ -388,10 +388,11 @@ describe("BILLING PLAN SELECTION (live PostgreSQL 16)", () => {
     expect(transition.kind).toBe("UPGRADE");
   });
 
-  it("effective PRO + live TEAM/TRIALING/teamId NON_NULL reproduces production as a plan change, not checkout", async () => {
+  it("effective PRO + live TEAM/TRIALING/teamId NON_NULL is an in-progress provider transition", async () => {
     const t = await seedPersonalTenant(deps, "PRO", { credits: 0 });
     await seedSubscriptionRow(t.owner.userId, "TEAM", {
       status: "TRIALING",
+      provider: "PAYPAL",
       teamId: t.personalTeamId,
     });
 
@@ -400,15 +401,28 @@ describe("BILLING PLAN SELECTION (live PostgreSQL 16)", () => {
 
     expect(p.plan.planKey).toBe("PRO");
     expect(p.plan.accessKind).toBe("SUBSCRIPTION");
-    expect(p.actions.planManagement.mode).toBe("MANAGE");
+    expect(p.actions.planManagement.mode).toBe("REVIEW_PROVIDER_TRANSITION");
     expect(p.actions.secondaryPlanAction).toBeUndefined();
-    expect(team?.action).toBe("UPGRADE");
+    expect(team).toBeUndefined();
+    expect(p.plan.providerTransition).toMatchObject({
+      state: "IN_PROGRESS",
+      targetPlanKey: "TEAM",
+      displayName: "Team",
+      providerLabel: "PayPal",
+    });
 
     const transition = await resolveTransition({
       userId: t.owner.userId,
       targetPlan: "TEAM" as never,
     });
-    expect(transition.kind).toBe("UPGRADE");
+    expect(transition.kind).toBe("PROVIDER_TRANSITION_IN_PROGRESS");
+
+    const entitlement = await prisma.entitlement.findFirstOrThrow({
+      where: { userId: t.owner.userId, active: true },
+      select: { plan: true },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(entitlement.plan).toBe("PRO");
   });
 
   it("historical canceled legacy rows do not hide the one live base row", async () => {
@@ -427,13 +441,15 @@ describe("BILLING PLAN SELECTION (live PostgreSQL 16)", () => {
     const p = await projectFor(t.owner.userId);
     const team = (p.planOffers ?? []).find((o) => o.planKey === "TEAM");
     expect(p.plan.accessKind).toBe("SUBSCRIPTION");
-    expect(team?.action).toBe("UPGRADE");
+    expect(p.actions.planManagement.mode).toBe("REVIEW_PROVIDER_TRANSITION");
+    expect(team).toBeUndefined();
+    expect(p.plan.providerTransition?.targetPlanKey).toBe("TEAM");
 
     const transition = await resolveTransition({
       userId: t.owner.userId,
       targetPlan: "TEAM" as never,
     });
-    expect(transition.kind).toBe("UPGRADE");
+    expect(transition.kind).toBe("PROVIDER_TRANSITION_IN_PROGRESS");
   });
 
   it("paid entitlement with no live subscription remains granted and starts checkout", async () => {

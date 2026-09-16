@@ -2,7 +2,10 @@ import * as prismaPkg from "@prisma/client";
 
 import { prisma } from "../../db.js";
 
-export const LIVE_BASE_SUBSCRIPTION_STATUSES: readonly prismaPkg.SubscriptionStatus[] = [
+type SubscriptionStatusValue =
+  (typeof prismaPkg.SubscriptionStatus)[keyof typeof prismaPkg.SubscriptionStatus];
+
+export const LIVE_BASE_SUBSCRIPTION_STATUSES: readonly SubscriptionStatusValue[] = [
   prismaPkg.SubscriptionStatus.ACTIVE,
   prismaPkg.SubscriptionStatus.PAST_DUE,
   prismaPkg.SubscriptionStatus.TRIALING,
@@ -17,7 +20,7 @@ export type LiveBaseSubscriptionRow = {
   id: string;
   provider: prismaPkg.PaymentProvider;
   providerSubId: string;
-  status: prismaPkg.SubscriptionStatus;
+  status: SubscriptionStatusValue;
   plan: prismaPkg.PlanType;
   currentPeriodEnd: Date | null;
   cancelAtPeriodEnd: boolean;
@@ -26,6 +29,23 @@ export type LiveBaseSubscriptionRow = {
   teamId: string | null;
   createdAt: Date;
   updatedAt: Date;
+};
+
+export type PersonalBaseSubscriptionState = {
+  effectivePlan: prismaPkg.PlanType;
+  subscription: LiveBaseSubscriptionRow | null;
+  hasLiveBaseSubscription: boolean;
+  providerSubscriptionPlan: prismaPkg.PlanType | null;
+  providerSubscriptionStatus: prismaPkg.SubscriptionStatus | null;
+  providerTransition:
+    | {
+        state: "IN_PROGRESS";
+        targetPlan: prismaPkg.PlanType;
+        provider: prismaPkg.PaymentProvider;
+        status: typeof prismaPkg.SubscriptionStatus.TRIALING;
+        effectiveAtUtc: Date | null;
+      }
+    | null;
 };
 
 const LIVE_BASE_SELECT = {
@@ -65,4 +85,32 @@ export async function findLivePersonalBaseSubscription(
     orderBy: { createdAt: "desc" },
     select: LIVE_BASE_SELECT,
   }) as Promise<LiveBaseSubscriptionRow | null>;
+}
+
+export function derivePersonalBaseSubscriptionState(input: {
+  effectivePlan: prismaPkg.PlanType;
+  subscription: LiveBaseSubscriptionRow | null;
+}): PersonalBaseSubscriptionState {
+  const subscription = input.subscription;
+  const providerTransition =
+    subscription &&
+    subscription.status === prismaPkg.SubscriptionStatus.TRIALING &&
+    subscription.plan !== input.effectivePlan
+      ? {
+          state: "IN_PROGRESS" as const,
+          targetPlan: subscription.plan,
+          provider: subscription.provider,
+          status: prismaPkg.SubscriptionStatus.TRIALING,
+          effectiveAtUtc: subscription.currentPeriodEnd,
+        }
+      : null;
+
+  return {
+    effectivePlan: input.effectivePlan,
+    subscription,
+    hasLiveBaseSubscription: Boolean(subscription),
+    providerSubscriptionPlan: subscription?.plan ?? null,
+    providerSubscriptionStatus: subscription?.status ?? null,
+    providerTransition,
+  };
 }
