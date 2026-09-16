@@ -67,6 +67,13 @@ export async function archiveDepartment(input: {
   prisma?: PrismaClient;
   teamId: string;
   departmentId: string;
+  /**
+   * The operator who archived the department. This was hard-coded to the
+   * string "system", which the audit row's uuid actor column cannot hold, so
+   * the insert failed inside the audit helper's catch and DEPARTMENT_ARCHIVED
+   * was never recorded at all.
+   */
+  actorUserId: string;
 }): Promise<{ ok: boolean }> {
   const prisma = input.prisma ?? defaultPrisma;
   const row = await prisma.department.findFirst({
@@ -79,12 +86,12 @@ export async function archiveDepartment(input: {
     where: { id: row.id },
     data: { state: "ARCHIVED" },
   });
-  void emitDepartmentEvent({
+  await emitDepartmentEvent({
     prisma,
     teamId: input.teamId,
     departmentId: row.id,
     code: "DEPARTMENT_ARCHIVED",
-    actorUserId: "system",
+    actorUserId: input.actorUserId,
   }).catch(() => {});
   return { ok: true };
 }

@@ -64,7 +64,10 @@ import { apiFetch, ApiError } from "../../../../lib/api";
 import { formatUserDate } from "../../../../lib/date";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useTeamId, useTenantGuard } from "../../../../lib/platform-context";
-import { departmentRoleLabel } from "../../../../lib/labels/governanceReviewLabels";
+import {
+  departmentRoleLabel,
+  permissionDenialCopy,
+} from "../../../../lib/labels/governanceReviewLabels";
 
 // ---------------------------------------------------------------------------
 // Bounded failure vocabulary.
@@ -199,6 +202,11 @@ function Shell() {
     null,
   );
   const [mutationNotice, setMutationNotice] = useState<string | null>(null);
+  // Department lifecycle (archive). Held apart from the membership mutation
+  // state because the result belongs to the department list, not to the
+  // membership panel of whichever department happens to be selected.
+  const [archivingId, setArchivingId] = useState<string | null>(null);
+  const [lifecycleNotice, setLifecycleNotice] = useState<string | null>(null);
 
   const selectedDepartment = useMemo(
     () => rows.find((d) => d.id === selectedDepartmentId) ?? null,
@@ -437,6 +445,97 @@ function Shell() {
     [confirm, stepUp, loadMemberships, loadScope],
   );
 
+  /**
+   * Archive — the end of a department's lifecycle.
+   *
+   * `POST /v1/governance/departments/:id/archive` (ORG_ADMIN; the route asks
+   * for no step-up). Archiving keeps every membership and every scoped policy
+   * assignment on record but makes the department inactive; this console has
+   * no way to reverse it, so it is confirmed first. Success is announced only
+   * after the department list is reread and the row itself reads ARCHIVED.
+   */
+  const archive = useCallback(
+    async (department: DepartmentProjection) => {
+      if (archivingId) return;
+      setLifecycleNotice(null);
+      setDepartmentsFailure(null);
+      const confirmed = await confirm({
+        title: `Archive ${department.name}?`,
+        description:
+          "The department becomes inactive. Its memberships and any policies assigned to it stay on record for audit, but it can no longer be used as an active department. This console cannot reopen an archived department.",
+        confirmLabel: "Archive department",
+        tone: "danger",
+        testId: "department-archive",
+      });
+      if (!confirmed) return;
+      const captured = stamp();
+      setArchivingId(department.id);
+      let written = false;
+      try {
+        await apiFetch(
+          `/v1/governance/departments/${encodeURIComponent(department.id)}/archive`,
+          { method: "POST" },
+        );
+        written = true;
+        const res = await apiFetch("/v1/governance/departments", { method: "GET" });
+        if (isStale(captured)) return;
+        const departments = (res?.departments ??
+          []) as ReadonlyArray<DepartmentProjection>;
+        setRows(departments);
+        setDepartmentsLoaded(true);
+        const reread = departments.find((d) => d.id === department.id);
+        if (reread?.state === "ARCHIVED") {
+          setLifecycleNotice(`${department.name} is archived.`);
+        } else {
+          setDepartmentsFailure({
+            kind: "stale",
+            message:
+              "The archive request was accepted, but the reloaded list does not show the department as archived. Refresh and check its state before trying again.",
+          });
+        }
+      } catch (err) {
+        if (isStale(captured)) return;
+        if (written) {
+          setDepartmentsFailure({
+            kind: "error",
+            message:
+              "The archive request was accepted, but the list could not be reloaded to confirm it. Refresh to see the department's current state.",
+          });
+          return;
+        }
+        const status = (err as { statusCode?: number })?.statusCode;
+        const denial = readDenialCode(err);
+        if (status === 404) {
+          await refresh();
+          if (isStale(captured)) return;
+          setDepartmentsFailure({
+            kind: "denied",
+            message:
+              "That department is no longer part of your current organization. The list has been reloaded.",
+          });
+        } else if (status === 403 && denial === "DELEGATED_ADMIN_REQUIRED") {
+          const details = (err as { details?: Record<string, unknown> })?.details;
+          const tier = details?.["requiredTier"];
+          const copy = permissionDenialCopy(
+            denial,
+            typeof tier === "string" ? tier : "ORG_ADMIN",
+          );
+          setDepartmentsFailure({
+            kind: "denied",
+            message: `${copy.title} ${copy.detail}`,
+          });
+        } else {
+          setDepartmentsFailure(
+            classifyFailure(err, "Could not archive the department."),
+          );
+        }
+      } finally {
+        if (!isStale(captured)) setArchivingId(null);
+      }
+    },
+    [archivingId, confirm, stamp, isStale, refresh],
+  );
+
   // -------------------------------------------------------------------------
   // Columns
   // -------------------------------------------------------------------------
@@ -660,6 +759,16 @@ function Shell() {
       </PageSection>
 
       <PageSection title="Departments">
+        {lifecycleNotice ? (
+          <Card
+            variant="status"
+            tone="verified"
+            padding="compact"
+            data-department-lifecycle-notice
+          >
+            <span role="status">{lifecycleNotice}</span>
+          </Card>
+        ) : null}
         <div data-departments-table>
           <DataTable<DepartmentProjection>
             ariaLabel="Departments"
@@ -674,18 +783,38 @@ function Shell() {
               />
             }
             rowActions={(d) => (
-              <Button
-                variant={selectedDepartmentId === d.id ? "enterprise" : "secondary"}
-                size="sm"
-                data-department-manage-members={d.id}
-                onClick={() =>
-                  setSelectedDepartmentId(
-                    selectedDepartmentId === d.id ? null : d.id,
-                  )
-                }
-              >
-                {selectedDepartmentId === d.id ? "Managing" : "Members"}
-              </Button>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                <Button
+                  variant={selectedDepartmentId === d.id ? "enterprise" : "secondary"}
+                  size="sm"
+                  data-department-manage-members={d.id}
+                  onClick={() =>
+                    setSelectedDepartmentId(
+                      selectedDepartmentId === d.id ? null : d.id,
+                    )
+                  }
+                >
+                  {selectedDepartmentId === d.id ? "Managing" : "Members"}
+                </Button>
+                {d.state === "ACTIVE" ? (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    data-department-archive={d.id}
+                    aria-label={`Archive ${d.name}`}
+                    loading={archivingId === d.id}
+                    disabled={archivingId !== null}
+                    disabledReason={
+                      archivingId !== null && archivingId !== d.id
+                        ? "Another department is being archived. Wait for it to finish."
+                        : undefined
+                    }
+                    onClick={() => void archive(d)}
+                  >
+                    Archive
+                  </Button>
+                ) : null}
+              </div>
             )}
           />
         </div>

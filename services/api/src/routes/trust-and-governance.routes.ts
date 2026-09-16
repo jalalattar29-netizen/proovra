@@ -882,6 +882,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
       const res = await archiveDepartment({
         teamId: ctx.teamId,
         departmentId: id,
+        actorUserId: ctx.userId,
       });
       if (!res.ok) return reply.code(404).send({ denial: "NOT_FOUND" });
       return reply.code(200).send({ ok: true });
@@ -1079,6 +1080,39 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
           isOverride: z.boolean().optional(),
         })
         .parse(req.body);
+      // TENANT BINDING. `assignPolicy` upserts on (policyId, scope,
+      // scopeTargetId) and never checked that the policy — or the target —
+      // belongs to the caller's workspace, so an ORG_ADMIN could attach a
+      // foreign policy id, or point an assignment at a target the effective
+      // resolver will never ask about (it resolves only this workspace's
+      // Organization, its departments, and the workspace itself). Both are
+      // refused with the same bounded 404 as any other missing row.
+      const policy = await prisma.governancePolicy.findFirst({
+        where: { id, teamId: ctx.teamId },
+        select: { id: true },
+      });
+      if (!policy) return reply.code(404).send({ denial: "NOT_FOUND" });
+      let targetOk = false;
+      if (body.scope === "WORKSPACE") {
+        targetOk = body.scopeTargetId === ctx.teamId;
+      } else if (body.scope === "ORGANIZATION") {
+        const workspace = await prisma.team.findFirst({
+          where: { id: ctx.teamId },
+          select: { organizationId: true },
+        });
+        targetOk =
+          !!workspace?.organizationId &&
+          workspace.organizationId === body.scopeTargetId;
+      } else {
+        const dept = await prisma.department.findFirst({
+          where: { id: body.scopeTargetId, teamId: ctx.teamId },
+          select: { id: true },
+        });
+        targetOk = !!dept;
+      }
+      if (!targetOk) {
+        return reply.code(404).send({ denial: "SCOPE_TARGET_NOT_FOUND" });
+      }
       const r = await assignPolicy({
         teamId: ctx.teamId,
         policyId: id,
