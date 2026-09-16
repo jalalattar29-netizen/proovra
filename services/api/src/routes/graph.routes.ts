@@ -1285,7 +1285,7 @@ export async function graphRoutes(app: FastifyInstance) {
         .object({ reason: z.string().min(1).max(240).optional() })
         .strict()
         .parse(req.body ?? {});
-      const actor = await requireGraphAdminActor(req, reply, q.teamId);
+      const actor = await requireGraphAdminActor(req, reply, q.teamId, "maintain");
       if (!actor) return;
       const enqueueResult = await enqueueGraphReconcileJob({
         teamId: q.teamId,
@@ -1371,13 +1371,21 @@ export async function graphRoutes(app: FastifyInstance) {
 // Mirrors `requireOpsActor` in ops.routes.ts / operations-queues.routes.ts.
 // Anti-enumeration: non-members return 404 (not 403). Allows either
 // `identity.member.read` (workspace admin) or `evidence.update_metadata`
-// (reviewer admin) — either is sufficient for graph maintenance.
+// (reviewer admin) — either is sufficient to READ graph diagnostics.
+//
+// K6 (2026-09-16) — `mode: "maintain"` (POST /v1/graph/reconcile) drops the
+// `identity.member.read` arm. VIEWER holds that permission and its role
+// contract is "may look and may not act", yet it let a read-only member
+// enqueue a full workspace reconcile and write a success audit row.
+// Maintenance requires `evidence.update_metadata`, the same gate as the
+// manual-relationship writes; every owner/admin/reviewer holds it.
 // =============================================================================
 
 async function requireGraphAdminActor(
   req: FastifyRequest,
   reply: FastifyReply,
   teamId: string,
+  mode: "read" | "maintain" = "read",
 ): Promise<{ userId: string } | null> {
   const userId = getAuthUserId(req);
   const member = await prisma.teamMember.findUnique({
@@ -1401,11 +1409,15 @@ async function requireGraphAdminActor(
       permission: "evidence.update_metadata",
     }),
   ]);
-  if (!opsDecision.allowed && !reviewerDecision.allowed) {
+  const opsAllowed = mode === "read" && opsDecision.allowed;
+  if (!opsAllowed && !reviewerDecision.allowed) {
     reply.code(403).send({
       error: {
         code: "permission_denied",
-        reason: opsDecision.reason ?? reviewerDecision.reason ?? "denied",
+        reason:
+          (!opsDecision.allowed ? opsDecision.reason : undefined) ??
+          (!reviewerDecision.allowed ? reviewerDecision.reason : undefined) ??
+          "denied",
       },
     });
     return null;
