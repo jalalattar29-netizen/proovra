@@ -196,6 +196,7 @@ async function emitWebhookAudit(input: {
   eventType:
     | "integration.webhook.test_sent"
     | "integration.webhook.delivery_retried"
+    | "integration.webhook.delivery_cancelled"
     | "integration.webhook.secret_rotated";
   metadata?: Prisma.InputJsonValue;
 }): Promise<void> {
@@ -1221,6 +1222,25 @@ export async function integrationsRoutes(app: FastifyInstance) {
           id,
           teamId: body.teamId,
         });
+        // BATCH J — cancelling a scheduled redelivery is an operator
+        // decision that stops an outbound send, so it is audited like its
+        // retry sibling. Only a delivery this call actually moved to
+        // CANCELLED is recorded (a lost race returns the fresh row
+        // unchanged). Bounded metadata: never payload, signature or body.
+        if (updated.status === "CANCELLED") {
+          await emitWebhookAudit({
+            teamId: body.teamId,
+            actorUserId: ok.actorUserId,
+            endpointId: updated.endpointId,
+            eventType: "integration.webhook.delivery_cancelled",
+            metadata: {
+              deliveryId: updated.id,
+              eventType: updated.eventType,
+              status: updated.status,
+              attemptCount: updated.attemptCount,
+            },
+          });
+        }
         return reply
           .code(200)
           .send({ delivery: projectWebhookDeliveryDetail(updated) });

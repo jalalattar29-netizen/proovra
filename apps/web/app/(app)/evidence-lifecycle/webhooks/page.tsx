@@ -1,8 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+/**
+ * BATCH J — POST /v1/integrations/webhooks/endpoints/:id/deactivate is wired
+ * as a per-row "Deactivate" on ACTIVE endpoints: danger confirmation naming
+ * the URL, the write, then a reread of the endpoint list. Success is
+ * announced only when the reread shows the endpoint deactivated.
+ */
+
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
 import { Card } from "../../../../components/ui/Card";
 import { Button } from "../../../../components/ui/Button";
@@ -78,8 +87,34 @@ function safeDate(input: string | null | undefined): string {
   return Number.isNaN(d.getTime()) ? "—" : formatUserDate(input);
 }
 
+/** The operator sentence for a refused or failed deactivation. */
+function deactivateFailureMessage(err: unknown): string {
+  const status = (err as { statusCode?: number } | null)?.statusCode;
+  if (status === 404) {
+    return "This endpoint no longer exists in this workspace. Refresh the list.";
+  }
+  if (status === 403) {
+    return "Only an organization administrator can deactivate a webhook endpoint.";
+  }
+  return toSafeUserError(err, {
+    message: "The endpoint could not be deactivated. Refresh the list and try again.",
+  }).message;
+}
+
 function Shell() {
   const [endpoints, setEndpoints] = useState<WebhookEndpoint[]>([]);
+  const [endpointsLoaded, setEndpointsLoaded] = useState(false);
+  const { confirm: confirmAction } = useConfirmAction();
+  const [deactivatingId, setDeactivatingId] = useState<string | null>(null);
+  const [endpointNotice, setEndpointNotice] = useState<string | null>(null);
+  const [endpointError, setEndpointError] = useState<string | null>(null);
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
   const [deliveries, setDeliveries] = useState<WebhookDelivery[]>([]);
   const [busy, setBusy] = useState(false);
   const [denial, setDenial] = useState<LifecycleDenial | null>(null);
@@ -95,7 +130,8 @@ function Shell() {
   const [creating, setCreating] = useState(false);
   const [secretBanner, setSecretBanner] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
+  /** Resolves with the endpoint rows it painted, or null when that read failed. */
+  const refresh = useCallback(async (): Promise<WebhookEndpoint[] | null> => {
     setBusy(true);
     setDenial(null);
     try {
@@ -105,12 +141,13 @@ function Shell() {
         apiFetch("/v1/integrations/webhooks/endpoints", { method: "GET" }),
         apiFetch("/v1/integrations/webhooks/lifecycle-deliveries", { method: "GET" }),
       ]);
-      setEndpoints(
+      const endpointRows =
         eRes.status === "fulfilled"
-          ? ((eRes.value as { endpoints?: WebhookEndpoint[] } | null)?.endpoints ??
-              []) as WebhookEndpoint[]
-          : [],
-      );
+          ? (((eRes.value as { endpoints?: WebhookEndpoint[] } | null)?.endpoints ??
+              []) as WebhookEndpoint[])
+          : null;
+      setEndpoints(endpointRows ?? []);
+      setEndpointsLoaded(true);
       setDeliveries(
         dRes.status === "fulfilled"
           ? ((dRes.value as { deliveries?: WebhookDelivery[] } | null)?.deliveries ??
@@ -124,16 +161,71 @@ function Shell() {
       } else if (dRes.status === "rejected") {
         applyDenial(dRes.reason, setDenial);
       }
+      return endpointRows;
     } catch (err) {
       setEndpoints([]);
       setDeliveries([]);
+      setEndpointsLoaded(true);
       setEndpointsFailed(true);
       setDeliveriesFailed(true);
       applyDenial(err, setDenial);
+      return null;
     } finally {
       setBusy(false);
     }
   }, []);
+
+  /**
+   * POST /v1/integrations/webhooks/endpoints/:id/deactivate — stops lifecycle
+   * delivery to one endpoint. Announced only after the endpoint list reread
+   * shows the endpoint is no longer active.
+   */
+  const deactivateEndpoint = useCallback(
+    async (endpoint: WebhookEndpoint) => {
+      if (deactivatingId) return;
+      setEndpointNotice(null);
+      setEndpointError(null);
+      const confirmed = await confirmAction({
+        title: "Deactivate this webhook endpoint?",
+        description: `Lifecycle events stop being delivered to ${endpoint.url} immediately. The endpoint cannot be reactivated from this page; register it again to resume delivery.`,
+        confirmLabel: "Deactivate endpoint",
+        tone: "danger",
+        testId: "lifecycle-webhook-deactivate",
+      });
+      if (!alive.current || !confirmed) return;
+      setDeactivatingId(endpoint.id);
+      let written = false;
+      try {
+        await apiFetch(
+          `/v1/integrations/webhooks/endpoints/${encodeURIComponent(endpoint.id)}/deactivate`,
+          { method: "POST", body: JSON.stringify({}) },
+        );
+        written = true;
+        const rows = await refresh();
+        if (!alive.current) return;
+        const reread = rows?.find((row) => row.id === endpoint.id);
+        if (rows === null) {
+          setEndpointError(
+            "The endpoint was deactivated, but the endpoint list could not be reloaded to confirm it. Refresh before relying on its state.",
+          );
+        } else if (!reread || reread.state !== "ACTIVE") {
+          setEndpointNotice(
+            "Endpoint deactivated and confirmed from the saved record. No further lifecycle events will be delivered to it.",
+          );
+        } else {
+          setEndpointError(
+            "The deactivation was sent, but the endpoint still shows as active. Refresh and check again.",
+          );
+        }
+      } catch (err) {
+        if (!alive.current) return;
+        if (!written) setEndpointError(deactivateFailureMessage(err));
+      } finally {
+        if (alive.current) setDeactivatingId(null);
+      }
+    },
+    [confirmAction, deactivatingId, refresh],
+  );
 
   const replayDelivery = useCallback(async (deliveryId: string) => {
     setReplayingId(deliveryId);
@@ -305,6 +397,16 @@ function Shell() {
 
       {/* Endpoints */}
       <PageSection title="Endpoints">
+        {endpointNotice ? (
+          <p role="status" data-webhook-endpoint-notice style={{ margin: "0 0 8px", fontSize: 13 }}>
+            {endpointNotice}
+          </p>
+        ) : null}
+        {endpointError ? (
+          <p role="alert" data-webhook-endpoint-error style={{ margin: "0 0 8px", fontSize: 13 }}>
+            {endpointError}
+          </p>
+        ) : null}
         {endpointsFailed ? (
           <p data-webhook-endpoints-unreadable style={{ margin: 0, fontSize: 13, color: "#475569" }}>
             The endpoint list could not be read. This is not an empty list —
@@ -316,6 +418,30 @@ function Shell() {
           columns={ENDPOINT_COLUMNS}
           rows={endpoints}
           getRowId={(ep) => ep.id}
+          loading={!endpointsLoaded}
+          rowActions={(ep) =>
+            ep.state === "ACTIVE" ? (
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                data-webhook-endpoint-deactivate={ep.id}
+                aria-label={`Deactivate endpoint ${ep.url}`}
+                loading={deactivatingId === ep.id}
+                disabled={deactivatingId !== null}
+                disabledReason={
+                  deactivatingId !== null && deactivatingId !== ep.id
+                    ? "Another endpoint is being deactivated. Wait for it to finish."
+                    : undefined
+                }
+                onClick={() => void deactivateEndpoint(ep)}
+              >
+                {deactivatingId === ep.id ? "Deactivating…" : "Deactivate"}
+              </Button>
+            ) : (
+              <span style={{ fontSize: 12 }}>No longer receives events</span>
+            )
+          }
           emptyState={
             <EmptyState
               title="No webhook endpoints configured"

@@ -45,6 +45,10 @@ import {
 import "../../admin/platform/admin-platform.css";
 import { AutomationRuleForm } from "../../../../components/automation/AutomationRuleForm";
 import { AutomationRuleToggle } from "../../../../components/automation/AutomationRuleToggle";
+import {
+  AutomationWebhookDestinationsPanel,
+  type AutomationWebhookDestination,
+} from "../../../../components/automation/AutomationWebhookDestinationsPanel";
 import type { AutomationRule } from "../../../../components/automation/types";
 import { identifierLabel } from "@proovra/shared";
 import { formatUserDateTime } from "../../../../lib/date";
@@ -219,6 +223,15 @@ function AutomationPageInner(): JSX.Element {
  >({ kind: "closed" });
   const [lastAction, setLastAction] = useState<string | null>(null);
   const canManage = ctx.can("AUTOMATION_MANAGE");
+  // BATCH J — the registered webhook destinations, as the destinations panel
+  // last read them. undefined = not read yet, null = the read failed.
+  const [destinations, setDestinations] = useState<
+    AutomationWebhookDestination[] | null | undefined
+  >(undefined);
+  const onDestinationsChange = useCallback(
+    (list: AutomationWebhookDestination[] | null) => setDestinations(list),
+    [],
+  );
 
   const reload = useCallback(() => {
     setReloadToken((n) => n + 1);
@@ -364,6 +377,15 @@ function AutomationPageInner(): JSX.Element {
       ? envelope.rules.find((r) => r.id === formMode.ruleId) ?? null
       : null;
 
+  const destinationOptions =
+    destinations === undefined
+      ? undefined
+      : destinations === null
+        ? null
+        : destinations.map((d) => ({
+            id: d.id,
+            label: `${d.name} (${d.urlOrigin})${d.enabled ? "" : " — disabled"}`,
+          }));
   const closeForm = () => setFormMode({ kind: "closed" });
   const afterSave = (message: string) => {
     setLastAction(message);
@@ -432,7 +454,7 @@ function AutomationPageInner(): JSX.Element {
           rules execute when matching trigger events fire from internal
           services. Rules are always created disabled by default; flip
           the enable switch only after reviewing the action config. The
-          webhook action (DEF-022) remains deferred.
+          webhook action sends only to destinations registered below.
         </p>
       </section>
 
@@ -494,6 +516,7 @@ function AutomationPageInner(): JSX.Element {
             triggerLabels={triggerLabels}
             actionLabels={actionLabels}
             canManage={canManage}
+            destinationOptions={destinationOptions}
             onSaved={() =>
               afterSave(
                 "Rule created. It starts disabled — review it, then enable it.",
@@ -514,6 +537,7 @@ function AutomationPageInner(): JSX.Element {
             triggerLabels={triggerLabels}
             actionLabels={actionLabels}
             canManage={canManage}
+            destinationOptions={destinationOptions}
             onSaved={() => afterSave("Rule updated.")}
             onCancel={closeForm}
           />
@@ -640,6 +664,16 @@ function AutomationPageInner(): JSX.Element {
           </div>
         )}
       </section>
+
+      {/* BATCH J — webhook destinations: the targets of the internal
+          webhook delivery action (register, edit, enable, disable, rotate). */}
+      {teamId ? (
+        <AutomationWebhookDestinationsPanel
+          teamId={teamId}
+          canManage={canManage}
+          onDestinationsChange={onDestinationsChange}
+        />
+      ) : null}
 
       {/* Run history */}
       <section className="apf-section" data-automation-runs-list>

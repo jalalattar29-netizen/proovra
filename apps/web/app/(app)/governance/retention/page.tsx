@@ -45,6 +45,11 @@ import {
   retentionConflictLabel,
   retentionDecisionReasonLabel,
 } from "../../../../lib/labels/governanceReviewLabels";
+import {
+  StepUpModal,
+  useStepUpAction,
+} from "../../../../components/identity-security/StepUpModal";
+import { EditRetentionPolicyDialog } from "./_EditRetentionPolicyDialog";
 
 type PolicyStatus = "ACTIVE" | "PAUSED" | "SUPERSEDED" | "ARCHIVED";
 type PolicyScope = "WORKSPACE" | "EVIDENCE_TYPE" | "CASE" | "REGULATORY";
@@ -192,6 +197,12 @@ function RetentionPoliciesPageInner() {
   );
   const [versions, setVersions] = useState<Version[] | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  // BATCH J — PATCH /v1/governance/retention-policies/:id (edit a policy).
+  // The route is step-up gated on RETENTION_POLICY_UPDATE; the canonical hook
+  // owns the challenge and the single retry.
+  const stepUp = useStepUpAction({ teamId: teamId ?? null });
+  const [editingPolicy, setEditingPolicy] = useState<Policy | null>(null);
+  const [policyNotice, setPolicyNotice] = useState<string | null>(null);
 
   // PHASE 12B CLUSTER 10 — tenant generation guard. Every async read below
   // captures the generation before awaiting and drops the response if the
@@ -749,7 +760,12 @@ function RetentionPoliciesPageInner() {
           </FilterBar>
         }
       >
-        {error ? <div style={errorBoxStyle}>{error}</div> : null}
+        {error ? <div style={errorBoxStyle} role="alert">{error}</div> : null}
+        {policyNotice ? (
+          <p role="status" data-retention-policy-notice style={{ ...mutedStyle, margin: "8px 0" }}>
+            {policyNotice}
+          </p>
+        ) : null}
 
         {!teamId ? (
           <EmptyState
@@ -773,6 +789,21 @@ function RetentionPoliciesPageInner() {
                 >
                   Versions
                 </Button>
+                {p.status === "ACTIVE" || p.status === "PAUSED" ? (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    aria-label={`Edit retention policy ${p.displayName}`}
+                    aria-haspopup="dialog"
+                    data-retention-policy-edit={p.id}
+                    onClick={() => {
+                      setPolicyNotice(null);
+                      setEditingPolicy(p);
+                    }}
+                  >
+                    Edit
+                  </Button>
+                ) : null}
                 {p.status === "ACTIVE" ? (
                   <Button
                     variant="secondary"
@@ -848,6 +879,27 @@ function RetentionPoliciesPageInner() {
           }}
         />
       ) : null}
+
+      {editingPolicy && teamId ? (
+        <EditRetentionPolicyDialog
+          key={editingPolicy.id}
+          teamId={teamId}
+          policy={editingPolicy}
+          runStepUpAction={stepUp.runStepUpAction}
+          onCancel={() => setEditingPolicy(null)}
+          onSaved={(message) => {
+            const savedId = editingPolicy.id;
+            setEditingPolicy(null);
+            setPolicyNotice(message);
+            void refresh().catch((err: unknown) => {
+              setError(toSafeUserError(err, { message: "Unable to load policies." }).message);
+            });
+            if (selectedVersionsFor === savedId) void loadVersions(savedId);
+          }}
+        />
+      ) : null}
+
+      <StepUpModal control={stepUp} />
 
       {showCreate && teamId ? (
         <CreatePolicyModal

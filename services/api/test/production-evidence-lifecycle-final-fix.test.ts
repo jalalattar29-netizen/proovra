@@ -223,9 +223,14 @@ describe("Evidence Lifecycle Final Fix — per-page wiring", () => {
     const src = readLifecycleFile("retention/page.tsx");
     expect(src).toMatch(/Promise\.allSettled/);
     expect(src).not.toMatch(/Promise\.all\s*\(/);
-    // Defensive date formatting.
-    expect(src).toMatch(/function\s+formatDate/);
-    expect(src).toMatch(/Number\.isNaN\(d\.getTime\(\)\)/);
+    // BATCH J — the page rendered `createdAtUtc` / `expiresAtUtc` through a
+    // defensive `formatDate`, but the policy projection carries no dates, so
+    // those columns were always "—". The columns (and the now-unused helper)
+    // are gone; the page must not read date fields the projection lacks.
+    expect(src).not.toMatch(/createdAtUtc|expiresAtUtc/);
+    // Each half renders its own failure instead of an empty list.
+    expect(src).toMatch(/data-retention-policies-unreadable/);
+    expect(src).toMatch(/data-retention-expirations-unreadable/);
   });
 
   it("(13) archive page uses safe Promise.allSettled", () => {
