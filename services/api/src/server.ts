@@ -646,6 +646,11 @@ allowedHeaders: [
   // Accepted as an alias for older clients and integrations that already send
   // it. Same revalidation, same refusal.
   "x-team-id",
+  // D53 (2026-09-16) — the external reviewer portal carries its session id in
+  // this header after sign-in (`resolvePortalSession` reads it and validates it
+  // against the grant). It was never allow-listed, so the browser blocked every
+  // portal call after sign-in. Allowing the browser to send it trusts nothing.
+  "x-portal-session",
 ],
     origin: (origin, cb) => {
       if (!origin) return cb(null, true);
