@@ -194,7 +194,13 @@ export async function publishSchema(
 }
 
 export async function archiveSchema(
-  input: { prisma?: PrismaClient; teamId: string; schemaId: string },
+  input: {
+    prisma?: PrismaClient;
+    teamId: string;
+    schemaId: string;
+    /** The operator who archived it. Optional for older callers. */
+    actorUserId?: string | null;
+  },
 ): Promise<{ ok: true } | { ok: false; denial: ReviewerDenialReason }> {
   const prisma = input.prisma ?? defaultPrisma;
   const schema = await prisma.codingSchema.findFirst({
@@ -207,12 +213,12 @@ export async function archiveSchema(
     data: { status: "ARCHIVED", archivedAt: new Date() },
   });
   // Phase 4 — best-effort audit emission. Bounded metadata: IDs and
-  // slug. No actor on the service signature.
+  // slug. The actor is attributed when the route supplies one.
   await emitTenantAudit({
     action: "reviewer.coding_schema.archived",
     outcome: "success",
     sourceApp: "API",
-    actorUserId: null,
+    actorUserId: input.actorUserId ?? null,
     workspaceId: input.teamId,
     resourceType: "coding_schema",
     resourceId: schema.id,
@@ -270,23 +276,81 @@ export async function bindSchemaToWorkflow(input: {
   teamId: string;
   workflowId: string;
   schemaId: string;
+  /** The operator who bound it. Optional for older callers. */
+  actorUserId?: string | null;
 }): Promise<{ ok: true } | { ok: false; denial: ReviewerDenialReason }> {
   const prisma = input.prisma ?? defaultPrisma;
   const schema = await prisma.codingSchema.findFirst({
     where: { id: input.schemaId, teamId: input.teamId, status: "PUBLISHED" },
-    select: { id: true, version: true },
+    select: { id: true, version: true, slug: true },
   });
   if (!schema) return deny("SCHEMA_NOT_FOUND");
   const workflow = await prisma.evidenceReviewWorkflow.findFirst({
     where: { id: input.workflowId, teamId: input.teamId },
-    select: { id: true },
+    select: { id: true, codingSchemaId: true },
   });
   if (!workflow) return deny("WORKFLOW_NOT_FOUND");
   await prisma.evidenceReviewWorkflow.update({
     where: { id: workflow.id },
     data: { codingSchemaId: schema.id, codingSchemaVersion: schema.version },
   });
+  // Binding decides which coded fields a review collects, so it is a
+  // material change to the review record and is audited like the schema
+  // lifecycle above. Bounded metadata: IDs, slug and version only.
+  await emitTenantAudit({
+    action: "reviewer.coding_schema.bound",
+    outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId ?? null,
+    workspaceId: input.teamId,
+    resourceType: "evidence_review_workflow",
+    resourceId: workflow.id,
+    metadata: {
+      workflowId: workflow.id,
+      schemaId: schema.id,
+      slug: schema.slug,
+      version: schema.version,
+      previousSchemaId: workflow.codingSchemaId ?? null,
+    },
+  }).catch(() => {});
   return { ok: true };
+}
+
+/**
+ * The coding schema a review workflow is bound to — the authoritative
+ * reread after a bind. Returns null when the workflow does not exist in
+ * this workspace, and `schema: null` when nothing is bound.
+ */
+export async function getWorkflowSchemaBinding(input: {
+  prisma?: PrismaClient;
+  teamId: string;
+  workflowId: string;
+}): Promise<{
+  workflowId: string;
+  schema: { id: string; label: string | null; version: number; status: string | null } | null;
+} | null> {
+  const prisma = input.prisma ?? defaultPrisma;
+  const workflow = await prisma.evidenceReviewWorkflow.findFirst({
+    where: { id: input.workflowId, teamId: input.teamId },
+    select: { id: true, codingSchemaId: true, codingSchemaVersion: true },
+  });
+  if (!workflow) return null;
+  if (!workflow.codingSchemaId) return { workflowId: workflow.id, schema: null };
+  const schema = await prisma.codingSchema.findFirst({
+    where: { id: workflow.codingSchemaId, teamId: input.teamId },
+    select: { id: true, label: true, version: true, status: true },
+  });
+  return {
+    workflowId: workflow.id,
+    schema: schema
+      ? {
+          id: schema.id,
+          label: schema.label,
+          version: workflow.codingSchemaVersion ?? schema.version,
+          status: schema.status,
+        }
+      : null,
+  };
 }
 
 // =============================================================================

@@ -58,6 +58,7 @@ import {
   bindSchemaToWorkflow,
   createSchema,
   getSchema,
+  getWorkflowSchemaBinding,
   listSchemas,
   publishSchema,
   seedDefaultSchemas,
@@ -423,7 +424,11 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
       if (!ctx) return reply;
       if (!requireCap(ctx, "review.schema.author")) return denyNoPermission(reply);
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
-      const res = await archiveSchema({ teamId: ctx.teamId, schemaId: id });
+      const res = await archiveSchema({
+        teamId: ctx.teamId,
+        schemaId: id,
+        actorUserId: ctx.userId,
+      });
       if (!res.ok) return denyWith(reply, 409, res.denial);
       return reply.code(200).send({ ok: true });
     },
@@ -487,6 +492,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
         teamId: ctx.teamId,
         workflowId,
         schemaId,
+        actorUserId: ctx.userId,
       });
       if (!res.ok) return denyWith(reply, 409, res.denial);
       return reply.code(200).send({ ok: true });
@@ -505,11 +511,19 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
       const { workflowId } = z
         .object({ workflowId: z.string().uuid() })
         .parse(req.params);
-      const [values, coverage] = await Promise.all([
+      const [values, coverage, binding] = await Promise.all([
         readCodingValuesForWorkflow({ teamId: ctx.teamId, workflowId }),
         evaluateRequiredFieldsCoverage({ teamId: ctx.teamId, workflowId }),
+        getWorkflowSchemaBinding({ teamId: ctx.teamId, workflowId }),
       ]);
-      return reply.code(200).send({ values, coverage });
+      // `schemaBinding` is the authoritative reread for bind-schema: which
+      // schema this workflow collects coded fields for (null = unbound).
+      // Additive; existing readers ignore it.
+      return reply.code(200).send({
+        values,
+        coverage,
+        schemaBinding: binding?.schema ?? null,
+      });
     },
   );
 
@@ -647,6 +661,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
         teamId: ctx.teamId,
         sampleId: id,
         qcReviewerUserId: body.qcReviewerUserId,
+        actorUserId: ctx.userId,
       });
       if (!res.ok) return denyWith(reply, 409, res.denial);
       return reply.code(200).send({ ok: true });

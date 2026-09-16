@@ -27,11 +27,25 @@
  *     with UNSUPPORTED_REDACTION_MEDIA; the UI must not solicit it).
  */
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+
+import { identifierLabel } from "@proovra/shared";
 
 import { apiFetch } from "../../lib/api";
 import { formatUserDateTime } from "../../lib/date";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
+import { Button } from "../ui/Button";
+
+/**
+ * Batch J — result of an administrator quarantine, decided by the page that
+ * owns the confirmation, the POST and the authoritative project reread.
+ */
+export type QuarantineOutcome =
+  | { kind: "done"; message: string }
+  | { kind: "error"; message: string }
+  | { kind: "cancelled" };
+
+const QUARANTINE_REASON_MAX = 120;
 
 type ApprovalRow = {
   id: string;
@@ -60,6 +74,7 @@ export function ApprovalPanel({
   version,
   artifactKind,
   onTransition,
+  onQuarantine,
 }: {
   version: VersionLike;
   artifactKind: "IMAGE" | "PDF" | "VIDEO" | "AUDIO";
@@ -69,6 +84,11 @@ export function ApprovalPanel({
     verdict?: "APPROVE" | "REJECT" | "REQUEST_CHANGES",
     rationale?: string,
   ) => Promise<void>;
+  /**
+   * POST /v1/redaction/derivatives/:id/quarantine, owned by the page. When
+   * omitted the quarantine control is not offered.
+   */
+  onQuarantine?: (derivativeId: string, reason: string) => Promise<QuarantineOutcome>;
 }) {
   const [rationale, setRationale] = useState<string>("");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -173,7 +193,7 @@ export function ApprovalPanel({
       >
         <strong style={{ fontSize: 13 }}>Approval</strong>
         <small style={{ color: "#475569", fontSize: 11 }}>
-          Current state · <code>{version.state}</code>
+          Current state · {identifierLabel(version.state)}
         </small>
       </header>
 
@@ -308,7 +328,7 @@ export function ApprovalPanel({
                 ? "Rendering failed."
                 : derivative.state === "QUARANTINED"
                 ? "This redacted copy was quarantined by an administrator."
-                : `Redacted copy state: ${derivative.state}.`}
+                : `Redacted copy state: ${identifierLabel(derivative.state)}.`}
             </p>
 
             {derivative?.state === "FAILED" && derivative.failureReason ? (
@@ -332,11 +352,13 @@ export function ApprovalPanel({
                   color: canRequestDerivative ? "#0f172a" : "#94a3b8",
                 }}
                 title={
-                  !canRequestDerivative &&
-                  version.state !== "APPROVED" &&
-                  version.state !== "PUBLISHED"
-                    ? "The version must be approved before a redacted copy can be rendered"
-                    : undefined
+                  derivative?.state === "QUARANTINED"
+                    ? "A quarantined copy cannot be re-rendered."
+                    : !canRequestDerivative &&
+                        version.state !== "APPROVED" &&
+                        version.state !== "PUBLISHED"
+                      ? "The version must be approved before a redacted copy can be rendered"
+                      : undefined
                 }
               >
                 {derivative?.state === "FAILED"
@@ -370,6 +392,14 @@ export function ApprovalPanel({
                 </>
               ) : null}
             </div>
+
+            {derivative && onQuarantine ? (
+              <DerivativeQuarantineControl
+                derivativeId={derivative.id}
+                quarantined={derivative.state === "QUARANTINED"}
+                onQuarantine={onQuarantine}
+              />
+            ) : null}
 
             {derivativeError ? (
               <p
@@ -484,3 +514,152 @@ const subtleButton = {
   borderRadius: 8,
   cursor: "pointer",
 } as const;
+
+/**
+ * Batch J — "Quarantine redacted copy" disclosure. Administrator-only on the
+ * server (redaction.administer). This component cannot know the caller's
+ * redaction tier, so it says so up front and renders the server's refusal.
+ */
+function DerivativeQuarantineControl({
+  derivativeId,
+  quarantined,
+  onQuarantine,
+}: {
+  derivativeId: string;
+  quarantined: boolean;
+  onQuarantine: (derivativeId: string, reason: string) => Promise<QuarantineOutcome>;
+}) {
+  const formId = useId();
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<QuarantineOutcome | null>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const reasonRef = useRef<HTMLTextAreaElement>(null);
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+  useEffect(() => {
+    if (open) reasonRef.current?.focus();
+  }, [open]);
+
+  const trimmed = reason.trim();
+  const submitDisabledReason = busy
+    ? undefined
+    : trimmed.length === 0
+      ? "Enter the reason for quarantining this copy."
+      : trimmed.length > QUARANTINE_REASON_MAX
+        ? `Keep the reason to ${QUARANTINE_REASON_MAX} characters or fewer.`
+        : undefined;
+
+  function close() {
+    setOpen(false);
+    setReason("");
+    toggleRef.current?.focus();
+  }
+
+  async function submit() {
+    if (busy || submitDisabledReason) return;
+    setBusy(true);
+    setResult(null);
+    const outcome = await onQuarantine(derivativeId, trimmed);
+    if (!alive.current) return;
+    setBusy(false);
+    if (outcome.kind === "cancelled") return;
+    setResult(outcome);
+    if (outcome.kind === "done") {
+      setOpen(false);
+      setReason("");
+    }
+  }
+
+  return (
+    <div data-redaction-derivative-quarantine style={{ marginTop: 8, minWidth: 0 }}>
+      {quarantined ? (
+        <p style={{ fontSize: 11, margin: 0 }}>
+          This copy is quarantined. It cannot be downloaded, published or re-rendered.
+        </p>
+      ) : (
+        <Button
+          ref={toggleRef}
+          size="sm"
+          variant="destructive"
+          aria-expanded={open}
+          aria-controls={formId}
+          disabled={busy}
+          onClick={() => (open ? close() : setOpen(true))}
+          data-redaction-derivative-quarantine-toggle
+        >
+          Quarantine redacted copy
+        </Button>
+      )}
+      {open && !quarantined ? (
+        <form
+          id={formId}
+          aria-busy={busy}
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+          style={{ display: "grid", gap: 6, marginTop: 6, minWidth: 0 }}
+        >
+          <p style={{ fontSize: 11, margin: 0 }}>
+            Only redaction administrators can quarantine a copy. Use it when the
+            copy&apos;s integrity cannot be trusted; retry a failed render instead.
+          </p>
+          <label htmlFor={`${formId}-reason`} style={{ fontSize: 11 }}>
+            Reason for quarantine ({trimmed.length}/{QUARANTINE_REASON_MAX})
+          </label>
+          <textarea
+            id={`${formId}-reason`}
+            ref={reasonRef}
+            rows={2}
+            value={reason}
+            disabled={busy}
+            onChange={(e) => setReason(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") close();
+            }}
+            data-redaction-derivative-quarantine-reason
+            style={{ width: "100%", boxSizing: "border-box", fontSize: 12 }}
+          />
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <Button
+              type="submit"
+              size="sm"
+              variant="destructive"
+              loading={busy}
+              disabled={Boolean(submitDisabledReason)}
+              disabledReason={submitDisabledReason}
+              data-redaction-derivative-quarantine-submit
+            >
+              Quarantine copy
+            </Button>
+            <Button
+              size="sm"
+              onClick={close}
+              disabled={busy}
+              data-redaction-derivative-quarantine-cancel
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
+      ) : null}
+      {result?.kind === "done" ? (
+        <p role="status" data-redaction-derivative-quarantine-result="done" style={{ fontSize: 11 }}>
+          {result.message}
+        </p>
+      ) : null}
+      {result?.kind === "error" ? (
+        <p role="alert" data-redaction-derivative-quarantine-result="error" style={{ fontSize: 11 }}>
+          {result.message}
+        </p>
+      ) : null}
+    </div>
+  );
+}

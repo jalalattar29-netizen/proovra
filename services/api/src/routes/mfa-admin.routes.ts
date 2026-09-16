@@ -626,6 +626,11 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
           return {
             error: "already_pending",
             request: result.request,
+            // The web client surfaces an error body through `details`, not
+            // through arbitrary top-level keys. Without the id here the
+            // self-service panel cannot offer resend or cancel for the
+            // request that is blocking a new one.
+            details: { requestId: result.request?.id ?? null },
           };
         }
         if (result.reason === "not_member") {
@@ -843,9 +848,13 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
           result.reason === "resend_limit_reached"
         ) {
           reply.code(429);
+          const nextResendAfter = result.nextResendAfter?.toISOString() ?? null;
           return {
             error: result.reason,
-            nextResendAfter: result.nextResendAfter?.toISOString() ?? null,
+            nextResendAfter,
+            // Mirrored under `details` so the web client can tell a cooldown
+            // (with its end time) from the hard send limit.
+            details: { reason: result.reason, nextResendAfter },
           };
         }
         reply.code(400);

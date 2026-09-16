@@ -31,6 +31,9 @@ import {
   ReviewerReasonModal,
   type ReviewerReasonKind,
 } from "../components/ReviewerReasonModal";
+// Batch J — POST /v1/reviewer/work/:workflowId/bind-schema (coding fields
+// only appear once a review is bound to a published schema).
+import { CodingSchemaBindingPanel } from "../components/CodingSchemaBindingPanel";
 import {
   ReviewerShortcutsHelp,
   isShortcutTarget,
@@ -581,6 +584,7 @@ function ReviewWorkspacePageInner() {
           enterprise reviewer is never misled. */}
       <ReviewerDeferredFeaturesPanel />
 
+      <CodingSchemaBindingPanel teamId={teamId} workflowId={workflowId} />
 
       <div style={twoColStyle}>
         <Card padding="comfortable">

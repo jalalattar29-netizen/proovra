@@ -121,16 +121,30 @@ export async function assignSample(input: {
   teamId: string;
   sampleId: string;
   qcReviewerUserId: string;
+  /** The operator who made the assignment. Optional for older callers. */
+  actorUserId?: string | null;
 }): Promise<{ ok: true } | { ok: false; denial: ReviewerDenialReason }> {
   const prisma = input.prisma ?? defaultPrisma;
   const row = await prisma.qcSample.findFirst({
     where: { id: input.sampleId, teamId: input.teamId },
-    select: { id: true, state: true },
+    select: { id: true, state: true, workflowId: true, qcReviewerUserId: true },
   });
   if (!row) return deny("QC_SAMPLE_NOT_FOUND");
   if (row.state !== "SAMPLED" && row.state !== "ASSIGNED") {
     return deny("QC_VERDICT_INVALID");
   }
+  // The assignee must be an ACTIVE member of THIS workspace. The body only
+  // carries a uuid, so without this check any user id — including one from
+  // another tenant — could be written as the QC reviewer.
+  const member = await prisma.teamMember.findFirst({
+    where: {
+      teamId: input.teamId,
+      userId: input.qcReviewerUserId,
+      status: "ACTIVE",
+    },
+    select: { userId: true },
+  });
+  if (!member) return deny("NOT_PERMITTED");
   await prisma.qcSample.update({
     where: { id: row.id },
     data: {
@@ -139,6 +153,23 @@ export async function assignSample(input: {
       assignedAtUtc: new Date(),
     },
   });
+  // The assignment decides who may render the verdict, so it is audited
+  // like the verdict itself. Bounded metadata: IDs only.
+  await emitTenantAudit({
+    action: "reviewer.qc.assigned",
+    outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId ?? null,
+    workspaceId: input.teamId,
+    resourceType: "qc_sample",
+    resourceId: row.id,
+    metadata: {
+      sampleId: row.id,
+      workflowId: row.workflowId,
+      qcReviewerUserId: input.qcReviewerUserId,
+      previousQcReviewerUserId: row.qcReviewerUserId ?? null,
+    },
+  }).catch(() => {});
   return { ok: true };
 }
 

@@ -1460,6 +1460,34 @@ describe("SYSTEM 1 — MFA recovery-request lifecycle", () => {
     expect(JSON.parse(conflict.body)).toEqual({ error: "already_approved" });
   });
 
+  it("the self-service panel can act on the blocking request: 409 and resend 429 carry their facts under details", async () => {
+    H.actorUserId = SUBJECT;
+    const id = pushRequest({
+      status: "EMAIL_VERIFICATION_PENDING",
+      emailResendBlockedUntil: new Date(Date.now() + 120_000),
+    });
+    const pending = await app.inject({
+      method: "POST",
+      url: ADMIN_BASE,
+      headers: JSON_HEADERS,
+      payload: { teamId: TEAM, reason: "Lost my authenticator device today." },
+    });
+    expect(pending.statusCode).toBe(409);
+    expect(JSON.parse(pending.body).details).toEqual({ requestId: id });
+
+    const throttled = await app.inject({
+      method: "POST",
+      url: SELF_BASE + "/" + id + "/resend-email",
+    });
+    expect(throttled.statusCode).toBe(429);
+    const body = JSON.parse(throttled.body);
+    expect(body.details.reason).toBe("resend_throttled");
+    expect(typeof body.details.nextResendAfter).toBe("string");
+    expect(body.details.nextResendAfter).toBe(body.nextResendAfter);
+    // No token or verification link is ever part of the answer.
+    expect(throttled.body).not.toMatch(/token/i);
+  });
+
   it("page-viewed analytics ingest is anonymous-safe and asserts nothing about the caller", async () => {
     const res = await app.inject({
       method: "POST",

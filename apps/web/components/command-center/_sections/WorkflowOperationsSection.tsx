@@ -35,9 +35,12 @@
  * `canAct: false` we render WHY, not an empty toolbar and not a zero.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+
+import { identifierLabel } from "@proovra/shared";
 
 import { apiFetch } from "../../../lib/api";
+import { formatUserDateTime } from "../../../lib/date";
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import { useTenantGuard } from "../../../lib/platform-context";
 import { useConfirmAction } from "../../ui/ConfirmActionModal";
@@ -132,9 +135,35 @@ type RowResult = {
   message: string;
 };
 
+/** GET /v1/ops/causality/chains/:id — the drill-down projection. */
+type CausalityChainDetail = {
+  chain: {
+    id: string;
+    title: string;
+    summary: string;
+    rootCauseType: string;
+    severity: string;
+    status: string;
+    linkedIncidentIds: string[];
+    linkedWorkflowIds: string[];
+    linkedCaseIds: string[];
+    linkedEvidenceIds: string[];
+    startAtUtc: string;
+    lastSeenAtUtc: string;
+    resolvedAtUtc: string | null;
+  };
+  linkedWorkflows: Array<{ id: string; title: string; status: string; severity: string }>;
+};
+
 type LoadState =
   | { kind: "loading" }
-  | { kind: "ready"; data: WorkflowListResponse; chains: CausalityChain[] }
+  | {
+      kind: "ready";
+      data: WorkflowListResponse;
+      chains: CausalityChain[];
+      /** A failed chain read is stated, never shown as "no causes". */
+      chainsFailed: boolean;
+    }
   | { kind: "denied"; reason: string }
   | { kind: "error"; message: string };
 
@@ -196,6 +225,8 @@ export function WorkflowOperationsSection({
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [bulkItems, setBulkItems] = useState<BulkItemResult[] | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [openChainKey, setOpenChainKey] = useState<string | null>(null);
+  const causalityIdBase = useId();
   const inputRef = useRef<Record<string, string>>({});
 
   // -------------------------------------------------------------------------
@@ -215,15 +246,16 @@ export function WorkflowOperationsSection({
         apiFetch(
           `/v1/ops/causality/chains?teamId=${encodeURIComponent(teamId)}&limit=6`,
           { method: "GET" },
-        ).catch(() => ({ chains: [] as CausalityChain[] })) as Promise<{
+        ).catch(() => null) as Promise<{
           chains: CausalityChain[];
-        }>,
+        } | null>,
       ]);
       if (guard.isStale(stamp)) return;
       setState({
         kind: "ready",
         data: list,
-        chains: chainRes.chains ?? [],
+        chains: chainRes?.chains ?? [],
+        chainsFailed: chainRes === null,
       });
     } catch (err) {
       if (guard.isStale(stamp)) return;
@@ -566,6 +598,12 @@ export function WorkflowOperationsSection({
           </div>
         ) : null}
 
+        {state.kind === "ready" && state.chainsFailed ? (
+          <p className="ec-section-note" role="alert" data-cc-causality-list-error>
+            Causes could not be loaded, so workflows below show no &quot;Why&quot; explanation. This is a failed read, not an absence of causes.
+          </p>
+        ) : null}
+
         {state.kind === "ready" && workflows.length > 0 ? (
           <>
             {/* Bulk toolbar — only meaningful once rows are selected. */}
@@ -633,7 +671,7 @@ export function WorkflowOperationsSection({
                       <span className="ec-telemetry-label">
                         {item.targetId.slice(0, 8)}…
                       </span>
-                      <span className="ec-chip">{item.status}</span>
+                      <span className="ec-chip">{identifierLabel(item.status)}</span>
                       {item.errorCode ? (
                         <span className="ec-chip-faint">{item.errorCode}</span>
                       ) : null}
@@ -652,6 +690,7 @@ export function WorkflowOperationsSection({
                   <li
                     key={wf.id}
                     className="ec-telemetry-row"
+                    tabIndex={-1}
                     data-cc-workflow-id={wf.id}
                     data-cc-workflow-status={wf.status}
                     data-cc-workflow-severity={wf.severity}
@@ -675,9 +714,9 @@ export function WorkflowOperationsSection({
                         />
                         <span className="ec-telemetry-label">{wf.title}</span>
                       </label>
-                      <span className="ec-chip">{wf.status}</span>
-                      <span className="ec-chip-faint">{wf.severity}</span>
-                      <span className="ec-chip-faint">{wf.priority}</span>
+                      <span className="ec-chip">{identifierLabel(wf.status)}</span>
+                      <span className="ec-chip-faint">{identifierLabel(wf.severity)}</span>
+                      <span className="ec-chip-faint">{identifierLabel(wf.priority)}</span>
                     </div>
                     <div className="ec-telemetry-meta">
                       <span>{wf.safeSummary}</span>
@@ -702,7 +741,36 @@ export function WorkflowOperationsSection({
 
                     {chains.length > 0 ? (
                       <div className="ec-coord-explanation" data-cc-workflow-causality>
-                        Why: {chains.map((c) => c.summary).join(" · ")}
+                        {chains.map((c) => {
+                          const chainKey = `${wf.id}:${c.id}`;
+                          const open = openChainKey === chainKey;
+                          const panelId = `${causalityIdBase}-${wf.id}-${c.id}`;
+                          return (
+                            <div key={c.id}>
+                              <button
+                                type="button"
+                                className="ec-chip-faint"
+                                aria-expanded={open}
+                                aria-controls={panelId}
+                                onClick={() => setOpenChainKey(open ? null : chainKey)}
+                                data-cc-causality-toggle={c.id}
+                                style={{ textAlign: "left", whiteSpace: "normal", overflowWrap: "anywhere" }}
+                              >
+                                Why: {c.summary}
+                              </button>
+                              {open ? (
+                                <div id={panelId}>
+                                  <CausalityChainDrilldown
+                                    key={`${teamId}:${c.id}`}
+                                    teamId={teamId}
+                                    chainId={c.id}
+                                    visibleWorkflowIds={workflows.map((w) => w.id)}
+                                  />
+                                </div>
+                              ) : null}
+                            </div>
+                          );
+                        })}
                       </div>
                     ) : null}
 
@@ -799,6 +867,143 @@ export function WorkflowOperationsSection({
 }
 
 // ---------------------------------------------------------------------------
+// Causality drill-down — GET /v1/ops/causality/chains/:id (read-only)
+// ---------------------------------------------------------------------------
+
+function CausalityChainDrilldown({
+  teamId,
+  chainId,
+  visibleWorkflowIds,
+}: {
+  teamId: string;
+  chainId: string;
+  visibleWorkflowIds: ReadonlyArray<string>;
+}) {
+  const guard = useTenantGuard();
+  const [state, setState] = useState<
+    | { kind: "loading" }
+    | { kind: "ready"; data: CausalityChainDetail }
+    | { kind: "missing" }
+    | { kind: "denied" }
+    | { kind: "error"; message: string }
+  >({ kind: "loading" });
+  const [revision, setRevision] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    const stamp = guard.stamp();
+    setState({ kind: "loading" });
+    apiFetch(
+      `/v1/ops/causality/chains/${encodeURIComponent(chainId)}?teamId=${encodeURIComponent(teamId)}`,
+      { method: "GET" },
+    )
+      .then((res: CausalityChainDetail) => {
+        if (cancelled || guard.isStale(stamp)) return;
+        setState({ kind: "ready", data: res });
+      })
+      .catch((err: unknown) => {
+        if (cancelled || guard.isStale(stamp)) return;
+        const e = err as { statusCode?: number; code?: string };
+        if (e.statusCode === 404 || e.code === "chain_not_found") {
+          setState({ kind: "missing" });
+          return;
+        }
+        if (e.statusCode === 403) {
+          setState({ kind: "denied" });
+          return;
+        }
+        setState({
+          kind: "error",
+          message: toSafeUserError(err, {
+            message: "The cause could not be loaded.",
+          }).message,
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [guard, teamId, chainId, revision]);
+
+  if (state.kind === "loading") {
+    return <p className="ec-section-note" role="status">Loading the cause…</p>;
+  }
+  if (state.kind === "missing") {
+    return (
+      <p className="ec-section-note" role="alert" data-cc-causality-missing>
+        This cause is no longer recorded in this workspace. Refresh the workflows.
+      </p>
+    );
+  }
+  if (state.kind === "denied") {
+    return (
+      <p className="ec-section-note" role="alert" data-cc-causality-denied>
+        You do not have access to this cause in this workspace.
+      </p>
+    );
+  }
+  if (state.kind === "error") {
+    return (
+      <p className="ec-section-note" role="alert" data-cc-causality-error>
+        {state.message}{" "}
+        <button type="button" onClick={() => setRevision((v) => v + 1)}>
+          Try again
+        </button>
+      </p>
+    );
+  }
+  const { chain, linkedWorkflows } = state.data;
+  const focusRow = (id: string) => {
+    const row = Array.from(
+      document.querySelectorAll<HTMLElement>("[data-cc-workflow-id]"),
+    ).find((el) => el.getAttribute("data-cc-workflow-id") === id);
+    row?.scrollIntoView?.({ block: "center" });
+    row?.focus();
+  };
+  return (
+    <div data-cc-causality-detail={chain.id} style={{ overflowWrap: "anywhere", minWidth: 0 }}>
+      <h4 style={{ margin: "6px 0 4px" }}>{chain.title}</h4>
+      <p style={{ margin: "0 0 6px" }}>{chain.summary}</p>
+      <dl style={{ display: "flex", flexWrap: "wrap", gap: "4px 16px", margin: 0 }}>
+        <div><dt>Root cause</dt><dd>{identifierLabel(chain.rootCauseType)}</dd></div>
+        <div><dt>Severity</dt><dd>{identifierLabel(chain.severity)}</dd></div>
+        <div><dt>Status</dt><dd>{identifierLabel(chain.status)}</dd></div>
+        <div><dt>Started</dt><dd><time dateTime={chain.startAtUtc}>{formatUserDateTime(chain.startAtUtc)}</time></dd></div>
+        <div><dt>Last seen</dt><dd><time dateTime={chain.lastSeenAtUtc}>{formatUserDateTime(chain.lastSeenAtUtc)}</time></dd></div>
+        <div>
+          <dt>Resolved</dt>
+          <dd>{chain.resolvedAtUtc ? <time dateTime={chain.resolvedAtUtc}>{formatUserDateTime(chain.resolvedAtUtc)}</time> : "Not resolved"}</dd>
+        </div>
+        <div><dt>Linked incidents</dt><dd>{chain.linkedIncidentIds.length}</dd></div>
+        <div><dt>Linked cases</dt><dd>{chain.linkedCaseIds.length}</dd></div>
+        <div><dt>Linked evidence</dt><dd>{chain.linkedEvidenceIds.length}</dd></div>
+      </dl>
+      <p style={{ margin: "6px 0 2px" }}>Workflows with this cause</p>
+      {linkedWorkflows.length === 0 ? (
+        <p className="ec-section-note">No linked workflow is visible in this workspace.</p>
+      ) : (
+        <ul className="ec-coord-list" data-cc-causality-workflows>
+          {linkedWorkflows.map((w) => (
+            <li key={w.id} className="ec-coord-row">
+              {visibleWorkflowIds.includes(w.id) ? (
+                <button type="button" className="ec-chip-faint" onClick={() => focusRow(w.id)}>
+                  Go to {w.title}
+                </button>
+              ) : (
+                <span>{w.title} (not in the current list)</span>
+              )}
+              <span className="ec-chip-faint">{identifierLabel(w.status)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="ec-section-note" style={{ margin: "4px 0 0" }}>
+        Cause ID <code data-identifier>{chain.id}</code>
+      </p>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // History drawer — GET /v1/ops/workflows/:id
 // ---------------------------------------------------------------------------
 
@@ -868,10 +1073,10 @@ function WorkflowHistory({
     <ul className="ec-coord-list" data-cc-workflow-history={workflowId}>
       {state.events.map((e) => (
         <li key={e.id} className="ec-coord-row" data-cc-workflow-event={e.eventType}>
-          <span className="ec-coord-type">{e.eventType}</span>
+          <span className="ec-coord-type">{identifierLabel(e.eventType)}</span>
           <span className="ec-coord-explanation">{e.summary}</span>
           <time className="ec-chip-faint" dateTime={e.occurredAtUtc}>
-            {e.occurredAtUtc}
+            {formatUserDateTime(e.occurredAtUtc)}
           </time>
         </li>
       ))}
