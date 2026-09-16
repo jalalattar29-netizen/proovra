@@ -740,6 +740,25 @@ describe("K1 identity-auth (A) — personal sign-in and account security (live P
         await prisma.userLegalAcceptance.count({ where: { userId: p.id, policyVersion: "2020-01-01" } }),
       ).toBe(acceptances.length);
 
+      // D12 — only a required policy at its current version can be accepted.
+      for (const bogus of [
+        [{ policyKey: acceptances[0].policyKey, policyVersion: "2099-01-01" }],
+        [{ policyKey: "made-up-policy", policyVersion: "2026-04-06" }],
+      ]) {
+        const refused = await call({
+          method: "POST",
+          url: "/v1/users/legal-acceptance",
+          token: p.token,
+          payload: { source: "settings", acceptances: bogus },
+        });
+        expect(refused.statusCode).toBe(400);
+        expect((json(refused).error as Json).code).toBe("LEGAL_POLICY_VERSION_NOT_CURRENT");
+      }
+      expect(
+        await prisma.userLegalAcceptance.count({ where: { userId: p.id, policyVersion: "2020-01-01" } }),
+      ).toBe(acceptances.length);
+      expect(await prisma.userLegalAcceptance.count({ where: { userId: p.id, policyKey: "made-up-policy" } })).toBe(0);
+
       const res = await call({
         method: "POST",
         url: "/v1/users/legal-acceptance",
