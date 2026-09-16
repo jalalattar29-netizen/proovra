@@ -483,16 +483,19 @@ export async function consumeEmailVerificationToken(
   // If the user was already verified out-of-band (e.g. via a separate
   // email-link click that landed first), keep the older timestamp so
   // audit-log queries show the actual moment ownership was proven.
-  const [, user] = await prisma.$transaction([
+  // D15 — the stamp is written only where none exists; it used to be
+  // overwritten unconditionally, contradicting the rule above.
+  const [, , user] = await prisma.$transaction([
     prisma.emailVerificationToken.update({
       where: { id: rec.id },
       data: { usedAt: now },
     }),
-    prisma.user.update({
+    prisma.user.updateMany({
+      where: { id: rec.userId, emailVerifiedAt: null },
+      data: { emailVerifiedAt: now },
+    }),
+    prisma.user.findUniqueOrThrow({
       where: { id: rec.userId },
-      data: {
-        emailVerifiedAt: { set: now },
-      },
       select: {
         id: true,
         email: true,

@@ -404,6 +404,15 @@ describe("K1 identity-auth (A) — personal sign-in and account security (live P
       expect(replay.statusCode).toBe(400);
       expect((json(replay).error as Json).code).toBe("INVALID_OR_EXPIRED");
       expect(await prisma.authenticatedSession.count({ where: { userId: user.id } })).toBe(1);
+
+      // D15 — a second link for an address that is already verified keeps
+      // the moment ownership was FIRST proven.
+      const firstProven = (await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).emailVerifiedAt;
+      const { createEmailVerificationToken } = await import("../src/services/email-password-auth.service.js");
+      const second = await createEmailVerificationToken(user.id);
+      const again = await call({ method: "POST", url: "/v1/auth/email/verify", payload: { token: second.rawToken } });
+      expect(again.statusCode, again.body).toBe(200);
+      expect((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).emailVerifiedAt).toEqual(firstProven);
     });
 
     it("POST /v1/auth/password-reset/confirm — the mailed token replaces the password once; a replay and a guessed token change nothing", async () => {
