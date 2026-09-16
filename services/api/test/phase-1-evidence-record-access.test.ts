@@ -195,11 +195,11 @@ describe("evidence.routes — the 10 former owner-gate callers are classified", 
         ) ?? []
       ).length;
     expect(count("evidence.read")).toBe(1); // GET technical-metadata
-    // label + parts + lock + complete + bulk case-link + relationship delete
-    // = 6. The relationship DELETE only checked read access, so a viewer could
-    // remove a relationship (Batch K3); it now requires the same capability as
-    // every other relationship write.
-    expect(count("evidence.update_metadata")).toBe(6);
+    // label + parts + lock + complete + bulk case-link + relationship
+    // create/update/delete = 8. The relationship writes only checked read
+    // access, so a viewer could add, edit or remove a relationship (Batch K3,
+    // D21); they now require the capability every other metadata write does.
+    expect(count("evidence.update_metadata")).toBe(8);
     // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the bulk (un)archive and
     // bulk trash/restore callers are GONE from this file. Their authorization
     // moved into `applyEvidenceLifecycleAction`, alongside the single routes',

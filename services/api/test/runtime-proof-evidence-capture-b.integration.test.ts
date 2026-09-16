@@ -534,6 +534,21 @@ describe("K3 runtime proof — evidence capture (part B)", () => {
       expect(created.statusCode, created.body).toBe(201);
       const relationshipId = json(created).relationshipId as string;
 
+      // D21 — adding or editing a link is a write too; a viewer is refused
+      // both, and nothing changes.
+      const viewerCreate = await call("POST", `/v1/evidence/${source}/relationships`, teamA.viewerToken, {
+        targetEvidenceId: target,
+        relationshipType: "DUPLICATE_OF",
+        note: null,
+      });
+      expect(viewerCreate.statusCode, viewerCreate.body).toBe(404);
+      const viewerEdit = await call("PATCH", `/v1/evidence/${source}/relationships/${relationshipId}`, teamA.viewerToken, {
+        relationshipType: "DUPLICATE_OF",
+      });
+      expect(viewerEdit.statusCode, viewerEdit.body).toBe(404);
+      expect(await prisma.evidenceRelationship.count({ where: { sourceEvidenceId: source } })).toBe(1);
+      expect((await prisma.evidenceRelationship.findUniqueOrThrow({ where: { id: relationshipId } })).relationshipType).toBe("SAME_INCIDENT");
+
       // A VIEWER holds evidence.read only; removing a link is a write.
       const viewer = await call("DELETE", `/v1/evidence/${source}/relationships/${relationshipId}`, teamA.viewerToken);
       expect(viewer.statusCode, viewer.body).toBe(404);

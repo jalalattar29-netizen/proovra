@@ -8320,7 +8320,9 @@ return {
       const userId = getAuthUserId(req);
       const id = z.string().uuid().parse((req.params as ParamsId).id);
       const body = RelationshipBody.parse(req.body);
-      const evidence = await getEvidenceWithReadAccess(userId, id);
+      // D21 — creating a relationship is a WRITE on the source record (the
+      // same capability as removing one); the target only has to be readable.
+      const evidence = await getEvidenceWithRecordAccess(userId, id, "evidence.update_metadata");
       const target = await getEvidenceWithReadAccess(userId, body.targetEvidenceId);
 
       const relationship = await createEvidenceRelationship({
@@ -8361,7 +8363,8 @@ return {
         .uuid()
         .parse((req.params as { relationshipId: string }).relationshipId);
       const body = RelationshipUpdateBody.parse(req.body);
-      await getEvidenceWithReadAccess(userId, id);
+      // D21 — editing a relationship is a write; see the create route.
+      await getEvidenceWithRecordAccess(userId, id, "evidence.update_metadata");
 
       const relationship = await prisma.evidenceRelationship.findUnique({
         where: { id: relationshipId },
