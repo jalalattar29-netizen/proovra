@@ -27,6 +27,7 @@
 import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
 import { test } from "vitest";
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
@@ -103,12 +104,11 @@ test("Create handler — emits 'intake.link.created' audit event with no PII", (
   assert.match(src, /action: "intake\.link\.created"/);
   // The metadata block immediately following the created-action call
   // must use booleans, not raw fields.
-  const createdIdx = src.indexOf('action: "intake.link.created"');
-  assert.ok(createdIdx > 0, "created action literal missing");
-  // 1200-char window — the audit-call block is ~25 lines including
-  // the PII-safety comment, the metadata literal, and the trailing
-  // .catch(). 600 chars cuts off mid-comment.
-  const slice = src.slice(createdIdx, createdIdx + 1200);
+  // The whole audit statement (the emit call, its metadata literal and the
+  // trailing .catch()); throws when the created-action literal is missing.
+  const slice = enclosingSource(src, 'action: "intake.link.created"', "statement", {
+    fileName: "workflow-intake-links.routes.ts",
+  });
   assert.match(slice, /hasRecipientEmail: Boolean\(body\.recipientEmail\)/);
   assert.match(slice, /hasRecipientPhone: Boolean\(body\.recipientPhone\)/);
   // Defensive PII check — these strings must NOT appear in the
@@ -147,11 +147,10 @@ test("Create handler — return envelope includes link, rawToken, warning, deliv
   const src = read(ROUTES);
   // The 201 response body must always include `delivery` (even for
   // MANUAL, where it's `{method: "MANUAL", status: "skipped"}`).
-  const replyIdx = src.indexOf("return reply.code(201).send({");
-  assert.ok(replyIdx > 0, "201 response missing");
-  // Widened from 400: the link projection now carries the recipient-contact
-  // disclosure argument, and the envelope this asserts on sits below it.
-  const slice = src.slice(replyIdx, replyIdx + 900);
+  // The whole 201 return statement; throws when the 201 response is missing.
+  const slice = enclosingSource(src, "return reply.code(201).send({", "statement", {
+    fileName: "workflow-intake-links.routes.ts",
+  });
   // The projection now takes the recipient-contact disclosure decision, so
   // even the caller who just typed the address gets it back masked.
   assert.match(slice, /link: projectWorkflowIntakeLink\(\s*\n\s*result\.link,/);

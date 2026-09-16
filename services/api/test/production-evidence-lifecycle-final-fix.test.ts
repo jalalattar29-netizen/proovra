@@ -62,6 +62,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
 
 const REPO_ROOT = resolve(__dirname, "../../..");
 const LIFECYCLE_DIR = resolve(
@@ -259,9 +260,7 @@ describe("Evidence Lifecycle Final Fix — backend hardening", () => {
   it("(16) GET /v1/lifecycle/dashboard wraps projectLifecycleDashboard in try/catch", () => {
     // Locate the dashboard handler and verify the try/catch that
     // turns a projector failure into a `degraded: true` shape.
-    const startIdx = ROUTES.indexOf('"/v1/lifecycle/dashboard"');
-    expect(startIdx).toBeGreaterThan(0);
-    const slice = ROUTES.slice(startIdx, startIdx + 4000);
+    const slice = routeSource(ROUTES, "GET", "/v1/lifecycle/dashboard");
     expect(slice).toMatch(/try\s*\{[\s\S]*?projectLifecycleDashboard[\s\S]*?\}\s*catch/);
     expect(slice).toMatch(/degraded:\s*true/);
     expect(slice).toMatch(/degradedReason/);

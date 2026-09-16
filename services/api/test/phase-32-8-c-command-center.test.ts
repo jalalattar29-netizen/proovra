@@ -26,6 +26,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { enclosingSource, functionSource } from "../../../scripts/source-contract/index.mjs";
 
 function readApi(rel: string): string {
   // Normalize CRLF to LF so source-text contract scans (e.g. `\n}\n`
@@ -1174,12 +1175,9 @@ describe("Phase 32.8C+ — Access / Security Anomaly engine", () => {
   });
 
   it("never invents security events when SecurityEvent rows are absent", () => {
-    // Locate the function and bound the slice generously — TypeScript
-    // formatter may emit `})` patterns that match the `\n}\n` anchor
-    // before the actual function close.
-    const idx = SERVICE.indexOf("async function runAccessSecurityAnomalies");
-    expect(idx).toBeGreaterThan(-1);
-    const body = SERVICE.slice(idx, idx + 4000);
+    // The whole function, as parsed (WCC-NEW-027) — no `\n}\n` anchor and
+    // no character budget.
+    const body = functionSource(SERVICE, "runAccessSecurityAnomalies");
     // Body MUST source items from a real Prisma findMany on
     // SecurityEvent — not from a synthesized list.
     expect(body).toMatch(/prisma\.securityEvent\.findMany/);
@@ -1496,16 +1494,13 @@ describe("Phase 32.8C++ — Reconstructed Timeline engine", () => {
     // The engine must NOT call prisma.adminAuditLog.findMany in
     // the reconstructed-timeline runner — would leak cross-workspace
     // admin actions. The unsupported declaration is the contract.
-    const idx = SERVICE.indexOf("async function runReconstructedTimeline");
-    const end = SERVICE.indexOf("\n}\n", idx + 4000);
-    const body = SERVICE.slice(idx, end > idx ? end : idx + 8000);
+    const body = functionSource(SERVICE, "runReconstructedTimeline");
     expect(body).not.toMatch(/prisma\.adminAuditLog\.findMany/);
     expect(body).toContain("admin_audit_log_workspace_scope");
   });
 
   it("timeline events source from real Prisma tables (Report / VerificationPackage / EvidenceLifecycleEvent / OperationalIncident / ReviewEscalation / SecurityEvent)", () => {
-    const idx = SERVICE.indexOf("async function runReconstructedTimeline");
-    const body = SERVICE.slice(idx, idx + 8000);
+    const body = functionSource(SERVICE, "runReconstructedTimeline");
     expect(body).toMatch(/prisma\.report\.findMany/);
     expect(body).toMatch(/prisma\.verificationPackage\.findMany/);
     expect(body).toMatch(/prisma\.evidenceLifecycleEvent\.findMany/);
@@ -1567,8 +1562,7 @@ describe("Phase 32.8C++ — Deep Integrity Watch engine", () => {
   });
 
   it("uses legally-safe language only (no admissibility/authenticity claims)", () => {
-    const idx = SERVICE.indexOf("async function runDeepIntegrityWatch");
-    const body = SERVICE.slice(idx, idx + 6000);
+    const body = functionSource(SERVICE, "runDeepIntegrityWatch");
     for (const banned of [
       "legally admissible",
       "court-ready",
@@ -1604,8 +1598,7 @@ describe("Phase 32.8C++ — Access Security Classifier", () => {
   });
 
   it("classifier reads ONLY real SecurityEvent rows last 24h with severity WARNING|HIGH", () => {
-    const idx = SERVICE.indexOf("async function runAccessSecurityClassifier");
-    const body = SERVICE.slice(idx, idx + 4000);
+    const body = functionSource(SERVICE, "runAccessSecurityClassifier");
     expect(body).toMatch(/prisma\.securityEvent\.findMany/);
     expect(body).toMatch(
       /severity:\s*\{\s*in:\s*\["WARNING",\s*"HIGH"\]/,
@@ -1653,9 +1646,7 @@ describe("Phase 32.8C++ — Coordination Signals", () => {
   });
 
   it("uses real tables only (ReviewEscalation acknowledgedByUserId IS NULL / EvidenceAnnotation / EvidenceReviewerComment / CaseComment)", () => {
-    const idx = SERVICE.indexOf("async function runCoordinationSignals");
-    // Phase 32.8C+++++ grew the function — extend the body window.
-    const body = SERVICE.slice(idx, idx + 8000);
+    const body = functionSource(SERVICE, "runCoordinationSignals");
     expect(body).toMatch(/acknowledgedByUserId:\s*null/);
     expect(body).toMatch(/prisma\.evidenceAnnotation/);
     expect(body).toMatch(/prisma\.evidenceReviewerComment/);
@@ -1694,8 +1685,7 @@ describe("Phase 32.8C++ — Predictive Risk Forecast (deterministic)", () => {
 
   it("uses deterministic thresholds — NOT ML predictions / NOT AI claims", () => {
     expect(SERVICE).toMatch(/ml_probability_model/);
-    const idx = SERVICE.indexOf("function runPredictiveRisk");
-    const body = SERVICE.slice(idx, idx + 6000);
+    const body = functionSource(SERVICE, "runPredictiveRisk");
     for (const banned of [
       "AI predicts",
       "ML model",
@@ -1752,9 +1742,12 @@ describe("Phase 32.8C++ — Envelope contract + unsupported signals", () => {
   });
 
   it("buildUnsupportedSignalsCatalog aggregates all new engine metas (transparency)", () => {
-    const idx = SERVICE.indexOf("const unsupportedSignals = buildUnsupportedSignalsCatalog");
-    expect(idx).toBeGreaterThan(-1);
-    const body = SERVICE.slice(idx, idx + 1200);
+    const body = enclosingSource(
+      SERVICE,
+      "const unsupportedSignals = buildUnsupportedSignalsCatalog",
+      "statement",
+      { fileName: "command-center.service.ts" },
+    );
     for (const m of [
       "relationshipResult.meta",
       "crossCaseV2Result.meta",

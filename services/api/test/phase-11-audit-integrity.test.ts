@@ -6,6 +6,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 
 import { computeAuditLogChainHash } from "../src/lib/admin-audit-chain.js";
 
@@ -76,8 +77,10 @@ describe("§1 — V3 hash binds the authoritative tenant scope", () => {
      * historical V1/V2/V3 rows is unchanged and still exercised above.
      */
     const src = readFileSync(resolve(__dirname, "../src/services/platform-audit-log.service.ts"), "utf8");
-    const createIdx = src.indexOf("tx.adminAuditLog.create");
-    const block = src.slice(createIdx, createIdx + 1200);
+    const block = enclosingSource(src, "tx.adminAuditLog.create", "call", {
+      unique: true,
+      fileName: "platform-audit-log.service.ts",
+    });
     expect(block).toMatch(/chainVersion:\s*4/);
     expect(block).not.toMatch(/chainVersion:\s*[123]\b/);
   });
@@ -93,8 +96,11 @@ describe("§1 — V3 hash binds the authoritative tenant scope", () => {
     const api = readFileSync(resolve(__dirname, "../src/services/platform-audit-log.service.ts"), "utf8");
     const worker = readFileSync(resolve(__dirname, "../../worker/src/platform-audit-append.ts"), "utf8");
     const versionOf = (src: string) => {
-      const i = src.indexOf("tx.adminAuditLog.create");
-      return /chainVersion:\s*(\d+)/.exec(src.slice(i, i + 1200))?.[1] ?? null;
+      const create = enclosingSource(src, "tx.adminAuditLog.create", "call", {
+        unique: true,
+        fileName: "platform-audit-append.ts",
+      });
+      return /chainVersion:\s*(\d+)/.exec(create)?.[1] ?? null;
     };
     expect(versionOf(worker), "the worker writes a different chain version than the API").toBe(
       versionOf(api),

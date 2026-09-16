@@ -21,6 +21,8 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
+import { enclosingSource, functionSource } from "../../../scripts/source-contract/index.mjs";
+
 const __filename = fileURLToPath(import.meta.url);
 const REPO_ROOT = resolve(dirname(__filename), "..", "..", "..");
 const PAGE = resolve(REPO_ROOT, "apps/web/app/(app)/search/page.tsx");
@@ -44,8 +46,11 @@ test("reloadHealth callback now accepts an optional probe query and forwards it 
   // The fetch URL builder threads `q` into the URL when the probe
   // query is non-empty, bounded to 200 chars to match the backend
   // Zod schema.
-  const fnIdx = src.indexOf("const reloadHealth = useCallback(");
-  const window = src.slice(fnIdx, fnIdx + 1500);
+  // The whole `const reloadHealth = useCallback(…)` declaration.
+  const window = enclosingSource(src, "const reloadHealth = useCallback(", "statement", {
+    unique: true,
+    fileName: "page.tsx",
+  });
   assert.match(window, /params\.set\("q",/);
   assert.match(window, /slice\(0, 200\)/);
 });
@@ -56,9 +61,8 @@ test("after a search returns, the page refetches diagnostics with the current `q
   // the cached probe `q` to the live filter `q` and call
   // reloadHealth(filter.q) when they diverge — so queryProbe stays
   // fresh for the per-type empty-state branch.
-  const idx = src.indexOf(".then((r)");
-  assert.ok(idx > 0, "search-result handler missing");
-  const window = src.slice(idx, idx + 3500);
+  // The search-result `runSearch(filter).then((r) => { … })` call.
+  const window = enclosingSource(src, ".then((r)", "call", { fileName: "page.tsx" });
   assert.match(window, /searchHealth\?\.queryProbe\?\.q/);
   assert.match(window, /probeStale/);
   assert.match(window, /reloadHealth\(filter\.q\)/);
@@ -144,7 +148,12 @@ test("no-match-filtered empty-state branch consumes describeFilterEmpty output",
   const before = src.slice(Math.max(0, branchIdx - 1500), branchIdx);
   assert.match(before, /describeFilterEmpty\(filter, searchHealth\)/);
   // The render uses both halves of the returned shape.
-  const after = src.slice(branchIdx, branchIdx + 800);
+  const after = enclosingSource(
+    src,
+    'data-search-empty-state-kind="no-match-filtered"',
+    "jsx",
+    { unique: true, fileName: "page.tsx" },
+  );
   assert.match(after, /hint\.headline/);
   assert.match(after, /hint\.detail/);
 });
@@ -155,8 +164,7 @@ test("no-match-filtered empty-state branch consumes describeFilterEmpty output",
 
 test("Frontend serialises documentTypes as a comma-joined uppercase string for the API", () => {
   const src = read(PAGE);
-  const runIdx = src.indexOf("async function runSearch(");
-  const body = src.slice(runIdx, runIdx + 3000);
+  const body = functionSource(src, "runSearch", "page.tsx");
   assert.match(
     body,
     /qs\.set\("documentTypes", filter\.documentTypes\.join\(","\)\)/,
@@ -169,8 +177,11 @@ test("DOCUMENT_TYPES catalog matches the backend SEARCH_DOCUMENT_TYPES uppercase
   // The page used to support lowercase /v1/search filter values for
   // legacy URLs; pin that no lowercase string literals for
   // EVIDENCE/CASE/REPORT/PACKAGE/NOTE remain as filter values.
-  const catalogIdx = src.indexOf("const DOCUMENT_TYPES: DocumentType[] = [");
-  const catalog = src.slice(catalogIdx, catalogIdx + 400);
+  // The whole `const DOCUMENT_TYPES: DocumentType[] = [ … ];` declaration.
+  const catalog = enclosingSource(src, "const DOCUMENT_TYPES: DocumentType[] = [", "statement", {
+    unique: true,
+    fileName: "page.tsx",
+  });
   assert.match(catalog, /"EVIDENCE"/);
   assert.match(catalog, /"CASE"/);
   assert.match(catalog, /"REPORT"/);

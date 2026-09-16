@@ -28,6 +28,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { enclosingSource, routeSource } from "../../../scripts/source-contract/index.mjs";
 
 import {
   ANALYTICS_EVENT_NAMES,
@@ -263,8 +264,7 @@ describe("Phase A3 — AI chat hardening", () => {
     // Prompt content (the `content` field on each message) must
     // never appear in a logger.info / logger.warn call. We assert
     // negatively against the conventional patterns.
-    const chatStart = AI_ROUTES.indexOf('"/v1/ai/chat"');
-    const handlerSlice = AI_ROUTES.slice(chatStart, chatStart + 8_000);
+    const handlerSlice = routeSource(AI_ROUTES, "POST", "/v1/ai/chat");
     expect(handlerSlice).not.toMatch(/log\.\w+\([\s\S]*messages\[0\]\.content/);
     expect(handlerSlice).not.toMatch(/log\.\w+\([\s\S]*body\.messages/);
   });
@@ -303,9 +303,7 @@ describe("Phase A3 — webhook signature audit", () => {
   });
 
   it("Stripe handler short-circuits with 400 on signature failure", () => {
-    const stripeStart = WEBHOOK_ROUTES.indexOf('app.post("/stripe"');
-    expect(stripeStart).toBeGreaterThan(0);
-    const slice = WEBHOOK_ROUTES.slice(stripeStart, stripeStart + 2_500);
+    const slice = routeSource(WEBHOOK_ROUTES, "POST", "/stripe");
     expect(slice).toMatch(/sigCheck\.ok/);
     expect(slice).toMatch(/reply\.code\(400\)/);
   });
@@ -337,16 +335,13 @@ describe("Phase A3 — VERIFY_VIEWED debounced custody event", () => {
     // Scope to the appendCustodyEvent call site in the verify
     // handler — not the unrelated event-label renderer earlier in
     // the file.
-    const handlerStart = EVIDENCE_ROUTES.indexOf(
-      'app.get("/public/verify/:id"',
-    );
-    expect(handlerStart).toBeGreaterThan(0);
-    const handlerSlice = EVIDENCE_ROUTES.slice(handlerStart);
-    const appendIdx = handlerSlice.indexOf(
+    const handlerSlice = routeSource(EVIDENCE_ROUTES, "GET", "/public/verify/:id");
+    // The custody append call itself (WCC-NEW-027: no character budget).
+    const payloadSlice = enclosingSource(
+      handlerSlice,
       "CustodyEventType.VERIFY_VIEWED",
+      "call",
     );
-    expect(appendIdx).toBeGreaterThan(0);
-    const payloadSlice = handlerSlice.slice(appendIdx, appendIdx + 1_500);
     expect(payloadSlice).toContain('visibility: "public_verify"');
     expect(payloadSlice).toMatch(/viewerType:[\s\S]{0,80}"anonymous"/);
     expect(payloadSlice).toContain('source: "public_verify_page"');

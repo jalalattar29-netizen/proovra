@@ -33,6 +33,8 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
+import { functionSource } from "../../../scripts/source-contract/index.mjs";
+
 const __filename = fileURLToPath(import.meta.url);
 const REPO_ROOT = resolve(dirname(__filename), "..", "..", "..");
 const INTAKE_PAGE = resolve(
@@ -101,8 +103,7 @@ test("intake part submission includes silent captureTimezone + captureLocale", (
   // Privacy: the client sends only tz/locale; raw IP + raw User-Agent are
   // derived (and masked/hashed) server-side. The intake stageFile body
   // must not include a rawIp / rawUserAgent field.
-  const stageStart = SRC.indexOf("async function stageFile");
-  const stageBody = SRC.slice(stageStart, stageStart + 2500);
+  const stageBody = functionSource(SRC, "stageFile", "page.tsx");
   assert.ok(
     !/rawIp\b|rawUserAgent\b/.test(stageBody),
     "intake stageFile must not send raw IP / raw User-Agent in the body",

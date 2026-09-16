@@ -46,6 +46,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -103,9 +104,10 @@ describe("Phase 32.6.5 — checkMigrations stale-rolled-back repair", () => {
 
   it("HEALTHY response reports `applied` (post-dedup) instead of raw rows.length", () => {
     // Capture only the HEALTHY-return slice.
-    const healthyIdx = fn.indexOf('status: "HEALTHY"');
-    expect(healthyIdx).toBeGreaterThan(-1);
-    const tail = fn.slice(healthyIdx, healthyIdx + 800);
+    const tail = enclosingSource(fn, 'status: "HEALTHY"', "statement", {
+      unique: true,
+      fileName: "runtime-readiness.ts",
+    });
     expect(tail).toMatch(/applied,\s*\n\s*totalLive/);
   });
 });

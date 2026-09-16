@@ -37,6 +37,10 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
 import { getDisplayTitle } from "../app/(app)/evidence/lib/evidence-library-status";
+import {
+  betweenMarkers,
+  enclosingSource,
+} from "../../../scripts/source-contract/index.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -139,9 +143,10 @@ test("Remove-from-case confirm modal title uses the same resolved display name (
 test("matter-workspace envelope evidence item exposes title/displayFileName/originalFileName/mimeType/itemCount", () => {
   // The cascade needs every field — the type must declare each
   // one. Anchor by searching the evidence-items block.
-  const start = TYPES.indexOf("evidence: {");
-  assert.ok(start > 0, "evidence block not found in envelope type");
-  const block = TYPES.slice(start, start + 2000);
+  // The `evidence: { … }` member of MatterWorkspaceEnvelope, up to its next
+  // sibling member `relationships: {` (a type-literal member, which the
+  // enclosing-construct kinds do not cover; the end is the real boundary).
+  const block = betweenMarkers(TYPES, "evidence: {", "relationships: {");
   for (const field of [
     "title: string | null",
     "displayFileName: string | null",
@@ -187,11 +192,13 @@ test("Backend no longer substitutes 'Untitled evidence' on the matter-workspace 
   // The mapper used to fall back to a literal string. The literal
   // must be gone from the mapping block so the cascade can fall
   // through to filename fields on the client.
-  const start = MATTER_WORKSPACE_SERVICE.indexOf(
+  // The `{ status, items: items.map((e) => ({ … })) }` section object.
+  const block = enclosingSource(
+    MATTER_WORKSPACE_SERVICE,
     "items: items.map((e) => ({",
+    "object",
+    { unique: true, fileName: "matter-workspace.service.ts" },
   );
-  assert.ok(start > 0, "evidence map not found");
-  const block = MATTER_WORKSPACE_SERVICE.slice(start, start + 2400);
   assert.doesNotMatch(block, /title: e\.title \?\? "Untitled evidence"/);
   // And the new shape passes nullable title + filename fields.
   assert.match(block, /title: e\.title \?\? null/);

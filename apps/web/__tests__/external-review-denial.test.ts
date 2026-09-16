@@ -44,6 +44,8 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -57,6 +59,10 @@ const PAGE_PATH = resolve(
   "page.tsx",
 );
 const PAGE_SOURCE = readFileSync(PAGE_PATH, "utf8");
+
+/** The whole JSX element (the button) that carries `attr` (WCC-NEW-027). */
+const elementWith = (attr: string): string =>
+  enclosingSource(PAGE_SOURCE, attr, "jsx", { unique: true, fileName: "page.tsx" });
 
 // ---------------------------------------------------------------------------
 // 1. Capability hook + active-space role read from canonical envelope.
@@ -123,11 +129,8 @@ const ACTION_BUTTONS = [
 for (const action of ACTION_BUTTONS) {
   test(`${action.attr} carries a data-capability-allowed attribute`, () => {
     // We look for the action attribute, then assert
-    // data-capability-allowed appears within the same button element
-    // (within ~600 chars).
-    const idx = PAGE_SOURCE.indexOf(action.attr);
-    assert.ok(idx > 0, `${action.attr} button must be present`);
-    const slice = PAGE_SOURCE.slice(idx, idx + 800);
+    // data-capability-allowed appears within the same button element.
+    const slice = elementWith(action.attr);
     assert.match(
       slice,
       /data-capability-allowed=\{caps\.\w+/,
@@ -137,9 +140,7 @@ for (const action of ACTION_BUTTONS) {
   });
 
   test(`${action.attr} uses the matching capability key (${action.cap})`, () => {
-    const idx = PAGE_SOURCE.indexOf(action.attr);
-    assert.ok(idx > 0, `${action.attr} button must be present`);
-    const slice = PAGE_SOURCE.slice(idx, idx + 800);
+    const slice = elementWith(action.attr);
     assert.ok(
       slice.includes(action.cap),
       `${action.attr} button must reference the ${action.cap} key.`,
@@ -174,9 +175,8 @@ test("reveal-token tooltip explains the split-of-duty", () => {
   // The reveal-token tooltip must reference that ADMIN / SUPERVISOR
   // cannot perform it — that is the explicit explanation the brief
   // asked for.
-  const idx = PAGE_SOURCE.indexOf("data-break-glass-arm");
-  assert.ok(idx > 0, "reveal-token break-glass arm must be present");
-  const slice = PAGE_SOURCE.slice(idx, idx + 1500);
+  // The break-glass arm button, whose title is the tooltip.
+  const slice = elementWith("data-break-glass-arm");
   assert.match(
     slice,
     /split-of-duty/i,

@@ -41,6 +41,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
+
 function readApi(rel: string): string {
   return readFileSync(
     fileURLToPath(new URL(`../${rel}`, import.meta.url)),
@@ -85,9 +87,7 @@ describe("Phase O Stream C — Sentry NODE-1P /v1/coding/schemas/seed-defaults",
   });
 
   it("the route handler returns degraded 200 on P2022/P2021 instead of 500", () => {
-    const idx = REVIEWER_WORKSPACE_ROUTES.indexOf('"/v1/coding/schemas/seed-defaults"');
-    expect(idx, "/v1/coding/schemas/seed-defaults route must exist").toBeGreaterThan(-1);
-    const slice = REVIEWER_WORKSPACE_ROUTES.slice(idx, idx + 2500);
+    const slice = routeSource(REVIEWER_WORKSPACE_ROUTES, "POST", "/v1/coding/schemas/seed-defaults");
     expect(slice).toMatch(/try\s*\{[\s\S]{0,400}seedDefaultSchemas/);
     expect(slice).toMatch(/code === "P2022"\s*\|\|\s*code === "P2021"/);
     expect(slice).toMatch(/degraded:\s*true/);
@@ -113,11 +113,11 @@ describe("Phase O Stream C — Sentry NODE-1K /v1/packaging/entitlements/apply-p
   });
 
   it("the route handler returns degraded 200 on P2022/P2021 instead of 500", () => {
-    const idx = PRODUCT_LIFECYCLE_ROUTES.indexOf(
-      '"/v1/packaging/entitlements/apply-product-line"',
+    const slice = routeSource(
+      PRODUCT_LIFECYCLE_ROUTES,
+      "POST",
+      "/v1/packaging/entitlements/apply-product-line",
     );
-    expect(idx, "/v1/packaging/entitlements/apply-product-line route must exist").toBeGreaterThan(-1);
-    const slice = PRODUCT_LIFECYCLE_ROUTES.slice(idx, idx + 2500);
     expect(slice).toMatch(/try\s*\{[\s\S]{0,400}applyProductLine/);
     expect(slice).toMatch(/code === "P2022"\s*\|\|\s*code === "P2021"/);
     expect(slice).toMatch(/applied:\s*false/);
@@ -127,10 +127,11 @@ describe("Phase O Stream C — Sentry NODE-1K /v1/packaging/entitlements/apply-p
 
   it("the delegated-tier middleware gate is preserved (auth not weakened)", () => {
     // The route MUST still require ORG_ADMIN via the middleware.
-    const idx = PRODUCT_LIFECYCLE_ROUTES.indexOf(
-      '"/v1/packaging/entitlements/apply-product-line"',
+    const slice = routeSource(
+      PRODUCT_LIFECYCLE_ROUTES,
+      "POST",
+      "/v1/packaging/entitlements/apply-product-line",
     );
-    const slice = PRODUCT_LIFECYCLE_ROUTES.slice(idx, idx + 400);
     expect(slice).toMatch(/requireDelegatedTier\("ORG_ADMIN"\)/);
   });
 });
@@ -219,9 +220,7 @@ describe("Phase O Stream C — Sentry NODE-1Q + NODE-1J /v1/admin/runtime/readin
   });
 
   it("GET /v1/admin/runtime/migrations wraps runMigrationDriftCheck in try/catch", () => {
-    const idx = RUNTIME_READINESS_ROUTES.indexOf('"/v1/admin/runtime/migrations"');
-    expect(idx).toBeGreaterThan(-1);
-    const slice = RUNTIME_READINESS_ROUTES.slice(idx, idx + 1500);
+    const slice = routeSource(RUNTIME_READINESS_ROUTES, "GET", "/v1/admin/runtime/migrations");
     expect(slice).toMatch(/try\s*\{[\s\S]{0,400}runMigrationDriftCheck/);
     expect(slice).toMatch(/code === "P2022"\s*\|\|\s*code === "P2021"/);
   });

@@ -15,6 +15,8 @@ import { readdirSync, existsSync, statSync, readFileSync } from "node:fs";
 import { resolve, join, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
+
 const REPO = resolve(__dirname, "../../..");
 
 const SCAN_ROOTS = [
@@ -419,6 +421,19 @@ function codeOnly(src: string): string {
     .join("\n");
 }
 
+/**
+ * `codeOnly` with the stripped characters blanked IN PLACE, so an offset in the
+ * result is the same offset in the raw file the parser reads.
+ */
+function blankComments(src: string): string {
+  const blank = (s: string) => s.replace(/[^\n]/g, " ");
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, blank)
+    .split("\n")
+    .map((l) => (l.trim().startsWith("//") ? blank(l) : l))
+    .join("\n");
+}
+
 describe("Phase 12 Point 4 — resurrection gate (runtime)", () => {
   it("no runtime module reads or writes a legacy Legal-Hold Prisma model", () => {
     const LEGACY_DELEGATE =
@@ -514,11 +529,20 @@ describe("Phase 12 Point 4 — resurrection gate (runtime)", () => {
   it("no audit writer below chainVersion 4 (NewAuditWritesBelowV4 = 0)", () => {
     const writers: Array<{ file: string; version: string }> = [];
     for (const p of runtimeTsFiles()) {
-      const code = codeOnly(readFileSync(p, "utf8"));
+      const raw = readFileSync(p, "utf8");
+      const code = blankComments(raw);
       for (const m of code.matchAll(/adminAuditLog\s*\.\s*(?:create|createMany)\s*\(/g)) {
         const start = m.index ?? 0;
-        const window = code.slice(start, start + 2500);
-        const v = /chainVersion\s*:\s*(\d+)/.exec(window);
+        // The writer call itself — its own arguments — not the code after it.
+        const marker = raw.slice(start, start + m[0].length);
+        let occurrence = 0;
+        for (let q = raw.indexOf(marker); q >= 0 && q < start; q = raw.indexOf(marker, q + 1)) {
+          occurrence += 1;
+        }
+        const call = blankComments(
+          enclosingSource(raw, marker, "call", { occurrence, fileName: relOf(p) }),
+        );
+        const v = /chainVersion\s*:\s*(\d+)/.exec(call);
         writers.push({ file: relOf(p), version: v ? v[1]! : "MISSING" });
       }
     }

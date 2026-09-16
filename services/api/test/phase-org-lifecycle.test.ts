@@ -7,6 +7,8 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const read = (rel: string) => readFileSync(resolve(HERE, rel), "utf8");
 const ROUTES = read("../src/routes/organizations.routes.ts");
@@ -35,8 +37,7 @@ describe("ownership transfer", () => {
   });
 
   it("swaps roles atomically in ONE transaction (never zero or two owners)", () => {
-    const transferStart = ROUTES.indexOf("/v1/orgs/:id/transfer-ownership");
-    const block = ROUTES.slice(transferStart, transferStart + 6000);
+    const block = routeSource(ROUTES, "POST", "/v1/orgs/:id/transfer-ownership");
     expect(block).toMatch(/\$transaction/);
     // PHASE 3: atomic swap via the canonical orchestrator (both legs in
     // the same tx, provenance-recorded).

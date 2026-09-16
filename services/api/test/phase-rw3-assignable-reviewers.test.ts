@@ -44,6 +44,8 @@ import { fileURLToPath } from "node:url";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { functionSource } from "../../../scripts/source-contract/index.mjs";
+
 // ---------------------------------------------------------------------------
 // Source-contract helpers
 // ---------------------------------------------------------------------------
@@ -227,11 +229,9 @@ describe("Phase RW3-2 — service source contract", () => {
     // Locate the listAssignableReviewers function body and assert
     // that within it, the TeamMember.user select clause never picks
     // up `email` or `passwordHash`.
-    const fnIdx = SERVICE_SRC.indexOf("async function listAssignableReviewers");
-    expect(fnIdx).toBeGreaterThan(-1);
-    // Take a generous chunk after the function header so we capture
-    // the full body up to the next top-level export.
-    const fnBody = SERVICE_SRC.slice(fnIdx, fnIdx + 4000);
+    // The whole function body, and nothing after it.
+    const fnBody = functionSource(SERVICE_SRC, "listAssignableReviewers");
+    expect(fnBody).toContain("async function listAssignableReviewers");
     expect(fnBody).not.toMatch(/email\s*:\s*true/);
     expect(fnBody).not.toMatch(/passwordHash/);
     expect(fnBody).not.toMatch(/accessReason/);

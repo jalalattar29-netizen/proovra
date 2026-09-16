@@ -41,6 +41,11 @@ import { describe, expect, it } from "vitest";
 import { roleHasPermission } from "@proovra/shared";
 
 import { resolveCapabilities } from "../src/services/platform-context/capability-registry.js";
+import {
+  enclosingSource,
+  functionSource,
+  routeSource,
+} from "../../../scripts/source-contract/index.mjs";
 
 function read(rel: string): string {
   return readFileSync(fileURLToPath(new URL(`../../../${rel}`, import.meta.url)), "utf8");
@@ -99,9 +104,7 @@ describe("Closure — Personal Free can SEE its health without a workbench", () 
     expect(OPS_ROUTES).toMatch(
       /async function requireOpsActor\([\s\S]{0,400}"operations\.view"/,
     );
-    const summaryAt = OPS_ROUTES.indexOf('"/v1/ops/summary"');
-    expect(summaryAt).toBeGreaterThan(0);
-    const block = OPS_ROUTES.slice(summaryAt, summaryAt + 700);
+    const block = routeSource(OPS_ROUTES, "GET", "/v1/ops/summary");
     expect(block).toContain("requireOpsActor(req, reply, q.teamId)");
     expect(block).not.toContain("OPERATIONS_VIEW");
   });
@@ -166,9 +169,7 @@ describe("Closure — Home is still information-rich", () => {
     const SECTIONS = read(
       "apps/web/components/home-experience/HomeDashboardSections.tsx",
     );
-    const at = SECTIONS.indexOf("export function WorkspacePrioritiesCard");
-    expect(at).toBeGreaterThan(0);
-    const card = SECTIONS.slice(at, at + 9000);
+    const card = functionSource(SECTIONS, "WorkspacePrioritiesCard", "HomeDashboardSections.tsx");
     for (const verb of [
       "acknowledgeIncident",
       "resolveIncident",
@@ -198,9 +199,8 @@ describe("Closure — every Home metric names a canonical authority", () => {
 
   for (const [key, provenance] of PROVENANCE) {
     it(`${key} is derived from ${provenance}`, () => {
-      const at = VM.indexOf(`key: "${key}"`);
-      expect(at, `${key} priority must exist`).toBeGreaterThan(0);
-      const block = VM.slice(at, at + 1400);
+      // The priority's own object literal — throws when the priority is missing.
+      const block = enclosingSource(VM, `key: "${key}"`, "object", { unique: true });
       expect(block).toContain(provenance);
     });
   }
@@ -269,9 +269,7 @@ describe("Closure — a Free user's CTA never leads somewhere they are refused",
       "resolve_integrity",
       "ots_pending",
     ]) {
-      const at = VM.indexOf(`key: "${key}"`);
-      expect(at).toBeGreaterThan(0);
-      const block = VM.slice(at, at + 1400);
+      const block = enclosingSource(VM, `key: "${key}"`, "object", { unique: true });
       expect(block, `${key} must not deep-link to /operations`).not.toMatch(
         /href: "\/operations/,
       );

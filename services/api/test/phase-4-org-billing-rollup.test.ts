@@ -13,6 +13,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
 
 function readSource(rel: string): string {
   const url = new URL(rel, import.meta.url);
@@ -26,11 +27,7 @@ const GOV_ROUTES = readSource(
 // Anchor every assertion inside the registered handler so the route
 // file's top-comment cannot satisfy a check on its own.
 function rollupHandler(): string {
-  const idx = GOV_ROUTES.indexOf(
-    'app.get(\n    "/v1/orgs/:id/billing/rollup"',
-  );
-  expect(idx).toBeGreaterThan(0);
-  return GOV_ROUTES.slice(idx, idx + 6_000);
+  return routeSource(GOV_ROUTES, "GET", "/v1/orgs/:id/billing/rollup");
 }
 
 describe("Phase 4 — org billing rollup", () => {

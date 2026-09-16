@@ -37,6 +37,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { enclosingSource, routeSource } from "../../../scripts/source-contract/index.mjs";
 
 import { SECURITY_EVENT_TYPES } from "@proovra/shared";
 
@@ -87,11 +88,7 @@ describe("Phase A0 — integrity hard-gate (API contract)", () => {
     // We expect the FAILED_HASH_MISMATCH branch to appear FIRST inside
     // the public-verify status guard block. Anti-enumeration requires
     // the FAILED case to look identical to "Evidence not found".
-    const handlerStart = EVIDENCE_ROUTES.indexOf(
-      'app.get("/public/verify/:id"',
-    );
-    expect(handlerStart).toBeGreaterThan(0);
-    const handlerSlice = EVIDENCE_ROUTES.slice(handlerStart, handlerStart + 20_000);
+    const handlerSlice = routeSource(EVIDENCE_ROUTES, "GET", "/public/verify/:id");
 
     const failedIdx = handlerSlice.indexOf("FAILED_HASH_MISMATCH");
     const notFinalizedIdx = handlerSlice.indexOf("EVIDENCE_NOT_FINALIZED");
@@ -102,18 +99,24 @@ describe("Phase A0 — integrity hard-gate (API contract)", () => {
     // The FAILED branch must return reply.code(404) with the generic
     // "Evidence not found" body. Audit metadata is allowed to carry
     // the real outcome.
-    const failedWindow = handlerSlice.slice(failedIdx, failedIdx + 1000);
+    // The FAILED status guard itself (the `if` whose condition names it).
+    const failedWindow = enclosingSource(
+      handlerSlice,
+      "EvidenceStatus.FAILED_HASH_MISMATCH",
+      "statement",
+      { fileName: "evidence.routes.ts" },
+    );
     expect(failedWindow).toMatch(/reply\.code\(404\)/);
     expect(failedWindow).toContain("Evidence not found");
     expect(failedWindow).toContain('outcome: "integrity_failed"');
   });
 
   it("regenerate endpoint refuses with 409 + EVIDENCE_INTEGRITY_FAILED for FAILED_HASH_MISMATCH", () => {
-    const regenStart = EVIDENCE_ROUTES.indexOf(
-      '"/v1/evidence/:id/reports/regenerate"',
+    const regenSlice = routeSource(
+      EVIDENCE_ROUTES,
+      "POST",
+      "/v1/evidence/:id/reports/regenerate",
     );
-    expect(regenStart).toBeGreaterThan(0);
-    const regenSlice = EVIDENCE_ROUTES.slice(regenStart, regenStart + 8_000);
 
     expect(regenSlice).toContain(
       "prismaPkg.EvidenceStatus.FAILED_HASH_MISMATCH",

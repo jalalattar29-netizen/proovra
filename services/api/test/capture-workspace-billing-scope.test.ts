@@ -52,6 +52,11 @@ import { NO_CONTRACT_LIMITS } from "../src/services/billing/enterprise-contract-
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import {
+  enclosingSource,
+  functionSource,
+  routeSource,
+} from "../../../scripts/source-contract/index.mjs";
 
 import { assertWorkspaceAllowsEvidenceCreation } from "../src/services/billing-enforcement.service.js";
 import type { WorkspaceScope } from "../src/services/workspace-billing.service.js";
@@ -224,9 +229,7 @@ describe("Capture scope hotfix — POST /v1/evidence typed response contract", (
     // return 402 with the typed JSON shape.
     expect(src).toMatch(/code\?:\s*string\s*\}\)\.code\s*===\s*"TEAM_PLAN_REQUIRED"/);
     // The catch arm sits inside the POST /v1/evidence handler.
-    const postIdx = src.indexOf('app.post("/v1/evidence"');
-    expect(postIdx).toBeGreaterThan(0);
-    const handlerSlice = src.slice(postIdx, postIdx + 8000);
+    const handlerSlice = routeSource(src, "POST", "/v1/evidence");
     expect(handlerSlice).toMatch(
       /code:\s*"TEAM_PLAN_REQUIRED",\s*\n\s*message:[^]+target:\s*"TEAM",\s*\n\s*requiredPlan:\s*"TEAM"/,
     );
@@ -245,8 +248,7 @@ describe("Capture scope hotfix — POST /v1/evidence typed response contract", (
 
   it("the catch arm appears BEFORE the generic `throw err` so it short-circuits 500s", () => {
     const src = readSource("../src/routes/evidence.routes.ts");
-    const postIdx = src.indexOf('app.post("/v1/evidence"');
-    const handlerSlice = src.slice(postIdx, postIdx + 8000);
+    const handlerSlice = routeSource(src, "POST", "/v1/evidence");
     const armIdx = handlerSlice.indexOf('"TEAM_PLAN_REQUIRED"');
     const throwIdx = handlerSlice.indexOf("throw err;");
     expect(armIdx).toBeGreaterThan(0);
@@ -284,9 +286,16 @@ describe("Capture scope hotfix — orchestration preserves staged materials on b
       "../../../apps/web/app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts",
     );
     // Find the outer catch block of finalizeSession.
-    const catchStart = src.lastIndexOf("} catch (err) {");
+    const finalize = functionSource(src, "finalizeSession");
+    const catchStart = finalize.lastIndexOf("} catch (err) {");
     expect(catchStart).toBeGreaterThan(0);
-    const catchBlock = src.slice(catchStart, catchStart + 2000);
+    // The catch clause's own block: the deepest block that holds the `{`
+    // opening it.
+    const catchOpen = catchStart + "} catch (err) ".length;
+    const catchBlock = enclosingSource(finalize, "{", "block", {
+      occurrence: finalize.slice(0, catchOpen).split("{").length - 1,
+      fileName: "useCaptureSessionOrchestration.ts",
+    });
 
     // The team-plan branch must come BEFORE the Sentry log call.
     const gateIdx = catchBlock.indexOf("buildTeamPlanRequiredDetails");

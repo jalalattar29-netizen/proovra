@@ -28,6 +28,8 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
+
 function read(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 }
@@ -78,9 +80,11 @@ test("F7 — middleware INTERNAL 404 gate is conditioned on an absent session co
     "middleware must read the proovra_session cookie in the tier gate",
   );
   // The /not-found rewrite must sit inside the `!hasSession` branch.
-  const gateIdx = middlewareSrc.indexOf('rule.tier === "INTERNAL"');
-  assert.ok(gateIdx > -1, "INTERNAL tier gate must exist");
-  const region = middlewareSrc.slice(gateIdx, gateIdx + 500);
+  // The whole `if (rule.tier === "INTERNAL" …) { … }` statement.
+  const region = enclosingSource(middlewareSrc, 'rule.tier === "INTERNAL"', "statement", {
+    unique: true,
+    fileName: "middleware.ts",
+  });
   assert.ok(/if \(!hasSession\)/.test(region), "404 must be gated by !hasSession");
   assert.ok(
     region.indexOf("!hasSession") < region.indexOf('"/not-found"'),

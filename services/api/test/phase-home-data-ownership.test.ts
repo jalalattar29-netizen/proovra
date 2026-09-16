@@ -39,6 +39,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { enclosingSource, routeSource } from "../../../scripts/source-contract/index.mjs";
 
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -144,9 +145,10 @@ describe("createEvidence — every row carries a REAL team id", () => {
     // evidence.create data block (personal scope has teamId === null).
     // It must not return there. (The webhook emit below the create
     // legitimately keeps its `scope.teamId` team-only guard.)
-    const createIdx = src.indexOf("tx.evidence.create");
-    expect(createIdx).toBeGreaterThan(0);
-    const createBlock = src.slice(createIdx, createIdx + 2500);
+    const createBlock = enclosingSource(src, "tx.evidence.create", "call", {
+      unique: true,
+      fileName: "evidence.service.ts",
+    });
     expect(createBlock).not.toMatch(/teamId:\s*scope\.teamId\s*,/);
     expect(createBlock).toMatch(/teamId:\s*effectiveTeamId\s*,/);
   });
@@ -269,15 +271,16 @@ describe("backfill-personal-team-ownership — safety contract", () => {
 describe("'team_id NULL means personal' is dead for NEW rows", () => {
   it("POST /v1/evidence passes the client teamId through to createEvidence", () => {
     const src = readSource("../src/routes/evidence.routes.ts");
-    const postIdx = src.indexOf('app.post("/v1/evidence"');
-    const handlerSlice = src.slice(postIdx, postIdx + 12_000);
+    const handlerSlice = routeSource(src, "POST", "/v1/evidence");
     expect(handlerSlice).toMatch(/teamId:\s*body\.teamId \?\? null/);
   });
 
   it("CreateEvidenceBody accepts an optional uuid teamId", () => {
     const src = readSource("../src/routes/evidence.routes.ts");
-    const bodyIdx = src.indexOf("const CreateEvidenceBody = z.object");
-    const bodySlice = src.slice(bodyIdx, bodyIdx + 1200);
+    const bodySlice = enclosingSource(src, "const CreateEvidenceBody = z.object", "statement", {
+      unique: true,
+      fileName: "evidence.routes.ts",
+    });
     expect(bodySlice).toMatch(/teamId:\s*z\.string\(\)\.uuid\(\)\.optional\(\)/);
   });
 });

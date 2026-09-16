@@ -35,6 +35,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 
 function readSource(rel: string): string {
   const url = new URL(rel, import.meta.url);
@@ -212,11 +213,12 @@ describe("Phase IA-collapse — Communications + Security Center demoted from si
   const registry = readSource(
     "../../../apps/web/lib/navigation/routeRegistry.ts",
   );
+  /** The RouteDefinition object literal carrying `idLine` (WCC-NEW-027). */
+  const registryEntry = (idLine: string) =>
+    enclosingSource(registry, idLine, "object", { unique: true, fileName: "routeRegistry.ts" });
 
   it("workspace.communications is renamed Messaging operations and not sidebar-eligible", () => {
-    const idx = registry.indexOf('id: "workspace.communications"');
-    expect(idx, "workspace.communications not found").toBeGreaterThan(-1);
-    const block = registry.slice(idx, idx + 3000);
+    const block = registryEntry('id: "workspace.communications"');
     expect(block).toMatch(/label:\s*"Messaging operations"/);
     expect(block).toMatch(/sidebarEligible:\s*false/);
     // Still discoverable via cmd-K + All Tools (it's a real operator
@@ -226,9 +228,7 @@ describe("Phase IA-collapse — Communications + Security Center demoted from si
   });
 
   it('workspace.security_center is renamed "Identity & Security" and not sidebar-eligible', () => {
-    const idx = registry.indexOf('id: "workspace.security_center"');
-    expect(idx, "workspace.security_center not found").toBeGreaterThan(-1);
-    const block = registry.slice(idx, idx + 3000);
+    const block = registryEntry('id: "workspace.security_center"');
     expect(block).toMatch(/label:\s*"Identity & Security"/);
     expect(block).toMatch(/sidebarEligible:\s*false/);
     expect(block).toMatch(/commandPaletteVisible:\s*true/);
@@ -237,8 +237,7 @@ describe("Phase IA-collapse — Communications + Security Center demoted from si
 
   it("account.security entry exists and is ACCOUNT-tier", () => {
     expect(registry).toMatch(/id:\s*"account\.security"/);
-    const idx = registry.indexOf('id: "account.security"');
-    const block = registry.slice(idx, idx + 3000);
+    const block = registryEntry('id: "account.security"');
     // Settings IA refactor (2026-07-17): the entry deep-links to the
     // Security section of the unified /settings workspace.
     expect(block).toMatch(/href:\s*"\/settings#security"/);
@@ -250,9 +249,7 @@ describe("Phase IA-collapse — Communications + Security Center demoted from si
   // workspace's Security Center, under a tenant route id. The old id is gone
   // and the old URL redirects in one hop.
   it("security_center.identity now lives at /security-center/identity (moved from /admin/identity, originally /settings/security)", () => {
-    const idx = registry.indexOf('id: "security_center.identity"');
-    expect(idx).toBeGreaterThan(-1);
-    const block = registry.slice(idx, idx + 3000);
+    const block = registryEntry('id: "security_center.identity"');
     expect(block).toMatch(/href:\s*"\/security-center\/identity"/);
     expect(block).toMatch(/requiredActiveSpace:\s*"ORGANIZATION_ONLY"/);
     expect(registry).not.toContain('id: "admin.identity"');

@@ -30,6 +30,7 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
 
 const API_SRC = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -123,9 +124,7 @@ describe("the value never reaches a customer", () => {
     expect(ANALYTICS).toMatch(
       /const ADMIN_PRE\s*=\s*\{\s*preHandler:\s*requirePlatformAdmin\s*\}/,
     );
-    const dashboard = ANALYTICS.indexOf('"/v1/admin/analytics/dashboard"');
-    expect(dashboard).toBeGreaterThan(-1);
-    expect(ANALYTICS.slice(dashboard, dashboard + 120)).toContain("ADMIN_PRE");
+    expect(routeSource(ANALYTICS, "GET", "/v1/admin/analytics/dashboard")).toContain("ADMIN_PRE");
   });
 
   it("the projected shape carries counters, not a plan", () => {

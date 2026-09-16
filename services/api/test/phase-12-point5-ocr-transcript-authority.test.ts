@@ -46,6 +46,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { enclosingSource, functionSource } from "../../../scripts/source-contract/index.mjs";
 import {
   CANONICAL_WORK_REGISTRY,
   JOB_NAMES,
@@ -129,9 +130,7 @@ describe("POINT 5 — OCR and transcript each have exactly one authority", () =>
       "processExtractOcrAzureJob",
       "processExtractTranscriptDeepgramJob",
     ]) {
-      const start = MI_PROCESSOR.indexOf(`async function ${fn}(`);
-      expect(start, fn).toBeGreaterThan(0);
-      const body = MI_PROCESSOR.slice(start, start + 6000);
+      const body = functionSource(MI_PROCESSOR, fn);
       expect(body, fn).toMatch(/markRunProcessing\(runId, teamId, prisma\)/);
       expect(body, fn).toMatch(/if \(proc\.ok\) runFence = proc\.fence/);
       expect(body, fn).toMatch(
@@ -269,9 +268,9 @@ describe("POINT 5 — an unconfigured provider produces a bounded refusal", () =
     const routeSrc = src(
       "services/api/src/routes/internal-media-intelligence-extract.routes.ts",
     );
-    const at = routeSrc.indexOf("if (notConfigured) {");
-    expect(at).toBeGreaterThan(0);
-    const block = routeSrc.slice(at, at + 400);
+    const block = enclosingSource(routeSrc, "if (notConfigured) {", "statement", {
+      fileName: "internal-media-intelligence-extract.routes.ts",
+    });
     expect(block).toMatch(/success: false/);
     expect(block).toMatch(/recordsCreated: 0/);
     expect(block).toMatch(/error: notConfigured/);

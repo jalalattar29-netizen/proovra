@@ -20,6 +20,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { betweenMarkers } from "../../../scripts/source-contract/index.mjs";
 
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -79,8 +80,12 @@ describe("Phase 31.16 — REPORT graph domain", () => {
   });
 
   it("entire REPORT step wrapped in try/catch (best-effort)", () => {
-    const idx = RECONCILER_SRC.indexOf("Phase 31.16 — REPORT domain");
-    const block = RECONCILER_SRC.slice(idx, idx + 4000);
+    // Step 1c runs until the next step's banner (1d).
+    const block = betweenMarkers(
+      RECONCILER_SRC,
+      "Phase 31.16 — REPORT domain",
+      "1d. Phase 31.16 — VERIFICATION_PACKAGE domain",
+    );
     expect(block).toMatch(/try\s*\{[\s\S]*?\}\s*catch\s*\{[\s\S]*?best-effort/);
   });
 });

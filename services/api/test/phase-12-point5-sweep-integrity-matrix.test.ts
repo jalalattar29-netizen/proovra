@@ -41,6 +41,7 @@ import {
   PROVEN_CASES_ARTIFACT,
   type ProvenCasesArtifact,
 } from "./point5/family-coverage-manifest.js";
+import { functionSource } from "../../../scripts/source-contract/index.mjs";
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const WORKER_INDEX = readFileSync(
@@ -49,10 +50,17 @@ const WORKER_INDEX = readFileSync(
 );
 
 /** Comments stripped: a scheduler named in prose is not a scheduler. */
-const CODE = WORKER_INDEX.replace(/\/\*[\s\S]*?\*\//g, "").replace(
-  /\/\/[^\n]*/g,
-  "",
-);
+const stripComments = (src: string): string =>
+  src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+const CODE = stripComments(WORKER_INDEX);
+
+/**
+ * One named function of the bootstrap, comments stripped. Parsed from the RAW
+ * file (the stripper is not string-aware, so its output is not parseable) and
+ * bounded by the parser, so a body never runs on into the next function.
+ */
+const workerFunction = (name: string): string =>
+  stripComments(functionSource(WORKER_INDEX, name, "index.ts"));
 
 // ===========================================================================
 // 1. Independent discovery
@@ -104,7 +112,7 @@ const DISCOVERED: Discovered[] = (() => {
   const out: Discovered[] = [];
   for (const m of CODE.matchAll(/function (start\w+)\s*\(/g)) {
     const launcher = m[1]!;
-    const body = CODE.slice(m.index!, m.index! + 900);
+    const body = workerFunction(launcher);
     // `setInterval(() => { void <tick>(); }, …)` is the shape every scheduler
     // uses; a launcher that stopped using an interval would fail here rather
     // than be silently credited.
@@ -123,7 +131,7 @@ const DISCOVERED: Discovered[] = (() => {
         // (a) No local wrapper: the interval invokes the imported executor.
         executor = tick;
       } else {
-        const tickBody = CODE.slice(tickIdx, tickIdx + 1200);
+        const tickBody = workerFunction(tick);
         // (b) LAZY IMPORT: `const mod = await import("./x.js"); await
         //     mod.run(...)`. The module comes from the specifier, so it is
         //     resolved here rather than through the static import graph.
@@ -174,7 +182,7 @@ const DISCOVERED: Discovered[] = (() => {
     const bodies: string[] = [];
     if (tick) {
       const tickIdx = CODE.indexOf(`function ${tick}(`);
-      if (tickIdx >= 0) bodies.push(CODE.slice(tickIdx, tickIdx + 2500));
+      if (tickIdx >= 0) bodies.push(workerFunction(tick));
     }
     if (executorModule && existsSync(resolve(REPO, executorModule))) {
       bodies.push(readFileSync(resolve(REPO, executorModule), "utf8"));

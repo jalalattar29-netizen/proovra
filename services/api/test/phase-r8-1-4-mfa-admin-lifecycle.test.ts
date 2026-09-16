@@ -34,6 +34,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { functionSource } from "../../../scripts/source-contract/index.mjs";
 
 const REPO = resolve(__dirname, "..", "..", "..");
 const apiPath = (rel: string) => resolve(REPO, "services/api", rel);
@@ -202,9 +203,8 @@ describe("R8.1.4 — admin MFA lifecycle controls", () => {
       "resetTrustedDevicesForUser",
     ];
     for (const fn of publicFns) {
-      const start = ADMIN_SVC.indexOf(`export async function ${fn}`);
-      expect(start, `${fn} export must exist`).toBeGreaterThan(0);
-      const body = ADMIN_SVC.slice(start, start + 1200);
+      expect(ADMIN_SVC, `${fn} export must exist`).toContain(`export async function ${fn}`);
+      const body = functionSource(ADMIN_SVC, fn);
       expect(body, `${fn} must call assertAdminCanAct`).toMatch(
         /assertAdminCanAct/,
       );

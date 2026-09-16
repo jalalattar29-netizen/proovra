@@ -535,6 +535,31 @@ describe("worker entrypoint wires the readiness probe", () => {
 // Docker-compose source contract — worker depends_on includes api.
 // -----------------------------------------------------------------------------
 
+/**
+ * The whole `  <name>:` service entry of a compose file: its key line plus
+ * every following line indented deeper than a service key (blank lines
+ * included), up to the next sibling service or top-level key. YAML, so the
+ * TypeScript-based source-contract helpers do not apply; this is the same
+ * idea by indentation (WCC-NEW-027): a comment inside the service cannot push
+ * the asserted keys out, and the NEXT service's keys are never read. Throws
+ * when the service is missing or appears more than once.
+ */
+function composeServiceBlock(yaml: string, name: string): string {
+  const lines = yaml.split(/\r?\n/);
+  const starts = lines
+    .map((line, i) => (line === `  ${name}:` ? i : -1))
+    .filter((i) => i >= 0);
+  if (starts.length !== 1) {
+    throw new Error(`compose service ${name}: expected 1 entry, found ${starts.length}`);
+  }
+  const start = starts[0];
+  let end = start + 1;
+  while (end < lines.length && (lines[end].trim() === "" || /^ {3,}\S/.test(lines[end]))) {
+    end += 1;
+  }
+  return lines.slice(start, end).join("\n");
+}
+
 describe("docker-compose dependency on api", () => {
   const fullSrc = readFileSync(
     fileURLToPath(
@@ -552,17 +577,13 @@ describe("docker-compose dependency on api", () => {
   it("docker-compose.full.yml worker waits for api healthcheck", () => {
     // Locate the proovra-worker block and verify it lists proovra-api
     // as a service_healthy dependency.
-    const idx = fullSrc.indexOf("proovra-worker:");
-    expect(idx).toBeGreaterThan(-1);
-    const workerBlock = fullSrc.slice(idx, idx + 1500);
+    const workerBlock = composeServiceBlock(fullSrc, "proovra-worker");
     expect(workerBlock).toContain("proovra-api:");
     expect(workerBlock).toContain("condition: service_healthy");
   });
 
   it("docker-compose.prod.yml worker waits for api healthcheck", () => {
-    const idx = prodSrc.indexOf("proovra-worker:");
-    expect(idx).toBeGreaterThan(-1);
-    const workerBlock = prodSrc.slice(idx, idx + 1500);
+    const workerBlock = composeServiceBlock(prodSrc, "proovra-worker");
     expect(workerBlock).toContain("proovra-api:");
     expect(workerBlock).toContain("condition: service_healthy");
   });

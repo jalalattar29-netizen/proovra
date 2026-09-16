@@ -17,6 +17,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { describe, it, expect } from "vitest";
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const read = (rel: string): string => readFileSync(resolve(REPO_ROOT, rel), "utf8");
@@ -37,26 +38,32 @@ describe("Web Capture custody wording — initial browser upload location", () =
 
   it("POST /v1/evidence (Web Capture) declares PROOVRA_WEB_UPLOAD", () => {
     const route = read("services/api/src/routes/evidence.routes.ts");
-    const idx = route.indexOf("const result = await createEvidence({");
-    expect(idx).toBeGreaterThan(0);
-    expect(route.slice(idx, idx + 1600)).toMatch(/acquisitionMode:\s*"PROOVRA_WEB_UPLOAD"/);
+    const block = enclosingSource(route, "const result = await createEvidence({", "statement", {
+      unique: true,
+      fileName: "evidence.routes.ts",
+    });
+    expect(block).toMatch(/acquisitionMode:\s*"PROOVRA_WEB_UPLOAD"/);
   });
 
   it("Intake and the mobile session declare their own modes", () => {
     const intake = read(
       "services/api/src/services/external-intake-orchestration.service.ts",
     );
-    const intakeIdx = intake.indexOf("createEvidence({");
-    expect(intakeIdx).toBeGreaterThan(0);
-    expect(intake.slice(intakeIdx, intakeIdx + 900)).toMatch(
-      /acquisitionMode:\s*"SECURE_INTAKE_LINK"/,
-    );
+    expect(
+      enclosingSource(intake, "createEvidence({", "call", {
+        unique: true,
+        fileName: "external-intake-orchestration.service.ts",
+      }),
+    ).toMatch(/acquisitionMode:\s*"SECURE_INTAKE_LINK"/);
 
     const mobile = read(
       "services/api/src/services/capture-trust/direct-capture-ingest.service.ts",
     );
-    const mobileIdx = mobile.indexOf("createEvidence(");
-    expect(mobileIdx).toBeGreaterThan(0);
-    expect(mobile.slice(mobileIdx, mobileIdx + 900)).toMatch(/acquisitionMode:/);
+    expect(
+      enclosingSource(mobile, "createEvidence({", "call", {
+        unique: true,
+        fileName: "direct-capture-ingest.service.ts",
+      }),
+    ).toMatch(/acquisitionMode:/);
   });
 });

@@ -20,6 +20,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { functionSource } from "../../../scripts/source-contract/index.mjs";
 
 // -----------------------------------------------------------------------------
 // Case legal hold
@@ -361,9 +362,7 @@ describe("Phase 14 privacy contracts", () => {
       ),
       "utf8",
     );
-    const idx = src.indexOf("export function projectPublicationState(");
-    expect(idx).toBeGreaterThan(-1);
-    const body = src.slice(idx, idx + 2000);
+    const body = functionSource(src, "projectPublicationState");
     const returned = body.match(/return \{[\s\S]*?\};/);
     expect(returned).not.toBeNull();
     if (returned) {

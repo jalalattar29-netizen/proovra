@@ -21,6 +21,7 @@ import { readFileSync } from "node:fs";
 import { describe, it, test } from "vitest";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { enclosingSource, routeSource } from "../../../scripts/source-contract/index.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const REPO_ROOT = resolve(dirname(__filename), "..", "..", "..");
@@ -113,9 +114,9 @@ describe("Create flow — sender identity validation + persistence", () => {
   it("createWorkflowIntakeLink persists senderDisplayMode + senderDisplayName on the row", () => {
     const src = read(SERVICE);
     // Both columns must appear in the create.data literal.
-    const createIdx = src.indexOf("client.workflowIntakeLink.create({");
-    assert.ok(createIdx > 0);
-    const slice = src.slice(createIdx, createIdx + 1600);
+    const slice = enclosingSource(src, "client.workflowIntakeLink.create({", "call", {
+      fileName: "workflow-intake-link.service.ts",
+    });
     assert.match(slice, /senderDisplayMode,/);
     assert.match(slice, /senderDisplayName,/);
   });
@@ -154,11 +155,7 @@ describe("GET /sender-identity — safe shape only", () => {
       src,
       /"\/v1\/workflow\/intake-links\/sender-identity"/,
     );
-    const epIdx = src.indexOf(
-      '"/v1/workflow/intake-links/sender-identity"',
-    );
-    assert.ok(epIdx > 0);
-    const slice = src.slice(epIdx, epIdx + 4000);
+    const slice = routeSource(src, "GET", "/v1/workflow/intake-links/sender-identity");
     for (const channel of ["email:", "sms:"]) {
       assert.ok(
         slice.includes(channel),

@@ -13,6 +13,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 
 const repo = path.resolve(__dirname, "../../..");
 const read = (rel: string) => readFileSync(path.resolve(repo, rel), "utf8");
@@ -31,11 +32,20 @@ function codeOnly(src: string): string {
 
 describe("pricing — External Review is stated once, and correctly", () => {
   const page = read("apps/web/app/pricing/page.tsx");
+  /**
+   * The comparison-matrix row object that carries the label, code only
+   * (WCC-NEW-027): the row's own explanatory comment names what it must NOT
+   * claim, so it is stripped exactly as the other pins in this file strip it.
+   */
+  const externalReviewRow = () =>
+    codeOnly(
+      enclosingSource(page, 'label: "External review"', "object", { fileName: "page.tsx" }),
+    );
 
   it("the comparison matrix carries the row, in plan order", () => {
     const at = page.indexOf('label: "External review"');
     expect(at, "the capability must appear in the comparison matrix").toBeGreaterThan(-1);
-    const row = page.slice(at, at + 260);
+    const row = externalReviewRow();
     const values = row
       .slice(row.indexOf("values: ["))
       .split("]")[0]
@@ -57,8 +67,7 @@ describe("pricing — External Review is stated once, and correctly", () => {
   });
 
   it("no reviewer count, grant allowance or seat claim is invented", () => {
-    const at = page.indexOf('label: "External review"');
-    const row = page.slice(at, at + 260);
+    const row = externalReviewRow();
     expect(row).not.toMatch(/unlimited/i);
     expect(row).not.toMatch(/reviewers?\b/i);
     expect(row).not.toMatch(/seats?\b/i);

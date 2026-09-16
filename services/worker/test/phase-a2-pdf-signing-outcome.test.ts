@@ -11,6 +11,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { functionSource } from "../../../scripts/source-contract/index.mjs";
+
 function readSource(rel: string): string {
   const url = new URL(rel, import.meta.url);
   return readFileSync(fileURLToPath(url), "utf8");
@@ -53,11 +55,10 @@ describe("Phase A2 — worker PDF signing outcome (source contract)", () => {
     // a misconfigured production environment fails immediately
     // rather than building a PDF whose status the API cannot
     // honestly describe.
-    const startIdx = BUILD_REPORT_PDF_SRC.indexOf(
+    const fnBody = functionSource(
+      BUILD_REPORT_PDF_SRC,
       "buildReportPdfV2WithSignatureOutcome",
     );
-    expect(startIdx).toBeGreaterThan(0);
-    const fnBody = BUILD_REPORT_PDF_SRC.slice(startIdx, startIdx + 2000);
     const assertIdx = fnBody.indexOf(
       "assertPdfSigningProductionSafetyOrThrow",
     );

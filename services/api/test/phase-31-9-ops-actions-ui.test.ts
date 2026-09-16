@@ -22,6 +22,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -94,11 +95,11 @@ describe("Phase 31.9 — ops actions UI: endpoint surface", () => {
 describe("Phase 31.9 — ops actions UI: state machine", () => {
   it("ActionResult is a bounded discriminated union", () => {
     // The discriminated union spans multiple lines with embedded `;`
-    // inside each variant's record. Anchor on the leading
-    // `type ActionResult =` and look at the next ~12 lines.
-    const startIdx = PAGE_SRC.indexOf("type ActionResult");
-    expect(startIdx).toBeGreaterThan(0);
-    const decl = PAGE_SRC.slice(startIdx, startIdx + 500);
+    // inside each variant's record, so read the whole `type ActionResult =`
+    // declaration as parsed (WCC-NEW-027), not a run of following lines.
+    const decl = enclosingSource(PAGE_SRC, "type ActionResult", "statement", {
+      fileName: "page.tsx",
+    });
     for (const k of ["idle", "pending", "success", "error"]) {
       expect(decl, `ActionResult missing kind "${k}"`).toMatch(
         new RegExp(`kind:\\s*"${k}"`),

@@ -32,6 +32,8 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
+import { functionSource } from "../../../scripts/source-contract/index.mjs";
+
 const __filename = fileURLToPath(import.meta.url);
 const REPO_ROOT = resolve(dirname(__filename), "..", "..", "..");
 const PAGE = resolve(REPO_ROOT, "apps/web/app/(app)/search/page.tsx");
@@ -277,8 +279,7 @@ test("D) Wire — documentTypes serialise as uppercase, comma-joined, into the U
 
 test("D) Wire — every filter dimension has a serialiser in runSearch", () => {
   const src = read(PAGE);
-  const runIdx = src.indexOf("async function runSearch(");
-  const body = src.slice(runIdx, runIdx + 3000);
+  const body = functionSource(src, "runSearch", "page.tsx");
   for (const param of [
     "teamId",
     "q",
@@ -305,8 +306,7 @@ test("D) Wire — every filter dimension has a serialiser in runSearch", () => {
 
 test("D) Wire — boolean toggles are serialised as 'true'/'false' strings (backend parseBool accepts these)", () => {
   const src = read(PAGE);
-  const runIdx = src.indexOf("async function runSearch(");
-  const body = src.slice(runIdx, runIdx + 3000);
+  const body = functionSource(src, "runSearch", "page.tsx");
   for (const flag of [
     "onLegalHold",
     "exportRestricted",

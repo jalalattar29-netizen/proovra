@@ -16,6 +16,7 @@
  */
 
 import { decideObservationTransition } from "@proovra/shared-runtime";
+import { functionSource } from "../../../scripts/source-contract/index.mjs";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -258,10 +259,10 @@ describe("Phase X.1 — Part B: queue envelope adoption", () => {
     // allowed to name it, because a reader arriving from the old code needs
     // to find that out.
     expect(queueSrc).not.toMatch(/^\s*newQueuePayloadEnvelope,$/m);
-    const idx = queueSrc.indexOf("export async function enqueueEvidencePurgeJob");
-    expect(idx).toBeGreaterThan(-1);
-    expect(queueSrc.slice(idx, idx + 900)).toMatch(/enqueueWork\(/);
-    expect(queueSrc.slice(idx, idx + 900)).toMatch(
+    const purgeEnqueue = functionSource(queueSrc, "enqueueEvidencePurgeJob", "queue.ts");
+    expect(purgeEnqueue.startsWith("export async function enqueueEvidencePurgeJob")).toBe(true);
+    expect(purgeEnqueue).toMatch(/enqueueWork\(/);
+    expect(purgeEnqueue).toMatch(
       /JOB_NAMES\.PURGE_DELETED_EVIDENCE/,
     );
   });

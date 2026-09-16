@@ -42,6 +42,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
 
 function readSource(rel: string): string {
   const url = new URL(rel, import.meta.url);
@@ -150,14 +151,15 @@ describe("Phase F — governance read endpoints are gated + audit-free", () => {
 
 describe("Phase F — destruction impact preview payload", () => {
   it("returns the operational impact contract", () => {
-    // The preview handler sends every contract field. Anchor on
-    // the unique `blockedBy.length === 0` ternary inside guidance
-    // to bound the block we inspect.
-    const guidancePos = ROUTE_SRC.indexOf("blockedBy.length === 0");
-    expect(guidancePos).toBeGreaterThan(0);
-    const previewPos = ROUTE_SRC.indexOf("/preview");
-    expect(previewPos).toBeGreaterThan(0);
-    const block = ROUTE_SRC.slice(previewPos, guidancePos + 400);
+    // The preview handler sends every contract field. Read the whole
+    // preview route registration (WCC-NEW-027); the unique
+    // `blockedBy.length === 0` ternary inside guidance must be in it.
+    const block = routeSource(
+      ROUTE_SRC,
+      "GET",
+      "/v1/governance/destruction-reviews/:id/preview",
+    );
+    expect(block).toContain("blockedBy.length === 0");
     expect(block).toContain("review:");
     expect(block).toContain("evidence:");
     expect(block).toContain("policy");

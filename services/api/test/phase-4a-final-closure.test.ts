@@ -26,6 +26,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { enclosingSource, functionSource } from "../../../scripts/source-contract/index.mjs";
 
 import {
   applyEnforcementMode,
@@ -507,11 +508,11 @@ describe("7. Security Center seed paths corrected", () => {
       path.resolve("src/services/trust/trust-center.service.ts"),
       "utf8",
     );
-    // Find the AUTHORIZATION seed block: section: "AUTHORIZATION"
-    const authIdx = src2.indexOf('"AUTHORIZATION"');
-    expect(authIdx).toBeGreaterThan(-1);
-    // Get the next ~500 chars to inspect that seed entry
-    const authBlock = src2.slice(authIdx, authIdx + 600);
+    // The AUTHORIZATION seed entry (section: "AUTHORIZATION") — the whole
+    // seed object literal, never a character window (WCC-NEW-027).
+    const authBlock = enclosingSource(src2, '"AUTHORIZATION"', "object", {
+      fileName: "trust-center.service.ts",
+    });
     expect(authBlock).not.toContain("access-grants.service.ts");
   });
 
@@ -520,12 +521,13 @@ describe("7. Security Center seed paths corrected", () => {
       path.resolve("src/services/trust/trust-center.service.ts"),
       "utf8",
     );
-    const mfaIdx = src2.indexOf('"MFA"');
-    expect(mfaIdx).toBeGreaterThan(-1);
-    // Rebaselined from 600 → 2000 after trust-center-enterprise-completion
-    // (Stream A) thickened the MFA summary + body. The portal-session path
-    // reference now sits at delta=1491 from the "MFA" marker.
-    const mfaBlock = src2.slice(mfaIdx, mfaIdx + 2000);
+    // The whole MFA seed object literal (WCC-NEW-027). It used to be a
+    // character window, rebaselined 600 → 2000 when
+    // trust-center-enterprise-completion (Stream A) thickened the MFA
+    // summary + body.
+    const mfaBlock = enclosingSource(src2, '"MFA"', "object", {
+      fileName: "trust-center.service.ts",
+    });
     expect(mfaBlock).toContain("external-review/portal-session");
   });
 
@@ -534,9 +536,9 @@ describe("7. Security Center seed paths corrected", () => {
       path.resolve("src/services/trust/trust-center.service.ts"),
       "utf8",
     );
-    const samlIdx = src2.indexOf('"SAML"');
-    expect(samlIdx).toBeGreaterThan(-1);
-    const samlBlock = src2.slice(samlIdx, samlIdx + 800);
+    const samlBlock = enclosingSource(src2, '"SAML"', "object", {
+      fileName: "trust-center.service.ts",
+    });
     expect(samlBlock).toMatch(/security\/saml-/);
   });
 
@@ -546,10 +548,10 @@ describe("7. Security Center seed paths corrected", () => {
       "utf8",
     );
     // The SECURITY OBJECT_LOCK seed slug is "object-lock" — find it by slug
-    const slugIdx = src2.indexOf('"object-lock"');
-    expect(slugIdx).toBeGreaterThan(-1);
-    // Get a block around the slug — search up to 1000 chars after for the implementationReferences
-    const olBlock = src2.slice(slugIdx, slugIdx + 1000);
+    // The seed object literal that carries the slug (and its implementationReferences)
+    const olBlock = enclosingSource(src2, '"object-lock"', "object", {
+      fileName: "trust-center.service.ts",
+    });
     expect(olBlock).toContain("bootstrap/object-lock-verification");
   });
 });
@@ -641,9 +643,7 @@ describe("11. Cross-org revoke ACTOR_REQUIRED denial", () => {
     // Must not silently substitute a zero-UUID
     const zeroUuid = "00000000-0000-0000-0000-000000000000";
     // Find revoke function context
-    const revokeIdx = src.indexOf("revokeCrossOrgReview");
-    expect(revokeIdx).toBeGreaterThan(-1);
-    const revokeBody = src.slice(revokeIdx, revokeIdx + 1200);
+    const revokeBody = functionSource(src, "revokeCrossOrgReview");
     expect(revokeBody).toContain("ACTOR_REQUIRED");
     // The zero-UUID should NOT appear in the revoke function as a fallback
     expect(revokeBody).not.toContain(zeroUuid);

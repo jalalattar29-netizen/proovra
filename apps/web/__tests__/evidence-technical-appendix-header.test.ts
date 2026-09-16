@@ -18,6 +18,8 @@ import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
+
 const __filename = fileURLToPath(import.meta.url);
 const WEB = resolve(dirname(__filename), "..");
 const read = (rel: string) => readFileSync(resolve(WEB, rel), "utf8");
@@ -84,9 +86,12 @@ test("every consumer of the section header uses the copy column", () => {
   for (const file of routeFiles()) {
     const src = readFileSync(file, "utf8");
     let index = src.indexOf('className="ta-intro"');
-    while (index >= 0) {
-      // The block from this `.ta-intro` up to the next section-level marker.
-      const window = src.slice(index, index + 900);
+    for (let occurrence = 0; index >= 0; occurrence += 1) {
+      // The whole `<… className="ta-intro">…</…>` element at this occurrence.
+      const window = enclosingSource(src, 'className="ta-intro"', "jsx", {
+        occurrence,
+        fileName: file,
+      });
       const hasTitle = window.includes('className="ta-intro-title"');
       const hasCopy = window.includes('className="ta-intro-copy"');
       if (hasTitle && !hasCopy) {

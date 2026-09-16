@@ -29,6 +29,7 @@ import {
   organizationLifecycleApplies,
   resolveWorkspaceKind,
 } from "../src/services/identity/workspace-kind.js";
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
 
 const API = join(dirname(fileURLToPath(import.meta.url)), "..");
 const REPO = join(API, "..", "..");
@@ -153,18 +154,15 @@ describe("Phase 2 — /v1/orgs ambiguity resolved", () => {
   const src = read("src/routes/organizations.routes.ts");
 
   it("POST /v1/orgs is retired with a bounded denial and creates nothing", () => {
-    const idx = src.indexOf("org_self_service_creation_retired");
-    expect(idx).toBeGreaterThan(-1);
     // The retired handler block contains no organization/membership writes.
-    const block = src.slice(idx - 1200, idx + 600);
+    const block = routeSource(src, "POST", "/v1/orgs");
+    expect(block).toContain("org_self_service_creation_retired");
     expect(block).not.toContain("organization.create");
     expect(block).not.toContain("organizationMembership.create");
   });
 
   it("/v1/me/orgs lists CUSTOMER organizations only (SYSTEM never surfaces)", () => {
-    const idx = src.indexOf('"/v1/me/orgs"');
-    expect(idx).toBeGreaterThan(-1);
-    const block = src.slice(idx, idx + 1200);
+    const block = routeSource(src, "GET", "/v1/me/orgs");
     expect(block).toMatch(/organization:\s*\{\s*kind:\s*"CUSTOMER"\s*\}/);
   });
 });

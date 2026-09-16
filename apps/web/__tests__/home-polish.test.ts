@@ -22,6 +22,8 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
+import { functionSource } from "../../../scripts/source-contract/index.mjs";
+
 import {
   normalizeHomeViewModel,
   type NormalizeInputs,
@@ -783,8 +785,7 @@ test("INTEL: report needs-action surfaces failures without fabricating a retry",
   assert.equal(issues.failed_deliverables.href, "/notifications");
   assert.equal(issues.package_gap.count, 2);
   // No retry endpoint exists for report jobs — the card must not ship one.
-  const cardStart = SECTIONS_SRC.indexOf("export function ReportProductionCard");
-  const cardSrc = SECTIONS_SRC.slice(cardStart, cardStart + 4000);
+  const cardSrc = functionSource(SECTIONS_SRC, "ReportProductionCard", "HomeSections.tsx");
   assert.ok(!/retry/i.test(cardSrc), "no fabricated retry in Report Production");
 });
 

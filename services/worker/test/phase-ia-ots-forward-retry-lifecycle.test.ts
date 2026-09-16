@@ -40,6 +40,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
+
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 }
@@ -73,8 +75,14 @@ describe("Phase IA-OTS-forward-retry — invariant: PENDING outcome MUST schedul
       /if \(\s*\n?\s*classification\.kind === "ANCHOR_MATERIAL_RECOVERED"/,
     );
     expect(m).not.toBeNull();
-    const idx = m!.index!;
-    const block = UPGRADE_SRC.slice(idx, idx + 14000);
+    // The whole PENDING-branch `if` statement the regex anchored on
+    // (WCC-NEW-027: structural, not a 14000-char budget).
+    const block = enclosingSource(
+      UPGRADE_SRC,
+      'classification.kind === "ANCHOR_MATERIAL_RECOVERED"',
+      "statement",
+      { unique: true, fileName: "ots-upgrade.processor.ts" },
+    );
     // The else-of-(txidRecoveredWhileAnchored) is where the budget
     // check + enqueue lives. Pin both:
     expect(block).toMatch(/isOtsGlobalBudgetExhausted\(/);
@@ -97,13 +105,15 @@ describe("Phase IA-OTS-forward-retry — invariant: PENDING outcome MUST schedul
   });
 
   it("the FULLY_ANCHORED branch is the ONLY terminal-success branch (no spurious follow-up)", () => {
-    const idx = UPGRADE_SRC.indexOf('if (classification.kind === "FULLY_ANCHORED")');
-    expect(idx).toBeGreaterThan(-1);
-    // Phase IA-OTS-info-fallback — widened from 3000 → 5500 to
-    // accommodate additional custody-payload fields the info probe
-    // adds (`infoStatus`, `infoFileHashMatches`, `infoBlockHeights`)
-    // and the 3-way completionSource conditional.
-    const block = UPGRADE_SRC.slice(idx, idx + 5500);
+    // The whole FULLY_ANCHORED `if` statement (WCC-NEW-027: structural, so
+    // new custody-payload fields cannot push the asserted text out, and the
+    // absence check below cannot read the next branch).
+    const block = enclosingSource(
+      UPGRADE_SRC,
+      'if (classification.kind === "FULLY_ANCHORED")',
+      "statement",
+      { fileName: "ots-upgrade.processor.ts" },
+    );
     expect(block).toMatch(/status:\s*"ANCHORED"/);
     // FULLY_ANCHORED enqueues report regen but NOT another upgrade job.
     expect(block).toMatch(/enqueueReportJob\(evidenceId,\s*\{/);
@@ -113,9 +123,13 @@ describe("Phase IA-OTS-forward-retry — invariant: PENDING outcome MUST schedul
   });
 
   it("the global-budget-exhausted branch terminates without re-enqueue", () => {
-    const idx = UPGRADE_SRC.lastIndexOf("isOtsGlobalBudgetExhausted({");
-    expect(idx).toBeGreaterThan(-1);
-    const block = UPGRADE_SRC.slice(idx, idx + 2500);
+    // The block holding the budget check: the `else` of
+    // txidRecoveredWhileAnchored, which contains BOTH the exhausted branch and
+    // the follow-up enqueue after it, so the ordering check below is live.
+    const block = enclosingSource(UPGRADE_SRC, "isOtsGlobalBudgetExhausted({", "block", {
+      unique: true,
+      fileName: "ots-upgrade.processor.ts",
+    });
     // Writes FAILED + records incident.
     expect(block).toMatch(/status:\s*"FAILED"/);
     expect(block).toMatch(/failureReason:\s*"OTS_GLOBAL_BUDGET_EXHAUSTED"/);

@@ -39,6 +39,7 @@ import {
   sanitiseCollaborationTeamCommentBody,
 } from "@proovra/shared";
 import { isCollaborationTeamModerator } from "../src/services/collaboration-team/collaboration-team.service.js";
+import { betweenMarkers } from "../../../scripts/source-contract/index.mjs";
 
 const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
 function read(rel: string): string {
@@ -299,10 +300,8 @@ describe("Phase R16 — schema + migration", () => {
   });
 
   it("guests are time-bounded (expiresAtUtc) + revocable + auditable", () => {
-    const block = (() => {
-      const idx = schema.indexOf("model CollaborationTeamGuest");
-      return schema.slice(idx, idx + 2000);
-    })();
+    // The Prisma model block: from its header to its closing brace.
+    const block = betweenMarkers(schema, "model CollaborationTeamGuest {", "\n}");
     expect(block).toMatch(/expiresAtUtc\s+DateTime/);
     expect(block).toMatch(/revokedAtUtc/);
     expect(block).toMatch(/revokedByUserId/);

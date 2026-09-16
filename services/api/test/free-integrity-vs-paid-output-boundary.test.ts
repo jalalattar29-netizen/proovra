@@ -27,6 +27,7 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 
 import { getPlanCapabilities } from "@proovra/shared-billing";
 
@@ -149,9 +150,10 @@ describe("one record, one logical OTS lifecycle", () => {
   });
 
   it("the custody event is written in the same transaction as the claim", () => {
-    const idx = LIFECYCLE.indexOf("prisma.$transaction");
-    expect(idx).toBeGreaterThan(-1);
-    const block = LIFECYCLE.slice(idx, idx + 2200);
+    const block = enclosingSource(LIFECYCLE, "prisma.$transaction", "call", {
+      unique: true,
+      fileName: "ots-lifecycle.ts",
+    });
     expect(block).toMatch(/updateMany\(/);
     expect(block).toMatch(/appendCustodyEventTx\(tx,/);
   });

@@ -26,6 +26,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { enclosingSource, routeSource } from "../../../scripts/source-contract/index.mjs";
 
 function readApi(rel: string): string {
   return readFileSync(
@@ -141,29 +142,19 @@ describe("Wave 2 — POST /v1/graph/duplicates/:edgeId/decision route", () => {
   });
 
   it("route requires evidence.update_metadata permission", () => {
-    // Pull the route block from the registration line through ~120 lines.
-    const idx = GRAPH_ROUTES.indexOf(
-      '"/v1/graph/duplicates/:edgeId/decision"',
-    );
-    expect(idx).toBeGreaterThan(0);
-    const slice = GRAPH_ROUTES.slice(idx, idx + 4000);
+    // The route registration.
+    const slice = routeSource(GRAPH_ROUTES, "POST", "/v1/graph/duplicates/:edgeId/decision");
     expect(slice).toMatch(/permission:\s*"evidence\.update_metadata"/);
   });
 
   it("route uses authorizeOrFail with antiEnumeration", () => {
-    const idx = GRAPH_ROUTES.indexOf(
-      '"/v1/graph/duplicates/:edgeId/decision"',
-    );
-    const slice = GRAPH_ROUTES.slice(idx, idx + 4000);
+    const slice = routeSource(GRAPH_ROUTES, "POST", "/v1/graph/duplicates/:edgeId/decision");
     expect(slice).toMatch(/authorizeOrFail/);
     expect(slice).toMatch(/antiEnumeration:\s*true/);
   });
 
   it("route anti-enumerates by reading edge with team_id + bounded edge_type set", () => {
-    const idx = GRAPH_ROUTES.indexOf(
-      '"/v1/graph/duplicates/:edgeId/decision"',
-    );
-    const slice = GRAPH_ROUTES.slice(idx, idx + 4000);
+    const slice = routeSource(GRAPH_ROUTES, "POST", "/v1/graph/duplicates/:edgeId/decision");
     expect(slice).toMatch(/investigation_graph_edges/);
     expect(slice).toMatch(/'SAME_HASH_AS'/);
     expect(slice).toMatch(/'SIMILAR_TO'/);
@@ -172,30 +163,21 @@ describe("Wave 2 — POST /v1/graph/duplicates/:edgeId/decision route", () => {
   });
 
   it("route upserts duplicate_decisions row + bounded reasonNote (400)", () => {
-    const idx = GRAPH_ROUTES.indexOf(
-      '"/v1/graph/duplicates/:edgeId/decision"',
-    );
-    const slice = GRAPH_ROUTES.slice(idx, idx + 4000);
+    const slice = routeSource(GRAPH_ROUTES, "POST", "/v1/graph/duplicates/:edgeId/decision");
     expect(slice).toMatch(/INSERT INTO\s+"duplicate_decisions"/);
     expect(slice).toMatch(/ON CONFLICT\s+\("team_id",\s*"edge_id"\)/);
     expect(slice).toMatch(/reasonNote\?\.slice\(0,\s*400\)/);
   });
 
   it("route validates body decision against bounded vocabulary", () => {
-    const idx = GRAPH_ROUTES.indexOf(
-      '"/v1/graph/duplicates/:edgeId/decision"',
-    );
-    const slice = GRAPH_ROUTES.slice(idx, idx + 4000);
+    const slice = routeSource(GRAPH_ROUTES, "POST", "/v1/graph/duplicates/:edgeId/decision");
     expect(slice).toMatch(/"CONFIRMED"/);
     expect(slice).toMatch(/"DISMISSED"/);
     expect(slice).toMatch(/"MARKED_DERIVATIVE"/);
   });
 
   it("route emits a DUPLICATE_DECISION_RECORDED canonical tenant-audit entry", () => {
-    const idx = GRAPH_ROUTES.indexOf(
-      '"/v1/graph/duplicates/:edgeId/decision"',
-    );
-    const slice = GRAPH_ROUTES.slice(idx, idx + 4000);
+    const slice = routeSource(GRAPH_ROUTES, "POST", "/v1/graph/duplicates/:edgeId/decision");
     // PHASE 11 §3 Batch A — migrated onto the canonical emitTenantAudit
     // facade.
     expect(slice).toMatch(/emitTenantAudit/);
@@ -224,13 +206,14 @@ describe("Wave 2 — POSSIBLE_DERIVATIVE_OF writer in graph-builder", () => {
   it("writer uses HONEST MEDIUM confidence (no HIGH override)", () => {
     // Anchor on the writer's signature copy. The honest reviewer-facing
     // safe_summary appears only once in the source — inside the
-    // POSSIBLE_DERIVATIVE_OF upsertEdge call. Search nearby to confirm
-    // the upsertEdge passes "MEDIUM" rather than "HIGH".
-    const summaryIdx = GRAPH_BUILDER.indexOf(
+    // POSSIBLE_DERIVATIVE_OF upsertEdge call. Read that call to confirm
+    // it passes "MEDIUM" rather than "HIGH".
+    const slice = enclosingSource(
+      GRAPH_BUILDER,
       "Possible derivative — uploaded after a similar evidence record",
+      "call",
+      { unique: true, fileName: "graph-builder.service.ts" },
     );
-    expect(summaryIdx).toBeGreaterThan(0);
-    const slice = GRAPH_BUILDER.slice(summaryIdx - 400, summaryIdx + 400);
     expect(slice).toMatch(/"MEDIUM"/);
     expect(slice).not.toMatch(/"HIGH"/);
   });

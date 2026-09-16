@@ -40,6 +40,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
 
 function readApi(rel: string): string {
   return readFileSync(
@@ -102,10 +103,8 @@ describe("Wave 2 Phase 6 — manual relationship audit hooks", () => {
 describe("Wave 2 Phase 6 — new endpoints registered", () => {
   it("POST /v1/graph/export is registered with evidence.read + audit emit", () => {
     expect(GRAPH_ROUTES).toMatch(/"\/v1\/graph\/export"/);
-    // Slice the route block to assert the gate + audit emit live inside it.
-    const idx = GRAPH_ROUTES.indexOf('"/v1/graph/export"');
-    expect(idx).toBeGreaterThan(-1);
-    const block = GRAPH_ROUTES.slice(idx, idx + 4000);
+    // Read the whole route registration to assert the gate + audit emit live inside it.
+    const block = routeSource(GRAPH_ROUTES, "POST", "/v1/graph/export");
     expect(block).toMatch(/permission:\s*"evidence\.read"/);
     expect(block).toMatch(/antiEnumeration:\s*true/);
     expect(block).toMatch(/INVESTIGATION_EXPORT_GENERATED/);
@@ -113,9 +112,7 @@ describe("Wave 2 Phase 6 — new endpoints registered", () => {
 
   it("POST /v1/graph/timeline/export is registered with evidence.read + audit emit", () => {
     expect(GRAPH_ROUTES).toMatch(/"\/v1\/graph\/timeline\/export"/);
-    const idx = GRAPH_ROUTES.indexOf('"/v1/graph/timeline/export"');
-    expect(idx).toBeGreaterThan(-1);
-    const block = GRAPH_ROUTES.slice(idx, idx + 3000);
+    const block = routeSource(GRAPH_ROUTES, "POST", "/v1/graph/timeline/export");
     expect(block).toMatch(/permission:\s*"evidence\.read"/);
     expect(block).toMatch(/antiEnumeration:\s*true/);
     expect(block).toMatch(/INVESTIGATION_EXPORT_GENERATED/);
@@ -123,9 +120,7 @@ describe("Wave 2 Phase 6 — new endpoints registered", () => {
 
   it("POST /v1/graph/duplicates/export is registered with evidence.read + audit emit", () => {
     expect(GRAPH_ROUTES).toMatch(/"\/v1\/graph\/duplicates\/export"/);
-    const idx = GRAPH_ROUTES.indexOf('"/v1/graph/duplicates/export"');
-    expect(idx).toBeGreaterThan(-1);
-    const block = GRAPH_ROUTES.slice(idx, idx + 3000);
+    const block = routeSource(GRAPH_ROUTES, "POST", "/v1/graph/duplicates/export");
     expect(block).toMatch(/permission:\s*"evidence\.read"/);
     expect(block).toMatch(/antiEnumeration:\s*true/);
     expect(block).toMatch(/INVESTIGATION_EXPORT_GENERATED/);
@@ -135,11 +130,7 @@ describe("Wave 2 Phase 6 — new endpoints registered", () => {
     expect(MI_ROUTES).toMatch(
       /"\/v1\/investigation\/media-intelligence\/refresh"/,
     );
-    const idx = MI_ROUTES.indexOf(
-      '"/v1/investigation/media-intelligence/refresh"',
-    );
-    expect(idx).toBeGreaterThan(-1);
-    const block = MI_ROUTES.slice(idx, idx + 6000);
+    const block = routeSource(MI_ROUTES, "POST", "/v1/investigation/media-intelligence/refresh");
     expect(block).toMatch(/permission:\s*"evidence\.update_metadata"/);
     expect(block).toMatch(/antiEnumeration:\s*true/);
     expect(block).toMatch(/REFRESH_CAP\s*=\s*50/);

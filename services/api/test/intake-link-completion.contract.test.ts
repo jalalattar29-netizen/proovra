@@ -17,6 +17,8 @@ import { describe, it } from "vitest";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
+
 const __filename = fileURLToPath(import.meta.url);
 const REPO_ROOT = resolve(dirname(__filename), "..", "..", "..");
 
@@ -243,8 +245,11 @@ describe("Public intake file picker — multi-select", () => {
      * files and that the control says so in words a contributor can read.
      */
     assert.match(src, /<input[\s\S]{0,400}?multiple/);
-    const btnAt = src.indexOf('data-intake-add-files-btn="true"');
-    const button = src.slice(btnAt, btnAt + 1200);
+    // The <button> element that carries the marker — its own children, not
+    // whatever JSX follows it.
+    const button = enclosingSource(src, 'data-intake-add-files-btn="true"', "jsx", {
+      fileName: "page.tsx",
+    });
     assert.match(
       button,
       /more than one|multiple/i,
@@ -295,12 +300,10 @@ describe("Public intake file picker — multi-select", () => {
     // unrelated indexing elsewhere in the (1200-line) page does not
     // false-positive. The onChange body lives between the file-input
     // declaration and the closing `}}` of the JSX prop.
-    const handler = (() => {
-      const start = src.indexOf("e.target.files");
-      assert.ok(start > 0, "could not locate onChange handler region");
-      // Read a generous slice — covers the whole onChange body.
-      return src.slice(start, start + 2400);
-    })();
+    // The handler function itself (throws when the region is missing).
+    const handler = enclosingSource(src, "e.target.files", "function", {
+      fileName: "page.tsx",
+    });
     assert.ok(
       !/files\[0\]/.test(handler),
       "onChange must not slice to files[0] — every selected file is staged",

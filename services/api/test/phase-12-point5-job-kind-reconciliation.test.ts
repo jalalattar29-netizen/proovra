@@ -39,6 +39,7 @@ import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { functionSource } from "../../../scripts/source-contract/index.mjs";
 
 import { MEDIA_INTELLIGENCE_JOB_KINDS } from "@proovra/shared";
 import { MEDIA_INTELLIGENCE_RUN_KINDS } from "@proovra/shared-runtime/media-intelligence";
@@ -278,11 +279,7 @@ describe("Point 5 — media-intelligence job-kind reconciliation", () => {
     }
     // The producer commits a durable run BEFORE enqueuing its id — the same
     // ordering every converged chain uses.
-    const producerIdx = PROCESSOR_SRC.indexOf(
-      "async function enqueueTextSimilarityPass",
-    );
-    expect(producerIdx).toBeGreaterThan(-1);
-    const body = PROCESSOR_SRC.slice(producerIdx, producerIdx + 2000);
+    const body = functionSource(PROCESSOR_SRC, "enqueueTextSimilarityPass");
     const runIdx = body.indexOf("enqueueMediaIntelligenceRun(");
     const enqueueIdx = body.indexOf("enqueueMediaIntelligenceRunById(");
     expect(runIdx).toBeGreaterThan(-1);

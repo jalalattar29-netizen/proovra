@@ -32,6 +32,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
+
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 }
@@ -121,10 +123,10 @@ describe("Phase IA-capture-409-autosave — autosave-loop halt", () => {
   it("lock path does NOT call logCaptureClientError (409 is a lifecycle event, not a client error)", () => {
     // Bound the lock branch and assert logCaptureClientError is NOT
     // inside it. The non-lock branch (else) still logs.
-    const idx = HOOK.indexOf("if (isSessionLockedError(err))");
-    expect(idx).toBeGreaterThan(-1);
-    // Slice up to the matching `else` clause.
-    const lockBranch = HOOK.slice(idx, idx + 2000);
+    // The whole if/else statement, then up to its else clause.
+    const lockBranch = enclosingSource(HOOK, "if (isSessionLockedError(err))", "statement", {
+      fileName: "useCaptureDraftPersistence.ts",
+    });
     const elseIdx = lockBranch.indexOf("} else {");
     expect(elseIdx).toBeGreaterThan(-1);
     const lockOnly = lockBranch.slice(0, elseIdx);

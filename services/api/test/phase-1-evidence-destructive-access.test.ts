@@ -25,6 +25,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { functionSource, routeSource } from "../../../scripts/source-contract/index.mjs";
 
 const OWNER = "11111111-1111-4111-8111-111111111111";
 const OTHER_ADMIN = "22222222-2222-4222-8222-222222222222";
@@ -241,14 +242,6 @@ describe("evidence.routes — archive/unarchive/delete compose the canonical gat
     ),
     "utf8",
   );
-  const routeBlock = (marker: string | RegExp) => {
-    const idx =
-      typeof marker === "string"
-        ? SRC.indexOf(marker)
-        : SRC.search(marker);
-    expect(idx).toBeGreaterThan(-1);
-    return SRC.slice(idx, idx + 2600);
-  };
 
   /**
    * EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the gate moved, and moving it
@@ -279,14 +272,16 @@ describe("evidence.routes — archive/unarchive/delete compose the canonical gat
     "utf8",
   );
 
-  for (const [marker, action] of [
-    ['"/v1/evidence/:id/archive"', "ARCHIVE"],
-    ['"/v1/evidence/:id/unarchive"', "UNARCHIVE"],
-    [/app\.delete\(\s*"\/v1\/evidence\/:id"/, "TRASH"],
-    ['"/v1/evidence/:id/restore"', "RESTORE_FROM_TRASH"],
+  // Each case reads exactly its own route registration (WCC-NEW-027), so a
+  // handler cannot pass on the `action:` its neighbouring route carries.
+  for (const [method, routePath, action] of [
+    ["POST", "/v1/evidence/:id/archive", "ARCHIVE"],
+    ["POST", "/v1/evidence/:id/unarchive", "UNARCHIVE"],
+    ["DELETE", "/v1/evidence/:id", "TRASH"],
+    ["POST", "/v1/evidence/:id/restore", "RESTORE_FROM_TRASH"],
   ] as const) {
-    it(`${marker} dispatches to the canonical lifecycle service (${action})`, () => {
-      const block = routeBlock(marker);
+    it(`${method} ${routePath} dispatches to the canonical lifecycle service (${action})`, () => {
+      const block = routeSource(SRC, method, routePath);
       expect(block).toContain(`action: "${action}"`);
       // Owner-identity gates must NOT be the authorization on these routes.
       expect(block).not.toContain("getEvidenceWithOwnerAccess");
@@ -297,9 +292,7 @@ describe("evidence.routes — archive/unarchive/delete compose the canonical gat
   }
 
   it("the route adapter maps every service denial onto the anti-enumeration body", () => {
-    const helper = SRC.slice(
-      SRC.indexOf("async function replyWithLifecycleResult"),
-    ).slice(0, 2600);
+    const helper = functionSource(SRC, "replyWithLifecycleResult");
     expect(helper).toContain("applyEvidenceLifecycleAction");
     expect(helper).toMatch(/outcome\.statusCode === 404/);
     expect(helper).toContain("PUBLIC_NOT_FOUND_BODY");

@@ -37,6 +37,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { enclosingSource, routeSource } from "../../../scripts/source-contract/index.mjs";
+
 function readApi(rel: string): string {
   return readFileSync(fileURLToPath(new URL(`../${rel}`, import.meta.url)), "utf8");
 }
@@ -47,9 +49,25 @@ function readApi(rel: string): string {
 
 describe("Phase 32.7.5 — sweep-level canonical heartbeat fires on every all-teams tick", () => {
   const SRC = readApi("src/routes/reviewer-ops.routes.ts");
-  const routeIdx = SRC.indexOf('"/v1/reviewer-ops/reconcile"');
-  expect(routeIdx).toBeGreaterThan(-1);
-  const routeBody = SRC.slice(routeIdx, routeIdx + 8000);
+  const routeBody = routeSource(SRC, "POST", "/v1/reviewer-ops/reconcile");
+  const HEARTBEAT = 'eventType: wireStringFor("WORKER_HEARTBEAT")';
+  const FILE = "reviewer-ops.routes.ts";
+  /** The heartbeat emission: the call whose argument carries the marker. */
+  const heartbeatCall = () => enclosingSource(routeBody, HEARTBEAT, "call", { fileName: FILE });
+  /** The heartbeat's own argument object. */
+  const heartbeatArgs = () => enclosingSource(routeBody, HEARTBEAT, "object", { fileName: FILE });
+  /** The try statement around the heartbeat: the nearest try before it, proven to enclose it. */
+  const heartbeatTry = () => {
+    const at = routeBody.indexOf(HEARTBEAT);
+    expect(at).toBeGreaterThan(-1);
+    let occurrence = -1;
+    for (let p = routeBody.indexOf("try {"); p >= 0 && p < at; p = routeBody.indexOf("try {", p + 1)) {
+      occurrence += 1;
+    }
+    const stmt = enclosingSource(routeBody, "try {", "statement", { occurrence, fileName: FILE });
+    expect(stmt).toContain(HEARTBEAT);
+    return stmt;
+  };
 
   it("the all-teams branch emits a heartbeat AFTER the for-loop", () => {
     // The sweep heartbeat must be positioned AFTER the for-loop
@@ -79,19 +97,13 @@ describe("Phase 32.7.5 — sweep-level canonical heartbeat fires on every all-te
     expect(heartbeatIdx).toBeGreaterThan(-1);
     // Look for safeEmitSecurityEvent in the 1500 chars immediately
     // surrounding the eventType to confirm the call shape.
-    const surround = routeBody.slice(
-      Math.max(0, heartbeatIdx - 400),
-      heartbeatIdx + 1500,
-    );
+    const surround = heartbeatCall();
     expect(surround).toMatch(/safeEmitSecurityEvent\(\s*\{/);
     expect(surround).toMatch(/severity:\s*"INFO"/);
   });
 
   it("heartbeat carries bounded sweep telemetry in details (source/trigger/correlationId/counts)", () => {
-    const heartbeatIdx = routeBody.indexOf(
-      'eventType: wireStringFor("WORKER_HEARTBEAT")',
-    );
-    const block = routeBody.slice(heartbeatIdx, heartbeatIdx + 1800);
+    const block = heartbeatCall();
     expect(block).toMatch(/source:\s*"sweep"/);
     expect(block).toMatch(/trigger:/);
     expect(block).toMatch(/correlationId:/);
@@ -100,31 +112,23 @@ describe("Phase 32.7.5 — sweep-level canonical heartbeat fires on every all-te
   });
 
   it("heartbeat sets teamId: null (it is a sweep-level signal, not team-scoped)", () => {
-    const heartbeatIdx = routeBody.indexOf(
-      'eventType: wireStringFor("WORKER_HEARTBEAT")',
-    );
-    const block = routeBody.slice(
-      Math.max(0, heartbeatIdx - 200),
-      heartbeatIdx + 200,
-    );
+    const block = heartbeatArgs();
     expect(block).toMatch(/teamId:\s*null/);
   });
 
   it("heartbeat emission is wrapped in try/catch so a heartbeat failure cannot break the sweep response", () => {
-    const heartbeatIdx = routeBody.indexOf(
-      'eventType: wireStringFor("WORKER_HEARTBEAT")',
-    );
-    const surround = routeBody.slice(
-      Math.max(0, heartbeatIdx - 400),
-      heartbeatIdx + 2000,
-    );
+    const surround = heartbeatTry();
     expect(surround).toMatch(/try\s*\{[\s\S]{0,2000}safeEmitSecurityEvent/);
     expect(surround).toMatch(/safeEmitSecurityEvent[\s\S]{0,1500}\}\s*catch\s*\{/);
   });
 
   it("response still includes the existing sweep payload (no regression)", () => {
-    const sendIdx = routeBody.lastIndexOf("return reply.code(200).send");
-    const sendBlock = routeBody.slice(sendIdx, sendIdx + 800);
+    // The LAST 200 response statement of the handler (the sweep payload).
+    const marker = "return reply.code(200).send";
+    const sendBlock = enclosingSource(routeBody, marker, "statement", {
+      occurrence: routeBody.split(marker).length - 2,
+      fileName: FILE,
+    });
     for (const key of [
       "teams: teams.length",
       "failedTeams",

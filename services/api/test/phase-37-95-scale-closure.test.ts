@@ -15,6 +15,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { enclosingSource, routeSource } from "../../../scripts/source-contract/index.mjs";
 
 import { listAllFiles } from "./_helpers/file-walker";
 
@@ -62,15 +63,12 @@ describe("Phase 37.95 — public verify enumeration safety", () => {
   it("public verify gates on publicVerifyState (records NOT_PUBLISHED / SUSPENDED return 404)", () => {
     // The select clause must include publicVerifyState; the route must
     // check it before responding.
-    const publicVerifyIdx = EVIDENCE_ROUTES.indexOf("/public/verify/:id");
-    expect(publicVerifyIdx).toBeGreaterThan(0);
-    const slice = EVIDENCE_ROUTES.slice(publicVerifyIdx, publicVerifyIdx + 8000);
+    const slice = routeSource(EVIDENCE_ROUTES, "GET", "/public/verify/:id");
     expect(slice).toMatch(/publicVerifyState/);
   });
 
   it("public verify never selects internalNotes (operator-private field stays server-side)", () => {
-    const publicVerifyIdx = EVIDENCE_ROUTES.indexOf("/public/verify/:id");
-    const slice = EVIDENCE_ROUTES.slice(publicVerifyIdx, publicVerifyIdx + 10000);
+    const slice = routeSource(EVIDENCE_ROUTES, "GET", "/public/verify/:id");
     const firstSelect = slice.match(/select:\s*\{[\s\S]*?\n\s*\}/);
     expect(firstSelect).not.toBeNull();
     // Operator-private notes must NEVER be selected by the public route.
@@ -80,24 +78,27 @@ describe("Phase 37.95 — public verify enumeration safety", () => {
   it("public verify response handler does NOT echo storageKey / storageBucket back to the client", () => {
     // The SELECT clause may include storage* for internal use (deriving
     // signed package URLs), but the response object MUST NOT echo them.
-    const publicVerifyIdx = EVIDENCE_ROUTES.indexOf("/public/verify/:id");
-    const slice = EVIDENCE_ROUTES.slice(publicVerifyIdx, publicVerifyIdx + 10000);
-    // Find the `reply.send(...)` or `return { ... }` for the success
-    // response. We grep for the canonical response keys we expect and
-    // assert storageKey is never one of them in the assembled body.
+    // The success response itself — the handler's one `reply.code(200).send`.
+    // (The handler legitimately passes `storageKey: evidence.storageKey` INTO
+    // `buildPublicEvidenceContent` to match parts; that argument is internal
+    // use, not the response.) Assert storageKey is never one of the keys in
+    // the assembled body.
+    const handler = routeSource(EVIDENCE_ROUTES, "GET", "/public/verify/:id");
+    const slice = enclosingSource(handler, "return reply.code(200).send({", "statement", {
+      unique: true,
+      fileName: "evidence.routes.ts",
+    });
     expect(slice).not.toMatch(/storageKey:\s*evidence\.storageKey/);
   });
 
   it("public verify uses 404 for missing/unpublished records (uniform error shape)", () => {
-    const publicVerifyIdx = EVIDENCE_ROUTES.indexOf("/public/verify/:id");
-    const slice = EVIDENCE_ROUTES.slice(publicVerifyIdx, publicVerifyIdx + 10000);
+    const slice = routeSource(EVIDENCE_ROUTES, "GET", "/public/verify/:id");
     // Either a literal .code(404) or a return reply.code(404).
     expect(slice).toMatch(/\.code\(404\)/);
   });
 
   it("public verify does not write custody / access events on a GET (no audit emission)", () => {
-    const publicVerifyIdx = EVIDENCE_ROUTES.indexOf("/public/verify/:id");
-    const slice = EVIDENCE_ROUTES.slice(publicVerifyIdx, publicVerifyIdx + 10000);
+    const slice = routeSource(EVIDENCE_ROUTES, "GET", "/public/verify/:id");
     // No custody-event write helpers in the public GET handler.
     expect(slice).not.toMatch(/recordCustodyEvent|writeCustodyEvent/);
   });

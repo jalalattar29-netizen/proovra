@@ -16,6 +16,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { functionSource } from "../../../scripts/source-contract/index.mjs";
 
 import {
   evaluateCondition,
@@ -271,9 +272,7 @@ describe("E3.1 Test 2 — dispatcher source contains no scripting / no fetch", (
     // zero rows. The old in-request executor could not even express this — it
     // had no generation, and it called `automationRun.update({where:{id}})`
     // directly, which overwrites whatever is there.
-    const idx = PROCESSOR.indexOf("async function fencedUpdate");
-    expect(idx).toBeGreaterThan(-1);
-    const body = PROCESSOR.slice(idx, idx + 900);
+    const body = functionSource(PROCESSOR, "fencedUpdate");
     expect(body).toMatch(/status:\s*"RUNNING"/);
     expect(body).toMatch(/claimGeneration:\s*generation/);
     expect(body).toMatch(/res\.count === 1/);

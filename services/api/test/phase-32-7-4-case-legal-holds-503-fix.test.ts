@@ -42,6 +42,12 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import {
+  enclosingSource,
+  functionSource,
+  routeSource,
+} from "../../../scripts/source-contract/index.mjs";
+
 function readApi(rel: string): string {
   return readFileSync(fileURLToPath(new URL(`../${rel}`, import.meta.url)), "utf8");
 }
@@ -70,9 +76,10 @@ describe("Phase 32.7.4 — runGovernanceHandler bounded server-side diagnostic",
   });
 
   it("logs a bounded WARN line with reply.log before sending the 503", () => {
-    const catchIdx = SRC.indexOf("if (isPrismaSchemaDriftError(err))");
-    expect(catchIdx).toBeGreaterThan(-1);
-    const catchBlock = SRC.slice(catchIdx, catchIdx + 4000);
+    // The schema-drift branch itself (the whole `if` statement).
+    const catchBlock = enclosingSource(SRC, "if (isPrismaSchemaDriftError(err))", "statement", {
+      fileName: "_governance-error-bound.ts",
+    });
     expect(catchBlock).toMatch(/reply\.log\.warn\(/);
     // WARN happens BEFORE the reply.code(503).send(...) — operators
     // see the diagnostic even if the client closes the connection.
@@ -83,9 +90,10 @@ describe("Phase 32.7.4 — runGovernanceHandler bounded server-side diagnostic",
   });
 
   it("structured log includes the exact bounded triage fields", () => {
-    const warnIdx = SRC.indexOf("reply.log.warn(");
-    expect(warnIdx).toBeGreaterThan(-1);
-    const logBlock = SRC.slice(warnIdx, warnIdx + 2000);
+    // The warn call's own arguments.
+    const logBlock = enclosingSource(SRC, "reply.log.warn(", "call", {
+      fileName: "_governance-error-bound.ts",
+    });
     for (const field of [
       "event",
       "requestId",
@@ -104,9 +112,10 @@ describe("Phase 32.7.4 — runGovernanceHandler bounded server-side diagnostic",
   });
 
   it("client response body still excludes raw Prisma error (anti-leak preserved)", () => {
-    const sendIdx = SRC.indexOf("reply.code(503).send");
-    expect(sendIdx).toBeGreaterThan(-1);
-    const sendBlock = SRC.slice(sendIdx, sendIdx + 1000);
+    // The send call's own arguments — the client-visible body.
+    const sendBlock = enclosingSource(SRC, "reply.code(503).send", "call", {
+      fileName: "_governance-error-bound.ts",
+    });
     // The client-visible body must contain ONLY the bounded
     // canonical code + a generic operator-safe message.
     expect(sendBlock).toMatch(/code:\s*"governance_schema_unavailable"/);
@@ -192,9 +201,7 @@ describe("Phase 32.7.4 — unrelated governance endpoints preserved", () => {
   const POLICY_SVC = readApi("src/services/governance.service.ts");
 
   it("legal-holds (working) handler keeps its bounded schema-drift wrapper and reads from ONE authority", () => {
-    const routeIdx = ROUTES_SRC.indexOf('"/v1/governance/legal-holds"');
-    expect(routeIdx).toBeGreaterThan(-1);
-    const routeBody = ROUTES_SRC.slice(routeIdx, routeIdx + 2000);
+    const routeBody = routeSource(ROUTES_SRC, "GET", "/v1/governance/legal-holds");
     // The 32.7.4 invariant is the bounded schema-drift wrapper — that a
     // governance schema gap becomes a bounded 503, not a raw Prisma error.
     expect(routeBody).toMatch(/runGovernanceHandler\(reply,/);
@@ -208,9 +215,8 @@ describe("Phase 32.7.4 — unrelated governance endpoints preserved", () => {
   });
 
   it("LegalHold projection still includes reason + releaseNote (unchanged from 32.7.3)", () => {
-    const fnIdx = POLICY_SVC.indexOf("export function projectLegalHold");
-    expect(fnIdx).toBeGreaterThan(-1);
-    const fn = POLICY_SVC.slice(fnIdx, fnIdx + 1500);
+    const fn = functionSource(POLICY_SVC, "projectLegalHold");
+    expect(fn.startsWith("export function projectLegalHold")).toBe(true);
     expect(fn).toMatch(/reason:\s*hold\.reason/);
     expect(fn).toMatch(/releaseNote:\s*hold\.releaseNote/);
   });

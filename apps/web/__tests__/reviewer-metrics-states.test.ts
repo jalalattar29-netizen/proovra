@@ -26,6 +26,8 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -166,20 +168,13 @@ test("LOADING is replaced with the bounded loading state", () => {
 // ---------------------------------------------------------------------------
 
 test("FORBIDDEN branch never reads state.metrics", () => {
-  // Scope the check to the slice between the FORBIDDEN marker and the
-  // next state-marker so we only inspect the FORBIDDEN render path.
-  const start = PAGE_SOURCE.indexOf("data-reviewer-metrics-forbidden");
-  assert.ok(start > 0, "FORBIDDEN slice must be present");
-  // Next sibling block boundary — first `data-reviewer-metrics-` marker
-  // after FORBIDDEN.
-  const after = PAGE_SOURCE.indexOf(
-    "data-reviewer-metrics-",
-    start + "data-reviewer-metrics-forbidden".length,
-  );
-  const slice =
-    after > 0
-      ? PAGE_SOURCE.slice(start, after)
-      : PAGE_SOURCE.slice(start, start + 600);
+  // Scope the check to the FORBIDDEN render path: the whole JSX element
+  // carrying the FORBIDDEN marker (WCC-NEW-027). This was the text up to the
+  // next `data-reviewer-metrics-` marker, with a 600-char fallback.
+  const slice = enclosingSource(PAGE_SOURCE, "data-reviewer-metrics-forbidden", "jsx", {
+    unique: true,
+    fileName: "page.tsx",
+  });
   assert.ok(
     !slice.includes("state.metrics"),
     "FORBIDDEN render path must not read state.metrics — this is the " +

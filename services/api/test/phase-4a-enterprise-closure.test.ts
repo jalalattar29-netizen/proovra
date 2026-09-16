@@ -28,6 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it, vi } from "vitest";
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
 
 import {
   ACCESS_REVIEW_GRANT_KINDS,
@@ -297,14 +298,7 @@ describe("Phase 4A Closure — delegated tier enforcement on routes", () => {
     // accepts any authenticated workspace member; AUTHORING remains
     // tier-gated (previous test). Pinned to fail-fast if a future
     // phase tries to re-add the gate.
-    const seedSubIdx = src.indexOf('"/v1/trust/subprocessors/seed"');
-    expect(seedSubIdx).toBeGreaterThan(-1);
-    const seedSubSlice = src.slice(seedSubIdx, seedSubIdx + 1500);
-    const nextSubIdx = seedSubSlice.search(
-      /\n\s{0,4}app\.(post|get|patch|delete)\(/,
-    );
-    const seedSubHandler =
-      nextSubIdx > 0 ? seedSubSlice.slice(0, nextSubIdx) : seedSubSlice;
+    const seedSubHandler = routeSource(src, "POST", "/v1/trust/subprocessors/seed");
     expect(seedSubHandler).toMatch(/preHandler:\s*requireAuth\b/);
     expect(seedSubHandler).not.toMatch(/requireDelegatedTier/);
   });

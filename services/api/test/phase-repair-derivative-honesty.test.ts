@@ -26,6 +26,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 import { MEDIA_INTELLIGENCE_JOB_KINDS } from "@proovra/shared";
 import { MEDIA_INTELLIGENCE_RUN_KINDS } from "@proovra/shared-runtime/media-intelligence";
 
@@ -179,11 +180,11 @@ describe("Phase Repair Task B — investigation-diagnostics duplicateDerivativeC
     // Stale-edge sweep marks edges with stale_at_utc when source/target
     // is stale. Count MUST exclude them so the diagnostic surface
     // reflects active candidates only.
-    const queryIdx = DIAGNOSTICS_SRC.indexOf(
-      "'POSSIBLE_DERIVATIVE_OF'",
-    );
-    expect(queryIdx).toBeGreaterThan(0);
-    const window = DIAGNOSTICS_SRC.slice(queryIdx, queryIdx + 400);
+    // The raw-query call whose SQL names the edge type (WCC-NEW-027).
+    const window = enclosingSource(DIAGNOSTICS_SRC, "'POSSIBLE_DERIVATIVE_OF'", "call", {
+      unique: true,
+      fileName: "investigation-diagnostics.service.ts",
+    });
     expect(window).toMatch(/"stale_at_utc"\s+IS\s+NULL/);
   });
 

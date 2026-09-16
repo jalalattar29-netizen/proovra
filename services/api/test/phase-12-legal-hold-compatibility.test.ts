@@ -33,6 +33,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
 
 const REPO = resolve(__dirname, "../../..");
 const read = (f: string) => readFileSync(f, "utf8").replace(/\r\n/g, "\n");
@@ -239,13 +240,15 @@ describe("Phase 12 Point 3 — restored adapters hold no legacy dependence", () 
   });
 
   it("the release adapters evaluate the approval gate BEFORE step-up", () => {
-    for (const marker of [
-      '"/v1/governance/legal-holds/:id/release"',
-      '"/v1/governance/case-legal-holds/:id/release"',
+    for (const path of [
+      "/v1/governance/legal-holds/:id/release",
+      "/v1/governance/case-legal-holds/:id/release",
     ]) {
-      const start = BLOCK.indexOf(marker);
-      expect(start, marker).toBeGreaterThan(-1);
-      const body = BLOCK.slice(start, start + 2600);
+      const marker = `"${path}"`;
+      // The adapter must sit in the compatibility block…
+      expect(BLOCK.indexOf(marker), marker).toBeGreaterThan(-1);
+      // …and the ordering is read from its own registration only.
+      const body = routeSource(ROUTES, "POST", path);
       const approvalAt = body.indexOf("assertReleaseApproval(");
       const stepUpAt = body.indexOf("requireStepUpForSensitiveAction(");
       expect(approvalAt, marker).toBeGreaterThan(-1);

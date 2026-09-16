@@ -13,6 +13,7 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
@@ -78,9 +79,14 @@ describe("admin-security leak-proofing (§5)", () => {
   it("personal security_event_high is scoped to the caller's own userId", () => {
     // Anchor on the real Prisma call (`prisma.securityEvent.findMany`), not
     // the drift-handling comment that mentions the query name.
-    const at = SRC.lastIndexOf("prisma.securityEvent.findMany");
-    expect(at).toBeGreaterThan(-1);
-    const window = SRC.slice(at, at + 200);
+    // The LAST occurrence is the call; the whole `findMany({ … })` call is read.
+    const marker = "prisma.securityEvent.findMany";
+    const occurrences = SRC.split(marker).length - 1;
+    expect(occurrences).toBeGreaterThan(0);
+    const window = enclosingSource(SRC, marker, "call", {
+      occurrence: occurrences - 1,
+      fileName: "me-inbox.routes.ts",
+    });
     expect(window).toMatch(/where:\s*\{\s*userId/);
   });
 

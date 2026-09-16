@@ -30,6 +30,8 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
+
 const __filename = fileURLToPath(import.meta.url);
 const REPO_ROOT = resolve(dirname(__filename), "..", "..", "..");
 const PAGE = resolve(
@@ -104,10 +106,9 @@ test("Diagnostics refetch — reloadHealth(filter.q) is invoked when search rows
   // the cached health says "empty_index" / "empty_workspace". The
   // probe query is now threaded so queryProbe stays fresh for the
   // per-type empty-state copy — pin the (filter.q) call shape.
-  const idx = src.indexOf(".then((r)");
-  assert.ok(idx > 0, "search-result handler missing");
-  // Search the next 3.5 KiB window for the reload trigger.
-  const handlerWindow = src.slice(idx, idx + 3500);
+  // The search-result `runSearch(filter).then((r) => { … })` call — the
+  // handler itself, not the next 3.5 KiB (WCC-NEW-027).
+  const handlerWindow = enclosingSource(src, ".then((r)", "call", { fileName: "page.tsx" });
   assert.match(handlerWindow, /reloadHealth\(filter\.q\)/);
   assert.match(handlerWindow, /searchHealth\.health === "empty_index"/);
   assert.match(handlerWindow, /searchHealth\.health === "empty_workspace"/);

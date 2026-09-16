@@ -21,6 +21,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { betweenMarkers, functionSource } from "../../../scripts/source-contract/index.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (rel: string) => readFileSync(join(ROOT, rel), "utf8");
@@ -29,9 +30,9 @@ describe("Phase 6 §9.3/§9.6 — bulk ADD_TO_CASE cross-team gate", () => {
   const src = read("src/routes/evidence.routes.ts");
 
   it("the bulk branch runs evaluateCrossTeamAttach BEFORE the canonical attach", () => {
-    const branch = src.indexOf('case "ADD_TO_CASE": {');
-    expect(branch).toBeGreaterThan(-1);
-    const slice = src.slice(branch, branch + 3500);
+    // The ADD_TO_CASE case clause: from its label to the next case label
+    // (WCC-NEW-027) — never a window that reads the neighbouring branch.
+    const slice = betweenMarkers(src, 'case "ADD_TO_CASE": {', 'case "REMOVE_FROM_CASE": {');
     const gateIdx = slice.indexOf("evaluateCrossTeamAttach({");
     // Track 1B — the direct `evidence.update({ caseId, teamId })` stamp
     // was replaced by the CANONICAL case-evidence authority
@@ -59,9 +60,7 @@ describe("Phase 6 §9.7 — purge worker legal-hold re-check", () => {
   const worker = read("../worker/src/processor.ts");
 
   it("every hold family is re-checked before purge deletion (one store)", () => {
-    const fn = worker.indexOf("export async function processPurgeDeletedEvidence");
-    expect(fn).toBeGreaterThan(-1);
-    const body = worker.slice(fn, fn + 9000);
+    const body = functionSource(worker, "processPurgeDeletedEvidence");
     // PHASE 12B CLUSTER 8 — the three hand-rolled per-store lookups are
     // replaced by ONE union evaluator that reads all three stores and FAILS
     // CLOSED. The families are still all covered; the coverage now lives in

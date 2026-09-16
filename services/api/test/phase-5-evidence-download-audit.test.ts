@@ -49,6 +49,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it, vi } from "vitest";
 
+import { functionSource } from "../../../scripts/source-contract/index.mjs";
+
 // ---------------------------------------------------------------------------
 // Source under test.
 // ---------------------------------------------------------------------------
@@ -294,11 +296,8 @@ describe("Phase 5 — download audit is best-effort (fail-safe)", () => {
     // `void emitTenantAudit(...).catch(...)`. The download handlers reuse
     // this exact seam, so an audit failure cannot reject the handler's
     // request path.
-    const wrapperIdx = EVIDENCE_ROUTES.indexOf(
-      "function auditEvidenceAction(",
-    );
-    expect(wrapperIdx).toBeGreaterThan(-1);
-    const wrapper = EVIDENCE_ROUTES.slice(wrapperIdx, wrapperIdx + 1200);
+    const wrapper = functionSource(EVIDENCE_ROUTES, "auditEvidenceAction");
+    expect(wrapper).toContain("function auditEvidenceAction(");
     expect(wrapper).toContain("void emitTenantAudit({");
     expect(wrapper).toContain(".catch(noteCustodyFailure)");
   });

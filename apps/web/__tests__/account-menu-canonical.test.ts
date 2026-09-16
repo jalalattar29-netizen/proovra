@@ -20,6 +20,7 @@ import {
   type AccountMenuInput,
 } from "../lib/navigation/accountMenu";
 import type { CapabilityKey } from "../lib/platform-context/types";
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (rel: string): string => readFileSync(resolve(APP_ROOT, rel), "utf8");
@@ -426,8 +427,11 @@ test("Help & Support renders as a real new-tab external anchor in the toolbar", 
 
 test("Billing is sidebar-eligible on the SAME /billing route (no duplicate route)", () => {
   const registry = read("lib/navigation/routeRegistry.ts");
-  const billingStart = registry.indexOf('id: "account.billing"');
-  const billingBlock = registry.slice(billingStart, billingStart + 900);
+  // The whole `{ id: "account.billing", … }` registry entry.
+  const billingBlock = enclosingSource(registry, 'id: "account.billing"', "object", {
+    unique: true,
+    fileName: "routeRegistry.ts",
+  });
   assert.match(billingBlock, /href:\s*"\/billing"/, "canonical /billing route");
   assert.match(billingBlock, /sidebarEligible:\s*true/, "billing now sidebar-eligible");
 });

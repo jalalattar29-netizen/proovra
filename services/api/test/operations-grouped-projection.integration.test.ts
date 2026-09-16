@@ -33,6 +33,8 @@ import type { IntegrationHarness } from "./integration-harness.js";
 const SCALE = 5000;
 /** A second class, so grouping has something to separate. */
 const OTS_SCALE = 40;
+/** Rows per createMany / deleteMany statement (a batch size, not a source window). */
+const BATCH = 500;
 
 describe("Grouped Operations projection at scale (live PostgreSQL 16)", () => {
   let harness: IntegrationHarness;
@@ -129,9 +131,9 @@ describe("Grouped Operations projection at scale (live PostgreSQL 16)", () => {
     // Chunked: one 5,065-row statement is a parameter count PostgreSQL will
     // refuse, and discovering that at 5,000 rather than at 50 is the point of
     // testing at this scale.
-    for (let i = 0; i < rows.length; i += 500) {
+    for (let i = 0; i < rows.length; i += BATCH) {
       await prisma.operationalIncident.createMany({
-        data: rows.slice(i, i + 500) as never,
+        data: rows.slice(i, i + BATCH) as never,
       });
     }
   }, 1_800_000);
@@ -144,8 +146,8 @@ describe("Grouped Operations projection at scale (live PostgreSQL 16)", () => {
           select: { id: true },
         })
       ).map((r) => r.id);
-      for (let i = 0; i < ids.length; i += 500) {
-        const slice = ids.slice(i, i + 500);
+      for (let i = 0; i < ids.length; i += BATCH) {
+        const slice = ids.slice(i, i + BATCH);
         await prisma.operationalIncidentEvent.deleteMany({
           where: { incidentId: { in: slice } },
         });

@@ -42,6 +42,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { functionSource } from "../../../scripts/source-contract/index.mjs";
 
 import {
   isUnderActiveLegalHold,
@@ -354,9 +355,7 @@ describe("Phase 5 — canonical-stack lock: both hold entry points consult the 4
   // stores and only degrades on a genuinely-absent relation. The lock moves
   // with it — assert the delegation plus the evaluator's own scope coverage.
   it("the direct delete gate delegates to the ONE effective-hold evaluator", () => {
-    const fnIdx = governanceSrc.indexOf("export async function isUnderActiveLegalHold");
-    expect(fnIdx).toBeGreaterThan(0);
-    const fn = governanceSrc.slice(fnIdx, fnIdx + 2600);
+    const fn = functionSource(governanceSrc, "isUnderActiveLegalHold");
     expect(fn).toContain("evaluateEffectiveLegalHold(");
     // No private per-store union may survive inside the gate.
     expect(fn).not.toContain("client.legalHold.findFirst");

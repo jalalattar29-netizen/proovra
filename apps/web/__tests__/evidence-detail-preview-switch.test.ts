@@ -39,6 +39,8 @@ import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
+import { functionSource } from "../../../scripts/source-contract/index.mjs";
+
 const __filename = fileURLToPath(import.meta.url);
 const REPO_ROOT = resolve(dirname(__filename), "..", "..", "..");
 const LIB = resolve(
@@ -88,9 +90,7 @@ describe("Pin 2 — main preview renders the SELECTED item, not the default", ()
     const src = read(LIB);
     // Locate renderPreview body and confirm it switches on
     // selectedItem.kind / selectedItem.viewUrl etc.
-    const fnIdx = src.indexOf("const renderPreview = () =>");
-    assert.ok(fnIdx > 0);
-    const body = src.slice(fnIdx, fnIdx + 4000);
+    const body = functionSource(src, "renderPreview", "_lib.tsx");
     assert.match(body, /!selectedItem \|\| !selectedItem\.viewUrl/);
     assert.match(body, /selectedItem\.kind === "image"/);
     assert.match(body, /selectedItem\.kind === "video"/);
@@ -116,8 +116,7 @@ describe("Pin 2 — main preview renders the SELECTED item, not the default", ()
     // <video> won't pick up the new `src` until the user clicks the
     // controls. Forcing remount via key={id} guarantees a fresh
     // load every time the selection changes.
-    const fnIdx = src.indexOf("const renderPreview = () =>");
-    const body = src.slice(fnIdx, fnIdx + 4000);
+    const body = functionSource(src, "renderPreview", "_lib.tsx");
     // Each media element must include key={selectedItem.id}.
     const mediaMatches = body.match(/key=\{selectedItem\.id\}/g) ?? [];
     assert.ok(

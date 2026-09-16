@@ -47,6 +47,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { betweenMarkers, enclosingSource, functionSource } from "../../../scripts/source-contract/index.mjs";
 
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -101,9 +102,7 @@ describe("Phase 31.21 — domain-sync.service.ts", () => {
   });
 
   it("runDomainStaleSweep is team-anchored on BOTH outer UPDATE and inner sub-select", () => {
-    const idx = DOMAIN_SYNC_SRC.indexOf("export async function runDomainStaleSweep");
-    expect(idx).toBeGreaterThan(0);
-    const slice = DOMAIN_SYNC_SRC.slice(idx, idx + 2500);
+    const slice = functionSource(DOMAIN_SYNC_SRC, "runDomainStaleSweep");
     // The UPDATE binds team_id = $1
     expect(slice).toMatch(/UPDATE "investigation_graph_nodes" n\s*SET[\s\S]*?n\."team_id" = \$1/);
     // The NOT EXISTS sub-select ALSO binds team_id = $1
@@ -111,16 +110,13 @@ describe("Phase 31.21 — domain-sync.service.ts", () => {
   });
 
   it("runDomainStaleSweep never throws — collapses to { ok: false, reason }", () => {
-    const idx = DOMAIN_SYNC_SRC.indexOf("export async function runDomainStaleSweep");
-    const slice = DOMAIN_SYNC_SRC.slice(idx, idx + 2500);
+    const slice = functionSource(DOMAIN_SYNC_SRC, "runDomainStaleSweep");
     expect(slice).toMatch(/try \{[\s\S]*?\$executeRawUnsafe[\s\S]*?\} catch \(err\) \{/);
     expect(slice).toMatch(/return \{\s*ok: false,[\s\S]*?reason:/);
   });
 
   it("runTimelineSync invokes buildInvestigationTimeline AND runs the cross-edge stale sweep", () => {
-    const idx = DOMAIN_SYNC_SRC.indexOf("export async function runTimelineSync");
-    expect(idx).toBeGreaterThan(0);
-    const slice = DOMAIN_SYNC_SRC.slice(idx, idx + 3500);
+    const slice = functionSource(DOMAIN_SYNC_SRC, "runTimelineSync");
     expect(slice).toMatch(/buildInvestigationTimeline/);
     // The cross-edge sweep tombstones edges whose source OR target
     // node has gone stale. Anchor on the UPDATE statement.
@@ -142,16 +138,14 @@ describe("Phase 31.21 — domain-sync.service.ts", () => {
   });
 
   it("runSearchProjectionSync is team-anchored", () => {
-    const idx = DOMAIN_SYNC_SRC.indexOf("export async function runSearchProjectionSync");
-    const slice = DOMAIN_SYNC_SRC.slice(idx, idx + 3500);
+    const slice = functionSource(DOMAIN_SYNC_SRC, "runSearchProjectionSync");
     expect(slice).toMatch(
       /FROM "media_intelligence_signals"\s*WHERE "team_id" = \$1/,
     );
   });
 
   it("runSearchProjectionSync never throws — query failure returns { ok: false, reason }", () => {
-    const idx = DOMAIN_SYNC_SRC.indexOf("export async function runSearchProjectionSync");
-    const slice = DOMAIN_SYNC_SRC.slice(idx, idx + 3500);
+    const slice = functionSource(DOMAIN_SYNC_SRC, "runSearchProjectionSync");
     expect(slice).toMatch(
       /} catch \(err\) \{[\s\S]*?return \{\s*ok: false,[\s\S]*?reason:[\s\S]*?recent_signal_query_failed/,
     );
@@ -170,11 +164,11 @@ describe("Phase 31.21 — domain-sync.service.ts", () => {
 
 describe("Phase 31.21 — graph-* worker processors are real (no no-ops)", () => {
   it("processGraphDomainSyncJob calls runDomainStaleSweep per bounded domain", () => {
-    const idx = SUBSYSTEM_PROCESSORS_SRC.indexOf(
-      "export async function processGraphDomainSyncJob",
-    );
-    expect(idx).toBeGreaterThan(0);
-    const slice = SUBSYSTEM_PROCESSORS_SRC.slice(idx, idx + 3500);
+    // The exported processor only wraps its `processGraphDomainSyncJobInner` body in the job
+    // context; the behaviour lives in the inner function, so read both.
+    const slice =
+      functionSource(SUBSYSTEM_PROCESSORS_SRC, "processGraphDomainSyncJob") +
+      functionSource(SUBSYSTEM_PROCESSORS_SRC, "processGraphDomainSyncJobInner");
     expect(slice).toMatch(/runDomainStaleSweep\(/);
     expect(slice).toMatch(/DOMAIN_SYNC_DOMAINS/);
     // Unknown-domain payload values short-circuit to a logged skip
@@ -183,21 +177,21 @@ describe("Phase 31.21 — graph-* worker processors are real (no no-ops)", () =>
   });
 
   it("processGraphTimelineSyncJob calls runTimelineSync", () => {
-    const idx = SUBSYSTEM_PROCESSORS_SRC.indexOf(
-      "export async function processGraphTimelineSyncJob",
-    );
-    expect(idx).toBeGreaterThan(0);
-    const slice = SUBSYSTEM_PROCESSORS_SRC.slice(idx, idx + 1500);
+    // The exported processor only wraps its `processGraphTimelineSyncJobInner` body in the job
+    // context; the behaviour lives in the inner function, so read both.
+    const slice =
+      functionSource(SUBSYSTEM_PROCESSORS_SRC, "processGraphTimelineSyncJob") +
+      functionSource(SUBSYSTEM_PROCESSORS_SRC, "processGraphTimelineSyncJobInner");
     expect(slice).toMatch(/runTimelineSync\(/);
     expect(slice).not.toMatch(/no_op_completed/);
   });
 
   it("processGraphSearchProjectionJob calls runSearchProjectionSync", () => {
-    const idx = SUBSYSTEM_PROCESSORS_SRC.indexOf(
-      "export async function processGraphSearchProjectionJob",
-    );
-    expect(idx).toBeGreaterThan(0);
-    const slice = SUBSYSTEM_PROCESSORS_SRC.slice(idx, idx + 2500);
+    // The exported processor only wraps its `processGraphSearchProjectionJobInner` body in the job
+    // context; the behaviour lives in the inner function, so read both.
+    const slice =
+      functionSource(SUBSYSTEM_PROCESSORS_SRC, "processGraphSearchProjectionJob") +
+      functionSource(SUBSYSTEM_PROCESSORS_SRC, "processGraphSearchProjectionJobInner");
     expect(slice).toMatch(/runSearchProjectionSync\(/);
     expect(slice).not.toMatch(/no_op_completed/);
   });
@@ -209,10 +203,11 @@ describe("Phase 31.21 — graph-* worker processors are real (no no-ops)", () =>
   });
 
   it("the search-projection processor injects the worker's own enqueue impl", () => {
-    const idx = SUBSYSTEM_PROCESSORS_SRC.indexOf(
-      "export async function processGraphSearchProjectionJob",
-    );
-    const slice = SUBSYSTEM_PROCESSORS_SRC.slice(idx, idx + 2500);
+    // The exported processor only wraps its `processGraphSearchProjectionJobInner` body in the job
+    // context; the behaviour lives in the inner function, so read both.
+    const slice =
+      functionSource(SUBSYSTEM_PROCESSORS_SRC, "processGraphSearchProjectionJob") +
+      functionSource(SUBSYSTEM_PROCESSORS_SRC, "processGraphSearchProjectionJobInner");
     // Defending against a second Redis connection: the processor
     // passes its own enqueueImpl that calls the local
     // enqueueSearchIndexingJob.
@@ -238,9 +233,12 @@ describe("Phase 31.21 — Reviewer Console projection", () => {
   // the live pipeline never populated, so the tiles always showed
   // zeros.
   it("returns indexingTotals derived from EvidenceExtractedText kinds + COMPLETED status", () => {
-    const idx = MI_ROUTES_SRC.indexOf("Phase Repair — OCR / transcript volume snapshot");
-    expect(idx).toBeGreaterThan(0);
-    const slice = MI_ROUTES_SRC.slice(idx, idx + 3500);
+    // Step 7 of the handler runs until step 8's banner.
+    const slice = betweenMarkers(
+      MI_ROUTES_SRC,
+      "Phase Repair — OCR / transcript volume snapshot",
+      "8) Phase Repair — local-extractor capability snapshot",
+    );
     // The new query reads `evidence_extracted_texts`.
     expect(slice).toMatch(/FROM "evidence_extracted_texts"/);
     // Buckets OCR by the three OCR-style kinds.
@@ -258,9 +256,10 @@ describe("Phase 31.21 — Reviewer Console projection", () => {
   });
 
   it("returns localExtractorCapability with NOT_ENABLED defaults + secondary framing", () => {
-    const idx = MI_ROUTES_SRC.indexOf("localExtractorCapability");
-    expect(idx).toBeGreaterThan(0);
-    const slice = MI_ROUTES_SRC.slice(idx, idx + 800);
+    const slice = enclosingSource(MI_ROUTES_SRC, "const localExtractorCapability", "statement", {
+      unique: true,
+      fileName: "media-intelligence.routes.ts",
+    });
     expect(slice).toMatch(/tesseract:[\s\S]*?ok: false[\s\S]*?reason: "not_enabled"/);
     expect(slice).toMatch(/whisper:[\s\S]*?ok: false[\s\S]*?reason: "not_enabled"/);
     // Phase Repair — the route now flags the local tile as a SECONDARY

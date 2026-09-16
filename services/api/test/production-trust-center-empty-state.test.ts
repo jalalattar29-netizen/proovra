@@ -62,6 +62,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
 
 function readRepo(rel: string): string {
   // Normalize CRLF → LF so multi-line source assertions are not sensitive to
@@ -88,9 +89,7 @@ const STATUS = readRepo("apps/web/app/(app)/trust-center/status/page.tsx");
 describe("Production fix A — GET routes self-heal an empty Trust Center", () => {
   it("GET /v1/trust/articles auto-calls ensureTrustCenterSeed when empty", () => {
     // Pull the articles GET handler body.
-    const idx = ROUTES.indexOf('"/v1/trust/articles"');
-    expect(idx, "/v1/trust/articles route must exist").toBeGreaterThan(-1);
-    const slice = ROUTES.slice(idx, idx + 3500);
+    const slice = routeSource(ROUTES, "GET", "/v1/trust/articles");
     expect(slice).toMatch(/let\s+articles\s*;/);
     expect(slice).toMatch(/articles\s*=\s*await\s+listTrustArticles/);
     expect(slice).toMatch(
@@ -103,9 +102,7 @@ describe("Production fix A — GET routes self-heal an empty Trust Center", () =
   });
 
   it("GET /v1/trust/subprocessors auto-calls ensureSubprocessorSeed when empty", () => {
-    const idx = ROUTES.indexOf('"/v1/trust/subprocessors"');
-    expect(idx).toBeGreaterThan(-1);
-    const slice = ROUTES.slice(idx, idx + 3500);
+    const slice = routeSource(ROUTES, "GET", "/v1/trust/subprocessors");
     expect(slice).toMatch(/let\s+subprocessors\s*;/);
     expect(slice).toMatch(/subprocessors\s*=\s*await\s+listSubprocessors/);
     expect(slice).toMatch(
@@ -149,14 +146,10 @@ describe("Production fix B — seed POSTs no longer require delegated tier", () 
     // POST /v1/trust/subprocessors (NO trailing /seed) DO still
     // require the delegated tier. We only opened up the canonical
     // seed paths.
-    const authoringIdx = ROUTES.indexOf('app.post(\n    "/v1/trust/articles",');
-    expect(authoringIdx).toBeGreaterThan(-1);
-    const authoringSlice = ROUTES.slice(authoringIdx, authoringIdx + 800);
+    const authoringSlice = routeSource(ROUTES, "POST", "/v1/trust/articles");
     expect(authoringSlice).toMatch(/requireDelegatedTierAny/);
 
-    const subAuthoringIdx = ROUTES.indexOf('app.post(\n    "/v1/trust/subprocessors",');
-    expect(subAuthoringIdx).toBeGreaterThan(-1);
-    const subAuthoringSlice = ROUTES.slice(subAuthoringIdx, subAuthoringIdx + 800);
+    const subAuthoringSlice = routeSource(ROUTES, "POST", "/v1/trust/subprocessors");
     expect(subAuthoringSlice).toMatch(/requireDelegatedTierAny/);
   });
 });

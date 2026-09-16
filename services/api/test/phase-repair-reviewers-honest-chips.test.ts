@@ -45,6 +45,12 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import {
+  betweenMarkers,
+  enclosingSource,
+  functionSource,
+} from "../../../scripts/source-contract/index.mjs";
+
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 }
@@ -79,6 +85,17 @@ const MI_ROUTES_SRC = readSource("../src/routes/media-intelligence.routes.ts");
 const REVIEWERS_PAGE = readSource(
   "../../../apps/web/app/(app)/investigation/reviewers/page.tsx",
 );
+/**
+ * Step 7 of the reviewers route (the OCR / transcript volume snapshot), up to
+ * the step-8 banner that closes it.
+ */
+function indexingSnapshotSection(): string {
+  return betweenMarkers(
+    MI_ROUTES_SRC,
+    "Phase Repair — OCR / transcript volume snapshot",
+    "// 8) Phase Repair — local-extractor",
+  );
+}
 const INDEXER_SRC = readSource(
   "../../../packages/shared-runtime/src/media-intelligence/ocr-transcript-indexer.service.ts",
 );
@@ -168,9 +185,7 @@ describe("Phase Repair Task A — probe-aware producer chips", () => {
 
 describe("Phase Repair Task B — indexed counts read canonical EvidenceExtractedText", () => {
   it("the route SELECTs from `evidence_extracted_texts` bucketed by EvidenceExtractedTextKind", () => {
-    const idx = MI_ROUTES_SRC.indexOf("Phase Repair — OCR / transcript volume snapshot");
-    expect(idx).toBeGreaterThan(0);
-    const slice = MI_ROUTES_SRC.slice(idx, idx + 3500);
+    const slice = indexingSnapshotSection();
     expect(slice).toMatch(/FROM "evidence_extracted_texts"/);
     // Each of the 5 canonical kinds appears in the query.
     for (const k of ["OCR_PDF", "OCR_IMAGE", "PDF_TEXT", "TRANSCRIPT_AUDIO", "TRANSCRIPT_VIDEO"]) {
@@ -183,9 +198,7 @@ describe("Phase Repair Task B — indexed counts read canonical EvidenceExtracte
   });
 
   it("the route no longer reads orphan media_intelligence_signals for indexing totals", () => {
-    const idx = MI_ROUTES_SRC.indexOf("Phase Repair — OCR / transcript volume snapshot");
-    const next = MI_ROUTES_SRC.indexOf("// 8) Phase Repair — local-extractor", idx);
-    const slice = MI_ROUTES_SRC.slice(idx, next > 0 ? next : idx + 3500);
+    const slice = indexingSnapshotSection();
     expect(slice).not.toMatch(/'OCR_AVAILABLE'/);
     expect(slice).not.toMatch(/'TRANSCRIPT_AVAILABLE'/);
     expect(slice).not.toMatch(/'OCR_INDEXED'/);
@@ -193,9 +206,7 @@ describe("Phase Repair Task B — indexed counts read canonical EvidenceExtracte
   });
 
   it("the route NEVER reads the `text` column from evidence_extracted_texts", () => {
-    const idx = MI_ROUTES_SRC.indexOf("Phase Repair — OCR / transcript volume snapshot");
-    const next = MI_ROUTES_SRC.indexOf("// 8) Phase Repair — local-extractor", idx);
-    const slice = MI_ROUTES_SRC.slice(idx, next > 0 ? next : idx + 3500);
+    const slice = indexingSnapshotSection();
     // Only COUNT(*) FILTER aggregates. Defensive: no SELECT "text".
     expect(slice).not.toMatch(/SELECT[\s\S]*?"text"[\s\S]*?FROM "evidence_extracted_texts"/);
   });
@@ -230,9 +241,9 @@ describe("Phase Repair Task B — indexed counts read canonical EvidenceExtracte
 
 describe("Phase Repair Task C — local extractor capability is SECONDARY", () => {
   it("the route response carries role:'secondary' + an honest summary string", () => {
-    const idx = MI_ROUTES_SRC.indexOf("localExtractorCapability = {");
-    expect(idx).toBeGreaterThan(0);
-    const slice = MI_ROUTES_SRC.slice(idx, idx + 600);
+    const slice = enclosingSource(MI_ROUTES_SRC, "localExtractorCapability = {", "statement", {
+      fileName: "media-intelligence.routes.ts",
+    });
     expect(slice).toMatch(/role:\s*"secondary"/);
     expect(slice).toMatch(/Local OCR\/transcript runtime is not enabled/);
     expect(slice).toMatch(/Cloud provider is the active path/);
@@ -248,9 +259,8 @@ describe("Phase Repair Task C — local extractor capability is SECONDARY", () =
   });
 
   it("the LocalExtractorCapabilityTile renders the route's summary verbatim", () => {
-    const idx = REVIEWERS_PAGE.indexOf("function LocalExtractorCapabilityTile(");
-    expect(idx).toBeGreaterThan(0);
-    const slice = REVIEWERS_PAGE.slice(idx, idx + 2000);
+    const slice = functionSource(REVIEWERS_PAGE, "LocalExtractorCapabilityTile", "page.tsx");
+    expect(slice).toContain("function LocalExtractorCapabilityTile(");
     expect(slice).toMatch(/cap\.summary/);
     // Fallback copy is still operator-grade if the route ever stops
     // shipping `summary`.
@@ -312,17 +322,15 @@ describe("Phase Repair Task D — silent catches now log", () => {
 
 describe("Phase Repair Task E — IndexingTile no longer lies on empty state", () => {
   it("the IndexingTile uses available > 0 && indexed === available (NOT available === 0 || ...)", () => {
-    const idx = REVIEWERS_PAGE.indexOf("function IndexingTile(");
-    expect(idx).toBeGreaterThan(0);
-    const slice = REVIEWERS_PAGE.slice(idx, idx + 2000);
+    const slice = functionSource(REVIEWERS_PAGE, "IndexingTile", "page.tsx");
+    expect(slice).toContain("function IndexingTile(");
     expect(slice).toMatch(/const allIndexed = available > 0 && indexed === available/);
     // The historical dishonest expression is gone.
     expect(slice).not.toMatch(/available === 0 \|\| indexed === available/);
   });
 
   it("the IndexingTile renders neutral 'No records yet' on empty workspaces", () => {
-    const idx = REVIEWERS_PAGE.indexOf("function IndexingTile(");
-    const slice = REVIEWERS_PAGE.slice(idx, idx + 2000);
+    const slice = functionSource(REVIEWERS_PAGE, "IndexingTile", "page.tsx");
     expect(slice).toMatch(/No records yet/);
   });
 

@@ -25,6 +25,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 import {
   ARCHIVE_AS_ALTERNATIVE_COPY,
   getEvidenceDeletionEligibility,
@@ -327,9 +328,11 @@ const BANNED_COPY = [
 ];
 
 test("the record-actions block contains no banned overclaim", () => {
-  const start = REVIEW_TAB.indexOf('data-evidence-section="record-actions"');
-  assert.ok(start > 0, "record-actions section anchor not found");
-  const slice = REVIEW_TAB.slice(start, start + 6000);
+  // The whole `<section data-evidence-section="record-actions">` element.
+  const slice = enclosingSource(REVIEW_TAB, 'data-evidence-section="record-actions"', "jsx", {
+    unique: true,
+    fileName: "EvidenceReviewTab.tsx",
+  });
   for (const pattern of BANNED_COPY) assert.doesNotMatch(slice, pattern);
 });
 
@@ -344,9 +347,16 @@ test("the helper contains no banned overclaim outside comments", () => {
 
 test("no emoji in the lifecycle surfaces", () => {
   const emojiPattern = /[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}]/u;
-  const reviewBlockStart = REVIEW_TAB.indexOf("data-evidence-record-actions");
-  assert.doesNotMatch(REVIEW_TAB.slice(reviewBlockStart, reviewBlockStart + 4000), emojiPattern);
+  // Each read is the whole JSX element carrying the marker attribute.
+  const reviewBlock = enclosingSource(REVIEW_TAB, "data-evidence-record-actions", "jsx", {
+    unique: true,
+    fileName: "EvidenceReviewTab.tsx",
+  });
+  assert.doesNotMatch(reviewBlock, emojiPattern);
   assert.doesNotMatch(HELPER_SRC, emojiPattern);
-  const bulkBlockStart = BULK_TOOLBAR.indexOf("data-bulk-trash-helper");
-  assert.doesNotMatch(BULK_TOOLBAR.slice(bulkBlockStart, bulkBlockStart + 2000), emojiPattern);
+  const bulkBlock = enclosingSource(BULK_TOOLBAR, "data-bulk-trash-helper", "jsx", {
+    unique: true,
+    fileName: "BulkActionsToolbar.tsx",
+  });
+  assert.doesNotMatch(bulkBlock, emojiPattern);
 });

@@ -90,8 +90,9 @@ describe("Operations at Enterprise scale (live PostgreSQL 16)", () => {
     }));
     // Chunked: one 2100-row INSERT is a parameter-count problem rather than a
     // property of the product.
-    for (let i = 0; i < rows.length; i += 500) {
-      await prisma.evidence.createMany({ data: rows.slice(i, i + 500) as never });
+    const SEED_CHUNK = 500;
+    for (let i = 0; i < rows.length; i += SEED_CHUNK) {
+      await prisma.evidence.createMany({ data: rows.slice(i, i + SEED_CHUNK) as never });
     }
   }, 900_000);
 

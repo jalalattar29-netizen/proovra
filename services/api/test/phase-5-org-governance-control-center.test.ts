@@ -18,6 +18,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
 
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -48,20 +49,13 @@ describe("Phase 5 — org governance control-center endpoint registration", () =
 
 describe("Phase 5 — access gate (org-admin, ORG_AUDITOR+, anti-enumeration)", () => {
   it("gates the control-center at ORG_AUDITOR minimum", () => {
-    const idx = ROUTES_SRC.indexOf(
-      '"/v1/orgs/:id/governance/control-center"',
-    );
-    expect(idx).toBeGreaterThan(0);
-    const handler = ROUTES_SRC.slice(idx, idx + 1_400);
+    const handler = routeSource(ROUTES_SRC, "GET", "/v1/orgs/:id/governance/control-center");
     expect(handler).toContain("requireOrgAdmin");
     expect(handler).toContain('minRole: "ORG_AUDITOR"');
   });
 
   it("renders every non-OK access outcome through the one org-denial convention", () => {
-    const idx = ROUTES_SRC.indexOf(
-      '"/v1/orgs/:id/governance/control-center"',
-    );
-    const handler = ROUTES_SRC.slice(idx, idx + 1_400);
+    const handler = routeSource(ROUTES_SRC, "GET", "/v1/orgs/:id/governance/control-center");
     // PV-ORG-001 — requireOrgAdmin hands back orgAccessDenial(result): a 404
     // byte-identical to a missing org for a NON-member (existence is never
     // disclosed to one), a 403 for an ACTIVE member without the role. The

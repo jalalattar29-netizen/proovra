@@ -26,6 +26,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 import {
   CANONICAL_PAYLOAD_KEYS,
   FORBIDDEN_PAYLOAD_AUTHORITY_FIELDS,
@@ -132,10 +133,13 @@ describe("Phase IA-forward-path — every report/package read site selects the L
     const pieces = ROUTES.split("prisma.verificationPackage.findFirst(");
     expect(pieces.length).toBeGreaterThan(1);
     for (let i = 1; i < pieces.length; i += 1) {
-      // The call body ends at the first `})` that balances out — we
-      // approximate it as "up to the next 600 chars" which is enough
-      // for any of the 4 call sites in this file.
-      const body = pieces[i]!.slice(0, 600);
+      // The call body is the whole `findFirst(…)` call, as parsed
+      // (WCC-NEW-027) — never a character window that could run on into an
+      // adjacent call. Split token i is occurrence i - 1 of the marker.
+      const body = enclosingSource(ROUTES, "prisma.verificationPackage.findFirst(", "call", {
+        occurrence: i - 1,
+        fileName: "evidence.routes.ts",
+      });
       /*
        * RELIABILITY CLOSURE (2026-09-09) — a call that PINS a version is not
        * selecting the latest one, and must not be asked to order.
@@ -165,13 +169,13 @@ describe("Phase IA-forward-path — OTS-anchored regen produces a version bump",
   const UP = readSource("../../worker/src/ots-upgrade.processor.ts");
 
   it("FULLY_ANCHORED enqueues with forceRegenerate: true + regenerateReason ots_anchored", () => {
-    const idx = UP.indexOf('if (classification.kind === "FULLY_ANCHORED")');
-    expect(idx).toBeGreaterThan(-1);
-    // Phase IA-OTS-info-fallback — widened slice (2500 → 5500) +
-    // expanded inner gaps (400 → 1200) so the additional
-    // custody-payload fields the info probe adds don't push
-    // `enqueueReportJob` out of the matched window.
-    const block = UP.slice(idx, idx + 5500);
+    // The whole FULLY_ANCHORED `if` statement (WCC-NEW-027) — it used to
+    // be a character window widened 2500 → 5500 by Phase
+    // IA-OTS-info-fallback. The inner gaps (400 → 1200) leave room for the
+    // additional custody-payload fields the info probe adds.
+    const block = enclosingSource(UP, 'if (classification.kind === "FULLY_ANCHORED")', "statement", {
+      fileName: "ots-upgrade.processor.ts",
+    });
     expect(block).toMatch(
       /enqueueReportJob\(evidenceId,\s*\{[\s\S]{0,1200}forceRegenerate:\s*true[\s\S]{0,1200}regenerateReason:\s*"ots_anchored"/,
     );
@@ -182,11 +186,13 @@ describe("Phase IA-forward-path — OTS-anchored regen produces a version bump",
     // on `txidRecoveredWhileAnchored` (a legacy edge case: ANCHORED row
     // discovers its txid). Bare ANCHOR_MATERIAL_RECOVERED / STILL_PENDING
     // must NOT trigger a regen.
-    const branchIdx = UP.indexOf(
+    // The whole pending-branch `if` statement whose condition names it.
+    const block = enclosingSource(
+      UP,
       'classification.kind === "ANCHOR_MATERIAL_RECOVERED"',
+      "statement",
+      { fileName: "ots-upgrade.processor.ts" },
     );
-    expect(branchIdx).toBeGreaterThan(-1);
-    const block = UP.slice(branchIdx, branchIdx + 4000);
     // Within this branch, the ONLY enqueueReportJob is the legacy
     // txidRecoveredWhileAnchored one.
     const regens = block.match(/enqueueReportJob\(/g) ?? [];

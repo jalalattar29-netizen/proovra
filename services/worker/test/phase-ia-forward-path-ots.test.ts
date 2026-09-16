@@ -37,6 +37,7 @@ import {
   parseOtsUpgradeOutput,
   parseOtsVerifyOutput,
 } from "../src/ots-upgrade-output.js";
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -91,9 +92,10 @@ describe("OTS forward path — initial create belongs to the integrity lifecycle
   it("the upgrade processor initializes when a record has no proof yet", () => {
     // The old code returned "skipped_missing_proof" here — a dead end for
     // exactly the records that had never been stamped.
-    const idx = UPGRADE.indexOf("if (!evidence.otsProofBase64)");
-    expect(idx).toBeGreaterThan(-1);
-    const block = UPGRADE.slice(idx, idx + 2600);
+    // The whole `if (!evidence.otsProofBase64) { … }` statement.
+    const block = enclosingSource(UPGRADE, "if (!evidence.otsProofBase64)", "statement", {
+      fileName: "ots-upgrade.processor.ts",
+    });
     expect(block).toMatch(/ensureEvidenceOtsInitialized\(\{/);
     expect(block).toMatch(/enqueueOtsUpgradeJob\(evidenceId,/);
   });
@@ -132,6 +134,10 @@ describe("OTS forward path — initial create belongs to the integrity lifecycle
 
 describe("Phase IA-forward-path-OTS — upgrade processor wires verify + classifier", () => {
   const UP = readSource("../src/ots-upgrade.processor.ts");
+  const fullyAnchoredBranch = () =>
+    enclosingSource(UP, 'if (classification.kind === "FULLY_ANCHORED")', "statement", {
+      fileName: "ots-upgrade.processor.ts",
+    });
 
   it("imports verifyOtsProof from ots.service", () => {
     expect(UP).toMatch(
@@ -160,13 +166,9 @@ describe("Phase IA-forward-path-OTS — upgrade processor wires verify + classif
   });
 
   it("FULLY_ANCHORED branch writes ANCHORED + enqueueReportJob ots_anchored", () => {
-    const idx = UP.indexOf('if (classification.kind === "FULLY_ANCHORED")');
-    expect(idx).toBeGreaterThan(-1);
-    // Phase IA-OTS-info-fallback — slice widened from 2500→5000 to
-    // accommodate the additional custody-payload fields the info
-    // probe adds (`infoStatus`, `infoFileHashMatches`,
-    // `infoBlockHeights`).
-    const block = UP.slice(idx, idx + 5000);
+    // The whole FULLY_ANCHORED `if` statement (WCC-NEW-027: structural, so
+    // new custody-payload fields cannot push the asserted text out).
+    const block = fullyAnchoredBranch();
     expect(block).toMatch(/status:\s*"ANCHORED"/);
     expect(block).toMatch(/enqueueReportJob\(evidenceId,\s*\{/);
     expect(block).toMatch(/regenerateReason:\s*"ots_anchored"/);
@@ -174,16 +176,14 @@ describe("Phase IA-forward-path-OTS — upgrade processor wires verify + classif
   });
 
   it("FULLY_ANCHORED branch writes ANCHORED + custody event inside the SAME transaction", () => {
-    const idx = UP.indexOf('if (classification.kind === "FULLY_ANCHORED")');
-    const block = UP.slice(idx, idx + 5000);
+    const block = fullyAnchoredBranch();
     expect(block).toMatch(
       /prisma\.\$transaction\(async \(tx\) => \{[\s\S]{0,1200}tx\.evidence\.update[\s\S]{0,1500}appendCustodyEventTx\(tx,/,
     );
   });
 
   it("FULLY_ANCHORED custody event payload exposes verifyConfirmed + completionSource", () => {
-    const idx = UP.indexOf('if (classification.kind === "FULLY_ANCHORED")');
-    const block = UP.slice(idx, idx + 5000);
+    const block = fullyAnchoredBranch();
     // Phase IA-OTS-info-fallback — `verifyConfirmed` now means
     // "verify succeeded" (verify?.verified === true), not just
     // "verify ran". `completionSource` now has 3 values:
@@ -197,9 +197,13 @@ describe("Phase IA-forward-path-OTS — upgrade processor wires verify + classif
   });
 
   it("ANCHOR_MATERIAL_RECOVERED / STILL_PENDING branch keeps PENDING + records classification", () => {
-    const idx = UP.indexOf('classification.kind === "ANCHOR_MATERIAL_RECOVERED"');
-    expect(idx).toBeGreaterThan(-1);
-    const block = UP.slice(idx, idx + 4000);
+    // The whole ANCHOR_MATERIAL_RECOVERED / STILL_PENDING `if` statement.
+    const block = enclosingSource(
+      UP,
+      'classification.kind === "ANCHOR_MATERIAL_RECOVERED"',
+      "statement",
+      { unique: true, fileName: "ots-upgrade.processor.ts" },
+    );
     // Status stays PENDING (or preserved-ANCHORED for the legacy
     // anchored-no-public-receipt case).
     expect(block).toMatch(/status:\s*shouldPreserveAnchoredState\s*\?\s*"ANCHORED"\s*:\s*"PENDING"/);
@@ -250,9 +254,11 @@ describe("Phase IA-forward-path-OTS — upgrade processor wires verify + classif
     // declaration of isOtsGlobalBudgetExhausted appears earlier in the
     // file so we want the LAST occurrence (the call inside the
     // PENDING-else branch).
-    const callIdx = UP.lastIndexOf("isOtsGlobalBudgetExhausted({");
-    expect(callIdx).toBeGreaterThan(-1);
-    const block = UP.slice(callIdx, callIdx + 2500);
+    // The `if (isOtsGlobalBudgetExhausted({ … })) { … }` statement.
+    const block = enclosingSource(UP, "isOtsGlobalBudgetExhausted({", "statement", {
+      unique: true,
+      fileName: "ots-upgrade.processor.ts",
+    });
     expect(block).toMatch(/status:\s*"FAILED"/);
     expect(block).toMatch(/failureReason:\s*"OTS_GLOBAL_BUDGET_EXHAUSTED"/);
     expect(block).toMatch(/recordWorkerIncident\(/);

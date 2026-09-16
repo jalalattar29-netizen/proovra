@@ -16,6 +16,8 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
+
 const API_ROOT = fileURLToPath(new URL("..", import.meta.url));
 const REPO_ROOT = resolve(API_ROOT, "..", "..");
 const WEB_ROOT = resolve(REPO_ROOT, "apps", "web");
@@ -37,19 +39,14 @@ describe("Search-runtime-diagnostics — backend endpoint", () => {
   });
 
   it("diagnostics route is gated by requireSearchActor (workspace membership)", () => {
-    const idx = src.indexOf('"/v1/search/diagnostics"');
-    expect(idx).toBeGreaterThan(0);
-    const slice = src.slice(idx, idx + 4000);
+    const slice = routeSource(src, "GET", "/v1/search/diagnostics");
     expect(slice).toMatch(/requireSearchActor\(req, reply, teamId\)/);
   });
 
   it("diagnostics returns workspace, evidence.total, index counts, health, runtime", () => {
-    const idx = src.indexOf('"/v1/search/diagnostics"');
-    // The diagnostics handler grew again when the trash-decision
-    // breakdown landed (search-inclusion-audit). Widen the slice
-    // so we still capture the response envelope + health
-    // classifier + runtime block.
-    const slice = src.slice(idx, idx + 24000);
+    // The whole diagnostics registration — the response envelope, health
+    // classifier and runtime block — however large the handler grows.
+    const slice = routeSource(src, "GET", "/v1/search/diagnostics");
     // The single send() in the handler must include the canonical
     // envelope keys the UI relies on.
     expect(slice).toMatch(/workspace:\s*\{/);
@@ -64,12 +61,9 @@ describe("Search-runtime-diagnostics — backend endpoint", () => {
   });
 
   it("diagnostics health classifier covers the four runtime conditions", () => {
-    const idx = src.indexOf('"/v1/search/diagnostics"');
-    // The diagnostics handler grew again when the trash-decision
-    // breakdown landed (search-inclusion-audit). Widen the slice
-    // so we still capture the response envelope + health
-    // classifier + runtime block.
-    const slice = src.slice(idx, idx + 24000);
+    // The whole diagnostics registration — the response envelope, health
+    // classifier and runtime block — however large the handler grows.
+    const slice = routeSource(src, "GET", "/v1/search/diagnostics");
     expect(slice).toMatch(/["']healthy["']/);
     expect(slice).toMatch(/["']partial_index["']/);
     expect(slice).toMatch(/["']empty_index["']/);
@@ -77,12 +71,9 @@ describe("Search-runtime-diagnostics — backend endpoint", () => {
   });
 
   it("optional q probe runs the same OR shape as executeSearch", () => {
-    const idx = src.indexOf('"/v1/search/diagnostics"');
-    // The diagnostics handler grew again when the trash-decision
-    // breakdown landed (search-inclusion-audit). Widen the slice
-    // so we still capture the response envelope + health
-    // classifier + runtime block.
-    const slice = src.slice(idx, idx + 24000);
+    // The whole diagnostics registration — the response envelope, health
+    // classifier and runtime block — however large the handler grows.
+    const slice = routeSource(src, "GET", "/v1/search/diagnostics");
     expect(slice).toMatch(/queryProbe/);
     expect(slice).toMatch(/title:\s*\{\s*contains:/);
     expect(slice).toMatch(/subtitle:\s*\{\s*contains:/);

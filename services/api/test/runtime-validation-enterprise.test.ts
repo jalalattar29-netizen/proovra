@@ -23,6 +23,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import { functionSource } from "../../../scripts/source-contract/index.mjs";
 
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -86,8 +87,7 @@ describe("Runtime readiness aggregator [structure]", () => {
   it("Sentry not configured → DEGRADED, never CRITICAL", () => {
     expect(src).toMatch(/sentry_disabled[\s\S]*?DEGRADED/);
     // The sentry check function body must not set status to CRITICAL.
-    const fnIdx = src.indexOf("function checkSentry");
-    const fnSlice = src.slice(fnIdx, fnIdx + 800);
+    const fnSlice = functionSource(src, "checkSentry");
     expect(fnSlice).not.toContain('"CRITICAL"');
   });
 
@@ -339,8 +339,7 @@ describe("Enterprise empty-state components", () => {
       "NoSlaBreachesEmptyState",
     ];
     for (const preset of presets) {
-      const idx = src.indexOf(`function ${preset}`);
-      const slice = src.slice(idx, idx + 1500);
+      const slice = functionSource(src, preset, "OperationalEmptyState.tsx");
       // Match `runtimeDependency=` (JSX prop) OR `runtimeDependency:` (object literal).
       expect(slice).toMatch(/runtimeDependency[=:]/);
     }
@@ -393,15 +392,17 @@ describe("Phase 28-F [fail-closed UI behavior]", () => {
   );
 
   it("GovernanceSnapshotUnavailableNotice tells the operator to treat the record as BLOCKED", () => {
-    const idx = src.indexOf("function GovernanceSnapshotUnavailableNotice");
-    const slice = src.slice(idx, idx + 1500);
+    const slice = functionSource(
+      src,
+      "GovernanceSnapshotUnavailableNotice",
+      "OperationalEmptyState.tsx",
+    );
     expect(slice).toMatch(/failing closed/i);
     expect(slice).toMatch(/blocked|treat as blocked/i);
   });
 
   it("RuntimeDegradedNotice exposes the failing subsystem list (operator-visible)", () => {
-    const idx = src.indexOf("function RuntimeDegradedNotice");
-    const slice = src.slice(idx, idx + 1500);
+    const slice = functionSource(src, "RuntimeDegradedNotice", "OperationalEmptyState.tsx");
     expect(slice).toMatch(/failingSubsystems/);
     expect(slice).toMatch(/Failing subsystems:/);
   });

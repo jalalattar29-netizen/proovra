@@ -28,6 +28,8 @@
 
 import { describe, expect, it } from "vitest";
 
+import { functionSource } from "../../../scripts/source-contract/index.mjs";
+
 const PAGE_REL = "../../../apps/web/app/(app)/workflows/page.tsx";
 const ROUTE_REL = "../src/routes/workflow-instances.routes.ts";
 const SERVICE_REL = "../src/services/workflow-template.service.ts";
@@ -69,9 +71,8 @@ describe("Phase D — /v1/workflows/templates alias spreads canonical projection
     // future refactor drops one of these keys here, every consumer
     // (including this page) silently regresses.
     const src = await readFileRel(SERVICE_REL);
-    const helperStart = src.indexOf("export function projectEffectiveWorkflowTemplate");
-    expect(helperStart).toBeGreaterThan(-1);
-    const helperBody = src.slice(helperStart, helperStart + 2000);
+    const helperBody = functionSource(src, "projectEffectiveWorkflowTemplate");
+    expect(helperBody.startsWith("export function projectEffectiveWorkflowTemplate")).toBe(true);
     for (const key of [
       "id:",
       "dbId:",

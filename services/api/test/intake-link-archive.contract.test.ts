@@ -25,6 +25,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { describe, it } from "vitest";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { functionSource } from "../../../scripts/source-contract/index.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const REPO_ROOT = resolve(dirname(__filename), "..", "..", "..");
@@ -134,16 +135,14 @@ describe("Pin 2 — service layer is orthogonal to revoke", () => {
 
   it("both archive/unarchive are idempotent (early-return when state already matches)", () => {
     const src = read(SERVICE);
-    const archiveIdx = src.indexOf("archiveWorkflowIntakeLink");
-    const unarchiveIdx = src.indexOf("unarchiveWorkflowIntakeLink");
     // Each fn has an early-return guard against the existing
     // archivedAtUtc column being already in the target state.
     assert.match(
-      src.slice(archiveIdx, archiveIdx + 600),
+      functionSource(src, "archiveWorkflowIntakeLink"),
       /if \(existing\.archivedAtUtc\) return existing/,
     );
     assert.match(
-      src.slice(unarchiveIdx, unarchiveIdx + 600),
+      functionSource(src, "unarchiveWorkflowIntakeLink"),
       /if \(!existing\.archivedAtUtc\) return existing/,
     );
   });

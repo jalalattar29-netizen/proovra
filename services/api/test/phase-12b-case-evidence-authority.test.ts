@@ -444,10 +444,18 @@ function listTsFiles(dir: string): string[] {
     .map((d) => join(d.parentPath ?? (d as unknown as { path: string }).path, d.name));
 }
 
-/** Extracts the balanced-paren argument block starting at `openIdx` ("("). */
+/**
+ * Extracts the balanced-paren argument block starting at `openIdx` ("(").
+ * No character budget (WCC-NEW-027): the block ends where the call's own
+ * parentheses close, and an unbalanced call fails loudly instead of falling
+ * back to a fixed window that could read the next statement. (A parser-based
+ * `enclosingSource(src, "(", "call", …)` returns the same verdict on every
+ * call site this guard scans, but re-parses the file per call site — ~2.4s for
+ * the whole tree — so the balancer stays.)
+ */
 function balancedBlock(src: string, openIdx: number): string {
   let depth = 0;
-  for (let i = openIdx; i < Math.min(src.length, openIdx + 12000); i += 1) {
+  for (let i = openIdx; i < src.length; i += 1) {
     const ch = src[i];
     if (ch === "(") depth += 1;
     else if (ch === ")") {
@@ -455,7 +463,7 @@ function balancedBlock(src: string, openIdx: number): string {
       if (depth === 0) return src.slice(openIdx, i + 1);
     }
   }
-  return src.slice(openIdx, openIdx + 12000);
+  throw new Error(`unbalanced call arguments at offset ${openIdx}`);
 }
 
 /**

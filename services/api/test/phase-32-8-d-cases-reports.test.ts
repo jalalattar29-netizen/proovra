@@ -27,6 +27,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { functionSource } from "../../../scripts/source-contract/index.mjs";
 
 function readApi(rel: string): string {
   return readFileSync(fileURLToPath(new URL(`../${rel}`, import.meta.url)), "utf8");
@@ -307,14 +308,9 @@ describe("Phase 32.8D — routes registered + workspace-gated", () => {
   it("case-access gate (owner | direct access | workspace member) — 404 on no access", () => {
     expect(ROUTES).toMatch(/requireCaseAccess\(/);
     // Verify the helper exists and 404s on absent or denied access.
-    const idx = ROUTES.indexOf("async function requireCaseAccess");
-    expect(idx).toBeGreaterThan(-1);
-    // Normalize CRLF→LF before searching for the trailing `\n}\n`.
-    // Use a large bounded window so we capture the helper regardless
-    // of formatting drift (the helper is ~60-80 lines).
-    const normalized = ROUTES.slice(idx, idx + 4000).replace(/\r\n/g, "\n");
-    const endIdx = normalized.indexOf("\n}\n");
-    const body = endIdx > -1 ? normalized.slice(0, endIdx + 4) : normalized;
+    // The whole helper, as parsed (WCC-NEW-027) — independent of line
+    // endings and formatting drift.
+    const body = functionSource(ROUTES, "requireCaseAccess");
     expect(body).toMatch(/ownerUserId === userId/);
     expect(body).toMatch(/code\(404\)/);
   });

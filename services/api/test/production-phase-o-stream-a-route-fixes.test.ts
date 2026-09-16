@@ -20,6 +20,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
 
 function readApi(rel: string): string {
   return readFileSync(
@@ -71,13 +72,7 @@ const ORGANIZATIONS_ROUTES = readApi("src/routes/organizations.routes.ts");
  */
 describe("Sentry NODE-W /v1/ops/metrics — the query parameter is gone", () => {
   /** The alias registration, isolated so neighbouring routes cannot satisfy it. */
-  const METRICS_ALIAS = (() => {
-    const start = OPS_ROUTES.indexOf('"/v1/ops/metrics"');
-    expect(start, "the /v1/ops/metrics registration is missing").toBeGreaterThan(
-      -1,
-    );
-    return OPS_ROUTES.slice(start, start + 400);
-  })();
+  const METRICS_ALIAS = routeSource(OPS_ROUTES, "GET", "/v1/ops/metrics");
 
   it("registers the canonical platform handler, not a second implementation", () => {
     expect(METRICS_ALIAS).toContain("platformMetricsHandler");

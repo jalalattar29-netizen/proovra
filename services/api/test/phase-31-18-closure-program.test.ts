@@ -59,6 +59,13 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import {
+  betweenMarkers,
+  enclosingSource,
+  functionSource,
+  routeSource,
+} from "../../../scripts/source-contract/index.mjs";
+
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 }
@@ -78,6 +85,18 @@ const RECONCILER_SRC = readSource(
 const GRAPH_ROUTES_SRC = readSource("../src/routes/graph.routes.ts");
 const MI_ROUTES_SRC = readSource("../src/routes/media-intelligence.routes.ts");
 
+/**
+ * Step 1i of the reconcile — the EXTERNAL_REVIEW block — up to the step-2
+ * banner that closes it.
+ */
+function externalReviewSection(): string {
+  return betweenMarkers(
+    RECONCILER_SRC,
+    "Phase 31.18 — EXTERNAL_REVIEW domain reconciliation",
+    "// 2. Materialize MEDIA_SIGNAL",
+  );
+}
+
 // =============================================================================
 // PART 1 — EXTERNAL_REVIEW graph domain reconciler
 // =============================================================================
@@ -90,11 +109,7 @@ describe("Phase 31.18 — EXTERNAL_REVIEW graph domain", () => {
   });
 
   it("reads from external_review_grants table, team-anchored", () => {
-    const idx = RECONCILER_SRC.indexOf(
-      "Phase 31.18 — EXTERNAL_REVIEW domain reconciliation",
-    );
-    expect(idx).toBeGreaterThan(0);
-    const slice = RECONCILER_SRC.slice(idx, idx + 4000);
+    const slice = externalReviewSection();
     expect(slice).toMatch(/FROM "external_review_grants"/);
     expect(slice).toMatch(/WHERE "team_id" = \$1/);
   });
@@ -118,10 +133,7 @@ describe("Phase 31.18 — EXTERNAL_REVIEW graph domain", () => {
   // Producers now emit the canonical EXTERNAL_REVIEWER_GRANT kind;
   // EXTERNAL_REVIEW remains a deprecated alias in the catalog + CHECK.
   it("upserts EXTERNAL_REVIEWER_GRANT node kind with WORKSPACE_INTERNAL visibility", () => {
-    const idx = RECONCILER_SRC.indexOf(
-      "Phase 31.18 — EXTERNAL_REVIEW domain reconciliation",
-    );
-    const slice = RECONCILER_SRC.slice(idx, idx + 4000);
+    const slice = externalReviewSection();
     expect(slice).toMatch(/upsertNode\s*\([\s\S]*?"EXTERNAL_REVIEWER_GRANT"[\s\S]*?"WORKSPACE_INTERNAL"/);
   });
 
@@ -319,14 +331,12 @@ describe("Phase 31.18 — listDuplicateEdges helper", () => {
 describe("Phase 31.18 — listGraphSeedNodes helper", () => {
   it("is exported and bounds per-kind limit to <=50", () => {
     expect(RECONCILER_SRC).toMatch(/export async function listGraphSeedNodes/);
-    const idx = RECONCILER_SRC.indexOf("export async function listGraphSeedNodes");
-    const slice = RECONCILER_SRC.slice(idx, idx + 3000);
+    const slice = functionSource(RECONCILER_SRC, "listGraphSeedNodes");
     expect(slice).toMatch(/Math\.min\(input\.perKindLimit \?\? 25, 50\)/);
   });
 
   it("excludes stale and team-anchors every query", () => {
-    const idx = RECONCILER_SRC.indexOf("export async function listGraphSeedNodes");
-    const slice = RECONCILER_SRC.slice(idx, idx + 3000);
+    const slice = functionSource(RECONCILER_SRC, "listGraphSeedNodes");
     expect(slice).toMatch(/"stale_at_utc" IS NULL/);
     expect(slice).toMatch(/"team_id" = \$1/);
   });
@@ -339,8 +349,7 @@ describe("Phase 31.18 — listGraphSeedNodes helper", () => {
 describe("Phase 31.18 — new graph routes", () => {
   it("/v1/graph/duplicates is registered with bounded query schema", () => {
     expect(GRAPH_ROUTES_SRC).toMatch(/app\.get\(\s*"\/v1\/graph\/duplicates"/);
-    const idx = GRAPH_ROUTES_SRC.indexOf('"/v1/graph/duplicates"');
-    const slice = GRAPH_ROUTES_SRC.slice(idx, idx + 1500);
+    const slice = routeSource(GRAPH_ROUTES_SRC, "GET", "/v1/graph/duplicates");
     expect(slice).toMatch(/teamId: z\.string\(\)\.uuid\(\)/);
     expect(slice).toMatch(/evidenceId: z\.string\(\)\.uuid\(\)\.optional\(\)/);
     expect(slice).toMatch(/limit: z\.coerce\.number\(\)\.int\(\)\.min\(1\)\.max\(200\)\.optional\(\)/);
@@ -348,21 +357,18 @@ describe("Phase 31.18 — new graph routes", () => {
 
   it("/v1/graph/seeds is registered with bounded query schema", () => {
     expect(GRAPH_ROUTES_SRC).toMatch(/app\.get\(\s*"\/v1\/graph\/seeds"/);
-    const idx = GRAPH_ROUTES_SRC.indexOf('"/v1/graph/seeds"');
-    const slice = GRAPH_ROUTES_SRC.slice(idx, idx + 1500);
+    const slice = routeSource(GRAPH_ROUTES_SRC, "GET", "/v1/graph/seeds");
     expect(slice).toMatch(/teamId: z\.string\(\)\.uuid\(\)/);
     expect(slice).toMatch(/perKindLimit: z\.coerce\.number\(\)\.int\(\)\.min\(1\)\.max\(50\)\.optional\(\)/);
   });
 
   it("both new graph routes require authorizeOrFail + antiEnumeration: true + evidence.read", () => {
-    const dupIdx = GRAPH_ROUTES_SRC.indexOf('"/v1/graph/duplicates"');
-    const dupSlice = GRAPH_ROUTES_SRC.slice(dupIdx, dupIdx + 1500);
+    const dupSlice = routeSource(GRAPH_ROUTES_SRC, "GET", "/v1/graph/duplicates");
     expect(dupSlice).toMatch(
       /authorizeOrFail\(\s*req,\s*reply,\s*\{[\s\S]*?antiEnumeration: true[\s\S]*?\}\s*\)/,
     );
     expect(dupSlice).toMatch(/permission: "evidence\.read"/);
-    const seedsIdx = GRAPH_ROUTES_SRC.indexOf('"/v1/graph/seeds"');
-    const seedsSlice = GRAPH_ROUTES_SRC.slice(seedsIdx, seedsIdx + 1500);
+    const seedsSlice = routeSource(GRAPH_ROUTES_SRC, "GET", "/v1/graph/seeds");
     expect(seedsSlice).toMatch(
       /authorizeOrFail\(\s*req,\s*reply,\s*\{[\s\S]*?antiEnumeration: true[\s\S]*?\}\s*\)/,
     );
@@ -370,8 +376,7 @@ describe("Phase 31.18 — new graph routes", () => {
   });
 
   it("filters unknown kinds via bounded GRAPH_NODE_KINDS set (no information leak)", () => {
-    const idx = GRAPH_ROUTES_SRC.indexOf('"/v1/graph/seeds"');
-    const slice = GRAPH_ROUTES_SRC.slice(idx, idx + 1500);
+    const slice = routeSource(GRAPH_ROUTES_SRC, "GET", "/v1/graph/seeds");
     expect(slice).toMatch(/kindSet\.has/);
   });
 });
@@ -382,9 +387,7 @@ describe("Phase 31.18 — /v1/investigation/reviewers route", () => {
   });
 
   it("uses authorizeOrFail + antiEnumeration: true + evidence.read", () => {
-    const idx = MI_ROUTES_SRC.indexOf('"/v1/investigation/reviewers"');
-    // Take a generous slice — the handler body is large.
-    const slice = MI_ROUTES_SRC.slice(idx, idx + 12_000);
+    const slice = routeSource(MI_ROUTES_SRC, "GET", "/v1/investigation/reviewers");
     expect(slice).toMatch(
       /authorizeOrFail\(\s*req,\s*reply,\s*\{[\s\S]*?antiEnumeration: true[\s\S]*?\}\s*\)/,
     );
@@ -413,8 +416,7 @@ describe("Phase 31.18 — /v1/investigation/reviewers route", () => {
   });
 
   it("response keeps the bounded enum-token surface (status / state catalog tokens only)", () => {
-    const idx = MI_ROUTES_SRC.indexOf("Phase 31.18 — Reviewer Intelligence Console");
-    const slice = MI_ROUTES_SRC.slice(idx, idx + 12_000);
+    const slice = routeSource(MI_ROUTES_SRC, "GET", "/v1/investigation/reviewers");
     // Workflow / escalation / external-review totals all keyed by
     // bounded catalog statuses.
     expect(slice).toMatch(/workflowTotals/);
@@ -431,9 +433,9 @@ describe("Phase 31.18 — /v1/investigation/reviewers route", () => {
 
 describe("Phase 31.18 — public duplicate/seed projections", () => {
   it("PublicDuplicateEdge omits createdByUserId / staleAtUtc / createdAtUtc / updatedAtUtc", () => {
-    const idx = GRAPH_ROUTES_SRC.indexOf("type PublicDuplicateEdge");
-    expect(idx).toBeGreaterThan(0);
-    const slice = GRAPH_ROUTES_SRC.slice(idx, idx + 800);
+    const slice = enclosingSource(GRAPH_ROUTES_SRC, "type PublicDuplicateEdge", "statement", {
+      fileName: "graph.routes.ts",
+    });
     expect(slice).not.toMatch(/createdByUserId/);
     expect(slice).not.toMatch(/staleAtUtc/);
     expect(slice).not.toMatch(/createdAtUtc/);
@@ -442,9 +444,9 @@ describe("Phase 31.18 — public duplicate/seed projections", () => {
   });
 
   it("PublicGraphSeed omits createdAtUtc / staleAtUtc / teamId", () => {
-    const idx = GRAPH_ROUTES_SRC.indexOf("type PublicGraphSeed");
-    expect(idx).toBeGreaterThan(0);
-    const slice = GRAPH_ROUTES_SRC.slice(idx, idx + 600);
+    const slice = enclosingSource(GRAPH_ROUTES_SRC, "type PublicGraphSeed", "statement", {
+      fileName: "graph.routes.ts",
+    });
     expect(slice).not.toMatch(/createdAtUtc/);
     expect(slice).not.toMatch(/staleAtUtc/);
     expect(slice).not.toMatch(/\bteamId\b/);
@@ -564,9 +566,9 @@ describe("Phase 31.18 — Graph Navigation Explorer UI source contract", () => {
   });
 
   it("respects the public projection shape — no createdAtUtc, no staleAtUtc, no teamId in client type", () => {
-    const idx = GRAPH_NAV_PAGE.indexOf("type GraphSeed ");
-    expect(idx).toBeGreaterThan(0);
-    const slice = GRAPH_NAV_PAGE.slice(idx, idx + 400);
+    const slice = enclosingSource(GRAPH_NAV_PAGE, "type GraphSeed ", "statement", {
+      fileName: "page.tsx",
+    });
     expect(slice).not.toMatch(/createdAtUtc/);
     expect(slice).not.toMatch(/staleAtUtc/);
     expect(slice).not.toMatch(/\bteamId\b/);

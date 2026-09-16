@@ -45,6 +45,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 
 function readApi(rel: string): string {
   return readFileSync(
@@ -391,13 +392,14 @@ describe("Phase R10 — Stage 2/3: next.config.js redirect cleanliness", () => {
     // /operations* page on disk — no redirect into a 404.
     const opsSources = [
       ...NEXT_CONFIG_SRC.matchAll(/source:\s*["'](\/ops(?:\/[a-z-]+)?)["']/g),
-    ].map((m) => m[1]);
+    ].map((m) => ({ src: m[1], sourceProperty: m[0] }));
     expect(opsSources.length).toBeGreaterThan(0);
-    for (const src of opsSources) {
-      const idxDq = NEXT_CONFIG_SRC.indexOf(`"${src}"`);
-      const idxSq = NEXT_CONFIG_SRC.indexOf(`'${src}'`);
-      const sourceIdx = idxDq >= 0 ? idxDq : idxSq;
-      const block = NEXT_CONFIG_SRC.slice(sourceIdx, sourceIdx + 300);
+    for (const { src, sourceProperty } of opsSources) {
+      // The redirect object literal that carries this `source:` (WCC-NEW-027)
+      // — never a window that could read the NEXT redirect's destination.
+      const block = enclosingSource(NEXT_CONFIG_SRC, sourceProperty, "object", {
+        fileName: "next.config.js",
+      });
       const destMatch = block.match(/destination:\s*["']([^"']+)["']/);
       expect(destMatch, `redirect for ${src} missing destination`).not.toBeNull();
       const dest = destMatch![1].split("?")[0].split("#")[0];

@@ -32,6 +32,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 
 import { parseTsaReply } from "../src/services/timestamp/parse-tsa-reply.js";
 
@@ -304,9 +305,11 @@ describe("Phase IA-digest-policy-hard-invariant — persistence ALWAYS records r
   it("SIGNATURE_APPLIED custody event mirrors the same always-record contract", () => {
     // The signature event's TSA fields are the same shape as the finalize
     // data — both need to use the un-gated assignment.
-    const sigIdx = EVIDENCE_COMPLETE.indexOf("SIGNATURE_APPLIED");
-    expect(sigIdx).toBeGreaterThan(-1);
-    const block = EVIDENCE_COMPLETE.slice(sigIdx, sigIdx + 2000);
+    // The SIGNATURE_APPLIED custody append call itself.
+    const block = enclosingSource(EVIDENCE_COMPLETE, "SIGNATURE_APPLIED", "call", {
+      unique: true,
+      fileName: "evidence-complete.service.ts",
+    });
     expect(block).toMatch(
       /tsaInputDigestHex:\s*tsaResult\s*\?\s*tsaResult\.messageImprint\s*:\s*null/,
     );

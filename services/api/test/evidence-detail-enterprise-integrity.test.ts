@@ -3,6 +3,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { functionSource } from "../../../scripts/source-contract/index.mjs";
+
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 }
@@ -32,9 +34,8 @@ describe("evidence detail enterprise integrity backend contract", () => {
   });
 
   it("buildResolvedReviewerAlerts consumes publicVerificationSummary and artifactStatus", () => {
-    const idx = SRC.indexOf("function buildResolvedReviewerAlerts");
-    expect(idx).toBeGreaterThan(-1);
-    const slice = SRC.slice(idx, idx + 5000);
+    const slice = functionSource(SRC, "buildResolvedReviewerAlerts");
+    expect(slice).toContain("function buildResolvedReviewerAlerts");
     expect(slice).toMatch(/publicVerificationSummary:/);
     expect(slice).toMatch(/artifactStatus:/);
     expect(slice).toMatch(/switch \(params\.publicVerificationSummary\.state\)/);
@@ -68,9 +69,8 @@ describe("evidence detail enterprise integrity backend contract", () => {
   });
 
   it("source context exposes client signal collection states", () => {
-    const idx = SRC.indexOf("function buildSourceContext");
-    expect(idx).toBeGreaterThan(-1);
-    const slice = SRC.slice(idx, idx + 4200);
+    const slice = functionSource(SRC, "buildSourceContext");
+    expect(slice).toContain("function buildSourceContext");
     expect(SRC).toMatch(/type ClientSignalCollectionState =/);
     expect(slice).toMatch(/screenshotLikeStatus/);
     expect(slice).toMatch(/folderPathStatus/);

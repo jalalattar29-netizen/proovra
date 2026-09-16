@@ -78,7 +78,10 @@ test("betweenMarkers requires both markers, in order", () => {
 // ---------------------------------------------------------------------------
 
 const TREES = ["services/api/test", "services/worker/test", "apps/web/__tests__"];
-const FIXED_WINDOW = /\.(slice|substring)\(\s*[A-Za-z_$][\w$.]*\s*,\s*[A-Za-z_$][\w$.]*\s*\+\s*\d{3,}\s*\)/g;
+// Forward windows (`src.slice(idx, idx + 3000)`, `idx + 8_000`) and backward
+// windows (`src.slice(idx - 1500, idx)`).
+const FIXED_WINDOW =
+  /\.(slice|substring)\(\s*(?:[A-Za-z_$][\w$.]*\s*,\s*[A-Za-z_$][\w$.]*\s*\+\s*[\d_]{3,}|[A-Za-z_$][\w$.]*\s*-\s*[\d_]{3,}\s*,\s*[A-Za-z_$][\w$.]*)\s*\)/g;
 
 function testFiles(dir, out = []) {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
@@ -90,10 +93,9 @@ function testFiles(dir, out = []) {
 }
 
 /**
- * Ratchet: the count only moves down, to zero. Measured when the rule was
- * introduced: 349 fixed windows in 154 files.
+ * Measured when the rule was introduced: 349 fixed windows in 154 files. All
+ * of them now read the construct they are about, so the rule is absolute.
  */
-const CEILING = 349;
 
 test("no test slices source with a fixed character budget", () => {
   const hits = [];
@@ -107,5 +109,5 @@ test("no test slices source with a fixed character budget", () => {
       }
     }
   }
-  assert.ok(hits.length <= CEILING, `${hits.length} fixed-window slice(s), ceiling ${CEILING}:\n${hits.slice(0, 40).join("\n")}`);
+  assert.deepEqual(hits, []);
 });

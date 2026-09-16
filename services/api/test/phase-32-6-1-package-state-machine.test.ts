@@ -43,6 +43,8 @@ import { describe, expect, it } from "vitest";
 // asserted as behaviour rather than as a shape of source.
 import { deriveEvidenceOutputState } from "@proovra/shared";
 
+import { enclosingSource, routeSource } from "../../../scripts/source-contract/index.mjs";
+
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 }
@@ -254,21 +256,35 @@ describe("Phase 32.6.1 — verification-package download route structured respon
     // Slice the route body and confirm no storage_key / storage_bucket
     // references in the responses (those are only used internally
     // for the actual download path).
-    const idx = ROUTES_SRC.indexOf('"/v1/evidence/:id/verification-package"');
-    expect(idx).toBeGreaterThan(0);
-    // Phase 32.6.6 — bump the slice window to 12000 (route body has
-    // grown over time; the 6000 ceiling no longer reaches the 404
-    // response).
-    const slice = ROUTES_SRC.slice(idx, idx + 12000);
+    // The whole route registration — every response it can send, however
+    // the handler grows, and nothing from the next route.
+    const slice = routeSource(ROUTES_SRC, "GET", "/v1/evidence/:id/verification-package");
     // Specifically the response objects we just added must NOT
     // include any of these fields. Phase 32.6.6 — the "unavailable"
     // 410 branch has been retired, so the bounded enum is now
     // blocked | pending | not_found.
-    const lookAtResponses = slice.match(
-      /return reply[\s\S]{0,800}code:\s*"verification_package_(blocked|pending|not_found)"[\s\S]{0,400}\}\)/g,
-    );
-    expect(lookAtResponses).toBeTruthy();
-    for (const r of lookAtResponses!) {
+    //
+    // Each response is its own `return reply…send({…})` statement, read by
+    // the parser. The former character-bounded regex
+    // (`return reply[\s\S]{0,800}…[\s\S]{0,400}\}\)`) ran past the end of a
+    // 404 response into the storage lookup that follows it once the whole
+    // route was in view (the old 12000-char window held 1 of the 5 responses).
+    const lookAtResponses: string[] = [];
+    const seen = new Map<string, number>();
+    for (const m of slice.matchAll(
+      /code:\s*"verification_package_(blocked|pending|not_found)"/g,
+    )) {
+      const occurrence = seen.get(m[0]) ?? 0;
+      seen.set(m[0], occurrence + 1);
+      const response = enclosingSource(slice, m[0], "statement", {
+        occurrence,
+        fileName: "evidence.routes.ts",
+      });
+      expect(response).toMatch(/^return reply[\s\S]*\}\s*\)\s*;?$/);
+      lookAtResponses.push(response);
+    }
+    expect(lookAtResponses.length).toBeGreaterThan(0);
+    for (const r of lookAtResponses) {
       expect(r).not.toMatch(/storageKey|storage_key|storageBucket|storage_bucket|signedUrl|signed_url/);
     }
   });

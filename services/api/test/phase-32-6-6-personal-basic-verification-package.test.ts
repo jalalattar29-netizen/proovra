@@ -44,6 +44,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { enclosingSource, functionSource } from "../../../scripts/source-contract/index.mjs";
 
 function readApi(rel: string): string {
   return readFileSync(fileURLToPath(new URL(`../${rel}`, import.meta.url)), "utf8");
@@ -72,14 +73,9 @@ const FORBIDDEN_VOCAB = [
 
 describe("Phase 32.6.6 — createVerificationPackage personal-basic branch", () => {
   const SRC = readWorker("src/verification-package.ts");
-  const fnIdx = SRC.indexOf("export async function createVerificationPackage");
-  expect(fnIdx).toBeGreaterThan(-1);
-  // The mode-selection block lives early in the function body; bound
-  // the search range with extra slack so future input-type additions
-  // (Phase 3 added isPersonalTeam, workspaceLabelAtPackageTime,
-  // canonicalMaterials, etc.) cannot push the declaration past the
-  // window. 12KB is comfortable; the actual offset is ~7KB today.
-  const fn = SRC.slice(fnIdx, fnIdx + 12000);
+  // The whole function — input-type additions can no longer push the
+  // mode-selection block out of a character window.
+  const fn = functionSource(SRC, "createVerificationPackage");
 
   it("declares packageMode as `personal_basic | team_governed`", () => {
     expect(fn).toMatch(
@@ -166,12 +162,13 @@ describe("Phase 32.6.6 — worker processor no longer pre-skips personal evidenc
   it("the package generation guard no longer requires evidence.teamId", () => {
     // The previous guard included `!!evidence.teamId`. Confirm that
     // condition has been removed from the prepare-finalized branch.
-    const finalizedIdx = SRC.indexOf("prepared.verificationPackageIncluded &&");
-    expect(finalizedIdx).toBeGreaterThan(-1);
-    // Look at the ~400 chars following the verificationPackageIncluded
-    // gate; the next condition should be `finalized.finalizedCustodyEvents.length > 0`
-    // followed by `)` — NOT another `&&` followed by `!!evidence.teamId`.
-    const tail = SRC.slice(finalizedIdx, finalizedIdx + 500);
+    // The whole guarded `if` (condition and branch): the condition is
+    // `finalized.finalizedCustodyEvents.length > 0` followed by `)` — NOT
+    // another `&&` followed by `!!evidence.teamId`.
+    const tail = enclosingSource(SRC, "prepared.verificationPackageIncluded &&", "statement", {
+      unique: true,
+      fileName: "processor.ts",
+    });
     expect(tail).not.toMatch(/!!evidence\.teamId/);
   });
 
@@ -315,11 +312,11 @@ describe("Phase 32.6.6 — package mode catalog is bounded", () => {
   });
 
   it("personal mode skips the package eligibility gate; team mode runs it", () => {
-    const teamGatedIdx = SRC.indexOf(
-      'if (packageMode === "team_governed")',
-    );
-    expect(teamGatedIdx).toBeGreaterThan(-1);
-    const next2k = SRC.slice(teamGatedIdx, teamGatedIdx + 2000);
+    // The team-governed `if` itself — the gate must run inside it.
+    const next2k = enclosingSource(SRC, 'if (packageMode === "team_governed")', "statement", {
+      unique: true,
+      fileName: "verification-package.ts",
+    });
     expect(next2k).toMatch(/assertPackageEligibleOrDeny/);
   });
 });

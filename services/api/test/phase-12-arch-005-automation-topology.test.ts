@@ -26,6 +26,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { enclosingSource, functionSource } from "../../../scripts/source-contract/index.mjs";
 
 import {
   SWEEP_NAMES,
@@ -246,9 +247,7 @@ describe("§2 — ARCH-005 topology: one authority, one registration, one exempt
   it("AutomationUnfencedTerminalWrites = 0 — no terminal write escapes the fence", () => {
     // `fencedUpdate` is the only writer, and its precondition carries both the
     // status and the generation.
-    const idx = PROCESSOR.indexOf("async function fencedUpdate");
-    expect(idx).toBeGreaterThan(-1);
-    const fence = PROCESSOR.slice(idx, idx + 900);
+    const fence = functionSource(PROCESSOR, "fencedUpdate");
     expect(fence).toMatch(/status:\s*"RUNNING"/);
     expect(fence).toMatch(/claimGeneration:\s*generation/);
 
@@ -256,12 +255,17 @@ describe("§2 — ARCH-005 topology: one authority, one registration, one exempt
     // generation. Three exist: the claim, the fenced terminal write, and the
     // reconciler.
     //
-    // Each call site is WINDOWED rather than matched to its closing brace: the
-    // reconciler's `data` is a nested ternary, and a brace-matching regex that
-    // failed on it would silently check FEWER sites than exist — which is the
-    // shape of an audit with a blind spot, and the shape NEW-014 was.
-    const sites = [...PROCESSOR.matchAll(/automationRun\.updateMany\(\{/g)].map((m) =>
-      PROCESSOR.slice(m.index!, m.index! + 900),
+    // Each call site is read as its whole `updateMany({...})` call, found by the
+    // TypeScript parser (WCC-NEW-027) — not by a brace-matching regex: the
+    // reconciler's `data` is a nested ternary, and a regex that failed on it
+    // would silently check FEWER sites than exist — which is the shape of an
+    // audit with a blind spot, and the shape NEW-014 was. Nor by a character
+    // window, which could satisfy one site with the next site's text.
+    const sites = [...PROCESSOR.matchAll(/automationRun\.updateMany\(\{/g)].map((_, i) =>
+      enclosingSource(PROCESSOR, "automationRun.updateMany({", "call", {
+        occurrence: i,
+        fileName: "automation-dispatch-runtime.service.ts",
+      }),
     );
     expect(
       sites.length,
@@ -281,7 +285,12 @@ describe("§2 — ARCH-005 topology: one authority, one registration, one exempt
   it("the delivery outbox is fenced on the same terms", () => {
     const sites = [
       ...DELIVERY.matchAll(/automationWebhookDelivery\.updateMany\(\{/g),
-    ].map((m) => DELIVERY.slice(m.index!, m.index! + 900));
+    ].map((_, i) =>
+      enclosingSource(DELIVERY, "automationWebhookDelivery.updateMany({", "call", {
+        occurrence: i,
+        fileName: "automation-delivery-runtime.service.ts",
+      }),
+    );
     expect(sites.length, "expected the claim and the reconciler").toBeGreaterThanOrEqual(2);
     for (const site of sites) {
       expect(

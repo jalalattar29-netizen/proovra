@@ -25,6 +25,7 @@ import { fileURLToPath } from "node:url";
 
 import { REVIEWER_ROLE_CAPABILITIES } from "@proovra/shared";
 import { describe, expect, it } from "vitest";
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
 
 function read(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -85,9 +86,7 @@ describe("Phase R5 — reviewer bulk capability consolidation (F38)", () => {
     // The second capability vocabulary is no longer consulted here.
     expect(reviewerOpsSrc).not.toMatch(/callerHasCapability\(resolution,/);
     // ...and the bulk handler still invokes the gate.
-    const bulkIdx = reviewerOpsSrc.indexOf('"/v1/reviewer-ops/reviews/bulk"');
-    expect(bulkIdx).toBeGreaterThan(-1);
-    const handler = reviewerOpsSrc.slice(bulkIdx, bulkIdx + 900);
+    const handler = routeSource(reviewerOpsSrc, "POST", "/v1/reviewer-ops/reviews/bulk");
     expect(handler).toContain("requireReviewerBulkCapable");
   });
 
@@ -97,9 +96,7 @@ describe("Phase R5 — reviewer bulk capability consolidation (F38)", () => {
       "/v1/reviewer/bulk/decide",
       "/v1/reviewer/bulk/code",
     ]) {
-      const idx = reviewerWorkspaceSrc.indexOf(`"${path}"`);
-      expect(idx).toBeGreaterThan(-1);
-      const handler = reviewerWorkspaceSrc.slice(idx, idx + 400);
+      const handler = routeSource(reviewerWorkspaceSrc, "POST", path);
       expect(handler).toMatch(/requireCap\(ctx,\s*"review\.bulk"\)/);
     }
   });

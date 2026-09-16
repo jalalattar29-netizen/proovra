@@ -44,6 +44,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { betweenMarkers } from "../../../scripts/source-contract/index.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -100,10 +101,10 @@ describe("HOME-TRUTH-FIX — TrustSummary exposes operationally-truthful counts"
     // count() call body (the phrase "End-to-end ready" alone also
     // appears in the function's leading docstring — we need the
     // one tied to the query).
+    // The query is the array element from its own comment to the comment
+    // that opens the next element (Stuck-SIGNED).
     const anchor = "End-to-end ready — every link in the deliverable chain";
-    const endToEndStart = TRUST_SUMMARY.indexOf(anchor);
-    expect(endToEndStart).toBeGreaterThan(0);
-    const tail = TRUST_SUMMARY.slice(endToEndStart, endToEndStart + 1200);
+    const tail = betweenMarkers(TRUST_SUMMARY, anchor, "Stuck-SIGNED");
     expect(tail).toMatch(/status:\s*"REPORTED"/);
     expect(tail).toMatch(/reports:\s*\{\s*some:\s*\{\s*\}\s*\}/);
     expect(tail).toMatch(/verificationPackages:\s*\{\s*some:\s*\{\s*\}\s*\}/);
@@ -111,8 +112,7 @@ describe("HOME-TRUTH-FIX — TrustSummary exposes operationally-truthful counts"
   });
 
   /*
-   * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — a third clause, and a
-   * wider window.
+   * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — a third clause.
    *
    * The two predicates are unchanged and still asserted. What is added is the
    * entitlement narrowing: "stuck" means the pipeline OWES something and has
@@ -120,23 +120,20 @@ describe("HOME-TRUTH-FIX — TrustSummary exposes operationally-truthful counts"
    * ever enqueued — so every finalized record counted as stuck, permanently,
    * and Home told those customers their pipeline was broken.
    *
-   * The window grew from 400 characters because the reason is now written down
-   * beside the query. A slice bound tight enough to exclude an explanation is a
-   * slice that fails when somebody explains themselves.
+   * Each query is read as one array element — its own comment through the
+   * comment that opens the next element (WCC-NEW-027) — so an explanation
+   * written beside it cannot push a predicate out of view, and the next
+   * query's predicates cannot satisfy this one's assertions.
    */
   it("signedWithoutReport requires status=SIGNED, no Report row, and entitlement", () => {
-    const start = TRUST_SUMMARY.indexOf("Stuck-SIGNED");
-    expect(start).toBeGreaterThan(0);
-    const tail = TRUST_SUMMARY.slice(start, start + 1600);
+    const tail = betweenMarkers(TRUST_SUMMARY, "Stuck-SIGNED", "Stuck-REPORTED");
     expect(tail).toMatch(/status:\s*"SIGNED"/);
     expect(tail).toMatch(/reports:\s*\{\s*none:\s*\{\s*\}\s*\}/);
     expect(tail).toMatch(/outputEntitledWhere/);
   });
 
   it("reportedWithoutPackage requires status=REPORTED, no Package row, and entitlement", () => {
-    const start = TRUST_SUMMARY.indexOf("Stuck-REPORTED");
-    expect(start).toBeGreaterThan(0);
-    const tail = TRUST_SUMMARY.slice(start, start + 1600);
+    const tail = betweenMarkers(TRUST_SUMMARY, "Stuck-REPORTED", "// INTAKE —");
     expect(tail).toMatch(/status:\s*"REPORTED"/);
     expect(tail).toMatch(/verificationPackages:\s*\{\s*none:\s*\{\s*\}\s*\}/);
     expect(tail).toMatch(/outputEntitledWhere/);

@@ -48,6 +48,8 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
+import { functionSource } from "../../../scripts/source-contract/index.mjs";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -114,12 +116,14 @@ test("default state is collapsed — no fetch on initial render", () => {
   // The component must start with `expanded = false`. The fetch must
   // only fire from inside the toggle handler — i.e. there must NOT be
   // a useEffect-driven auto-load.
-  const panelStart = PAGE_SOURCE.indexOf(
-    "function WebhookRotationAndActivityPanel(",
+  // The whole WebhookRotationAndActivityPanel declaration, located and
+  // closed by the parser (it throws when the function is missing), so the
+  // body is scoped to just this component (WCC-NEW-027).
+  const panelBody = functionSource(
+    PAGE_SOURCE,
+    "WebhookRotationAndActivityPanel",
+    "page.tsx",
   );
-  assert.ok(panelStart >= 0, "must locate the panel function declaration");
-
-  const panelBody = PAGE_SOURCE.slice(panelStart, panelStart + 12000);
   assert.match(
     panelBody,
     /const \[expanded, setExpanded\] = useState\(false\)/,
@@ -128,12 +132,10 @@ test("default state is collapsed — no fetch on initial render", () => {
   );
 
   // The panel body must not introduce a useEffect(load) that would
-  // fire on mount.
-  // We look for the first closing `}` at column 0 after the function start
-  // to scope the search to just this component.
-  const panelEnd = panelBody.indexOf("\n}\n");
-  assert.ok(panelEnd > 0, "must locate the panel function close");
-  const panelOnly = panelBody.slice(0, panelEnd);
+  // fire on mount. `panelBody` is already scoped to just this component: the
+  // parser found its close (this was a cut at the first column-0 `}` inside
+  // a 12000-char window, with a guard that functionSource's throw replaces).
+  const panelOnly = panelBody;
   assert.ok(
     !/useEffect\s*\(/.test(panelOnly),
     "WebhookRotationAndActivityPanel must not call useEffect — the " +
@@ -221,13 +223,13 @@ test("error-state copy is the literal copy from the phase spec", () => {
 
 test("the panel never references forbidden field names in render", () => {
   // The panel function body must not reference ciphertext / rawSecret etc.
-  const panelStart = PAGE_SOURCE.indexOf(
-    "function WebhookRotationAndActivityPanel(",
+  // Exactly the panel declaration: the parser finds its close (this was a
+  // 12000-char window cut at the first column-0 `}`).
+  const panelOnly = functionSource(
+    PAGE_SOURCE,
+    "WebhookRotationAndActivityPanel",
+    "page.tsx",
   );
-  assert.ok(panelStart >= 0, "must locate the panel function declaration");
-  const panelBody = PAGE_SOURCE.slice(panelStart, panelStart + 12000);
-  const panelEnd = panelBody.indexOf("\n}\n");
-  const panelOnly = panelBody.slice(0, panelEnd);
   for (const forbidden of [
     ".rawSecret",
     ".secretCiphertext",

@@ -40,6 +40,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
 
 function readApi(rel: string): string {
   // Normalize CRLF -> LF. governance.routes.ts picked up CRLF line
@@ -136,25 +137,21 @@ describe("Phase 32.7.6 — adjacent governance endpoints continue to use runGove
   const SRC = readApi("src/routes/governance.routes.ts");
 
   it("/v1/governance/policy GET still calls runGovernanceHandler", () => {
-    const idx = SRC.indexOf('"/v1/governance/policy"');
-    expect(idx).toBeGreaterThan(-1);
-    // The first GET on /v1/governance/policy is the read handler;
+    // The GET on /v1/governance/policy is the read handler;
     // verify runGovernanceHandler still wraps its body.
-    const block = SRC.slice(idx, idx + 2000);
+    const block = routeSource(SRC, "GET", "/v1/governance/policy");
     expect(block).toMatch(/runGovernanceHandler\(reply,/);
   });
 
   it("/v1/governance/legal-holds GET still calls runGovernanceHandler", () => {
-    const routeIdx = SRC.indexOf('"/v1/governance/legal-holds"');
-    expect(routeIdx).toBeGreaterThan(-1);
-    const block = SRC.slice(routeIdx, routeIdx + 2000);
+    const block = routeSource(SRC, "GET", "/v1/governance/legal-holds");
     expect(block).toMatch(/runGovernanceHandler\(reply,/);
   });
 
   it("/v1/governance/retention-candidates GET still calls runGovernanceHandler", () => {
     const routeIdx = SRC.indexOf('"/v1/governance/retention-candidates"');
     if (routeIdx > -1) {
-      const block = SRC.slice(routeIdx, routeIdx + 2000);
+      const block = routeSource(SRC, "GET", "/v1/governance/retention-candidates");
       expect(block).toMatch(/runGovernanceHandler\(reply,/);
     }
   });

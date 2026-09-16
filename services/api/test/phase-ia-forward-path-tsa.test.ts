@@ -37,6 +37,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 
 import { parseTsaReply } from "../src/services/timestamp/parse-tsa-reply.js";
 
@@ -117,11 +118,9 @@ describe("Phase IA-forward-path-TSA — finalize callsite contract", () => {
     // same `tx` as the finalize update — never via a top-level
     // appendCustodyEvent call that would not be rolled back if the
     // transaction failed.
-    const tsaCustodyIdx = EVIDENCE_COMPLETE.indexOf(
-      "if (tsaResult) {",
-    );
-    expect(tsaCustodyIdx).toBeGreaterThan(-1);
-    const block = EVIDENCE_COMPLETE.slice(tsaCustodyIdx, tsaCustodyIdx + 1500);
+    const block = enclosingSource(EVIDENCE_COMPLETE, "if (tsaResult) {", "statement", {
+      fileName: "evidence-complete.service.ts",
+    });
     expect(block).toMatch(/appendCustodyEventTx\(tx,/);
   });
 });
@@ -150,18 +149,24 @@ describe("Phase IA-forward-path-TSA — service uses the bounded parser", () => 
   });
 
   it("returns status: \"FAILED\" + preserved tokenBase64 + bounded code on parser-side fail", () => {
-    const idx = SERVICE.indexOf("Parser-side failure paths");
-    expect(idx).toBeGreaterThan(-1);
-    const block = SERVICE.slice(idx, idx + 1500);
+    // The `return { … }` under the "Parser-side failure paths" comment —
+    // not a window that runs on into the subprocess catch block below it.
+    expect(SERVICE).toContain("Parser-side failure paths");
+    const block = enclosingSource(SERVICE, "failureCode: parsed.failureCode", "statement", {
+      unique: true,
+      fileName: "timestamp.service.ts",
+    });
     expect(block).toMatch(/status:\s*"FAILED"/);
     expect(block).toMatch(/tokenBase64,/);
     expect(block).toMatch(/failureCode:\s*parsed\.failureCode/);
   });
 
   it("subprocess error path writes empty token + bounded provider code", () => {
-    const idx = SERVICE.indexOf("Subprocess / network");
-    expect(idx).toBeGreaterThan(-1);
-    const block = SERVICE.slice(idx, idx + 800);
+    // The catch block that opens with the "Subprocess / network" comment.
+    const block = enclosingSource(SERVICE, "Subprocess / network", "block", {
+      unique: true,
+      fileName: "timestamp.service.ts",
+    });
     expect(block).toMatch(/tokenBase64:\s*""/);
     expect(block).toMatch(/failureCode:\s*classified\.code/);
   });

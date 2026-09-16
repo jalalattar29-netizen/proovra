@@ -71,6 +71,7 @@ import {
   INVITE_DOMAIN_RESTRICTION_KEY,
 } from "../src/routes/organizations-bulk-invite.routes.js";
 import { ORG_AUDIT_EVENT_TYPES } from "../src/services/organization/org-audit.service.js";
+import { functionSource } from "../../../scripts/source-contract/index.mjs";
 import {
   ORG_INVITE_DELIVERY_EVENT_TYPE,
   ORG_INVITE_DELIVERY_MAX_ATTEMPTS,
@@ -875,9 +876,8 @@ describe("Macro-Wave A2 — delivery wiring source contracts", () => {
     // protecting is unchanged, and is asserted where it now lives: the
     // builder may write ids, a version, a bounded fingerprint and the provider
     // key, and nothing token-shaped.
-    const at = DELIVERY_SRC.indexOf("function buildIntentMetadata(");
-    expect(at).toBeGreaterThan(0);
-    const builder = DELIVERY_SRC.slice(at, at + 900);
+    const builder = functionSource(DELIVERY_SRC, "buildIntentMetadata");
+    expect(builder).toContain("function buildIntentMetadata(");
     expect(builder).not.toMatch(/rawToken|acceptUrl|tokenHash/);
     // Rotation stores ONLY the hash; the legacy plaintext column stays NULL.
     expect(DELIVERY_SRC).toMatch(/token: null,\s*\r?\n\s*tokenHash: newTokenHash/);

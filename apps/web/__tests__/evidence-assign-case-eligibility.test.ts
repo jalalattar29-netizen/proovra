@@ -30,6 +30,16 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
+
+// The whole `<PortalModal … title="Assign evidence to case">…</PortalModal>`
+// element: footer buttons and body (WCC-NEW-027).
+const assignCaseModal = (src: string): string =>
+  enclosingSource(src, 'title="Assign evidence to case"', "jsx", {
+    unique: true,
+    fileName: "page.tsx",
+  });
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const REPO_ROOT = resolve(__dirname, "../../..");
@@ -74,9 +84,7 @@ test("Evidence Detail page no longer calls the unscoped /v1/cases for the Assign
 test("Assign Case modal renders the spec-locked empty-state copy when cases.length === 0", () => {
   // Find the modal block by its title anchor and assert the empty
   // state appears as a conditional branch.
-  const modalStart = DETAIL_PAGE.indexOf('title="Assign evidence to case"');
-  assert.ok(modalStart > 0, "Assign Case modal anchor missing");
-  const block = DETAIL_PAGE.slice(modalStart, modalStart + 4000);
+  const block = assignCaseModal(DETAIL_PAGE);
   assert.match(block, /\{cases\.length === 0 \? \(/);
   assert.match(
     block,
@@ -86,8 +94,7 @@ test("Assign Case modal renders the spec-locked empty-state copy when cases.leng
 });
 
 test("Assign Case modal Save button is disabled when there are no cases", () => {
-  const modalStart = DETAIL_PAGE.indexOf('title="Assign evidence to case"');
-  const block = DETAIL_PAGE.slice(modalStart, modalStart + 4000);
+  const block = assignCaseModal(DETAIL_PAGE);
   // Save assignment must include `cases.length === 0` in its disabled
   // expression so an empty selector cannot submit.
   assert.match(

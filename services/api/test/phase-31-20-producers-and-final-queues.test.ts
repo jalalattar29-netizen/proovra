@@ -36,6 +36,8 @@ import {
   parseGraphDomainCommandId,
 } from "@proovra/shared";
 
+import { enclosingSource, functionSource } from "../../../scripts/source-contract/index.mjs";
+
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 }
@@ -315,6 +317,18 @@ const SUBSYSTEM_PROCESSORS_SRC = readSource(
   "../../worker/src/subsystem-queue-processors.ts",
 );
 
+/**
+ * Each exported processor runs its body in a `<name>Inner` function (it wraps
+ * it in the workspace-job resolution). The work lives in the inner function,
+ * so that is the unit read — after proving the export delegates to it.
+ */
+function delegatedBody(name: string): string {
+  const outer = functionSource(SUBSYSTEM_PROCESSORS_SRC, name);
+  expect(outer.startsWith(`export async function ${name}`), name).toBe(true);
+  expect(outer, `${name} must delegate to ${name}Inner`).toContain(`${name}Inner(`);
+  return functionSource(SUBSYSTEM_PROCESSORS_SRC, `${name}Inner`);
+}
+
 describe("Phase 31.20 — graph-reconcile invokes OCR/transcript indexer", () => {
   it("imports and conditionally invokes the indexer service via @proovra/shared-runtime", () => {
     // Phase 31.22 boundary fix — the dynamic import now points at the
@@ -408,9 +422,8 @@ describe("Phase 31.20 — final 3 isolated queues", () => {
       "enqueueGraphTimelineSyncJob",
       "enqueueGraphSearchProjectionJob",
     ]) {
-      const idx = QUEUE_SRC.indexOf(`export async function ${name}`);
-      expect(idx, name).toBeGreaterThan(-1);
-      expect(QUEUE_SRC.slice(idx, idx + 900), name).toMatch(/enqueueWork\(/);
+      expect(QUEUE_SRC, name).toContain(`export async function ${name}`);
+      expect(functionSource(QUEUE_SRC, name, "queue.ts"), name).toMatch(/enqueueWork\(/);
     }
     expect(QUEUE_SRC).toMatch(/enqueueCanonicalJob\(/);
   });
@@ -452,8 +465,9 @@ describe("Phase 31.20 — final 3 isolated queues", () => {
   });
 
   it("WorkerKind union includes the 3 new kinds", () => {
-    const idx = INDEX_SRC.indexOf("type WorkerKind");
-    const slice = INDEX_SRC.slice(idx, idx + 800);
+    const slice = enclosingSource(INDEX_SRC, "type WorkerKind", "statement", {
+      fileName: "index.ts",
+    });
     expect(slice).toMatch(/"graph-domain-sync"/);
     expect(slice).toMatch(/"graph-timeline-sync"/);
     expect(slice).toMatch(/"graph-search-projection"/);
@@ -477,30 +491,18 @@ describe("Phase 31.20 — final 3 queue processors", () => {
   //  per-processor contract is enforced by the dedicated
   //  phase-31-21-enterprise-closure.test.ts.
   it("graph-domain-sync invokes the bounded per-domain stale sweep", () => {
-    const idx = SUBSYSTEM_PROCESSORS_SRC.indexOf(
-      "export async function processGraphDomainSyncJob",
-    );
-    expect(idx).toBeGreaterThan(0);
-    const slice = SUBSYSTEM_PROCESSORS_SRC.slice(idx, idx + 3500);
+    const slice = delegatedBody("processGraphDomainSyncJob");
     expect(slice).toMatch(/runDomainStaleSweep\(/);
     expect(slice).toMatch(/DOMAIN_SYNC_DOMAINS/);
   });
 
   it("graph-timeline-sync invokes the real bounded timeline sync", () => {
-    const idx = SUBSYSTEM_PROCESSORS_SRC.indexOf(
-      "export async function processGraphTimelineSyncJob",
-    );
-    expect(idx).toBeGreaterThan(0);
-    const slice = SUBSYSTEM_PROCESSORS_SRC.slice(idx, idx + 1500);
+    const slice = delegatedBody("processGraphTimelineSyncJob");
     expect(slice).toMatch(/runTimelineSync\(/);
   });
 
   it("graph-search-projection invokes the real recent-signal-activity reindex", () => {
-    const idx = SUBSYSTEM_PROCESSORS_SRC.indexOf(
-      "export async function processGraphSearchProjectionJob",
-    );
-    expect(idx).toBeGreaterThan(0);
-    const slice = SUBSYSTEM_PROCESSORS_SRC.slice(idx, idx + 2500);
+    const slice = delegatedBody("processGraphSearchProjectionJob");
     expect(slice).toMatch(/runSearchProjectionSync\(/);
   });
 

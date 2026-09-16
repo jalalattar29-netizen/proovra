@@ -27,6 +27,8 @@ import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
+
 const WEB_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (rel: string) => readFileSync(join(WEB_ROOT, rel), "utf8");
 
@@ -139,8 +141,15 @@ test("PATCH /v1/automation/rules/:id is called from the edit form, without the i
     "`/v1/automation/rules/${encodeURIComponent(rule.id)}`",
   );
   assert.ok(patchAt > -1);
+  // The whole `apiFetch(<that path>, { … })` call (WCC-NEW-027).
+  const patchCall = enclosingSource(
+    src,
+    "`/v1/automation/rules/${encodeURIComponent(rule.id)}`",
+    "call",
+    { unique: true, fileName: "AutomationRuleForm.tsx" },
+  );
   assert.ok(
-    src.slice(patchAt, patchAt + 200).includes('method: "PATCH"'),
+    patchCall.includes('method: "PATCH"'),
     "the edit call is not a PATCH",
   );
 
@@ -201,11 +210,15 @@ test("enable/disable is one control whose leg follows the rule's current state",
     ),
     "neither enable nor disable is addressed by its exact path",
   );
-  const callAt = src.indexOf(
+  // The whole `apiFetch(<that path>, { … })` call (WCC-NEW-027).
+  const transitionCall = enclosingSource(
+    src,
     "`/v1/automation/rules/${encodeURIComponent(rule.id)}/${leg}`",
+    "call",
+    { unique: true, fileName: "AutomationRuleToggle.tsx" },
   );
   assert.ok(
-    src.slice(callAt, callAt + 120).includes('method: "POST"'),
+    transitionCall.includes('method: "POST"'),
     "the transition is not a POST",
   );
 
