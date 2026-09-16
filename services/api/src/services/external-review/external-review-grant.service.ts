@@ -227,6 +227,36 @@ export async function issueExternalReviewGrant(
   );
 }
 
+async function scopeTargetBelongsToTeam(
+  client: PrismaClient,
+  teamId: string,
+  scopeKind: IssueGrantInput["scopeKind"],
+  ids: { evidenceId: string | null; caseId: string | null; packageId: string | null },
+): Promise<boolean> {
+  if (scopeKind === "EVIDENCE" && ids.evidenceId) {
+    const row = await client.evidence.findFirst({
+      where: { id: ids.evidenceId, teamId, deletedAt: null },
+      select: { id: true },
+    });
+    return row !== null;
+  }
+  if (scopeKind === "CASE" && ids.caseId) {
+    const row = await client.case.findFirst({
+      where: { id: ids.caseId, teamId },
+      select: { id: true },
+    });
+    return row !== null;
+  }
+  if (scopeKind === "PACKAGE" && ids.packageId) {
+    const row = await client.verificationPackage.findFirst({
+      where: { id: ids.packageId, evidence: { teamId, deletedAt: null } },
+      select: { id: true },
+    });
+    return row !== null;
+  }
+  return false;
+}
+
 async function issueExternalReviewGrantInner(
   input: IssueGrantInput,
   client: PrismaClient,
@@ -242,6 +272,19 @@ async function issueExternalReviewGrantInner(
     return { ok: false, reason: "invalid_scope" };
   }
   if (input.scopeKind === "PACKAGE" && !packageId) {
+    return { ok: false, reason: "invalid_scope" };
+  }
+
+  // K5 (2026-09-16) — the scope target must belong to the ISSUING workspace.
+  // Cardinality alone let a workspace mint a grant naming another tenant's
+  // evidence / case / package id; the row was written INVITED and the raw
+  // token returned. A foreign or missing target is the same `invalid_scope`
+  // as a missing one, so the refusal reveals nothing about other tenants.
+  if (!(await scopeTargetBelongsToTeam(client, input.teamId, input.scopeKind, {
+    evidenceId,
+    caseId,
+    packageId,
+  }))) {
     return { ok: false, reason: "invalid_scope" };
   }
 
