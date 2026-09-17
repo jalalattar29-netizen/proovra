@@ -1,0 +1,248 @@
+{
+  "artifact": "ui-truth/findings",
+  "schemaVersion": 1,
+  "auditedSha": "d6371ecc5a374a20fe7a96d9717c0eb2ad7082e8",
+  "originMainSha": "d6371ecc5a374a20fe7a96d9717c0eb2ad7082e8",
+  "method": [
+    "Surface universe generated from the Next.js app router (208 pages, 168 in scope).",
+    "Every surface joined to the canonical authorities it already has: routeRegistry.ts, adminNavigation.ts, adminScopeDispositions.ts, surface tiers, and the generated capability map.",
+    "Role/plan/workspace expectations computed by calling the product's OWN resolvers (capability-registry.ts and routeAccessResolver.ts) for 12 personas.",
+    "Controls extracted statically with the TypeScript compiler API and matched to endpoints through the capability map.",
+    "Runtime authorization probed against a disposable loopback fixture (fresh PostgreSQL, fresh Redis, fixture API on 127.0.0.1:8931, GET only) for 7 personas.",
+    "Layout, state and accessibility evidence re-measured once on the audit SHA with the eight layout Playwright projects, which intercept every /v1 call with contract-shaped fixtures."
+  ],
+  "limitations": [
+    "The runtime probe issues GET requests only, so mutation behaviour is proven from source and from the existing admin mutation matrix, not re-executed here.",
+    "105 of 326 read endpoints could not be probed because the fixture holds no record for their path parameter; they are recorded as BLOCKED_FIXTURE_CAPABILITY rather than assumed.",
+    "Integrations, notifications, AI and communications are flag-disabled in the fixture, so their surfaces answer 503 INTEGRATIONS_DISABLED and their states could not be exercised.",
+    "Static control extraction cannot resolve 1,231 controls whose handler is supplied by a parent component; these are marked UNRESOLVED_DYNAMIC, never guessed.",
+    "The layout projects mock the API at the browser boundary, so their evidence is about rendering and state, not about live data."
+  ],
+  "ownerDecisions": [
+    {
+      "id": "UIT-OD-001",
+      "question": "Should /settings/notifications/deliveries and /settings/reviewer-criteria stay in the ACCOUNT settings namespace while acting on the active workspace, or move under workspace settings?",
+      "context": "Both pages read and write workspace-scoped data from an account-domain route, so their meaning changes on a workspace switch while the URL does not.",
+      "options": ["Move under workspace settings", "Keep and state the active workspace in the header and on every write"],
+      "recommendation": "Move under workspace settings; it is the only option that makes the URL honest."
+    },
+    {
+      "id": "UIT-OD-002",
+      "question": "Is the surface-tier table (apps/web/lib/surface/tiers.ts) still a wanted authority?",
+      "context": "It classifies 129 in-scope surfaces as ENTERPRISE and 99 as notFound on direct access, but the middleware applies it only to INTERNAL surfaces for signed-out requests, and the route registry's plan gate decides for everyone else. For 63 surfaces the two disagree.",
+      "options": ["Retire the tier table and keep the registry gate", "Re-enable tier enforcement", "Keep as documentation only, with a comment saying it is inert"],
+      "recommendation": "Retire it; a second gating table that never fires is a trap for the next reader."
+    }
+  ],
+  "findings": [
+    {
+      "id": "UIT-001",
+      "severity": "P2",
+      "category": "AUTHORITY_ACCURACY",
+      "title": "The generated capability map labels workspace-anchored routes as multi-tenant platform-admin data",
+      "affectedRoutes": ["/review/disagreements", "/review/qc", "/review/schemas", "/operations", "/operations/reliability", "/redaction"],
+      "affectedActors": ["platform-operator", "auditor", "release-gate"],
+      "reproduction": "Read docs/architecture/current-runtime-capability-map.json for GET /v1/reviewer/disagreements, GET /v1/coding/schemas and GET /v1/ops/incidents, then call each against the fixture API as org-owner with the fixture organization workspace and again with another tenant's workspace.",
+      "expected": "A route that refuses another tenant's workspace and requires ACTIVE membership is recorded as WORKSPACE tenancy.",
+      "observed": "The map records tenantType PLATFORM with dataScope MULTI_TENANT_PLATFORM_ADMIN (reviewer, coding) or PLATFORM_GLOBAL (ops), while at runtime the same routes answer 200 for a member, 403/404 for another tenant, and 400 when the workspace is not named. 64 routes carry MULTI_TENANT_PLATFORM_ADMIN outside /v1/admin and /v1/platform, 56 of them with web callers.",
+      "evidence": [
+        "services/api/src/routes/reviewer-workspace.routes.ts:26-27 — \"Every route is workspace-anchored. Personal-space callers receive a bounded 403 with denial WORKSPACE_NOT_FOUND\"",
+        "runtime: GET /v1/reviewer/disagreements own workspace 200, other tenant 403; GET /v1/coding/schemas 200/403; GET /v1/ops/incidents 400 without teamId, 404 for another tenant in both directions",
+        "audit/ui-truth/data/runtime-authz.json",
+        "audit/ui-truth/data/placement-verdicts.json — the mislabel produces 9 of the 17 placement disagreements"
+      ],
+      "rootCause": "The tenancy classifier credits the route to the table family it reads rather than to the authority that scopes the query, so a workspace-anchored reviewer or operations route reading a platform-wide table is recorded as platform data.",
+      "blastRadius": "The map gates release decisions and feeds the admin scope reporting, so every consumer of it inherits a wrong tenancy fact for up to 56 routes. No user-facing behaviour is wrong.",
+      "recommendedFix": "Derive tenantType from the resolved tenant binding authority (the evaluator guard that produced the teamId), not from the table family, and re-run the generator.",
+      "requiredAcceptanceProof": "The three named routes report tenantType WORKSPACE; the generator reruns with zero diff; the placement disagreements drop from 17 to the 8 that are not caused by the label.",
+      "dependencies": [],
+      "evidenceClass": "SOURCE_AND_RUNTIME_PROVEN"
+    },
+    {
+      "id": "UIT-002",
+      "severity": "P2",
+      "category": "ERROR_HANDLING",
+      "title": "Trust Center status returns a 500 DATABASE_ERROR for a FREE personal workspace",
+      "affectedRoutes": ["/trust-center/status"],
+      "affectedActors": ["free-personal-owner"],
+      "reproduction": "Sign in as free-personal@fixture.local against the fixture API and GET /v1/trust/status.",
+      "expected": "Either the status projection, or a bounded refusal that the page can render as a decision.",
+      "observed": "HTTP 500 with {\"error\":{\"code\":\"DATABASE_ERROR\",\"message\":\"Request failed.\"}}. The same call succeeds for the organization and platform personas.",
+      "evidence": [
+        "runtime: GET /v1/trust/status as free-personal -> 500 DATABASE_ERROR; as org-owner -> 200",
+        "audit/ui-truth/data/runtime-authz.json — free-personal is the only persona with 6 SERVER_FAULT outcomes"
+      ],
+      "rootCause": "Not established from source in this audit; the failure is specific to the personal-workspace shape, which suggests a query that assumes an organization row exists.",
+      "blastRadius": "Every FREE personal user opening the Trust Center status page gets a server fault rather than content or a refusal.",
+      "recommendedFix": "Reproduce with the personal persona, make the missing organization row a bounded empty projection, and pin it with a test that runs as a personal workspace.",
+      "requiredAcceptanceProof": "GET /v1/trust/status returns 200 or a typed refusal for a FREE personal owner, with a regression test using a personal-space fixture.",
+      "dependencies": [],
+      "evidenceClass": "RUNTIME_PROVEN"
+    },
+    {
+      "id": "UIT-003",
+      "severity": "P3",
+      "category": "OPERATIONAL_TRUTH",
+      "title": "The system opens LEGACY_UNSCOPED incidents that no surface can ever display or resolve",
+      "affectedRoutes": ["/operations"],
+      "affectedActors": ["platform-operator", "org-admin"],
+      "reproduction": "Cause permission denials against the fixture API (any 403), then query operational_incidents: a row appears with team_id NULL and scope LEGACY_UNSCOPED. Every /v1/ops read requires teamId, so no query returns it.",
+      "expected": "An incident the product opens is reachable on some surface, or it is not opened.",
+      "observed": "One OPEN incident, scope LEGACY_UNSCOPED, team_id NULL, title \"Security signal: permission_denied\", opened_by_system true, created by this audit's own probing and invisible to every surface.",
+      "evidence": [
+        "runtime: select scope, source_id, title, opened_by_system from operational_incidents where team_id is null -> LEGACY_UNSCOPED | identity.security_condition | Security signal: permission_denied | t",
+        "runtime: GET /v1/ops/incidents without teamId -> 400 INVALID_INPUT, so an unscoped row cannot be listed"
+      ],
+      "rootCause": "The security-signal writer opens an incident without a workspace binding, while every read path requires one.",
+      "blastRadius": "A silently growing set of open incidents that no operator can see, action or close; it also inflates any count taken directly from the table.",
+      "recommendedFix": "Bind the security-signal incident to the workspace whose request produced it, or route unscoped signals to a platform surface that can display and close them.",
+      "requiredAcceptanceProof": "After a permission denial, the resulting incident is returned by a surface a human can open, or no row is written.",
+      "dependencies": [],
+      "evidenceClass": "RUNTIME_PROVEN"
+    },
+    {
+      "id": "UIT-004",
+      "severity": "P3",
+      "category": "API_CONSISTENCY",
+      "title": "Three different error envelopes for the same validation failure",
+      "affectedRoutes": ["/admin/identity", "/admin/search", "/operations/analytics"],
+      "affectedActors": ["every-authenticated-user"],
+      "reproduction": "Call GET /v1/admin/identity/providers, GET /v1/admin/search and GET /v1/analytics/artifacts without their required query parameter.",
+      "expected": "One envelope shape for a validation refusal, so one client helper can render it.",
+      "observed": "{\"error\":{\"code\":\"INVALID_INPUT\",\"fields\":[...]}}, {\"error\":{\"code\":\"validation_error\",\"detail\":{...}}} and a bare {\"message\":\"Invalid query\",\"issues\":[...]} — three shapes, two casings of the code, and one response with no error wrapper at all.",
+      "evidence": [
+        "runtime: GET /v1/admin/identity/providers -> INVALID_INPUT with fields[]",
+        "runtime: GET /v1/admin/search -> validation_error with detail.fieldErrors",
+        "runtime: GET /v1/analytics/artifacts -> {message, issues} with no error envelope"
+      ],
+      "rootCause": "Three validation paths (canonical refusal helper, a local zod handler, and a raw zod flush) reach the wire without a shared serializer.",
+      "blastRadius": "Client error rendering has to special-case each shape; the bare shape has no code at all, so a generic handler cannot classify it and falls back to a generic failure message.",
+      "recommendedFix": "Route every validation refusal through the canonical refusal helper and pin the envelope with a contract test.",
+      "requiredAcceptanceProof": "All three routes answer with one envelope shape and one code vocabulary, pinned by a test that enumerates validation refusals.",
+      "dependencies": [],
+      "evidenceClass": "RUNTIME_PROVEN"
+    },
+    {
+      "id": "UIT-005",
+      "severity": "P3",
+      "category": "PARALLEL_AUTHORITY",
+      "title": "A second surface-gating table that never fires for a signed-in user",
+      "affectedRoutes": ["/governance-platform", "/executive", "/communications", "/budget-center", "/audit-transparency"],
+      "affectedActors": ["maintainer"],
+      "reproduction": "Compare getSurfaceTier/getDirectAccessPolicy for each in-scope surface with the route registry's decision for an ENTERPRISE organization owner.",
+      "expected": "One authority decides whether a surface loads.",
+      "observed": "The tier table marks 129 in-scope surfaces ENTERPRISE and 99 notFound, but middleware.ts applies the rule only when tier is INTERNAL and no session cookie is present. For 63 surfaces the registry allows an ENTERPRISE owner while the tier table says notFound, and nothing enforces the tier.",
+      "evidence": [
+        "apps/web/middleware.ts:64 — the gate fires only for rule.tier === \"INTERNAL\" and no proovra_session cookie",
+        "apps/web/lib/navigation/routeRegistry.ts:141-146 — requiredPlanFeature \"replaces the deleted lib/surface/tiers.ts entitlementOverride mechanism\"",
+        "audit/ui-truth/data/access-matrix.json — 63 surfaces where the two systems disagree"
+      ],
+      "rootCause": "The tier table survived the migration to registry plan gates and still carries rules that no longer decide anything.",
+      "blastRadius": "No user-facing effect today. The risk is a maintainer reading the tier table as the access rule, or re-enabling it and 404-ing 63 entitled surfaces.",
+      "recommendedFix": "Retire the table, or reduce it to the INTERNAL rows the middleware actually uses and say so in its header.",
+      "requiredAcceptanceProof": "One authority answers \"can this surface load\"; a test asserts the tier table is either gone or consulted only for INTERNAL, signed-out requests.",
+      "dependencies": [],
+      "evidenceClass": "SOURCE_PROVEN"
+    },
+    {
+      "id": "UIT-006",
+      "severity": "P2",
+      "category": "CORRECTNESS",
+      "title": "The Operations grouped read is issued for a workspace the page gate has refused",
+      "affectedRoutes": ["/operations"],
+      "affectedActors": ["org-viewer", "team-member", "any-refused-actor"],
+      "reproduction": "Open /operations in a workspace whose gate refuses the operations capability and watch the network: the grouped read fires anyway.",
+      "expected": "Every read on the page is guarded by the same gate; a refused workspace issues none of them.",
+      "observed": "The grouped read is guarded by `!teamId || !grouped` while every sibling read is guarded by `gate || !teamId`, so a gate-refused workspace still issues GET /v1/ops/incident-groups.",
+      "evidence": [
+        "apps/web/app/(app)/operations/page.tsx:388 — the grouped effect omits the gate term that its siblings carry",
+        "audit/ui-truth/data/layout-classification.json — LAY-0967"
+      ],
+      "rootCause": "A guard clause written per-effect rather than from one gate predicate.",
+      "blastRadius": "A refused actor triggers an authorized-looking request the server then refuses; the denial also opens a security-signal incident (see UIT-003).",
+      "recommendedFix": "Use the same gate predicate for every read effect on the page.",
+      "requiredAcceptanceProof": "With the gate refusing, no /v1/ops request leaves the page; pinned by the existing operations layout spec.",
+      "dependencies": [],
+      "evidenceClass": "SOURCE_PROVEN"
+    },
+    {
+      "id": "UIT-007",
+      "severity": "P2",
+      "category": "TEST_INTEGRITY",
+      "title": "The layout suite is not a working gate: 216 of its 233 failures prove nothing about the product",
+      "affectedRoutes": ["/operations", "/evidence/[id]", "/intake-links", "/notifications", "/settings"],
+      "affectedActors": ["maintainer", "release-gate"],
+      "reproduction": "Run the eight layout Playwright projects and classify each failure against the spec and the current product source.",
+      "expected": "A failing suite names product defects.",
+      "observed": "233 failures: 112 stale tests pinning contracts the product deliberately changed, 104 fixture defects where the test never reached the state it asserts, 12 duplicate assertions, 1 expected by design — and only 4 real product defects.",
+      "evidence": [
+        "audit/ui-truth/data/layout-classification-summary.json",
+        "audit/ui-truth/data/layout-classification.json — e.g. OPS-DEFAULT-VIEW-IS-GROUPED (70 rows) pins a flat table the page no longer renders by default",
+        "apps/web/app/(app)/operations/page.tsx:352,1797 — grouped is the default view"
+      ],
+      "rootCause": "The suite was left red across a product change, so it stopped being read and then stopped being maintained.",
+      "blastRadius": "A permanently red suite hides the four real defects inside it and cannot gate a release.",
+      "recommendedFix": "Repair or retire by group: re-point the operations specs at the grouped view, suppress the consent overlay in the three fixtures that lack it, seed /evidence/:id, and fix the four real defects.",
+      "requiredAcceptanceProof": "The eight layout projects run green on an unchanged tree, twice in a row.",
+      "dependencies": ["UIT-006"],
+      "evidenceClass": "SOURCE_PROVEN"
+    },
+    {
+      "id": "UIT-008",
+      "severity": "P3",
+      "category": "VISUAL_CONSISTENCY",
+      "title": "The billing purchase call to action paints as a secondary outline beside filled siblings",
+      "affectedRoutes": ["/billing"],
+      "affectedActors": ["any-purchasing-actor"],
+      "reproduction": "Open /billing and compare the \"Start <tier> subscription\" button with the other primary actions on the page.",
+      "expected": "The primary commercial action carries the filled primary treatment.",
+      "observed": "The button omits app-secondary-action--filled and renders outlined-secondary next to dark-filled siblings.",
+      "evidence": ["audit/ui-truth/data/layout-classification.json — LAY-1035, LAY-1036"],
+      "rootCause": "A missing modifier class on the purchase action.",
+      "blastRadius": "The most consequential action on the page reads as the least important one.",
+      "recommendedFix": "Apply the filled primary treatment to the purchase action.",
+      "requiredAcceptanceProof": "The billing layout spec passes and a screenshot shows the filled treatment at 1440 and 390.",
+      "dependencies": [],
+      "evidenceClass": "SOURCE_PROVEN"
+    },
+    {
+      "id": "UIT-009",
+      "severity": "P3",
+      "category": "RESPONSIVE",
+      "title": "The intake timeline date escapes its cell at 125% text scale",
+      "affectedRoutes": ["/intake-links"],
+      "affectedActors": ["any-actor-with-enlarged-text"],
+      "reproduction": "Open /intake-links at 125% text scale and read the timeline column.",
+      "expected": "The date stays inside its cell at every supported text scale.",
+      "observed": "The key is sized in rem against a ch-based column cap computed for fixed 12.5px type, so the nowrap date overflows its td.",
+      "evidence": ["audit/ui-truth/data/layout-classification.json — LAY-0452"],
+      "rootCause": "Two different sizing units for the same column budget.",
+      "blastRadius": "Text overflow on a tenant-facing list at an accessibility setting users really use.",
+      "recommendedFix": "Express the column cap and the key in the same unit.",
+      "requiredAcceptanceProof": "The intake layout spec passes at 100% and 125% text scale.",
+      "dependencies": [],
+      "evidenceClass": "SOURCE_PROVEN"
+    },
+    {
+      "id": "UIT-010",
+      "severity": "P3",
+      "category": "INFORMATION_ARCHITECTURE",
+      "title": "Two authenticated surfaces run no canonical route gate",
+      "affectedRoutes": ["/collaboration-teams/[teamId]/collaboration", "/settings/security/saml"],
+      "affectedActors": ["any-authenticated-user"],
+      "reproduction": "Search both page files for PageRouteGate and for a routeRegistry entry matching their href.",
+      "expected": "Every authenticated surface is gated by its own routeId or an ancestor's.",
+      "observed": "Neither page declares a gate nor has a registry entry. /settings/security/saml is a redirect shim to /security-center/sso, which is harmless; /collaboration-teams/[teamId]/collaboration renders a real surface with no canonical gate.",
+      "evidence": [
+        "audit/ui-truth/data/placement.json — accounting NO_REGISTRY_ENTRY_AND_NO_GATE",
+        "audit/ui-truth/data/controls-coverage.json — /settings/security/saml is a 22-line redirect page"
+      ],
+      "rootCause": "A child surface added under a gated parent without inheriting the parent's routeId.",
+      "blastRadius": "The collaboration child page depends entirely on its parent layout and the API for refusal; the canonical web gate never runs for it.",
+      "recommendedFix": "Declare the parent's routeId on the collaboration child; retire the saml redirect shim or register it.",
+      "requiredAcceptanceProof": "The route-registry coverage test reports zero ungated pages under app/(app).",
+      "dependencies": [],
+      "evidenceClass": "SOURCE_PROVEN"
+    }
+  ]
+}

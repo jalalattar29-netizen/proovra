@@ -1,0 +1,430 @@
+{
+  "artifact": "ui-truth/labels-summary",
+  "schemaVersion": 1,
+  "note": "Totals for audit/ui-truth/data/labels.json.",
+  "totals": {
+    "surfaces": 168,
+    "strings": 23896,
+    "distinctStrings": 9787,
+    "rawValueStrings": 117,
+    "byVerdict": {
+      "AMBIGUOUS_LABEL": 49,
+      "DEVELOPER_LANGUAGE": 61,
+      "HUMAN_READABLE": 23250,
+      "RAW_ENUM": 84,
+      "SCREAMING_SNAKE": 1,
+      "SNAKE_CASE": 32,
+      "UNEXPLAINED_ACRONYM": 419
+    },
+    "byAudience": {
+      "EXTERNAL_PORTAL": 188,
+      "PLATFORM_OPERATOR": 3607,
+      "TENANT_USER": 20101
+    },
+    "byArea": {
+      "EXTERNAL_PORTAL": 188,
+      "GOVERNANCE": 1839,
+      "ORGANIZATION_NAMESPACE": 2035,
+      "PLATFORM_ADMIN_NAMESPACE": 3607,
+      "SECURITY_CENTER": 2302,
+      "SETTINGS": 846,
+      "WORKSPACE_DASHBOARD": 13079
+    },
+    "excluded": {
+      "CSS_CLASS_OR_STYLE": 32018,
+      "DATA_ATTRIBUTE": 17229,
+      "INSIDE_CODE_OR_PRE": 622,
+      "NON_TEXT_PROP": 17333,
+      "NOT_A_TEXT_SLOT": 27668,
+      "NO_LETTERS": 1863,
+      "TEST_ID": 865,
+      "URL_OR_PATH": 70
+    }
+  },
+  "rawValueVerdicts": [
+    "RAW_ENUM",
+    "RAW_ERROR_CODE",
+    "RAW_EVENT_NAME",
+    "RAW_PERMISSION_ID",
+    "RAW_UUID_AS_IDENTITY",
+    "SCREAMING_SNAKE",
+    "SNAKE_CASE"
+  ],
+  "byVerdictAndAudience": {
+    "AMBIGUOUS_LABEL": {
+      "PLATFORM_OPERATOR": 16,
+      "TENANT_USER": 33
+    },
+    "DEVELOPER_LANGUAGE": {
+      "PLATFORM_OPERATOR": 5,
+      "TENANT_USER": 56
+    },
+    "HUMAN_READABLE": {
+      "EXTERNAL_PORTAL": 185,
+      "PLATFORM_OPERATOR": 3504,
+      "TENANT_USER": 19561
+    },
+    "RAW_ENUM": {
+      "PLATFORM_OPERATOR": 8,
+      "TENANT_USER": 76
+    },
+    "SCREAMING_SNAKE": {
+      "TENANT_USER": 1
+    },
+    "SNAKE_CASE": {
+      "PLATFORM_OPERATOR": 3,
+      "TENANT_USER": 29
+    },
+    "UNEXPLAINED_ACRONYM": {
+      "EXTERNAL_PORTAL": 3,
+      "PLATFORM_OPERATOR": 71,
+      "TENANT_USER": 345
+    }
+  },
+  "topOffendingFiles": [
+    {
+      "file": "apps/web/components/operational/AssignmentSuggestionRow.tsx",
+      "rawStrings": 20
+    },
+    {
+      "file": "apps/web/components/operational/RuntimeStatusBanner.tsx",
+      "rawStrings": 20
+    },
+    {
+      "file": "apps/web/components/operational/GovernanceSnapshotPanel.tsx",
+      "rawStrings": 10
+    },
+    {
+      "file": "apps/web/components/operational/OperationalTimelinePanel.tsx",
+      "rawStrings": 10
+    },
+    {
+      "file": "apps/web/components/operational/WorkloadHeatTile.tsx",
+      "rawStrings": 10
+    },
+    {
+      "file": "apps/web/app/(app)/redaction/page.tsx",
+      "rawStrings": 4
+    },
+    {
+      "file": "apps/web/app/(app)/security-center/sso/mapping/page.tsx",
+      "rawStrings": 4
+    },
+    {
+      "file": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx",
+      "rawStrings": 4
+    },
+    {
+      "file": "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx",
+      "rawStrings": 4
+    },
+    {
+      "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
+      "rawStrings": 3
+    },
+    {
+      "file": "apps/web/components/redaction/ImageRedactionViewer.tsx",
+      "rawStrings": 3
+    },
+    {
+      "file": "apps/web/components/redaction/VideoRedactionViewer.tsx",
+      "rawStrings": 3
+    },
+    {
+      "file": "apps/web/app/(app)/admin/evidence-ops/records/page.tsx",
+      "rawStrings": 2
+    },
+    {
+      "file": "apps/web/app/(app)/evidence-lifecycle/webhooks/page.tsx",
+      "rawStrings": 2
+    },
+    {
+      "file": "apps/web/app/(app)/governance-platform/page.tsx",
+      "rawStrings": 2
+    },
+    {
+      "file": "apps/web/app/(app)/organizations/[id]/admin/billing/page.tsx",
+      "rawStrings": 2
+    },
+    {
+      "file": "apps/web/components/redaction/PdfRedactionViewer.tsx",
+      "rawStrings": 2
+    },
+    {
+      "file": "apps/web/app/(app)/admin/platform/exports/page.tsx",
+      "rawStrings": 1
+    },
+    {
+      "file": "apps/web/app/(app)/admin/platform/observability/page.tsx",
+      "rawStrings": 1
+    },
+    {
+      "file": "apps/web/app/(app)/communications/page.tsx",
+      "rawStrings": 1
+    },
+    {
+      "file": "apps/web/app/(app)/integrations/page.tsx",
+      "rawStrings": 1
+    },
+    {
+      "file": "apps/web/app/(app)/investigation/reviewers/page.tsx",
+      "rawStrings": 1
+    },
+    {
+      "file": "apps/web/app/(app)/organizations/[id]/admin/domains/page.tsx",
+      "rawStrings": 1
+    },
+    {
+      "file": "apps/web/app/(app)/security-center/identity/scim/page.tsx",
+      "rawStrings": 1
+    },
+    {
+      "file": "apps/web/app/(app)/security-center/identity/timeline/page.tsx",
+      "rawStrings": 1
+    }
+  ],
+  "topOffendingSurfaces": [
+    {
+      "surfaceRoute": "/admin/platform/observability",
+      "rawStrings": 8
+    },
+    {
+      "surfaceRoute": "/redaction/[projectId]",
+      "rawStrings": 8
+    },
+    {
+      "surfaceRoute": "/review/workspace",
+      "rawStrings": 8
+    },
+    {
+      "surfaceRoute": "/evidence/[id]",
+      "rawStrings": 7
+    },
+    {
+      "surfaceRoute": "/governance/policy",
+      "rawStrings": 7
+    },
+    {
+      "surfaceRoute": "/review/disagreements",
+      "rawStrings": 7
+    },
+    {
+      "surfaceRoute": "/review/metrics",
+      "rawStrings": 7
+    },
+    {
+      "surfaceRoute": "/review/qc",
+      "rawStrings": 7
+    },
+    {
+      "surfaceRoute": "/review/schemas",
+      "rawStrings": 7
+    },
+    {
+      "surfaceRoute": "/reviewer-ops/escalations",
+      "rawStrings": 7
+    },
+    {
+      "surfaceRoute": "/reviewer-ops/sla",
+      "rawStrings": 7
+    },
+    {
+      "surfaceRoute": "/workspaces",
+      "rawStrings": 5
+    },
+    {
+      "surfaceRoute": "/redaction",
+      "rawStrings": 4
+    },
+    {
+      "surfaceRoute": "/security-center/sso/mapping",
+      "rawStrings": 4
+    },
+    {
+      "surfaceRoute": "/reviewer-ops/[reviewId]",
+      "rawStrings": 3
+    },
+    {
+      "surfaceRoute": "/admin/evidence-ops/records",
+      "rawStrings": 2
+    },
+    {
+      "surfaceRoute": "/evidence-lifecycle/webhooks",
+      "rawStrings": 2
+    },
+    {
+      "surfaceRoute": "/governance-platform",
+      "rawStrings": 2
+    },
+    {
+      "surfaceRoute": "/organizations/[id]/admin/billing",
+      "rawStrings": 2
+    },
+    {
+      "surfaceRoute": "/settings",
+      "rawStrings": 2
+    },
+    {
+      "surfaceRoute": "/admin/platform/exports",
+      "rawStrings": 1
+    },
+    {
+      "surfaceRoute": "/communications",
+      "rawStrings": 1
+    },
+    {
+      "surfaceRoute": "/home",
+      "rawStrings": 1
+    },
+    {
+      "surfaceRoute": "/integrations",
+      "rawStrings": 1
+    },
+    {
+      "surfaceRoute": "/investigation/reviewers",
+      "rawStrings": 1
+    }
+  ],
+  "topRawStrings": [
+    {
+      "string": "INACTIVE",
+      "occurrences": 20
+    },
+    {
+      "string": "UNKNOWN",
+      "occurrences": 11
+    },
+    {
+      "string": "OVERDUE",
+      "occurrences": 10
+    },
+    {
+      "string": "governance_snapshot_unavailable",
+      "occurrences": 10
+    },
+    {
+      "string": "readiness_unavailable",
+      "occurrences": 10
+    },
+    {
+      "string": "timeline_unavailable",
+      "occurrences": 10
+    },
+    {
+      "string": "SMS",
+      "occurrences": 5
+    },
+    {
+      "string": "BLACKOUT",
+      "occurrences": 3
+    },
+    {
+      "string": "ADMIN",
+      "occurrences": 2
+    },
+    {
+      "string": "BLUR",
+      "occurrences": 2
+    },
+    {
+      "string": "FREE",
+      "occurrences": 2
+    },
+    {
+      "string": "MEMBER",
+      "occurrences": 2
+    },
+    {
+      "string": "OCR",
+      "occurrences": 2
+    },
+    {
+      "string": "OWNER",
+      "occurrences": 2
+    },
+    {
+      "string": "PIXELATE",
+      "occurrences": 2
+    },
+    {
+      "string": "SCIM",
+      "occurrences": 2
+    },
+    {
+      "string": "TSA",
+      "occurrences": 2
+    },
+    {
+      "string": "URL",
+      "occurrences": 2
+    },
+    {
+      "string": "VIEWER",
+      "occurrences": 2
+    },
+    {
+      "string": "ADJUDICATION",
+      "occurrences": 1
+    },
+    {
+      "string": "AUDIO",
+      "occurrences": 1
+    },
+    {
+      "string": "FIRST",
+      "occurrences": 1
+    },
+    {
+      "string": "IMAGE",
+      "occurrences": 1
+    },
+    {
+      "string": "MANUAL",
+      "occurrences": 1
+    },
+    {
+      "string": "NONE",
+      "occurrences": 1
+    },
+    {
+      "string": "OTS",
+      "occurrences": 1
+    },
+    {
+      "string": "PDF",
+      "occurrences": 1
+    },
+    {
+      "string": "REMOVE_CONTENT",
+      "occurrences": 1
+    },
+    {
+      "string": "REPORT",
+      "occurrences": 1
+    },
+    {
+      "string": "SAML",
+      "occurrences": 1
+    },
+    {
+      "string": "SECOND",
+      "occurrences": 1
+    },
+    {
+      "string": "SIGNED",
+      "occurrences": 1
+    },
+    {
+      "string": "VIDEO",
+      "occurrences": 1
+    },
+    {
+      "string": "example.com",
+      "occurrences": 1
+    },
+    {
+      "string": "too_short",
+      "occurrences": 1
+    }
+  ]
+}

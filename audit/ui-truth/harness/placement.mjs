@@ -79,12 +79,27 @@ function declaredGate(files) {
   return null;
 }
 
-/** Files that belong to a surface: its page file and everything beside it. */
-function ownedFiles(surface) {
+/**
+ * Files that belong to a surface: its page file, plus the files in its own
+ * directory subtree that no DEEPER page owns.
+ *
+ * Nearest-page-ancestor, not prefix: `/admin` sits above every `/admin/*`
+ * page, so a plain prefix match made the parent absorb all its children's
+ * files and endpoints — which would have credited `/admin` with fifty
+ * endpoints it never calls.
+ */
+const PAGE_DIRS = [];
+function ownedFiles(surface, allSurfaces) {
+  if (PAGE_DIRS.length === 0) {
+    for (const s of allSurfaces) PAGE_DIRS.push(s.file.slice(0, s.file.lastIndexOf("/")));
+    PAGE_DIRS.sort((a, b) => b.length - a.length);
+  }
   const dir = surface.file.slice(0, surface.file.lastIndexOf("/"));
   const owned = new Set([surface.file]);
   for (const file of consumersByFile.keys()) {
-    if (file.startsWith(dir + "/")) owned.add(file);
+    if (!file.startsWith(dir + "/")) continue;
+    const nearest = PAGE_DIRS.find((d) => file.startsWith(d + "/"));
+    if (nearest === dir) owned.add(file);
   }
   return [...owned].sort();
 }
@@ -127,7 +142,7 @@ function observedScope(endpoints) {
 export function buildPlacement() {
   const surfaces = buildSurfaces().filter((s) => s.inScope);
   const rows = surfaces.map((surface) => {
-    const files = ownedFiles(surface);
+    const files = ownedFiles(surface, surfaces);
     const endpoints = files.flatMap((f) => consumersByFile.get(f) ?? []);
     endpoints.sort((a, b) => (a.routeId < b.routeId ? -1 : 1));
     const registryHref = toRegistryHref(surface.route);

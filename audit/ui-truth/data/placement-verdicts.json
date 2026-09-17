@@ -6,11 +6,11 @@
     "surfaces": 168,
     "byVerdict": {
       "ACCOUNT_LEVEL_ONLY": 2,
-      "AGREES": 109,
-      "AGREES_WITH_SECONDARY_AUTHORITY": 13,
-      "DISAGREES": 10,
-      "MIXED_AUTHORITY": 7,
-      "NO_BACKEND_EVIDENCE": 27
+      "AGREES": 113,
+      "AGREES_WITH_SECONDARY_AUTHORITY": 7,
+      "DISAGREES": 12,
+      "MIXED_AUTHORITY": 5,
+      "NO_BACKEND_EVIDENCE": 29
     }
   },
   "rows": [
@@ -21,10 +21,9 @@
       "claimedArea": "PLATFORM",
       "backendArea": "PLATFORM",
       "backendAreaCounts": {
-        "ORGANIZATION": 3,
-        "PLATFORM": 88
+        "PLATFORM": 1
       },
-      "verdict": "AGREES_WITH_SECONDARY_AUTHORITY",
+      "verdict": "AGREES",
       "accounting": "REGISTERED_OWN_ROUTE_ID",
       "inAdminNav": true,
       "adminNavScope": "PLATFORM",
@@ -37,49 +36,10 @@
       "fallbackBehavior": "HIDDEN_IF_NO_CAPABILITY",
       "surfaceTier": "ENTERPRISE",
       "directAccessPolicy": "notFound",
-      "endpointCount": 91,
-      "mutatingEndpointCount": 35,
+      "endpointCount": 1,
+      "mutatingEndpointCount": 0,
       "evidence": [
-        "DELETE /v1/orgs/:id/invites/:inviteId [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/admin/adoption [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/alerts [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/analytics/dashboard [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/audit-log [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/audit-log/export [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/audit-log/verify [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/billing/detail [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/contact-sales [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/contact-sales/:id [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/contact-sales/:id [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/costs [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/customers [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/customers/:id [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/demo-requests [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/demo-requests/:id [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/demo-requests/:id [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/evidence-health [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/evidence-health/records [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/executive [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/incidents [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/lifecycle-requests [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/overview [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/platform-health [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/platform/alerts [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/platform/health-snapshot [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/platform/metrics [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/platform/metrics [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/platform/readiness [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/search [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/security-events [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/timeline [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/timeline [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/users [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/users/:id [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/workspaces [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/workspaces/:id [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/break-glass/grants [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/operations/custody-attestations [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/operations/exports [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]"
+        "GET /v1/admin/overview [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]"
       ]
     },
     {
@@ -203,7 +163,7 @@
       "claimedArea": "PLATFORM",
       "backendArea": "PLATFORM",
       "backendAreaCounts": {
-        "PLATFORM": 5
+        "PLATFORM": 3
       },
       "verdict": "AGREES",
       "accounting": "REGISTERED_OWN_ROUTE_ID",
@@ -218,13 +178,11 @@
       "fallbackBehavior": "HIDDEN_IF_NO_CAPABILITY",
       "surfaceTier": "ENTERPRISE",
       "directAccessPolicy": "notFound",
-      "endpointCount": 5,
-      "mutatingEndpointCount": 2,
+      "endpointCount": 3,
+      "mutatingEndpointCount": 1,
       "evidence": [
         "GET /v1/admin/contact-sales [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
         "GET /v1/admin/contact-sales/:id [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/contact-sales/:id [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "PATCH /v1/admin/contact-sales/:id [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
         "PATCH /v1/admin/contact-sales/:id [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]"
       ]
     },
@@ -292,7 +250,7 @@
       "claimedArea": "PLATFORM",
       "backendArea": "PLATFORM",
       "backendAreaCounts": {
-        "PLATFORM": 4
+        "PLATFORM": 1
       },
       "verdict": "AGREES",
       "accounting": "REGISTERED_OWN_ROUTE_ID",
@@ -307,13 +265,10 @@
       "fallbackBehavior": "HIDDEN_IF_NO_CAPABILITY",
       "surfaceTier": "ENTERPRISE",
       "directAccessPolicy": "notFound",
-      "endpointCount": 4,
-      "mutatingEndpointCount": 2,
+      "endpointCount": 1,
+      "mutatingEndpointCount": 0,
       "evidence": [
-        "GET /v1/admin/customers [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/customers/:id [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "POST /v1/admin/orgs/:id/resume [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "POST /v1/admin/orgs/:id/suspend [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]"
+        "GET /v1/admin/customers [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]"
       ]
     },
     {
@@ -384,7 +339,7 @@
       "claimedArea": "PLATFORM",
       "backendArea": "PLATFORM",
       "backendAreaCounts": {
-        "PLATFORM": 7
+        "PLATFORM": 6
       },
       "verdict": "AGREES",
       "accounting": "REGISTERED_OWN_ROUTE_ID",
@@ -399,11 +354,10 @@
       "fallbackBehavior": "HIDDEN_IF_NO_CAPABILITY",
       "surfaceTier": "ENTERPRISE",
       "directAccessPolicy": "notFound",
-      "endpointCount": 7,
+      "endpointCount": 6,
       "mutatingEndpointCount": 4,
       "evidence": [
         "GET /v1/admin/demo-requests [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/demo-requests/:id [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
         "GET /v1/admin/demo-requests/:id [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
         "PATCH /v1/admin/demo-requests/:id [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
         "POST /v1/admin/demo-requests/:id/follow-up/send [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
@@ -446,7 +400,7 @@
       "claimedArea": "PLATFORM",
       "backendArea": "PLATFORM",
       "backendAreaCounts": {
-        "PLATFORM": 2
+        "PLATFORM": 1
       },
       "verdict": "AGREES",
       "accounting": "REGISTERED_OWN_ROUTE_ID",
@@ -461,11 +415,10 @@
       "fallbackBehavior": "HIDDEN_IF_NO_CAPABILITY",
       "surfaceTier": "ENTERPRISE",
       "directAccessPolicy": "notFound",
-      "endpointCount": 2,
+      "endpointCount": 1,
       "mutatingEndpointCount": 0,
       "evidence": [
-        "GET /v1/admin/evidence-health [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/evidence-health/records [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]"
+        "GET /v1/admin/evidence-health [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]"
       ]
     },
     {
@@ -1012,7 +965,7 @@
       "claimedArea": "PLATFORM",
       "backendArea": "PLATFORM",
       "backendAreaCounts": {
-        "PLATFORM": 4
+        "PLATFORM": 2
       },
       "verdict": "AGREES",
       "accounting": "REGISTERED_OWN_ROUTE_ID",
@@ -1027,13 +980,11 @@
       "fallbackBehavior": "HIDDEN_IF_NO_CAPABILITY",
       "surfaceTier": "ENTERPRISE",
       "directAccessPolicy": "notFound",
-      "endpointCount": 4,
-      "mutatingEndpointCount": 1,
+      "endpointCount": 2,
+      "mutatingEndpointCount": 0,
       "evidence": [
         "GET /v1/admin/lifecycle-requests [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/users [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/users/:id [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "POST /v1/admin/billing/evidence-credits [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]"
+        "GET /v1/admin/users [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]"
       ]
     },
     {
@@ -1072,7 +1023,7 @@
       "claimedArea": "PLATFORM",
       "backendArea": "PLATFORM",
       "backendAreaCounts": {
-        "PLATFORM": 2
+        "PLATFORM": 1
       },
       "verdict": "AGREES",
       "accounting": "REGISTERED_OWN_ROUTE_ID",
@@ -1087,11 +1038,10 @@
       "fallbackBehavior": "HIDDEN_IF_NO_CAPABILITY",
       "surfaceTier": "ENTERPRISE",
       "directAccessPolicy": "notFound",
-      "endpointCount": 2,
+      "endpointCount": 1,
       "mutatingEndpointCount": 0,
       "evidence": [
-        "GET /v1/admin/workspaces [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/admin/workspaces/:id [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]"
+        "GET /v1/admin/workspaces [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]"
       ]
     },
     {
@@ -1449,8 +1399,7 @@
       "claimedArea": "WORKSPACE",
       "backendArea": "WORKSPACE",
       "backendAreaCounts": {
-        "WORKSPACE": 97,
-        "NEUTRAL": 1
+        "WORKSPACE": 34
       },
       "verdict": "AGREES",
       "accounting": "REGISTERED_OWN_ROUTE_ID",
@@ -1465,49 +1414,43 @@
       "fallbackBehavior": "DEGRADED",
       "surfaceTier": "CORE",
       "directAccessPolicy": "allow",
-      "endpointCount": 98,
-      "mutatingEndpointCount": 50,
+      "endpointCount": 34,
+      "mutatingEndpointCount": 14,
       "evidence": [
-        "DELETE /v1/cases/:id/evidence/:evidenceId [WORKSPACE/WORKSPACE_SCOPED]",
-        "DELETE /v1/evidence/:id [WORKSPACE/WORKSPACE_SCOPED]",
         "DELETE /v1/evidence/:id/annotations/:annotationId [WORKSPACE/WORKSPACE_SCOPED]",
         "DELETE /v1/evidence/:id/comments/:commentId [WORKSPACE/WORKSPACE_SCOPED]",
         "DELETE /v1/evidence/:id/legal-notes/:noteId [WORKSPACE/WORKSPACE_SCOPED]",
-        "DELETE /v1/evidence/:id/relationships/:relationshipId [WORKSPACE/WORKSPACE_SCOPED]",
         "DELETE /v1/evidence/saved-views/:id [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/cases [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/cases [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/collaboration/catalogs [NONE/PUBLIC_DATA]",
-        "GET /v1/collaboration/threads [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/collaboration/threads/:id [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/collaboration/threads/:id [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/collaboration/threads/:id/messages [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/evidence [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/evidence-requests [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/evidence-requests [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/evidence-requests/:id/events [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/evidence/:id [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/evidence/:id [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/evidence/:id [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/evidence/:id/ai-categorization [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/evidence/:id/annotations [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/evidence/:id/artifacts/status [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/evidence/:id/certifications [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/evidence/:id/certifications [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/evidence/:id/comments [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/evidence/:id/comparison [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/evidence/:id/duplicates [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/evidence/:id/external-intake-summary [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/evidence/:id/legal-notes [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/evidence/:id/original [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/evidence/:id/original [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/evidence/:id/original [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/evidence/:id/parts [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/evidence/:id/report/latest [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/evidence/:id/report/latest [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/evidence/:id/report/latest [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/evidence/:id/reports/:version [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/evidence/:id/review-workspace [WORKSPACE/WORKSPACE_SCOPED]"
+        "GET /v1/evidence/:id/review-workspace [WORKSPACE/WORKSPACE_SCOPED]",
+        "GET /v1/evidence/:id/verification-package [WORKSPACE/WORKSPACE_SCOPED]",
+        "GET /v1/evidence/:id/verification-package [WORKSPACE/WORKSPACE_SCOPED]",
+        "GET /v1/evidence/library-summary [WORKSPACE/WORKSPACE_SCOPED]",
+        "GET /v1/evidence/saved-views [WORKSPACE/WORKSPACE_SCOPED]",
+        "PATCH /v1/evidence/:id/comments/:commentId [WORKSPACE/WORKSPACE_SCOPED]",
+        "PATCH /v1/evidence/:id/legal-notes/:noteId [WORKSPACE/WORKSPACE_SCOPED]",
+        "PATCH /v1/evidence/saved-views/:id [WORKSPACE/WORKSPACE_SCOPED]",
+        "POST /v1/evidence/:id/ai-categorization/run [WORKSPACE/WORKSPACE_SCOPED]",
+        "POST /v1/evidence/:id/annotations [WORKSPACE/WORKSPACE_SCOPED]",
+        "POST /v1/evidence/:id/comments [WORKSPACE/WORKSPACE_SCOPED]",
+        "POST /v1/evidence/:id/legal-notes [WORKSPACE/WORKSPACE_SCOPED]",
+        "POST /v1/evidence/bulk [WORKSPACE/WORKSPACE_SCOPED]",
+        "POST /v1/evidence/saved-views [WORKSPACE/WORKSPACE_SCOPED]",
+        "POST /v1/evidence/saved-views/:id/default [WORKSPACE/WORKSPACE_SCOPED]"
       ]
     },
     {
@@ -1517,7 +1460,7 @@
       "claimedArea": "WORKSPACE",
       "backendArea": "WORKSPACE",
       "backendAreaCounts": {
-        "WORKSPACE": 32
+        "WORKSPACE": 4
       },
       "verdict": "AGREES",
       "accounting": "REGISTERED_OWN_ROUTE_ID",
@@ -1532,41 +1475,13 @@
       "fallbackBehavior": "REQUEST_ACCESS",
       "surfaceTier": "ENTERPRISE",
       "directAccessPolicy": "redirect",
-      "endpointCount": 32,
-      "mutatingEndpointCount": 17,
+      "endpointCount": 4,
+      "mutatingEndpointCount": 0,
       "evidence": [
-        "GET /v1/exchange/chain-transfers [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/integrations/webhooks/endpoints [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/integrations/webhooks/lifecycle-deliveries [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/lifecycle/archive/costs [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/lifecycle/archive/transitions [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/lifecycle/dashboard [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/lifecycle/dashboard [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/lifecycle/destruction/requests [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/lifecycle/legal-holds [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/lifecycle/retention/policies [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/lifecycle/retention/policies [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/lifecycle/retention/upcoming-expirations [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/lifecycle/verification-package/preview [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/lifecycle/violations [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/lifecycle/violations/counts [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/exchange/chain-transfers [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/exchange/chain-transfers/:id/accept [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/exchange/chain-transfers/:id/complete [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/exchange/chain-transfers/:id/reject [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/exchange/chain-transfers/:id/revoke [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/integrations/webhooks/endpoints [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/integrations/webhooks/endpoints/:id/deactivate [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/integrations/webhooks/lifecycle-deliveries/:id/replay [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/lifecycle/archive/transition [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/lifecycle/destruction/requests [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/lifecycle/destruction/requests/:id/approve [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/lifecycle/destruction/requests/:id/execute [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/lifecycle/destruction/requests/:id/reject [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/lifecycle/legal-holds [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/lifecycle/legal-holds/:id/release [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/lifecycle/retention/policies [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/lifecycle/retention/policies/:id/release [WORKSPACE/WORKSPACE_SCOPED]"
+        "GET /v1/lifecycle/violations/counts [WORKSPACE/WORKSPACE_SCOPED]"
       ]
     },
     {
@@ -1931,11 +1846,9 @@
       "route": "/governance",
       "observedArea": "GOVERNANCE",
       "claimedArea": "WORKSPACE",
-      "backendArea": "WORKSPACE",
-      "backendAreaCounts": {
-        "WORKSPACE": 24
-      },
-      "verdict": "AGREES",
+      "backendArea": null,
+      "backendAreaCounts": {},
+      "verdict": "NO_BACKEND_EVIDENCE",
       "accounting": "REGISTERED_OWN_ROUTE_ID",
       "inAdminNav": false,
       "adminNavScope": null,
@@ -1948,34 +1861,9 @@
       "fallbackBehavior": "CREATE_ORG",
       "surfaceTier": "ENTERPRISE",
       "directAccessPolicy": "notFound",
-      "endpointCount": 24,
-      "mutatingEndpointCount": 7,
-      "evidence": [
-        "GET /v1/governance/analytics [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/governance/dashboard [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/governance/destruction-executions [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/governance/destruction-reviews [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/governance/destruction-reviews [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/governance/lifecycle/evidence/:id/events [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/governance/notifications [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/governance/policy [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/governance/reconciliation-runs [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/governance/retention-candidates [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/governance/retention-policies [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/governance/retention-policies [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/governance/retention-policies [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/governance/retention-policies/:id/versions [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/governance/retention-policies/:id/versions [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/governance/retention-policies/effective [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/reviewer-ops/sla-policy [WORKSPACE/WORKSPACE_SCOPED]",
-        "PATCH /v1/governance/retention-policies/:id [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/governance/destruction-reviews/:id/transition [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/governance/notifications/:id/acknowledge [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/governance/retention-policies [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/governance/retention-policies/:id/transition [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/reviewer-ops/sla-policy [WORKSPACE/WORKSPACE_SCOPED]",
-        "PUT /v1/governance/policy [WORKSPACE/WORKSPACE_SCOPED]"
-      ]
+      "endpointCount": 0,
+      "mutatingEndpointCount": 0,
+      "evidence": []
     },
     {
       "surfaceId": "governance-platform",
@@ -1984,7 +1872,7 @@
       "claimedArea": "WORKSPACE",
       "backendArea": "WORKSPACE",
       "backendAreaCounts": {
-        "WORKSPACE": 29
+        "WORKSPACE": 1
       },
       "verdict": "AGREES",
       "accounting": "REGISTERED_OWN_ROUTE_ID",
@@ -1999,38 +1887,10 @@
       "fallbackBehavior": "REQUEST_ACCESS",
       "surfaceTier": "ENTERPRISE",
       "directAccessPolicy": "notFound",
-      "endpointCount": 29,
-      "mutatingEndpointCount": 13,
+      "endpointCount": 1,
+      "mutatingEndpointCount": 0,
       "evidence": [
-        "GET /v1/governance/access-reviews/campaigns [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/governance/access-reviews/campaigns/:id/items [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/governance/access-reviews/escalated [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/governance/cross-org-review [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/governance/dashboard [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/governance/delegated-admin [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/governance/departments [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/governance/departments [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/governance/departments [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/governance/departments/:id/memberships [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/governance/me/department-scope [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/governance/policies [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/governance/policies/:id/assignments [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/governance/policies/:id/assignments [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/governance/policies/:id/audit [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/governance/policies/effective [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/governance/access-reviews/campaigns/:id/close [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/governance/access-reviews/campaigns/:id/open [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/governance/access-reviews/items/:id/decision [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/governance/cross-org-review/:id/decline [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/governance/cross-org-review/:id/revoke [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/governance/delegated-admin/:id/revoke [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/governance/departments [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/governance/departments/:id/archive [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/governance/departments/:id/memberships [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/governance/departments/memberships/:id/revoke [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/governance/policies/:id/activate [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/governance/policies/:id/assignments [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/governance/policies/:id/deprecate [WORKSPACE/WORKSPACE_SCOPED]"
+        "GET /v1/governance/dashboard [WORKSPACE/WORKSPACE_SCOPED]"
       ]
     },
     {
@@ -2040,7 +1900,7 @@
       "claimedArea": "WORKSPACE",
       "backendArea": "WORKSPACE",
       "backendAreaCounts": {
-        "WORKSPACE": 6
+        "WORKSPACE": 4
       },
       "verdict": "AGREES",
       "accounting": "GATED_BY_ANCESTOR_ROUTE_ID",
@@ -2055,15 +1915,13 @@
       "fallbackBehavior": "REQUEST_ACCESS",
       "surfaceTier": "ENTERPRISE",
       "directAccessPolicy": "notFound",
-      "endpointCount": 6,
-      "mutatingEndpointCount": 3,
+      "endpointCount": 4,
+      "mutatingEndpointCount": 2,
       "evidence": [
         "GET /v1/governance/access-reviews/campaigns [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/governance/access-reviews/campaigns/:id/items [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/governance/access-reviews/escalated [WORKSPACE/WORKSPACE_SCOPED]",
         "POST /v1/governance/access-reviews/campaigns/:id/close [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/governance/access-reviews/campaigns/:id/open [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/governance/access-reviews/items/:id/decision [WORKSPACE/WORKSPACE_SCOPED]"
+        "POST /v1/governance/access-reviews/campaigns/:id/open [WORKSPACE/WORKSPACE_SCOPED]"
       ]
     },
     {
@@ -2627,7 +2485,7 @@
       "claimedArea": "WORKSPACE",
       "backendArea": "WORKSPACE",
       "backendAreaCounts": {
-        "WORKSPACE": 22,
+        "WORKSPACE": 4,
         "PLATFORM": 1
       },
       "verdict": "AGREES_WITH_SECONDARY_AUTHORITY",
@@ -2643,31 +2501,13 @@
       "fallbackBehavior": "DEGRADED",
       "surfaceTier": "ENTERPRISE",
       "directAccessPolicy": "notFound",
-      "endpointCount": 23,
-      "mutatingEndpointCount": 10,
+      "endpointCount": 5,
+      "mutatingEndpointCount": 2,
       "evidence": [
-        "DELETE /v1/graph/relationships/manual/:manualRelationshipId [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/graph/cases/:caseId [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/graph/cases/:caseId [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/graph/diagnostics [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/graph/duplicates [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/graph/evidence/:evidenceId [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/graph/search [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/graph/seeds [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/graph/timeline [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/intelligence/capabilities [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/investigation/overview [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/investigation/reviewers [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/investigation/reviewers [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/ops/metrics [PLATFORM/NO_DATA_ACCESS]",
-        "POST /v1/graph/duplicates/:edgeId/decision [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/graph/duplicates/export [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/graph/export [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/graph/reconcile [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/graph/relationships/manual [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/graph/timeline/export [WORKSPACE/WORKSPACE_SCOPED]",
         "POST /v1/investigation/media-intelligence/refresh [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/media-intelligence/signals/:signalId/action [WORKSPACE/WORKSPACE_SCOPED]",
         "POST /v1/media-intelligence/signals/:signalId/action [WORKSPACE/WORKSPACE_SCOPED]"
       ]
     },
@@ -2880,12 +2720,9 @@
       "claimedArea": "WORKSPACE",
       "backendArea": "PLATFORM",
       "backendAreaCounts": {
-        "PLATFORM": 23,
-        "NEUTRAL": 1,
-        "WORKSPACE": 10,
-        "ACCOUNT": 6
+        "PLATFORM": 19
       },
-      "verdict": "MIXED_AUTHORITY",
+      "verdict": "DISAGREES",
       "accounting": "REGISTERED_OWN_ROUTE_ID",
       "inAdminNav": false,
       "adminNavScope": null,
@@ -2898,20 +2735,10 @@
       "fallbackBehavior": "HIDDEN_IF_NO_CAPABILITY",
       "surfaceTier": "CORE",
       "directAccessPolicy": "allow",
-      "endpointCount": 40,
-      "mutatingEndpointCount": 15,
+      "endpointCount": 19,
+      "mutatingEndpointCount": 10,
       "evidence": [
         "DELETE /v1/ops/saved-views/:id [PLATFORM/PLATFORM_GLOBAL]",
-        "GET /v1/analytics/_window [NONE/NO_DATA_ACCESS]",
-        "GET /v1/analytics/artifacts [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/analytics/automation [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/analytics/governance [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/analytics/operations [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/analytics/reviewer [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/automation/rules [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/automation/runs [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/batch-analysis [NONE/GLOBAL_USER_SELF]",
-        "GET /v1/batch-analysis/:id/export [NONE/GLOBAL_USER_SELF]",
         "GET /v1/ops/assignable-operators [PLATFORM/PLATFORM_GLOBAL]",
         "GET /v1/ops/incident-groups [PLATFORM/PLATFORM_GLOBAL]",
         "GET /v1/ops/incident-groups/:groupKey/affected [PLATFORM/PLATFORM_GLOBAL]",
@@ -2921,16 +2748,7 @@
         "GET /v1/ops/saved-views [PLATFORM/PLATFORM_GLOBAL]",
         "GET /v1/ops/summary [PLATFORM/PLATFORM_GLOBAL]",
         "GET /v1/ops/summary [PLATFORM/PLATFORM_GLOBAL]",
-        "GET /v1/quotas [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/reliability/summary [PLATFORM/PLATFORM_GLOBAL]",
-        "GET /v1/reliability/upload-sessions [PLATFORM/PLATFORM_GLOBAL]",
-        "GET /v1/teams/:workspaceId/operations/alerts [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/teams/:workspaceId/operations/health [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/usage-stats [NONE/GLOBAL_USER_SELF]",
         "PATCH /v1/ops/saved-views/:id [PLATFORM/PLATFORM_GLOBAL]",
-        "POST /v1/batch-analysis [NONE/GLOBAL_USER_SELF]",
-        "POST /v1/batch-analysis/:id/cancel [NONE/GLOBAL_USER_SELF]",
-        "POST /v1/batch-analysis/:id/process [NONE/GLOBAL_USER_SELF]",
         "POST /v1/ops/bulk-actions [PLATFORM/PLATFORM_GLOBAL]",
         "POST /v1/ops/incidents/:id/ack [PLATFORM/PLATFORM_GLOBAL]",
         "POST /v1/ops/incidents/:id/assign [PLATFORM/PLATFORM_GLOBAL]",
@@ -2938,9 +2756,7 @@
         "POST /v1/ops/incidents/:id/resolve [PLATFORM/PLATFORM_GLOBAL]",
         "POST /v1/ops/incidents/:id/suppress [PLATFORM/PLATFORM_GLOBAL]",
         "POST /v1/ops/saved-views [PLATFORM/PLATFORM_GLOBAL]",
-        "POST /v1/ops/workspace-reconcile [PLATFORM/PLATFORM_GLOBAL]",
-        "POST /v1/reliability/upload-sessions/:evidenceId/mark-abandoned [PLATFORM/PLATFORM_GLOBAL]",
-        "POST /v1/reliability/upload-sessions/:evidenceId/request-review [PLATFORM/PLATFORM_GLOBAL]"
+        "POST /v1/ops/workspace-reconcile [PLATFORM/PLATFORM_GLOBAL]"
       ]
     },
     {
@@ -3160,13 +2976,11 @@
       "route": "/organizations",
       "observedArea": "ORGANIZATION_NAMESPACE",
       "claimedArea": "ORGANIZATION",
-      "backendArea": "ORGANIZATION",
+      "backendArea": "WORKSPACE",
       "backendAreaCounts": {
-        "ORGANIZATION": 65,
-        "WORKSPACE": 23,
-        "PLATFORM": 3
+        "WORKSPACE": 2
       },
-      "verdict": "AGREES_WITH_SECONDARY_AUTHORITY",
+      "verdict": "DISAGREES",
       "accounting": "REGISTERED_OWN_ROUTE_ID",
       "inAdminNav": false,
       "adminNavScope": null,
@@ -3177,49 +2991,11 @@
       "fallbackBehavior": "LOAD",
       "surfaceTier": "ENTERPRISE",
       "directAccessPolicy": "allow",
-      "endpointCount": 91,
-      "mutatingEndpointCount": 33,
+      "endpointCount": 2,
+      "mutatingEndpointCount": 1,
       "evidence": [
-        "DELETE /v1/orgs/:id/invites/:inviteId [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "DELETE /v1/orgs/:id/members/:memberId [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "DELETE /v1/orgs/:orgId/domains/:id [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/billing/accounts/:type/:id [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/evidence [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/external-review/grants [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/identity-security/mfa-policy [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/integrations/health [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/lifecycle/retention/policies [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/me/orgs [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/ops/health [PLATFORM/PLATFORM_GLOBAL]",
-        "GET /v1/ops/incidents [PLATFORM/PLATFORM_GLOBAL]",
-        "GET /v1/orgs/:id [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/audit-events [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/audit-events [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/audit-events [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/billing/rollup [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/billing/rollup [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/closure [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/governance/control-center [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/invites [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/invites [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/invites [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/members [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/members [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/members [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/members [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/policies/retention [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/policies/retention [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/reports/audit.csv [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/reports/audit.csv [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/reports/download-audit.csv [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/reports/download-audit.csv [ORGANIZATION/ORGANIZATION_SCOPED]"
+        "POST /v1/org-invites/:token/accept [WORKSPACE/WORKSPACE_SCOPED]"
       ]
     },
     {
@@ -3229,9 +3005,8 @@
       "claimedArea": "ORGANIZATION",
       "backendArea": "ORGANIZATION",
       "backendAreaCounts": {
-        "ORGANIZATION": 65,
-        "WORKSPACE": 21,
-        "PLATFORM": 3
+        "ORGANIZATION": 10,
+        "WORKSPACE": 1
       },
       "verdict": "AGREES_WITH_SECONDARY_AUTHORITY",
       "accounting": "REGISTERED_OWN_ROUTE_ID",
@@ -3244,49 +3019,20 @@
       "fallbackBehavior": "LOAD",
       "surfaceTier": "ENTERPRISE",
       "directAccessPolicy": "allow",
-      "endpointCount": 89,
-      "mutatingEndpointCount": 32,
+      "endpointCount": 11,
+      "mutatingEndpointCount": 5,
       "evidence": [
-        "DELETE /v1/orgs/:id/invites/:inviteId [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "DELETE /v1/orgs/:id/members/:memberId [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "DELETE /v1/orgs/:orgId/domains/:id [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/billing/accounts/:type/:id [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/evidence [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/external-review/grants [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/identity-security/mfa-policy [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/integrations/health [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/lifecycle/retention/policies [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/ops/health [PLATFORM/PLATFORM_GLOBAL]",
-        "GET /v1/ops/incidents [PLATFORM/PLATFORM_GLOBAL]",
-        "GET /v1/orgs/:id [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id [ORGANIZATION/ORGANIZATION_SCOPED]",
         "GET /v1/orgs/:id [ORGANIZATION/ORGANIZATION_SCOPED]",
         "GET /v1/orgs/:id/audit-events [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/audit-events [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/audit-events [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/billing/rollup [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/billing/rollup [ORGANIZATION/ORGANIZATION_SCOPED]",
         "GET /v1/orgs/:id/closure [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/governance/control-center [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/invites [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/invites [ORGANIZATION/ORGANIZATION_SCOPED]",
         "GET /v1/orgs/:id/invites [ORGANIZATION/ORGANIZATION_SCOPED]",
         "GET /v1/orgs/:id/members [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/members [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/members [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/members [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/policies/retention [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/policies/retention [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/reports/audit.csv [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/reports/audit.csv [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/reports/download-audit.csv [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/reports/download-audit.csv [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/reports/external-access.csv [ORGANIZATION/ORGANIZATION_SCOPED]"
+        "GET /v1/orgs/:id/workspaces [ORGANIZATION/ORGANIZATION_SCOPED]",
+        "PATCH /v1/orgs/:id [ORGANIZATION/ORGANIZATION_SCOPED]",
+        "POST /v1/orgs/:id/closure [ORGANIZATION/ORGANIZATION_SCOPED]",
+        "POST /v1/orgs/:id/closure/:requestId/cancel [ORGANIZATION/ORGANIZATION_SCOPED]",
+        "POST /v1/orgs/:id/leave [WORKSPACE/WORKSPACE_SCOPED]",
+        "POST /v1/orgs/:id/transfer-ownership [ORGANIZATION/ORGANIZATION_SCOPED]"
       ]
     },
     {
@@ -3296,11 +3042,9 @@
       "claimedArea": "ORGANIZATION",
       "backendArea": "ORGANIZATION",
       "backendAreaCounts": {
-        "ORGANIZATION": 47,
-        "WORKSPACE": 13,
-        "PLATFORM": 3
+        "ORGANIZATION": 3
       },
-      "verdict": "AGREES_WITH_SECONDARY_AUTHORITY",
+      "verdict": "AGREES",
       "accounting": "REGISTERED_OWN_ROUTE_ID",
       "inAdminNav": false,
       "adminNavScope": null,
@@ -3311,49 +3055,12 @@
       "fallbackBehavior": "LOAD",
       "surfaceTier": "ENTERPRISE",
       "directAccessPolicy": "allow",
-      "endpointCount": 63,
-      "mutatingEndpointCount": 20,
+      "endpointCount": 3,
+      "mutatingEndpointCount": 0,
       "evidence": [
-        "DELETE /v1/orgs/:id/invites/:inviteId [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "DELETE /v1/orgs/:id/members/:memberId [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "DELETE /v1/orgs/:orgId/domains/:id [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/external-review/grants [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/integrations/health [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/ops/health [PLATFORM/PLATFORM_GLOBAL]",
-        "GET /v1/ops/incidents [PLATFORM/PLATFORM_GLOBAL]",
         "GET /v1/orgs/:id [ORGANIZATION/ORGANIZATION_SCOPED]",
         "GET /v1/orgs/:id [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/audit-events [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/audit-events [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/billing/rollup [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/billing/rollup [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/governance/control-center [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/invites [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/members [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/members [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/policies/retention [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/policies/retention [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/reports/audit.csv [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/reports/audit.csv [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/reports/download-audit.csv [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/reports/download-audit.csv [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/reports/external-access.csv [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/reports/external-access.csv [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/reports/governance.csv [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/reports/governance.csv [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/reports/members.csv [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/reports/members.csv [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/reports/seats.csv [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/reports/seats.csv [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/workspaces [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/workspaces [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:id/workspaces [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:orgId/domains [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/orgs/:orgId/domains [ORGANIZATION/ORGANIZATION_SCOPED]"
+        "GET /v1/orgs/:id/workspaces [ORGANIZATION/ORGANIZATION_SCOPED]"
       ]
     },
     {
@@ -3517,12 +3224,11 @@
       "route": "/organizations/[id]/admin/governance",
       "observedArea": "ORGANIZATION_NAMESPACE",
       "claimedArea": "ORGANIZATION",
-      "backendArea": "WORKSPACE",
+      "backendArea": "ORGANIZATION",
       "backendAreaCounts": {
-        "WORKSPACE": 1,
         "ORGANIZATION": 1
       },
-      "verdict": "MIXED_AUTHORITY",
+      "verdict": "AGREES",
       "accounting": "REGISTERED_OWN_ROUTE_ID",
       "inAdminNav": false,
       "adminNavScope": null,
@@ -3533,10 +3239,9 @@
       "fallbackBehavior": "LOAD",
       "surfaceTier": "ENTERPRISE",
       "directAccessPolicy": "allow",
-      "endpointCount": 2,
+      "endpointCount": 1,
       "mutatingEndpointCount": 0,
       "evidence": [
-        "GET /v1/external-review/grants [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/orgs/:id/governance/control-center [ORGANIZATION/ORGANIZATION_SCOPED]"
       ]
     },
@@ -4031,7 +3736,7 @@
       "claimedArea": "WORKSPACE",
       "backendArea": "ORGANIZATION",
       "backendAreaCounts": {
-        "ORGANIZATION": 24
+        "ORGANIZATION": 4
       },
       "verdict": "DISAGREES",
       "accounting": "REGISTERED_OWN_ROUTE_ID",
@@ -4046,33 +3751,13 @@
       "fallbackBehavior": "REQUEST_ACCESS",
       "surfaceTier": "ENTERPRISE",
       "directAccessPolicy": "notFound",
-      "endpointCount": 24,
-      "mutatingEndpointCount": 16,
+      "endpointCount": 4,
+      "mutatingEndpointCount": 1,
       "evidence": [
-        "DELETE /v1/redaction/policies/:id [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/redaction/policies [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/redaction/policies/:id/audit [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/redaction/policies/:id/versions [ORGANIZATION/ORGANIZATION_SCOPED]",
         "GET /v1/redaction/projects [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/redaction/projects/:id [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "GET /v1/redaction/projects/:id [ORGANIZATION/ORGANIZATION_SCOPED]",
         "GET /v1/redaction/providers/health [ORGANIZATION/ORGANIZATION_SCOPED]",
         "GET /v1/redaction/workspace/summary [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "POST /v1/redaction/derivatives/:id/quarantine [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "POST /v1/redaction/policies [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "POST /v1/redaction/policies/:id/assignments [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "POST /v1/redaction/policies/:id/versions [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "POST /v1/redaction/policy-versions/:id/transition [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "POST /v1/redaction/projects [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "POST /v1/redaction/projects/:id/versions [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "POST /v1/redaction/versions/:id/approve [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "POST /v1/redaction/versions/:id/approve [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "POST /v1/redaction/versions/:id/derivative [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "POST /v1/redaction/versions/:id/derivative [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "POST /v1/redaction/versions/:id/publish [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "POST /v1/redaction/versions/:id/publish [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "POST /v1/redaction/versions/:id/submit [ORGANIZATION/ORGANIZATION_SCOPED]",
-        "POST /v1/redaction/versions/:id/submit [ORGANIZATION/ORGANIZATION_SCOPED]"
+        "POST /v1/redaction/projects [ORGANIZATION/ORGANIZATION_SCOPED]"
       ]
     },
     {
@@ -4178,12 +3863,9 @@
       "route": "/review",
       "observedArea": "WORKSPACE_DASHBOARD",
       "claimedArea": "WORKSPACE",
-      "backendArea": "WORKSPACE",
-      "backendAreaCounts": {
-        "PLATFORM": 5,
-        "WORKSPACE": 20
-      },
-      "verdict": "AGREES_WITH_SECONDARY_AUTHORITY",
+      "backendArea": null,
+      "backendAreaCounts": {},
+      "verdict": "NO_BACKEND_EVIDENCE",
       "accounting": "REGISTERED_OWN_ROUTE_ID",
       "inAdminNav": false,
       "adminNavScope": null,
@@ -4196,35 +3878,9 @@
       "fallbackBehavior": "CREATE_ORG",
       "surfaceTier": "ENTERPRISE",
       "directAccessPolicy": "notFound",
-      "endpointCount": 25,
-      "mutatingEndpointCount": 12,
-      "evidence": [
-        "GET /v1/coding/schemas [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/external-review/invitations [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/external-review/invitations/:id/activity [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/external-review/invitations/:id/delivery [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/review-operations/queue [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/review-operations/queue-counts [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/review/queue [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/reviewer-ops/assignable-reviewers [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/reviewer-ops/assignable-reviewers [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/reviewer-ops/qc/pending-count [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/reviewer-ops/queue [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/reviewer/disagreements [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "GET /v1/reviewer/qc/samples [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "POST /v1/coding/schemas/:id/archive [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]",
-        "POST /v1/external-review/invitations/:id/resend [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/external-review/invitations/:id/reveal-token [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/external-review/invitations/:id/revoke [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/external-review/invitations/:id/revoke [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/external-review/invitations/:id/sessions/revoke [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/external-review/invitations/bulk [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/external-review/invitations/bulk/revoke [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/review-operations/bulk [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/review-operations/evidence/:evidenceId/claim [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/reviewer-ops/queue-intelligence [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/reviewer/qc/samples/:id/assign [PLATFORM/MULTI_TENANT_PLATFORM_ADMIN]"
-      ]
+      "endpointCount": 0,
+      "mutatingEndpointCount": 0,
+      "evidence": []
     },
     {
       "surfaceId": "review.disagreements",
@@ -4645,12 +4301,10 @@
       "claimedArea": "WORKSPACE",
       "backendArea": "WORKSPACE",
       "backendAreaCounts": {
-        "WORKSPACE": 105,
-        "ACCOUNT": 18,
-        "NEUTRAL": 1,
-        "TOKEN_HOLDER": 3
+        "ACCOUNT": 15,
+        "WORKSPACE": 13
       },
-      "verdict": "AGREES_WITH_SECONDARY_AUTHORITY",
+      "verdict": "AGREES",
       "accounting": "REGISTERED_OWN_ROUTE_ID",
       "inAdminNav": false,
       "adminNavScope": null,
@@ -4663,49 +4317,37 @@
       "fallbackBehavior": "REQUEST_ACCESS",
       "surfaceTier": "ENTERPRISE",
       "directAccessPolicy": "notFound",
-      "endpointCount": 127,
-      "mutatingEndpointCount": 71,
+      "endpointCount": 28,
+      "mutatingEndpointCount": 15,
       "evidence": [
-        "DELETE /v1/auth/saml/:connectionId/certificate-next [WORKSPACE/WORKSPACE_SCOPED]",
-        "DELETE /v1/identity/capabilities/:id [WORKSPACE/WORKSPACE_SCOPED]",
-        "DELETE /v1/identity/delegated-admin/:id [WORKSPACE/WORKSPACE_SCOPED]",
-        "DELETE /v1/identity/external-mappings/:id [WORKSPACE/WORKSPACE_SCOPED]",
         "DELETE /v1/identity/links/:id [NONE/GLOBAL_USER_SELF]",
         "DELETE /v1/identity/mfa/factors/:id [WORKSPACE/WORKSPACE_SCOPED]",
         "DELETE /v1/identity/mfa/factors/:id [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/admin/identity/permission-matrix [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/admin/identity/providers [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/admin/identity/providers [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/admin/identity/providers [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/admin/identity/providers [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/admin/identity/providers [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/admin/identity/quarantined-sessions [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/admin/identity/quarantined-sessions [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/admin/identity/role-matrix [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/admin/identity/scim/managed-membership [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/admin/identity/scim/tokens [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/admin/identity/sessions [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/admin/identity/sessions [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/admin/identity/timeline [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/auth/sso/readiness [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/capture/devices [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/identity-security/devices [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/identity-security/devices [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/identity-security/devices [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/identity-security/mfa-policy [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/identity-security/my-sessions [NONE/GLOBAL_USER_SELF]",
         "GET /v1/identity-security/risk/me [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/identity-security/risk/user/:id [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/identity-security/security-events [NONE/GLOBAL_USER_SELF]",
-        "GET /v1/identity-security/session-policy-impact [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/identity-security/sessions [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/identity-security/sessions [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/identity/access-reviews [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/identity/external-mappings [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/identity/links [NONE/GLOBAL_USER_SELF]",
-        "GET /v1/identity/members [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/identity/members [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/identity/members [WORKSPACE/WORKSPACE_SCOPED]"
+        "GET /v1/identity/mfa-admin/recovery-requests/:teamId [WORKSPACE/WORKSPACE_SCOPED]",
+        "GET /v1/identity/mfa/factors [NONE/GLOBAL_USER_SELF]",
+        "GET /v1/identity/mfa/factors [NONE/GLOBAL_USER_SELF]",
+        "POST /v1/capture/devices/:id/revoke [WORKSPACE/WORKSPACE_SCOPED]",
+        "POST /v1/identity-security/devices/:id/revoke [WORKSPACE/WORKSPACE_SCOPED]",
+        "POST /v1/identity-security/my-sessions/:id/revoke [NONE/GLOBAL_USER_SELF]",
+        "POST /v1/identity-security/my-sessions/revoke-others [NONE/GLOBAL_USER_SELF]",
+        "POST /v1/identity-security/password [NONE/GLOBAL_USER_SELF]",
+        "POST /v1/identity-security/sessions/revoke-all [WORKSPACE/WORKSPACE_SCOPED]",
+        "POST /v1/identity/links/apple [NONE/GLOBAL_USER_SELF]",
+        "POST /v1/identity/links/google [NONE/GLOBAL_USER_SELF]",
+        "POST /v1/identity/mfa/enroll/start [NONE/GLOBAL_USER_SELF]",
+        "POST /v1/identity/mfa/enroll/verify [NONE/GLOBAL_USER_SELF]",
+        "POST /v1/identity/mfa/recovery-codes/regenerate [NONE/GLOBAL_USER_SELF]",
+        "POST /v1/identity/password [NONE/GLOBAL_USER_SELF]"
       ]
     },
     {
@@ -4715,8 +4357,8 @@
       "claimedArea": "WORKSPACE",
       "backendArea": "WORKSPACE",
       "backendAreaCounts": {
-        "WORKSPACE": 52,
-        "TOKEN_HOLDER": 3
+        "WORKSPACE": 17,
+        "TOKEN_HOLDER": 2
       },
       "verdict": "AGREES_WITH_SECONDARY_AUTHORITY",
       "accounting": "REGISTERED_OWN_ROUTE_ID",
@@ -4731,49 +4373,28 @@
       "fallbackBehavior": "REQUEST_ACCESS",
       "surfaceTier": "ENTERPRISE",
       "directAccessPolicy": "notFound",
-      "endpointCount": 55,
-      "mutatingEndpointCount": 35,
+      "endpointCount": 19,
+      "mutatingEndpointCount": 16,
       "evidence": [
         "DELETE /v1/identity/capabilities/:id [WORKSPACE/WORKSPACE_SCOPED]",
         "DELETE /v1/identity/delegated-admin/:id [WORKSPACE/WORKSPACE_SCOPED]",
         "DELETE /v1/identity/external-mappings/:id [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/admin/identity/permission-matrix [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/admin/identity/quarantined-sessions [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/admin/identity/quarantined-sessions [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/admin/identity/role-matrix [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/admin/identity/scim/managed-membership [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/admin/identity/scim/tokens [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/admin/identity/sessions [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/admin/identity/sessions [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/admin/identity/timeline [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/identity-security/devices [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/identity-security/risk/user/:id [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/identity-security/session-policy-impact [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/identity/access-reviews [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/identity/external-mappings [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/identity/members [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/identity/members [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/identity/service-accounts [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/identity/sessions/:sessionId/timeline [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/scim/reconciliation/preview [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/scim/sync-failures [WORKSPACE/WORKSPACE_SCOPED]",
         "PATCH /v1/identity/service-accounts/:id/hardening [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/admin/identity/elevations [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/admin/identity/emergency-revoke [WORKSPACE/WORKSPACE_SCOPED]",
         "POST /v1/admin/identity/runtime/reconcile [TOKEN_BOUND/MACHINE_SCOPED]",
-        "POST /v1/admin/identity/scim/tokens [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/admin/identity/scim/tokens/:id/revoke [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/admin/identity/scim/tokens/:id/rotate [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/admin/identity/sessions/:id/quarantine [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/admin/identity/sessions/:id/quarantine [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/admin/identity/sessions/:id/release [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/admin/identity/sessions/:id/release [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/admin/identity/sessions/:id/revoke [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/admin/identity/sessions/:id/score [WORKSPACE/WORKSPACE_SCOPED]",
         "POST /v1/admin/identity/sessions/reconcile-stale [TOKEN_BOUND/MACHINE_SCOPED]",
-        "POST /v1/admin/identity/sessions/user/:userId/revoke-all [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/identity-security/devices/:id/revoke [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/identity-security/devices/trust [WORKSPACE/WORKSPACE_SCOPED]"
+        "POST /v1/identity/contributor-sessions/:id/revoke [WORKSPACE/WORKSPACE_SCOPED]",
+        "POST /v1/identity/external-mappings [WORKSPACE/WORKSPACE_SCOPED]",
+        "POST /v1/identity/members/:id/capabilities [WORKSPACE/WORKSPACE_SCOPED]",
+        "POST /v1/identity/members/:id/delegated-admin [WORKSPACE/WORKSPACE_SCOPED]",
+        "POST /v1/identity/members/:id/restore [WORKSPACE/WORKSPACE_SCOPED]",
+        "POST /v1/identity/members/:id/revoke [WORKSPACE/WORKSPACE_SCOPED]",
+        "POST /v1/identity/members/:id/role [WORKSPACE/WORKSPACE_SCOPED]",
+        "POST /v1/identity/members/:id/suspend [WORKSPACE/WORKSPACE_SCOPED]",
+        "POST /v1/identity/service-accounts/:id/disable [WORKSPACE/WORKSPACE_SCOPED]",
+        "POST /v1/identity/service-accounts/:id/enable [WORKSPACE/WORKSPACE_SCOPED]"
       ]
     },
     {
@@ -5064,8 +4685,7 @@
       "claimedArea": "WORKSPACE",
       "backendArea": "WORKSPACE",
       "backendAreaCounts": {
-        "WORKSPACE": 17,
-        "NEUTRAL": 1
+        "WORKSPACE": 12
       },
       "verdict": "AGREES",
       "accounting": "REGISTERED_OWN_ROUTE_ID",
@@ -5080,27 +4700,21 @@
       "fallbackBehavior": "REQUEST_ACCESS",
       "surfaceTier": "ENTERPRISE",
       "directAccessPolicy": "notFound",
-      "endpointCount": 18,
-      "mutatingEndpointCount": 9,
+      "endpointCount": 12,
+      "mutatingEndpointCount": 7,
       "evidence": [
         "DELETE /v1/auth/saml/:connectionId/certificate-next [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/admin/identity/providers [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/admin/identity/providers [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/admin/identity/providers [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/admin/identity/providers [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/admin/identity/providers [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/auth/sso/readiness [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/saml/mapping/current [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/saml/mapping/schema [NONE/NO_DATA_ACCESS]",
-        "GET /v1/sso/health [WORKSPACE/WORKSPACE_SCOPED]",
         "POST /v1/admin/identity/providers [WORKSPACE/WORKSPACE_SCOPED]",
         "POST /v1/admin/identity/providers/:id/policy [WORKSPACE/WORKSPACE_SCOPED]",
         "POST /v1/admin/identity/providers/:id/transition [WORKSPACE/WORKSPACE_SCOPED]",
         "POST /v1/auth/saml/:connectionId/ingest-metadata [WORKSPACE/WORKSPACE_SCOPED]",
         "POST /v1/auth/saml/:connectionId/test-connection [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/saml/mapping/preview [WORKSPACE/WORKSPACE_SCOPED]",
-        "PUT /v1/auth/saml/:connectionId/certificate-next [WORKSPACE/WORKSPACE_SCOPED]",
-        "PUT /v1/saml/mapping [WORKSPACE/WORKSPACE_SCOPED]"
+        "PUT /v1/auth/saml/:connectionId/certificate-next [WORKSPACE/WORKSPACE_SCOPED]"
       ]
     },
     {
@@ -5172,7 +4786,7 @@
       "backendArea": "WORKSPACE",
       "backendAreaCounts": {
         "ORGANIZATION": 2,
-        "WORKSPACE": 22,
+        "WORKSPACE": 9,
         "ACCOUNT": 10,
         "NEUTRAL": 1
       },
@@ -5189,19 +4803,14 @@
       "fallbackBehavior": "LOAD",
       "surfaceTier": "CORE",
       "directAccessPolicy": "allow",
-      "endpointCount": 35,
-      "mutatingEndpointCount": 16,
+      "endpointCount": 22,
+      "mutatingEndpointCount": 8,
       "evidence": [
         "GET /v1/billing/accounts [ORGANIZATION/ORGANIZATION_SCOPED]",
         "GET /v1/billing/accounts/:type/:id [ORGANIZATION/ORGANIZATION_SCOPED]",
         "GET /v1/identity/account-closure [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/identity/data-export [NONE/GLOBAL_USER_SELF]",
-        "GET /v1/notifications/deliveries [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/platform/rbac/matrix [NONE/NO_DATA_ACCESS]",
-        "GET /v1/reviewer-criteria [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/reviewer-criteria/:setId [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/reviewer-criteria/:setId [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/reviewer-criteria/:setId/usage [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/teams/:id [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/teams/:id [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/teams/:id [WORKSPACE/WORKSPACE_SCOPED]",
@@ -5211,20 +4820,12 @@
         "GET /v1/users/cookie-consent/latest [NONE/GLOBAL_USER_SELF]",
         "GET /v1/users/legal-acceptance [NONE/GLOBAL_USER_SELF]",
         "GET /v1/users/legal-status [NONE/GLOBAL_USER_SELF]",
-        "PATCH /v1/reviewer-criteria/:setId/draft [WORKSPACE/WORKSPACE_SCOPED]",
-        "PATCH /v1/reviewer-criteria/:setId/draft [WORKSPACE/WORKSPACE_SCOPED]",
         "PATCH /v1/users/me [NONE/GLOBAL_USER_SELF]",
         "PATCH /v1/users/me [NONE/GLOBAL_USER_SELF]",
         "POST /v1/identity/account-closure [WORKSPACE/WORKSPACE_SCOPED]",
         "POST /v1/identity/account-closure/:id/cancel [NONE/GLOBAL_USER_SELF]",
         "POST /v1/identity/data-export [NONE/GLOBAL_USER_SELF]",
         "POST /v1/identity/data-export/:id/download [NONE/GLOBAL_USER_SELF]",
-        "POST /v1/notifications/deliveries/:id/resend [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/reviewer-criteria [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/reviewer-criteria/:setId/duplicate [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/reviewer-criteria/:setId/duplicate [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/reviewer-criteria/:setId/publish [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/reviewer-criteria/:setId/retire [WORKSPACE/WORKSPACE_SCOPED]",
         "POST /v1/users/legal-acceptance [NONE/GLOBAL_USER_SELF]",
         "PUT /v1/teams/ai-policy [WORKSPACE/WORKSPACE_SCOPED]"
       ]
@@ -5427,10 +5028,9 @@
       "claimedArea": "WORKSPACE",
       "backendArea": "WORKSPACE",
       "backendAreaCounts": {
-        "WORKSPACE": 6,
-        "PLATFORM": 1
+        "WORKSPACE": 4
       },
-      "verdict": "AGREES_WITH_SECONDARY_AUTHORITY",
+      "verdict": "AGREES",
       "accounting": "REGISTERED_OWN_ROUTE_ID",
       "inAdminNav": false,
       "adminNavScope": null,
@@ -5441,16 +5041,13 @@
       "fallbackBehavior": "LOAD",
       "surfaceTier": "CORE",
       "directAccessPolicy": "allow",
-      "endpointCount": 7,
-      "mutatingEndpointCount": 1,
+      "endpointCount": 4,
+      "mutatingEndpointCount": 0,
       "evidence": [
         "GET /v1/trust/articles [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/trust/articles/:id/versions [WORKSPACE/WORKSPACE_SCOPED]",
         "GET /v1/trust/articles/:kind/:slug [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/trust/status [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/trust/subprocessors [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/trust/subprocessors/:id/versions [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/trust/subprocessors/seed [PLATFORM/PLATFORM_GLOBAL]"
+        "GET /v1/trust/subprocessors/:id/versions [WORKSPACE/WORKSPACE_SCOPED]"
       ]
     },
     {
@@ -5580,7 +5177,7 @@
       "claimedArea": "WORKSPACE",
       "backendArea": "WORKSPACE",
       "backendAreaCounts": {
-        "WORKSPACE": 7
+        "WORKSPACE": 1
       },
       "verdict": "AGREES",
       "accounting": "REGISTERED_OWN_ROUTE_ID",
@@ -5595,16 +5192,10 @@
       "fallbackBehavior": "REQUEST_ACCESS",
       "surfaceTier": "ENTERPRISE",
       "directAccessPolicy": "notFound",
-      "endpointCount": 7,
-      "mutatingEndpointCount": 3,
+      "endpointCount": 1,
+      "mutatingEndpointCount": 0,
       "evidence": [
-        "GET /v1/workflows/instances/:id [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/workflows/instances/:id/export-policy [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/workflows/instances/:id/timeline [WORKSPACE/WORKSPACE_SCOPED]",
-        "GET /v1/workflows/templates [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/workflows/instances/:id/steps/:stepKey/waive [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/workflows/instances/:id/steps/:stepKey/waive [WORKSPACE/WORKSPACE_SCOPED]",
-        "POST /v1/workflows/instances/:id/steps/:stepKey/waive [WORKSPACE/WORKSPACE_SCOPED]"
+        "GET /v1/workflows/templates [WORKSPACE/WORKSPACE_SCOPED]"
       ]
     },
     {

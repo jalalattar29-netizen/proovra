@@ -1,0 +1,622 @@
+{
+  "artifact": "ui-truth/data-elements-summary",
+  "schemaVersion": 1,
+  "note": "Totals for audit/ui-truth/data/data-elements.json.",
+  "totals": {
+    "surfaces": 168,
+    "dataElements": 3003,
+    "distinctFiles": 301,
+    "endpointResolved": 747,
+    "endpointUnresolved": 2256,
+    "byElementKind": {
+      "COUNT_OR_TOTAL": 592,
+      "METRIC_CARD": 311,
+      "STATUS_BADGE": 639,
+      "TABLE_COLUMN": 1461
+    },
+    "byAudience": {
+      "EXTERNAL_PORTAL": 13,
+      "PLATFORM_OPERATOR": 644,
+      "TENANT_USER": 2346
+    },
+    "byArea": {
+      "EXTERNAL_PORTAL": 13,
+      "GOVERNANCE": 252,
+      "ORGANIZATION_NAMESPACE": 197,
+      "PLATFORM_ADMIN_NAMESPACE": 644,
+      "SECURITY_CENTER": 293,
+      "SETTINGS": 70,
+      "WORKSPACE_DASHBOARD": 1534
+    },
+    "byEndpointTenantType": {
+      "NONE": 3,
+      "ORGANIZATION": 36,
+      "PLATFORM": 414,
+      "UNRESOLVED": 2256,
+      "WORKSPACE": 294
+    },
+    "hazards": 248,
+    "hazardsByType": {
+      "CACHED_VALUE_PRESENTED_AS_LIVE": 20,
+      "COUNT_BESIDE_AN_UNDISCLOSED_CAP": 49,
+      "FAILED_READ_COERCED_TO_ZERO_OR_EMPTY": 153,
+      "SCOPE_LABEL_CONTRADICTS_ENDPOINT_SCOPE": 8,
+      "SUCCESS_WORDING_REACHABLE_ON_A_FAILED_READ": 18
+    }
+  },
+  "canonicalStates": [
+    "LOADING",
+    "REFRESHING",
+    "VALUE",
+    "MEASURED_ZERO",
+    "EMPTY",
+    "FILTERED_EMPTY",
+    "NOT_MEASURED",
+    "PARTIAL",
+    "TRUNCATED",
+    "STALE",
+    "ERROR",
+    "DENIED",
+    "PLAN_GATED",
+    "UNAVAILABLE",
+    "BUSY",
+    "DONE",
+    "ACTION_FAILED",
+    "STEP_UP_REQUIRED",
+    "BLOCKED"
+  ],
+  "elementsWhoseSourceDistinguishesState": {
+    "LOADING": 2607,
+    "REFRESHING": 1917,
+    "VALUE": 2978,
+    "MEASURED_ZERO": 2173,
+    "EMPTY": 2353,
+    "FILTERED_EMPTY": 347,
+    "NOT_MEASURED": 340,
+    "PARTIAL": 1076,
+    "TRUNCATED": 1693,
+    "STALE": 1392,
+    "ERROR": 2200,
+    "DENIED": 1162,
+    "PLAN_GATED": 178,
+    "UNAVAILABLE": 1325,
+    "BUSY": 2226,
+    "DONE": 1049,
+    "ACTION_FAILED": 912,
+    "STEP_UP_REQUIRED": 876,
+    "BLOCKED": 1974
+  },
+  "topFilesByDataElements": [
+    {
+      "file": "apps/web/components/ui/DataTable.tsx",
+      "dataElements": 176
+    },
+    {
+      "file": "apps/web/components/command-center/CommandCenter.tsx",
+      "dataElements": 78
+    },
+    {
+      "file": "apps/web/components/admin/AdminSurfaces.tsx",
+      "dataElements": 75
+    },
+    {
+      "file": "apps/web/components/cases-experience/MatterWorkspace.tsx",
+      "dataElements": 57
+    },
+    {
+      "file": "apps/web/app/(app)/review/external/page.tsx",
+      "dataElements": 48
+    },
+    {
+      "file": "apps/web/app/(app)/reviewer-ops/sla/page.tsx",
+      "dataElements": 40
+    },
+    {
+      "file": "apps/web/components/operational/WorkloadHeatTile.tsx",
+      "dataElements": 40
+    },
+    {
+      "file": "apps/web/components/reviewer-experience/ReviewerConsole.tsx",
+      "dataElements": 40
+    },
+    {
+      "file": "apps/web/app/(app)/executive/page.tsx",
+      "dataElements": 35
+    },
+    {
+      "file": "apps/web/app/(app)/admin/customers/[id]/page.tsx",
+      "dataElements": 32
+    },
+    {
+      "file": "apps/web/app/(app)/cases/components/SiuPanel.tsx",
+      "dataElements": 30
+    },
+    {
+      "file": "apps/web/app/(app)/admin/billing/page.tsx",
+      "dataElements": 27
+    },
+    {
+      "file": "apps/web/app/(app)/admin/page.tsx",
+      "dataElements": 27
+    },
+    {
+      "file": "apps/web/app/(app)/admin/users/[id]/page.tsx",
+      "dataElements": 27
+    },
+    {
+      "file": "apps/web/app/(app)/governance-platform/page.tsx",
+      "dataElements": 27
+    },
+    {
+      "file": "apps/web/app/(app)/intelligence-quality/page.tsx",
+      "dataElements": 27
+    },
+    {
+      "file": "apps/web/app/(app)/cases/components/SiuWorklistPanel.tsx",
+      "dataElements": 26
+    },
+    {
+      "file": "apps/web/app/(app)/inbox/page.tsx",
+      "dataElements": 26
+    },
+    {
+      "file": "apps/web/app/(app)/security-center/identity/scim/page.tsx",
+      "dataElements": 26
+    },
+    {
+      "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
+      "dataElements": 24
+    },
+    {
+      "file": "apps/web/components/governance-experience/GovernanceControlPlane.tsx",
+      "dataElements": 24
+    },
+    {
+      "file": "apps/web/app/(app)/admin/platform/exports/page.tsx",
+      "dataElements": 23
+    },
+    {
+      "file": "apps/web/app/(app)/admin/platform/readiness/page.tsx",
+      "dataElements": 23
+    },
+    {
+      "file": "apps/web/app/(app)/admin/dashboard/page.tsx",
+      "dataElements": 22
+    },
+    {
+      "file": "apps/web/app/(app)/governance/destruction/page.tsx",
+      "dataElements": 22
+    }
+  ],
+  "topFilesByUnresolvedEndpoint": [
+    {
+      "file": "apps/web/components/ui/DataTable.tsx",
+      "unresolved": 102
+    },
+    {
+      "file": "apps/web/components/command-center/CommandCenter.tsx",
+      "unresolved": 78
+    },
+    {
+      "file": "apps/web/components/cases-experience/MatterWorkspace.tsx",
+      "unresolved": 57
+    },
+    {
+      "file": "apps/web/app/(app)/review/external/page.tsx",
+      "unresolved": 48
+    },
+    {
+      "file": "apps/web/components/admin/AdminSurfaces.tsx",
+      "unresolved": 42
+    },
+    {
+      "file": "apps/web/components/reviewer-experience/ReviewerConsole.tsx",
+      "unresolved": 40
+    },
+    {
+      "file": "apps/web/app/(app)/executive/page.tsx",
+      "unresolved": 35
+    },
+    {
+      "file": "apps/web/app/(app)/cases/components/SiuPanel.tsx",
+      "unresolved": 30
+    },
+    {
+      "file": "apps/web/app/(app)/reviewer-ops/sla/page.tsx",
+      "unresolved": 28
+    },
+    {
+      "file": "apps/web/components/operational/WorkloadHeatTile.tsx",
+      "unresolved": 28
+    },
+    {
+      "file": "apps/web/app/(app)/intelligence-quality/page.tsx",
+      "unresolved": 27
+    },
+    {
+      "file": "apps/web/app/(app)/cases/components/SiuWorklistPanel.tsx",
+      "unresolved": 26
+    },
+    {
+      "file": "apps/web/app/(app)/inbox/page.tsx",
+      "unresolved": 26
+    },
+    {
+      "file": "apps/web/app/(app)/security-center/identity/scim/page.tsx",
+      "unresolved": 26
+    },
+    {
+      "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
+      "unresolved": 24
+    },
+    {
+      "file": "apps/web/components/governance-experience/GovernanceControlPlane.tsx",
+      "unresolved": 24
+    },
+    {
+      "file": "apps/web/app/(app)/admin/platform/exports/page.tsx",
+      "unresolved": 23
+    },
+    {
+      "file": "apps/web/app/(app)/governance/destruction/page.tsx",
+      "unresolved": 22
+    },
+    {
+      "file": "apps/web/app/(app)/integrations/page.tsx",
+      "unresolved": 22
+    },
+    {
+      "file": "apps/web/app/(app)/admin/audit/page.tsx",
+      "unresolved": 21
+    },
+    {
+      "file": "apps/web/app/(app)/operations/_components/IncidentSurface.tsx",
+      "unresolved": 20
+    },
+    {
+      "file": "apps/web/components/automation/AutomationRuleForm.tsx",
+      "unresolved": 20
+    },
+    {
+      "file": "apps/web/components/cases-experience/CasesIndex.tsx",
+      "unresolved": 20
+    },
+    {
+      "file": "apps/web/components/home-experience/HomeSections.tsx",
+      "unresolved": 20
+    },
+    {
+      "file": "apps/web/app/(app)/admin/support-access/page.tsx",
+      "unresolved": 19
+    }
+  ],
+  "topFilesByHazard": [
+    {
+      "file": "apps/web/app/(app)/review/external/page.tsx",
+      "hazards": 9
+    },
+    {
+      "file": "apps/web/app/(app)/search/page.tsx",
+      "hazards": 5
+    },
+    {
+      "file": "apps/web/app/(app)/teams/[id]/page.tsx",
+      "hazards": 5
+    },
+    {
+      "file": "apps/web/app/(app)/admin/customers/page.tsx",
+      "hazards": 4
+    },
+    {
+      "file": "apps/web/app/(app)/cases/components/SiuPanel.tsx",
+      "hazards": 4
+    },
+    {
+      "file": "apps/web/app/(app)/governance-platform/departments/page.tsx",
+      "hazards": 4
+    },
+    {
+      "file": "apps/web/app/(app)/operations/page.tsx",
+      "hazards": 4
+    },
+    {
+      "file": "apps/web/app/(app)/review/queues/page.tsx",
+      "hazards": 4
+    },
+    {
+      "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
+      "hazards": 4
+    },
+    {
+      "file": "apps/web/app/(app)/security-center/identity/scim/page.tsx",
+      "hazards": 4
+    },
+    {
+      "file": "apps/web/app/(app)/security-center/page.tsx",
+      "hazards": 4
+    },
+    {
+      "file": "apps/web/app/(app)/admin/billing/page.tsx",
+      "hazards": 3
+    },
+    {
+      "file": "apps/web/app/(app)/admin/users/[id]/page.tsx",
+      "hazards": 3
+    },
+    {
+      "file": "apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx",
+      "hazards": 3
+    },
+    {
+      "file": "apps/web/app/(app)/governance-platform/policies/page.tsx",
+      "hazards": 3
+    },
+    {
+      "file": "apps/web/app/(app)/governance/destruction/page.tsx",
+      "hazards": 3
+    },
+    {
+      "file": "apps/web/app/(app)/governance/retention/page.tsx",
+      "hazards": 3
+    },
+    {
+      "file": "apps/web/app/(app)/integrations/page.tsx",
+      "hazards": 3
+    },
+    {
+      "file": "apps/web/app/(app)/investigation/page.tsx",
+      "hazards": 3
+    },
+    {
+      "file": "apps/web/app/(app)/redaction/page.tsx",
+      "hazards": 3
+    },
+    {
+      "file": "apps/web/app/(app)/redaction/policy/page.tsx",
+      "hazards": 3
+    },
+    {
+      "file": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx",
+      "hazards": 3
+    },
+    {
+      "file": "apps/web/app/(app)/settings/_sections/PrivacySection.tsx",
+      "hazards": 3
+    },
+    {
+      "file": "apps/web/components/intelligence/ProviderBudgetPanel.tsx",
+      "hazards": 3
+    },
+    {
+      "file": "apps/web/app/(app)/admin/alerts/page.tsx",
+      "hazards": 2
+    }
+  ],
+  "hazardsByType": {
+    "CACHED_VALUE_PRESENTED_AS_LIVE": 20,
+    "COUNT_BESIDE_AN_UNDISCLOSED_CAP": 49,
+    "FAILED_READ_COERCED_TO_ZERO_OR_EMPTY": 153,
+    "SCOPE_LABEL_CONTRADICTS_ENDPOINT_SCOPE": 8,
+    "SUCCESS_WORDING_REACHABLE_ON_A_FAILED_READ": 18
+  },
+  "hazardSurfacesByType": {
+    "CACHED_VALUE_PRESENTED_AS_LIVE": [
+      "/admin/alerts",
+      "/admin/billing",
+      "/admin/evidence-ops",
+      "/admin/executive",
+      "/admin/platform/observability",
+      "/capture",
+      "/cases",
+      "/cases/[id]",
+      "/evidence",
+      "/evidence/[id]",
+      "/governance",
+      "/governance/policy",
+      "/home",
+      "/inbox",
+      "/integrations",
+      "/investigation",
+      "/investigation/duplicates",
+      "/investigation/graph",
+      "/investigation/relationships",
+      "/investigation/reviewers",
+      "/investigation/timeline",
+      "/notifications",
+      "/organizations/[id]/admin/governance",
+      "/organizations/[id]/admin/readiness",
+      "/review",
+      "/review/disagreements",
+      "/review/metrics",
+      "/review/qc",
+      "/review/schemas",
+      "/review/workspace",
+      "/reviewer-ops/[reviewId]",
+      "/reviewer-ops/escalations",
+      "/reviewer-ops/sla",
+      "/security-center",
+      "/security-center/identity"
+    ],
+    "COUNT_BESIDE_AN_UNDISCLOSED_CAP": [
+      "/admin/platform/observability",
+      "/admin/users",
+      "/cases",
+      "/cases/[id]",
+      "/evidence-lifecycle",
+      "/evidence-lifecycle/webhooks",
+      "/evidence-requests/[id]",
+      "/evidence/[id]",
+      "/governance",
+      "/governance-platform/access-reviews",
+      "/governance-platform/cross-org",
+      "/governance-platform/delegated-admin",
+      "/governance-platform/departments",
+      "/governance-platform/policies",
+      "/governance/destruction",
+      "/governance/lifecycle",
+      "/governance/policy",
+      "/home",
+      "/intake-links",
+      "/investigation",
+      "/investigation/duplicates",
+      "/investigation/graph",
+      "/investigation/relationships",
+      "/investigation/reviewers",
+      "/investigation/timeline",
+      "/operations",
+      "/organizations/[id]",
+      "/organizations/[id]/admin/governance/external-reviewers",
+      "/organizations/[id]/admin/overview",
+      "/organizations/[id]/admin/readiness",
+      "/organizations/[id]/admin/trust",
+      "/redaction/[projectId]",
+      "/redaction/policy",
+      "/review",
+      "/review/disagreements",
+      "/review/metrics",
+      "/review/operations",
+      "/review/qc",
+      "/review/schemas",
+      "/review/workspace",
+      "/reviewer-ops/[reviewId]",
+      "/reviewer-ops/escalations",
+      "/reviewer-ops/sla",
+      "/security-center",
+      "/security-center/identity",
+      "/security-center/identity/sessions",
+      "/security-center/mfa-recovery",
+      "/security-center/posture",
+      "/security-center/sso/health",
+      "/settings",
+      "/teams/[id]",
+      "/workflows/[id]",
+      "/workspaces"
+    ],
+    "FAILED_READ_COERCED_TO_ZERO_OR_EMPTY": [
+      "/admin",
+      "/admin/adoption",
+      "/admin/alerts",
+      "/admin/billing",
+      "/admin/customers",
+      "/admin/dashboard",
+      "/admin/evidence-ops/records",
+      "/admin/operations",
+      "/admin/platform/media-graph",
+      "/admin/platform/observability",
+      "/admin/search",
+      "/admin/support-access",
+      "/admin/timeline",
+      "/admin/users",
+      "/admin/users/[id]",
+      "/admin/workspaces",
+      "/admin/workspaces/[id]",
+      "/audit-transparency",
+      "/budget-center",
+      "/cases",
+      "/cases/[id]",
+      "/evidence",
+      "/evidence-lifecycle/chain-transfers",
+      "/evidence-lifecycle/destruction",
+      "/evidence-lifecycle/legal-holds",
+      "/evidence-lifecycle/webhooks",
+      "/evidence-requests/[id]",
+      "/evidence/[id]",
+      "/exchange",
+      "/executive",
+      "/governance-platform",
+      "/governance-platform/access-reviews",
+      "/governance-platform/access-reviews/[campaignId]",
+      "/governance-platform/cross-org",
+      "/governance-platform/delegated-admin",
+      "/governance-platform/departments",
+      "/governance-platform/policies",
+      "/governance/destruction",
+      "/governance/policy",
+      "/governance/retention",
+      "/intake-links",
+      "/integrations",
+      "/intelligence",
+      "/intelligence-quality",
+      "/investigation",
+      "/investigation/duplicates",
+      "/operations",
+      "/operations/quotas",
+      "/organizations/[id]",
+      "/organizations/[id]/admin",
+      "/organizations/[id]/admin/audit",
+      "/organizations/[id]/admin/billing",
+      "/organizations/[id]/admin/governance",
+      "/organizations/[id]/admin/governance/external-reviewers",
+      "/organizations/[id]/admin/integrations",
+      "/organizations/[id]/admin/members",
+      "/organizations/[id]/admin/overview",
+      "/organizations/[id]/admin/reports",
+      "/organizations/[id]/admin/retention",
+      "/organizations/[id]/admin/roles",
+      "/packaging",
+      "/redaction",
+      "/redaction/[projectId]",
+      "/redaction/policy",
+      "/reports",
+      "/review/disagreements",
+      "/review/external",
+      "/review/metrics",
+      "/review/qc",
+      "/review/queues",
+      "/review/schemas",
+      "/review/workspace",
+      "/reviewer-ops/[reviewId]",
+      "/reviewer-ops/escalations",
+      "/reviewer-ops/sla",
+      "/search",
+      "/security-center",
+      "/security-center/identity",
+      "/security-center/identity/access-reviews",
+      "/security-center/identity/permission-matrix",
+      "/security-center/identity/scim",
+      "/security-center/identity/timeline",
+      "/security-center/mfa-recovery",
+      "/security-center/sso",
+      "/settings",
+      "/settings/reviewer-criteria",
+      "/teams/[id]",
+      "/trust-center/subprocessors",
+      "/workflows",
+      "/workflows/[id]"
+    ],
+    "SCOPE_LABEL_CONTRADICTS_ENDPOINT_SCOPE": [
+      "/admin/billing",
+      "/admin/customers",
+      "/admin/customers/[id]",
+      "/admin/evidence-ops/records",
+      "/admin/users/[id]",
+      "/admin/workspaces"
+    ],
+    "SUCCESS_WORDING_REACHABLE_ON_A_FAILED_READ": [
+      "/admin",
+      "/admin/customers",
+      "/admin/dashboard",
+      "/admin/operations",
+      "/admin/platform/media-graph",
+      "/admin/platform/observability",
+      "/admin/workspaces/[id]",
+      "/budget-center",
+      "/cases/[id]",
+      "/evidence/[id]",
+      "/governance/policy",
+      "/operations",
+      "/review/disagreements",
+      "/review/metrics",
+      "/review/qc",
+      "/review/schemas",
+      "/review/workspace",
+      "/reviewer-ops/[reviewId]",
+      "/reviewer-ops/escalations",
+      "/reviewer-ops/sla",
+      "/search",
+      "/security-center/identity/scim",
+      "/settings",
+      "/teams/[id]"
+    ]
+  }
+}

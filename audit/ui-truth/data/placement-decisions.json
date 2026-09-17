@@ -1,0 +1,159 @@
+{
+  "artifact": "ui-truth/placement-decisions",
+  "schemaVersion": 1,
+  "note": "Reviewed disposition for every surface whose backend authority disagreed with its filesystem position. A DISAGREES verdict is a QUESTION; this file is the answer, with the evidence that answers it.",
+  "decisionVocabulary": [
+    "CORRECT_AS_IS",
+    "CORRECT_BUT_AUTHORITY_MISLABELLED",
+    "MOVE_RECOMMENDED",
+    "OWNER_DECISION_REQUIRED"
+  ],
+  "decisions": [
+    {
+      "route": "/admin/provisioning",
+      "verdict": "MIXED_AUTHORITY",
+      "decision": "CORRECT_AS_IS",
+      "reason": "A platform operator provisions CUSTOMER organizations, so organization-scoped endpoints are the OBJECT of the administration, not evidence of tenant placement. The page is platform-gated and appears only in the platform admin navigation.",
+      "evidence": [
+        "apps/web/components/admin/adminNavigation.ts — the entry carries scope PLATFORM_AUDIT",
+        "audit/ui-truth/data/access-matrix.json — every non-platform persona resolves PLATFORM_ADMIN_ONLY"
+      ]
+    },
+    {
+      "route": "/billing",
+      "verdict": "DISAGREES",
+      "decision": "CORRECT_AS_IS",
+      "reason": "The commercial subject is the active workspace, and for an organization workspace that subject is the organization. Organization-scoped billing reads on a workspace surface are the documented model, not a placement error.",
+      "evidence": [
+        "packages/shared-billing/src/plan-catalog.ts — PLAN_CAPABILITIES is keyed by the workspace's effective plan",
+        "services/api/src/services/billing/commercial-context.service.ts — resolveCommercialContext resolves the subject from the active workspace"
+      ]
+    },
+    {
+      "route": "/operations",
+      "verdict": "DISAGREES",
+      "decision": "CORRECT_BUT_AUTHORITY_MISLABELLED",
+      "reason": "The page is a tenant surface and the endpoints behave as workspace-anchored at runtime: /v1/ops/incidents refuses a request without teamId and answers 404 for another tenant's workspace in both directions. The capability map labels them PLATFORM/PLATFORM_GLOBAL, which is what produced the disagreement. Placement stands; the label is the defect (UIT-001).",
+      "evidence": [
+        "runtime: GET /v1/ops/incidents without teamId -> 400 INVALID_INPUT; with another tenant's teamId -> 404 not_found (org-owner -> personal workspace, and free-personal -> org workspace)",
+        "audit/ui-truth/data/runtime-authz.json — free/pro personas receive 404 for every /v1/ops read of the fixture organization workspace"
+      ]
+    },
+    {
+      "route": "/operations/reliability",
+      "verdict": "DISAGREES",
+      "decision": "CORRECT_BUT_AUTHORITY_MISLABELLED",
+      "reason": "Same family as /operations: GET /v1/reliability/summary answers 200 for a member of the workspace, 404 for another tenant's workspace, and 403 for a read-only member. The PLATFORM_GLOBAL label does not describe the runtime scope.",
+      "evidence": [
+        "runtime: /v1/reliability/summary own workspace 200, other tenant 404, read-only persona 403",
+        "audit/ui-truth/data/runtime-authz.json"
+      ]
+    },
+    {
+      "route": "/organizations",
+      "verdict": "DISAGREES",
+      "decision": "CORRECT_AS_IS",
+      "reason": "The organization list is assembled from the caller's own workspace memberships, so workspace-scoped reads are the correct source for it.",
+      "evidence": ["audit/ui-truth/data/placement.json — the surface consumes membership reads only"]
+    },
+    {
+      "route": "/organizations/[id]/admin/governance/external-reviewers",
+      "verdict": "DISAGREES",
+      "decision": "CORRECT_AS_IS",
+      "reason": "A read-only organization governance view over external reviewer grants. The page states that issuance, revocation and rotation live on their canonical operator surface, so the single workspace-scoped read is a governance projection rather than a misplaced operator control.",
+      "evidence": [
+        "apps/web/app/(app)/organizations/[id]/admin/governance/external-reviewers/page.tsx:393-406 — \"Canonical surfaces\" panel: \"This governance view is read-only.\""
+      ]
+    },
+    {
+      "route": "/organizations/[id]/admin/readiness",
+      "verdict": "MIXED_AUTHORITY",
+      "decision": "CORRECT_AS_IS",
+      "reason": "An organization readiness view legitimately mixes organization posture with the workspace evidence that produces it; the page is reachable only inside an organization admin route whose gate requires the organization.",
+      "evidence": ["audit/ui-truth/data/access-matrix.json — requiredActiveSpace ORGANIZATION_ONLY"]
+    },
+    {
+      "route": "/organizations/[id]/admin/trust",
+      "verdict": "MIXED_AUTHORITY",
+      "decision": "CORRECT_AS_IS",
+      "reason": "Trust posture for an organization is computed from workspace-level evidence; the ten workspace reads are the inputs to the organization view, not a tenant surface hiding in an organization namespace.",
+      "evidence": ["audit/ui-truth/data/placement.json — reads are evidence/trust projections, no workspace mutation"]
+    },
+    {
+      "route": "/redaction",
+      "verdict": "DISAGREES",
+      "decision": "CORRECT_BUT_AUTHORITY_MISLABELLED",
+      "reason": "The page declares itself workspace-anchored and calls /v1/redaction/workspace/*; the capability map labels those endpoints ORGANIZATION_SCOPED. Placement stands; the tenancy label is inconsistent with the route's own contract (UIT-001).",
+      "evidence": [
+        "apps/web/app/(app)/redaction/page.tsx:6-8,75-76 — \"redaction projects are workspace-anchored; re-scope the whole page on a workspace switch\"",
+        "docs/architecture/current-runtime-capability-map.json — GET /v1/redaction/workspace/summary tenantType ORGANIZATION"
+      ]
+    },
+    {
+      "route": "/redaction/[projectId]",
+      "verdict": "DISAGREES",
+      "decision": "CORRECT_BUT_AUTHORITY_MISLABELLED",
+      "reason": "Detail surface of the same workspace-anchored family; inherits the parent's contract and the same map labelling.",
+      "evidence": ["apps/web/app/(app)/redaction/page.tsx:13 — the detail route is the redaction workspace"]
+    },
+    {
+      "route": "/redaction/policy",
+      "verdict": "DISAGREES",
+      "decision": "CORRECT_BUT_AUTHORITY_MISLABELLED",
+      "reason": "Policy editing for the same workspace-anchored family.",
+      "evidence": ["audit/ui-truth/data/placement.json — all reads are /v1/redaction/*"]
+    },
+    {
+      "route": "/review/disagreements",
+      "verdict": "DISAGREES",
+      "decision": "CORRECT_BUT_AUTHORITY_MISLABELLED",
+      "reason": "Proven at runtime to be workspace-anchored: 200 for the org owner and workspace admin, 403 for another tenant's workspace, 403 for personal-space callers. The route file states the rule explicitly. The map's MULTI_TENANT_PLATFORM_ADMIN label is wrong (UIT-001).",
+      "evidence": [
+        "services/api/src/routes/reviewer-workspace.routes.ts:26-27 — \"Every route is workspace-anchored. Personal-space callers receive a bounded 403\"",
+        "runtime: GET /v1/reviewer/disagreements own workspace 200, other tenant 403, free/pro personal 403"
+      ]
+    },
+    {
+      "route": "/review/qc",
+      "verdict": "MIXED_AUTHORITY",
+      "decision": "CORRECT_BUT_AUTHORITY_MISLABELLED",
+      "reason": "Same route file and same runtime behaviour as /review/disagreements.",
+      "evidence": ["runtime: GET /v1/reviewer/qc/samples own workspace 200, other tenant 403"]
+    },
+    {
+      "route": "/review/schemas",
+      "verdict": "DISAGREES",
+      "decision": "CORRECT_BUT_AUTHORITY_MISLABELLED",
+      "reason": "GET /v1/coding/schemas answers 200 for tenant admins and 403 for another tenant's workspace, so the coding schema library is workspace-anchored despite the platform label.",
+      "evidence": ["runtime: GET /v1/coding/schemas own workspace 200, other tenant 403, read-only member 403"]
+    },
+    {
+      "route": "/settings",
+      "verdict": "MIXED_AUTHORITY",
+      "decision": "CORRECT_AS_IS",
+      "reason": "Settings is deliberately one shell over account, workspace and organization panes, resolved by the canonical settings navigation model. Mixed tenancy is the design, and each pane names its own scope.",
+      "evidence": ["apps/web/lib/settings/settingsNavigation.ts — resolveSettingsNavigation composes account and workspace panes"]
+    },
+    {
+      "route": "/settings/notifications/deliveries",
+      "verdict": "DISAGREES",
+      "decision": "MOVE_RECOMMENDED",
+      "reason": "A delivery log for the active workspace's notifications sits under the ACCOUNT settings namespace. Nothing on the path says which workspace's deliveries are listed, and the two reads are workspace-scoped, so the page changes meaning on a workspace switch while its URL does not.",
+      "evidence": [
+        "audit/ui-truth/data/placement.json — both endpoints are WORKSPACE tenancy",
+        "apps/web/lib/navigation/routeRegistry.ts — the route's domain is ACCOUNT"
+      ],
+      "recommendation": "Either move it under the workspace notification settings, or state the active workspace in the page header and re-scope on switch."
+    },
+    {
+      "route": "/settings/reviewer-criteria",
+      "verdict": "DISAGREES",
+      "decision": "MOVE_RECOMMENDED",
+      "reason": "Eleven workspace-scoped reads and writes for reviewer criteria live under ACCOUNT settings. The criteria belong to the workspace, not to the signed-in person, so an operator editing them from the account namespace cannot tell whose criteria they are changing.",
+      "evidence": [
+        "audit/ui-truth/data/placement.json — 11 WORKSPACE-tenancy endpoints on an ACCOUNT-domain route"
+      ],
+      "recommendation": "Move under the workspace review settings, or make the active workspace explicit in the header and on every write confirmation."
+    }
+  ]
+}
