@@ -91,23 +91,40 @@ const BROWSER_ONLY = ARGS.has("--browser-only");
  * a runner that quietly ignored the operator's port would connect somewhere
  * they did not intend and blame the resulting failure on the product.
  */
-function resolveRedisHostPort() {
-  const raw = process.env.P7_HOST_REDIS_PORT;
-  if (raw === undefined || raw.trim() === "") return 56379;
+function resolveHostPort(variable, fallback) {
+  const raw = process.env[variable];
+  if (raw === undefined || raw.trim() === "") return fallback;
 
   const parsed = Number(raw);
   if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
     throw new Error(
-      `P7_HOST_REDIS_PORT must be a whole TCP port between 1 and 65535; received ${JSON.stringify(raw)}`,
+      `${variable} must be a whole TCP port between 1 and 65535; received ${JSON.stringify(raw)}`,
     );
   }
   return parsed;
 }
 
+function resolveRedisHostPort() {
+  return resolveHostPort("P7_HOST_REDIS_PORT", 56379);
+}
+
+/**
+ * The PostgreSQL host port, selectable for the same reason as Redis: another
+ * session or project may already own 55432 on a shared machine, and taking a
+ * port someone else is using is not an option. The container is still
+ * addressed by name (`p12-pg`), so only the published port moves.
+ */
+function resolvePgHostPort() {
+  return resolveHostPort("P7_HOST_PG_PORT", 55432);
+}
+
 const STACK = {
-  pgHostPort: 55432,
+  pgHostPort: resolvePgHostPort(),
   redisHostPort: resolveRedisHostPort(),
-  s3Endpoint: "http://127.0.0.1:59000",
+  s3HostPort: resolveHostPort("P7_HOST_S3_PORT", 59000),
+  get s3Endpoint() {
+    return `http://127.0.0.1:${this.s3HostPort}`;
+  },
   s3Bucket: "point7-local-bucket",
   apiPort: 8091,
   webPort: 3007,
@@ -264,7 +281,7 @@ async function requireInfrastructure() {
   for (const [port, what] of [
     [STACK.pgHostPort, "disposable PostgreSQL 16 + pgvector (p12-pg)"],
     [STACK.redisHostPort, "disposable Redis (p12-redis)"],
-    [59000, "disposable S3 (p7-minio)"],
+    [STACK.s3HostPort, "disposable S3 (p7-minio)"],
   ]) {
     if (!(await portListening(port))) {
       die(`${what} is not listening on ${port}`);

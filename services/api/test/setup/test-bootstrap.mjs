@@ -36,6 +36,7 @@ import { appendFileSync, mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 
+import { localS3Endpoint } from "./local-s3-endpoint.mjs";
 
 // THE canonical local-host authority. This file, the `--import` outbound
 // guard and the Point-7 closure gate used to keep three copies of the same
@@ -84,6 +85,9 @@ const HARNESS_OWNED = new Set([
   "P7_TEST_DATABASE_URL",
   "P7_GUARD_STACKS",
   "P7_CANARY_LIVE_ENV",
+  // A port number for the loopback object store (it matches the "S3_"
+  // credential fragment by name only; see localS3Endpoint).
+  "P7_HOST_S3_PORT",
   "E2E_AUTH_BYPASS_SECRET",
 ]);
 
@@ -177,7 +181,7 @@ const REQUIRED_CORE = {
  * somewhere less honest.
  */
 const LOCAL_FAKES = {
-  S3_ENDPOINT: "http://127.0.0.1:59000",
+  S3_ENDPOINT: localS3Endpoint(),
   S3_REGION: "auto",
   S3_ACCESS_KEY: "point7-local-minio",
   S3_SECRET_KEY: "point7-local-minio-secret",

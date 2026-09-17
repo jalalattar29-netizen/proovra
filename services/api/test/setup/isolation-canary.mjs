@@ -43,6 +43,7 @@ import {
   SENTINEL_HOSTS,
   withEnvFileFixture,
 } from "./canary-env-fixture.mjs";
+import { localS3Endpoint } from "./local-s3-endpoint.mjs";
 
 const require_ = createRequire(import.meta.url);
 
@@ -292,8 +293,8 @@ for (const [n, title, spec] of [
     const last = (res.stdout ?? "").trim().split("\n").filter((l) => l.startsWith("{")).pop();
     p = JSON.parse(last ?? "{}");
   } catch { /* reported below */ }
-  check(5, "API runtime resolves only disposable infrastructure", p.s3Endpoint === "http://127.0.0.1:59000");
-  check(6, "Worker runtime resolves only disposable infrastructure", p.s3Endpoint === "http://127.0.0.1:59000");
+  check(5, "API runtime resolves only disposable infrastructure", p.s3Endpoint === localS3Endpoint());
+  check(6, "Worker runtime resolves only disposable infrastructure", p.s3Endpoint === localS3Endpoint());
   check(7, "Sentry uses the recording transport", p.transport === "recording" && p.dsn === null);
   check(8, "OTLP is disabled / has no remote endpoint", p.otel === "false" && p.otlpEndpoint === null);
   check(9, "AWS SDK holds no production credential", p.awsKey === null && p.awsSecrets === "false");

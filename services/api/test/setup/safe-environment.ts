@@ -34,6 +34,8 @@ import { resolve } from "node:path";
 
 import { beforeEach } from "vitest";
 
+import { localS3Endpoint } from "./local-s3-endpoint.mjs";
+
 /**
  * Keys whose VALUE is a credential or an endpoint. Matched case-insensitively
  * as substrings, so `STRIPE_SECRET_KEY`, `AWS_SECRET_ACCESS_KEY` and
@@ -172,7 +174,7 @@ export function applySafeTestEnvironment(
   // so anything that does try to upload fails visibly against the disposable
   // MinIO instead of silently succeeding against the production bucket — which
   // is what the first run's startup verifier did with the real credentials.
-  process.env.S3_ENDPOINT = "http://127.0.0.1:59000";
+  process.env.S3_ENDPOINT = localS3Endpoint();
   process.env.S3_REGION = "auto";
   process.env.S3_ACCESS_KEY = "point7-local-minio";
   process.env.S3_SECRET_KEY = "point7-local-minio-secret";
