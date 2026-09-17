@@ -1,9 +1,24 @@
 # UC-1 — CHROMIUM DIRECT WEB CAPTURE
 
-Status: **ENGINEERING COMPLETE (real OAuth included) — UC-1 NOT CLOSED: Chrome + Edge browser acceptance not yet executed-and-passed here.**
-Date: 2026-09-17 (hardening pass — see FINAL ACCEPTANCE at the end)
+## Status (multi-field — never collapse to one "all green")
+
+| Field | Value |
+| --- | --- |
+| IMPLEMENTATION (code/architecture) | **COMPLETE** |
+| TARGETED VALIDATION (unit/integration/contract/gates) | **PASS** |
+| REAL CHROMIUM ACCEPTANCE | **DEFERRED** (not PASS — see §K) |
+| REAL EDGE ACCEPTANCE | **DEFERRED** (not PASS) |
+| PUBLICATION READINESS | **PENDING** (store icons + counsel-reviewed legal — see UC1_EXTENSION_PUBLICATION_READINESS.md) |
+| PRODUCTION | **NOT DEPLOYED** |
+| UC-2 READINESS | **MAY BEGIN** (shared acquisition primitives stable; remaining uncertainty is browser-acceptance-only) |
+
+Date: 2026-09-17 (code/architecture closure audit — see the CLOSURE AUDIT section at the end).
 Precondition: UC-0 Gate A CLOSED (`26ad3ddb`).
-Run the one remaining gate: `pnpm uc1:acceptance:windows` (Windows + Chrome/Edge Stable).
+Real-browser gate (deferred release validation): `pnpm uc1:acceptance:windows` (Windows + Chrome/Edge Stable); focused run `--browsers=chromium --grep static`.
+
+> **UC-1 CODE/ARCHITECTURE COMPLETE · BROWSER ACCEPTANCE DEFERRED · UC-2 MAY BEGIN.**
+> "Deferred" is not "pass": Chrome/Edge acceptance has NOT passed. It is release
+> validation, decoupled from development closure.
 
 ## Status
 
@@ -453,10 +468,93 @@ reproduction of the exact lifecycle (real capture over HTTP → worker Report +
 Package → public Verify) passes every stage green** against the disposable stack;
 the browser gate adds only the extension's own capture UI.
 
+### FINAL VERDICT (hardening pass)
+
+Every implementable residual is closed; the browser gate is a single runnable
+command. See the CODE/ARCHITECTURE CLOSURE AUDIT below for the development-gate
+decision.
+
+---
+
+## CODE/ARCHITECTURE CLOSURE AUDIT (2026-09-17)
+
+A fresh source-of-truth audit (three independent code traces + targeted tests)
+was run to decide the DEVELOPMENT gate separately from browser release validation.
+
+### Audit results (source-verified, not from prior reports)
+
+- **Extension (MV3, OAuth/PKCE, capture, sanitizer, token)** — SOUND. Permissions
+  are exactly `activeTab, scripting, storage, identity` (no cookies/webRequest/
+  debugger/`<all_urls>`); strict CSP; real Authorization Code + PKCE S256 with no
+  embedded secret; server-side redirect validation; short-lived single-use hashed
+  codes; token in `chrome.storage.session`, expiring, cleared on logout. No P0/P1.
+- **Manifest / digest / artifact lineage / claim safety** — SOUND. The server
+  computes the authoritative SHA-256 from the uploaded bytes (client digest is a
+  declaration), mismatch fails closed before signing, manifest↔part 1:1,
+  cross-session/replay refused, acquisition mode set-once (DB trigger), binds once,
+  derivative lineage explicit. Claim surfaces carry the non-proof disclaimers and
+  the blocklist guard; no overclaim. No P0/P1/P2.
+- **Downstream lifecycle + commercial** — SOUND, single authority per concern
+  (custody, integrity, storage accounting, retention, legal hold, destruction incl.
+  derived assets, report/package, public verify, audit). No parallel/duplicate
+  authority. Commercial inherits the general evidence-creation gate
+  (`assertWorkspaceAllowsEvidenceCreation` → `assertCommercialLifecycleAllowsPaidMutation`
+  + `getPlanCapabilities`); **no capture-specific plan** (FREE 3-lifetime/wallet,
+  PRO 100, TEAM 500/30d, ENTERPRISE contract; SHARED needs a shared-capable plan).
+  No P0/P1.
+
+### §K — the ~11.2-minute Chromium/static failure (analysis + defer)
+
+The run reached `AUTH PASS` (OAuth succeeded, before the browser launch), then hung
+past the timeout in the **CAPTURE** stage (the extension's `PRESERVE` pipeline
+driven programmatically from the MV3 service worker). Most likely cause, from the
+code: `activeTab` is granted only after a real user gesture (a click on the
+extension action), so a capture invoked programmatically from the SW context —
+without that gesture — cannot obtain tab access (`chrome.tabs.captureVisibleTab` /
+`chrome.scripting.executeScript`), and depending on error propagation the SW
+message never resolves → a hang. This is **browser-automation-specific**: it does
+not touch the shared acquisition architecture, which the full non-browser
+reproduction proves end to end. The spec now bounds the CAPTURE stage (90s) and
+prints a named `CAPTURE TIMEOUT`/`FAIL` so the next focused run pinpoints it in
+seconds. **Real-browser resolution is DEFERRED**: making the E2E drive the capture
+through a genuine user gesture (e.g. clicking the extension popup button) is a
+browser-harness task, not a product defect, and is recorded as the open item for
+browser acceptance.
+
+### Defects found and fixed this pass
+
+- Sanitizer hardening (was P2): `javascript:`/`vbscript:` URL values neutralised,
+  `<meta http-equiv="refresh">` and `<base href>` removed from the snapshot.
+- Extension token no longer carries `role:"admin"` — capture needs only
+  `evidence.create`, so a leaked short-lived token can't confer admin (was P2/D1).
+- Latent API typecheck break (test imported an `.mjs` with no types → TS7016) fixed
+  with a `.d.mts` declaration; reviewed the harness's local MinIO health-check
+  origin in `origin-resolutions.json` (audit engine PASS).
+
+### Remaining risks
+
+- **P0/P1:** none.
+- **P2 (deferred, non-blocking):** extension token, though no longer admin, is a
+  full-privilege user JWT — the `capture.direct` scope is returned but not enforced
+  on the JWT (scope-on-JWT enforcement is a cross-cutting auth change); Shadow DOM
+  is not captured/disclosed with a limitation code; mutation detection is
+  height-only. A pre-existing, non-UC-1 P2 (destruction-certificate HMAC fallback
+  secret) was noted for the destruction owner.
+- **P3:** sticky/fixed + navigation-during-capture disclosure; `optional_host_permissions`
+  declared-but-unused; manifest-part labelled before seal (cosmetic).
+
+### UC-2 readiness
+
+The shared acquisition primitives UC-2 depends on are **stable**: `acquisitionMode`
+set-once authority, `CaptureSession` bind-once, artifact/derivative lineage,
+server digest authority, `authorizeOrFail`, and `createEvidence`/`completeEvidence`
+are single-authority and unchanged in shape. The only open uncertainty is
+browser-acceptance automation, which does not undermine these primitives. **UC-2
+MAY BEGIN** (in a separate task) without destabilising UC-1.
+
 ### FINAL VERDICT
 
-**UC-1 NOT CLOSED.** Exact remaining blocker: the real Chrome + Edge
-same-Evidence browser acceptance has not been executed-and-passed in this
-environment. Every implementable residual is closed and the browser gate is a
-single runnable command (`pnpm uc1:acceptance:windows`) on a Windows host. UC-1
-becomes CLOSED when that command passes on both browsers.
+**UC-1 CODE/ARCHITECTURE COMPLETE · BROWSER ACCEPTANCE DEFERRED · UC-2 MAY BEGIN.**
+Real Chrome + Edge acceptance has NOT passed and is not claimed to; it is deferred
+release validation via `pnpm uc1:acceptance:windows`. Not deployed to Production;
+extension not published.

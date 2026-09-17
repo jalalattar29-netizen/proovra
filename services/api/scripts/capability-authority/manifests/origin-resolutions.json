@@ -252,6 +252,13 @@
       "originBinding": "WEB — the Phase-7 visual sweep's target WEB origin, supplied per run (P7_WEB, defaulting to a loopback fixture port)",
       "evidence": "scripts/admin-ledger/visual/rtl-flash.mjs:70 — fetch(`${WEB}${route}`) requests the Next WEB app's own server-rendered HTML to read <html dir/lang> out of the first frame. The origin is the web app, not this API, and the route list is the admin page list; it calls no /v1 route and is not a product consumer. Same shape as scripts/e2e-web-smoke.mjs:7.",
       "reviewedAtUtc": "2026-09-07"
+    },
+    {
+      "site": "scripts/uc1-acceptance-windows.mjs:246",
+      "verdict": "OURS",
+      "originBinding": "config.s3Endpoint — the disposable MinIO the UC-1 acceptance harness itself starts (127.0.0.1, refused if not local)",
+      "evidence": "scripts/uc1-acceptance-windows.mjs:246 — waitForMinioAndBucket() polls `${config.s3Endpoint}/minio/health/ready` to know the disposable object store is up before booting the stack. It is our own local disposable infra (assertLocalDisposable refuses any non-local s3-endpoint), not an external service and not a /v1 route; it calls no product API. Dev acceptance harness only, never production.",
+      "reviewedAtUtc": "2026-09-17"
     }
   ]
 }

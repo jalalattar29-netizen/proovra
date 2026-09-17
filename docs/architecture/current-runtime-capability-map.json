@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "350df28cd1b3592fbce302d87d8037fa4ec1ea078f008fcbdfae86936dbafd59",
   "routeInventoryHash": "f5f6ef6f44acdd63ac694a97ab2499fd0d8668bffb95c7e62c4c2a5b6b6dcfe2",
-  "consumerInventoryHash": "def901a98f1b055be19c8a511b20e57c9e944ac74af189a26551fe72a99f9464",
+  "consumerInventoryHash": "7be8583952954f29fb7a017d9c5bb61b5402ee51a1ebe5bd982b8580dabfd955",
   "dispositionsHash": "9ec3bf4cad46b79b30eef314f16a5217130d24c38564460e697f19d912aae535",
   "totals": {
     "RegisteredRoutes": 1153,
@@ -808,7 +808,7 @@
       "route": "/healthz",
       "registeringFile": "services/api/src/routes/ops.routes.ts",
       "productConsumer": null,
-      "machineConsumer": "scripts/uc1-acceptance-windows.mjs:313",
+      "machineConsumer": "scripts/uc1-acceptance-windows.mjs:512",
       "authorization": "PUBLIC_UNGUARDED",
       "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
@@ -844,7 +844,7 @@
       "route": "/readyz",
       "registeringFile": "services/api/src/routes/ops.routes.ts",
       "productConsumer": null,
-      "machineConsumer": "scripts/uc1-acceptance-windows.mjs:314",
+      "machineConsumer": "scripts/uc1-acceptance-windows.mjs:513",
       "authorization": "PUBLIC_UNGUARDED",
       "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
@@ -87945,7 +87945,7 @@
       "nonProductConsumers": [
         {
           "file": "scripts/uc1-acceptance-windows.mjs",
-          "line": 313,
+          "line": 512,
           "caller": "main",
           "class": "CLI",
           "primitive": "waitForHttp"
@@ -88105,7 +88105,7 @@
       "nonProductConsumers": [
         {
           "file": "scripts/uc1-acceptance-windows.mjs",
-          "line": 314,
+          "line": 513,
           "caller": "main",
           "class": "CLI",
           "primitive": "waitForHttp"

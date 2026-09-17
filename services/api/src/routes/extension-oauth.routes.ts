@@ -93,12 +93,17 @@ export async function extensionOAuthRoutes(app: FastifyInstance) {
         });
         const user = await prisma.user.findUnique({
           where: { id: userId },
-          select: { id: true, provider: true, email: true, platformRole: true },
+          select: { id: true, provider: true, email: true },
         });
         if (!user) return reply.code(400).send({ error: "invalid_grant" });
 
         const secret = getSecret("AUTH_JWT_SECRET");
         if (!secret) return reply.code(500).send({ error: "server_misconfigured" });
+        // The extension token deliberately carries NO elevated role. Direct Web
+        // Capture needs only evidence.create in the chosen workspace (enforced by
+        // authorizeOrFail on every capture call), never platform-admin — so an
+        // admin user's capture token must not confer admin. This bounds the blast
+        // radius of a leaked short-lived extension token.
         const accessToken = signJwt(
           {
             sub: user.id,
@@ -106,7 +111,6 @@ export async function extensionOAuthRoutes(app: FastifyInstance) {
             email: user.email,
             authMethod: "SOCIAL_OAUTH",
             authAt: Math.floor(Date.now() / 1000),
-            ...(user.platformRole === "admin" ? { role: "admin" as const } : {}),
           } as never,
           secret,
           EXTENSION_ACCESS_TOKEN_TTL_SECONDS,
