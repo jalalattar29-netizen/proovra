@@ -75,7 +75,6 @@ import type {
   SystemStateTone,
 } from "../../../components/feedback/ProovraSystemState";
 import { apiFetch, ApiError } from "../../../lib/api";
-import { formatUserDateTime } from "../../../lib/date";
 import { captureException } from "../../../lib/sentry";
 import { useAuth } from "../../providers";
 import {
