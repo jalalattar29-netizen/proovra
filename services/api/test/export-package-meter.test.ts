@@ -17,6 +17,7 @@ import { describe, expect, it, vi } from "vitest";
 
 const repo = path.resolve(__dirname, "../../..");
 const read = (rel: string) => readFileSync(path.resolve(repo, rel), "utf8");
+const METER_WRITER = "packages/shared-runtime/src/billing/export-package-meter.ts";
 
 // Comments are stripped before a pin, so a match proves a CALL and never a
 // mention of one.
@@ -357,13 +358,15 @@ describe("export package meter — READY and metered cannot diverge", () => {
 
     // And the writer no longer discards its own failure — a swallow inside the
     // transaction would commit READY with no meter and rebuild the divergence.
-    const writer = codeOnly(
-      read("services/api/src/services/packaging/entitlement.service.ts"),
-    );
-    const fn = writer.slice(
-      writer.indexOf("export async function recordExportPackageUsage"),
-    );
+    // (D8, 2026-09-17: the writer moved to shared-runtime so the Worker's
+    // package builder can meter through it; the pin follows it there, and the
+    // indexOf is asserted so a move can never make this check vacuous.)
+    const writer = codeOnly(read(METER_WRITER));
+    const at = writer.indexOf("export async function recordExportPackageUsage");
+    expect(at).toBeGreaterThanOrEqual(0);
+    const fn = writer.slice(at);
     const body = fn.slice(0, fn.indexOf("\n}\n") + 3);
+    expect(body).toContain("entitlementUsage.upsert");
     expect(body).not.toContain("catch");
   });
 });
@@ -375,13 +378,33 @@ describe("export package meter — exactly one writer, agreeing with the reader"
 
   it("the gate and the meter derive the period from the same pair", () => {
     // The previous defect class in this repo was a gate and a writer that
-    // disagreed about the key or the window. Both sides resolve through
-    // `classifyPeriod` / `periodStart` in this module.
-    const code = codeOnly(engine);
-    const writer = code.slice(code.indexOf("export async function recordExportPackageUsage"));
-    expect(writer).toContain("periodStart(classifyPeriod(key))");
-    expect(writer).toContain('"QUOTA_EXPORT_PACKAGES_PER_MONTH"');
+    // disagreed about the key or the window.
+    //
+    // D8 (2026-09-17) — the writer and the period clock moved to
+    // shared-runtime together (the Worker meters too and may not import the
+    // API). The reader in entitlement.service now takes its
+    // `classifyPeriod` / `periodStart` FROM that module, so both sides still
+    // resolve through one pair.
+    const writerSrc = codeOnly(read(METER_WRITER));
+    const at = writerSrc.indexOf("export async function recordExportPackageUsage");
+    expect(at).toBeGreaterThanOrEqual(0);
+    const writer = writerSrc.slice(at);
+    expect(writer).toContain(
+      "entitlementPeriodStart(classifyEntitlementPeriod(key))",
+    );
+    expect(writerSrc).toContain('"QUOTA_EXPORT_PACKAGES_PER_MONTH"');
     expect(writer).toContain("entitlementUsage.upsert");
+
+    const reader = codeOnly(engine);
+    expect(reader).toContain("classifyEntitlementPeriod");
+    expect(reader).toContain("entitlementPeriodStart");
+    expect(reader).toContain('from "@proovra/shared-runtime"');
+    // No private copy of the clock is left in the reader's module.
+    expect(reader).not.toMatch(/function classifyPeriod\(/);
+    expect(reader).not.toMatch(/function periodStart\(/);
+    const gate = reader.slice(reader.indexOf("export async function assertQuotaEntitlement"));
+    expect(gate).toContain("classifyPeriod(input.key)");
+    expect(gate).toContain("periodStart(period)");
   });
 
   it("the generic writer retired in the same programme has not come back", () => {
@@ -390,18 +413,33 @@ describe("export package meter — exactly one writer, agreeing with the reader"
     );
   });
 
-  it("exactly one production site writes this meter", () => {
+  it("exactly one completion site per host writes this meter", () => {
+    // D8 (2026-09-17) — a package becomes READY in two places: the API's
+    // `markPackageReady` and the Worker's package builder. The Worker's READY
+    // step used to meter NOTHING, and it is the one every product-created
+    // package goes through. Each completion calls the one shared writer once.
     const hits: string[] = [];
     for (const rel of [
       "services/api/src/services/exchange/evidence-exchange.service.ts",
       "services/api/src/routes/product-and-lifecycle.routes.ts",
+      "services/api/src/services/packaging/entitlement.service.ts",
+      "services/worker/src/exchange-package-builder.ts",
     ]) {
       const calls = codeOnly(read(rel)).split("recordExportPackageUsage(").length - 1;
       if (calls > 0) hits.push(`${rel}:${calls}`);
     }
     expect(hits).toEqual([
       "services/api/src/services/exchange/evidence-exchange.service.ts:1",
+      "services/worker/src/exchange-package-builder.ts:1",
     ]);
+    // The Worker meters inside the transaction that performs its conditional
+    // BUILDING -> READY transition.
+    const worker = codeOnly(read("services/worker/src/exchange-package-builder.ts"));
+    const tx = worker.slice(worker.indexOf("prisma.$transaction"));
+    expect(tx).toContain('state: "BUILDING"');
+    expect(tx.indexOf("tx.evidenceExchangePackage.updateMany")).toBeLessThan(
+      tx.indexOf("recordExportPackageUsage({ prisma: tx"),
+    );
   });
 
   it("the meter is not charged on read, re-send or delivery", () => {

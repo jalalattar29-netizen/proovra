@@ -139,7 +139,14 @@ export async function createRetentionPolicy(
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<RetentionPolicyProjection> {
-  const parsed = RetentionPolicyCreateInputSchema.safeParse(input);
+  // The shared schema is `.strict()` and describes the POLICY fields only.
+  // `actorUserId` and `changeNote` are service inputs, not policy content;
+  // passing them through made every create fail with RETENTION_POLICY_INVALID
+  // ("Unrecognized key: actorUserId").
+  const policyInput: Record<string, unknown> = { ...input };
+  delete policyInput.actorUserId;
+  delete policyInput.changeNote;
+  const parsed = RetentionPolicyCreateInputSchema.safeParse(policyInput);
   if (!parsed.success) {
     throw new RetentionEngineError("RETENTION_POLICY_INVALID", {
       detail: parsed.error.flatten(),
@@ -237,7 +244,11 @@ export async function updateRetentionPolicy(
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<RetentionPolicyProjection> {
-  const parsed = RetentionPolicyUpdateInputSchema.safeParse(input);
+  // Same as create: `actorUserId` is not part of the strict policy schema
+  // (`changeNote` is). Passing it through failed every update.
+  const policyInput: Record<string, unknown> = { ...input };
+  delete policyInput.actorUserId;
+  const parsed = RetentionPolicyUpdateInputSchema.safeParse(policyInput);
   if (!parsed.success) {
     throw new RetentionEngineError("RETENTION_POLICY_INVALID", {
       detail: parsed.error.flatten(),
@@ -295,6 +306,20 @@ export async function updateRetentionPolicy(
   ) {
     diff.displayName = { from: existing.displayName, to: input.displayName };
   }
+  // Description is versioned policy content exactly like displayName: both
+  // are operator-authored text with no column on the version row, recorded in
+  // `diffJson`. It used to be missing here, so a description-only edit hit the
+  // no-op branch below and was silently discarded (200, nothing saved).
+  const nextDescription =
+    input.description === undefined
+      ? undefined
+      : input.description?.slice(0, 2000) ?? null;
+  if (
+    nextDescription !== undefined &&
+    nextDescription !== existing.description
+  ) {
+    diff.description = { from: existing.description, to: nextDescription };
+  }
   if (Object.keys(diff).length === 0) {
     return projectPolicy(existing); // no-op
   }
@@ -304,9 +329,7 @@ export async function updateRetentionPolicy(
     data: {
       displayName: input.displayName?.slice(0, 180) ?? existing.displayName,
       description:
-        input.description === undefined
-          ? existing.description
-          : input.description?.slice(0, 2000) ?? null,
+        nextDescription === undefined ? existing.description : nextDescription,
       retentionDays:
         input.retentionDays === undefined
           ? existing.retentionDays

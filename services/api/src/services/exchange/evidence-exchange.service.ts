@@ -4,7 +4,11 @@
  * Workspace-anchored, append-mostly lifecycle for signed, time-limited
  * evidence exchange packages. State machine:
  *
- *   DRAFT → READY → DELIVERED → (EXPIRED | REVOKED)
+ *   DRAFT → BUILDING → READY → DELIVERED → (EXPIRED | REVOKED)
+ *
+ *   DRAFT → BUILDING is the build REQUEST (`requestExchangePackageBuild`),
+ *   made by `createExchangePackage`. The worker's package builder only picks
+ *   up BUILDING packages, and a failed build returns the package to DRAFT.
  *
  * Hard rules:
  *   * Every entry point is workspace-anchored (teamId).
@@ -25,9 +29,10 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
-// The ONE writer of the export-package monthly meter, kept beside the reader
-// (`assertQuotaEntitlement`) that has to agree with it about key and period.
-import { recordExportPackageUsage } from "../packaging/entitlement.service.js";
+// The ONE writer of the export-package monthly meter. It lives in
+// shared-runtime because the Worker's package builder meters through it too;
+// it shares its period clock with the reader (`assertQuotaEntitlement`).
+import { recordExportPackageUsage } from "@proovra/shared-runtime";
 import { signPackageManifest } from "./signed-delivery.service.js";
 
 // ---------------------------------------------------------------------------
@@ -120,6 +125,14 @@ export async function createExchangePackage(
     .catch(() => {
       // Non-fatal — the worker will upsert the row when it picks up the job.
     });
+  // Creating a package IS the product's build request: the Exchange page has
+  // no separate "build" action, and the worker only builds BUILDING packages.
+  // Without this transition every package stayed DRAFT forever.
+  await requestExchangePackageBuild({
+    prisma,
+    teamId: input.teamId,
+    packageId: row.id,
+  });
   void tryEmitWebhookEvent(
     "PACKAGE_CREATED",
     {
@@ -133,6 +146,30 @@ export async function createExchangePackage(
     { prisma, teamId: input.teamId },
   );
   return { ok: true, packageId: row.id };
+}
+
+// ---------------------------------------------------------------------------
+// requestExchangePackageBuild — DRAFT → BUILDING
+// ---------------------------------------------------------------------------
+
+/**
+ * Hand a DRAFT package to the worker's package builder.
+ *
+ * Conditional on the current state, so a package that is already BUILDING,
+ * READY or later is never pulled back, and two concurrent requests move it
+ * once. Returns `requested: false` when nothing moved.
+ */
+export async function requestExchangePackageBuild(input: {
+  prisma?: PrismaClient;
+  teamId: string;
+  packageId: string;
+}): Promise<{ requested: boolean }> {
+  const prisma = input.prisma ?? defaultPrisma;
+  const moved = await prisma.evidenceExchangePackage.updateMany({
+    where: { id: input.packageId, teamId: input.teamId, state: "DRAFT" },
+    data: { state: "BUILDING" },
+  });
+  return { requested: moved.count === 1 };
 }
 
 // ---------------------------------------------------------------------------
@@ -484,18 +521,25 @@ export type RevokePackageInput = {
   actorUserId: string;
 };
 
+/**
+ * `revoked` is true only for the call that actually moved the package to
+ * REVOKED (conditional on the state it read), so the caller audits a real
+ * change once and a replay as a no-op.
+ */
 export async function revokePackage(
   input: RevokePackageInput,
-): Promise<{ ok: boolean }> {
+): Promise<{ ok: boolean; revoked?: boolean; previousState?: string }> {
   const prisma = input.prisma ?? defaultPrisma;
   const row = await prisma.evidenceExchangePackage.findFirst({
     where: { id: input.packageId, teamId: input.teamId },
     select: { id: true, state: true },
   });
   if (!row) return { ok: false };
-  if (row.state === "REVOKED") return { ok: true };
-  await prisma.evidenceExchangePackage.update({
-    where: { id: row.id },
+  if (row.state === "REVOKED") {
+    return { ok: true, revoked: false, previousState: row.state };
+  }
+  const moved = await prisma.evidenceExchangePackage.updateMany({
+    where: { id: row.id, teamId: input.teamId, state: row.state },
     data: {
       state: "REVOKED",
       revokedAtUtc: new Date(),
@@ -503,7 +547,7 @@ export async function revokePackage(
       signedUrlExpiresAtUtc: null,
     },
   });
-  return { ok: true };
+  return { ok: true, revoked: moved.count === 1, previousState: row.state };
 }
 
 // ---------------------------------------------------------------------------

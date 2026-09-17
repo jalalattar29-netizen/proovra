@@ -1393,13 +1393,25 @@ describe("14. Chain transfer state machine", () => {
 // ===========================================================================
 
 describe("15. Evidence exchange package lifecycle", () => {
-  it("createExchangePackage → DRAFT state", async () => {
+  it("createExchangePackage → DRAFT state, then the build request (DRAFT → BUILDING)", async () => {
+    /*
+     * D8 (2026-09-17) — creation is the product's build request. The row is
+     * still written as DRAFT, and a CONDITIONAL `updateMany` then hands it to
+     * the worker's builder (which only picks up BUILDING packages). Before
+     * this, nothing ever moved a package out of DRAFT, so no package was
+     * ever built; the double gained `updateMany` to follow that call.
+     */
     let storedState: string | undefined;
+    const transitions: Array<{ where: Record<string, unknown>; data: Record<string, unknown> }> = [];
     const prisma = makePrismaStub({
       evidenceExchangePackage: {
         create: async (args: { data: Record<string, unknown>; select: unknown }) => {
           storedState = args.data.state as string;
           return { id: "pkg-1", ...args.data };
+        },
+        updateMany: async (args: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
+          transitions.push(args);
+          return { count: 1 };
         },
         findFirst: async () => null,
         findMany: async () => [],
@@ -1415,6 +1427,12 @@ describe("15. Evidence exchange package lifecycle", () => {
     });
     expect(result.ok).toBe(true);
     expect(storedState).toBe("DRAFT");
+    expect(transitions).toEqual([
+      {
+        where: { id: "pkg-1", teamId: "team-1", state: "DRAFT" },
+        data: { state: "BUILDING" },
+      },
+    ]);
   });
 
   it("markPackageReady → state=READY", async () => {

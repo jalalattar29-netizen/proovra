@@ -129,11 +129,17 @@ export async function cancelWebhookDelivery(
     },
   });
   if (claim.count !== 1) {
+    // Lost the race: another caller (or the dispatcher) moved the row after
+    // our read. This call cancelled nothing, so it answers exactly like a
+    // cancel of an already-moved delivery — never with the winner's
+    // CANCELLED row, which the route would read as "this call cancelled it"
+    // and audit a second time.
     const fresh = await client.integrationWebhookDelivery.findUnique({
       where: { id: delivery.id },
+      select: { id: true },
     });
     if (!fresh) throw new WebhookDeliveryOpError("delivery_not_found");
-    return fresh;
+    throw new WebhookDeliveryOpError("delivery_not_cancellable");
   }
   const updated = await client.integrationWebhookDelivery.findUnique({
     where: { id: delivery.id },

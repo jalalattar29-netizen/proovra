@@ -168,20 +168,29 @@ export type DeactivateWebhookEndpointInput = {
 
 export async function deactivateWebhookEndpoint(
   input: DeactivateWebhookEndpointInput,
-): Promise<{ ok: boolean }> {
+): Promise<{ ok: boolean; deactivated?: boolean; previousState?: string }> {
   const prisma = input.prisma ?? defaultPrisma;
   const existing = await prisma.lifecycleWebhookEndpoint.findFirst({
     where: { id: input.endpointId, teamId: input.teamId },
     select: { id: true, state: true },
   });
   if (!existing) return { ok: false };
-  if (existing.state === "DEACTIVATED") return { ok: true };
+  if (existing.state === "DEACTIVATED") {
+    return { ok: true, deactivated: false, previousState: existing.state };
+  }
 
-  await prisma.lifecycleWebhookEndpoint.update({
-    where: { id: existing.id },
+  // Conditional on the state read above, so only the call that actually
+  // deactivated the endpoint reports `deactivated: true` (and is audited as
+  // a change); a concurrent or replayed call is a no-op.
+  const moved = await prisma.lifecycleWebhookEndpoint.updateMany({
+    where: { id: existing.id, teamId: input.teamId, state: existing.state },
     data: { state: "DEACTIVATED", deactivatedAtUtc: new Date() },
   });
-  return { ok: true };
+  return {
+    ok: true,
+    deactivated: moved.count === 1,
+    previousState: existing.state,
+  };
 }
 
 // -----------------------------------------------------------------------------

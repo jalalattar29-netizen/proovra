@@ -97,6 +97,10 @@ import {
 import { projectLifecycleDashboard } from "../services/lifecycle/lifecycle-dashboard.service.js";
 import { computeLifecycleCapabilityStatus } from "../services/lifecycle/capability-status.service.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
+// The canonical tenant-audit facade. Releasing evidence (signed link,
+// delivery, download authorisation) and withdrawing it (revoke, webhook
+// deactivation) are operator actions and are recorded through it.
+import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import {
   VERIFICATION_PACKAGE_LIFECYCLE_PREVIEW_KINDS,
   buildLifecyclePackagePreview,
@@ -457,6 +461,22 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         ttlSeconds: q.ttlSeconds ?? 3600,
       });
       if (!res.ok) return reply.code(404).send({ denial: res.denial });
+      // A signed link hands out access to the package's evidence. The URL
+      // itself is never recorded — only who minted it, for what, and until when.
+      await emitTenantAudit({
+        action: "exchange.package.signed_url_issued",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: ctx.userId,
+        workspaceId: ctx.teamId,
+        resourceType: "evidence_exchange_package",
+        resourceId: id,
+        capability: "evidence.generate_package",
+        metadata: {
+          expiresAtUtc: res.expiresAtUtc,
+          ttlSeconds: q.ttlSeconds ?? 3600,
+        },
+      });
       return reply.code(200).send({ signedUrl: res.signedUrl, expiresAtUtc: res.expiresAtUtc });
     },
   );
@@ -553,6 +573,25 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         channel: body.channel ?? "SIGNED_URL",
       });
       if (!res.ok) return reply.code(404).send({ denial: "NOT_FOUND" });
+      // Recording a delivery releases the package to an external recipient.
+      // The recipient's address stays on the delivery row (referenced by id);
+      // the append-only trail carries only whether one was named.
+      await emitTenantAudit({
+        action: "exchange.package.delivery_recorded",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: ctx.userId,
+        workspaceId: ctx.teamId,
+        resourceType: "evidence_exchange_package",
+        resourceId: id,
+        capability: "evidence.generate_package",
+        metadata: {
+          deliveryId: res.deliveryId ?? null,
+          channel: body.channel ?? "SIGNED_URL",
+          recipientOrgSlug: body.recipientOrgSlug ?? null,
+          recipientEmailProvided: Boolean(body.recipientEmail),
+        },
+      });
       return reply.code(201).send({ deliveryId: res.deliveryId });
     },
   );
@@ -580,6 +619,16 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         deliveryId: id,
       });
       if (!res.ok) return reply.code(404).send({ denial: "NOT_FOUND" });
+      await emitTenantAudit({
+        action: "exchange.delivery.download_authorized",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: ctx.userId,
+        workspaceId: ctx.teamId,
+        resourceType: "evidence_exchange_delivery",
+        resourceId: id,
+        capability: "evidence.download_package",
+      });
       return reply.code(200).send({ ok: true });
     },
   );
@@ -597,6 +646,20 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         actorUserId: ctx.userId,
       });
       if (!res.ok) return reply.code(404).send({ denial: "NOT_FOUND" });
+      // A replayed revoke changed nothing and is recorded as such.
+      await emitTenantAudit({
+        action: "exchange.package.revoke",
+        outcome: res.revoked ? "success" : "no_op",
+        sourceApp: "API",
+        actorUserId: ctx.userId,
+        workspaceId: ctx.teamId,
+        resourceType: "evidence_exchange_package",
+        resourceId: id,
+        actorAuthority: "ORG_ADMIN",
+        previousState: res.previousState ?? null,
+        requestedState: "REVOKED",
+        resultingState: "REVOKED",
+      });
       return reply.code(200).send({ ok: true });
     },
   );
@@ -849,6 +912,19 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         actorUserId: ctx.userId,
       });
       if (!res.ok) return reply.code(404).send({ denial: "NOT_FOUND" });
+      await emitTenantAudit({
+        action: "integration.lifecycle_webhook.deactivate",
+        outcome: res.deactivated ? "success" : "no_op",
+        sourceApp: "API",
+        actorUserId: ctx.userId,
+        workspaceId: ctx.teamId,
+        resourceType: "lifecycle_webhook_endpoint",
+        resourceId: id,
+        actorAuthority: "ORG_ADMIN",
+        previousState: res.previousState ?? null,
+        requestedState: "DEACTIVATED",
+        resultingState: "DEACTIVATED",
+      });
       return reply.code(200).send({ ok: true });
     },
   );
