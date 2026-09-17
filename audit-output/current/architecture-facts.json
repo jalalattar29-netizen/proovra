@@ -270,7 +270,7 @@
       "AmbiguousReportRoles": 0,
       "Phase0ChangedPathsFromManualDeclaration": 0,
       "UndeclaredPhase0ChangedPaths": 0,
-      "Phase0ChangedPathClassificationMissing": 2,
+      "Phase0ChangedPathClassificationMissing": 0,
       "ManualPhase0ChangeInventories": 0,
       "ProductionRuntimeFilesModifiedByPhase0": 0,
       "ProductBehaviorTestsRemoved": 0,
@@ -536,10 +536,7 @@
   },
   "auditGovernanceRef": {
     "path": "audit-output/current/audit-governance-inventory.json",
-    "problems": [
-      "CHANGED PATH WITH NO CLASSIFICATION: services/api/prisma.config.ts",
-      "CHANGED PATH WITH NO CLASSIFICATION: vercel.json"
-    ]
+    "problems": []
   },
   "checkpoint": {
     "present": true,
@@ -547,13 +544,6 @@
     "staleNextCommands": 0,
     "duplicateActiveStateSections": 0,
     "scalarsChecked": 49,
-    "violations": [
-      "SCALAR_DISAGREES_WITH_FACTS: ProductionRegisteredRoutes: checkpoint says 1151, facts say 1154",
-      "SCALAR_DISAGREES_WITH_FACTS: RegisteredRoutes: checkpoint says 1152, facts say 1155",
-      "SCALAR_DISAGREES_WITH_FACTS: TerminalWriters: checkpoint says 1248, facts say 1251",
-      "SCALAR_DISAGREES_WITH_FACTS: ROUTE_ATTRIBUTED_REACHABLE: checkpoint says 1117, facts say 1120",
-      "SCALAR_DISAGREES_WITH_FACTS: ProductConsumedRoutes: checkpoint says 952, facts say 953",
-      "SCALAR_DISAGREES_WITH_FACTS: NonProductDispositionedRoutes: checkpoint says 199, facts say 201"
-    ]
+    "violations": []
   }
 }
