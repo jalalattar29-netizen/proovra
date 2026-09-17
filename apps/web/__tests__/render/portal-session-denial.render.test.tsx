@@ -86,6 +86,7 @@ beforeEach(() => {
       return json(next("auth", authOk(body.existingSessionId ?? FRESH)));
     }
     if (url === `${API}/v1/portal/dashboard`) return json(next("dashboard", dashboardOk));
+    if (url.endsWith("/comments") && init.method === "POST") return json(next("comment", { status: 201, body: { commentId: "c1" } }));
     if (url.endsWith("/comments")) return json({ status: 200, body: { comments: [] } });
     if (url.endsWith("/view")) return json({ status: 200, body: { ok: true } });
     if (url.endsWith("/decisions")) return json({ status: 200, body: { decisions: [] } });
@@ -164,6 +165,24 @@ describe("D58 portal session denials", () => {
     await waitFor(() => expect(document.querySelector("[data-portal-review-surface]")).toBeTruthy());
     expect(authBodies[authBodies.length - 1].existingSessionId).toBeUndefined();
     expect((document.querySelector("[data-portal-decision-rationale]") as HTMLTextAreaElement).value).toBe("Needs another pass.");
+  });
+
+  it("review page: a comment the server refuses is explained and the draft is kept", async () => {
+    render(<PortalReviewPage params={resolved({ token: "tok", workflowId })} />);
+    await screen.findByText("You have not recorded a decision for this review yet.");
+    const input = screen.getByRole("textbox", { name: "Comment on this review" }) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "Frame 12 is blurred." } });
+    queue.comment = [{ status: 500, body: { denial: "INTERNAL" } }];
+    fireEvent.click(screen.getByRole("button", { name: "Post" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert.hasAttribute("data-portal-comment-error")).toBe(true);
+    expect(alert.textContent).not.toContain("INTERNAL");
+    expect(input.value).toBe("Frame 12 is blurred.");
+
+    // A later successful post clears the explanation and the box.
+    fireEvent.click(screen.getByRole("button", { name: "Post" }));
+    await waitFor(() => expect(document.querySelector("[data-portal-comment-error]")).toBeNull());
+    expect(input.value).toBe("");
   });
 
   it("D58 review page: a session-store outage on load shows copy, not the code", async () => {

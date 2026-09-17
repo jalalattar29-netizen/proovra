@@ -91,6 +91,7 @@ export default function PortalReviewPage({
   const [comments, setComments] = useState<PortalComment[]>([]);
   const [replyDraft, setReplyDraft] = useState<Record<string, string>>({});
   const [rootDraft, setRootDraft] = useState("");
+  const [commentError, setCommentError] = useState<string | null>(null);
   const [denial, setDenial] = useState<string | null>(null);
   const [mfaStep, setMfaStep] = useState<{
     denial: string;
@@ -391,6 +392,7 @@ export default function PortalReviewPage({
             onReplyDraft={(id, v) =>
               setReplyDraft((d) => ({ ...d, [id]: v }))
             }
+            postError={commentError}
             onPostRoot={async () => {
               const body = rootDraft.trim();
               if (!body) return;
@@ -398,8 +400,10 @@ export default function PortalReviewPage({
                 await postComment({ workflowId, body });
               } catch (err) {
                 if (takeSessionLoss(err)) return;
-                throw err;
+                setCommentError(commentFailure(err));
+                return;
               }
+              setCommentError(null);
               setRootDraft("");
               await refresh();
             }}
@@ -414,8 +418,10 @@ export default function PortalReviewPage({
                 });
               } catch (err) {
                 if (takeSessionLoss(err)) return;
-                throw err;
+                setCommentError(commentFailure(err));
+                return;
               }
+              setCommentError(null);
               setReplyDraft((d) => ({ ...d, [parentId]: "" }));
               await refresh();
             }}
@@ -558,6 +564,13 @@ function DecisionPanel({
   );
 }
 
+/** Comment posts that fail for any reason other than a lost session. */
+function commentFailure(err: unknown): string {
+  return toSafeUserError(err, {
+    message: "Your comment could not be posted. It is still in the box; try again.",
+  }).message;
+}
+
 function CommentsPanel({
   comments,
   rootDraft,
@@ -566,6 +579,7 @@ function CommentsPanel({
   onReplyDraft,
   onPostRoot,
   onPostReply,
+  postError,
 }: {
   comments: PortalComment[];
   rootDraft: string;
@@ -574,6 +588,8 @@ function CommentsPanel({
   onReplyDraft: (id: string, v: string) => void;
   onPostRoot: () => Promise<void>;
   onPostReply: (id: string) => Promise<void>;
+  /** A refused or failed post, in product language; the draft is kept. */
+  postError: string | null;
 }) {
   const roots = comments.filter((c) => c.parentCommentId === null);
   const repliesByRoot = comments.reduce<Record<string, PortalComment[]>>(
@@ -596,10 +612,16 @@ function CommentsPanel({
       }}
     >
       <h3 style={{ fontSize: 13, marginTop: 0 }}>Review communication</h3>
+      {postError ? (
+        <p role="alert" data-portal-comment-error style={{ color: "#b91c1c", fontSize: 12, margin: "0 0 8px" }}>
+          {postError}
+        </p>
+      ) : null}
       <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
         <input
           data-portal-root-comment-input
           type="text"
+          aria-label="Comment on this review"
           value={rootDraft}
           onChange={(e) => onRootDraft(e.target.value)}
           placeholder="Add a comment to the workflow…"
@@ -662,6 +684,7 @@ function CommentsPanel({
               <input
                 data-portal-comment-reply-input={r.id}
                 type="text"
+                aria-label="Reply to this comment"
                 value={replyDraft[r.id] ?? ""}
                 onChange={(e) => onReplyDraft(r.id, e.target.value)}
                 placeholder="Reply…"
