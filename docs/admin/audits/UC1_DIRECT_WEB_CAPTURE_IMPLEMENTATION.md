@@ -353,16 +353,33 @@ the interactive consent *click* inside `launchWebAuthFlow` (that window cannot b
 driven headlessly); the protocol — authorize, PKCE, single-use code, exchange —
 is fully exercised. `PROOVRA_E2E_SESSION_BEARER` must never be a production token.
 
-### 3. Same-Evidence trace (downstream surfaces)
+### 3. Same-Evidence trace (ALL closure-required surfaces)
 
-The acceptance spec captures each fixture, then reads the SAME Evidence id back —
-with the OAuth-issued bearer — across **Library** (`GET /v1/evidence?...`),
-**Detail** (`review-workspace`) and **public Verify** (`public-overview`), and
-asserts the acquisition statement (`DIRECT_WEB_CAPTURE_EXTENSION`, domain-only in
-public) is identical on all three. Case / Search / Report / Package / validator
-read the same canonical Evidence + acquisition snapshot (UC-0 spine); the
-web-capture integration suite proves the seal and the acquisition snapshot at the
-source. The end-to-end multi-surface assertion runs inside the browser gate.
+The acceptance spec captures each fixture (static, long/full-page, SPA,
+mutating), then traces the SAME Evidence id through every closure-required
+surface and asserts real behavior on each (not just its presence):
+
+| Surface | Endpoint | Assertion |
+| --- | --- | --- |
+| Library | `GET /v1/evidence?scope=all&acquisition=DIRECT_WEB_CAPTURE` | the record appears; `items[].acquisition.mode === DIRECT_WEB_CAPTURE_EXTENSION` |
+| Detail | `GET /v1/evidence/:id/review-workspace` | `evidence.sourceContext.acquisition.mode === DIRECT_WEB_CAPTURE_EXTENSION` |
+| Case | `POST /v1/cases` → `POST /v1/cases/:id/evidence` → `GET /v1/evidence?caseId=` | evidence links to a case in the same workspace and reads back under it |
+| Search | `POST /v1/search/reindex/evidence/:id` → `GET /v1/search?teamId=&q=` | after the synchronous reindex, the evidence is found by a term from its own title |
+| Report | poll `GET /v1/evidence/:id/artifacts/status` → `GET /v1/evidence/:id/report/latest` | worker-generated report; `evidenceId` matches and `snapshots.acquisitionMode === DIRECT_WEB_CAPTURE_EXTENSION` (sealed, not re-derived) |
+| Verification Package | poll `artifacts/status` → `GET /v1/evidence/:id/verification-package` | worker-generated package; `evidenceId` + `version` present |
+| Package Validator + Public Verify | `GET /public/verify/:id` (unauthenticated; the id is the token) | `acquisition.acquisition.mode === DIRECT_WEB_CAPTURE_EXTENSION` (domain-only), and `verificationPackageIntegrity.{available, signedManifestPresent, checksumIndexPresent}` prove the signed package is intact |
+
+Report and Verification Package are generated asynchronously by the worker after
+the capture is sealed (gated on the workspace's `reportsIncluded` plan
+capability — the seeded acceptance workspace is ENTERPRISE/ACTIVE), so the spec
+polls `artifacts/status` until both are available.
+
+> **Defect found and fixed while extending the trace:** the earlier spec read a
+> non-existent `GET /v1/evidence/:id/public-overview` route — the real public
+> verification surface is the unauthenticated `GET /public/verify/:id` (the
+> evidence id is the token, uniform 404 on miss for anti-enumeration). The spec
+> now hits the real route. The ordinary extension user and the E2E use the same
+> canonical routing.
 
 ### 4. Windows acceptance harness
 

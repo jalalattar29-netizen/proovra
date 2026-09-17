@@ -2,9 +2,13 @@
 
 This is the ONE UC-1 gate that cannot run in the CI/engineering sandbox (no
 Chrome/Edge automation). Run it on a Windows machine with **Chrome Stable** and
-**Edge Stable** installed. It loads the unpacked extension, captures deterministic
-fixture pages through the real pipeline, and traces each Evidence id across
-Library, Detail and public Verify.
+**Edge Stable** installed. It loads the unpacked extension, obtains the token
+through the REAL OAuth PKCE journey, captures deterministic fixture pages
+(static, long/full-page, SPA, mutating) through the real pipeline, and traces
+each Evidence id through EVERY closure-required surface: Library → Detail → Case
+→ Search → Report → Verification Package → Package Validator (integrity) → Public
+Verify (`GET /public/verify/:id`). Report + package are worker-generated, so the
+spec polls until they are available.
 
 ## One-time setup
 
