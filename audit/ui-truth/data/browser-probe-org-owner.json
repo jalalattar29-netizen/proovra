@@ -1,0 +1,88 @@
+{
+  "artifact": "ui-truth/browser-probe",
+  "schemaVersion": 1,
+  "persona": "org-owner",
+  "web": "loopback",
+  "totals": {
+    "routes": 5,
+    "byState": {
+      "EMPTY_STATE": 1,
+      "CONTENT": 2,
+      "NOT_FOUND": 2
+    }
+  },
+  "rows": [
+    {
+      "route": "/home",
+      "persona": "org-owner",
+      "state": "EMPTY_STATE",
+      "h1Count": 1,
+      "firstH1": "Good morning, Organization 👋",
+      "mainLandmarks": 1,
+      "excerpt": "Skip to main content WORKSPACE Home Notifications Cases Evidence Capture Intake links Search Collaboration Teams GOVERNANCE Members & Access OUTPUTS Reports SYSTEM Billing & plan Operations Storage 0% 0 GB of 500 GB Need",
+      "navError": null,
+      "ms": 2238,
+      "failedApiRequests": [],
+      "consoleErrors": []
+    },
+    {
+      "route": "/evidence/0adf0000-0000-4000-8000-0000000000c1",
+      "persona": "org-owner",
+      "state": "CONTENT",
+      "h1Count": 1,
+      "firstH1": "Fixture evidence 1 (tsa)",
+      "mainLandmarks": 1,
+      "excerpt": "Skip to main content WORKSPACE Home Notifications Cases Evidence Capture Intake links Search Collaboration Teams GOVERNANCE Members & Access OUTPUTS Reports SYSTEM Billing & plan Operations Storage 0% 0 GB of 500 GB Need",
+      "navError": null,
+      "ms": 2135,
+      "failedApiRequests": [],
+      "consoleErrors": []
+    },
+    {
+      "route": "/evidence",
+      "persona": "org-owner",
+      "state": "CONTENT",
+      "h1Count": 1,
+      "firstH1": "Evidence Library",
+      "mainLandmarks": 1,
+      "excerpt": "Skip to main content WORKSPACE Home Notifications Cases Evidence Capture Intake links Search Collaboration Teams GOVERNANCE Members & Access OUTPUTS Reports SYSTEM Billing & plan Operations Storage 0% 0 GB of 500 GB Need",
+      "navError": null,
+      "ms": 2181,
+      "failedApiRequests": [
+        "404 GET /v1/evidence/0adf0000-0000-4000-8000-0000000000db/original",
+        "404 GET /v1/evidence/0adf0000-0000-4000-8000-0000000000db/report/latest",
+        "409 GET /v1/evidence/0adf0000-0000-4000-8000-0000000000db/verification-package"
+      ],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 409 (Conflict)"
+      ]
+    },
+    {
+      "route": "/security-center",
+      "persona": "org-owner",
+      "state": "NOT_FOUND",
+      "h1Count": 1,
+      "firstH1": "We couldn't find that page",
+      "mainLandmarks": 1,
+      "excerpt": "Skip to main content WORKSPACE Home Notifications Cases Evidence Capture Intake links Search Collaboration Teams GOVERNANCE Members & Access OUTPUTS Reports SYSTEM Billing & plan Operations Storage 0% 0 GB of 500 GB Need",
+      "navError": null,
+      "ms": 2054,
+      "failedApiRequests": [],
+      "consoleErrors": []
+    },
+    {
+      "route": "/budget-center",
+      "persona": "org-owner",
+      "state": "NOT_FOUND",
+      "h1Count": 1,
+      "firstH1": "We couldn't find that page",
+      "mainLandmarks": 1,
+      "excerpt": "Skip to main content WORKSPACE Home Notifications Cases Evidence Capture Intake links Search Collaboration Teams GOVERNANCE Members & Access OUTPUTS Reports SYSTEM Billing & plan Operations Storage 0% 0 GB of 500 GB Need",
+      "navError": null,
+      "ms": 2061,
+      "failedApiRequests": [],
+      "consoleErrors": []
+    }
+  ]
+}

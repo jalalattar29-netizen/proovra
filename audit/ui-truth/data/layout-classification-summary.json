@@ -1,242 +1,97 @@
 {
   "artifact": "ui-truth/layout-classification-summary",
   "schemaVersion": 1,
-  "measuredAtSha": "e341e5be",
-  "source": "audit/ui-truth/data/layout-classification.json",
-  "total": 233,
-  "totalsByClassification": {
-    "DUPLICATE_ASSERTION": 12,
-    "EXPECTED_BY_DESIGN": 1,
-    "FIXTURE_DEFECT": 104,
-    "REAL_PRODUCT_DEFECT": 4,
-    "STALE_TEST": 112
+  "measuredAtSha": "d6371ecc",
+  "earlierMeasurementSha": "e341e5be",
+  "totals": {
+    "measuredFailures": 234,
+    "classifiedRows": 234,
+    "byClassification": {
+      "FIXTURE_DEFECT": 105,
+      "STALE_TEST": 112,
+      "DUPLICATE_ASSERTION": 12,
+      "REAL_PRODUCT_DEFECT": 4,
+      "EXPECTED_BY_DESIGN": 1
+    },
+    "byProject": {
+      "search-layout": 8,
+      "intake-links-layout": 19,
+      "evidence-detail-layout": 78,
+      "attention-layout": 27,
+      "operations-layout": 85,
+      "billing-layout": 2,
+      "settings-layout": 15
+    },
+    "realProductDefectsBySeverity": {
+      "P3": 3,
+      "P2": 1
+    },
+    "resolvedSinceEarlierMeasurement": 1,
+    "newSinceEarlierMeasurement": 2,
+    "distinctGroups": 24
   },
-  "totalsByProject": {
-    "attention-layout": 27,
-    "billing-layout": 2,
-    "evidence-detail-layout": 78,
-    "intake-links-layout": 19,
-    "operations-layout": 85,
-    "search-layout": 7,
-    "settings-layout": 15
+  "byGroup": {
+    "EVDETAIL-ROUTE-PRECONDITION": 78,
+    "OPS-DEFAULT-VIEW-IS-GROUPED": 64,
+    "NOTIF-CONSENT-BANNER-INTERCEPTS-CLICKS": 19,
+    "OPS-METRIC-WARNING-CARD": 9,
+    "OPS-INCIDENT-GROUPS-ENDPOINT-NOT-WHITELISTED": 9,
+    "SETTINGS-AI-PANE-DUPLICATE-ASSERTIONS": 7,
+    "INTAKE-TABLE-CARD-CUTOVER-MOVED-TO-1199": 6,
+    "OPS-DEFAULT-VIEW-IS-GROUPED-ATTENTION": 6,
+    "INTAKE-ROW-MODEL-RECOLUMNED": 5,
+    "SETTINGS-SECONDARY-ACTION-INK": 5,
+    "INTAKE-CUTOVER-DUPLICATE-ASSERTIONS": 4,
+    "COLLAB-TEAMS-PLAN-LOCKED-BY-EMPTY-FIXTURE": 3,
+    "CONSENT-BANNER-NOT-SUPPRESSED-IN-FIXTURE": 3,
+    "SETTINGS-AI-PANE-NOW-OFFERED-EVERYWHERE": 3,
+    "INTAKE-KPI-TONES-REASSIGNED": 2,
+    "NOTIF-METRIC-TONE-RAMP-REMAPPED": 2,
+    "BILLING-START-SUBSCRIPTION-MISSING-FILLED-MODIFIER": 2,
+    "SEARCH-COPILOT-FIXTURE-SELF-CHECK": 1,
+    "SEARCH-TYPEAHEAD-OVERLAY-FLAKE": 1,
+    "CASE-STATUS-ORANGE-TOKEN-CHOICE": 1,
+    "INTAKE-TIMELINE-REM-KEY-VS-CH-COLUMN-CAP": 1,
+    "OPS-SLA-BADGE-DUPLICATE": 1,
+    "OPS-GROUPED-READ-NOT-GATE-GUARDED": 1,
+    "SHELL-PERSONAL-SPACE-NO-TEAM-RUNTIME": 1
   },
-  "totalsBySpec": {
-    "e2e/attention-layout/attention-surfaces.spec.ts": 6,
-    "e2e/attention-layout/notifications-filters-sort.spec.ts": 15,
-    "e2e/attention-layout/notifications-metric-exclusivity.spec.ts": 6,
-    "e2e/billing-layout/billing-actions.spec.ts": 2,
-    "e2e/evidence-detail-layout/hero-action-stack.spec.ts": 3,
-    "e2e/evidence-detail-layout/lifecycle-states.spec.ts": 9,
-    "e2e/evidence-detail-layout/status-text-treatment.spec.ts": 32,
-    "e2e/evidence-detail-layout/technical-appendix-header.spec.ts": 34,
-    "e2e/intake-links-layout/intake-links-geometry.spec.ts": 12,
-    "e2e/intake-links-layout/intake-links-presentation.spec.ts": 7,
-    "e2e/operations-layout/operations-a11y.spec.ts": 15,
-    "e2e/operations-layout/operations-contexts.spec.ts": 33,
-    "e2e/operations-layout/operations-phase-b.spec.ts": 6,
-    "e2e/operations-layout/operations-request-matrix.spec.ts": 2,
-    "e2e/operations-layout/operations-responsive.spec.ts": 27,
-    "e2e/operations-layout/operations-shell-boundary.spec.ts": 2,
-    "e2e/search-layout/app-field-label-authority.spec.ts": 3,
-    "e2e/search-layout/search-experience.spec.ts": 2,
-    "e2e/search-layout/search-layout.spec.ts": 1,
-    "e2e/search-layout/status-text-treatment.spec.ts": 1,
-    "e2e/settings-layout/settings-actions.spec.ts": 5,
-    "e2e/settings-layout/settings-closure.spec.ts": 2,
-    "e2e/settings-layout/settings-contexts.spec.ts": 6,
-    "e2e/settings-layout/settings-ia.spec.ts": 1,
-    "e2e/settings-layout/settings-privacy.spec.ts": 1
-  },
-  "totalsByGroupKey": [
+  "realProductDefects": [
     {
-      "groupKey": "BILLING-START-SUBSCRIPTION-MISSING-FILLED-MODIFIER",
-      "count": 2,
-      "classification": "REAL_PRODUCT_DEFECT",
-      "rootCause": "The 'Start <tier> subscription' purchase button is the only billing purchase action that omits the app-secondary-action--filled modifier, so it paints the light outlined secondary surface instead of the dark-ink/white-label treatment every other purchase action on the page carries.",
-      "affectedRoute": "/billing",
-      "severityIfReal": "P3"
+      "failureId": "LAY-0452",
+      "route": "/intake-links",
+      "severity": "P3",
+      "title": "localization: long translated and user-generated values › a doubled text scale still contains every column"
     },
     {
-      "groupKey": "CASE-STATUS-ORANGE-TOKEN-CHOICE",
-      "count": 1,
-      "classification": "STALE_TEST",
-      "rootCause": "lifecycleTone maps RESOLVED to the orange tone and .app-status-text[data-tone=\"orange\"] deliberately resolves to --orange-500 (#EA580C) rather than the darker #C2410C the spec hard-codes, as a recorded visual-reference exception anchored to the Notifications High card.",
-      "affectedRoute": "/cases",
-      "severityIfReal": null
+      "failureId": "LAY-0967",
+      "route": "/operations",
+      "severity": "P2",
+      "title": "wrong-workspace: ZERO operational requests — the envelope describes a DIFFERENT workspace, so its capabilities are the wrong evidence for this read"
     },
     {
-      "groupKey": "COLLAB-TEAMS-PLAN-LOCKED-BY-EMPTY-FIXTURE",
-      "count": 3,
-      "classification": "FIXTURE_DEFECT",
-      "rootCause": "The search-layout envelope ships no collaboration-teams plan entitlement, so once the plan context resolves planLocked becomes true and /collaboration-teams deliberately renders an 'Upgrade plan' link INSTEAD of any Create-team button — the locator the helper clicks disappears between its waitFor and its click.",
-      "affectedRoute": "/collaboration-teams",
-      "severityIfReal": null
+      "failureId": "LAY-1035",
+      "route": "/billing",
+      "severity": "P3",
+      "title": "billing — the plan card's two actions › they are separated, aligned, and weighted differently"
     },
     {
-      "groupKey": "CONSENT-BANNER-NOT-SUPPRESSED-IN-FIXTURE",
-      "count": 4,
-      "classification": "FIXTURE_DEFECT",
-      "rootCause": "The search-layout and intake-links-layout fixtures provision no storage state and no consent decision, so vanilla-cookieconsent mounts its fixed-position #cc-main overlay on every first-visit navigation and swallows pointer events across the viewport — the same overlay settings-layout seeds a cookie for and operations-layout hides outright.",
-      "affectedRoute": "/search, /intake-links",
-      "severityIfReal": null
-    },
-    {
-      "groupKey": "EVDETAIL-ROUTE-PRECONDITION",
-      "count": 78,
-      "classification": "FIXTURE_DEFECT",
-      "rootCause": "Every test that navigates to /evidence/:id under the evidence-detail-layout fixture times out on the first data-dependent selector, so the route never leaves its loading/error branch and no measurable tree is ever painted; the sibling /evidence library specs in the same project, driven by the same envelope, all pass.",
-      "affectedRoute": "/evidence/[id]",
-      "severityIfReal": null
-    },
-    {
-      "groupKey": "INTAKE-CUTOVER-DUPLICATE-ASSERTIONS",
-      "count": 4,
-      "classification": "DUPLICATE_ASSERTION",
-      "rootCause": "Four more tests assert the same single property — that the table renders at a width at or below 1199px — for a fixture/direction already covered by the primary cutover group; direction does not affect a display media query.",
-      "affectedRoute": "/intake-links",
-      "severityIfReal": null
-    },
-    {
-      "groupKey": "INTAKE-KPI-TONES-REASSIGNED",
-      "count": 2,
-      "classification": "STALE_TEST",
-      "rootCause": "Two KPI cards were deliberately re-toned in the canonical vocabulary — total from slate to indigo (--accent-600) and active to orange (--orange-500) — while the spec still hard-codes the retired slate rail and a blanket 4.5:1 contrast floor that the product's documented orange exception does not meet.",
-      "affectedRoute": "/intake-links",
-      "severityIfReal": null
-    },
-    {
-      "groupKey": "INTAKE-ROW-MODEL-RECOLUMNED",
-      "count": 5,
-      "classification": "STALE_TEST",
-      "rootCause": "The records table was rebuilt from the old channel/latest/lifecycle/'Delivery & activity' column set into request | identity | delivery | status | timeline | submissions | actions, retiring the .ilk-status__key / .ilk-status__value / data-fold=\"channel\" markup and deliberately putting the lifecycle badge and the activity line in ONE status cell; the specs still probe the retired anatomy.",
-      "affectedRoute": "/intake-links",
-      "severityIfReal": null
-    },
-    {
-      "groupKey": "INTAKE-TABLE-CARD-CUTOVER-MOVED-TO-1199",
-      "count": 6,
-      "classification": "STALE_TEST",
-      "rootCause": "The Intake Links records surface deliberately moved its table-to-cards cutover from 900px to 1199px (seven columns need about 874px of table and the records frame is only 810px at a 1024 viewport), so at 1024/940/901 the product now shows the CARD renderer while these assertions still encode table === (width > 900).",
-      "affectedRoute": "/intake-links",
-      "severityIfReal": null
-    },
-    {
-      "groupKey": "INTAKE-TIMELINE-REM-KEY-VS-CH-COLUMN-CAP",
-      "count": 1,
-      "classification": "REAL_PRODUCT_DEFECT",
-      "rootCause": "The Timeline cell's label column is sized in root-relative rem while its <td> is capped in font-relative ch against the table's fixed 12.5px type, so when the browser text scale rises the fixed label column grows but the column cap does not, and the nowrap expiry date is pushed outside its own cell.",
-      "affectedRoute": "/intake-links",
-      "severityIfReal": "P3"
-    },
-    {
-      "groupKey": "NOTIF-CONSENT-BANNER-INTERCEPTS-CLICKS",
-      "count": 19,
-      "classification": "FIXTURE_DEFECT",
-      "rootCause": "The cookie-consent modal (#cc-main, vanilla-cookieconsent) renders over the notifications page on every fresh context and Playwright refuses every click with '<div id=\"cc-main\"> subtree intercepts pointer events'; the attention-layout fixture, unlike the admin and operations fixtures, neither dismisses nor suppresses it.",
-      "affectedRoute": "/notifications",
-      "severityIfReal": null
-    },
-    {
-      "groupKey": "NOTIF-METRIC-TONE-RAMP-REMAPPED",
-      "count": 2,
-      "classification": "STALE_TEST",
-      "rootCause": "The notifications metric tone ramp was deliberately re-mapped (unread purple→blue, critical blue→red, warning red→purple) and the two specs still assert the pre-change table.",
-      "affectedRoute": "/notifications",
-      "severityIfReal": null
-    },
-    {
-      "groupKey": "OPS-DEFAULT-VIEW-IS-GROUPED",
-      "count": 64,
-      "classification": "STALE_TEST",
-      "rootCause": "The Operations workbench opens in the GROUPED view by default, so it renders <GroupSurface> and never mounts <IncidentSurface>; every per-condition DOM hook these specs drive (data-ops-row, data-ops-open, data-ops-row-mark, data-ops-row-menu-trigger, data-ops-table-surface, data-ops-cards, data-ops-severity, data-ops-sla-badge, .opsw-condition__title) lives only in the flat renderer, so locators resolve to zero elements and clicks time out at 60s.",
-      "affectedRoute": "/operations",
-      "severityIfReal": null
-    },
-    {
-      "groupKey": "OPS-DEFAULT-VIEW-IS-GROUPED-ATTENTION",
-      "count": 6,
-      "classification": "STALE_TEST",
-      "rootCause": "The Operations workbench opens in the GROUPED view by default, so the flat IncidentSurface table — and every data-ops-table-surface / data-ops-owner / data-ops-row-menu-trigger / data-ops-open hook these attention-project specs drive — is never in the DOM unless the test first presses the 'All conditions' toggle, which it never does.",
-      "affectedRoute": "/operations",
-      "severityIfReal": null
-    },
-    {
-      "groupKey": "OPS-GROUPED-READ-NOT-GATE-GUARDED",
-      "count": 1,
-      "classification": "REAL_PRODUCT_DEFECT",
-      "rootCause": "The grouped-queue effect guards only on `if (!teamId || !grouped) return;` while every sibling Operations read guards on `if (gate || !teamId) return;` — the effect is declared above where `gate` is computed — so a context the route gate refuses still issues one GET /v1/ops/incident-groups.",
-      "affectedRoute": "/operations",
-      "severityIfReal": "P2"
-    },
-    {
-      "groupKey": "OPS-INCIDENT-GROUPS-ENDPOINT-NOT-WHITELISTED",
-      "count": 9,
-      "classification": "STALE_TEST",
-      "rootCause": "The workbench's default grouped read calls GET /v1/ops/incident-groups, a registered workspace-scoped Operations endpoint, but the spec's allow-list regex was never extended past (summary|incidents|assignable-operators|bulk-actions|saved-views), so the first observed call fails the per-context endpoint whitelist.",
-      "affectedRoute": "/operations",
-      "severityIfReal": null
-    },
-    {
-      "groupKey": "OPS-METRIC-WARNING-CARD",
-      "count": 9,
-      "classification": "STALE_TEST",
-      "rootCause": "The Operations summary strip deliberately gained a seventh non-collaborative card, `warning`, so the rendered data-ops-metric sequence is 7 keys for a sole operator and 9 for a collaborative workspace, while the specs still pin the pre-Warning vocabulary of 6 / 8.",
-      "affectedRoute": "/operations",
-      "severityIfReal": null
-    },
-    {
-      "groupKey": "OPS-SLA-BADGE-DUPLICATE",
-      "count": 1,
-      "classification": "DUPLICATE_ASSERTION",
-      "rootCause": "The second SLA-posture case re-asserts the identical visibility of [data-ops-sla-badge] on the same context and scenario as the case immediately above it, so it fails for the same missing element and proves nothing further.",
-      "affectedRoute": "/operations",
-      "severityIfReal": null
-    },
-    {
-      "groupKey": "SETTINGS-AI-PANE-DUPLICATE-ASSERTIONS",
-      "count": 7,
-      "classification": "DUPLICATE_ASSERTION",
-      "rootCause": "Seven further settings tests re-measure the SAME rail for the SAME actor and fail on the same single extra id, `workspace` — the AI & assistance pane already covered by LAY-1113 / LAY-1116 / LAY-1118 — or, for LAY-1100, the same button ink already covered by LAY-1091.",
-      "affectedRoute": "/settings",
-      "severityIfReal": null
-    },
-    {
-      "groupKey": "SETTINGS-AI-PANE-NOW-OFFERED-EVERYWHERE",
-      "count": 3,
-      "classification": "STALE_TEST",
-      "rootCause": "resolveSettingsNavigation was deliberately changed to offer the pane whose id is `workspace` (relabelled 'AI & assistance') to a PERSONAL space and to every organization member, so the rail legitimately contains that id and the group heading 'Workspace' for actors the specs still expect to see neither.",
-      "affectedRoute": "/settings",
-      "severityIfReal": null
-    },
-    {
-      "groupKey": "SETTINGS-SECONDARY-ACTION-INK",
-      "count": 5,
-      "classification": "STALE_TEST",
-      "rootCause": "The five controls all carry the canonical .app-secondary-action primitive, whose ink is deliberately var(--app-ink-label) (#344054, a dark neutral) rather than purple, so the spec's blue > green + 40 purple-ink test measures 84 against a required >104 on a button the product intends to paint neutral.",
-      "affectedRoute": "/settings",
-      "severityIfReal": null
-    },
-    {
-      "groupKey": "SHELL-PERSONAL-SPACE-NO-TEAM-RUNTIME",
-      "count": 1,
-      "classification": "EXPECTED_BY_DESIGN",
-      "rootCause": "The shell's runtime poller is only handed a teamId when envelope.workspace.scope === \"TEAM\", so a PERSONAL space passes null and the runtime hook short-circuits before any source can be granted — a deliberate, commented 'no team-scoped runtime to poll' decision.",
-      "affectedRoute": "/operations",
-      "severityIfReal": null
+      "failureId": "LAY-1036",
+      "route": "/billing",
+      "severity": "P3",
+      "title": "billing — the plan card's two actions › the purchase action does not turn violet on hover"
     }
   ],
-  "realProductDefectBySeverity": {
-    "P2": 1,
-    "P3": 3
-  },
   "affectedRoutes": [
     "/billing",
     "/cases",
+    "/cases/[id]",
     "/collaboration-teams",
     "/evidence/[id]",
     "/intake-links",
     "/notifications",
     "/operations",
+    "/search",
     "/search, /intake-links",
     "/settings"
   ]
