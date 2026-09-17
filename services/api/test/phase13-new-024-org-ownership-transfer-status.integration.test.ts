@@ -178,12 +178,17 @@ describe("NEW-024 — a non-ACTIVE ORG_OWNER cannot transfer organization owners
 
     // And a non-ACTIVE owner IS refused with exactly that reason, which is what
     // proves the two cases diverge on the status column alone.
+    //
+    // PV-ORG-001 (Batch E, 83684a7f) decided the /v1/orgs/* convention once in
+    // checkOrgAccess: no ACTIVE membership is `not_found`, identical to a
+    // missing organization, and owner_required is reserved for ACTIVE members.
+    // A SUSPENDED owner is therefore concealed — the status column alone moves
+    // the answer from "may proceed to step-up" to "no such organization".
+    expect(res.statusCode, `an ACTIVE ORG_OWNER was concealed: ${res.body.slice(0, 300)}`).not.toBe(404);
     await setOwnerStatus("SUSPENDED");
     const suspended = await transfer();
-    expect(
-      suspended.body.toLowerCase().includes("owner_required"),
-      `a SUSPENDED owner should be refused as owner_required. Body: ${suspended.body.slice(0, 300)}`,
-    ).toBe(true);
+    expect(suspended.statusCode, suspended.body.slice(0, 300)).toBe(404);
+    expect(JSON.parse(suspended.body)).toEqual({ error: { code: "not_found" } });
 
     await setOwnerStatus("ACTIVE");
   });

@@ -221,9 +221,15 @@ async function assertPayPalPlanIsActive(planId: string) {
   const plan = await getPayPalPlan(planId);
   const status = String(plan.status ?? "").trim().toUpperCase();
 
+  // A configured plan PayPal does not report as ACTIVE is a configuration
+  // fault the customer cannot fix: the bounded 503 PAYMENTS_UNAVAILABLE (the
+  // failure precedes any subscription call, so nothing was charged), with the
+  // plan and its status in the operator log only — never a bare 500.
   if (status !== "ACTIVE") {
-    throw new Error(
-      `PayPal plan ${planId} is not ACTIVE. Current status: ${status || "UNKNOWN"}`
+    throw paymentsUnavailable(
+      "paypal",
+      `PayPal plan ${planId} (status ${status || "UNKNOWN"})`,
+      "plan_not_configured"
     );
   }
 

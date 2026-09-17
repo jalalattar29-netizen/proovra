@@ -362,15 +362,22 @@ describe("K7-B — self-service billing actions (live PostgreSQL 16)", () => {
       expect(audit.metadata).toMatchObject({ addonKey: "PERSONAL_10_GB", billingCycle: "MONTHLY", workspacePlan: "PRO" });
     });
 
-    it("refused: a FREE payer with no settled credit is 409 STORAGE_ADDON_NOT_INCLUDED — the provider is never asked", async () => {
+    // main 1a3f3a1c..659e3090 (commercial billing residuals) made storage
+    // purchasable on FREE through the explicit FREE_STORAGE source, so the
+    // former "FREE is refused" proof is now the FREE success branch.
+    it("fake transport: a FREE payer buys storage too (FREE_STORAGE), bound to the payer's FREE plan", async () => {
       const t = await payer("FREE");
-      const { result, calls } = await withFakeProviders(
-        () => ({ body: { id: "cs_should_not_exist" } }),
+      const sessionId = `cs_k7_free_addon_${randomUUID().slice(0, 8)}`;
+      const { result: res, calls } = await withFakeProviders(
+        (req) =>
+          req.url === `${STRIPE_API}/checkout/sessions` ? { body: { id: sessionId } } : undefined,
         () => call("POST", url, t.owner.token, addonBody),
       );
-      expect(result.statusCode).toBe(409);
-      expect(result.body).toContain("STORAGE_ADDON_NOT_INCLUDED");
-      expect(calls).toEqual([]);
+      expect(res.statusCode, res.body).toBe(200);
+      expect(json(res)).toMatchObject({ provider: "STRIPE", mode: "subscription", session: { id: sessionId } });
+      const sent = form(calls[0]!.body);
+      expect(sent.get("metadata[userId]")).toBe(t.owner.userId);
+      expect(sent.get("metadata[workspacePlan]")).toBe("FREE");
     });
   });
 
@@ -413,15 +420,23 @@ describe("K7-B — self-service billing actions (live PostgreSQL 16)", () => {
       expect(audit).toMatchObject({ resourceId: subscriptionId, outcome: "success" });
     });
 
-    it("refused: a FREE payer is 409 STORAGE_ADDON_NOT_INCLUDED — PayPal is never asked", async () => {
+    it("a configured plan PayPal does not report ACTIVE is the bounded 503 — no subscription is created", async () => {
+      // A FREE payer (FREE_STORAGE) reaches the provider. The plan lookup
+      // answers without an ACTIVE status; this used to be a bare 500.
       const t = await payer("FREE");
       const { result, calls } = await withFakeProviders(
-        () => ({ body: {} }),
+        (req) =>
+          paypalToken(req) ??
+          (req.url.startsWith(`${PAYPAL_FAKE_BASE}/v1/billing/plans/`)
+            ? { body: { id: "P-K7FAKESTORAGE10USD", status: "INACTIVE" } }
+            : undefined),
         () => call("POST", url, t.owner.token, addonBody),
       );
-      expect(result.statusCode).toBe(409);
-      expect(result.body).toContain("STORAGE_ADDON_NOT_INCLUDED");
-      expect(calls).toEqual([]);
+      expect(result.statusCode, result.body).toBe(503);
+      expect(json(result).error.code).toBe("PAYMENTS_UNAVAILABLE");
+      expect(result.body).not.toContain("P-K7FAKESTORAGE10USD");
+      expect(calls.some((c) => c.url.endsWith("/v1/billing/subscriptions"))).toBe(false);
+      expect(await prisma.workspaceStorageAddon.count({ where: { ownerUserId: t.owner.userId } })).toBe(0);
     });
   });
 

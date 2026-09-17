@@ -1,7 +1,8 @@
 /**
  * BATCH K3 — runtime proof, evidence capture cluster (part A).
  *
- * Capture drafts, capture-trust devices + mobile ingest, citizen capture,
+ * Capture drafts, capture-trust devices, the retired mobile ingest and
+ * citizen capture (UC-0: proven as bounded 410s that write nothing),
  * the legacy batch-analysis job, reviewer corrections, resumable upload
  * parts, and the three AI routes — each proven through the REAL route against
  * a disposable PostgreSQL:
@@ -20,7 +21,7 @@
  *     Presigning is local signature arithmetic and stays real.
  */
 
-import { createHash, generateKeyPairSync, randomBytes, randomUUID, sign as edSign } from "node:crypto";
+import { createHash, generateKeyPairSync, randomBytes, randomUUID } from "node:crypto";
 import { Readable } from "node:stream";
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -132,7 +133,6 @@ type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-ex
 describe("K3 runtime proof — evidence capture (part A)", () => {
   let harness: IntegrationHarness;
   let prisma: (typeof import("../src/db.js"))["prisma"];
-  let canonicalJson: (value: unknown) => string;
 
   const call = (method: "GET" | "POST" | "PATCH" | "DELETE", url: string, token: string | null, payload?: unknown) =>
     harness.app.inject({
@@ -160,9 +160,6 @@ describe("K3 runtime proof — evidence capture (part A)", () => {
     const { bootIntegrationHarness } = await import("./integration-harness.js");
     harness = await bootIntegrationHarness();
     ({ prisma } = await import("../src/db.js"));
-    ({ canonicalJson } = (await import("@proovra/shared")) as unknown as {
-      canonicalJson: (value: unknown) => string;
-    });
 
     const { teamA, teamB, personal } = harness.fixtures;
     // Organization A is an Enterprise customer, built as the billing suites build one.
@@ -353,82 +350,28 @@ describe("K3 runtime proof — evidence capture (part A)", () => {
       expect(await prisma.device.count({ where: { publicKeyFingerprint: fingerprint } })).toBe(0);
     });
 
-    function signedEnvelope(deviceId: string, key: ReturnType<typeof ed25519Key>, provenanceClass: "A" | "B") {
-      const asset = randomBytes(256);
-      const payload = {
-        schemaVersion: "PROOVRA_CAPTURE_SIG_V1" as const,
-        assetHash: createHash("sha256").update(asset).digest("hex"),
-        captureMode: "OPERATOR_NATIVE" as const,
-        provenanceClass,
-        deviceKeyId: deviceId,
-        algorithm: "Ed25519" as const,
-        captureSessionId: randomUUID(),
-        signedAtUtc: new Date().toISOString(),
-        signedAtMonotonicNs: "123456789000",
-        nonceHex: randomBytes(32).toString("hex"),
-        metadata: {
-          deviceModel: "ios-device",
-          osVersion: "ios 18.2",
-          appVersion: "1.4.0+42",
-          networkState: "ONLINE" as const,
-          locationPolicy: "OFF" as const,
-          location: null,
-          camera: { facing: "BACK" as const, flashOn: false, focalLengthMm: null, iso: null },
-          sensor: null,
-          operatorContext: null,
-        },
-      };
-      // The mobile client signs the shared canonical JSON of the payload.
-      const signature = edSign(null, Buffer.from(canonicalJson(payload), "utf8"), key.privateKey);
-      return {
-        payload,
-        signatureHex: signature.toString("hex"),
-        assetBase64: asset.toString("base64"),
-        attestation: null,
-      };
-    }
-
-    it("POST /v1/capture/mobile/ingest — a signed capture is verified and recorded on the trust chain", async () => {
+    // UC-0 (main e341e5be) retired the receipt-only mobile ingest: it verified
+    // an envelope but created no Evidence, so its trust chain could never reach
+    // the record it described. The mobile app now opens a direct-capture
+    // session. The route answers 410 and writes nothing.
+    it("POST /v1/capture/mobile/ingest is retired (410 INGEST_RETIRED) and records nothing", async () => {
       const { teamA } = harness.fixtures;
       expect(device.id).not.toBe("");
-      const envelope = signedEnvelope(device.id, device.key!, "A");
-      const res = await call("POST", "/v1/capture/mobile/ingest", teamA.memberToken, envelope);
-      expect(res.statusCode, res.body).toBe(202);
-      const receipt = json(res).receipt;
-      expect(receipt).toMatchObject({
-        signatureVerdict: "VALID",
-        attestationVerdict: "NOT_ATTEMPTED",
-        // Class A without strong attestation is demoted to B, and says so.
-        provenanceClass: "B",
-        denialReason: null,
+      const before = await prisma.captureTrustEventRecord.count({ where: { teamId: teamA.teamId } });
+      const res = await call("POST", "/v1/capture/mobile/ingest", teamA.memberToken, {
+        payload: { deviceKeyId: device.id, captureSessionId: randomUUID() },
+        signatureHex: "00",
+        assetBase64: randomBytes(16).toString("base64"),
+        attestation: null,
       });
-      expect(receipt.warnings).toContain("CAPTURE_PROVENANCE_DOWNGRADED");
-
-      const events = await prisma.captureTrustEventRecord.findMany({
-        where: { teamId: teamA.teamId, captureSessionId: envelope.payload.captureSessionId },
-        orderBy: { sequence: "asc" },
-      });
-      expect(events.map((e) => e.code)).toEqual(["CAPTURE_ARTIFACT_RECEIVED", "CAPTURE_ARTIFACT_SIGNED_AT_SOURCE"]);
-      expect(events[0]!.deviceId).toBe(device.id);
-      expect(events[0]!.payload).toMatchObject({
-        assetHash: envelope.payload.assetHash,
-        signatureVerdict: "VALID",
-        provenanceClass: "B",
-      });
-      expect(events[1]!.prevEventHash).toBe(events[0]!.eventHash);
+      expect(res.statusCode, res.body).toBe(410);
+      expect(json(res)).toEqual({ denial: "INGEST_RETIRED", replacement: "/v1/capture/direct-sessions" });
+      expect(await prisma.captureTrustEventRecord.count({ where: { teamId: teamA.teamId } })).toBe(before);
     });
 
-    it("POST /v1/capture/mobile/ingest refuses another tenant's device (409 DEVICE_NOT_REGISTERED), recording no receipt", async () => {
-      const { teamB } = harness.fixtures;
-      const envelope = signedEnvelope(device.id, device.key!, "B");
-      const res = await call("POST", "/v1/capture/mobile/ingest", teamB.ownerToken, envelope);
-      expect(res.statusCode).toBe(409);
-      expect(json(res).receipt).toMatchObject({ denialReason: "DEVICE_NOT_REGISTERED", signatureVerdict: "MISSING" });
-      const events = await prisma.captureTrustEventRecord.findMany({
-        where: { captureSessionId: envelope.payload.captureSessionId },
-      });
-      expect(events.map((e) => e.code)).toEqual(["CAPTURE_ARTIFACT_VERIFICATION_FAILED"]);
-      expect(events[0]!.teamId).toBe(teamB.teamId);
+    it("POST /v1/capture/mobile/ingest still requires a session", async () => {
+      const res = await call("POST", "/v1/capture/mobile/ingest", null, {});
+      expect(res.statusCode).toBe(401);
     });
   });
 
@@ -436,145 +379,60 @@ describe("K3 runtime proof — evidence capture (part A)", () => {
   // Citizen capture (public, intake-link anchored)
   // ===========================================================================
   describe("citizen capture", () => {
+    // UC-0 (main e341e5be) retired the citizen base64 capture path: bytes in a
+    // JSON body never reach storage, createEvidence or completeEvidence any
+    // more. Public submissions go through the secure intake link upload. Both
+    // routes still apply the citizen rate limiter, then answer 410 and bind or
+    // create nothing.
     let linkId = "";
-    let revokedLinkId = "";
-    const session = { deviceId: "", captureSessionId: "", key: null as ReturnType<typeof ed25519Key> | null };
 
     beforeAll(async () => {
       const { teamA } = harness.fixtures;
-      const base = {
-        teamId: teamA.teamId,
-        workflowTemplateSlug: "general-evidence-record",
-        workflowTemplateVersion: 1,
-        workflowTemplateSnapshot: {},
-        intakeMode: "EXTERNAL_SINGLE_USE",
-        expiresAtUtc: new Date(Date.now() + 24 * 3600 * 1000),
-        createdByUserId: teamA.ownerUserId,
-        allowedAcceptedKinds: ["PHOTO", "VIDEO", "AUDIO", "DOCUMENT"],
-        ipAllowlistCidrs: [],
-      };
       linkId = (await prisma.workflowIntakeLink.create({
-        data: { ...base, tokenHash: randomBytes(32).toString("hex") },
-        select: { id: true },
-      })).id;
-      revokedLinkId = (await prisma.workflowIntakeLink.create({
-        data: { ...base, tokenHash: randomBytes(32).toString("hex"), revokedAtUtc: new Date(), status: "REVOKED" },
+        data: {
+          teamId: teamA.teamId,
+          workflowTemplateSlug: "general-evidence-record",
+          workflowTemplateVersion: 1,
+          workflowTemplateSnapshot: {},
+          intakeMode: "EXTERNAL_SINGLE_USE",
+          expiresAtUtc: new Date(Date.now() + 24 * 3600 * 1000),
+          createdByUserId: teamA.ownerUserId,
+          allowedAcceptedKinds: ["PHOTO", "VIDEO", "AUDIO", "DOCUMENT"],
+          ipAllowlistCidrs: [],
+          tokenHash: randomBytes(32).toString("hex"),
+        },
         select: { id: true },
       })).id;
     });
 
-    it("POST /v1/intake/citizen/sessions — an intake link opens a session and binds the ephemeral key", async () => {
-      const { teamA } = harness.fixtures;
+    const RETIRED = { denial: "CITIZEN_CAPTURE_RETIRED", replacement: "/intake/{token}" };
+
+    it("POST /v1/intake/citizen/sessions is retired (410) and binds no key, even for a live link", async () => {
       const key = ed25519Key();
       const res = await call("POST", "/v1/intake/citizen/sessions", null, {
         intakeTokenId: linkId,
         publicKeyHex: key.publicKeyHex,
         userAgent: "Mozilla/5.0 (fixture)",
       });
-      expect(res.statusCode, res.body).toBe(201);
-      const body = json(res);
-      expect(body.descriptor).toMatchObject({
-        teamId: teamA.teamId,
-        captureMode: "CITIZEN_PWA",
-        provenanceClassCeiling: "B",
-      });
-      const row = await prisma.device.findUniqueOrThrow({ where: { id: body.deviceId } });
-      expect(row).toMatchObject({
-        teamId: teamA.teamId,
-        ownerUserId: teamA.ownerUserId,
-        publicKeyHex: key.publicKeyHex,
-        attestationProvider: "NONE",
-        revokedAtUtc: null,
-      });
-      expect(
-        await prisma.captureTrustEventRecord.count({ where: { deviceId: body.deviceId, code: "CAPTURE_DEVICE_REGISTERED" } }),
-      ).toBe(1);
-      session.deviceId = body.deviceId;
-      session.captureSessionId = body.descriptor.captureSessionId;
-      session.key = key;
-    });
-
-    it("POST /v1/intake/citizen/sessions refuses a revoked link (403 SESSION_NOT_ACTIVE) and binds no key", async () => {
-      const key = ed25519Key();
-      const res = await call("POST", "/v1/intake/citizen/sessions", null, {
-        intakeTokenId: revokedLinkId,
-        publicKeyHex: key.publicKeyHex,
-      });
-      expect(res.statusCode).toBe(403);
-      expect(json(res)).toEqual({ denial: "SESSION_NOT_ACTIVE" });
+      expect(res.statusCode, res.body).toBe(410);
+      expect(json(res)).toEqual(RETIRED);
       const fingerprint = createHash("sha256").update(key.publicKeyHex).digest("hex");
       expect(await prisma.device.count({ where: { publicKeyFingerprint: fingerprint } })).toBe(0);
     });
 
-    function citizenEnvelope(deviceId: string, captureSessionId: string, key: ReturnType<typeof ed25519Key>) {
-      const asset = Buffer.from(`citizen-capture-${randomUUID()}`);
-      const payload = {
-        schemaVersion: "PROOVRA_CAPTURE_SIG_V1" as const,
-        assetHash: createHash("sha256").update(asset).digest("hex"),
-        captureMode: "CITIZEN_PWA" as const,
-        provenanceClass: "B" as const,
-        deviceKeyId: deviceId,
-        algorithm: "Ed25519" as const,
-        captureSessionId,
-        signedAtUtc: new Date().toISOString(),
-        signedAtMonotonicNs: "987654321000",
-        nonceHex: randomBytes(32).toString("hex"),
-        metadata: {
-          deviceModel: "browser",
-          osVersion: "web",
-          appVersion: "pwa-1.0",
-          networkState: "ONLINE" as const,
-          locationPolicy: "OFF" as const,
-          location: null,
-          camera: null,
-          sensor: null,
-          operatorContext: null,
-        },
-      };
-      const signature = edSign(null, Buffer.from(canonicalJson(payload), "utf8"), key.privateKey);
-      return { asset, body: { payload, signatureHex: signature.toString("hex"), assetBase64: asset.toString("base64") } };
-    }
-
-    it("POST /v1/intake/citizen/sessions/:id/capture — a signed citizen capture materialises signed Evidence", async () => {
+    it("POST /v1/intake/citizen/sessions/:id/capture is retired (410) and creates no Evidence or stored object", async () => {
       const { teamA } = harness.fixtures;
-      expect(session.deviceId).not.toBe("");
-      const { asset, body } = citizenEnvelope(session.deviceId, session.captureSessionId, session.key!);
-      const res = await call("POST", `/v1/intake/citizen/sessions/${session.captureSessionId}/capture`, null, body);
-      expect(res.statusCode, res.body).toBe(202);
-      const receipt = json(res).receipt;
-      expect(receipt).toMatchObject({ provenanceClass: "B", signatureVerdict: "VALID", denialReason: null });
-      expect(receipt.evidenceId).toMatch(/^[0-9a-f-]{36}$/);
-
-      const evidence = await prisma.evidence.findUniqueOrThrow({ where: { id: receipt.evidenceId } });
-      expect(evidence.teamId).toBe(teamA.teamId);
-      expect(evidence.ownerUserId).toBe(teamA.ownerUserId);
-      expect(evidence.status).toBe("SIGNED");
-      expect(evidence.fileSha256).toBe(createHash("sha256").update(asset).digest("hex"));
-      expect(objectStore.puts).toContain(`${evidence.storageBucket}/${evidence.storageKey}`);
-
-      const joined = await prisma.captureTrustEventRecord.findFirstOrThrow({
-        where: { evidenceId: receipt.evidenceId, captureSessionId: session.captureSessionId },
-      });
-      expect(joined.code).toBe("CAPTURE_ARTIFACT_RECEIVED");
-      expect(joined.payload).toMatchObject({ stage: "evidence_materialised", citizen: true });
-      expect(
-        await prisma.custodyEvent.count({ where: { evidenceId: receipt.evidenceId, eventType: "SIGNATURE_APPLIED" } }),
-      ).toBe(1);
-    });
-
-    it("POST .../capture refuses a revoked session key (409 DEVICE_REVOKED) and creates no Evidence", async () => {
-      const { teamA } = harness.fixtures;
-      const key = ed25519Key();
-      const opened = json(
-        await call("POST", "/v1/intake/citizen/sessions", null, { intakeTokenId: linkId, publicKeyHex: key.publicKeyHex }),
-      );
-      await prisma.device.update({ where: { id: opened.deviceId }, data: { revokedAtUtc: new Date() } });
       const before = await prisma.evidence.count({ where: { teamId: teamA.teamId } });
-      const { body } = citizenEnvelope(opened.deviceId, opened.descriptor.captureSessionId, key);
-      const res = await call("POST", `/v1/intake/citizen/sessions/${opened.descriptor.captureSessionId}/capture`, null, body);
-      expect(res.statusCode).toBe(409);
-      expect(json(res)).toEqual({ denial: "DEVICE_REVOKED" });
+      const putsBefore = objectStore.puts.length;
+      const res = await call("POST", `/v1/intake/citizen/sessions/${randomUUID()}/capture`, null, {
+        payload: { captureMode: "CITIZEN_PWA" },
+        signatureHex: "00",
+        assetBase64: Buffer.from("citizen-capture").toString("base64"),
+      });
+      expect(res.statusCode, res.body).toBe(410);
+      expect(json(res)).toEqual(RETIRED);
       expect(await prisma.evidence.count({ where: { teamId: teamA.teamId } })).toBe(before);
+      expect(objectStore.puts.length).toBe(putsBefore);
     });
   });
 
