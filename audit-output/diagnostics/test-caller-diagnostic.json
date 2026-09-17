@@ -4,12 +4,12 @@
   "coverage": "LOWER BOUND, and deliberately so. These are call sites the analyzer RESOLVED through a request primitive (fetch / apiFetch / apiRequest / request / authedFetch). Fastify `app.inject({ url })` is not a request primitive and is not counted, so an API suite that exercises a route through inject does not appear here. The retired scanner's numbers were substring occurrences of the route path anywhere in a test file, which counted comments and prefixes and was not a measurement of anything; these are fewer and mean something. Read `testCallerCount = 0` as \"no resolved request-primitive call site\", never as \"no suite exercises this route\".",
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
-  "analyzerHash": "5ed058805558999585e841a2cb95ea5fe6e11219d63af300ee9319dda79d2fa6",
-  "capabilityRouteInventoryHash": "4f969a091f0bed6e2d0201ecdc1bd984e6f8c08519a2782cba78c599acbebb34",
+  "analyzerHash": "3812e5ecd28b7091afd6a2a8912242468fee369d22322f3c521dcc0e8c945e87",
+  "capabilityRouteInventoryHash": "d327e80ccd3a167628b506bf4f5e687cbed7b21dd6399752c0888cc639a7e297",
   "totals": {
-    "routes": 1151,
+    "routes": 1152,
     "routesWithAnyTestCaller": 39,
-    "testOnlyRoutes": 5,
+    "testOnlyRoutes": 4,
     "testCallSites": 67,
     "testOnlyIsDisjointFromConsumedRoutes": true
   },
@@ -4755,6 +4755,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/exchange/packages/:id/build",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/exchange/packages/:id/deliveries",
       "testCallerCount": 0,
       "testOnly": false,
@@ -6531,7 +6537,7 @@
     {
       "routeId": "POST /v1/reviewer/work/:workflowId/bind-schema",
       "testCallerCount": 1,
-      "testOnly": true,
+      "testOnly": false,
       "testCallerFiles": [
         "services/api/test/phase-37-98-reviewer-workflow-lifecycle.integration.test.ts"
       ]
@@ -7003,5 +7009,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "6e2bc4a5f97f191fb75f7feedb1f1659262ea07f23a32f940661c4907618c8b3"
+  "contentHash": "d3b3182e2a2042bea315d220ea4437fd653ad37c2f387abe0b4a72b97642e373"
 }

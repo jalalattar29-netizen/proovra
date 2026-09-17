@@ -13,47 +13,47 @@
   artefact that backs it.
 -->
 
-**35 routes** · 35 completed · 0 pending · 1145 API routes traced
+**35 routes** · 35 completed · 0 pending · 1152 API routes traced
 
 ## Status
 
 | Route | Kind | Family | Status | Reason / blocker |
 | --- | --- | --- | --- | --- |
-| `/admin` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 3.3 screens at 1440, 7.5 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/adoption` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.9 screens at 1440, 3.5 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/alerts` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 2.3 screens at 1440, 4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/audit` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 3.3 screens at 1440, 6.3 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/billing` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 4.3 screens at 1440, 6.9 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/contact-sales` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1 screens at 1440, 1.3 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/contact-sales/:id` | dynamic | Commercial | CONTEXTUAL_DETAIL_REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.4 screens at 1440, 3.5 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/costs` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 2.7 screens at 1440, 4.7 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/customers` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1 screens at 1440, 1.3 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/customers/:id` | dynamic | Customers | CONTEXTUAL_DETAIL_REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 3 screens at 1440, 5.9 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/dashboard` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 4 screens at 1440, 8.5 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/demo-requests` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.2 screens at 1440, 3.1 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/demo-requests/:id` | dynamic | Commercial | CONTEXTUAL_DETAIL_REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 2.1 screens at 1440, 3.9 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/evidence-ops` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 3.7 screens at 1440, 8.7 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/evidence-ops/records` | static | (unassigned) | NO_INTERNAL_RECOMPOSITION_REQUIRED | Composition met the contract as it stood; the browser matrix ran it clean at every required viewport, in RTL, and refused every non-admin role, with populated fixture data on screen. |
-| `/admin/executive` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.9 screens at 1440, 4.2 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/operations` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 4 screens at 1440, 6.5 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 3.7 screens at 1440, 7.1 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/adoption` | static | (unassigned) | NO_INTERNAL_RECOMPOSITION_REQUIRED | Composition met the contract as it stood; the browser matrix ran it clean at every required viewport, in RTL, and refused every non-admin role, with populated fixture data on screen. |
+| `/admin/alerts` | static | (unassigned) | NO_INTERNAL_RECOMPOSITION_REQUIRED | Composition met the contract as it stood; the browser matrix ran it clean at every required viewport, in RTL, and refused every non-admin role, with populated fixture data on screen. |
+| `/admin/audit` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 3.8 screens at 1440, 7.9 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/billing` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 3.2 screens at 1440, 4.7 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/contact-sales` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1 screens at 1440, 1.1 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/contact-sales/:id` | dynamic | Commercial | CONTEXTUAL_DETAIL_REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.5 screens at 1440, 3.4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/costs` | static | (unassigned) | NO_INTERNAL_RECOMPOSITION_REQUIRED | Composition met the contract as it stood; the browser matrix ran it clean at every required viewport, in RTL, and refused every non-admin role, with populated fixture data on screen. |
+| `/admin/customers` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1 screens at 1440, 1.2 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/customers/:id` | dynamic | Customers | CONTEXTUAL_DETAIL_REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 3.3 screens at 1440, 6.6 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/dashboard` | static | (unassigned) | NO_INTERNAL_RECOMPOSITION_REQUIRED | Composition met the contract as it stood; the browser matrix ran it clean at every required viewport, in RTL, and refused every non-admin role, with populated fixture data on screen. |
+| `/admin/demo-requests` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.3 screens at 1440, 2.8 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/demo-requests/:id` | dynamic | Commercial | CONTEXTUAL_DETAIL_REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 2.1 screens at 1440, 3.8 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/evidence-ops` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 3.2 screens at 1440, 8.2 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/evidence-ops/records` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.2 screens at 1440, 1.5 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/executive` | static | (unassigned) | NO_INTERNAL_RECOMPOSITION_REQUIRED | Composition met the contract as it stood; the browser matrix ran it clean at every required viewport, in RTL, and refused every non-admin role, with populated fixture data on screen. |
+| `/admin/operations` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 3.8 screens at 1440, 6.6 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
 | `/admin/platform-health` | static | (unassigned) | NO_INTERNAL_RECOMPOSITION_REQUIRED | Composition met the contract as it stood; the browser matrix ran it clean at every required viewport, in RTL, and refused every non-admin role, with populated fixture data on screen. |
-| `/admin/platform/exports` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1 screens at 1440, 1.3 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/platform/media-graph` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 2.1 screens at 1440, 5.9 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/platform/observability` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 3.2 screens at 1440, 5.4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/platform/queues` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.2 screens at 1440, 2.8 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/platform/exports` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1 screens at 1440, 1.2 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/platform/media-graph` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 2.4 screens at 1440, 5.6 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/platform/observability` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 3.6 screens at 1440, 5.4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/platform/queues` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 2.3 screens at 1440, 5.4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
 | `/admin/platform/readiness` | static | (unassigned) | NO_INTERNAL_RECOMPOSITION_REQUIRED | Composition met the contract as it stood; the browser matrix ran it clean at every required viewport, in RTL, and refused every non-admin role, with populated fixture data on screen. |
-| `/admin/platform/recovery` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.3 screens at 1440, 1.9 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/platform/runbooks` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 4.2 screens at 1440, 10.3 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/platform/runbooks/:slug` | dynamic | Runbooks | CONTEXTUAL_DETAIL_REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 3.5 screens at 1440, 8.4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/platform/recovery` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.4 screens at 1440, 1.9 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/platform/runbooks` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 4.2 screens at 1440, 10.1 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/platform/runbooks/:slug` | dynamic | Runbooks | CONTEXTUAL_DETAIL_REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 3.9 screens at 1440, 7.7 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
 | `/admin/platform/signers` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.2 screens at 1440, 2.1 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/provisioning` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 2.2 screens at 1440, 3.3 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/search` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1 screens at 1440, 1.1 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/support-access` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 2.2 screens at 1440, 3 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/timeline` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 2.5 screens at 1440, 4.9 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/users` | static | (unassigned) | NO_INTERNAL_RECOMPOSITION_REQUIRED | Composition met the contract as it stood; the browser matrix ran it clean at every required viewport, in RTL, and refused every non-admin role, with populated fixture data on screen. |
-| `/admin/users/:id` | dynamic | People | CONTEXTUAL_DETAIL_REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 2.2 screens at 1440, 3.4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/workspaces` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.4 screens at 1440, 2 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/workspaces/:id` | dynamic | Workspaces | CONTEXTUAL_DETAIL_REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.9 screens at 1440, 3.4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/provisioning` | static | (unassigned) | NO_INTERNAL_RECOMPOSITION_REQUIRED | Composition met the contract as it stood; the browser matrix ran it clean at every required viewport, in RTL, and refused every non-admin role, with populated fixture data on screen. |
+| `/admin/search` | static | (unassigned) | NO_INTERNAL_RECOMPOSITION_REQUIRED | Composition met the contract as it stood; the browser matrix ran it clean at every required viewport, in RTL, and refused every non-admin role, with populated fixture data on screen. |
+| `/admin/support-access` | static | (unassigned) | NO_INTERNAL_RECOMPOSITION_REQUIRED | Composition met the contract as it stood; the browser matrix ran it clean at every required viewport, in RTL, and refused every non-admin role, with populated fixture data on screen. |
+| `/admin/timeline` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 2.2 screens at 1440, 4.4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/users` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.6 screens at 1440, 2.3 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/users/:id` | dynamic | People | CONTEXTUAL_DETAIL_REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 2.7 screens at 1440, 4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/workspaces` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.4 screens at 1440, 1.9 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/workspaces/:id` | dynamic | Workspaces | CONTEXTUAL_DETAIL_REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 2 screens at 1440, 4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
 
 ## Scope and authorization
 
@@ -149,7 +149,6 @@
 | `/admin/platform/queues` | GET | `/v1/operations/queues/workers` | requirePlatformOpsActor | FILTER_CANDIDATE |
 | `/admin/platform/queues` | GET | `/v1/operations/queues/replay-safety` | requirePlatformOpsActor | FILTER_CANDIDATE |
 | `/admin/platform/queues` | GET | `/v1/operations/queues/:queueName/failed` | requirePlatformOpsActor | FILTER_CANDIDATE |
-| `/admin/platform/queues` | POST | `/v1/operations/queues/:queueName/jobs/:jobId/replay` | requirePlatformOpsActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
 | `/admin/platform/queues` | POST | `/v1/operations/queues/:queueName/jobs/:jobId/retry` | requirePlatformOpsActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
 | `/admin/platform/queues` | POST | `/v1/operations/queues/:queueName/jobs/:jobId/replay` | requirePlatformOpsActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
 | `/admin/platform/readiness` | GET | `/v1/operations/readiness` | requirePlatformAdmin | NONE |
@@ -234,7 +233,7 @@
 
 | Route | Lines | cards/tables/sections | Open findings |
 | --- | --- | --- | --- |
-| `/admin` | 1001 | 0c/0t/10s |  |
+| `/admin` | 1005 | 0c/0t/10s |  |
 | `/admin/adoption` | 283 | 0c/1t/1s |  |
 | `/admin/alerts` | 318 | 1c/0t/1s |  |
 | `/admin/audit` | 1106 | 3c/1t/2s |  |
@@ -255,7 +254,7 @@
 | `/admin/platform/exports` | 860 | 0c/4t/0s |  |
 | `/admin/platform/media-graph` | 1135 | 0c/1t/6s |  |
 | `/admin/platform/observability` | 1664 | 0c/2t/0s |  |
-| `/admin/platform/queues` | 880 | 0c/2t/0s |  |
+| `/admin/platform/queues` | 869 | 0c/2t/0s |  |
 | `/admin/platform/readiness` | 624 | 8c/0t/6s |  |
 | `/admin/platform/recovery` | 653 | 0c/2t/0s |  |
 | `/admin/platform/runbooks` | 199 | 1c/0t/0s |  |
@@ -266,6 +265,6 @@
 | `/admin/support-access` | 1150 | 6c/2t/4s |  |
 | `/admin/timeline` | 529 | 0c/1t/1s |  |
 | `/admin/users` | 510 | 2c/2t/1s |  |
-| `/admin/users/:id` | 720 | 7c/2t/6s |  |
+| `/admin/users/:id` | 721 | 7c/2t/6s |  |
 | `/admin/workspaces` | 465 | 1c/1t/0s |  |
 | `/admin/workspaces/:id` | 678 | 6c/1t/6s |  |

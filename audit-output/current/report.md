@@ -21,19 +21,19 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | f05532c332c0e36e631a7d2f0f24b4c3aab39bfaa2f4c3b386084a7779f4168e |
+| engineHash    | 2d8744dcbc6f627a1835186ef2c9bef7166dde69945acf99ef19a622a077e13c |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
 
 | counter                       | value |
 | ----------------------------- | ----- |
-| registeredRoutes              | 1151  |
+| registeredRoutes              | 1152  |
 | developmentOnlyRoutes         | 1     |
-| productConsumerRoutes         | 899   |
+| productConsumerRoutes         | 952   |
 | machineOnlyConsumerRoutes     | 4     |
-| noConsumerRoutes              | 248   |
-| dispositionedNonProductRoutes | 251   |
+| noConsumerRoutes              | 196   |
+| dispositionedNonProductRoutes | 199   |
 | undisposedRoutes              | 0     |
 | authorizationUnresolved       | 0     |
 | publicUnguardedRoutes         | 21    |
@@ -75,7 +75,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 
 | counter                                    | value |
 | ------------------------------------------ | ----- |
-| AuditFilesInventoried                      | 356   |
+| AuditFilesInventoried                      | 383   |
 | AuditFilesUnclassified                     | 0     |
 | AuditArtifactProducersUnknown              | 0     |
 | AuditArtifactConsumersUnknown              | 0     |
@@ -128,7 +128,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | ProductionRuntimeFilesModifiedByPhase0     | 0     |
 | ProductBehaviorTestsRemoved                | 0     |
 | HistoricalMigrationsModifiedByPhase0       | 0     |
-| ProductBehaviorTestsInventoried            | 206   |
+| ProductBehaviorTestsInventoried            | 231   |
 
 ### Report roles
 
@@ -204,4 +204,5 @@ _(none — the instrument is sound)_
 
 ### Product closure
 
-- CHECKPOINT: 5 violation(s) — SCALAR_DISAGREES_WITH_FACTS: ProductionRegisteredRoutes: checkpoint says 1149, facts say 1150 | SCALAR_DISAGREES_WITH_FACTS: RegisteredRoutes: checkpoint says 1150, facts say 1151 | SCALAR_DISAGREES_WITH_FACTS: TerminalWriters: checkpoint says 1273, facts say 1274 | SCALAR_DISAGREES_WITH_FACTS: ROUTE_ATTRIBUTED_REACHABLE: checkpoint says 1143, facts say 1144 | SCALAR_DISAGREES_WITH_FACTS: NonProductDispositionedRoutes: checkpoint says 250, facts say 251
+- UNWIRED EXECUTABLE WRITERS: 23 terminal writers have zero entrypoints (PRESERVED_PLANNED_WRITER + DEAD_UNREACHABLE)
+- CHECKPOINT: 11 violation(s) — SCALAR_DISAGREES_WITH_FACTS: ProductionRegisteredRoutes: checkpoint says 1150, facts say 1151 | SCALAR_DISAGREES_WITH_FACTS: RegisteredRoutes: checkpoint says 1151, facts say 1152 | SCALAR_DISAGREES_WITH_FACTS: TerminalWriters: checkpoint says 1274, facts say 1271 | SCALAR_DISAGREES_WITH_FACTS: ROUTE_ATTRIBUTED_REACHABLE: checkpoint says 1144, facts say 1117 | SCALAR_DISAGREES_WITH_FACTS: STARTUP_OR_SCHEDULED: checkpoint says 13, facts say 14
