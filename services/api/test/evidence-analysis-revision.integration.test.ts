@@ -318,14 +318,18 @@ describe("evidence analysis revision — mutations (live PostgreSQL 16)", () => 
       expect(await currentRevision(id)).toBeUndefined();
     });
 
-    it("18. custody, capture method and timestamping signals", async () => {
+    it("18. timestamping signals move it; the structure enum captureMethod does NOT", async () => {
       const id = await linked();
-      await movesRevision(id, () =>
-        prisma.evidence.update({
-          where: { id },
-          data: { captureMethod: "UPLOADED_FILE" as never },
-        }),
-      );
+      // UC-0: the AI revision is bound to the canonical ACQUISITION (from the
+      // set-once acquisitionMode), never the structure enum `captureMethod`.
+      // A completion overwriting captureMethod must not move the revision,
+      // because the model is no longer shown it.
+      const before = await currentRevision(id);
+      await prisma.evidence.update({
+        where: { id },
+        data: { captureMethod: "UPLOADED_FILE" as never },
+      });
+      expect(await currentRevision(id)).toBe(before);
       await movesRevision(id, () =>
         prisma.evidence.update({ where: { id }, data: { tsaStatus: "CONFIRMED" } }),
       );

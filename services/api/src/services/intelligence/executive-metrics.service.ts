@@ -59,7 +59,7 @@ export async function projectExecutiveMetrics(input: {
       capturesLast7d: totals.captures,
       captureSuccessRatePct: totals.captureSuccessRatePct,
       mobileSignedRatio: totals.mobileSignedRatio,
-      highTrustCapturesLast7d: totals.highTrustCaptures,
+      mobileAppSealedLast7d: totals.mobileAppSealedCount,
     },
     review: {
       reviewedLast7d: totals.reviewed,
@@ -146,7 +146,7 @@ export async function projectExecutiveTrends(input: {
       captures: t(current.captures, previous.captures),
       captureSuccessRatePct: tn(current.captureSuccessRatePct, previous.captureSuccessRatePct),
       mobileSignedRatio: t(current.mobileSignedRatio, previous.mobileSignedRatio),
-      highTrustCaptures: t(current.highTrustCaptures, previous.highTrustCaptures),
+      mobileAppSealedCount: t(current.mobileAppSealedCount, previous.mobileAppSealedCount),
     },
     review: {
       reviewed: t(current.reviewed, previous.reviewed),
@@ -211,7 +211,7 @@ type WindowTotals = {
   captures: number;
   captureSuccessRatePct: number | null;
   mobileSignedRatio: number;
-  highTrustCaptures: number;
+  mobileAppSealedCount: number;
   reviewed: number;
   /**
    * Share of completed reviews that ended APPROVED_INTERNAL, in [0, 100].
@@ -304,20 +304,26 @@ async function aggregateWindow(input: {
   );
   const captureSuccessRatePct =
     captures === 0 ? null : Math.round((capturesWithSignature / captures) * 1000) / 10;
+  // UC-0: the mobile channel is the server-authoritative acquisition mode
+  // PROOVRA_MOBILE_APP, never the structure enum `captureMethod`. The old query
+  // named `captureMethod: "MOBILE_NATIVE"`, which is not a CaptureMethod value —
+  // it threw on every run and this metric was silently always zero. Mobile-app
+  // submission is a CHANNEL, not a trust level: `mobileAppSealedCount` counts
+  // mobile-app records that reached a sealed fingerprint, nothing more.
   let mobileSignedRatio = 0;
-  let highTrustCaptures = 0;
+  let mobileAppSealedCount = 0;
   try {
     if (captures > 0) {
-      const signedMobile = await prisma.evidence.count({
+      const sealedMobileApp = await prisma.evidence.count({
         where: {
           teamId,
           createdAt: within,
-          captureMethod: "MOBILE_NATIVE" as never,
+          acquisitionMode: "PROOVRA_MOBILE_APP",
           fileSha256: { not: null },
         } as never,
       });
-      mobileSignedRatio = Math.round((signedMobile / captures) * 1000) / 10;
-      highTrustCaptures = signedMobile;
+      mobileSignedRatio = Math.round((sealedMobileApp / captures) * 1000) / 10;
+      mobileAppSealedCount = sealedMobileApp;
     }
   } catch {
     /* swallow */
@@ -495,7 +501,7 @@ async function aggregateWindow(input: {
     captures,
     captureSuccessRatePct,
     mobileSignedRatio,
-    highTrustCaptures,
+    mobileAppSealedCount,
     reviewed,
     approvalRatePct,
     qcAccuracyPct,

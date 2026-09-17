@@ -118,7 +118,9 @@ const PHOTO: CaseCopilotEvidence = {
   // The OPAQUE revision, as the server would project it. Shaped like a real
   // one — this product's prefix plus a full-length base64url digest — so a
   // fixture cannot pass a check that a real token would fail.
-  analysisRevision: "ear1_" + "a".repeat(43),
+  // UC-0: the prefix is ear2 since the Copilot fact `captureMethod` was
+  // replaced by the canonical `acquisition`; an ear1 token now reads invalid.
+  analysisRevision: "ear2_" + "a".repeat(43),
   // Presentation, separately: `null` = no verification package yet. NOT `0`,
   // which is what the client used to fabricate.
   packageVersion: null,
@@ -131,7 +133,7 @@ const VIDEO: CaseCopilotEvidence = {
   id: "1e00f0d6-2222-4222-8222-222222222222",
   title: "Scene walkthrough.mp4",
   type: "VIDEO",
-  analysisRevision: "ear1_" + "b".repeat(43),
+  analysisRevision: "ear2_" + "b".repeat(43),
   packageVersion: null,
   status: "REPORTED",
   lifecycleState: "ACTIVE",
@@ -144,7 +146,7 @@ const DOCUMENT: CaseCopilotEvidence = {
   type: "DOCUMENT",
   // A package-ready record: a REAL package version the projection carries,
   // and its own distinct revision.
-  analysisRevision: "ear1_" + "c".repeat(43),
+  analysisRevision: "ear2_" + "c".repeat(43),
   packageVersion: 2,
   status: "SIGNED",
   lifecycleState: "ACTIVE",
@@ -155,7 +157,7 @@ const UPLOADING: CaseCopilotEvidence = {
   id: "9a9a9a9a-4444-4444-8444-444444444444",
   title: "Body-cam clip.mp4",
   type: "VIDEO",
-  analysisRevision: "ear1_" + "d".repeat(43),
+  analysisRevision: "ear2_" + "d".repeat(43),
   packageVersion: null,
   status: "UPLOADING",
   lifecycleState: "ACTIVE",

@@ -66,6 +66,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 
+import { formatUserDateTime } from "../../../lib/date";
 import { MarketingHeader } from "../../../components/marketing/MarketingHeader";
 import { ProovraSystemState } from "../../../components/feedback/ProovraSystemState";
 import type {
@@ -609,12 +610,9 @@ function formatRole(role: string): string {
 function formatExpiry(iso: string): string | null {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return null;
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(at);
-  } catch {
-    return null;
-  }
+  // ONE timestamp layer: format through the canonical web date helper rather
+  // than a direct Intl.DateTimeFormat (timestamp-policy contract). The
+  // NaN guard above preserves this page's "omit the row on an unparseable
+  // value" behaviour, which the shared helper's NOT_AVAILABLE would not.
+  return formatUserDateTime(at);
 }

@@ -17,6 +17,7 @@ import {
   buildCopilotIdempotencyKey,
   evaluateCopilotEvidenceEligibility,
   evidenceAnalysisRevisionsMatch,
+  resolveEvidenceAcquisition,
   sha256Base64Url,
   // P3-6 — the typed permission vocabulary, so a suggestion cannot name a
   // permission the product does not have.
@@ -69,7 +70,7 @@ const Body = z.object({
 });
 
 const EVIDENCE_DETAIL_ALLOWLIST = [
-  "title", "type", "mimeType", "status", "verificationStatus", "captureMethod",
+  "title", "type", "mimeType", "status", "verificationStatus", "acquisition",
   "caseLinked", "createdAtUtc", "reportVersion", "packageVersion",
   "tsaStatus", "otsStatus", "custodyEventCount",
 ] as const;
@@ -223,7 +224,10 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
         mimeType: snapshot.row.mimeType,
         status: snapshot.row.status,
         verificationStatus: snapshot.row.verificationStatus,
-        captureMethod: snapshot.row.captureMethod,
+        acquisition: resolveEvidenceAcquisition({
+          acquisitionMode: snapshot.row.acquisitionMode,
+          acquisitionModeSource: snapshot.row.acquisitionModeSource,
+        }).label,
         caseLinked: snapshot.row._count.caseLinks > 0,
         createdAtUtc: snapshot.row.createdAt?.toISOString() ?? null,
         reportVersion: snapshot.row.latestReportVersion,

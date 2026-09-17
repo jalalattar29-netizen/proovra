@@ -311,7 +311,7 @@ export const EXPECTED_SCHEMA: ReadonlyArray<ExpectedSchemaObject> = [
   { kind: "column", table: "evidence_part_derived_assets", column: "asset_kind", severity: "important", subsystem: "core_evidence" },
   { kind: "column", table: "evidence_part_derived_assets", column: "status", severity: "important", subsystem: "core_evidence" },
   { kind: "column", table: "evidence_part_derived_assets", column: "derived_sha256", severity: "important", subsystem: "core_evidence" },
-  { kind: "index", table: "evidence_part_derived_assets", indexName: "evidence_part_derived_assets_team_part_kind_uk", severity: "important", subsystem: "core_evidence" },
+  { kind: "index", table: "evidence_part_derived_assets", indexName: "evidence_part_derived_assets_team_part_kind_variant_uk", severity: "important", subsystem: "core_evidence" },
   // Phase 32 — investigation graph. Important (not critical) —
   // the graph is an advisory traversal layer; missing it doesn't
   // block evidence lifecycle.

@@ -728,7 +728,8 @@ async function runEvidenceBoard(
         // `verificationPackageVersion` stays, for the truthful thing it always
         // was: showing an operator which package version exists.
         verificationPackageVersion: true,
-        captureMethod: true,
+        acquisitionMode: true,
+        acquisitionModeSource: true,
         tsaStatus: true,
         otsStatus: true,
         latestReportVersion: true,
@@ -881,7 +882,8 @@ async function runEvidenceBoard(
             status: e.status === null ? null : String(e.status),
             verificationStatus:
               e.verificationStatus === null ? null : String(e.verificationStatus),
-            captureMethod: e.captureMethod === null ? null : String(e.captureMethod),
+            acquisitionMode: e.acquisitionMode ?? null,
+            acquisitionModeSource: e.acquisitionModeSource ?? null,
             tsaStatus: e.tsaStatus,
             otsStatus: e.otsStatus,
             createdAt: e.createdAt,

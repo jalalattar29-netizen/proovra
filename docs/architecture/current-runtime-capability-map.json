@@ -5,8 +5,8 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "350df28cd1b3592fbce302d87d8037fa4ec1ea078f008fcbdfae86936dbafd59",
   "routeInventoryHash": "b17e04b121a244d9ea104f254b92dccffc9cdb028e31bcee3f13331e319d1f55",
-  "consumerInventoryHash": "4bf5c48bb5d392df06ab24e33974a00b276685c56d1737dc7c719d596698707c",
-  "dispositionsHash": "4703671ea0d4beb48fe013cafad4881717cfe4877efd99e7a7a468d91270bb5a",
+  "consumerInventoryHash": "904ebb7002fc7f0d1c4ea6f632db1056c8acbdf56a42d9d12cb0c70552fc2c56",
+  "dispositionsHash": "744f5f6f4d6a901ea0bbf6e1565a35a5c5b1152714520d29e8827dc3ba5758ca",
   "totals": {
     "RegisteredRoutes": 1150,
     "ProductionRegisteredRoutes": 1149,
@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 134
     },
-    "TerminalWriters": 1266,
-    "ReachableSensitiveMutations": 1259,
-    "ClassifiedSensitiveMutations": 1259,
+    "TerminalWriters": 1273,
+    "ReachableSensitiveMutations": 1266,
+    "ClassifiedSensitiveMutations": 1266,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 0,
     "NonRequestWriters": 7,
@@ -77,7 +77,7 @@
       "WORKSPACE": 55,
       "WORKSPACE_MEMBERSHIP_INVITATION": 59,
       "CASE": 85,
-      "EVIDENCE_CUSTODY_FINALIZATION": 289,
+      "EVIDENCE_CUSTODY_FINALIZATION": 296,
       "LEGAL_HOLD_RETENTION_DELETION": 51,
       "EXTERNAL_REVIEW_INTAKE_SHARE": 78,
       "BILLING_SUBSCRIPTION_SEAT": 62,
@@ -101,7 +101,7 @@
     "MutationConservationHolds": true,
     "byWriterBucket": {
       "ROUTE_ATTRIBUTED_REACHABLE": 1143,
-      "JOB_ATTRIBUTED_REACHABLE": 106,
+      "JOB_ATTRIBUTED_REACHABLE": 113,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 3,
       "STARTUP_OR_SCHEDULED": 13,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 8547,
-      "UNRESOLVED_IDENTIFIER": 1068
+      "METHOD_ON_VALUE": 8555,
+      "UNRESOLVED_IDENTIFIER": 1069
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": true,
@@ -5307,7 +5307,7 @@
       "method": "GET",
       "route": "/v1/provenance/:evidenceId",
       "registeringFile": "services/api/src/routes/capture-trust.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceProvenanceChainSection.tsx:86",
+      "productConsumer": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceProvenanceChainSection.tsx:80",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -13443,7 +13443,7 @@
       "method": "POST",
       "route": "/v1/teams/invites/:token/accept",
       "registeringFile": "services/api/src/routes/teams.routes.ts",
-      "productConsumer": "apps/web/app/invite/[token]/page.tsx:304",
+      "productConsumer": "apps/web/app/invite/[token]/page.tsx:305",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -13455,7 +13455,7 @@
       "method": "POST",
       "route": "/v1/teams/invites/lookup",
       "registeringFile": "services/api/src/routes/teams.routes.ts",
-      "productConsumer": "apps/web/app/invite/[token]/page.tsx:258",
+      "productConsumer": "apps/web/app/invite/[token]/page.tsx:259",
       "machineConsumer": null,
       "authorization": "PUBLIC_UNGUARDED",
       "classification": "TARGET_COMPLETE",
@@ -14808,6 +14808,244 @@
         "organizationLifecycleRequirement": "ENFORCED",
         "transactionAuthority": "INSIDE_TRANSACTION",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "packages/shared-runtime/src/evidence-destruction/reconcile-destroyed-derivatives.ts#evidenceExtractedText.deleteMany@188",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/reconcile-destroyed-derivatives.ts:188",
+      "file": "packages/shared-runtime/src/evidence-destruction/reconcile-destroyed-derivatives.ts",
+      "enclosingDeclaration": "reconcileDestroyedDerivedAssets",
+      "kind": "DATABASE",
+      "target": "evidenceExtractedText",
+      "mutationKind": "deleteMany",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": true,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/governance/destruction-orchestrator.worker.ts#runDestructionOrchestration"
+      ],
+      "entryModules": [],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "packages/shared-runtime/src/evidence-destruction/reconcile-destroyed-derivatives.ts#evidenceOcrText.deleteMany@186",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/reconcile-destroyed-derivatives.ts:186",
+      "file": "packages/shared-runtime/src/evidence-destruction/reconcile-destroyed-derivatives.ts",
+      "enclosingDeclaration": "reconcileDestroyedDerivedAssets",
+      "kind": "DATABASE",
+      "target": "evidenceOcrText",
+      "mutationKind": "deleteMany",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": true,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/governance/destruction-orchestrator.worker.ts#runDestructionOrchestration"
+      ],
+      "entryModules": [],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "packages/shared-runtime/src/evidence-destruction/reconcile-destroyed-derivatives.ts#evidencePartDerivedAsset.deleteMany@177",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/reconcile-destroyed-derivatives.ts:177",
+      "file": "packages/shared-runtime/src/evidence-destruction/reconcile-destroyed-derivatives.ts",
+      "enclosingDeclaration": "reconcileDestroyedDerivedAssets",
+      "kind": "DATABASE",
+      "target": "evidencePartDerivedAsset",
+      "mutationKind": "deleteMany",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": true,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/governance/destruction-orchestrator.worker.ts#runDestructionOrchestration"
+      ],
+      "entryModules": [],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "packages/shared-runtime/src/evidence-destruction/reconcile-destroyed-derivatives.ts#evidenceSearchDocument.deleteMany@190",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/reconcile-destroyed-derivatives.ts:190",
+      "file": "packages/shared-runtime/src/evidence-destruction/reconcile-destroyed-derivatives.ts",
+      "enclosingDeclaration": "reconcileDestroyedDerivedAssets",
+      "kind": "DATABASE",
+      "target": "evidenceSearchDocument",
+      "mutationKind": "deleteMany",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": true,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/governance/destruction-orchestrator.worker.ts#runDestructionOrchestration"
+      ],
+      "entryModules": [],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "packages/shared-runtime/src/evidence-destruction/reconcile-destroyed-derivatives.ts#evidenceSemanticChunk.deleteMany@189",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/reconcile-destroyed-derivatives.ts:189",
+      "file": "packages/shared-runtime/src/evidence-destruction/reconcile-destroyed-derivatives.ts",
+      "enclosingDeclaration": "reconcileDestroyedDerivedAssets",
+      "kind": "DATABASE",
+      "target": "evidenceSemanticChunk",
+      "mutationKind": "deleteMany",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": true,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/governance/destruction-orchestrator.worker.ts#runDestructionOrchestration"
+      ],
+      "entryModules": [],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "packages/shared-runtime/src/evidence-destruction/reconcile-destroyed-derivatives.ts#evidenceTranscriptSegment.deleteMany@187",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/reconcile-destroyed-derivatives.ts:187",
+      "file": "packages/shared-runtime/src/evidence-destruction/reconcile-destroyed-derivatives.ts",
+      "enclosingDeclaration": "reconcileDestroyedDerivedAssets",
+      "kind": "DATABASE",
+      "target": "evidenceTranscriptSegment",
+      "mutationKind": "deleteMany",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": true,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/governance/destruction-orchestrator.worker.ts#runDestructionOrchestration"
+      ],
+      "entryModules": [],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "packages/shared-runtime/src/evidence-destruction/reconcile-destroyed-derivatives.ts#OBJECT_STORAGE.deleteObject@135",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/reconcile-destroyed-derivatives.ts:135",
+      "file": "packages/shared-runtime/src/evidence-destruction/reconcile-destroyed-derivatives.ts",
+      "enclosingDeclaration": "reconcileDestroyedDerivedAssets",
+      "kind": "EXTERNAL",
+      "target": "OBJECT_STORAGE",
+      "mutationKind": "deleteObject",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/governance/destruction-orchestrator.worker.ts#runDestructionOrchestration"
+      ],
+      "entryModules": [],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:1296#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1314#startDestructionOrchestratorScheduler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "AFTER_COMMIT_OR_OUTBOX",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
         "payloadVersionAuthority": "NOT_APPLICABLE",
@@ -81257,8 +81495,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.create@467",
-      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:467",
+      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.create@498",
+      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:498",
       "file": "services/worker/src/governance/destruction-orchestrator.worker.ts",
       "enclosingDeclaration": "claimDestructionExecution",
       "kind": "DATABASE",
@@ -81291,8 +81529,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.update@222",
-      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:222",
+      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.update@223",
+      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:223",
       "file": "services/worker/src/governance/destruction-orchestrator.worker.ts",
       "enclosingDeclaration": "runDestructionOrchestration",
       "kind": "DATABASE",
@@ -81325,8 +81563,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.update@291",
-      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:291",
+      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.update@292",
+      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:292",
       "file": "services/worker/src/governance/destruction-orchestrator.worker.ts",
       "enclosingDeclaration": "runDestructionOrchestration",
       "kind": "DATABASE",
@@ -81359,8 +81597,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.update@317",
-      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:317",
+      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.update@318",
+      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:318",
       "file": "services/worker/src/governance/destruction-orchestrator.worker.ts",
       "enclosingDeclaration": "runDestructionOrchestration",
       "kind": "DATABASE",
@@ -81393,8 +81631,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.update@340",
-      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:340",
+      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.update@341",
+      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:341",
       "file": "services/worker/src/governance/destruction-orchestrator.worker.ts",
       "enclosingDeclaration": "runDestructionOrchestration",
       "kind": "DATABASE",
@@ -81427,8 +81665,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.update@350",
-      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:350",
+      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.update@351",
+      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:351",
       "file": "services/worker/src/governance/destruction-orchestrator.worker.ts",
       "enclosingDeclaration": "runDestructionOrchestration",
       "kind": "DATABASE",
@@ -81461,8 +81699,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.update@633",
-      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:633",
+      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.update@664",
+      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:664",
       "file": "services/worker/src/governance/destruction-orchestrator.worker.ts",
       "enclosingDeclaration": "failExecution",
       "kind": "DATABASE",
@@ -81495,8 +81733,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.updateMany@375",
-      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:375",
+      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.updateMany@376",
+      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:376",
       "file": "services/worker/src/governance/destruction-orchestrator.worker.ts",
       "enclosingDeclaration": "runDestructionOrchestration",
       "kind": "DATABASE",
@@ -81529,8 +81767,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.updateMany@508",
-      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:508",
+      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionExecution.updateMany@539",
+      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:539",
       "file": "services/worker/src/governance/destruction-orchestrator.worker.ts",
       "enclosingDeclaration": "claimDestructionExecution",
       "kind": "DATABASE",
@@ -81563,8 +81801,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionReview.update@331",
-      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:331",
+      "writerId": "services/worker/src/governance/destruction-orchestrator.worker.ts#destructionReview.update@332",
+      "terminalLocation": "services/worker/src/governance/destruction-orchestrator.worker.ts:332",
       "file": "services/worker/src/governance/destruction-orchestrator.worker.ts",
       "enclosingDeclaration": "runDestructionOrchestration",
       "kind": "DATABASE",
@@ -111641,7 +111879,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceProvenanceChainSection.tsx",
-          "line": 86,
+          "line": 80,
           "caller": "EvidenceProvenanceChainSection",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -111651,7 +111889,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceProvenanceChainSection.tsx:86 (EvidenceProvenanceChainSection, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceProvenanceChainSection.tsx:80 (EvidenceProvenanceChainSection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -124979,7 +125217,7 @@
       "method": "POST",
       "path": "/v1/ai/evidence/:evidenceId/copilot",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ai-evidence.routes.ts:96",
+      "registrationEvidence": "services/api/src/routes/ai-evidence.routes.ts:97",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -128369,8 +128607,8 @@
       "nonProductConsumers": [],
       "primaryDisposition": "MISSING_PRODUCT_UI_POST_RELEASE",
       "dispositionSource": "REVIEWED",
-      "dispositionEvidence": "reg services/api/src/routes/capture-trust.routes.ts:216. Its only caller was apps/mobile/src/trust/device-registration.ts, deleted in UC-0 with the base64 trust queue. The direct-capture session accepts an OPTIONAL Ed25519 signature bound to a registered device (services/api/src/services/capture-trust/direct-capture-ingest.service.ts declareDirectCapturePart), exercised by services/api/test/uc0-acquisition-capture.integration.test.ts. GET /v1/capture/devices keeps its web caller. 0 call sites in apps/web + apps/mobile.",
-      "dispositionReason": "device-key registration has no current client: UC-0 removed the mobile trust module that called it, and on-device signing is out of UC-0 scope",
+      "dispositionEvidence": "reg services/api/src/routes/capture-trust.routes.ts:216, preHandler requireAuth + resolveTeamIdOrDeny (authenticated, organization-scoped; personal spaces denied). Its only caller was apps/mobile/src/trust/device-registration.ts, deleted in UC-0 with the base64 trust queue. It registers an Ed25519 device public key; a registered device can OPTIONALLY sign a direct-capture part declaration (declareDirectCapturePart), but the signature is recorded as a bounded event and never upgrades the acquisition verdict — attestation fails closed. It is retained as the prerequisite for UC-2 (Android Direct Screen Capture), where device-bound signing becomes a real product path; it is authorized and cannot grant false trust today. GET /v1/capture/devices keeps its web Security Center caller. 0 write call sites in apps/web + apps/mobile.",
+      "dispositionReason": "UC-2 PREREQUISITE (on-device signing / Android device attestation). Reserved server-side; has no client today and grants no trust today.",
       "replacement": null,
       "result": "DISPOSED_MISSING_PRODUCT_UI_POST_RELEASE",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
@@ -128601,8 +128839,8 @@
       "nonProductConsumers": [],
       "primaryDisposition": "MISSING_PRODUCT_UI_POST_RELEASE",
       "dispositionSource": "REVIEWED",
-      "dispositionEvidence": "reg services/api/src/routes/capture-trust.routes.ts:443 → submitDirectCaptureAttestation → verifyDeviceAttestation (services/api/src/services/capture-trust/attestation-verifier.service.ts, UnverifiablePlatformProvider, CRYPTOGRAPHIC_VERIFIER_UNAVAILABLE). Executed by services/api/test/uc0-acquisition-capture.integration.test.ts, which proves a forged 'verified' payload is recorded UNVERIFIED. 0 call sites in apps/web + apps/mobile.",
-      "dispositionReason": "platform attestation is recorded but cannot be verified: the verifier fails closed (UNVERIFIED) until a real Play Integrity / App Attest verifier exists, so the app does not submit tokens yet",
+      "dispositionEvidence": "reg services/api/src/routes/capture-trust.routes.ts:443, preHandler requireAuth + authorizeOwnedSession (the session must belong to the caller's team). submitDirectCaptureAttestation → verifyDeviceAttestation (services/api/src/services/capture-trust/attestation-verifier.service.ts, UnverifiablePlatformProvider, CRYPTOGRAPHIC_VERIFIER_UNAVAILABLE) always yields UNVERIFIED. Executed by services/api/test/uc0-acquisition-capture.integration.test.ts, which proves a forged 'verified' payload is recorded UNVERIFIED. It is the prerequisite for UC-2, where a real platform verifier makes device attestation meaningful; until then the app submits no tokens and the route cannot raise the acquisition verdict. 0 call sites in apps/web + apps/mobile.",
+      "dispositionReason": "UC-2 PREREQUISITE (Android Play Integrity / Apple App Attest). Reserved server-side; grants no trust today because the verifier fails closed.",
       "replacement": null,
       "result": "DISPOSED_MISSING_PRODUCT_UI_POST_RELEASE",
       "primarySecurityFamily": "WORKSPACE_AUTHORIZED",
@@ -158040,7 +158278,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/invite/[token]/page.tsx",
-          "line": 304,
+          "line": 305,
           "caller": "InviteAcceptPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -158050,7 +158288,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/invite/[token]/page.tsx:304 (InviteAcceptPage, WEB)",
+      "dispositionEvidence": "apps/web/app/invite/[token]/page.tsx:305 (InviteAcceptPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -158126,7 +158364,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/invite/[token]/page.tsx",
-          "line": 258,
+          "line": 259,
           "caller": "InviteAcceptPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -158136,7 +158374,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/invite/[token]/page.tsx:258 (InviteAcceptPage, WEB)",
+      "dispositionEvidence": "apps/web/app/invite/[token]/page.tsx:259 (InviteAcceptPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",

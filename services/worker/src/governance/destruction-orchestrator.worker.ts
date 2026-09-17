@@ -65,6 +65,7 @@ import { evaluateEffectiveLegalHold } from "./effective-legal-hold.js";
 // records.
 import {
   executeEvidenceDestruction,
+  reconcileDestroyedDerivedAssets,
   resolveDestructionApproval,
 } from "@proovra/shared-runtime";
 import { workerEvidenceDestructionStorage } from "./destruction-storage-port.js";
@@ -391,6 +392,36 @@ export async function runDestructionOrchestration(
             })
             .catch(() => null);
         }
+      }
+
+      // UC-0 (A2) — retroactively reconcile derived material left on records
+      // destroyed BEFORE the P0-7 fix. Bounded and idempotent: a cleaned
+      // tombstone leaves the selection, so this converges and then no-ops.
+      // Reuses the SAME canonical storage port, so object ownership is not
+      // guessed. Counts only — never evidence content.
+      try {
+        const reconciled = await reconcileDestroyedDerivedAssets(
+          prisma,
+          workerEvidenceDestructionStorage,
+          { dryRun: false, recordLimit: 200 },
+        );
+        ctx.setMetadata("historicalDerivedTombstonesScanned", reconciled.tombstonesScanned);
+        ctx.setMetadata("historicalDerivedRowsRemoved", reconciled.derivedAssetRowsRemoved);
+        ctx.setMetadata("historicalDerivedBytesReclaimed", reconciled.derivedBytesReclaimed);
+        ctx.setMetadata("historicalDerivedObjectsFailed", reconciled.derivedObjectsFailed);
+        if (reconciled.tombstonesScanned > 0) {
+          logger.info(
+            { runId: ctx.runId, ...reconciled },
+            "destruction.orchestrator.historical_derived_reconciled",
+          );
+        }
+      } catch (err) {
+        // Never fail the sweep on the retroactive cleanup — it is a
+        // convergent housekeeping pass, not the destruction path.
+        logger.warn(
+          { err, runId: ctx.runId },
+          "destruction.orchestrator.historical_derived_reconcile_failed",
+        );
       }
 
       ctx.setMetadata("executedCount", executed);

@@ -40,7 +40,7 @@ const FACTS: EvidenceAnalysisFacts = {
   mimeType: "image/jpeg",
   status: "REPORTED",
   verificationStatus: "VERIFIED",
-  captureMethod: "IN_APP_CAPTURE",
+  acquisition: "Uploaded to PROOVRA",
   tsaStatus: "CONFIRMED",
   otsStatus: "PENDING",
   createdAtUtc: new Date("2026-06-01T10:00:00.000Z"),
@@ -140,7 +140,7 @@ describe("the canonical serialization is lossless about absence", () => {
       type: FACTS.type,
       mimeType: FACTS.mimeType,
       verificationStatus: FACTS.verificationStatus,
-      captureMethod: FACTS.captureMethod,
+      acquisition: FACTS.acquisition,
       tsaStatus: FACTS.tsaStatus,
       otsStatus: FACTS.otsStatus,
       createdAtUtc: FACTS.createdAtUtc,
@@ -211,10 +211,10 @@ describe("the revision COVERS every field a copilot is shown", () => {
   });
 
   it("the Evidence Copilot's extra fields move it too", () => {
-    // That surface shows `captureMethod`, `tsaStatus`, `otsStatus` and
+    // That surface shows `acquisition`, `tsaStatus`, `otsStatus` and
     // `custodyEventCount` on top of the shared list.
     for (const mutation of [
-      { captureMethod: "UPLOAD" },
+      { acquisition: "Submitted through the PROOVRA mobile app" },
       { tsaStatus: "FAILED" },
       { otsStatus: "CONFIRMED" },
       { custodyEventCount: 8 },
@@ -243,7 +243,7 @@ describe("the revision COVERS every field a copilot is shown", () => {
   it("no two of the covered mutations collide", () => {
     const all = [
       ...Object.values(COVERS),
-      { captureMethod: "UPLOAD" },
+      { acquisition: "Submitted through the PROOVRA mobile app" },
       { tsaStatus: "FAILED" },
       { otsStatus: "CONFIRMED" },
       { custodyEventCount: 8 },
@@ -270,7 +270,8 @@ describe("the SELECT and the facts cannot drift apart", () => {
       "mimeType",
       "status",
       "verificationStatus",
-      "captureMethod",
+      "acquisitionMode",
+      "acquisitionModeSource",
       "tsaStatus",
       "otsStatus",
       "createdAt",
@@ -296,7 +297,8 @@ describe("the SELECT and the facts cannot drift apart", () => {
       mimeType: null,
       status: "REPORTED",
       verificationStatus: null,
-      captureMethod: null,
+      acquisitionMode: null,
+      acquisitionModeSource: null,
       tsaStatus: null,
       otsStatus: null,
       createdAt: new Date("2026-06-01T10:00:00.000Z"),

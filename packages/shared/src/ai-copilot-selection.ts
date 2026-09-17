@@ -367,8 +367,15 @@ export const COPILOT_SELECTION_REFRESH_MESSAGE =
  */
 export type EvidenceAnalysisRevision = string;
 
-/** The schema prefix every revision this product accepts must carry. */
-export const EVIDENCE_ANALYSIS_REVISION_PREFIX = "ear1_";
+/**
+ * The schema prefix every revision this product accepts must carry.
+ *
+ * Kept in lockstep with `EVIDENCE_ANALYSIS_REVISION_SCHEMA` in
+ * `@proovra/shared-runtime` (which cannot be imported here — the dependency
+ * runs the other way). ear2 (UC-0): the acquisition fact replaced the
+ * structure enum `captureMethod` the model used to be shown.
+ */
+export const EVIDENCE_ANALYSIS_REVISION_PREFIX = "ear2_";
 
 /**
  * The exact length of a well-formed revision: the prefix plus the FULL

@@ -72,6 +72,7 @@ export * from "./evidence-analysis-revision.js";
 // they never performed. Every trigger in both processes now calls this.
 export * from "./evidence-destruction/executor.js";
 export * from "./evidence-destruction/approval.js";
+export * from "./evidence-destruction/reconcile-destroyed-derivatives.js";
 
 // UC-0 — THE provenance-chain projection and the public Verify acquisition
 // projection. One implementation for the API (Verify, /v1/provenance) and the

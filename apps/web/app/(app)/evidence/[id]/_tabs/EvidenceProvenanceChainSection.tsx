@@ -64,12 +64,6 @@ const LIMITATION_COPY: Record<string, string> = {
     "Captures taken offline are timed by the device's own clock until PROOVRA can apply an independent timestamp.",
 };
 
-const CAPTURE_CLASS_COPY: Record<string, string> = {
-  A: "Captured through a registered device with a verified device check",
-  B: "Captured through PROOVRA, without a full device check",
-  C: "Provided to PROOVRA after the fact (no capture-side record)",
-};
-
 export function EvidenceProvenanceChainSection({
   evidenceId,
 }: {
@@ -177,22 +171,25 @@ export function EvidenceProvenanceChainSection({
 }
 
 function ProvenanceChainBody({ chain }: { chain: ProvenanceChain }) {
+  // UC-0: acquisition truth is the canonical acquisition authority, and the
+  // public Class A/B/C "capture record" copy was retired (D2) — it claimed a
+  // "verified device check" that the fail-closed attestation can never support.
   const captureItems: Array<{ label: string; value: string }> = [
     {
       label: "How it was acquired",
-      value: humaniseCaptureMode(chain.capture.mode),
-    },
-    {
-      label: "Capture record",
-      value:
-        CAPTURE_CLASS_COPY[chain.capture.provenanceClass] ??
-        "Capture record not classified",
+      value: chain.acquisition.label,
     },
     {
       label: "Device signature at source",
       value: chain.capture.deviceSignatureNote,
     },
   ];
+  if (chain.acquisition.recordedBy === "BACKFILL_INTAKE_SESSION_LINK") {
+    captureItems.push({
+      label: "Acquisition recorded",
+      value: "Recorded later from this record's secure intake session.",
+    });
+  }
   if (chain.capture.attestationVerdict !== "NOT_ATTEMPTED") {
     captureItems.push({
       label: "Device check",
@@ -280,23 +277,6 @@ function ProvenanceChainBody({ chain }: { chain: ProvenanceChain }) {
       </div>
     </div>
   );
-}
-
-function humaniseCaptureMode(mode: string): string {
-  switch (mode) {
-    case "SECURE_INTAKE_LINK":
-      return "Uploaded through a secure intake link";
-    case "PROOVRA_WEB_UPLOAD":
-      return "Uploaded through PROOVRA in a browser";
-    case "OPERATOR_NATIVE":
-      return "Captured in the PROOVRA mobile app";
-    case "OPERATOR_SDK_EMBED":
-      return "Sent through the PROOVRA API";
-    case "BULK_IMPORT":
-      return "Imported into PROOVRA after the fact";
-    default:
-      return humaniseEnum(mode);
-  }
 }
 
 function humaniseEnum(value: string): string {

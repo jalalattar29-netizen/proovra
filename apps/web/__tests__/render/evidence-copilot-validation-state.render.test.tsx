@@ -37,7 +37,7 @@ const EVIDENCE_ID = "ev-copilot-1";
 // prefix plus a full-length base64url digest. The panel refuses to run
 // without one, which is the point — it was `evidenceVersion={2}`, built by
 // the caller with `?? 0`.
-const REVISION = "ear1_" + "e".repeat(43);
+const REVISION = "ear2_" + "e".repeat(43);
 const BOUNDARY =
   "AI assistance is advisory only and does not determine truth, authenticity, authorship, identity, intent, liability, fraud, or legal admissibility.";
 

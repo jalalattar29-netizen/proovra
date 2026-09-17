@@ -1295,6 +1295,10 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // trigger on `evidence` and the D9 intake backfill. No `security_events`
       // column, index, enum or mapping is touched.
       "20280601000000_uc0_acquisition_provenance_foundation",
+      // UC-0 (A3, 2026-09-17) — retire the narrow derived-asset unique key so
+      // distinct variants coexist. One guarded DROP INDEX. No `security_events`
+      // column, index, enum or mapping is touched.
+      "20280602000000_derived_asset_variant_contract",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

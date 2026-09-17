@@ -329,7 +329,7 @@ export type ExecutiveCaptureMetrics = {
   capturesLast7d: number;
   captureSuccessRatePct: number | null;
   mobileSignedRatio: number;
-  highTrustCapturesLast7d: number;
+  mobileAppSealedLast7d: number;
 };
 
 export type ExecutiveReviewMetrics = {

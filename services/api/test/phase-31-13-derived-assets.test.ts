@@ -113,8 +113,11 @@ describe("Phase 31.13 — evidence_part_derived_assets SQL drift patch", () => {
       "../src/runtime/schema-validation.ts",
     );
     expect(src).toContain('name: "evidence_part_derived_assets"');
+    // UC-0 (A3): the narrow per-kind unique key is retired by the variant
+    // contract migration; the composite (team, part, kind, variant) key is the
+    // runtime-required uniqueness that keeps identical variants idempotent.
     expect(src).toContain(
-      'indexName: "evidence_part_derived_assets_team_part_kind_uk"',
+      'indexName: "evidence_part_derived_assets_team_part_kind_variant_uk"',
     );
   });
 });

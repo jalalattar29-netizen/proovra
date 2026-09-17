@@ -1560,15 +1560,15 @@
     {
       "routeId": "POST /v1/capture/devices",
       "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "device-key registration has no current client: UC-0 removed the mobile trust module that called it, and on-device signing is out of UC-0 scope",
-      "evidence": "reg services/api/src/routes/capture-trust.routes.ts:216. Its only caller was apps/mobile/src/trust/device-registration.ts, deleted in UC-0 with the base64 trust queue. The direct-capture session accepts an OPTIONAL Ed25519 signature bound to a registered device (services/api/src/services/capture-trust/direct-capture-ingest.service.ts declareDirectCapturePart), exercised by services/api/test/uc0-acquisition-capture.integration.test.ts. GET /v1/capture/devices keeps its web caller. 0 call sites in apps/web + apps/mobile.",
+      "reason": "UC-2 PREREQUISITE (on-device signing / Android device attestation). Reserved server-side; has no client today and grants no trust today.",
+      "evidence": "reg services/api/src/routes/capture-trust.routes.ts:216, preHandler requireAuth + resolveTeamIdOrDeny (authenticated, organization-scoped; personal spaces denied). Its only caller was apps/mobile/src/trust/device-registration.ts, deleted in UC-0 with the base64 trust queue. It registers an Ed25519 device public key; a registered device can OPTIONALLY sign a direct-capture part declaration (declareDirectCapturePart), but the signature is recorded as a bounded event and never upgrades the acquisition verdict — attestation fails closed. It is retained as the prerequisite for UC-2 (Android Direct Screen Capture), where device-bound signing becomes a real product path; it is authorized and cannot grant false trust today. GET /v1/capture/devices keeps its web Security Center caller. 0 write call sites in apps/web + apps/mobile.",
       "reviewedAtUtc": "2026-09-17"
     },
     {
       "routeId": "POST /v1/capture/direct-sessions/:id/attestation",
       "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "platform attestation is recorded but cannot be verified: the verifier fails closed (UNVERIFIED) until a real Play Integrity / App Attest verifier exists, so the app does not submit tokens yet",
-      "evidence": "reg services/api/src/routes/capture-trust.routes.ts:443 → submitDirectCaptureAttestation → verifyDeviceAttestation (services/api/src/services/capture-trust/attestation-verifier.service.ts, UnverifiablePlatformProvider, CRYPTOGRAPHIC_VERIFIER_UNAVAILABLE). Executed by services/api/test/uc0-acquisition-capture.integration.test.ts, which proves a forged 'verified' payload is recorded UNVERIFIED. 0 call sites in apps/web + apps/mobile.",
+      "reason": "UC-2 PREREQUISITE (Android Play Integrity / Apple App Attest). Reserved server-side; grants no trust today because the verifier fails closed.",
+      "evidence": "reg services/api/src/routes/capture-trust.routes.ts:443, preHandler requireAuth + authorizeOwnedSession (the session must belong to the caller's team). submitDirectCaptureAttestation → verifyDeviceAttestation (services/api/src/services/capture-trust/attestation-verifier.service.ts, UnverifiablePlatformProvider, CRYPTOGRAPHIC_VERIFIER_UNAVAILABLE) always yields UNVERIFIED. Executed by services/api/test/uc0-acquisition-capture.integration.test.ts, which proves a forged 'verified' payload is recorded UNVERIFIED. It is the prerequisite for UC-2, where a real platform verifier makes device attestation meaningful; until then the app submits no tokens and the route cannot raise the acquisition verdict. 0 call sites in apps/web + apps/mobile.",
       "reviewedAtUtc": "2026-09-17"
     }
   ]

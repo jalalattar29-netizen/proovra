@@ -285,15 +285,27 @@ describe("UC-0c derivative lifecycle — live PostgreSQL 16", () => {
     await seedDerived(store, rec, { kind: "video_frame", sizeBytes: 200 });
     await seedDerived(store, rec, { kind: "audio_waveform", sizeBytes: 100 });
     expect(await used()).toBe(base + 10_600n);
-    // EXPAND/CONTRACT: the pre-UC-0 (team, part, kind) key is retained so an
-    // older image's ON CONFLICT target still exists. Until the contract
-    // migration drops it, a SECOND variant of one kind is refused — proven
-    // here so the limitation cannot be forgotten before multi-variant
-    // producers (keyframes) ship.
-    await expect(
-      seedDerived(store, rec, { variantKey: "keyframe-0001", sizeBytes: 50 }),
-    ).rejects.toThrow(/Unique constraint/);
-    expect(await used()).toBe(base + 10_600n);
+    // UC-0 (A3): the variant contract retired the narrow (team, part, kind)
+    // key, so a SECOND variant of one kind on the same part now COEXISTS with
+    // the first — the capability multi-variant producers (keyframes) need.
+    await seedDerived(store, rec, {
+      kind: "video_frame",
+      variantKey: "keyframe-0001",
+      sizeBytes: 50,
+    });
+    await seedDerived(store, rec, {
+      kind: "video_frame",
+      variantKey: "keyframe-0002",
+      sizeBytes: 50,
+    });
+    expect(
+      await prisma.evidencePartDerivedAsset.count({
+        where: { evidencePartId: rec.partId, assetKind: "video_frame" },
+      }),
+      "three distinct video_frame variants (default + two keyframes) coexist",
+    ).toBe(3);
+    // Both variant bytes are counted (2 x 50).
+    expect(await used()).toBe(base + 10_700n);
 
     const common = {
       teamId,
@@ -307,7 +319,7 @@ describe("UC-0c derivative lifecycle — live PostgreSQL 16", () => {
       prisma,
     );
     expect(failedFirst).toEqual({ ok: true, id: expect.any(String), previousStorage: null });
-    expect(await used()).toBe(base + 10_600n);
+    expect(await used()).toBe(base + 10_700n);
 
     // Success: 1000 bytes.
     const ok1 = await recordDerivedAsset(
@@ -322,7 +334,7 @@ describe("UC-0c derivative lifecycle — live PostgreSQL 16", () => {
       prisma,
     );
     expect(ok1.ok && ok1.previousStorage).toBeNull();
-    expect(await used()).toBe(base + 11_600n);
+    expect(await used()).toBe(base + 11_700n);
 
     // Regeneration replaces, never adds; the superseded pointer is reported.
     const ok2 = await recordDerivedAsset(
@@ -340,7 +352,7 @@ describe("UC-0c derivative lifecycle — live PostgreSQL 16", () => {
       bucket,
       key: "derived-assets/proxy-v1",
     });
-    expect(await used()).toBe(base + 12_100n);
+    expect(await used()).toBe(base + 12_200n);
 
     // A failure AFTER success keeps the bytes that still exist — pointer,
     // digest and size — so they remain counted and destroyable.
@@ -354,7 +366,7 @@ describe("UC-0c derivative lifecycle — live PostgreSQL 16", () => {
     expect(row.sizeBytes).toBe(1_500);
     expect(row.variantKey).toBe("default");
     expect(row.transformation).toBe("low-res-proxy/v1");
-    expect(await used()).toBe(base + 12_100n);
+    expect(await used()).toBe(base + 12_200n);
 
     // Destroyed: nothing of the record counts.
     await prisma.evidence.update({
@@ -480,5 +492,131 @@ describe("UC-0c derivative lifecycle — live PostgreSQL 16", () => {
     });
     // No proof, no value: projected as "not recorded", never guessed.
     expect(l).toEqual({ acquisitionMode: null, acquisitionModeSource: null });
+  });
+
+  // =========================================================================
+  // A2 — retroactive reconciliation of derived material on DESTROYED tombstones
+  // (records destroyed BEFORE the P0-7 fix kept their derived rows + objects).
+  // =========================================================================
+  describe("A2 — historical destroyed-derivative reconciliation", () => {
+    async function seedDestroyedTombstoneWithDerived(store: DisposableStore) {
+      const rec = await seedRecord(store, { lifecycleState: "DESTROYED" });
+      const derived = await seedDerived(store, rec, { sizeBytes: 512 });
+      await seedDerivedText(rec);
+      return { rec, derived };
+    }
+
+    // Explicit teardown so a record one A2 test leaves behind is not swept by
+    // the next (the reconciler is workspace-wide, not id-scoped).
+    async function hardDelete(evidenceId: string) {
+      await prisma.evidenceLegalHold.deleteMany({ where: { evidenceId } });
+      await prisma.evidencePartDerivedAsset.deleteMany({ where: { evidenceId } });
+      await prisma.evidenceOcrText.deleteMany({ where: { evidenceId } });
+      await prisma.evidenceTranscriptSegment.deleteMany({ where: { evidenceId } });
+      await prisma.evidenceSearchDocument.deleteMany({ where: { evidenceId } });
+      await prisma.evidencePart.deleteMany({ where: { evidenceId } });
+      await prisma.evidence.deleteMany({ where: { id: evidenceId } });
+    }
+
+    it("dry-run reports the leftover material and mutates nothing", async () => {
+      const store = new DisposableStore();
+      const { rec, derived } = await seedDestroyedTombstoneWithDerived(store);
+      const { reconcileDestroyedDerivedAssets } = await import("@proovra/shared-runtime");
+
+      const report = await reconcileDestroyedDerivedAssets(prisma, store.port, {
+        dryRun: true,
+        recordLimit: 500,
+      });
+      expect(report.dryRun).toBe(true);
+      expect(report.tombstonesScanned).toBeGreaterThanOrEqual(1);
+      expect(report.derivedBytesReclaimed).toBeGreaterThanOrEqual(512);
+      // Nothing actually removed.
+      expect(store.deleteCalls).toEqual([]);
+      expect(store.has(bucket, derived.key)).toBe(true);
+      await hardDelete(rec.id);
+    });
+
+    it("apply deletes the objects, removes the rows, and repairs storage accounting; then is idempotent", async () => {
+      const store = new DisposableStore();
+      const { sumDerivedAssetStorageBytes, reconcileDestroyedDerivedAssets } = await import(
+        "@proovra/shared-runtime"
+      );
+      const teamId = harness.fixtures.teamA.teamId;
+      const before = await sumDerivedAssetStorageBytes(prisma, { teamId });
+      const { rec, derived } = await seedDestroyedTombstoneWithDerived(store);
+      const seeded = await sumDerivedAssetStorageBytes(prisma, { teamId });
+      expect(seeded - before).toBe(512n); // the tombstone's derived bytes are being counted
+
+      const report = await reconcileDestroyedDerivedAssets(prisma, store.port, {
+        dryRun: false,
+        recordLimit: 500,
+      });
+      expect(report.derivedObjectsDeleted).toBeGreaterThanOrEqual(1);
+      expect(report.derivedAssetRowsRemoved).toBeGreaterThanOrEqual(1);
+      expect(report.searchDocumentRowsRemoved).toBeGreaterThanOrEqual(1);
+      // Object gone, row gone, derived text gone.
+      expect(store.has(bucket, derived.key)).toBe(false);
+      expect(
+        await prisma.evidencePartDerivedAsset.count({ where: { evidenceId: rec.id } }),
+      ).toBe(0);
+      expect(await prisma.evidenceOcrText.count({ where: { evidenceId: rec.id } })).toBe(0);
+      expect(await prisma.evidenceSearchDocument.count({ where: { evidenceId: rec.id } })).toBe(0);
+      // Storage accounting returns to where it started for this record.
+      expect(await sumDerivedAssetStorageBytes(prisma, { teamId })).toBe(before);
+
+      // Idempotent — this record no longer satisfies the selection.
+      const second = await reconcileDestroyedDerivedAssets(prisma, store.port, {
+        dryRun: false,
+        recordLimit: 500,
+      });
+      expect(
+        second.derivedAssetRowsRemoved,
+        "a second run over cleaned data removes nothing for this record",
+      ).toBe(0);
+    });
+
+    it("never touches a LIVE record's derivatives", async () => {
+      const store = new DisposableStore();
+      const { reconcileDestroyedDerivedAssets } = await import("@proovra/shared-runtime");
+      const rec = await seedRecord(store, { lifecycleState: "ACTIVE" });
+      const derived = await seedDerived(store, rec, { sizeBytes: 256 });
+
+      await reconcileDestroyedDerivedAssets(prisma, store.port, {
+        dryRun: false,
+        recordLimit: 500,
+      });
+      expect(store.has(bucket, derived.key)).toBe(true);
+      expect(
+        await prisma.evidencePartDerivedAsset.count({ where: { evidenceId: rec.id } }),
+      ).toBe(1);
+    });
+
+    it("skips a destroyed record that still carries an ACTIVE legal hold", async () => {
+      const store = new DisposableStore();
+      const { reconcileDestroyedDerivedAssets } = await import("@proovra/shared-runtime");
+      const team = harness.fixtures.teamA;
+      const { rec, derived } = await seedDestroyedTombstoneWithDerived(store);
+      await prisma.evidenceLegalHold.create({
+        data: {
+          teamId: team.teamId,
+          evidenceId: rec.id,
+          organizationId,
+          title: "Held tombstone (contrived invariant)",
+          status: "ACTIVE",
+          placedByUserId: team.ownerUserId,
+        } as never,
+      });
+
+      const report = await reconcileDestroyedDerivedAssets(prisma, store.port, {
+        dryRun: false,
+        recordLimit: 500,
+      });
+      // This record is excluded from the selection; its material is untouched.
+      expect(store.has(bucket, derived.key)).toBe(true);
+      expect(
+        await prisma.evidencePartDerivedAsset.count({ where: { evidenceId: rec.id } }),
+      ).toBe(1);
+      void report;
+    });
   });
 });

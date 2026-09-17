@@ -333,6 +333,15 @@ describe("Phase O — CI gate on post-baseline migrations", () => {
       "ALTER_TABLE_DROP_COLUMN",
       "DROP_INDEX",
     ]),
+    // UC-0 (A3) — the derivative variant contract. ONE guarded DROP INDEX
+    // retires the narrow (team, part, kind) unique key so distinct derivative
+    // variants of one kind (e.g. UC-4 keyframes) coexist; the composite
+    // (…, variant_key) key keeps identical variants idempotent. A DO-block
+    // RAISEs unless the composite key exists first, and the DROP runs inside
+    // that block via EXECUTE so the guard authorises it. Classified
+    // CONTRACT_DROP / CONTRACT_DROP_LATER in the Point-6 inventory (apply only
+    // after the UC-0 image, which upserts against the composite key, is live).
+    "20280602000000_derived_asset_variant_contract": new Set(["DROP_INDEX"]),
     // Removes the unsupported anchor receipt_id / public_url columns
     // from `evidence_anchors`. PROOVRA relies solely on OpenTimestamps ->
     // Bitcoin anchoring (transaction_id + anchored_at_utc), the verification

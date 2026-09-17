@@ -222,14 +222,17 @@ function ExecutiveDashboardShell() {
                 metric={trends.capture.captureSuccessRatePct}
                 suffix="%"
               />
+              {/* UC-0: mobile-app submission is a CHANNEL, not a trust level.
+                  These tiles report how many captures arrived via the mobile
+                  app and reached a sealed fingerprint — never "trust". */}
               <TrendTile
-                label="Mobile signed ratio %"
+                label="Mobile-app sealed %"
                 metric={trends.capture.mobileSignedRatio}
                 suffix="%"
               />
               <TrendTile
-                label="High-trust captures"
-                metric={trends.capture.highTrustCaptures}
+                label="Mobile-app captures"
+                metric={trends.capture.mobileAppSealedCount}
               />
             </Family>
 

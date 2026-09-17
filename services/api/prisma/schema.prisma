@@ -13844,11 +13844,12 @@ model EvidencePartDerivedAsset {
   createdAtUtc             DateTime  @default(now()) @map("created_at_utc") @db.Timestamptz(6)
   updatedAtUtc             DateTime  @default(now()) @map("updated_at_utc") @db.Timestamptz(6)
 
-  // UC-0 — the canonical identity. The narrower per-kind key below is RETAINED
-  // until a later contract migration (an older image still upserts ON CONFLICT
-  // against it); with every producer writing variant "default" both hold.
+  // UC-0 — the canonical identity: one row per (team, part, kind, variant).
+  // Identical variants stay idempotent; distinct variants (e.g. keyframes)
+  // coexist. The narrow per-kind key that blocked coexistence was retired by
+  // migration 20280602000000_derived_asset_variant_contract (a post-UC-0-image
+  // contract drop).
   @@unique([teamId, evidencePartId, assetKind, variantKey], map: "evidence_part_derived_assets_team_part_kind_variant_uk")
-  @@unique([teamId, evidencePartId, assetKind], map: "evidence_part_derived_assets_team_part_kind_uk")
   @@index([evidenceId], map: "evidence_part_derived_assets_evidence_idx")
   @@index([status, updatedAtUtc(sort: Desc)], map: "evidence_part_derived_assets_status_updated_idx")
   @@map("evidence_part_derived_assets")

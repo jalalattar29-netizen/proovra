@@ -59,7 +59,11 @@
 import { sha256Base64Url } from "@proovra/shared";
 
 /** The schema version this module produces. Changing the shape changes this. */
-export const EVIDENCE_ANALYSIS_REVISION_SCHEMA = "ear1";
+// ear2 (UC-0): the acquisition fact is the canonical acquisition label
+// (from Evidence.acquisitionMode), replacing the structure enum `captureMethod`
+// the model used to be shown. The version bump makes every prior revision
+// uniformly stale rather than silently changing one field's meaning.
+export const EVIDENCE_ANALYSIS_REVISION_SCHEMA = "ear2";
 
 /**
  * The persisted evidence facts a revision is derived from.
@@ -86,8 +90,12 @@ export type EvidenceAnalysisFacts = {
   status: string | null;
   /** Prompt field `verificationStatus`; the integrity narrative. */
   verificationStatus: string | null;
-  /** Prompt field `captureMethod` (Evidence Copilot). */
-  captureMethod: string | null;
+  /**
+   * Prompt field `acquisition` (Evidence Copilot) — the canonical acquisition
+   * label from `Evidence.acquisitionMode` (e.g. "Uploaded to PROOVRA",
+   * "Not recorded"). Never the structure enum `captureMethod`.
+   */
+  acquisition: string | null;
   /** Prompt field `tsaStatus`; the timestamping narrative. */
   tsaStatus: string | null;
   /** Prompt field `otsStatus`. */
@@ -217,7 +225,7 @@ export function canonicalEvidenceAnalysisSnapshot(
       mimeType: facts.mimeType,
       status: facts.status,
       verificationStatus: facts.verificationStatus,
-      captureMethod: facts.captureMethod,
+      acquisition: facts.acquisition,
       tsaStatus: facts.tsaStatus,
       otsStatus: facts.otsStatus,
       createdAtUtc: canonicalInstant(facts.createdAtUtc),

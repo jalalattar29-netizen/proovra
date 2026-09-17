@@ -113,7 +113,7 @@ export type ExecutiveCaptureTrend = {
   captures: TrendMetric;
   captureSuccessRatePct: TrendMetric | null;
   mobileSignedRatio: TrendMetric;
-  highTrustCaptures: TrendMetric;
+  mobileAppSealedCount: TrendMetric;
 };
 
 export type ExecutiveReviewTrend = {

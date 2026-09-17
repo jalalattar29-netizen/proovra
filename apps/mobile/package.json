@@ -15,8 +15,6 @@
   },
   "dependencies": {
     "@babel/runtime": "^7.28.6",
-    "@noble/ed25519": "^3.1.0",
-    "@noble/hashes": "^2.2.0",
     "@proovra/shared": "workspace:*",
     "@proovra/ui": "workspace:*",
     "@react-native-async-storage/async-storage": "^1.23.1",

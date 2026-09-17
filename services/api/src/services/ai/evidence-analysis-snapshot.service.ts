@@ -24,6 +24,7 @@ import {
   type EvidenceAnalysisContext,
   type EvidenceAnalysisFacts,
 } from "@proovra/shared-runtime";
+import { resolveEvidenceAcquisition } from "@proovra/shared";
 
 import { prisma } from "../../db.js";
 
@@ -44,7 +45,12 @@ export const EVIDENCE_ANALYSIS_SELECT = {
   mimeType: true,
   status: true,
   verificationStatus: true,
-  captureMethod: true,
+  // UC-0: the AI is shown the canonical ACQUISITION (from acquisitionMode),
+  // never the structure enum `captureMethod` — a model reading
+  // "captureMethod: SECURE_CAMERA" would narrate a capture the server never
+  // observed. Acquisition truth comes from the same resolver every surface uses.
+  acquisitionMode: true,
+  acquisitionModeSource: true,
   tsaStatus: true,
   otsStatus: true,
   createdAt: true,
@@ -78,7 +84,8 @@ export type EvidenceAnalysisRow = {
   mimeType: string | null;
   status: string | null;
   verificationStatus: string | null;
-  captureMethod: string | null;
+  acquisitionMode: string | null;
+  acquisitionModeSource: string | null;
   tsaStatus: string | null;
   otsStatus: string | null;
   createdAt: Date | null;
@@ -122,7 +129,10 @@ export function evidenceAnalysisFacts(row: EvidenceAnalysisRow): EvidenceAnalysi
     mimeType: row.mimeType,
     status: row.status,
     verificationStatus: row.verificationStatus,
-    captureMethod: row.captureMethod,
+    acquisition: resolveEvidenceAcquisition({
+      acquisitionMode: row.acquisitionMode,
+      acquisitionModeSource: row.acquisitionModeSource,
+    }).label,
     tsaStatus: row.tsaStatus,
     otsStatus: row.otsStatus,
     createdAtUtc: row.createdAt,
