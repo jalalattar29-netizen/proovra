@@ -831,8 +831,21 @@ export async function externalPortalRoutes(app: FastifyInstance) {
         userAgent: (req.headers["user-agent"] as string | undefined) ?? null,
         // The token exchange is where an invitation is accepted (INVITED -> ACTIVE).
         acceptInvited: true,
+        // D27 — the token exchange is the one place an emailed code is sent.
+        issueMfaCode: true,
       });
-      if (!sess.ok) return reply.code(401).send({ denial: sess.denial });
+      if (!sess.ok) {
+        // D27 — the code step learns whether a code is on its way, where to
+        // (masked), when another may be requested and how many tries remain.
+        // A refused issuance (RATE_LIMITED / MFA_UNAVAILABLE) carries none.
+        if (sess.denial === "RATE_LIMITED") {
+          return reply.code(429).send({ denial: sess.denial });
+        }
+        if (sess.denial === "MFA_UNAVAILABLE") {
+          return reply.code(503).send({ denial: sess.denial });
+        }
+        return reply.code(401).send({ denial: sess.denial, ...(sess.mfa ?? {}) });
+      }
       // Best-effort flip INVITED → ACTIVE on first arrival.
       await acceptInvitation({
         teamId: sess.session.teamId,

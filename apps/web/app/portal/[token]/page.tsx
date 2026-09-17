@@ -23,10 +23,14 @@ import {
   authenticate,
   fetchPortalDashboard,
   getSessionId,
+  isPortalMfaDenial,
   logout as portalLogout,
+  readPortalFailure,
   setBearer,
+  type PortalMfaDetail,
 } from "../../../lib/external-portal/portal-client";
 import { formatUserDate, formatUserDateTime } from "../../../lib/date";
+import { PortalMfaCodeStep } from "../../../components/external-portal/PortalMfaCodeStep";
 
 export default function PortalDashboardPage({
   params,
@@ -38,6 +42,10 @@ export default function PortalDashboardPage({
     null,
   );
   const [denial, setDenial] = useState<string | null>(null);
+  const [mfaStep, setMfaStep] = useState<{
+    denial: string;
+    detail: PortalMfaDetail | null;
+  } | null>(null);
 
   const reauth = useCallback(async () => {
     setBearer(decodeURIComponent(token));
@@ -47,8 +55,13 @@ export default function PortalDashboardPage({
         existingSessionId: getSessionId() ?? undefined,
       });
     } catch (err) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setDenial(((err as any)?.denial ?? "TOKEN_INVALID") as string);
+      // D27 — a lapsed MFA satisfaction is answered with the code step.
+      const failure = readPortalFailure(err);
+      if (failure.denial && isPortalMfaDenial(failure.denial)) {
+        setMfaStep({ denial: failure.denial, detail: failure.mfa });
+      } else {
+        setDenial(failure.denial ?? "TOKEN_INVALID");
+      }
       return false;
     }
     return true;
@@ -61,14 +74,40 @@ export default function PortalDashboardPage({
       const proj = await fetchPortalDashboard();
       setProjection(proj);
     } catch (err) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setDenial(((err as any)?.denial ?? "TOKEN_INVALID") as string);
+      // D27 — a lapsed MFA satisfaction is answered with the code step.
+      const failure = readPortalFailure(err);
+      if (failure.denial && isPortalMfaDenial(failure.denial)) {
+        setMfaStep({ denial: failure.denial, detail: failure.mfa });
+      } else {
+        setDenial(failure.denial ?? "TOKEN_INVALID");
+      }
     }
   }, [reauth]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  if (mfaStep) {
+    return (
+      <main
+        data-portal-mfa-gate
+        style={{ maxWidth: 480, margin: "0 auto", padding: "40px 16px" }}
+      >
+        <h1 style={{ fontSize: 20, margin: 0 }}>Confirm it is you</h1>
+        <PortalMfaCodeStep
+          token={decodeURIComponent(token)}
+          denial={mfaStep.denial}
+          detail={mfaStep.detail}
+          existingSessionId={getSessionId()}
+          onVerified={() => {
+            setMfaStep(null);
+            void load();
+          }}
+        />
+      </main>
+    );
+  }
 
   if (denial) {
     return (

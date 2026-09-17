@@ -453,7 +453,17 @@ export async function lookupExternalReviewGrantByToken(
    * by the same engine as an ACTIVE one (revocation, expiry, legal hold all
    * still refuse) and only then transitioned. Every other caller is unchanged.
    */
-  options: { acceptInvited?: boolean } = {},
+  options: {
+    acceptInvited?: boolean;
+    /**
+     * D27 (2026-09-16) — judge an INVITED grant as the token exchange would,
+     * but do NOT accept it yet. The portal sign-in uses this when the grant
+     * still owes a second factor: the invitation is accepted only after the
+     * emailed code is verified, never by a token holder who cannot answer it.
+     * The returned grant keeps its INVITED state so the caller can tell.
+     */
+    deferAcceptance?: boolean;
+  } = {},
 ): Promise<LookupGrantResult> {
   if (!rawToken || rawToken.length === 0) {
     return { ok: false, reason: "token_unknown" };
@@ -513,7 +523,7 @@ export async function lookupExternalReviewGrantByToken(
                 : "grant_not_active";
       return { ok: false, reason };
     }
-    if (accepting) {
+    if (accepting && options.deferAcceptance !== true) {
       // The invited reviewer accepts; the inviting operator is recorded as the
       // approving actor, as the legacy accept route does.
       const accepted = await transitionExternalReviewGrant(

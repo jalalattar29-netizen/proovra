@@ -85,9 +85,11 @@ async function portalFetch(
   const res = await fetch(`${apiBaseUrl()}${path}`, { ...init, headers });
   if (!res.ok) {
     let denial: string | null = null;
+    let mfa: PortalMfaDetail | null = null;
     try {
       const body = await res.json();
       denial = body?.denial ?? null;
+      mfa = readMfaDetail(body);
     } catch {
       /* swallow */
     }
@@ -96,10 +98,71 @@ async function portalFetch(
     (err as any).status = res.status;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (err as any).denial = denial;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (err as any).mfa = mfa;
     throw err;
   }
   if (res.status === 204) return null;
   return res.json();
+}
+
+/**
+ * D27 — what the sign-in says about the emailed one-time code. The address is
+ * the server's masked form; the full address never reaches this client.
+ */
+export type PortalMfaDetail = {
+  codeSent: boolean;
+  destination: string | null;
+  resendAvailableInSeconds: number | null;
+  attemptsRemaining: number | null;
+};
+
+/** The denials that belong to the emailed-code step. */
+export const PORTAL_MFA_DENIALS = [
+  "MFA_REQUIRED",
+  "MFA_INVALID",
+  "MFA_CODE_EXHAUSTED",
+  "MFA_UNAVAILABLE",
+] as const;
+export type PortalMfaDenial = (typeof PORTAL_MFA_DENIALS)[number];
+
+export function isPortalMfaDenial(value: unknown): value is PortalMfaDenial {
+  return (PORTAL_MFA_DENIALS as ReadonlyArray<unknown>).includes(value);
+}
+
+const num = (v: unknown): number | null =>
+  typeof v === "number" && Number.isFinite(v) ? v : null;
+
+function readMfaDetail(body: unknown): PortalMfaDetail | null {
+  if (!body || typeof body !== "object") return null;
+  const b = body as Record<string, unknown>;
+  if (
+    !("codeSent" in b) &&
+    !("attemptsRemaining" in b) &&
+    !("resendAvailableInSeconds" in b)
+  ) {
+    return null;
+  }
+  return {
+    codeSent: b.codeSent === true,
+    destination: typeof b.destination === "string" ? b.destination : null,
+    resendAvailableInSeconds: num(b.resendAvailableInSeconds),
+    attemptsRemaining: num(b.attemptsRemaining),
+  };
+}
+
+/** The denial and code detail carried by a failed portal request. */
+export function readPortalFailure(err: unknown): {
+  denial: string | null;
+  status: number | null;
+  mfa: PortalMfaDetail | null;
+} {
+  const e = (err && typeof err === "object" ? err : {}) as Record<string, unknown>;
+  return {
+    denial: typeof e.denial === "string" ? e.denial : null,
+    status: num(e.status),
+    mfa: (e.mfa as PortalMfaDetail | null | undefined) ?? null,
+  };
 }
 
 export type AuthResult = {

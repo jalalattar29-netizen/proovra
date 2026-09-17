@@ -39,10 +39,22 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   authenticate,
   consumeStashedRawTokenForSso,
+  readPortalFailure,
   setBearer,
   startPortalSso,
   stashRawTokenForSso,
+  type PortalMfaDetail,
 } from "../../../../lib/external-portal/portal-client";
+import { PortalMfaCodeStep } from "../../../../components/external-portal/PortalMfaCodeStep";
+
+/** D27 — denials answered by the emailed-code step. */
+const CODE_STEP_DENIALS = new Set([
+  "MFA_REQUIRED",
+  "MFA_INVALID",
+  "MFA_CODE_EXHAUSTED",
+  "MFA_UNAVAILABLE",
+  "RATE_LIMITED",
+]);
 
 type SsoOutcome = "none" | "ok" | "denied";
 
@@ -82,6 +94,10 @@ export default function PortalAcceptPage({
   const denialReason = searchParams.get("reason");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [codeStep, setCodeStep] = useState<{
+    denial: string;
+    detail: PortalMfaDetail | null;
+  } | null>(null);
 
   // Hide the token from the URL bar as soon as we've captured it.
   useEffect(() => {
@@ -114,12 +130,13 @@ export default function PortalAcceptPage({
       await authenticate({ token });
       router.push(`/portal/${encodeURIComponent(token)}`);
     } catch (err) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const denial = ((err as any)?.denial ?? "TOKEN_INVALID") as string;
-      if (denial === "MFA_REQUIRED") {
-        // Hand off to the existing /portal token-entry page which has
-        // the MFA challenge UI already wired up.
-        router.push("/portal");
+      const failure = readPortalFailure(err);
+      const denial = failure.denial ?? "TOKEN_INVALID";
+      if (CODE_STEP_DENIALS.has(denial)) {
+        // D27 — the emailed-code step, in place. (This used to send the
+        // reviewer to /portal, where the token this page had already stripped
+        // from the URL had to be pasted again.)
+        setCodeStep({ denial, detail: failure.mfa });
         return;
       }
       setError(denial);
@@ -131,10 +148,10 @@ export default function PortalAcceptPage({
   // After successful SSO, automatically open the portal with the stashed
   // token (we never make the reviewer click again).
   useEffect(() => {
-    if (ssoOutcome === "ok" && token && !busy) {
+    if (ssoOutcome === "ok" && token && !busy && !codeStep) {
       void onOpenWithToken();
     }
-  }, [ssoOutcome, token, busy, onOpenWithToken]);
+  }, [ssoOutcome, token, busy, codeStep, onOpenWithToken]);
 
   const onSignInWithSso = useCallback(async () => {
     if (!token) {
@@ -270,6 +287,13 @@ export default function PortalAcceptPage({
           </a>
           .
         </div>
+      ) : codeStep ? (
+        <PortalMfaCodeStep
+          token={token}
+          denial={codeStep.denial}
+          detail={codeStep.detail}
+          onVerified={() => router.push(`/portal/${encodeURIComponent(token)}`)}
+        />
       ) : (
         <div
           data-portal-accept-actions

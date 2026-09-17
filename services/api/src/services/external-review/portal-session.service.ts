@@ -31,8 +31,18 @@ import {
 import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { lookupExternalReviewGrantByToken } from "./external-review-grant.service.js";
+import {
+  lookupExternalReviewGrantByToken,
+  transitionExternalReviewGrant,
+} from "./external-review-grant.service.js";
 import { emitPortalActivity } from "./portal-activity.service.js";
+import {
+  clearPortalMfaSession,
+  isPortalMfaSessionSatisfied,
+  issuePortalMfaCode,
+  markPortalMfaSessionSatisfied,
+  verifyPortalMfaCode,
+} from "./portal-mfa-challenge.service.js";
 
 export type PortalSessionContext = {
   grantId: string;
@@ -59,9 +69,10 @@ export type PortalSessionContext = {
   //  * ssoConnectionId — non-null when the grant is federation-bound.
   //  * ssoSubjectHash — non-null once SSO has been bound at least once.
   //  * mfaSatisfied   — true when (a) `mfaRequired` is false OR
-  //                     (b) the role assignment's `mfaSatisfiedAtUtc`
-  //                     is within the inactivity window. Lets the portal
-  //                     skip re-prompting on every navigation.
+  //                     (b) THIS session answered an emailed code and has
+  //                     been active within the inactivity window (D27b —
+  //                     bound to the session, not the grant). Lets the
+  //                     portal skip re-prompting on every navigation.
   // -------------------------------------------------------------------------
   authMethod: PortalAuthMethod;
   ssoConnectionId: string | null;
@@ -75,16 +86,27 @@ export type EstablishSessionResult =
       session: PortalSessionContext;
       newLogin: boolean;
     }
-  | { ok: false; denial: ExternalPortalDenialReason };
+  | { ok: false; denial: ExternalPortalDenialReason; mfa?: PortalMfaDenialDetail };
+
+/**
+ * D27 — what the sign-in may tell the reviewer about the emailed code. The
+ * address is only ever the masked form.
+ */
+export type PortalMfaDenialDetail = {
+  codeSent: boolean;
+  destination: string | null;
+  resendAvailableInSeconds: number | null;
+  attemptsRemaining: number | null;
+};
 
 /**
  * Establish (or refresh) a portal session for the given raw token.
  *
- *   * `mfaToken` is honoured when the role assignment requires MFA. We
- *     verify it via the existing MFA TOTP service (`mfa-totp`) when
- *     the operator has registered an MFA secret for the grant. The
- *     Phase 27/28 grant service did NOT bind MFA to grants; we add
- *     this binding here via the role-assignment row.
+ *   * `mfaToken` is honoured when the role assignment requires MFA. It is
+ *     checked against the one-time code emailed to the grant's reviewer
+ *     address (`portal-mfa-challenge.service.ts`). Only the token exchange
+ *     (`issueMfaCode: true`) sends a code; every other portal request that
+ *     finds MFA unsatisfied is simply refused with MFA_REQUIRED.
  *   * `sessionId` is generated fresh on first establishment and
  *     remains stable for the duration of the inactivity window. The
  *     caller persists it in a portal cookie.
@@ -98,12 +120,18 @@ export async function establishPortalSession(input: {
   userAgent?: string | null;
   /** Only the token exchange (POST /v1/portal/auth) accepts an invitation. */
   acceptInvited?: boolean;
+  /** Only the token exchange (POST /v1/portal/auth) issues an emailed code. */
+  issueMfaCode?: boolean;
 }): Promise<EstablishSessionResult> {
   const prisma = input.prisma ?? defaultPrisma;
 
   // 1. Look up the grant by token.
+  // D27 — an INVITED grant is judged here but accepted only after the MFA
+  // gate below has been satisfied (step 3b), so a token holder who cannot
+  // answer the emailed code never turns the invitation into an acceptance.
   const lookup = await lookupExternalReviewGrantByToken(input.rawToken, prisma, {
     acceptInvited: input.acceptInvited === true,
+    deferAcceptance: true,
   });
   if (!lookup.ok) {
     const denial: "TOKEN_INVALID" | "TOKEN_EXPIRED" | "TOKEN_REVOKED" =
@@ -114,11 +142,11 @@ export async function establishPortalSession(input: {
         : "TOKEN_INVALID";
     return { ok: false, denial };
   }
-  const grant = lookup.grant;
+  const invited = lookup.grant;
 
   // 2. Load the role assignment sidecar.
   const role = await prisma.externalReviewerRoleAssignment.findUnique({
-    where: { id: grant.id },
+    where: { id: invited.id },
     select: {
       role: true,
       mfaRequired: true,
@@ -128,7 +156,6 @@ export async function establishPortalSession(input: {
       authMethod: true,
       ssoConnectionId: true,
       ssoSubjectHash: true,
-      mfaSatisfiedAtUtc: true,
     },
   });
   const roleId = role?.role ?? "EXTERNAL_REVIEWER";
@@ -137,77 +164,145 @@ export async function establishPortalSession(input: {
     (role?.authMethod as PortalAuthMethod | undefined) ?? "TOKEN";
   const ssoConnectionId = role?.ssoConnectionId ?? null;
   const ssoSubjectHash = role?.ssoSubjectHash ?? null;
-  const mfaSatisfiedRecently = isMfaSatisfiedRecently(
-    role?.mfaSatisfiedAtUtc ?? null,
-  );
 
-  // 3. MFA gate. The Phase 2B portal supports a bounded TOTP check via
-  // the existing MFA TOTP service when the operator has bound a
-  // shared secret to the grant. The bounded MFA flow is:
-  //
-  //   * Grant marked `mfaRequired = true`.
-  //   * Reviewer-side: enters 6-digit TOTP. If `mfaToken` is absent
-  //     we honestly return MFA_REQUIRED so the client surfaces the
-  //     challenge.
-  //   * If `mfaToken` is present we verify it via the existing
-  //     `verifyMfaTotp` function. For Phase 2B the canonical secret
-  //     storage is the existing `mfa_secret_storage` keyed on a
-  //     bounded `grant:<id>` namespace — operators configure it via
-  //     the MFA admin lifecycle.
-  if (mfaRequired && !mfaSatisfiedRecently) {
+  // Session id. Stable per login; a fresh token exchange without one gets a
+  // new id. Chosen before the MFA gate because satisfaction belongs to it.
+  const reusedSessionId =
+    input.existingSessionId && /^[0-9a-f]{32}$/.test(input.existingSessionId)
+      ? input.existingSessionId
+      : null;
+  const sessionId = reusedSessionId ?? randomBytes(16).toString("hex");
+
+  // D27b — satisfaction is per SESSION. The grant's `mfaSatisfiedAtUtc` is a
+  // record of the last verification, never a pass for someone else's session.
+  let mfaSatisfiedForSession = false;
+  if (mfaRequired && reusedSessionId !== null) {
+    try {
+      mfaSatisfiedForSession = await isPortalMfaSessionSatisfied({
+        grantId: invited.id,
+        sessionId: reusedSessionId,
+        ttlMs: EXTERNAL_PORTAL_INACTIVITY_TIMEOUT_MS,
+      });
+    } catch {
+      return { ok: false, denial: "MFA_UNAVAILABLE" };
+    }
+  }
+
+  // 3. MFA gate — D27 (2026-09-16). An external reviewer has no account and
+  // no enrolled factor, so the second factor is the mailbox the invitation
+  // went to: a six-digit code emailed to the grant's reviewer address and
+  // checked against a scrypt verifier held in Redis. Every branch that is not
+  // a verified match refuses; nothing here can pass on a store or transport
+  // failure. (This used to accept any six digits.)
+  if (mfaRequired && !mfaSatisfiedForSession) {
+    const activity = (
+      code: "MFA_CHALLENGE_FAILED" | "MFA_CHALLENGE_PASSED",
+      payload: Record<string, unknown>,
+    ) =>
+      emitPortalActivity({
+        prisma,
+        teamId: invited.teamId,
+        grantId: invited.id,
+        code,
+        ip: input.ip,
+        userAgent: input.userAgent,
+        payload,
+      });
+
     if (!input.mfaToken) {
-      await emitPortalActivity({
-        prisma,
-        teamId: grant.teamId,
-        grantId: grant.id,
-        code: "MFA_CHALLENGE_FAILED",
-        ip: input.ip,
-        userAgent: input.userAgent,
+      if (input.issueMfaCode !== true) {
+        await activity("MFA_CHALLENGE_FAILED", { outcome: "CODE_REQUIRED" });
+        return { ok: false, denial: "MFA_REQUIRED" };
+      }
+      const issued = await issuePortalMfaCode({
+        grantId: invited.id,
+        reviewerEmail: invited.reviewerEmail,
       });
-      return { ok: false, denial: "MFA_REQUIRED" };
-    }
-    // Bounded check: minimum sanity (6 digits). The full TOTP verify
-    // is delegated to the existing mfa-totp module; if no secret is
-    // bound to the grant we fail closed with MFA_INVALID rather than
-    // silently allowing.
-    if (!/^[0-9]{6}$/.test(input.mfaToken)) {
-      await emitPortalActivity({
-        prisma,
-        teamId: grant.teamId,
-        grantId: grant.id,
-        code: "MFA_CHALLENGE_FAILED",
-        ip: input.ip,
-        userAgent: input.userAgent,
+      if (!issued.ok) {
+        await activity("MFA_CHALLENGE_FAILED", {
+          outcome: issued.reason === "RATE_LIMITED" ? "CODE_RATE_LIMITED" : "CODE_UNAVAILABLE",
+        });
+        return { ok: false, denial: issued.reason };
+      }
+      await activity("MFA_CHALLENGE_FAILED", {
+        outcome: issued.sent ? "CODE_SENT" : "CODE_REUSED",
+        challengeId: issued.challengeId,
+        expiresAtUtc: issued.expiresAtUtc,
       });
-      return { ok: false, denial: "MFA_INVALID" };
+      return {
+        ok: false,
+        denial: "MFA_REQUIRED",
+        mfa: {
+          codeSent: true,
+          destination: issued.destination,
+          resendAvailableInSeconds: issued.resendAvailableInSeconds,
+          attemptsRemaining: null,
+        },
+      };
     }
-    // The actual TOTP verification call is intentionally a thin
-    // bounded wrapper so the gate can be unit-tested without the
-    // surrounding MFA store. When a worker re-runs the verification
-    // against the bound secret, it emits MFA_CHALLENGE_PASSED.
-    await emitPortalActivity({
-      prisma,
-      teamId: grant.teamId,
-      grantId: grant.id,
-      code: "MFA_CHALLENGE_PASSED",
-      ip: input.ip,
-      userAgent: input.userAgent,
+
+    const verified = await verifyPortalMfaCode({
+      grantId: invited.id,
+      code: input.mfaToken,
     });
-    // Phase 2B Closure — record satisfaction so we don't re-prompt the
-    // user on every dashboard navigation within the inactivity window.
+    if (!verified.ok) {
+      await activity("MFA_CHALLENGE_FAILED", {
+        outcome:
+          verified.reason === "MFA_CODE_EXHAUSTED"
+            ? "CODE_EXHAUSTED"
+            : verified.reason === "MFA_UNAVAILABLE"
+            ? "CODE_UNAVAILABLE"
+            : "CODE_REJECTED",
+      });
+      return {
+        ok: false,
+        denial: verified.reason,
+        mfa: {
+          codeSent: false,
+          destination: null,
+          resendAvailableInSeconds: null,
+          attemptsRemaining: verified.attemptsRemaining,
+        },
+      };
+    }
+    // Only after a verified, consumed code: this session is now satisfied.
+    try {
+      await markPortalMfaSessionSatisfied({
+        grantId: invited.id,
+        sessionId,
+        ttlMs: EXTERNAL_PORTAL_INACTIVITY_TIMEOUT_MS,
+      });
+    } catch {
+      await activity("MFA_CHALLENGE_FAILED", { outcome: "CODE_UNAVAILABLE" });
+      return { ok: false, denial: "MFA_UNAVAILABLE" };
+    }
+    await activity("MFA_CHALLENGE_PASSED", { method: "EMAIL_CODE" });
+    // Phase 2B Closure — the last verification, recorded for operators.
     await prisma.externalReviewerRoleAssignment.update({
-      where: { id: grant.id },
+      where: { id: invited.id },
       data: { mfaSatisfiedAtUtc: new Date() },
     });
   }
 
-  // 4. Session id. Stable per login; rotates on a fresh token exchange.
-  const sessionId =
-    input.existingSessionId && /^[0-9a-f]{32}$/.test(input.existingSessionId)
-      ? input.existingSessionId
-      : randomBytes(16).toString("hex");
+  // 3b. Deferred acceptance (D27). Reached only when MFA is not required or
+  // has been satisfied. The inviting operator is recorded as the approving
+  // actor, exactly as the lookup's own acceptance did.
+  let grant = invited;
+  if (input.acceptInvited === true && grant.state === "INVITED") {
+    const accepted = await transitionExternalReviewGrant(
+      {
+        grantId: grant.id,
+        teamId: grant.teamId,
+        toState: "ACTIVE",
+        actorUserId: grant.invitedByUserId,
+      },
+      prisma,
+    );
+    if (!accepted.ok) return { ok: false, denial: "TOKEN_INVALID" };
+    grant = accepted.grant;
+  }
 
-  // 5. Emit LOGIN activity on first establishment.
+  // 4. Emit LOGIN activity on first establishment.
   const newLogin = !input.existingSessionId;
   if (newLogin) {
     await emitPortalActivity({
@@ -244,7 +339,8 @@ export async function establishPortalSession(input: {
       authMethod,
       ssoConnectionId,
       ssoSubjectHash,
-      mfaSatisfied: !mfaRequired || mfaSatisfiedRecently,
+      // Reached only past the MFA gate: not required, or answered by this session.
+      mfaSatisfied: true,
     },
   };
 }
@@ -261,6 +357,11 @@ export async function endPortalSession(input: {
   userAgent?: string | null;
 }): Promise<void> {
   const prisma = input.prisma ?? defaultPrisma;
+  // D27b — a logged-out session no longer counts as having answered a code.
+  // Best effort: the record expires with the inactivity window regardless.
+  await clearPortalMfaSession({ grantId: input.grantId, sessionId: input.sessionId }).catch(
+    () => undefined,
+  );
   await emitPortalActivity({
     prisma,
     teamId: input.teamId,
@@ -330,12 +431,6 @@ export async function emitPortalSessionRevoked(input: {
  * navigation is hostile; re-prompting after 30 min idle is bounded
  * security hygiene.
  */
-function isMfaSatisfiedRecently(at: Date | null): boolean {
-  if (!at) return false;
-  const ageMs = Date.now() - at.getTime();
-  return ageMs >= 0 && ageMs <= EXTERNAL_PORTAL_INACTIVITY_TIMEOUT_MS;
-}
-
 /**
  * Re-derive a deterministic-but-unguessable session id from the
  * (grantId, server-side salt). Used by tests that need a stable

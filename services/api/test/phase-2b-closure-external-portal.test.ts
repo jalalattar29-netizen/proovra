@@ -420,9 +420,15 @@ describe("Phase 2B Closure — portal session extension", () => {
     );
   });
 
-  it("respects the inactivity window without re-prompting MFA", () => {
-    expect(SVC_SESSION).toMatch(/mfaSatisfiedRecently/);
-    expect(SVC_SESSION).toMatch(/EXTERNAL_PORTAL_INACTIVITY_TIMEOUT_MS/);
+  it("respects the inactivity window without re-prompting MFA — per session (D27b)", () => {
+    // Satisfaction is held for the SESSION that answered the code, sliding
+    // with the inactivity window; proven live in
+    // portal-mfa-email-code.integration.test.ts.
+    expect(SVC_SESSION).toMatch(
+      /mfaSatisfiedForSession = await isPortalMfaSessionSatisfied\(\{[\s\S]*?ttlMs: EXTERNAL_PORTAL_INACTIVITY_TIMEOUT_MS/,
+    );
+    expect(SVC_SESSION).toMatch(/if \(mfaRequired && !mfaSatisfiedForSession\)/);
+    expect(SVC_SESSION).not.toMatch(/mfaSatisfiedRecently/);
   });
 
   it("emits PORTAL_SESSION_EXPIRED + PORTAL_SESSION_REVOKED", () => {

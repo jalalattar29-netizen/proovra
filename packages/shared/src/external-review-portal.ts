@@ -265,6 +265,12 @@ export const EXTERNAL_PORTAL_DENIAL_REASONS = [
   "TOKEN_REVOKED",
   "MFA_REQUIRED",
   "MFA_INVALID",
+  // D27 — the emailed one-time code was answered wrongly too many times; the
+  // challenge is gone and a new code has to be requested.
+  "MFA_CODE_EXHAUSTED",
+  // D27 — a code could not be issued, stored or checked (challenge store or
+  // email transport unavailable). Sign-in fails closed; it never passes.
+  "MFA_UNAVAILABLE",
   "INACTIVITY_TIMEOUT",
   "NOT_PERMITTED",
   "OUT_OF_SCOPE",

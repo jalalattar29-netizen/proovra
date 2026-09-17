@@ -26,6 +26,7 @@ import {
 } from "@proovra/shared";
 
 import { WatermarkOverlay } from "../../../../../components/external-portal/WatermarkOverlay";
+import { PortalMfaCodeStep } from "../../../../../components/external-portal/PortalMfaCodeStep";
 
 import {
   authenticate,
@@ -33,12 +34,15 @@ import {
   fetchDecisions,
   fetchPortalDashboard,
   getSessionId,
+  isPortalMfaDenial,
   markReviewOpened,
   postComment,
+  readPortalFailure,
   setBearer,
   submitDecision,
   type PortalComment,
   type PortalDecision,
+  type PortalMfaDetail,
 } from "../../../../../lib/external-portal/portal-client";
 import { formatUserDateTime } from "../../../../../lib/date";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
@@ -74,6 +78,10 @@ export default function PortalReviewPage({
   const [replyDraft, setReplyDraft] = useState<Record<string, string>>({});
   const [rootDraft, setRootDraft] = useState("");
   const [denial, setDenial] = useState<string | null>(null);
+  const [mfaStep, setMfaStep] = useState<{
+    denial: string;
+    detail: PortalMfaDetail | null;
+  } | null>(null);
   const [verdictRationale, setVerdictRationale] = useState("");
   const [decisionStatus, setDecisionStatus] = useState<string | null>(null);
   const [decisionState, setDecisionState] = useState<DecisionState>({ kind: "idle" });
@@ -115,8 +123,13 @@ export default function PortalReviewPage({
       });
       return true;
     } catch (err) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setDenial(((err as any)?.denial ?? "TOKEN_INVALID") as string);
+      // D27 — a lapsed MFA satisfaction is answered with the code step.
+      const failure = readPortalFailure(err);
+      if (failure.denial && isPortalMfaDenial(failure.denial)) {
+        setMfaStep({ denial: failure.denial, detail: failure.mfa });
+      } else {
+        setDenial(failure.denial ?? "TOKEN_INVALID");
+      }
       return false;
     }
   }, [token]);
@@ -134,8 +147,13 @@ export default function PortalReviewPage({
         void loadDecision();
       }
     } catch (err) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setDenial(((err as any)?.denial ?? "TOKEN_INVALID") as string);
+      // D27 — a lapsed MFA satisfaction is answered with the code step.
+      const failure = readPortalFailure(err);
+      if (failure.denial && isPortalMfaDenial(failure.denial)) {
+        setMfaStep({ denial: failure.denial, detail: failure.mfa });
+      } else {
+        setDenial(failure.denial ?? "TOKEN_INVALID");
+      }
     }
   }, [reauth, workflowId, loadDecision]);
 
@@ -211,6 +229,27 @@ export default function PortalReviewPage({
     },
     [workflowId, verdictRationale, deciding, loadDecision],
   );
+
+  if (mfaStep) {
+    return (
+      <main
+        data-portal-mfa-gate
+        style={{ maxWidth: 480, margin: "0 auto", padding: "40px 16px" }}
+      >
+        <h1 style={{ fontSize: 20, margin: 0 }}>Confirm it is you</h1>
+        <PortalMfaCodeStep
+          token={decodeURIComponent(token)}
+          denial={mfaStep.denial}
+          detail={mfaStep.detail}
+          existingSessionId={getSessionId()}
+          onVerified={() => {
+            setMfaStep(null);
+            void refresh();
+          }}
+        />
+      </main>
+    );
+  }
 
   if (denial) {
     return (
