@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { GOVERNANCE_EXPORT_SNAPSHOT_KINDS, identifierLabel, type GovernanceExportSnapshotKind } from "@proovra/shared";
 import { apiFetch } from "../../lib/api";
+import { formatUserDateTime } from "../../lib/date";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
@@ -142,7 +143,7 @@ function SnapshotWorkspace({ teamId }: { teamId: string }) {
           <ul style={{ display: "grid", gap: 12, paddingInlineStart: 20 }}>
             {list.value.snapshots.map(snapshot => <li key={snapshot.id} style={{ overflowWrap: "anywhere" }}>
               <Button onClick={() => setSelected(snapshot.id)} aria-pressed={selected === snapshot.id} aria-label={"View snapshot " + snapshot.id}>View snapshot</Button>
-              <p>{identifierLabel(snapshot.snapshotKind)} · {new Date(snapshot.createdAt).toLocaleString()}</p>
+              <p>{identifierLabel(snapshot.snapshotKind)} · {formatUserDateTime(snapshot.createdAt)}</p>
               <p>{snapshot.evidenceId ? "Evidence snapshot" : "Workspace snapshot"} · Export eligibility: {identifierLabel(snapshot.exportEligibilityOutcome)}</p>
               <small>Snapshot ID: <code data-identifier>{snapshot.id}</code></small>
             </li>)}
@@ -196,7 +197,7 @@ function SnapshotDetails({ teamId, id, onReread }: { teamId: string; id: string;
       <dl>
         <dt>Snapshot ID</dt><dd><code data-identifier>{state.value.id}</code></dd>
         <dt>Purpose</dt><dd>{identifierLabel(state.value.snapshotKind)}</dd>
-        <dt>Recorded</dt><dd>{new Date(state.value.createdAt).toLocaleString()}</dd>
+        <dt>Recorded</dt><dd>{formatUserDateTime(state.value.createdAt)}</dd>
         <dt>Scope</dt><dd>{state.value.evidenceId ? <>Evidence ID: <code data-identifier>{state.value.evidenceId}</code></> : "Workspace governance"}</dd>
         <dt>Recorded by</dt><dd>{state.value.createdByUserId ? <>User ID: <code data-identifier>{state.value.createdByUserId}</code></> : "Actor not recorded"}</dd>
         <dt>Lifecycle at recording</dt><dd>{identifierLabel(state.value.lifecycleState)}</dd>
