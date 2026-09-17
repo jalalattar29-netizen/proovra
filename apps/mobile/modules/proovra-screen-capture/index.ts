@@ -24,6 +24,7 @@
  */
 import { Platform } from "react-native";
 import { EventEmitter, requireNativeModule } from "expo-modules-core";
+import { SCREEN_CONTINUOUS_STREAM_BOUNDS } from "@proovra/shared";
 
 type Subscription = { remove: () => void };
 
@@ -244,15 +245,16 @@ export function getScreenContinuousState(): ScreenContinuousState {
 }
 
 const DEFAULT_SEGMENT_MS = 6000;
-const DEFAULT_MAX_SEGMENTS = 600;
+const DEFAULT_MAX_SEGMENTS = SCREEN_CONTINUOUS_STREAM_BOUNDS.maxSegments;
 
 export async function startContinuousCapture(
   options: ScreenContinuousOptions = {},
 ): Promise<ScreenContinuousStarted> {
   if (Platform.OS !== "android") throw new Error("Continuous Screen Capture is available on Android only.");
+  const B = SCREEN_CONTINUOUS_STREAM_BOUNDS;
   return continuousModule().startContinuousCapture({
-    segmentMs: Math.max(2000, Math.min(options.segmentMs ?? DEFAULT_SEGMENT_MS, 30000)),
-    maxSegments: Math.max(1, Math.min(options.maxSegments ?? DEFAULT_MAX_SEGMENTS, 600)),
+    segmentMs: Math.max(B.minSegmentMs, Math.min(options.segmentMs ?? DEFAULT_SEGMENT_MS, B.maxSegmentMs)),
+    maxSegments: Math.max(1, Math.min(options.maxSegments ?? DEFAULT_MAX_SEGMENTS, B.maxSegments)),
   });
 }
 

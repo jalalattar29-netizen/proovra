@@ -44,8 +44,16 @@ class ContinuousScreenCaptureService : Service() {
     private const val CHANNEL_ID = "proovra_continuous_capture"
     private const val NOTIF_ID = 0x50D3
     const val ACTION_STOP = "com.proovra.screencapture.CONTINUOUS_STOP"
+    // Kept in agreement (by value, since Kotlin cannot import the TS authority) with
+    // SCREEN_CONTINUOUS_STREAM_BOUNDS in packages/shared/src/screen-continuous-manifest.ts:
+    // videoBitrateBps, videoFrameRate, maxSegmentBytes.
     private const val BITRATE = 6_000_000
     private const val FRAME_RATE = 12
+    private const val MAX_SEGMENT_BYTES = 64L * 1024L * 1024L
+    // Total wall-clock ceiling (ms), kept below the server capture-session TTL so a
+    // session always stops with margin to finalize. Agrees with maxSessionMs in
+    // SCREEN_CONTINUOUS_STREAM_BOUNDS.
+    private const val MAX_SESSION_MS = 50L * 60L * 1000L
 
     private var projection: MediaProjection? = null
     private var recorder: MediaRecorder? = null
@@ -161,6 +169,10 @@ class ContinuousScreenCaptureService : Service() {
     r.setVideoEncodingBitRate(BITRATE)
     r.setOutputFile(outFile.absolutePath)
     r.setMaxDuration(segmentMs)
+    // Defence-in-depth byte bound: if a segment reaches the size ceiling before its
+    // duration window, MediaRecorder signals MAX_FILESIZE_REACHED and we roll over —
+    // so no single segment file can grow without limit even if the encoder overruns.
+    r.setMaxFileSize(MAX_SEGMENT_BYTES)
     r.setOnInfoListener { _, what, _ ->
       if (what == MediaRecorder.MEDIA_RECORDER_INFO_MAX_DURATION_REACHED ||
         what == MediaRecorder.MEDIA_RECORDER_INFO_MAX_FILESIZE_REACHED
@@ -175,11 +187,15 @@ class ContinuousScreenCaptureService : Service() {
   /** Start recording the next segment; returns false on setup failure. */
   private fun startNextSegment(): Boolean {
     if (!active) return false
-    if (segments.size >= maxSegments) {
+    if (segments.size >= maxSegments || (System.currentTimeMillis() - startedAtMs) >= MAX_SESSION_MS) {
       limitations.add("SESSION_BOUNDS_REACHED")
       finish("BOUNDS_REACHED")
       return true
     }
+    // The recording surface stays at the session's initial geometry and AUTO_MIRROR
+    // scales rotated content into it (letterboxed, never corrupted). A rotation is
+    // not a media-corruption event, but it IS material context, so flag it once.
+    if (orientationChangedFromStart()) limitations.add("ORIENTATION_CHANGED_DURING_CAPTURE")
     return try {
       val file = File(cacheDir, "proovra-continuous-${startedAtMs}-${segments.size}.mp4")
       currentFile = file
@@ -289,6 +305,16 @@ class ContinuousScreenCaptureService : Service() {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) stopForeground(STOP_FOREGROUND_REMOVE)
     else @Suppress("DEPRECATION") stopForeground(true)
     stopSelf()
+  }
+
+  /** True when the live display orientation differs from the session's initial one. */
+  private fun orientationChangedFromStart(): Boolean = try {
+    val m = DisplayMetrics()
+    @Suppress("DEPRECATION")
+    (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay.getRealMetrics(m)
+    (m.widthPixels >= m.heightPixels) != (widthPx >= heightPx)
+  } catch (_: Throwable) {
+    false
   }
 
   private fun appVersionName(): String = try {

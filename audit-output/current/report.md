@@ -11,7 +11,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | dimension            | status  | basis                                                                 |
 | -------------------- | ------- | --------------------------------------------------------------------- |
 | AuditEngineIntegrity | PASS    | instrument counters, conservation identities, single-authority checks |
-| ProductClosure       | OPEN    | undisposed routes + locally actionable open findings                  |
+| ProductClosure       | CLOSED  | undisposed routes + locally actionable open findings                  |
 | ExternalClosure      | NOT RUN | requires a real environment; never asserted from source analysis      |
 
 `AuditEngineIntegrity = PASS` alongside `ProductClosure = OPEN` is the expected state while work remains. They are separate exit codes on purpose: a permanent red meaning "open work" teaches everyone to ignore a red meaning "every number here is a guess".
@@ -21,7 +21,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | 4c21ab1830edd59cf9ab28f1bb72b651acab6a563f070dbee42991f700028824 |
+| engineHash    | ba2248429fa6429cfef4bc43009a369fe5d130ab87aadb4ba2451a82bbb0af6e |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
@@ -204,4 +204,4 @@ _(none — the instrument is sound)_
 
 ### Product closure
 
-- CHECKPOINT: 5 violation(s) — SCALAR_DISAGREES_WITH_FACTS: ProductionRegisteredRoutes: checkpoint says 1154, facts say 1155 | SCALAR_DISAGREES_WITH_FACTS: RegisteredRoutes: checkpoint says 1155, facts say 1156 | SCALAR_DISAGREES_WITH_FACTS: TerminalWriters: checkpoint says 1251, facts say 1252 | SCALAR_DISAGREES_WITH_FACTS: ROUTE_ATTRIBUTED_REACHABLE: checkpoint says 1120, facts say 1121 | SCALAR_DISAGREES_WITH_FACTS: ProductConsumedRoutes: checkpoint says 953, facts say 954
+_(none)_

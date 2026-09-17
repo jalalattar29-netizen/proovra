@@ -251,9 +251,145 @@ mid-recording end to end. Not faked as PASS.
 - **P2:** device-side recording edge cases (secure-content detection is
   best-effort; codec/bitrate availability varies) are disclosed via limitations,
   not silently dropped.
-- **P3:** UI is functional, not fully themed.
+- **P3:** UI is functional, not fully themed; report/package worker buffers evidence
+  bytes (bounded by the canonical 1 GiB cap — see §17); a defensive worker-side
+  size assertion could be added.
 
 ---
 
-**UC-3 CODE/ARCHITECTURE COMPLETE · ANDROID DEVICE ACCEPTANCE DEFERRED · UC-4 MAY BEGIN.**
+## 17. FINAL RESOURCE / RECOVERY / DOWNSTREAM CLOSURE (2026-09-18)
+
+A narrow closure pass hardened the resource, backpressure, temp-file and downstream
+paths that the first report asserted but did not fully prove. All bounds now trace
+to ONE authority: `SCREEN_CONTINUOUS_STREAM_BOUNDS`
+(`packages/shared/src/screen-continuous-manifest.ts`), shared by the JS binding and
+streaming client, and kept in agreement by value with the native Kotlin constants.
+
+### A. Resource-bound matrix (authority → value)
+
+| Bound | Authority | Value |
+| --- | --- | --- |
+| max segment duration | `STREAM_BOUNDS.maxSegmentMs`; native `setMaxDuration` | 30 s (min 2 s) |
+| max segment bytes | native `MAX_SEGMENT_BYTES` = `STREAM_BOUNDS.maxSegmentBytes`; `setMaxFileSize` → rollover | 64 MiB (defence-in-depth; ~22 MB at 6 Mbps/30 s in practice) |
+| max total session duration | native `MAX_SESSION_MS` = `STREAM_BOUNDS.maxSessionMs` | 50 min (below the 1 h session TTL) |
+| max total session bytes | `STREAM_BOUNDS.maxSessionBytes`; client controlled-stop | 512 MiB (< canonical 1 GiB completion cap) |
+| max pending segments (backlog) | `STREAM_BOUNDS.maxPendingSegments`; `shouldStopForBackpressure` | 8 |
+| upload concurrency | `STREAM_BOUNDS.uploadConcurrency`; worker pump | 1 |
+| upload retries | `STREAM_BOUNDS.uploadRetries` | 2 |
+| retry backoff | `STREAM_BOUNDS.retryBackoffMs` × attempt | 500 ms × n |
+| encoder bitrate | native `BITRATE` = `STREAM_BOUNDS.videoBitrateBps` | 6 Mbps |
+| frame rate | native `FRAME_RATE` = `STREAM_BOUNDS.videoFrameRate` | 12 fps |
+| capture resolution | native display metrics (device screen) | device WxH (fixed for the session) |
+| maxSegments | `STREAM_BOUNDS.maxSegments`; native `maxSegments` | 600 |
+
+These are technical safety limits, NOT commercial entitlements.
+
+### B. Backpressure
+
+Recorded segments enter a queue drained by a fixed number of upload workers
+(`uploadConcurrency` = 1), so in-flight uploads and the transient per-segment
+hashing buffer cannot grow without bound. When the recorded-but-unuploaded backlog
+reaches `maxPendingSegments`, OR the uploaded-bytes total reaches `maxSessionBytes`,
+the client triggers a **controlled stop** (`requestControlledStop`) — native stops
+emitting, the queue drains, the session seals COMPLETE with the truthful limitation
+(`SEGMENT_UPLOAD_BACKPRESSURE` / `SESSION_BOUNDS_REACHED`). No unbounded RAM, no
+unbounded temp disk, no unbounded promises, no silent drop. If a segment ultimately
+fails upload, its sequence is absent from the manifest and the server's contiguity
+check refuses the seal (fail closed) — it never becomes a COMPLETE with a gap.
+
+### C. Temp-file lifecycle
+
+Segments record to app-private `cacheDir` with deterministic session-scoped names
+(`proovra-continuous-<startedAtMs>-<seq>.mp4`) — never the public gallery. Each
+segment file is deleted **only after** its bytes are durably in storage (PUT 200)
+and its size was already measured; completion re-hashes from storage, never the
+device, so deletion is safe. Discard (`cleanupContinuousTempFiles`) removes any
+not-yet-uploaded segment files pre-finalize; the manifest temp file is removed after
+a successful seal. A killed process leaves at most the in-flight segments in the OS
+cache, which the OS reclaims — no indefinite accumulation.
+
+### D. Process / service death
+
+Native `onDestroy` → `finish("INTERRUPTED")`; MediaProjection `onStop` (revocation)
+→ `PERMISSION_REVOKED`; encoder failure → `ERROR`. All non-clean reasons mark
+`INTERRUPTED_SESSION` with `CAPTURE_INTERRUPTED` — a known interruption is **never**
+COMPLETE. Segments already streamed are preserved server-side. An abandoned session
+is not orphaned: the server-issued CaptureSession has a TTL (default 1 h) and any
+later request flips an expired session to `INTERRUPTED`
+(`direct-capture-ingest.service.ts`); `MAX_SESSION_MS` (50 min) guarantees a live
+session stops with margin to finalize before that TTL. Resume is not attempted
+across a projection break (continuity would be lost); the user starts a fresh
+session.
+
+### E. Orientation / display change
+
+The recording surface stays at the session's initial geometry and `AUTO_MIRROR`
+scales rotated content into it — never corrupted, just letterboxed. A rotation is
+detected at each segment boundary (`orientationChangedFromStart`) and flagged once
+with `ORIENTATION_CHANGED_DURING_CAPTURE`. Geometry reconfiguration mid-session is
+DIFFERENT-BY-DESIGN (not attempted) and documented rather than faked.
+
+### F. Secure content / screen lock
+
+DIFFERENT-BY-DESIGN: MediaProjection returns blank frames for `FLAG_SECURE`
+surfaces and honours screen lock; PROOVRA does not bypass either and uses no
+Accessibility. PROOVRA does **not** claim to reliably distinguish blank protected
+content, so it does not assert `SECURE_CONTENT_OMITTED` on a guess — the limitation
+code exists for a future reliable detector. No false statement that protected
+content was acquired.
+
+### G. Large-evidence downstream memory
+
+The Report/Verification-Package worker buffers evidence part bytes in memory
+(`processor.ts` `streamToBuffer` into `verificationEvidenceFiles`/`loadedArtifacts`;
+`verification-package.ts` `Buffer.concat`), so peak ≈ total evidence bytes. This is
+**bounded** by the ONE canonical cap `MAX_EVIDENCE_SIZE_MB` (default 1 GiB total),
+enforced fail-closed at `completeEvidence` — the single completion path every ingest
+route funnels through, including continuous-complete → `completeDirectCapture` →
+`completeEvidence`. UC-3's `maxSessionBytes` (512 MiB) is deliberately set below that
+cap (with headroom for the backlog + manifest), so a sealed continuous session is
+always under it and therefore always packageable, reportable and destroyable — the
+worker never sees a UC-3 payload larger than any other sealed evidence. Download /
+export is streamed via presigned URLs (no buffering). A defensive worker-side size
+assertion is noted as an optional P3 backstop.
+
+### H. Package / validator completeness
+
+The completion service cross-checks manifest segments ↔ declared parts 1:1 on
+partIndex AND digest (`continuous-capture.service.ts`), the shared validator refuses
+a non-contiguous or duplicate sequence, and `completeEvidence` recomputes every part
+digest from storage. The canonical package embeds every ORIGINAL part under
+`evidence-parts/` plus `evidence-manifest.json`. New tests cover missing / omitted,
+non-contiguous, duplicate sequence, digest substitution (manifest ≠ declared),
+out-of-order upload (still seals), stored-byte tamper (server recompute fails
+closed), session mismatch, unsupported/forged mode.
+
+### I. Storage / governance
+
+Part-generic and canonical (verified by read): destruction (`executeEvidence
+destruction` → `enumerateStorageTargets` iterates `evidencePart.findMany` + reports
++ packages + derived assets) destroys and counts every segment + manifest; storage
+accounting reads `Evidence.sizeBytes` which stores the summed multipart total;
+legal hold blocks destruction via the one hold authority. No UC-3-specific
+governance.
+
+### J. Authorization / commercial mid-session
+
+Every segment declaration, part presign and continuous-complete re-runs canonical
+`requireAuth` + session ownership + evidence-creation commercial gate — client state
+is never authority. A mid-session revocation makes subsequent calls fail closed;
+uploaded bytes remain in the workspace-owned evidence (not leaked to the actor's
+gallery), and local temp files are cleaned on discard. No shadow commercial logic.
+
+### K. ONE Evidence
+
+Re-proven by test `seals a continuous session … bound once` and the out-of-order
+test: 1 session → N `screen_segment` ORIGINAL parts + 1 `CAPTURE_MANIFEST` →
+exactly ONE Evidence, one `CAPTURE_SESSION_BOUND`. No Evidence creation in the
+per-segment loop (segments only declare + upload; the single reserve happens once in
+`beginContinuousSession`).
+
+---
+
+**UC-3 CODE/ARCHITECTURE COMPLETE · FINAL CLOSURE COMPLETE · ANDROID DEVICE ACCEPTANCE DEFERRED · UC-4 MAY BEGIN.**
 Not deployed to Production; not published to the Play Store.

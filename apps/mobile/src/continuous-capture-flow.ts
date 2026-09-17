@@ -28,6 +28,20 @@ export type ContinuousFlowEvent =
 
 export const INITIAL_CONTINUOUS_FLOW: ContinuousFlowState = { phase: "intro" };
 
+/** PURE: recorded-but-not-yet-uploaded segment backlog (never negative). */
+export function pendingBacklog(captured: number, uploaded: number): number {
+  return Math.max(0, captured - uploaded);
+}
+
+/**
+ * PURE: the backpressure decision. When the recorded-but-unuploaded backlog reaches
+ * the bound, the client must trigger a CONTROLLED stop — bounding RAM/disk/in-flight
+ * uploads without silently dropping any segment.
+ */
+export function shouldStopForBackpressure(captured: number, uploaded: number, maxPending: number): boolean {
+  return pendingBacklog(captured, uploaded) >= maxPending;
+}
+
 export function continuousFlowReducer(
   state: ContinuousFlowState,
   event: ContinuousFlowEvent,

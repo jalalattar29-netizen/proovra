@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "3bac000a27b54b5cb5d93fa2f289293508372f4566003d736343ac67212204bc",
   "routeInventoryHash": "8f295f914e42e852ffca34d198868e273e5ec6edcde9e19e68cfa1132d78d154",
-  "consumerInventoryHash": "0eca6fc563d1a3592c6a3905603bb503fee4efde393dc007a8a27700ff668dd6",
+  "consumerInventoryHash": "be2e69b95e0913408f8678e7693f62c7368d87b38036ba111dfacad3eae57318",
   "dispositionsHash": "3d02fe259d3b7e3c281aec0df6da9194403d68cc7d98c8a482b54864296cd965",
   "totals": {
     "RegisteredRoutes": 1156,
@@ -8379,7 +8379,7 @@
       "method": "POST",
       "route": "/v1/capture/direct-sessions/:id/continuous-complete",
       "registeringFile": "services/api/src/routes/capture-trust.routes.ts",
-      "productConsumer": "apps/mobile/src/continuous-capture.ts:174",
+      "productConsumer": "apps/mobile/src/continuous-capture.ts:213",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -129731,7 +129731,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/continuous-capture.ts",
-          "line": 174,
+          "line": 213,
           "caller": "finalizeContinuousCapture",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -129741,7 +129741,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/continuous-capture.ts:174 (finalizeContinuousCapture, MOBILE)",
+      "dispositionEvidence": "apps/mobile/src/continuous-capture.ts:213 (finalizeContinuousCapture, MOBILE)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",

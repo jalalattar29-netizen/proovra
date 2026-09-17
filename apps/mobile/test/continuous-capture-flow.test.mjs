@@ -18,7 +18,25 @@ const js = ts.transpileModule(src, {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
 }).outputText;
 const mod = await import(`data:text/javascript,${encodeURIComponent(js)}`);
-const { continuousFlowReducer: reduce, INITIAL_CONTINUOUS_FLOW: init } = mod;
+const {
+  continuousFlowReducer: reduce,
+  INITIAL_CONTINUOUS_FLOW: init,
+  pendingBacklog,
+  shouldStopForBackpressure,
+} = mod;
+
+test("pendingBacklog is captured-minus-uploaded and never negative", () => {
+  assert.equal(pendingBacklog(5, 2), 3);
+  assert.equal(pendingBacklog(2, 2), 0);
+  assert.equal(pendingBacklog(1, 4), 0); // clamp, never negative
+});
+
+test("backpressure trips only at/above the pending bound (bounded backlog)", () => {
+  assert.equal(shouldStopForBackpressure(7, 0, 8), false);
+  assert.equal(shouldStopForBackpressure(8, 0, 8), true);
+  assert.equal(shouldStopForBackpressure(20, 12, 8), true); // 8 pending
+  assert.equal(shouldStopForBackpressure(20, 13, 8), false); // 7 pending, keeps going
+});
 
 test("starts at intro", () => {
   assert.equal(init.phase, "intro");

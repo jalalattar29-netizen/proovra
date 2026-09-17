@@ -156,7 +156,16 @@ describe("UC-3 android continuous screen capture — live PostgreSQL 16", () => 
 
   /** Stage a full continuous capture up to (but not including) /continuous-complete. */
   async function stageContinuous(
-    opts: { segments?: number; omitLastSegment?: boolean; badSequence?: boolean; badSessionInManifest?: boolean } = {},
+    opts: {
+      segments?: number;
+      omitLastSegment?: boolean;
+      badSequence?: boolean;
+      badSessionInManifest?: boolean;
+      duplicateSequence?: boolean;
+      tamperManifestDigest?: boolean;
+      reverseUpload?: boolean;
+      tamperStoredBytes?: boolean;
+    } = {},
   ) {
     const token = owner().ownerToken;
     const segCount = opts.segments ?? 3;
@@ -175,17 +184,42 @@ describe("UC-3 android continuous screen capture — live PostgreSQL 16", () => 
     expect(reserve.statusCode, reserve.body).toBe(201);
     const evidenceId = reserve.json().evidence.evidenceId as string;
 
+    // Bytes per segment index, generated up front so upload ORDER can vary
+    // independently of the manifest's (index-keyed) description.
+    const segmentBytes = Array.from({ length: segCount }, (_, i) =>
+      Buffer.from(`segment-${i}-${randomBytes(8).toString("hex")}`),
+    );
+    // Out-of-order upload proves the server is order-independent (it cross-checks by
+    // partIndex, never by arrival order).
+    const uploadOrder = opts.reverseUpload
+      ? [...segmentBytes.keys()].reverse()
+      : [...segmentBytes.keys()];
+
+    const declaredByIndex = new Map<number, { partIndex: number; sha256: string; sizeBytes: number }>();
+    for (const i of uploadOrder) {
+      const declared = await uploadAndDeclare(token, evidenceId, sessionId, i, segmentBytes[i], "SCREEN_SEGMENT");
+      declaredByIndex.set(i, declared);
+      // Storage tamper: overwrite the stored object with different bytes AFTER the
+      // honest digest was declared, so the server recompute at seal finds a mismatch.
+      if (opts.tamperStoredBytes && i === 0) {
+        for (const key of objects.keys()) {
+          if (objects.get(key) === segmentBytes[0]) objects.set(key, Buffer.from("tampered-bytes"));
+        }
+      }
+    }
+
     const segments: Array<Record<string, unknown>> = [];
     for (let i = 0; i < segCount; i++) {
-      const bytes = Buffer.from(`segment-${i}-${randomBytes(8).toString("hex")}`);
-      const declared = await uploadAndDeclare(token, evidenceId, sessionId, i, bytes, "SCREEN_SEGMENT");
       if (opts.omitLastSegment && i === segCount - 1) continue;
+      const declared = declaredByIndex.get(i)!;
       segments.push({
         role: "screen_segment",
         partIndex: i,
-        // A non-contiguous sequence (skip 1) makes a missing segment detectable.
-        sequence: opts.badSequence && i >= 1 ? i + 1 : i,
-        expectedSha256: declared.sha256,
+        // A non-contiguous sequence (skip 1) makes a missing segment detectable; a
+        // duplicate sequence collapses two segments onto one slot (also rejected).
+        sequence: opts.badSequence && i >= 1 ? i + 1 : opts.duplicateSequence && i === 1 ? 0 : i,
+        expectedSha256:
+          opts.tamperManifestDigest && i === 0 ? "f".repeat(64) : declared.sha256,
         sizeBytes: declared.sizeBytes,
         mediaType: "video/mp4",
         startedAtOffsetMs: i * 1000,
@@ -311,5 +345,41 @@ describe("UC-3 android continuous screen capture — live PostgreSQL 16", () => 
       deviceId: null,
     });
     expect([400, 422]).toContain(forged.statusCode);
+  });
+
+  it("refuses a segment substitution: a manifest digest that disagrees with the declared part", async () => {
+    const { token, sessionId, manifestJson } = await stageContinuous({ segments: 3, tamperManifestDigest: true });
+    const done = await call("POST", `/v1/capture/direct-sessions/${sessionId}/continuous-complete`, token, { manifestJson });
+    expect(done.statusCode).toBe(422);
+    expect(done.json().denial).toBe("CONTINUOUS_MANIFEST_ARTIFACT_MISMATCH");
+  });
+
+  it("refuses a DUPLICATE segment sequence (two segments cannot share one ordinal)", async () => {
+    const { token, sessionId, manifestJson } = await stageContinuous({ segments: 3, duplicateSequence: true });
+    const done = await call("POST", `/v1/capture/direct-sessions/${sessionId}/continuous-complete`, token, { manifestJson });
+    expect(done.statusCode).toBe(422);
+    expect(done.json().denial).toBe("CONTINUOUS_MANIFEST_INVALID");
+  });
+
+  it("seals when segments were uploaded OUT OF ORDER (order-independent, cross-checked by index)", async () => {
+    const { token, sessionId, evidenceId, manifestJson } = await stageContinuous({ segments: 3, reverseUpload: true });
+    const done = await call("POST", `/v1/capture/direct-sessions/${sessionId}/continuous-complete`, token, { manifestJson });
+    expect(done.statusCode, done.body).toBe(200);
+    expect(done.json().result.bound).toBe(true);
+    const ev = await prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId } });
+    expect(ev.status).toBe("SIGNED");
+    const parts = await prisma.evidencePart.count({ where: { evidenceId } });
+    expect(parts).toBe(4); // 3 segments + manifest, all present regardless of upload order
+  });
+
+  it("fails CLOSED when a segment's stored bytes no longer match its declared digest (server recompute)", async () => {
+    const { token, sessionId, evidenceId, manifestJson } = await stageContinuous({ segments: 3, tamperStoredBytes: true });
+    const done = await call("POST", `/v1/capture/direct-sessions/${sessionId}/continuous-complete`, token, { manifestJson });
+    // The canonical seal recomputes every part digest from storage; a mismatch must
+    // never seal. We assert fail-closed (no 200, evidence not SIGNED) rather than a
+    // brittle exact code, since the digest gate lives in completeEvidence.
+    expect(done.statusCode).not.toBe(200);
+    const ev = await prisma.evidence.findUnique({ where: { id: evidenceId } });
+    expect(ev?.status).not.toBe("SIGNED");
   });
 });

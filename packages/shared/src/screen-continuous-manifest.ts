@@ -65,6 +65,63 @@ export const SCREEN_CONTINUOUS_MANIFEST_BOUNDS = {
   maxSizeBytes: 512 * 1024, // serialized manifest ceiling
 } as const;
 
+/**
+ * THE canonical continuous-capture resource bounds (technical safety limits — NOT
+ * commercial entitlements). One authority shared by the JS binding (segment/session
+ * clamps), the streaming client (retry/backoff, backpressure) and — by value, since
+ * a Kotlin service cannot import TS — the native recorder. The native
+ * `ContinuousScreenCaptureService` MUST keep its `BITRATE`, `FRAME_RATE` and
+ * `MAX_SEGMENT_BYTES` in agreement with `videoBitrateBps`, `videoFrameRate` and
+ * `maxSegmentBytes` here.
+ *
+ * `maxSessionBytes` is the ceiling a whole continuous session may occupy across all
+ * ORIGINAL segments. It is deliberately set BELOW the canonical total-evidence cap
+ * `MAX_EVIDENCE_SIZE_MB` (default 1 GiB) that `completeEvidence` enforces fail-closed
+ * for every ingest path — including continuous-complete → completeDirectCapture →
+ * completeEvidence — with headroom for the in-flight backlog and the manifest, so a
+ * sealed continuous session is always UNDER that cap and therefore always
+ * packageable, reportable and destroyable: every ORIGINAL segment participates, and
+ * the Report/Verification-Package worker (which buffers evidence bytes, bounded by
+ * that same cap) never sees a UC-3 payload larger than any other sealed evidence.
+ */
+export const SCREEN_CONTINUOUS_STREAM_BOUNDS = {
+  /** Per-segment recording duration window (ms). */
+  minSegmentMs: 2000,
+  maxSegmentMs: 30000,
+  /** Ceiling on segment count for one bounded session. */
+  maxSegments: 600,
+  /**
+   * Max total wall-clock duration of one session (ms). Kept safely BELOW the
+   * default capture-session TTL (1 h) so recording always stops with margin to
+   * drain uploads and finalize before the server-issued session expires — an
+   * expired session cannot seal (it flips to INTERRUPTED), and this bound keeps a
+   * long or low-motion session (which may accrue bytes slowly) from ever reaching
+   * that. Enforced natively (by value) as `MAX_SESSION_MS`.
+   */
+  maxSessionMs: 50 * 60 * 1000,
+  /** Native encoder settings (kept in sync with the Kotlin service by value). */
+  videoBitrateBps: 6_000_000,
+  videoFrameRate: 12,
+  /** Per-segment byte ceiling (native setMaxFileSize → rollover; defence in depth). */
+  maxSegmentBytes: 64 * 1024 * 1024,
+  /**
+   * Whole-session byte ceiling across all ORIGINAL segments. Kept at or below the
+   * downstream total-evidence memory ceiling so a session never becomes
+   * un-packageable/un-reportable. At the default 6 Mbps this is ~11 min of capture.
+   */
+  maxSessionBytes: 512 * 1024 * 1024,
+  /** Streaming upload discipline (bounded backlog, no unbounded RAM/disk). */
+  uploadConcurrency: 1,
+  uploadRetries: 2,
+  retryBackoffMs: 500,
+  /**
+   * Backpressure: the maximum number of recorded-but-not-yet-uploaded segments the
+   * client tolerates before it triggers a CONTROLLED stop (no silent drop; the
+   * already-recorded segments still upload and seal contiguously).
+   */
+  maxPendingSegments: 8,
+} as const;
+
 export type ScreenContinuousSegmentDescriptor = {
   role: ScreenContinuousArtifactRole;
   /** 0-based index within this capture (ties the manifest to the uploaded part). */

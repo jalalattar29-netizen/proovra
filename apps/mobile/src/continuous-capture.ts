@@ -15,6 +15,8 @@
  */
 import * as FileSystem from "expo-file-system";
 
+import { SCREEN_CONTINUOUS_STREAM_BOUNDS } from "@proovra/shared";
+
 import {
   openDirectCaptureSession,
   reserveDirectCaptureEvidence,
@@ -96,6 +98,36 @@ async function fileSizeBytes(uri: string): Promise<number> {
   return info.exists && typeof info.size === "number" ? info.size : 0;
 }
 
+/**
+ * Delete a local temp file, ignoring absence. Called ONLY after a segment's bytes
+ * are durably in storage (PUT succeeded) — the local mp4 is then no longer the only
+ * copy, and completion re-hashes from storage, never from the device. Bounds
+ * on-disk accumulation during a long session.
+ */
+async function deleteLocalFileQuietly(uri: string): Promise<void> {
+  try {
+    await FileSystem.deleteAsync(uri, { idempotent: true });
+  } catch {
+    // A temp file we cannot delete is a P3 disk-hygiene issue, never a
+    // correctness one; the OS reclaims the app cache under pressure.
+  }
+}
+
+/**
+ * Best-effort cleanup of any continuous-capture temp files left for THIS session in
+ * the app cache (segments + the manifest). Called on Discard (pre-finalize) and
+ * after a successful seal. Session-scoped by the `startedAtMs`-derived name prefix
+ * the native service uses, so it never touches another session's or another
+ * feature's files.
+ */
+export async function cleanupContinuousTempFiles(
+  segments: Array<Pick<ScreenSegment, "uri">>,
+  manifestUri?: string,
+): Promise<void> {
+  for (const s of segments) await deleteLocalFileQuietly(s.uri);
+  if (manifestUri) await deleteLocalFileQuietly(manifestUri);
+}
+
 /** Open the PROOVRA session + reserve ONE Evidence for the whole session. */
 export async function beginContinuousSession(): Promise<{ session: DirectCaptureSession; evidenceId: string }> {
   const session = await openDirectCaptureSession("DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS");
@@ -115,11 +147,14 @@ export async function uploadContinuousSegment(
   session: DirectCaptureSession,
   evidenceId: string,
   seg: ScreenSegment,
-  retries = 2,
+  retries = SCREEN_CONTINUOUS_STREAM_BOUNDS.uploadRetries,
 ): Promise<DeclaredSegment> {
   let lastErr: unknown;
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     try {
+      // Measure size BEFORE upload (we delete the local file right after a
+      // durable PUT, so it may be gone afterwards).
+      const sizeBytes = await fileSizeBytes(seg.uri);
       const up = await uploadDirectCaptureItem(session, evidenceId, {
         partIndex: seg.sequence,
         uri: seg.uri,
@@ -127,11 +162,15 @@ export async function uploadContinuousSegment(
         originalFilename: `segment-${seg.sequence}.mp4`,
         source: "SCREEN_SEGMENT",
       });
+      // Bytes are now durably in storage; drop the only-on-device copy so a long
+      // session cannot accumulate unbounded temp mp4s. Completion re-hashes from
+      // storage, never from this file.
+      await deleteLocalFileQuietly(seg.uri);
       return {
         partIndex: seg.sequence,
         sequence: seg.sequence,
         sha256Hex: up.sha256Hex,
-        sizeBytes: await fileSizeBytes(seg.uri),
+        sizeBytes,
         startedAtOffsetMs: seg.startedAtOffsetMs,
         durationMs: seg.durationMs,
         widthPx: seg.widthPx,
@@ -140,7 +179,7 @@ export async function uploadContinuousSegment(
       };
     } catch (err) {
       lastErr = err;
-      await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+      await new Promise((r) => setTimeout(r, SCREEN_CONTINUOUS_STREAM_BOUNDS.retryBackoffMs * (attempt + 1)));
     }
   }
   throw lastErr instanceof Error ? lastErr : new Error("segment upload failed");
@@ -177,6 +216,9 @@ export async function finalizeContinuousCapture(
   );
   const sealedId = res?.result?.evidenceId as string | undefined;
   if (!sealedId) throw new Error("Could not complete the continuous capture.");
+
+  // Sealed and server-verified — the local manifest temp file is no longer needed.
+  await deleteLocalFileQuietly(manifestUri);
 
   return {
     evidenceId: sealedId,
