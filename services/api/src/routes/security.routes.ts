@@ -53,8 +53,15 @@ import {
  * `identity.org_policy.read` capability + fail-closed + anti-enumeration),
  * THEN preserves the stricter OWNER/ADMIN-only restriction (identity.org_
  * policy.read is not admin-exclusive, so the role check remains, reading role
- * from an informational lookup). The security-ops surface returns 404 for
- * every denial so it never enumerates roles/records.
+ * from an informational lookup).
+ *
+ * D60 — WHO GETS 404 AND WHO GETS 403. A caller outside the workspace is
+ * answered 404 (the primitive's anti-enumeration). A caller who is already an
+ * ACTIVE member knows the workspace exists, so the OWNER/ADMIN narrowing tells
+ * them the truth — 403 permission_denied, byte-identical to the refusal the
+ * primitive sends a member without the capability. It used to answer 404, so
+ * one member got 403 or 404 for the same "you are not an administrator"
+ * depending on which layer refused.
  */
 async function requireAdminMember(
   req: FastifyRequest,
@@ -71,8 +78,19 @@ async function requireAdminMember(
     where: { teamId_userId: { teamId, userId: outcome.actorUserId } },
     select: { role: true },
   });
-  if (!membership || (membership.role !== "OWNER" && membership.role !== "ADMIN")) {
+  // No membership row is an outsider however authorization was satisfied,
+  // and stays concealed.
+  if (!membership) {
     reply.code(404).send({ error: { code: "not_found" } });
+    return null;
+  }
+  if (membership.role !== "OWNER" && membership.role !== "ADMIN") {
+    // D60 — a member without authority, not an outsider: the canonical 403,
+    // byte-identical to the refusal `authorizeOrFail` sends a member who
+    // lacks the capability (the MFA admin family's D14 rule).
+    reply.code(403).send({
+      error: { code: "permission_denied", reason: "permission_not_granted" },
+    });
     return null;
   }
   return { userId: outcome.actorUserId };

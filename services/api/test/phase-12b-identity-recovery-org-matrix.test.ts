@@ -1377,8 +1377,10 @@ describe("SYSTEM 1 — MFA recovery-request lifecycle", () => {
       headers: JSON_HEADERS,
       payload: { token: "f".repeat(64) },
     });
-    expect(forged.statusCode).toBe(400);
-    expect(JSON.parse(forged.body)).toEqual({ error: "token_invalid" });
+    // D55 — a wrong token on a real id is answered exactly as a missing id
+    // (was 400 token_invalid, which confirmed the id to an anonymous caller).
+    expect(forged.statusCode).toBe(404);
+    expect(JSON.parse(forged.body)).toEqual({ error: "request_not_found" });
     expect(requestRow(id).status).toBe("EMAIL_VERIFICATION_PENDING");
 
     const ok = await app.inject({
@@ -1397,10 +1399,12 @@ describe("SYSTEM 1 — MFA recovery-request lifecycle", () => {
       headers: JSON_HEADERS,
       payload: { token: raw },
     });
-    expect(replay.statusCode).toBe(400);
-    expect(JSON.parse(replay.body)).toEqual({
-      error: "request_not_in_email_pending",
-    });
+    // D55 — the used token's hash is cleared, so a replay can no longer be
+    // told apart from a guess; describing the request's state ("not pending")
+    // to an unproven caller was the leak. Was 400 request_not_in_email_pending.
+    expect(replay.statusCode).toBe(404);
+    expect(JSON.parse(replay.body)).toEqual({ error: "request_not_found" });
+    expect(requestRow(id).status).toBe("PENDING_ADMIN_REVIEW");
   });
 
   it("resend-email leg rotates the token, throttles the next attempt, refuses a foreign owner", async () => {

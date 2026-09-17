@@ -7,7 +7,8 @@
  *   - Stale thresholds respect env overrides + clamp
  *   - Queue policy doc matches the worker source (single source of
  *     truth check)
- *   - Reliability route uses 404 (not 403) for non-admin (anti-enum)
+ *   - Reliability route uses 404 for outsiders (anti-enum) and the
+ *     canonical 403 for a non-admin member (D60)
  *   - Evidence finalize uses an atomic where-status guard (DB-level
  *     idempotency assertion via source-code check)
  *   - Session projection redacts the reserved `multipartUploadId`
@@ -262,7 +263,7 @@ describe("upload session projection — privacy", () => {
 });
 
 describe("anti-enumeration — reliability routes", () => {
-  it("uses 404 (not 403) for non-admin members", async () => {
+  it("uses 404 for outsiders and the canonical 403 for non-admin members", async () => {
     const { readFile } = await import("node:fs/promises");
     const { fileURLToPath } = await import("node:url");
     const src = await readFile(
@@ -271,10 +272,16 @@ describe("anti-enumeration — reliability routes", () => {
       ),
       "utf8",
     );
-    // The route file should never respond 403 — operators see 404 on
-    // both "not a member" and "not OWNER/ADMIN".
-    expect(src).not.toMatch(/reply\.code\(403\)/);
+    // D60 — an outsider (no membership row) is still concealed as 404; an
+    // ACTIVE member who is not OWNER/ADMIN is told the canonical 403
+    // permission_denied, byte-identical to authorizeOrFail's refusal of a
+    // member without the capability (was: 404 for both). The ONLY 403 this
+    // file sends is that canonical body.
     expect(src).toMatch(/reply\.code\(404\)/);
+    expect(src.match(/reply\.code\(403\)/g) ?? []).toHaveLength(1);
+    expect(src).toMatch(
+      /reply\.code\(403\)\.send\(\{\s*error: \{ code: "permission_denied", reason: "permission_not_granted" \},\s*\}\)/,
+    );
   });
 });
 

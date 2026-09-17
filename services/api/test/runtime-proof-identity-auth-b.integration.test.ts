@@ -701,8 +701,10 @@ describe("K1 identity-auth (B) — workspace identity administration (live Postg
       const url = `/v1/identity/mfa/recovery-requests/${requestId}/verify-email`;
 
       const stale = await call({ method: "POST", url, payload: { token: firstToken } });
-      expect(stale.statusCode).toBe(400);
-      expect(json(stale)).toEqual({ error: "token_invalid" });
+      // D55 — a rotated-out token is a wrong token, answered exactly as a
+      // missing request (was 400 token_invalid).
+      expect(stale.statusCode).toBe(404);
+      expect(json(stale)).toEqual({ error: "request_not_found" });
       const otherUser = await call({ method: "POST", url, token: memberToken, payload: { token: secondToken } });
       // D11 — concealed as a missing request.
       expect(otherUser.statusCode).toBe(404);
@@ -724,8 +726,11 @@ describe("K1 identity-auth (B) — workspace identity administration (live Postg
       });
 
       const replay = await call({ method: "POST", url, payload: { token: secondToken } });
-      expect(replay.statusCode).toBe(400);
-      expect(json(replay)).toEqual({ error: "request_not_in_email_pending" });
+      // D55 — the used token's hash is cleared, so a replay cannot be told
+      // apart from a guess and reads as a missing request (was 400
+      // request_not_in_email_pending, a state disclosed to an unproven caller).
+      expect(replay.statusCode).toBe(404);
+      expect(json(replay)).toEqual({ error: "request_not_found" });
     });
 
     it("POST /v1/identity/mfa/recovery-requests/:id/cancel — the requester withdraws the request; another user is refused and a second cancel is bounded", async () => {

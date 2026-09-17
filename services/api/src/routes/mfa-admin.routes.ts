@@ -799,9 +799,15 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
         // D11 — "someone else's request" and "no such request" are one
         // answer. A distinguishable 403 confirmed that a guessed id names a
         // real recovery in progress for another account.
+        // D55 — so is "a real request, but not this token": the caller is
+        // anonymous and the token is its only credential, so a 400
+        // token_invalid for a real id against a 404 for a made-up one let
+        // anyone test whether an id exists. The verify page renders both as
+        // its "link invalid" state.
         if (
           result.reason === "request_not_found" ||
-          result.reason === "wrong_user"
+          result.reason === "wrong_user" ||
+          result.reason === "token_invalid"
         ) {
           reply.code(404);
           return { error: "request_not_found" };

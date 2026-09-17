@@ -60,6 +60,8 @@ const CODE_COPY: Record<string, string> = {
     "That capability is already granted. Revoke it first to re-issue it.",
   capability_not_found: "That capability grant no longer exists or was already revoked.",
   capability_unknown: "That is not a recognised capability.",
+  grantor_lacks_permission:
+    "You can only grant a capability that your own access in this workspace includes.",
   delegated_scope_already_active: "That delegated-admin scope is already granted.",
   delegated_scope_not_found:
     "That delegated-admin scope no longer exists or was already revoked.",
@@ -80,7 +82,7 @@ const CODE_COPY: Record<string, string> = {
   RBAC_MEMBER_NOT_FOUND:
     "That member is not part of the workspace you are administering.",
   RBAC_ELEVATION_BLOCKED:
-    "The elevation was refused: the member must be an active member of this workspace.",
+    "The elevation was refused: the member must be an active member of this workspace, and you can only elevate someone into a permission your own access includes.",
   RBAC_PERMISSION_UNKNOWN: "That is not a recognised permission.",
   HIGH_RISK_ACTION_BLOCKED:
     "This action is blocked while your session is flagged high-risk. Contact another administrator.",
@@ -97,6 +99,7 @@ const BLOCKED_CODES = new Set([
   "invalid_status_transition",
   "capability_already_active",
   "capability_not_found",
+  "grantor_lacks_permission",
   "delegated_scope_already_active",
   "delegated_scope_not_found",
   "mapping_already_active",

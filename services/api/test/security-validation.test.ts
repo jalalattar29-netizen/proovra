@@ -292,18 +292,23 @@ describe("server security headers (compile-time source check)", () => {
   });
 });
 
-describe("anti-enumeration — security routes never 403 on non-admin", () => {
-  it("routes return 404 (not 403) when caller is not an admin member", async () => {
+describe("anti-enumeration — security routes conceal outsiders only", () => {
+  it("routes return 404 for an outsider and the canonical 403 for a non-admin member", async () => {
     const { readFile } = await import("node:fs/promises");
     const { fileURLToPath } = await import("node:url");
     const src = await readFile(
       fileURLToPath(new URL("../src/routes/security.routes.ts", import.meta.url)),
       "utf8",
     );
-    // The helper that handles "not a member" and "not OWNER/ADMIN" must
-    // respond 404 in both branches.
+    // D60 — an outsider (no membership row) is still concealed as 404; an
+    // ACTIVE member who is not OWNER/ADMIN is told the canonical 403
+    // permission_denied, byte-identical to authorizeOrFail's refusal of a
+    // member without the capability (was: 404 for both). The ONLY 403 this
+    // file sends is that canonical body.
     expect(src).toMatch(/reply\.code\(404\)/);
-    // Avoid accidentally introducing 403 in this route file.
-    expect(src).not.toMatch(/reply\.code\(403\)/);
+    expect(src.match(/reply\.code\(403\)/g) ?? []).toHaveLength(1);
+    expect(src).toMatch(
+      /reply\.code\(403\)\.send\(\{\s*error: \{ code: "permission_denied", reason: "permission_not_granted" \},\s*\}\)/,
+    );
   });
 });

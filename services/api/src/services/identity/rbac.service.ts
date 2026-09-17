@@ -39,6 +39,7 @@ import { prisma as defaultPrisma } from "../../db.js";
 // run (see middleware/authorize.ts `authorizeCurrentWorkspaceOrFail`).
 import { repairStaleCurrentWorkspacePointers } from "../access/current-workspace-pointer.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+import { evaluateMemberAccess } from "./access-policy.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 // PHASE 3 (2026-07-21) — grant provenance (rbac IS the MANUAL-intent
 // lifecycle surface of the canonical membership orchestrator family).
@@ -66,7 +67,11 @@ export type RbacErrorCode =
   // single ACTIVE administrator. Raised by `assertNotLastAdministrator`,
   // which re-counts the remaining administrators INSIDE the mutating
   // transaction (see `runAtomically`).
-  | "last_administrator_protected";
+  | "last_administrator_protected"
+  // D54 — a capability grant may only hand out a permission the granting
+  // administrator holds in this workspace (the rule D29 applied to temporary
+  // elevation). Raised by `grantCapability` before the subject is read.
+  | "grantor_lacks_permission";
 
 export class RbacError extends Error {
   readonly code: RbacErrorCode;
@@ -487,6 +492,28 @@ export async function grantCapability(
 ): Promise<prismaPkg.MemberCapabilityGrant> {
   if (!PERMISSION_SET.has(input.permission)) {
     throw new RbacError("capability_unknown");
+  }
+  /*
+   * D54 — NOBODY HANDS OUT AUTHORITY THEY DO NOT HOLD.
+   *
+   * `identity.capability.grant` says who may grant, not what they may grant.
+   * Without this check an ADMIN (whose role does not include
+   * `billing.manage`) could grant it to a colleague — or to a second account
+   * of their own. The grantor is evaluated through the same chain as any
+   * other decision, in this workspace, for this exact permission — the rule
+   * `grantTemporaryElevation` applies (D29). Checked before the subject is
+   * looked up so the refusal says nothing about who is a member.
+   */
+  const grantorDecision = await evaluateMemberAccess(
+    {
+      teamId: input.teamId,
+      userId: input.actorUserId,
+      permission: input.permission,
+    },
+    client,
+  );
+  if (!grantorDecision.allowed) {
+    throw new RbacError("grantor_lacks_permission");
   }
   return runAtomically(client, async (tx) => {
   const target = await loadTargetMember(tx, input.teamId, input.teamMemberId);

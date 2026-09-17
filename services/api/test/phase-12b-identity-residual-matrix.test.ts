@@ -1488,11 +1488,16 @@ describe("SYSTEM 4 — security telemetry", () => {
       expect(hits("listScansForTeam")).toHaveLength(0);
     });
 
-    it("a non-admin member is concealed as 404, ZERO read (security ops are admin-only)", async () => {
+    // D60 — a member of the workspace already knows it exists, so the
+    // OWNER/ADMIN narrowing answers the canonical 403 (byte-identical to the
+    // primitive's refusal of a member without the capability). Was 404.
+    it("a non-admin member is refused 403 permission_denied, ZERO read (security ops are admin-only)", async () => {
       H.actorUserId = STALE_USER; // ACTIVE MEMBER of TEAM, not OWNER/ADMIN
       const res = await send(securityApp, "GET", `/v1/security/scans?teamId=${TEAM}`);
-      expect(res.statusCode).toBe(404);
-      expect(json(res)).toEqual({ error: { code: "not_found" } });
+      expect(res.statusCode).toBe(403);
+      expect(json(res)).toEqual({
+        error: { code: "permission_denied", reason: "permission_not_granted" },
+      });
       expect(hits("listScansForTeam")).toHaveLength(0);
     });
 

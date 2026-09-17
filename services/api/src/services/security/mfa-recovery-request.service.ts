@@ -394,6 +394,27 @@ export async function verifyRecoveryRequestEmail(
   if (input.actorUserId && row.userId !== input.actorUserId) {
     return { ok: false, reason: "wrong_user" };
   }
+  /*
+   * D55 — THE TOKEN IS PROVEN BEFORE THE REQUEST'S STATE IS DESCRIBED.
+   *
+   * This call is anonymous; the token is the only credential. Answering
+   * "not pending" or "expired" before checking it told a caller holding
+   * nothing but a guessed id that the id names a real recovery (and what
+   * state it is in). Only a caller who presents the request's own token
+   * learns anything about it; every other caller gets `token_invalid`,
+   * which the route answers exactly as a missing request.
+   */
+  if (!row.emailVerificationTokenHash) {
+    return { ok: false, reason: "token_invalid" };
+  }
+  const candidate = hashEmailToken(input.rawToken);
+  // Constant-time string compare via Buffer
+  if (
+    candidate.length !== row.emailVerificationTokenHash.length ||
+    !timingSafeEqualHex(candidate, row.emailVerificationTokenHash)
+  ) {
+    return { ok: false, reason: "token_invalid" };
+  }
   if (row.status !== "EMAIL_VERIFICATION_PENDING") {
     return { ok: false, reason: "request_not_in_email_pending" };
   }
@@ -411,17 +432,6 @@ export async function verifyRecoveryRequestEmail(
       },
     });
     return { ok: false, reason: "token_expired" };
-  }
-  if (!row.emailVerificationTokenHash) {
-    return { ok: false, reason: "token_invalid" };
-  }
-  const candidate = hashEmailToken(input.rawToken);
-  // Constant-time string compare via Buffer
-  if (
-    candidate.length !== row.emailVerificationTokenHash.length ||
-    !timingSafeEqualHex(candidate, row.emailVerificationTokenHash)
-  ) {
-    return { ok: false, reason: "token_invalid" };
   }
   // Atomic flip — also clears the hash so the token cannot be
   // re-used. `where` includes status to defend against concurrent

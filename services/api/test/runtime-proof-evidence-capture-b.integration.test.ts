@@ -701,7 +701,9 @@ describe("K3 runtime proof — evidence capture (part B)", () => {
       const id = json(created).savedView.id as string;
 
       const foreign = await call("DELETE", `/v1/evidence/saved-views/${id}`, teamB.ownerToken);
-      expect(foreign.statusCode).toBe(403);
+      // D57 — another tenant cannot see the view, so it is told the view does
+      // not exist (was 403, which confirmed the id).
+      expect(foreign.statusCode).toBe(404);
       expect(await prisma.evidenceSavedView.count({ where: { id } })).toBe(1);
 
       const res = await call("DELETE", `/v1/evidence/saved-views/${id}`, teamA.memberToken);

@@ -426,7 +426,9 @@ function handleRbacError(reply: FastifyReply, err: unknown): boolean {
     const status =
       err.code === "member_not_found"
         ? 404
-        : err.code === "self_action_forbidden"
+        : err.code === "self_action_forbidden" ||
+            // D54 — the granting administrator does not hold the permission.
+            err.code === "grantor_lacks_permission"
           ? 403
           : err.code === "member_owner_immutable" ||
               err.code === "role_transition_to_owner_forbidden"
