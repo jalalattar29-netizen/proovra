@@ -8,10 +8,11 @@
  * the server. Every change is confirmed by rereading the declaration list
  * before success is announced.
  *
- * STATEMENT AUTHORITY. The statement a signer attests is the statement stored
- * on the declaration record. This surface never writes or edits legal wording:
- * when a requested declaration carries no stored statement, signing is
- * unavailable and the reason is stated.
+ * STATEMENT AUTHORITY. The person requesting a declaration writes its
+ * statement (owner decision, 2026-09-17); it is stored on the request and the
+ * signer sees it read-only and signs exactly that text. The platform authors
+ * no legal wording. A request recorded before statements were required
+ * carries none and cannot be signed; the reason is stated.
  *
  * A declaration is separate from the recorded integrity state; it does not
  * change what was preserved about this evidence.
@@ -27,6 +28,10 @@ import { AppListbox } from "../../../../../components/app-primitives";
 import { ReasonedActionButton } from "./ReasonedActionButton";
 
 type DeclarationType = "CUSTODIAN" | "QUALIFIED_PERSON";
+
+/** Bounds the API applies to a requested statement. */
+const STATEMENT_MIN_LENGTH = 20;
+const STATEMENT_MAX_LENGTH = 10_000;
 type DeclarationStatus = "DRAFT" | "REQUESTED" | "ATTESTED" | "REVOKED";
 
 export type Certification = {
@@ -93,6 +98,7 @@ export function EvidenceCertificationsPanel({ evidenceId }: { evidenceId: string
   const [list, setList] = useState<Load>({ status: "loading" });
   const [revision, setRevision] = useState(0);
   const [requestType, setRequestType] = useState<DeclarationType | null>(null);
+  const [requestStatement, setRequestStatement] = useState("");
   const [form, setForm] = useState<Form | null>(null);
   const [fields, setFields] = useState({ name: "", title: "", email: "", organization: "", signature: "", reason: "" });
   const [busy, setBusy] = useState(false);
@@ -156,7 +162,9 @@ export function EvidenceCertificationsPanel({ evidenceId }: { evidenceId: string
       ? "Both declaration types already have an open request or a signature. Revoke one before requesting it again."
       : !requestType || !requestable.includes(requestType)
         ? "Choose the declaration type to request."
-        : null);
+        : requestStatement.trim().length < STATEMENT_MIN_LENGTH
+          ? `Write the statement the signer will sign (at least ${STATEMENT_MIN_LENGTH} characters).`
+          : null);
 
   function setField(key: keyof typeof fields, value: string) {
     setFields((prev) => ({ ...prev, [key]: value }));
@@ -210,7 +218,10 @@ export function EvidenceCertificationsPanel({ evidenceId }: { evidenceId: string
           );
         }
         setForm(null);
-        if (path === "request") setRequestType(null);
+        if (path === "request") {
+          setRequestType(null);
+          setRequestStatement("");
+        }
         feedback.current?.focus();
       } catch (error) {
         if (!alive.current) return;
@@ -240,7 +251,7 @@ export function EvidenceCertificationsPanel({ evidenceId }: { evidenceId: string
     const ok = await confirm({
       title: `Request a ${TYPE_LABEL[type].toLowerCase()}?`,
       description:
-        "A signature request is recorded in this evidence record's custody history. It does not change the recorded integrity state.",
+        "A signature request with this statement is recorded in this evidence record's custody history. The statement cannot be edited afterwards; the signer signs exactly this text. It does not change the recorded integrity state.",
       confirmLabel: "Request declaration",
     });
     if (!alive.current) return;
@@ -248,7 +259,7 @@ export function EvidenceCertificationsPanel({ evidenceId }: { evidenceId: string
       setBusy(false);
       return;
     }
-    await mutate("request", { declarationType: type }, type, "REQUESTED", `${TYPE_LABEL[type]} requested. The saved declarations were reloaded.`);
+    await mutate("request", { declarationType: type, statementMarkdown: requestStatement.trim() }, type, "REQUESTED", `${TYPE_LABEL[type]} requested. The saved declarations were reloaded.`);
   }
 
   const current = form ? byType.get(form.type)?.latest ?? null : null;
@@ -543,6 +554,21 @@ export function EvidenceCertificationsPanel({ evidenceId }: { evidenceId: string
             }))}
             onChange={(value) => setRequestType(value)}
           />
+        </div>
+        <label className="evidence-detail-dialog-field__label" htmlFor={`${baseId}-statement`}>
+          Declaration statement (the signer signs exactly this text)
+        </label>
+        <textarea
+          id={`${baseId}-statement`}
+          className="app-form-input"
+          rows={4}
+          maxLength={STATEMENT_MAX_LENGTH}
+          value={requestStatement}
+          disabled={busy || list.status !== "ready"}
+          data-certification-request-statement
+          onChange={(event) => setRequestStatement(event.target.value)}
+        />
+        <div className="evidence-lifecycle__actions">
           <ReasonedActionButton
             className="app-secondary-action"
             busy={busy && !form}

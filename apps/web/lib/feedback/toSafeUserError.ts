@@ -91,6 +91,21 @@ const CODE_MAP: Record<
       "The policy versions on this page are no longer current. Reload the page and review the current versions before accepting.",
     severity: "warning",
   },
+  CERTIFICATION_ALREADY_ATTESTED: {
+    title: "Already signed",
+    message: "This declaration was signed in the meantime. Reload the declarations; request a new one to sign again.",
+    severity: "warning",
+  },
+  CERTIFICATION_STATEMENT_MISSING: {
+    title: "No statement to sign",
+    message: "A declaration needs the statement the signer will sign. Write the statement and try again.",
+    severity: "warning",
+  },
+  CERTIFICATION_STATEMENT_CHANGED: {
+    title: "The statement is not the one requested",
+    message: "The statement shown is not the one recorded on the request. Reload the declarations and read the statement again before signing.",
+    severity: "warning",
+  },
   EXPORT_SNAPSHOT_CURSOR_INVALID: {
     title: "The list has changed",
     message: "This page of snapshots no longer matches your filters. Reload the list to start again from the first page.",

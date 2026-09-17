@@ -36,7 +36,7 @@ async function route(path: string, init?: RequestInit): Promise<unknown> {
     if (!server.applyWrites) return { certification: server.items[0] };
     const type = body.declarationType;
     const latest = server.items.filter((c) => c.declarationType === type).sort((a, b) => b.version - a.version)[0];
-    if (path.endsWith("/request")) server.items = [...server.items, cert({ declarationType: type, version: latest ? latest.version + 1 : 1 })];
+    if (path.endsWith("/request")) server.items = [...server.items, cert({ declarationType: type, version: latest ? latest.version + 1 : 1, statementMarkdown: body.statementMarkdown })];
     if (path.endsWith("/attest")) Object.assign(latest!, { status: "ATTESTED", attestedAtUtc: "2026-09-02T00:00:00.000Z", attestorName: body.attestorName, attestorTitle: body.attestorTitle, certificationHash: "hash-after-sign" });
     if (path.endsWith("/revoke")) Object.assign(latest!, { status: "REVOKED", revokedAtUtc: "2026-09-03T00:00:00.000Z", revokeReason: body.reason });
     return { certification: latest };
@@ -127,13 +127,24 @@ describe("evidence certifications on the Integrity tab", () => {
     expect(request.hasAttribute("disabled")).toBe(true);
     expect(document.getElementById(request.getAttribute("aria-describedby")!)?.textContent).toBe("Choose the declaration type to request.");
     await chooseType("Qualified-person certification");
+    // D38 — the requester writes the statement the signer will sign.
+    expect(document.getElementById(request.getAttribute("aria-describedby")!)?.textContent).toBe(
+      "Write the statement the signer will sign (at least 20 characters).",
+    );
+    fill("Declaration statement (the signer signs exactly this text)", "  I certify the attached record is a true copy.  ");
+    expect(request.hasAttribute("disabled")).toBe(false);
     fireEvent.click(request);
     await screen.findByText("Qualified-person certification requested. The saved declarations were reloaded.");
     expect(mocks.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: "Request a qualified-person certification?" }));
     const calls = mocks.fetch.mock.calls;
     const write = calls.findIndex(([, init]) => init?.method === "POST");
     expect(calls[write][0]).toBe(`${listPath}/request`);
-    expect(JSON.parse(calls[write][1].body)).toEqual({ declarationType: "QUALIFIED_PERSON" });
+    expect(JSON.parse(calls[write][1].body)).toEqual({
+      declarationType: "QUALIFIED_PERSON",
+      statementMarkdown: "I certify the attached record is a true copy.",
+    });
+    // The statement field is cleared once the request is confirmed.
+    expect((screen.getByLabelText("Declaration statement (the signer signs exactly this text)") as HTMLTextAreaElement).value).toBe("");
     expect(calls.slice(write + 1).some(([p]) => p === listPath)).toBe(true);
     expect(panel().querySelector("[data-evidence-certification='QUALIFIED_PERSON']")?.textContent).toMatch(/Requested — awaiting signature/);
   });
@@ -143,9 +154,25 @@ describe("evidence certifications on the Integrity tab", () => {
     mount();
     await screen.findByText("No declaration is attached to this record.");
     await chooseType("Custodian declaration");
+    fill("Declaration statement (the signer signs exactly this text)", "I am the custodian of this record.");
     fireEvent.click(screen.getByRole("button", { name: "Request declaration" }));
     await waitFor(() => expect(mocks.confirm).toHaveBeenCalled());
     await waitFor(() => expect(screen.getByRole("button", { name: "Request declaration" }).hasAttribute("disabled")).toBe(false));
+    expect(writes("/request")).toHaveLength(0);
+  });
+
+  it("a statement shorter than twenty characters keeps the request disabled and makes no write", async () => {
+    mount();
+    await screen.findByText("No declaration is attached to this record.");
+    await chooseType("Custodian declaration");
+    fill("Declaration statement (the signer signs exactly this text)", "   too short   ");
+    const request = screen.getByRole("button", { name: "Request declaration" });
+    expect(request.hasAttribute("disabled")).toBe(true);
+    expect(document.getElementById(request.getAttribute("aria-describedby")!)?.textContent).toBe(
+      "Write the statement the signer will sign (at least 20 characters).",
+    );
+    fireEvent.click(request);
+    expect(mocks.confirm).not.toHaveBeenCalled();
     expect(writes("/request")).toHaveLength(0);
   });
 
@@ -261,6 +288,7 @@ describe("evidence certifications on the Integrity tab", () => {
     mount();
     await screen.findByText("No declaration is attached to this record.");
     await chooseType("Custodian declaration");
+    fill("Declaration statement (the signer signs exactly this text)", "I am the custodian of this record.");
     fireEvent.click(screen.getByRole("button", { name: "Request declaration" }));
     await waitFor(() => expect(document.querySelector("[data-evidence-certifications-mutation-error]")).toBeTruthy());
     expect(document.querySelector("[data-evidence-certifications-notice]")).toBeNull();
@@ -271,6 +299,7 @@ describe("evidence certifications on the Integrity tab", () => {
     mount();
     await screen.findByText("No declaration is attached to this record.");
     await chooseType("Custodian declaration");
+    fill("Declaration statement (the signer signs exactly this text)", "I am the custodian of this record.");
     fireEvent.click(screen.getByRole("button", { name: "Request declaration" }));
     await screen.findByText(/could not be reloaded to confirm it/);
     expect(document.querySelector("[data-evidence-certifications-notice]")).toBeNull();
@@ -281,6 +310,7 @@ describe("evidence certifications on the Integrity tab", () => {
     mount();
     await screen.findByText("No declaration is attached to this record.");
     await chooseType("Custodian declaration");
+    fill("Declaration statement (the signer signs exactly this text)", "I am the custodian of this record.");
     fireEvent.click(screen.getByRole("button", { name: "Request declaration" }));
     await screen.findByText(/reloaded declarations do not show the change/);
     expect(document.querySelector("[data-evidence-certifications-notice]")).toBeNull();
