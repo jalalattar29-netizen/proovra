@@ -207,18 +207,61 @@ function stopChildren() {
   }
 }
 
-async function waitForHttp(url, label, tries = 120) {
+async function waitForHttp(url, label, { tries = 120, expectStatus = null } = {}) {
   log(`waiting for ${label} at ${url} …`);
   for (let i = 0; i < tries; i++) {
     try {
       const res = await fetch(url);
-      if (res.status < 500) return;
+      // When an exact status is required (the API endpoints), a wrong service
+      // squatting the port — e.g. the Next.js web app answering the API's port
+      // with a 404 not-found page — must NOT count as ready. That masquerade is
+      // exactly what a `PORT` collision produced, so the readiness check is the
+      // second line of defence after correct port wiring.
+      if (expectStatus === null ? res.status < 500 : res.status === expectStatus) return;
     } catch {
       /* not up yet */
     }
     await sleep(1000);
   }
-  fail(`${label} did not become ready at ${url}.`);
+  fail(`${label} did not become ready at ${url}${expectStatus ? ` (needed HTTP ${expectStatus})` : ""}.`);
+}
+
+/**
+ * The child processes the acceptance stack runs, each with its OWN correct port.
+ *
+ * PURE and EXPORTED so the port wiring is unit-testable without spawning
+ * anything. THE BUG THIS ENCODES: `buildLocalFixtureEnv` sets `PORT = apiPort`
+ * for the whole stack, so a web child that inherits it and is started as a bare
+ * `next dev` binds the API's port (4000) and then answers `/v1/oauth/extension/
+ * authorize` with the Next.js 404 page instead of the API's 302. The API and the
+ * extension both use the API origin, so the web child MUST get its own port:
+ *   - its env `PORT` is overridden to the web port, and
+ *   - `next dev -p <webPort>` is passed explicitly (the canonical web launcher
+ *     does the same, because relying on the `PORT` env alone has silently used
+ *     the wrong port before).
+ * The API keeps `PORT = apiPort`; the worker uses `WORKER_PORT`; the fixture
+ * server gets the fixture port. No two services share a port.
+ */
+export function planServiceChildren({ fixtureEnv, config }) {
+  const children = [
+    { name: "api", cmd: "pnpm", args: ["--filter", "proovra-api", "dev"], env: fixtureEnv },
+    { name: "worker", cmd: "pnpm", args: ["--filter", "proovra-worker", "dev"], env: fixtureEnv },
+  ];
+  if (!config.skipWeb) {
+    children.push({
+      name: "web",
+      cmd: "pnpm",
+      args: ["--filter", "proovra-web", "exec", "next", "dev", "-p", String(config.webPort)],
+      env: { ...fixtureEnv, PORT: String(config.webPort) },
+    });
+  }
+  children.push({
+    name: "fixtures",
+    cmd: "node",
+    args: ["apps/extension/e2e/fixture-server.mjs"],
+    env: { ...fixtureEnv, PORT: String(config.fixturePort), FIXTURE_PORT: String(config.fixturePort) },
+  });
+  return children;
 }
 
 function run(name, cmd, args, { cwd, env } = {}) {
@@ -300,18 +343,17 @@ async function main() {
     }
     log(`seeded team ${seed.teamId} (user ${seed.userId}).`);
 
-    // 4. Boot API + worker + (optional) web + fixture server on the safe env.
-    startChild("api", "pnpm", ["--filter", "proovra-api", "dev"], { env: fixtureEnv });
-    startChild("worker", "pnpm", ["--filter", "proovra-worker", "dev"], { env: fixtureEnv });
-    if (!config.skipWeb) {
-      startChild("web", "pnpm", ["--filter", "proovra-web", "dev"], { env: fixtureEnv });
+    // 4. Boot API + worker + (optional) web + fixture server, each on its OWN
+    //    port (see planServiceChildren — the web child must NOT inherit the
+    //    API's PORT or it squats the API origin and OAuth 404s).
+    for (const spec of planServiceChildren({ fixtureEnv, config })) {
+      startChild(spec.name, spec.cmd, spec.args, { env: spec.env });
     }
-    startChild("fixtures", "node", ["apps/extension/e2e/fixture-server.mjs"], {
-      env: { ...fixtureEnv, PORT: config.fixturePort, FIXTURE_PORT: config.fixturePort },
-    });
 
-    await waitForHttp(`${apiOrigin}/healthz`, "API");
-    await waitForHttp(`${apiOrigin}/readyz`, "API (DB ready)");
+    // The API endpoints must answer 200 as the API — a 404 (the web app on the
+    // wrong port) is NOT ready.
+    await waitForHttp(`${apiOrigin}/healthz`, "API", { expectStatus: 200 });
+    await waitForHttp(`${apiOrigin}/readyz`, "API (DB ready)", { expectStatus: 200 });
     await waitForHttp(fixtureOrigin, "fixture server");
 
     // 5. Run the Playwright acceptance per requested browser.
@@ -356,16 +398,24 @@ async function main() {
   }
 }
 
-process.on("SIGINT", () => {
-  stopChildren();
-  stopInfra();
-  process.exit(130);
-});
+// Only run the stack when executed directly (`node scripts/uc1-acceptance-windows.mjs`).
+// When imported (e.g. by the port-wiring regression test) the pure helpers above
+// are used without booting anything.
+const invokedDirectly =
+  process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 
-main()
-  .then((code) => process.exit(code))
-  .catch((err) => {
+if (invokedDirectly) {
+  process.on("SIGINT", () => {
     stopChildren();
     stopInfra();
-    fail(err instanceof Error ? err.stack || err.message : String(err));
+    process.exit(130);
   });
+
+  main()
+    .then((code) => process.exit(code))
+    .catch((err) => {
+      stopChildren();
+      stopInfra();
+      fail(err instanceof Error ? err.stack || err.message : String(err));
+    });
+}
