@@ -26,7 +26,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { enclosingSource, functionSource } from "../../../scripts/source-contract/index.mjs";
+import { enclosingSource, functionSource, routeSource } from "../../../scripts/source-contract/index.mjs";
 
 import {
   applyEnforcementMode,
@@ -848,8 +848,7 @@ describe("19. New POST /v1/trust/articles/:id/review route", () => {
       path.resolve("src/routes/trust-and-governance.routes.ts"),
       "utf8",
     );
-    const idx = src.indexOf('"/v1/trust/articles/:id/review"');
-    const handler = src.slice(idx, idx + 600);
+    const handler = routeSource(src, "POST", "/v1/trust/articles/:id/review");
     expect(handler).toContain("reply.code(410)");
     expect(handler).toContain('code: "TRUST_ARTICLE_REVIEW_FLAG_RETIRED"');
     expect(src).not.toMatch(/markArticleNeedsReview\(/);

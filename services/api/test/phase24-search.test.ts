@@ -22,6 +22,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
+
 import {
   SEARCH_RESULT_ALLOWED_BADGES,
   SEARCH_FORBIDDEN_OVERCLAIM_PHRASES,
@@ -200,8 +202,7 @@ describe("Phase 24 — search routes auth posture", () => {
   // Phase 22 workflow-instance family and had no caller. It stays registered
   // (above) but is a typed 410 that runs no gate and indexes nothing.
   it("the workflow reindex route is a typed 410 tombstone", () => {
-    const idx = src.indexOf('"/v1/search/reindex/workflow/:id"');
-    const handler = src.slice(idx, idx + 600);
+    const handler = routeSource(src, "POST", "/v1/search/reindex/workflow/:id");
     expect(handler).toContain("reply.code(410)");
     expect(handler).toContain('code: "WORKFLOW_INSTANCE_REINDEX_RETIRED"');
     expect(handler).not.toContain("requireSearchOperator");

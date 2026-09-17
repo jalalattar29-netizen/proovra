@@ -17,6 +17,8 @@
 
 import { describe, expect, it } from "vitest";
 
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
+
 // Phase P2 — ai-assistance wrapper tests removed with the retired stub.
 import { projectExtractedTextSummary } from "../src/services/intelligence/extraction.service.js";
 
@@ -124,13 +126,11 @@ describe("intelligence routes — anti-enumeration + scope", () => {
     // processed, D7), and AI-assist went in Phase P2: no mutating
     // intelligence route is left in this file to gate.
     expect(src).not.toMatch(/permission:\s*"intelligence\.run"/);
-    const enqueueIdx = src.indexOf('"/v1/intelligence/evidence/:id/enqueue"');
-    const enqueue = src.slice(enqueueIdx, enqueueIdx + 500);
+    const enqueue = routeSource(src, "POST", "/v1/intelligence/evidence/:id/enqueue");
     expect(enqueue).toContain("reply.code(410)");
     expect(enqueue).toContain('code: "INTELLIGENCE_ENQUEUE_RETIRED"');
     expect(src).not.toMatch(/enqueueIntelligenceJob\(/);
-    const reconcileIdx = src.indexOf('"/v1/intelligence/evidence/:id/reconcile-similarity"');
-    const reconcile = src.slice(reconcileIdx, reconcileIdx + 500);
+    const reconcile = routeSource(src, "POST", "/v1/intelligence/evidence/:id/reconcile-similarity");
     expect(reconcile).toContain("reply.code(410)");
     expect(reconcile).toContain('code: "SIMILARITY_RECONCILE_RETIRED"');
     expect(src).not.toMatch(/reconcileSimilaritiesForEvidence\(/);

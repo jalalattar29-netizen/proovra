@@ -39,7 +39,7 @@ import {
   sanitiseCollaborationTeamCommentBody,
 } from "@proovra/shared";
 import { isCollaborationTeamModerator } from "../src/services/collaboration-team/collaboration-team.service.js";
-import { betweenMarkers } from "../../../scripts/source-contract/index.mjs";
+import { betweenMarkers, routeSource } from "../../../scripts/source-contract/index.mjs";
 
 const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
 function read(rel: string): string {
@@ -557,28 +557,22 @@ describe("Phase R16 — API routes", () => {
   // a tombstone that does no work: the registrations above survive, and each
   // one's handler is the retired helper and nothing else.
   it("guest and access-review routes are typed 410 tombstones that call no service", () => {
-    const tombstones: Array<[string, string]> = [
-      ['"/v1/collaboration-teams/:teamId/guests"', "guestsRetired"],
-      ['"/v1/collaboration-teams/:teamId/guests/invite"', "guestsRetired"],
-      ['"/v1/collaboration-teams/:teamId/guests/:guestId/revoke"', "guestsRetired"],
-      ['"/v1/collaboration-teams/:teamId/access-review"', "accessReviewRetired"],
-      ['"/v1/collaboration-teams/:teamId/access-review/items/:itemId"', "accessReviewRetired"],
-      ['"/v1/collaboration-teams/:teamId/access-review/:reviewId/complete"', "accessReviewRetired"],
+    const tombstones: Array<[string, string, string]> = [
+      ["GET", "/v1/collaboration-teams/:teamId/guests", "guestsRetired"],
+      ["POST", "/v1/collaboration-teams/:teamId/guests/invite", "guestsRetired"],
+      ["PATCH", "/v1/collaboration-teams/:teamId/guests/:guestId/revoke", "guestsRetired"],
+      ["GET", "/v1/collaboration-teams/:teamId/access-review", "accessReviewRetired"],
+      ["POST", "/v1/collaboration-teams/:teamId/access-review", "accessReviewRetired"],
+      ["PATCH", "/v1/collaboration-teams/:teamId/access-review/items/:itemId", "accessReviewRetired"],
+      ["POST", "/v1/collaboration-teams/:teamId/access-review/:reviewId/complete", "accessReviewRetired"],
     ];
-    for (const [path, helper] of tombstones) {
-      let from = 0;
-      let seen = 0;
-      for (;;) {
-        const idx = routes.indexOf(path, from);
-        if (idx < 0) break;
-        seen += 1;
-        const handler = routes.slice(idx, idx + 200);
-        expect(handler, `${path} must be a tombstone`).toContain(
-          `handler: async (_req, reply) => ${helper}(reply)`,
-        );
-        from = idx + path.length;
-      }
-      expect(seen, `${path} must stay registered`).toBeGreaterThan(0);
+    for (const [method, path, helper] of tombstones) {
+      // routeSource throws unless exactly one registration matches, so each
+      // registration stays in place and is read whole.
+      const handler = routeSource(routes, method, path);
+      expect(handler, `${method} ${path} must be a tombstone`).toContain(
+        `handler: async (_req, reply) => ${helper}(reply)`,
+      );
     }
     expect(routes).toContain('code: "COLLABORATION_TEAM_GUESTS_RETIRED"');
     expect(routes).toContain('code: "COLLABORATION_TEAM_ACCESS_REVIEW_RETIRED"');
