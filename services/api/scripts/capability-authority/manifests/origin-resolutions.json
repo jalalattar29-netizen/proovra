@@ -114,49 +114,49 @@
       "reviewedAtUtc": "2026-08-27"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:234",
+      "site": "services/api/src/services/paypal.service.ts:240",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
       "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal GET /v1/billing/subscriptions/:id.",
       "reviewedAtUtc": "2026-08-27"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:253",
+      "site": "services/api/src/services/paypal.service.ts:259",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
       "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal POST /v2/checkout/orders.",
       "reviewedAtUtc": "2026-08-27"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:294",
+      "site": "services/api/src/services/paypal.service.ts:300",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
       "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal POST /v1/billing/subscriptions (plan checkout).",
       "reviewedAtUtc": "2026-08-27"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:347",
+      "site": "services/api/src/services/paypal.service.ts:353",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
       "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal POST /v1/billing/subscriptions for a RECURRING storage add-on. New in the billing commercial-correctness pass: the add-on used to create a one-time /v2/checkout/orders order, which granted capacity nothing ever expired. The path is PayPal's, not PROOVRA's.",
       "reviewedAtUtc": "2026-08-27"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:379",
+      "site": "services/api/src/services/paypal.service.ts:385",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
       "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal subscription cancel.",
       "reviewedAtUtc": "2026-08-27"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:410",
+      "site": "services/api/src/services/paypal.service.ts:416",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
       "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal webhook-signature verification API.",
       "reviewedAtUtc": "2026-08-27"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:441",
+      "site": "services/api/src/services/paypal.service.ts:447",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
       "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal order capture.",
