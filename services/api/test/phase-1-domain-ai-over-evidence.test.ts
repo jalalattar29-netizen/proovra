@@ -26,7 +26,9 @@ const FILES = [
   "ai-evidence.routes.ts",
   "ai-case.routes.ts",
   "ai-reviewer.routes.ts",
-  "ai-search.routes.ts",
+  // ai-search.routes.ts left this list on 2026-09-16: POST /v1/ai/search/nl
+  // is a typed 410 tombstone that reads no data, so there is nothing for the
+  // primitive to authorize. Pinned separately below.
 ];
 
 describe("AI-over-evidence — intelligence.run is authorization-closed", () => {
@@ -49,6 +51,16 @@ describe("AI-over-evidence — every route composes the canonical primitive", ()
       expect(src).not.toMatch(/code:\s*"not_a_member"/);
     });
   }
+
+  it("ai-search is a retired tombstone that reaches no evidence (2026-09-16)", () => {
+    const src = read("ai-search.routes.ts");
+    expect(src).toContain("reply.code(410)");
+    expect(src).toContain('code: "NL_SEARCH_RETIRED"');
+    // No data path at all: without these there is nothing to authorize.
+    expect(src).not.toMatch(/from "\.\.\/db\.js"/);
+    expect(src).not.toMatch(/evidence-search\.service/);
+    expect(src).not.toMatch(/code:\s*"not_a_member"/);
+  });
 
   it("ai-evidence / ai-case / ai-reviewer authorize against the RESOURCE's team", () => {
     expect(read("ai-evidence.routes.ts")).toMatch(/teamId:\s*ev\.teamId/);

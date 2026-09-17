@@ -359,7 +359,68 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
       "invitation wrote a row and granted nothing — no email was sent and no " +
       "read path consulted the table — so the surface was removed and " +
       "external reviewers are granted access by the external-review " +
-      "authority. Existing rows stay readable and revocable.",
+      "authority. Since 2026-09-16 the guest list and revoke routes answer " +
+      "the same typed 410; stored rows are untouched.",
+  },
+  // -- Retired to typed 410 tombstones on 2026-09-16 ------------------------
+  // Each is answered only to a stale client or a direct API call: no web or
+  // mobile surface calls the route that emits it.
+  COLLABORATION_TEAM_ACCESS_REVIEW_RETIRED: {
+    disposition: "internal",
+    why:
+      "A retired operation answering a legacy client, not a person. Group " +
+      "access reviews recorded decisions and enforced none of them; the panel " +
+      "and its client were removed on 2026-09-06, and enforced reviews run on " +
+      "the workspace and in Governance.",
+  },
+  COLLABORATION_THREAD_CONTRIBUTORS_RETIRED: {
+    disposition: "internal",
+    why:
+      "A retired operation answering a legacy client, not a person. A " +
+      "contributor grant on a discussion thread let nobody read or reply, " +
+      "and no surface ever offered it.",
+  },
+  COLLABORATION_THREAD_SUBSCRIPTIONS_RETIRED: {
+    disposition: "internal",
+    why:
+      "A retired operation answering a legacy client, not a person. " +
+      "Subscribing to a thread changed no notification, and no surface ever " +
+      "offered a Watch control.",
+  },
+  WORKFLOW_TEMPLATE_AUTHORING_RETIRED: {
+    disposition: "internal",
+    why:
+      "A retired operation answering a legacy client, not a person. Workflow " +
+      "templates are platform-managed; the Workflows page is read-only and no " +
+      "surface ever created, edited or archived a template.",
+  },
+  SIMILARITY_RECONCILE_RETIRED: {
+    disposition: "internal",
+    why:
+      "A retired operation answering a legacy client, not a person. " +
+      "On-demand similarity reconciliation had no surface; duplicate review " +
+      "reads the media graph.",
+  },
+  TRUST_ARTICLE_REVIEW_FLAG_RETIRED: {
+    disposition: "internal",
+    why:
+      "A retired operation answering a legacy client, not a person. The " +
+      "manual needs-review flag was overwritten by the next drift scan and " +
+      "no surface ever offered it.",
+  },
+  NL_SEARCH_RETIRED: {
+    disposition: "internal",
+    why:
+      "A retired operation answering a legacy client, not a person. The " +
+      "plain-language search card was withdrawn and its component deleted; " +
+      "Search is the one discovery surface.",
+  },
+  WORKFLOW_INSTANCE_REINDEX_RETIRED: {
+    disposition: "internal",
+    why:
+      "A retired operator operation answering a legacy client, not a person. " +
+      "It served only the deprecated workflow-instance record family and had " +
+      "no caller.",
   },
 
   // -- Operator / platform-admin only --------------------------------------

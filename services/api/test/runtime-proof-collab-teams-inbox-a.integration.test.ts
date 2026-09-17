@@ -451,135 +451,95 @@ describe("K5-A — collaboration, threads, inbox, schedule, workspace admin (liv
       ).toBeNull();
     });
 
-    it("POST /v1/collaboration/threads/:id/subscribe — a reviewer becomes a WATCHER; a VIEWER and a foreign owner are concealed", async () => {
+    // RETIRED 2026-09-16 (owner decision). Thread subscriptions wrote a
+    // WATCHER row nothing read, and contributor grants wrote a CONTRIBUTOR row
+    // nothing used. The routes stay registered as typed 410 tombstones. What
+    // these cases used to prove (a WATCHER / CONTRIBUTOR row written and
+    // revoked, reviewer audit, concealment) is replaced by the tombstone
+    // contract against the live database: every caller — member, viewer,
+    // foreign owner — gets the same 410, an anonymous caller gets 401, and no
+    // participant row is created, revoked or restored.
+    const participantsOf = (threadId: string) =>
+      prisma.discussionParticipant.findMany({
+        where: { threadId },
+        orderBy: { id: "asc" },
+        select: { id: true, userId: true, intakeSessionId: true, role: true, revokedAtUtc: true, revokedByUserId: true },
+      });
+
+    it("POST + DELETE /v1/collaboration/threads/:id/subscribe — typed 410 for every caller; no participant row changes", async () => {
       const a = h.fixtures.teamA;
       const b = h.fixtures.teamB;
       const thread = await newThread();
       const url = `/v1/collaboration/threads/${thread.id}/subscribe`;
-
-      const viewer = await call({ method: "POST", url: `${url}?teamId=${a.teamId}`, token: a.viewerToken });
-      expect(viewer.statusCode).toBe(404);
-      const foreign = await call({ method: "POST", url: `${url}?teamId=${b.teamId}`, token: b.ownerToken });
-      expect(foreign.statusCode).toBe(404);
-      expect(foreign.json()).toEqual({ error: { code: "not_found" } });
-      expect(
-        await prisma.discussionParticipant.count({
-          where: { threadId: thread.id, userId: { in: [a.viewerUserId, b.ownerUserId] } },
-        }),
-      ).toBe(0);
-
-      const res = await call({ method: "POST", url: `${url}?teamId=${a.teamId}`, token: a.memberToken });
-      expect(res.statusCode, res.body).toBe(201);
-      expect(res.json()).toEqual({ subscribed: true, already: false });
-      const row = await prisma.discussionParticipant.findUniqueOrThrow({
-        where: { threadId_userId: { threadId: thread.id, userId: a.memberUserId } },
+      // A pre-existing (historical) WATCHER row must survive both verbs untouched.
+      await prisma.discussionParticipant.create({
+        data: { threadId: thread.id, teamId: a.teamId, userId: a.viewerUserId, role: "WATCHER", addedByUserId: a.viewerUserId },
       });
-      expect(row).toMatchObject({
-        teamId: a.teamId,
-        role: "WATCHER",
-        addedByUserId: a.memberUserId,
-        revokedAtUtc: null,
-      });
+      const before = await participantsOf(thread.id);
 
-      const again = await call({ method: "POST", url: `${url}?teamId=${a.teamId}`, token: a.memberToken });
-      expect(again.statusCode).toBe(200);
-      expect(again.json()).toEqual({ subscribed: true, already: true });
+      for (const method of ["POST", "DELETE"] as const) {
+        const anonymous = await call({ method, url: `${url}?teamId=${a.teamId}` });
+        expect(anonymous.statusCode).toBe(401);
+        for (const [token, teamId] of [
+          [a.memberToken, a.teamId],
+          [a.ownerToken, a.teamId],
+          [a.viewerToken, a.teamId],
+          [b.ownerToken, b.teamId],
+        ] as const) {
+          const res = await call({ method, url: `${url}?teamId=${teamId}`, token });
+          expect(res.statusCode, res.body).toBe(410);
+          expect(res.json()).toMatchObject({
+            error: { code: "COLLABORATION_THREAD_SUBSCRIPTIONS_RETIRED" },
+            canonical: "/v1/me/inbox",
+          });
+        }
+      }
+      expect(await participantsOf(thread.id)).toEqual(before);
     });
 
-    it("DELETE /v1/collaboration/threads/:id/subscribe — a WATCHER unsubscribes; the RESOLVER is refused 409; outsiders are concealed", async () => {
-      const a = h.fixtures.teamA;
-      const b = h.fixtures.teamB;
-      const thread = await newThread();
-      const url = `/v1/collaboration/threads/${thread.id}/subscribe`;
-      const watcher = await prisma.discussionParticipant.create({
-        data: {
-          threadId: thread.id,
-          teamId: a.teamId,
-          userId: a.memberUserId,
-          role: "WATCHER",
-          addedByUserId: a.memberUserId,
-        },
-      });
-
-      const foreign = await call({ method: "DELETE", url: `${url}?teamId=${b.teamId}`, token: b.ownerToken });
-      expect(foreign.statusCode).toBe(404);
-      const resolver = await call({ method: "DELETE", url: `${url}?teamId=${a.teamId}`, token: a.ownerToken });
-      expect(resolver.statusCode).toBe(409);
-      expect(resolver.json()).toEqual({ error: { code: "resolver_cannot_unsubscribe" } });
-      expect(
-        (
-          await prisma.discussionParticipant.findUniqueOrThrow({
-            where: { threadId_userId: { threadId: thread.id, userId: a.ownerUserId } },
-          })
-        ).revokedAtUtc,
-      ).toBeNull();
-
-      const res = await call({ method: "DELETE", url: `${url}?teamId=${a.teamId}`, token: a.memberToken });
-      expect(res.statusCode, res.body).toBe(200);
-      expect(res.json()).toEqual({ revoked: true });
-      const after = await prisma.discussionParticipant.findUniqueOrThrow({ where: { id: watcher.id } });
-      expect(after.revokedAtUtc).toBeInstanceOf(Date);
-      expect(after.revokedByUserId).toBe(a.memberUserId);
-    });
-
-    it("DELETE /v1/collaboration/threads/:id/contributors/:sessionId — a reviewer revokes contributor access (reviewer audit); outsiders are concealed", async () => {
+    it("POST + DELETE /v1/collaboration/threads/:id/contributors — typed 410 for every caller; no grant written or revoked, no reviewer audit", async () => {
       const a = h.fixtures.teamA;
       const b = h.fixtures.teamB;
       const thread = await newThread("CONTRIBUTOR_SCOPED");
       const intakeSessionId = randomUUID();
-      const granted = await call({
-        method: "POST",
-        url: `/v1/collaboration/threads/${thread.id}/contributors`,
-        token: a.memberToken,
-        payload: { teamId: a.teamId, intakeSessionId, contributorLabel: "K5 contributor" },
+      // A historical CONTRIBUTOR row: the retired DELETE must not revoke it.
+      const historical = await prisma.discussionParticipant.create({
+        data: { threadId: thread.id, teamId: a.teamId, intakeSessionId, role: "CONTRIBUTOR", addedByUserId: a.memberUserId },
       });
-      expect(granted.statusCode, granted.body).toBe(201);
-      const participantId = (granted.json() as { participantId: string }).participantId;
-      const url = `/v1/collaboration/threads/${thread.id}/contributors/${intakeSessionId}`;
+      const before = await participantsOf(thread.id);
+      const grantUrl = `/v1/collaboration/threads/${thread.id}/contributors`;
+      const revokeUrl = `${grantUrl}/${intakeSessionId}`;
 
-      const viewer = await call({ method: "DELETE", url: `${url}?teamId=${a.teamId}`, token: a.viewerToken });
-      expect(viewer.statusCode).toBe(404);
-      const foreignWorkspace = await call({ method: "DELETE", url: `${url}?teamId=${b.teamId}`, token: b.ownerToken });
-      expect(foreignWorkspace.statusCode).toBe(404);
-      expect(foreignWorkspace.json()).toEqual({
-        error: { code: "evidence_not_in_workspace", details: null },
-      });
-      const outsiderNamingA = await call({ method: "DELETE", url: `${url}?teamId=${a.teamId}`, token: b.ownerToken });
-      expect(outsiderNamingA.statusCode).toBe(404);
-      expect(outsiderNamingA.json()).toEqual({ error: { code: "not_found" } });
-      expect(
-        (await prisma.discussionParticipant.findUniqueOrThrow({ where: { id: participantId } }))
-          .revokedAtUtc,
-      ).toBeNull();
+      expect((await call({ method: "POST", url: grantUrl, payload: { teamId: a.teamId, intakeSessionId: randomUUID() } })).statusCode).toBe(401);
+      expect((await call({ method: "DELETE", url: `${revokeUrl}?teamId=${a.teamId}` })).statusCode).toBe(401);
 
-      const res = await call({ method: "DELETE", url: `${url}?teamId=${a.teamId}`, token: a.memberToken });
-      expect(res.statusCode, res.body).toBe(200);
-      expect(res.json()).toEqual({ revoked: true });
-      const after = await prisma.discussionParticipant.findUniqueOrThrow({ where: { id: participantId } });
-      expect(after).toMatchObject({
-        intakeSessionId,
-        role: "CONTRIBUTOR",
-        revokedByUserId: a.memberUserId,
-      });
-      expect(after.revokedAtUtc).toBeInstanceOf(Date);
-
-      await expect
-        .poll(
-          () =>
-            prisma.evidenceReviewerAuditEvent.findFirst({
-              where: {
-                evidenceId: a.evidenceId,
-                eventType: "CONTRIBUTOR_ACCESS_REVOKED",
-                metadata: { path: ["intakeSessionId"], equals: intakeSessionId },
-              },
-              select: { actorUserId: true, metadata: true },
-            }),
-          { timeout: 10_000, interval: 25 },
-        )
-        .toMatchObject({
-          actorUserId: a.memberUserId,
-          metadata: { threadId: thread.id, intakeSessionId },
+      for (const token of [a.memberToken, a.viewerToken, b.ownerToken]) {
+        const granted = await call({
+          method: "POST",
+          url: grantUrl,
+          token,
+          payload: { teamId: a.teamId, intakeSessionId: randomUUID(), contributorLabel: "K5 contributor" },
         });
+        expect(granted.statusCode, granted.body).toBe(410);
+        expect(granted.json()).toMatchObject({ error: { code: "COLLABORATION_THREAD_CONTRIBUTORS_RETIRED" } });
+        const revoked = await call({ method: "DELETE", url: `${revokeUrl}?teamId=${a.teamId}`, token });
+        expect(revoked.statusCode, revoked.body).toBe(410);
+        expect(revoked.json()).toMatchObject({ error: { code: "COLLABORATION_THREAD_CONTRIBUTORS_RETIRED" } });
+      }
+
+      expect(await participantsOf(thread.id)).toEqual(before);
+      expect(
+        (await prisma.discussionParticipant.findUniqueOrThrow({ where: { id: historical.id } })).revokedAtUtc,
+      ).toBeNull();
+      expect(
+        await prisma.evidenceReviewerAuditEvent.count({
+          where: {
+            evidenceId: a.evidenceId,
+            eventType: { in: ["CONTRIBUTOR_ACCESS_GRANTED", "CONTRIBUTOR_ACCESS_REVOKED"] },
+            metadata: { path: ["threadId"], equals: thread.id },
+          },
+        }),
+      ).toBe(0);
     });
   });
 

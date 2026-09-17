@@ -10,8 +10,9 @@
  *   POST  /v1/collaboration/threads/:id/escalate
  *   GET   /v1/collaboration/threads/:id/messages
  *   POST  /v1/collaboration/threads/:id/messages
- *   POST  /v1/collaboration/threads/:id/contributors  (grant access)
- *   DELETE /v1/collaboration/threads/:id/contributors/:sessionId (revoke)
+ *   POST  /v1/collaboration/threads/:id/contributors  (RETIRED, 410 — 2026-09-16)
+ *   DELETE /v1/collaboration/threads/:id/contributors/:sessionId (RETIRED, 410)
+ *   POST|DELETE /v1/collaboration/threads/:id/subscribe (RETIRED, 410 — 2026-09-16)
  *
  * Every authenticated route requires `evidence_request.review`
  * (reviewer permission). Anti-enumeration: non-members + non-permitted
@@ -20,8 +21,11 @@
  * never `requireApiKey`).
  *
  * Contributor write surface is intentionally NOT in this file — Phase
- * 16 ships internal-only routes. Contributor write integration ties
- * into the existing external intake flow (deferred wiring).
+ * 16 ships internal-only routes. The deferred contributor wiring was
+ * never built, and on 2026-09-16 the owner retired contributor thread
+ * access and thread subscriptions instead: those four routes are typed
+ * 410 tombstones that authenticate and do nothing else (no membership
+ * check, no data read or written).
  */
 
 import type {
@@ -49,7 +53,6 @@ import {
   createDiscussionThread,
   escalateDiscussionThread,
   getDiscussionThread,
-  grantContributorAccess,
   listDiscussionThreads,
   listMessagesForThread,
   postMessage,
@@ -57,7 +60,6 @@ import {
   projectDiscussionThread,
   reopenDiscussionThread,
   resolveDiscussionThread,
-  revokeContributorAccess,
 } from "../services/collaboration/discussion.service.js";
 
 const ParamsId = z.object({ id: z.string().uuid() });
@@ -407,68 +409,42 @@ export async function collaborationRoutes(app: FastifyInstance) {
   );
 
   // ---------------------------------------------------------------------------
-  // Contributor access management
+  // (RETIRED) Contributor access management
+  //
+  // OWNER DECISION (2026-09-16): contributor thread access is not offered.
+  //
+  // `POST .../contributors` wrote a CONTRIBUTOR `DiscussionParticipant` row and
+  // `DELETE .../contributors/:sessionId` revoked it, but nothing ever let a
+  // contributor use that row: the only message writer (`postMessage` above)
+  // hard-codes a USER author, `canReadThread` has no caller, and the
+  // contributor write surface this file promised was never wired (header
+  // note). A grant that grants nothing is worse than no grant on an evidence
+  // platform, so both routes answer a typed 410 — the same call 27984456 made
+  // for collaboration-team guests. External parties are given access through
+  // External Review. No web or mobile caller existed. Stored participant rows
+  // are left untouched; nothing here reads or writes them any more.
   // ---------------------------------------------------------------------------
+
+  const contributorsRetired = (reply: FastifyReply) =>
+    reply.code(410).send({
+      error: {
+        code: "COLLABORATION_THREAD_CONTRIBUTORS_RETIRED",
+        message:
+          "Contributor access to discussion threads is not offered. A contributor grant never let anyone read or reply, so it has been retired; external parties are given access through External Review.",
+      },
+      canonical: "/v1/external-review/invitations",
+    });
 
   app.post(
     "/v1/collaboration/threads/:id/contributors",
     { preHandler: requireAuth },
-    async (req, reply) => {
-      const { id } = ParamsId.parse(req.params);
-      const body = z
-        .object({
-          teamId: z.string().uuid(),
-          intakeSessionId: z.string().uuid(),
-          contributorLabel: z.string().max(180).nullable().optional(),
-        })
-        .parse(req.body ?? {});
-      const ok = await requireReviewerMember(req, reply, body.teamId);
-      if (!ok) return;
-      try {
-        const row = await grantContributorAccess({
-          threadId: id,
-          teamId: body.teamId,
-          intakeSessionId: body.intakeSessionId,
-          contributorLabel: body.contributorLabel ?? null,
-          actorUserId: ok.userId,
-        });
-        return reply.code(201).send({ participantId: row.id });
-      } catch (err) {
-        return discussionErrorToReply(err, reply);
-      }
-    },
+    async (_req, reply) => contributorsRetired(reply),
   );
 
   app.delete(
     "/v1/collaboration/threads/:id/contributors/:sessionId",
     { preHandler: requireAuth },
-    async (req, reply) => {
-      const params = z
-        .object({
-          id: z.string().uuid(),
-          sessionId: z.string().uuid(),
-        })
-        .parse(req.params);
-      const query = z
-        .object({ teamId: z.string().uuid() })
-        .parse(req.query ?? {});
-      const ok = await requireReviewerMember(req, reply, query.teamId);
-      if (!ok) return;
-      try {
-        const row = await revokeContributorAccess({
-          threadId: params.id,
-          teamId: query.teamId,
-          intakeSessionId: params.sessionId,
-          actorUserId: ok.userId,
-        });
-        if (!row) {
-          return reply.code(404).send({ error: { code: "not_found" } });
-        }
-        return reply.code(200).send({ revoked: true });
-      } catch (err) {
-        return discussionErrorToReply(err, reply);
-      }
-    },
+    async (_req, reply) => contributorsRetired(reply),
   );
 
   // ---------------------------------------------------------------------------
@@ -531,119 +507,43 @@ export async function collaborationRoutes(app: FastifyInstance) {
   );
 
   // ---------------------------------------------------------------------------
-  // Phase G3 — Thread subscriptions.
+  // (RETIRED) Phase G3 — Thread subscriptions.
   //
   //   POST   /v1/collaboration/threads/:id/subscribe
   //   DELETE /v1/collaboration/threads/:id/subscribe
   //
-  // Reviewers can subscribe themselves to a discussion thread to
-  // receive inbox + notification updates without being explicitly
-  // mentioned, assigned, or made the resolver. Subscription is
-  // modelled on the existing Phase 16 `DiscussionParticipant` model
-  // with `role = WATCHER` — no new schema is introduced.
+  // OWNER DECISION (2026-09-16): thread watching is not offered.
   //
-  // Workspace + access discipline mirror the rest of the
-  // collaboration surface: `requireReviewerMember` 404s non-members
-  // (anti-enumeration); thread.teamId is cross-checked against the
-  // caller's workspace claim.
-  //
-  // Idempotent: subscribing twice is a no-op (upsert); unsubscribing
-  // an already-revoked subscription returns 200 with `revoked: false`.
+  // These routes promised that a subscriber would "receive inbox +
+  // notification updates", and wrote a WATCHER `DiscussionParticipant` row to
+  // do it. Nothing ever read that row: no inbox source, notification fan-out
+  // or worker consults WATCHER participants (the inbox's discussion sources
+  // are mentions and assignment only), so subscribing changed nothing a person
+  // would ever see. No web or mobile caller existed. Both routes now answer a
+  // typed 410; people are told about a thread by being mentioned or assigned,
+  // and those reach the Inbox. Stored participant rows are left untouched.
   // ---------------------------------------------------------------------------
+
+  const subscriptionsRetired = (reply: FastifyReply) =>
+    reply.code(410).send({
+      error: {
+        code: "COLLABORATION_THREAD_SUBSCRIPTIONS_RETIRED",
+        message:
+          "Watching a discussion thread is not offered. Subscribing never changed which notifications anyone received, so it has been retired; mentions and assignments reach your Inbox.",
+      },
+      canonical: "/v1/me/inbox",
+    });
 
   app.post(
     "/v1/collaboration/threads/:id/subscribe",
     { preHandler: requireAuth },
-    async (req, reply) => {
-      const params = ParamsId.parse(req.params);
-      const query = z
-        .object({ teamId: z.string().uuid() })
-        .parse(req.query ?? {});
-      const ok = await requireReviewerMember(req, reply, query.teamId);
-      if (!ok) return;
-
-      const thread = await prisma.discussionThread.findUnique({
-        where: { id: params.id },
-        select: { id: true, teamId: true },
-      });
-      if (!thread || thread.teamId !== query.teamId) {
-        return reply.code(404).send({ error: { code: "not_found" } });
-      }
-
-      const existing = await prisma.discussionParticipant.findUnique({
-        where: { threadId_userId: { threadId: params.id, userId: ok.userId } },
-      });
-      if (existing) {
-        if (existing.revokedAtUtc) {
-          // Un-revoke and bump the role to WATCHER if it was something else.
-          await prisma.discussionParticipant.update({
-            where: { id: existing.id },
-            data: {
-              revokedAtUtc: null,
-              revokedByUserId: null,
-              role: existing.role === "RESOLVER" ? "RESOLVER" : "WATCHER",
-            },
-          });
-        }
-        return reply.code(200).send({ subscribed: true, already: true });
-      }
-
-      await prisma.discussionParticipant.create({
-        data: {
-          threadId: params.id,
-          teamId: query.teamId,
-          userId: ok.userId,
-          role: "WATCHER",
-          addedByUserId: ok.userId,
-        },
-      });
-      return reply.code(201).send({ subscribed: true, already: false });
-    },
+    async (_req, reply) => subscriptionsRetired(reply),
   );
 
   app.delete(
     "/v1/collaboration/threads/:id/subscribe",
     { preHandler: requireAuth },
-    async (req, reply) => {
-      const params = ParamsId.parse(req.params);
-      const query = z
-        .object({ teamId: z.string().uuid() })
-        .parse(req.query ?? {});
-      const ok = await requireReviewerMember(req, reply, query.teamId);
-      if (!ok) return;
-
-      const thread = await prisma.discussionThread.findUnique({
-        where: { id: params.id },
-        select: { id: true, teamId: true },
-      });
-      if (!thread || thread.teamId !== query.teamId) {
-        return reply.code(404).send({ error: { code: "not_found" } });
-      }
-
-      const existing = await prisma.discussionParticipant.findUnique({
-        where: { threadId_userId: { threadId: params.id, userId: ok.userId } },
-      });
-      if (!existing || existing.revokedAtUtc) {
-        return reply.code(200).send({ revoked: false });
-      }
-      // RESOLVER cannot self-unsubscribe — that would orphan the
-      // thread. Only revoke WATCHER / PARTICIPANT roles via this
-      // endpoint; resolver removal goes through the existing assign
-      // flow.
-      if (existing.role === "RESOLVER") {
-        return reply.code(409).send({
-          error: { code: "resolver_cannot_unsubscribe" },
-        });
-      }
-      await prisma.discussionParticipant.update({
-        where: { id: existing.id },
-        data: {
-          revokedAtUtc: new Date(),
-          revokedByUserId: ok.userId,
-        },
-      });
-      return reply.code(200).send({ revoked: true });
-    },
+    async (_req, reply) => subscriptionsRetired(reply),
   );
 
   // ---------------------------------------------------------------------------

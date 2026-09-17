@@ -551,6 +551,52 @@ describe("Phase R16 — API routes", () => {
     );
   });
 
+  // RETIRED 2026-09-16 — the 2026-09-06 closure withdrew guests and group
+  // access reviews and recorded that these routes answer a typed 410, but six
+  // still answered normally. Every guest and access-review registration is now
+  // a tombstone that does no work: the registrations above survive, and each
+  // one's handler is the retired helper and nothing else.
+  it("guest and access-review routes are typed 410 tombstones that call no service", () => {
+    const tombstones: Array<[string, string]> = [
+      ['"/v1/collaboration-teams/:teamId/guests"', "guestsRetired"],
+      ['"/v1/collaboration-teams/:teamId/guests/invite"', "guestsRetired"],
+      ['"/v1/collaboration-teams/:teamId/guests/:guestId/revoke"', "guestsRetired"],
+      ['"/v1/collaboration-teams/:teamId/access-review"', "accessReviewRetired"],
+      ['"/v1/collaboration-teams/:teamId/access-review/items/:itemId"', "accessReviewRetired"],
+      ['"/v1/collaboration-teams/:teamId/access-review/:reviewId/complete"', "accessReviewRetired"],
+    ];
+    for (const [path, helper] of tombstones) {
+      let from = 0;
+      let seen = 0;
+      for (;;) {
+        const idx = routes.indexOf(path, from);
+        if (idx < 0) break;
+        seen += 1;
+        const handler = routes.slice(idx, idx + 200);
+        expect(handler, `${path} must be a tombstone`).toContain(
+          `handler: async (_req, reply) => ${helper}(reply)`,
+        );
+        from = idx + path.length;
+      }
+      expect(seen, `${path} must stay registered`).toBeGreaterThan(0);
+    }
+    expect(routes).toContain('code: "COLLABORATION_TEAM_GUESTS_RETIRED"');
+    expect(routes).toContain('code: "COLLABORATION_TEAM_ACCESS_REVIEW_RETIRED"');
+    for (const fn of [
+      "listGuests",
+      "inviteGuest",
+      "revokeGuest",
+      "listAccessReviews",
+      "openAccessReview",
+      "decideAccessReviewItem",
+      "completeAccessReview",
+    ]) {
+      expect(routes, `${fn} must not be called by the route file`).not.toMatch(
+        new RegExp(`\\b${fn}\\(`),
+      );
+    }
+  });
+
   it("registers activity v2 filtered endpoint", () => {
     expect(routes).toContain('"/v1/collaboration-teams/:teamId/activity/v2"');
   });
@@ -649,8 +695,11 @@ describe("Phase R16 — frontend", () => {
     );
     expect(routes).toContain("COLLABORATION_TEAM_NOTIFICATIONS_RETIRED");
     expect(routes).toContain("COLLABORATION_TEAM_PREFERENCES_RETIRED");
-    // The guest refusal is raised by the SERVICE and mapped by the route,
-    // which is why it is asserted where it is thrown.
+    // Since 2026-09-16 the guest and access-review routes answer their own
+    // typed 410s (pinned in the API routes block above).
+    expect(routes).toContain("COLLABORATION_TEAM_GUESTS_RETIRED");
+    expect(routes).toContain("COLLABORATION_TEAM_ACCESS_REVIEW_RETIRED");
+    // The service still raises the guest refusal for any direct caller.
     const completion = read(
       "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
     );

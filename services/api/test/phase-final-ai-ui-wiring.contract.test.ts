@@ -4,7 +4,8 @@
  * Pins the frontend consumers of every user-facing AI route so none can
  * silently become an orphan again:
  *
- *   1. NL search — /v1/ai/search/nl is DELIBERATELY UNMOUNTED. The word this
+ *   1. NL search — /v1/ai/search/nl is DELIBERATELY UNMOUNTED (and, since
+ *      2026-09-16, a typed 410 tombstone). The word this
  *      suite turns on is "silently": an orphan nobody chose is the failure it
  *      exists to catch, and a withdrawal that is written down in three places
  *      is not one. See the block below.
@@ -51,20 +52,30 @@ describe("UI wiring — NL search is WITHDRAWN, on the record", () => {
     );
   });
 
-  it("the route survives, and says why it is not surfaced", () => {
-    // Retained — registered, authorized, rate-limited and audited. This
-    // repository does not delete routes, and an unmounted route is not a
-    // hazard; a deleted one is a compatibility break for every API client.
+  it("the route survives as a typed 410 tombstone, and says why", () => {
+    // RETIRED 2026-09-16. The registration is kept — a deleted route is a
+    // compatibility break that answers a bare 404 — but the handler is a
+    // typed 410 that does no work (runtime proof: phase-final-ai-routes-
+    // runtime.test.ts and retired-routes-2026-09-16.test.ts). The audit that
+    // withdrew it, and the bar for bringing it back, stay in the docstring.
     const route = readFileSync(
       join(fileURLToPath(new URL(".", import.meta.url)), "..", "src", "routes", "ai-search.routes.ts"),
       "utf8",
     );
     expect(route).toContain('app.post("/v1/ai/search/nl"');
-    expect(route).toContain("NOT SURFACED");
+    expect(route).toContain("reply.code(410)");
+    expect(route).toContain('code: "NL_SEARCH_RETIRED"');
+    expect(route).toContain('canonical: "/v1/search"');
+    // The handler no longer reaches the parser, the database or the search.
+    // (Code only — the docstring names what the audit found.)
+    const code = route.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    expect(code).not.toContain("parseNlSearch");
+    expect(code).not.toContain("executeSearch");
+    expect(code).not.toContain("prisma");
     // The audit's two findings, and the bar for bringing it back.
-    expect(route).toMatch(/DISPLAY NAMES ARE FABRICATED/);
-    expect(route).toMatch(/BYPASS EVERY VISIBILITY GATE/);
-    expect(route).toMatch(/BEFORE THIS IS SURFACED AGAIN/);
+    expect(route).toMatch(/DISPLAY NAMES WERE FABRICATED/);
+    expect(route).toMatch(/BYPASSED EVERY VISIBILITY GATE/);
+    expect(route).toMatch(/BEFORE natural-language search is offered again/);
   });
 
   it("the withdrawal is registered as a route disposition", () => {
@@ -82,12 +93,17 @@ describe("UI wiring — NL search is WITHDRAWN, on the record", () => {
         ),
         "utf8",
       ),
-    ) as { entries: Array<{ routeId: string; reason: string }> };
+    ) as {
+      entries: Array<{ routeId: string; disposition: string; evidence: string; replacement?: string }>;
+    };
     const entry = manifest.entries.find(
       (e) => e.routeId === "POST /v1/ai/search/nl",
     );
     expect(entry, "the withdrawal must be dispositioned").toBeTruthy();
-    expect(entry!.reason).toMatch(/withdrawn/i);
+    // Retired 2026-09-16: dispositioned as the tombstone it now is.
+    expect(entry!.disposition).toBe("COMPATIBILITY_TOMBSTONE");
+    expect(entry!.evidence).toMatch(/withdrawn/i);
+    expect(entry!.replacement).toBe("GET /v1/search");
   });
 });
 

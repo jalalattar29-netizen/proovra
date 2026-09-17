@@ -130,7 +130,6 @@ import { resolveUserDepartmentScope } from "../services/governance/department-sc
 import { listEscalatedItems } from "../services/governance/access-review-escalation.service.js";
 import {
   listStaleTrustArticles,
-  markArticleNeedsReview,
   runTrustArticleDriftScan,
 } from "../services/trust/trust-drift.service.js";
 import {
@@ -1858,44 +1857,39 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
     },
   );
 
+  // ===== (RETIRED) Trust Article — Mark Needs Review =====
+  //
+  // POST /v1/trust/articles/:id/review — Phase 4A Final Closure wired this to
+  // `markArticleNeedsReview`, which set driftState=NEEDS_REVIEW. OWNER
+  // DECISION (2026-09-16): a manual "needs review" flag is not offered. The
+  // flag was not durable — the next drift scan (POST /v1/trust/drift/scan)
+  // overwrote it with CURRENT/STALE, nothing listed NEEDS_REVIEW (the
+  // integrity list reads STALE only) and nothing cleared it — so pressing it
+  // recorded a state no one would ever see. No web or mobile caller existed.
+  // Article integrity is decided by the drift scan and read from
+  // GET /v1/trust/drift/stale. The route answers a typed 410 and keeps
+  // authentication only (the delegated-tier gate went with the work it
+  // guarded); stored articles are untouched.
+  app.post(
+    "/v1/trust/articles/:id/review",
+    { preHandler: requireAuth },
+    async (_req, reply) =>
+      reply.code(410).send({
+        error: {
+          code: "TRUST_ARTICLE_REVIEW_FLAG_RETIRED",
+          message:
+            "Flagging a trust article for review is not offered. Article integrity is decided by the drift scan; use the integrity list to see articles that need attention.",
+        },
+        canonical: "/v1/trust/drift/stale",
+      }),
+  );
+
   // ===== Verification package preview =====
   //
   // Returns the exact JSON shape that the worker emits inside the offline
   // verification ZIP for the requested manifest kind. Lets operators
   // inspect manifest contents without generating a full package.
   // Workspace-anchored; bodies are never included.
-  // ===== Trust Article — Mark Needs Review =====
-  //
-  // Phase 4A Final Closure — POST /v1/trust/articles/:id/review
-  // Invokes `markArticleNeedsReview` from trust-drift.service.ts.
-  // The closure introduced the function but no route consumed it.
-  // Restricted to SECURITY_OFFICER / COMPLIANCE_OFFICER delegated tiers.
-  app.post(
-    "/v1/trust/articles/:id/review",
-    {
-      preHandler: [
-        requireAuth,
-        requireDelegatedTierAny(["SECURITY_OFFICER", "COMPLIANCE_OFFICER"]),
-      ],
-    },
-    async (req, reply) => {
-      const ctx = await resolveWorkspace(req, reply);
-      if (!ctx) return reply;
-      const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
-      const body = z
-        .object({ reason: z.string().min(1).max(400).optional() })
-        .parse(req.body ?? {});
-      const result = await markArticleNeedsReview({
-        teamId: ctx.teamId,
-        articleId: id,
-        actorUserId: ctx.userId,
-        reason: body.reason ?? "manual_review_requested",
-      });
-      if (!result.ok) return reply.code(404).send({ denial: "ARTICLE_NOT_FOUND" });
-      return reply.code(200).send({ ok: true });
-    },
-  );
-
   app.get(
     "/v1/trust/verification-package/preview",
     {

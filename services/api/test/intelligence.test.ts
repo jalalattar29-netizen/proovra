@@ -119,8 +119,16 @@ describe("intelligence routes — anti-enumeration + scope", () => {
     // why, so the assertion targets the code shapes, not the word.)
     expect(src).not.toMatch(/function requireReviewerMember\s*\(/);
     expect(src).not.toMatch(/await requireReviewerMember\(/);
+    // RETIRED 2026-09-16 — reconcile-similarity is a typed 410 tombstone that
+    // runs no gate and no detector, so enqueue is the one mutating
+    // intelligence route left in this file (AI-assist went in Phase P2).
     const matches = src.match(/permission:\s*"intelligence\.run"/g) ?? [];
-    expect(matches.length).toBeGreaterThanOrEqual(2);
+    expect(matches.length).toBeGreaterThanOrEqual(1);
+    const reconcileIdx = src.indexOf('"/v1/intelligence/evidence/:id/reconcile-similarity"');
+    const reconcile = src.slice(reconcileIdx, reconcileIdx + 500);
+    expect(reconcile).toContain("reply.code(410)");
+    expect(reconcile).toContain('code: "SIMILARITY_RECONCILE_RETIRED"');
+    expect(src).not.toMatch(/reconcileSimilaritiesForEvidence\(/);
     // …and the read surfaces carry the canonical read permission.
     const reads = src.match(/permission:\s*"intelligence\.read"/g) ?? [];
     expect(reads.length).toBeGreaterThanOrEqual(3);

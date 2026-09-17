@@ -838,4 +838,20 @@ describe("19. New POST /v1/trust/articles/:id/review route", () => {
     );
     expect(src).toContain("/v1/trust/articles/:id/review");
   });
+
+  // RETIRED 2026-09-16 (owner decision). The NEEDS_REVIEW flag it set was
+  // overwritten by the next drift scan, listed nowhere and cleared by nothing.
+  // The route stays registered as a typed 410 and no longer calls
+  // markArticleNeedsReview (which remains exported by trust-drift.service).
+  it("the route is a typed 410 tombstone that no longer marks articles", () => {
+    const src = fs.readFileSync(
+      path.resolve("src/routes/trust-and-governance.routes.ts"),
+      "utf8",
+    );
+    const idx = src.indexOf('"/v1/trust/articles/:id/review"');
+    const handler = src.slice(idx, idx + 600);
+    expect(handler).toContain("reply.code(410)");
+    expect(handler).toContain('code: "TRUST_ARTICLE_REVIEW_FLAG_RETIRED"');
+    expect(src).not.toMatch(/markArticleNeedsReview\(/);
+  });
 });

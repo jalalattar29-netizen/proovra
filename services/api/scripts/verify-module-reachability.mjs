@@ -183,6 +183,17 @@ const CORE_DISPOSITIONS = Object.freeze({
     input: "the API route sources, scanned by the verifier",
   },
 
+  // -------------------------------------------------------------------------
+  // QUARANTINED — unreachable on purpose, kept only until a stated condition.
+  // -------------------------------------------------------------------------
+  "services/api/src/services/ai/nl-search-parser.service.ts": {
+    disposition: "QUARANTINED",
+    reason:
+      "The deterministic natural-language filter parser behind POST /v1/ai/search/nl. That route was retired to a typed 410 (NL_SEARCH_RETIRED) on 2026-09-16 after the plain-language search card was withdrawn (e2f5cf2d), so the parser lost its only production importer. It is pure (no I/O) and still pinned by phase-f1-nl-search.test.ts, and the route's docstring names the conditions under which natural-language search may return — built on the canonical authorized search path.",
+    removalCondition:
+      "Delete it (with phase-f1-nl-search.test.ts) when the owner decides natural-language search will not return, or re-connect it only through GET /v1/search's authorized path once the four reintroduction conditions in services/api/src/routes/ai-search.routes.ts are met.",
+  },
+
 });
 
 /**

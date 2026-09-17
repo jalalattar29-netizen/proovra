@@ -13,11 +13,10 @@
  *   4. Presence routes registered with bounded resource-kind
  *      vocabulary + workspace gate.
  *   5. In-process presence service has bounded TTL + per-key cap.
- *   6. Thread subscription endpoints register + use the existing
- *      Phase 16 DiscussionParticipant model (WATCHER role) — no new
- *      schema.
- *   7. Subscription endpoints reject cross-workspace access and the
- *      RESOLVER self-unsubscribe edge case.
+ *   6. Thread subscription endpoints stay registered but, since the
+ *      2026-09-16 owner decision, are typed 410 tombstones (the WATCHER
+ *      rows they wrote had no reader).
+ *   7. (retired with 6) neither verb writes a participant row.
  *   8. Vocabulary discipline — no Slack / DM / emoji / reaction / AI
  *      summarization drift across new G3 surfaces.
  */
@@ -292,26 +291,34 @@ describe("Phase G3 — thread subscription endpoints", () => {
     );
   });
 
-  it("uses the existing Phase 16 DiscussionParticipant model with WATCHER role", () => {
+  // RETIRED 2026-09-16 (owner decision). The WATCHER row these routes wrote
+  // had no reader — no inbox source, notification fan-out or worker consulted
+  // it — so subscribing changed nothing. The four assertions that pinned the
+  // write path (WATCHER create, cross-workspace check, idempotent upsert,
+  // RESOLVER guard) now pin its absence: both verbs are typed 410 tombstones
+  // that touch no participant row. Runtime proof:
+  // retired-routes-2026-09-16.test.ts.
+  it("both verbs answer a typed 410 naming the Inbox", () => {
     expect(COLLAB_ROUTES).toMatch(
-      /discussionParticipant\.create\(\{[\s\S]*?role:\s*"WATCHER"/,
+      /app\.post\(\s*"\/v1\/collaboration\/threads\/:id\/subscribe",\s*\{ preHandler: requireAuth \},\s*async \(_req, reply\) => subscriptionsRetired\(reply\)/,
     );
+    expect(COLLAB_ROUTES).toMatch(
+      /app\.delete\(\s*"\/v1\/collaboration\/threads\/:id\/subscribe",\s*\{ preHandler: requireAuth \},\s*async \(_req, reply\) => subscriptionsRetired\(reply\)/,
+    );
+    const helper = COLLAB_ROUTES.slice(
+      COLLAB_ROUTES.indexOf("const subscriptionsRetired"),
+    );
+    expect(helper).toMatch(/^const subscriptionsRetired[\s\S]{0,120}reply\.code\(410\)/);
+    expect(helper).toContain('code: "COLLABORATION_THREAD_SUBSCRIPTIONS_RETIRED"');
+    expect(helper).toContain('canonical: "/v1/me/inbox"');
   });
 
-  it("rejects cross-workspace subscribe attempts (thread.teamId !== query.teamId)", () => {
-    expect(COLLAB_ROUTES).toMatch(
-      /subscribe[\s\S]*?thread\.teamId\s*!==\s*query\.teamId/,
-    );
-  });
-
-  it("idempotent subscribe (no-op when an active subscription exists)", () => {
-    expect(COLLAB_ROUTES).toMatch(/subscribed:\s*true,\s*already:\s*true/);
-  });
-
-  it("RESOLVER cannot self-unsubscribe (orphan-thread guard)", () => {
-    expect(COLLAB_ROUTES).toMatch(
-      /existing\.role\s*===\s*"RESOLVER"[\s\S]*?resolver_cannot_unsubscribe/,
-    );
+  it("no WATCHER participant is written, and the old write path is gone", () => {
+    const code = stripComments(COLLAB_ROUTES);
+    expect(code).not.toMatch(/role:\s*"WATCHER"/);
+    expect(code).not.toMatch(/discussionParticipant\.(create|update|upsert)\(/);
+    expect(code).not.toMatch(/resolver_cannot_unsubscribe/);
+    expect(code).not.toMatch(/subscribed:\s*true/);
   });
 });
 

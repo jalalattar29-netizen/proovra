@@ -57,10 +57,7 @@ import {
   listSavedViewsForUser,
   renameSavedView,
 } from "../services/search/saved-search.service.js";
-import {
-  indexEvidence,
-  indexWorkflowInstance,
-} from "../services/search/evidence-indexing.service.js";
+import { indexEvidence } from "../services/search/evidence-indexing.service.js";
 import {
   listSearchAudit,
   recordSearchAudit,
@@ -632,32 +629,28 @@ export async function searchRoutes(app: FastifyInstance) {
   );
 
   // -------------------------------------------------------------------------
-  // POST /v1/search/reindex/workflow/:id — operator reindex
+  // (RETIRED) POST /v1/search/reindex/workflow/:id — typed 410 (2026-09-16)
+  //
+  // Proven obsolete: this was the only caller of `indexWorkflowInstance`,
+  // which serves the Phase 22 EvidenceWorkflowInstance family — declared
+  // DEPRECATED in workflow-instances.routes.ts ("no new UI surface should
+  // call them — extend reviewer-ops instead"). No product, worker or ops
+  // caller existed, and the reindex sweep never covered workflow documents.
+  // The route keeps authentication and does nothing else; existing search
+  // documents are untouched. Evidence reindex (above) is unaffected.
   // -------------------------------------------------------------------------
   app.post(
     "/v1/search/reindex/workflow/:id",
     { preHandler: requireAuth },
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
-      const body = z
-        .object({ teamId: z.string().uuid() })
-        .parse(req.body ?? {});
-      const operator = await requireSearchOperator(req, reply, body.teamId);
-      if (!operator) return;
-      const result = await indexWorkflowInstance({
-        teamId: body.teamId,
-        workflowInstanceId: id,
-      });
-      if (!result.ok) {
-        return reply.code(409).send({
-          error: { code: "indexing_failed", reason: result.reason },
-        });
-      }
-      return reply.code(200).send({
-        documentId: result.documentId,
-        created: result.created,
-      });
-    }
+    async (_req: FastifyRequest, reply: FastifyReply) =>
+      reply.code(410).send({
+        error: {
+          code: "WORKFLOW_INSTANCE_REINDEX_RETIRED",
+          message:
+            "Reindexing workflow instances is not offered. Workflow instances are a retired record family; evidence is reindexed individually.",
+        },
+        canonical: "/v1/search/reindex/evidence/:id",
+      }),
   );
 
   // -------------------------------------------------------------------------

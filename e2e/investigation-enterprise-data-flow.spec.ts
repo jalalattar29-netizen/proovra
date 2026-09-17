@@ -13,7 +13,8 @@
  *    8. Upload duplicate Evidence B with same bytes
  *    9. Finalize Evidence B
  *   10. Wait for workers
- *   11. Open /investigation/duplicates; assert exact duplicate appears
+ *   11. Open /investigation/duplicates; the retired on-demand similarity
+ *       route answers 410 (2026-09-16)
  *   12. Create case (POST /v1/cases)
  *   13. Link Evidence A to case (POST /v1/cases/:id/evidence)
  *   14. Run graph refresh (POST /v1/graph/reconcile)
@@ -102,26 +103,28 @@ async function reconcileGraph(
  * detector — not graph reconciliation, which writes graph edges. So no
  * amount of graph work could ever have satisfied it.
  *
- * The detector runs inline behind
- * `POST /v1/intelligence/evidence/:id/reconcile-similarity`, so the step
- * asks for it directly. Detection is per-evidence and records the match
- * from the evidence it is run for, so it runs for the duplicate.
+ * The detector ran inline behind
+ * `POST /v1/intelligence/evidence/:id/reconcile-similarity`, and this step
+ * used to call it directly. That route was RETIRED to a typed 410 on
+ * 2026-09-16 (owner decision: on-demand similarity reconciliation is not
+ * offered; no surface rendered those rows, and duplicate review reads the
+ * media graph). With no product producer left, `duplicateExactCount >= 1`
+ * could only be satisfied by a seed and would prove nothing about the
+ * product, so those expectations were removed and the step now pins the
+ * tombstone instead.
  */
-async function reconcileSimilarity(
+async function expectSimilarityReconcileRetired(
   api: GuestSession["api"],
   evidenceId: string,
   teamId: string,
 ): Promise<void> {
-  // The workspace is named in the BODY here, and the route also checks the
-  // evidence belongs to it — so this cannot run a detector across tenants.
   const res = await api.post(
     `/v1/intelligence/evidence/${evidenceId}/reconcile-similarity`,
     { data: { teamId } },
   );
-  expect(
-    [200, 202],
-    `reconcile-similarity: ${await res.text()}`,
-  ).toContain(res.status());
+  expect(res.status(), `reconcile-similarity: ${await res.text()}`).toBe(410);
+  const body = (await res.json()) as { error?: { code?: string } };
+  expect(body.error?.code).toBe("SIMILARITY_RECONCILE_RETIRED");
 }
 
 /**
@@ -381,16 +384,10 @@ test.describe("Wave 3 Phase 8 — Investigation enterprise data flow @critical",
           waitUntil: "load",
         });
         expect(resp?.ok()).toBe(true);
-        // Run the similarity detector for the duplicate. See
-        // `reconcileSimilarity` for why waiting on graph reconciliation
-        // could not produce this row.
-        await reconcileSimilarity(session.api, evidenceB.id, teamId!);
-        await waitForDiagnostics({
-          api: session.api,
-          teamId: teamId!,
-          predicate: (d) => counter(d, "duplicateExactCount") >= 1,
-          label: "duplicateExactCount >= 1 after similarity detection",
-        });
+        // The on-demand similarity detector was retired (2026-09-16); see
+        // `expectSimilarityReconcileRetired`. The page still loads, and the
+        // retired route answers its typed 410.
+        await expectSimilarityReconcileRetired(session.api, evidenceB.id, teamId!);
       });
 
       // -----------------------------------------------------------------
@@ -739,9 +736,8 @@ test.describe("Wave 3 Phase 8 — Investigation enterprise data flow @critical",
           expect(counter(final, "finalizedEvidenceCount")).toBeGreaterThanOrEqual(
             2,
           );
-          expect(counter(final, "duplicateExactCount")).toBeGreaterThanOrEqual(
-            1,
-          );
+          // duplicateExactCount is no longer asserted >= 1: its only product
+          // producer (reconcile-similarity) was retired on 2026-09-16.
           expect(counter(final, "graphNodeCount")).toBeGreaterThanOrEqual(1);
           expect(counter(final, "auditEventCount")).toBeGreaterThanOrEqual(1);
           expect(counter(final, "custodyEventCount")).toBeGreaterThanOrEqual(

@@ -167,6 +167,11 @@ const NON_OPERATIONAL_ROUTES: ReadonlySet<string> = new Set([
   // data — it scrubs Redis rate-limit buckets only. Not an
   // operational data path.
   "_test-rate-limit.routes.ts",
+  // RETIRED 2026-09-16 — POST /v1/ai/search/nl is a typed 410 tombstone
+  // (NL_SEARCH_RETIRED). It authenticates and answers; it reads no tenant
+  // data, so there is no tenant to bind. The no-data property is proven at
+  // runtime by retired-routes-2026-09-16.test.ts.
+  "ai-search.routes.ts",
 ]);
 
 function isRouteFile(name: string): boolean {

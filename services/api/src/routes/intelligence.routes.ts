@@ -51,7 +51,6 @@ import {
 import {
   listSimilaritiesForEvidence,
   projectSimilarity,
-  reconcileSimilaritiesForEvidence,
 } from "../services/intelligence/similarity.service.js";
 // Phase 14 — Stage 3: `searchEvidence` was the prior backend for
 // /v1/intelligence/search. The handler now forwards to the canonical
@@ -358,34 +357,30 @@ export async function intelligenceRoutes(app: FastifyInstance) {
   );
 
   // ---------------------------------------------------------------------------
-  // POST /v1/intelligence/evidence/:id/reconcile-similarity
+  // (RETIRED) POST /v1/intelligence/evidence/:id/reconcile-similarity
+  //
+  // OWNER DECISION (2026-09-16): on-demand similarity reconciliation is not a
+  // product capability. The route was the only producer of HASH_DUPLICATE /
+  // FILENAME_SIMILAR `evidence_similarities` rows (besides a dev seed), no
+  // surface rendered those rows, and the content similarity that matters
+  // (OCR / transcript) is already produced by the worker. Duplicate review
+  // reads the media graph (GET /v1/graph/duplicates). No web or mobile caller
+  // existed. The route answers a typed 410; stored similarity rows are left
+  // untouched and still served by GET /v1/intelligence/evidence/:id.
   // ---------------------------------------------------------------------------
 
   app.post(
     "/v1/intelligence/evidence/:id/reconcile-similarity",
     { preHandler: requireAuth },
-    async (req, reply) => {
-      const { id } = ParamsEvidenceId.parse(req.params);
-      const body = z
-        .object({ teamId: z.string().uuid() })
-        .parse(req.body ?? {});
-      const ok = await authorizeWorkspaceOrFail(req, reply, {
-        workspaceId: body.teamId,
-        permission: "intelligence.run",
-        resourceKind: "evidence",
-        resourceId: id,
-      });
-      if (!ok) return;
-      const ev = await prisma.evidence.findUnique({
-        where: { id },
-        select: { id: true, teamId: true },
-      });
-      if (!ev || ev.teamId !== ok.workspaceId) {
-        return reply.code(404).send({ error: { code: "not_found" } });
-      }
-      const summary = await reconcileSimilaritiesForEvidence(id);
-      return reply.code(200).send({ summary });
-    },
+    async (_req, reply) =>
+      reply.code(410).send({
+        error: {
+          code: "SIMILARITY_RECONCILE_RETIRED",
+          message:
+            "On-demand similarity reconciliation is not offered. Content similarity is produced automatically during processing, and duplicate review is in the media graph.",
+        },
+        canonical: "/v1/graph/duplicates",
+      }),
   );
 
   // ---------------------------------------------------------------------------

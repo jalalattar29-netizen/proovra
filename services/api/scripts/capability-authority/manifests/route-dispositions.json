@@ -46,17 +46,17 @@
     },
     {
       "routeId": "DELETE /v1/collaboration/threads/:id/contributors/:sessionId",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "contributor remove lost its surface when the standalone /collaboration page was retired",
-      "evidence": "reg services/api/src/routes/collaboration.routes.ts:442; apps/web/next.config.js:304-317 \"/collaboration is retired as a standalone product surface ... /v1/collaboration/threads/* routes all remain intact — they continue to power the evidence detail discussion panel\"; apps/web/lib/navigation/pillarRegistry.ts:180-183 \"workspace.collaboration removed with its deleted page\"; the surviving consumer apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx uses only :219 GET `/v1/collaboration/threads?teamId=`, :278/:332 `/v1/collaboration/threads/${id}/messages`, :295 `/mark-mentions-read`",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "retired to a typed 410 naming what replaced it (or that the capability is not offered); kept so a stale client is told rather than 404-ed",
+      "evidence": "reg services/api/src/routes/collaboration.routes.ts:444. OWNER DECISION (2026-09-16). Contributor thread access is not offered: the grant wrote a CONTRIBUTOR DiscussionParticipant row that no path used (postMessage hard-codes a USER author, canReadThread has no caller, the contributor write surface was never wired). Handler is `async (_req, reply) => contributorsRetired(reply)`, defined at services/api/src/routes/collaboration.routes.ts:428, replying 410 COLLABORATION_THREAD_CONTRIBUTORS_RETIRED with `canonical` /v1/external-review/invitations. The tombstone keeps requireAuth only and reads/writes no domain data; stored rows are untouched. 0 call sites in apps/web + apps/mobile, the intended end state for a tombstone; pinned by services/api/test/retired-routes-2026-09-16.test.ts.",
+      "reviewedAtUtc": "2026-09-16"
     },
     {
       "routeId": "DELETE /v1/collaboration/threads/:id/subscribe",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "thread unsubscribe lost its surface when the standalone /collaboration page was retired",
-      "evidence": "reg services/api/src/routes/collaboration.routes.ts:604; apps/web/next.config.js:304-317 \"/collaboration is retired as a standalone product surface ... /v1/collaboration/threads/* routes all remain intact — they continue to power the evidence detail discussion panel\"; apps/web/lib/navigation/pillarRegistry.ts:180-183 \"workspace.collaboration removed with its deleted page\"; the surviving consumer apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx uses only :219 GET `/v1/collaboration/threads?teamId=`, :278/:332 `/v1/collaboration/threads/${id}/messages`, :295 `/mark-mentions-read`",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "retired to a typed 410 naming what replaced it (or that the capability is not offered); kept so a stale client is told rather than 404-ed",
+      "evidence": "reg services/api/src/routes/collaboration.routes.ts:543. OWNER DECISION (2026-09-16). Thread watching is not offered: the WATCHER DiscussionParticipant row these routes wrote had no reader (no inbox source, notification fan-out or worker consults it), so subscribing changed nothing. Handler is `async (_req, reply) => subscriptionsRetired(reply)`, defined at services/api/src/routes/collaboration.routes.ts:527, replying 410 COLLABORATION_THREAD_SUBSCRIPTIONS_RETIRED with `canonical` /v1/me/inbox. The tombstone keeps requireAuth only and reads/writes no domain data; stored rows are untouched. 0 call sites in apps/web + apps/mobile, the intended end state for a tombstone; pinned by services/api/test/retired-routes-2026-09-16.test.ts.",
+      "reviewedAtUtc": "2026-09-16"
     },
     {
       "routeId": "DELETE /v1/ops/seed/reviewer-ops/:seedRunId",
@@ -677,10 +677,10 @@
     },
     {
       "routeId": "PATCH /v1/workflow/templates/:id",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Workspace workflow-template authoring (update) has no surface; the product consumes the effective-template list only, and the route file itself states the capture page is not wired to these routes.",
-      "evidence": "reg services/api/src/routes/workflow.routes.ts:231. Route file contract services/api/src/routes/workflow.routes.ts:39-41 \"These routes do NOT replace /v1/capture/intake-templates ... The capture page is NOT wired to these routes in this phase.\" Only the list route (reg workflow.routes.ts:149) is consumed: apps/web/app/(app)/capture/_hooks/useWorkflowTemplates.ts:77, apps/web/app/(app)/capture/_lib/workflow-context.ts:88, apps/web/app/(app)/intake-links/page.tsx:550.",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "retired to a typed 410 naming what replaced it (or that the capability is not offered); kept so a stale client is told rather than 404-ed",
+      "evidence": "reg services/api/src/routes/workflow.routes.ts:136. OWNER DECISION (2026-09-16). Workspace-level workflow-template authoring is out of scope; templates are platform-managed. The capture page was never wired to the mutations (route header), the create route had no caller so no workspace template could exist to edit or archive, and apps/web/app/(app)/workflows/page.tsx is read-only and says templates are administered by platform owners. Handler is `templateAuthoringRetired(reply)`, defined at services/api/src/routes/workflow.routes.ts:119, replying 410 WORKFLOW_TEMPLATE_AUTHORING_RETIRED with `canonical` /v1/workflow/templates (the GET list, still product-consumed). The tombstone keeps requireAuth only and reads/writes no domain data; stored rows are untouched. 0 call sites in apps/web + apps/mobile, the intended end state for a tombstone; pinned by services/api/test/retired-routes-2026-09-16.test.ts.",
+      "reviewedAtUtc": "2026-09-16"
     },
     {
       "routeId": "POST /v1/admin/audit-log",
@@ -845,10 +845,10 @@
     },
     {
       "routeId": "POST /v1/collaboration/threads/:id/contributors",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "contributor add lost its surface when the standalone /collaboration page was retired",
-      "evidence": "reg services/api/src/routes/collaboration.routes.ts:413; apps/web/next.config.js:304-317 \"/collaboration is retired as a standalone product surface ... /v1/collaboration/threads/* routes all remain intact — they continue to power the evidence detail discussion panel\"; apps/web/lib/navigation/pillarRegistry.ts:180-183 \"workspace.collaboration removed with its deleted page\"; the surviving consumer apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx uses only :219 GET `/v1/collaboration/threads?teamId=`, :278/:332 `/v1/collaboration/threads/${id}/messages`, :295 `/mark-mentions-read`",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "retired to a typed 410 naming what replaced it (or that the capability is not offered); kept so a stale client is told rather than 404-ed",
+      "evidence": "reg services/api/src/routes/collaboration.routes.ts:438. OWNER DECISION (2026-09-16). Contributor thread access is not offered: the grant wrote a CONTRIBUTOR DiscussionParticipant row that no path used (postMessage hard-codes a USER author, canReadThread has no caller, the contributor write surface was never wired). Handler is `async (_req, reply) => contributorsRetired(reply)`, defined at services/api/src/routes/collaboration.routes.ts:428, replying 410 COLLABORATION_THREAD_CONTRIBUTORS_RETIRED with `canonical` /v1/external-review/invitations. The tombstone keeps requireAuth only and reads/writes no domain data; stored rows are untouched. 0 call sites in apps/web + apps/mobile, the intended end state for a tombstone; pinned by services/api/test/retired-routes-2026-09-16.test.ts.",
+      "reviewedAtUtc": "2026-09-16"
     },
     {
       "routeId": "POST /v1/collaboration/threads/:id/escalate",
@@ -873,10 +873,10 @@
     },
     {
       "routeId": "POST /v1/collaboration/threads/:id/subscribe",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "thread subscribe lost its surface when the standalone /collaboration page was retired",
-      "evidence": "reg services/api/src/routes/collaboration.routes.ts:554; apps/web/next.config.js:304-317 \"/collaboration is retired as a standalone product surface ... /v1/collaboration/threads/* routes all remain intact — they continue to power the evidence detail discussion panel\"; apps/web/lib/navigation/pillarRegistry.ts:180-183 \"workspace.collaboration removed with its deleted page\"; the surviving consumer apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx uses only :219 GET `/v1/collaboration/threads?teamId=`, :278/:332 `/v1/collaboration/threads/${id}/messages`, :295 `/mark-mentions-read`",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "retired to a typed 410 naming what replaced it (or that the capability is not offered); kept so a stale client is told rather than 404-ed",
+      "evidence": "reg services/api/src/routes/collaboration.routes.ts:537. OWNER DECISION (2026-09-16). Thread watching is not offered: the WATCHER DiscussionParticipant row these routes wrote had no reader (no inbox source, notification fan-out or worker consults it), so subscribing changed nothing. Handler is `async (_req, reply) => subscriptionsRetired(reply)`, defined at services/api/src/routes/collaboration.routes.ts:527, replying 410 COLLABORATION_THREAD_SUBSCRIPTIONS_RETIRED with `canonical` /v1/me/inbox. The tombstone keeps requireAuth only and reads/writes no domain data; stored rows are untouched. 0 call sites in apps/web + apps/mobile, the intended end state for a tombstone; pinned by services/api/test/retired-routes-2026-09-16.test.ts.",
+      "reviewedAtUtc": "2026-09-16"
     },
     {
       "routeId": "POST /v1/evidence-requests/:id/assign",
@@ -1098,10 +1098,10 @@
     },
     {
       "routeId": "POST /v1/intelligence/evidence/:id/reconcile-similarity",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Operator similarity re-reconcile has no control; only a dev seeding script uses the underlying service, and it calls it directly.",
-      "evidence": "reg services/api/src/routes/intelligence.routes.ts:364 app.post(\"/v1/intelligence/evidence/:id/reconcile-similarity\"). reconcileSimilaritiesForEvidence (services/api/src/services/intelligence/similarity.service.ts:246) non-route callers: services/api/scripts/dev-populate-investigation.ts:493-494 (direct service import at :69, not HTTP). Duplicates surface reads the capabilities envelope only: apps/web/app/(app)/investigation/duplicates/page.tsx:189.",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "retired to a typed 410 naming what replaced it (or that the capability is not offered); kept so a stale client is told rather than 404-ed",
+      "evidence": "reg services/api/src/routes/intelligence.routes.ts:372. OWNER DECISION (2026-09-16). On-demand similarity reconciliation is not a product capability: the route was the only producer of HASH_DUPLICATE/FILENAME_SIMILAR rows (besides a dev seed), no surface rendered them, OCR/transcript similarity is produced by the worker, and duplicate review reads GET /v1/graph/duplicates. The handler replies 410 SIMILARITY_RECONCILE_RETIRED with `canonical` /v1/graph/duplicates. The tombstone keeps requireAuth only and reads/writes no domain data; stored rows are untouched. 0 call sites in apps/web + apps/mobile, the intended end state for a tombstone; pinned by services/api/test/retired-routes-2026-09-16.test.ts. The Playwright step in e2e/investigation-enterprise-data-flow.spec.ts that called it now pins the 410.",
+      "reviewedAtUtc": "2026-09-16"
     },
     {
       "routeId": "POST /v1/lifecycle/retention/policies/:id/release",
@@ -1211,10 +1211,10 @@
     },
     {
       "routeId": "POST /v1/search/reindex/workflow/:id",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Per-workflow operator reindex with no UI, no CLI and no runbook citation; it also targets the deprecated Phase 22 workflow entity.",
-      "evidence": "reg services/api/src/routes/search.routes.ts:586 app.post(\"/v1/search/reindex/workflow/:id\") → indexWorkflowInstance (search.routes.ts:594). Target entity family is deprecated: services/api/src/routes/workflow-instances.routes.ts:1-13. No `search/reindex` reference in apps/web, apps/mobile, services/worker, packages/*, scripts/*, e2e/* or docs/operations/runbooks/.",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "retired to a typed 410 naming what replaced it (or that the capability is not offered); kept so a stale client is told rather than 404-ed",
+      "evidence": "reg services/api/src/routes/search.routes.ts:647. Proven obsolete: it was the only caller of indexWorkflowInstance (services/api/src/services/search/evidence-indexing.service.ts), serving the Phase 22 EvidenceWorkflowInstance family declared DEPRECATED in services/api/src/routes/workflow-instances.routes.ts; no product, worker or ops caller, and the reindex sweep never covered workflow documents. The handler replies 410 WORKFLOW_INSTANCE_REINDEX_RETIRED with `canonical` /v1/search/reindex/evidence/:id. The tombstone keeps requireAuth only and reads/writes no domain data; stored rows are untouched. 0 call sites in apps/web + apps/mobile, the intended end state for a tombstone; pinned by services/api/test/retired-routes-2026-09-16.test.ts.",
+      "reviewedAtUtc": "2026-09-16"
     },
     {
       "routeId": "POST /v1/search/relationships",
@@ -1243,10 +1243,10 @@
     },
     {
       "routeId": "POST /v1/trust/articles/:id/review",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "article review/attestation workflow has no control",
-      "evidence": "reg services/api/src/routes/trust-and-governance.routes.ts:1812; no \"/v1/trust/articles/\" + \"/review\" call site in apps/web|apps/mobile; the trust admin section writes only /v1/trust/articles/seed (apps/web/app/(app)/organizations/[id]/admin/trust/_sections/TrustContentIntegritySection.tsx:171)",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "retired to a typed 410 naming what replaced it (or that the capability is not offered); kept so a stale client is told rather than 404-ed",
+      "evidence": "reg services/api/src/routes/trust-and-governance.routes.ts:1873. OWNER DECISION (2026-09-16). A manual needs-review flag is not offered: the NEEDS_REVIEW state markArticleNeedsReview set was overwritten by the next drift scan, listed nowhere (listStaleTrustArticles reads STALE only) and cleared by nothing. The handler replies 410 TRUST_ARTICLE_REVIEW_FLAG_RETIRED with `canonical` /v1/trust/drift/stale; the delegated-tier gate went with the work it guarded. The tombstone keeps requireAuth only and reads/writes no domain data; stored rows are untouched. 0 call sites in apps/web + apps/mobile, the intended end state for a tombstone; pinned by services/api/test/retired-routes-2026-09-16.test.ts.",
+      "reviewedAtUtc": "2026-09-16"
     },
     {
       "routeId": "POST /v1/trust/subprocessors",
@@ -1273,17 +1273,17 @@
     },
     {
       "routeId": "POST /v1/workflow/templates",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Workspace workflow-template authoring (create) has no surface; the product consumes the effective-template list only, and the route file itself states the capture page is not wired to these routes.",
-      "evidence": "reg services/api/src/routes/workflow.routes.ts:176. Route file contract services/api/src/routes/workflow.routes.ts:39-41 \"These routes do NOT replace /v1/capture/intake-templates ... The capture page is NOT wired to these routes in this phase.\" Only the list route (reg workflow.routes.ts:149) is consumed: apps/web/app/(app)/capture/_hooks/useWorkflowTemplates.ts:77, apps/web/app/(app)/capture/_lib/workflow-context.ts:88, apps/web/app/(app)/intake-links/page.tsx:550.",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "retired to a typed 410 naming what replaced it (or that the capability is not offered); kept so a stale client is told rather than 404-ed",
+      "evidence": "reg services/api/src/routes/workflow.routes.ts:129. OWNER DECISION (2026-09-16). Workspace-level workflow-template authoring is out of scope; templates are platform-managed. The capture page was never wired to the mutations (route header), the create route had no caller so no workspace template could exist to edit or archive, and apps/web/app/(app)/workflows/page.tsx is read-only and says templates are administered by platform owners. Handler is `templateAuthoringRetired(reply)`, defined at services/api/src/routes/workflow.routes.ts:119, replying 410 WORKFLOW_TEMPLATE_AUTHORING_RETIRED with `canonical` /v1/workflow/templates (the GET list, still product-consumed). The tombstone keeps requireAuth only and reads/writes no domain data; stored rows are untouched. 0 call sites in apps/web + apps/mobile, the intended end state for a tombstone; pinned by services/api/test/retired-routes-2026-09-16.test.ts.",
+      "reviewedAtUtc": "2026-09-16"
     },
     {
       "routeId": "POST /v1/workflow/templates/:id/archive",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Workspace workflow-template authoring (archive) has no surface; the product consumes the effective-template list only, and the route file itself states the capture page is not wired to these routes.",
-      "evidence": "reg services/api/src/routes/workflow.routes.ts:310. Route file contract services/api/src/routes/workflow.routes.ts:39-41 \"These routes do NOT replace /v1/capture/intake-templates ... The capture page is NOT wired to these routes in this phase.\" Only the list route (reg workflow.routes.ts:149) is consumed: apps/web/app/(app)/capture/_hooks/useWorkflowTemplates.ts:77, apps/web/app/(app)/capture/_lib/workflow-context.ts:88, apps/web/app/(app)/intake-links/page.tsx:550.",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "retired to a typed 410 naming what replaced it (or that the capability is not offered); kept so a stale client is told rather than 404-ed",
+      "evidence": "reg services/api/src/routes/workflow.routes.ts:143. OWNER DECISION (2026-09-16). Workspace-level workflow-template authoring is out of scope; templates are platform-managed. The capture page was never wired to the mutations (route header), the create route had no caller so no workspace template could exist to edit or archive, and apps/web/app/(app)/workflows/page.tsx is read-only and says templates are administered by platform owners. Handler is `templateAuthoringRetired(reply)`, defined at services/api/src/routes/workflow.routes.ts:119, replying 410 WORKFLOW_TEMPLATE_AUTHORING_RETIRED with `canonical` /v1/workflow/templates (the GET list, still product-consumed). The tombstone keeps requireAuth only and reads/writes no domain data; stored rows are untouched. 0 call sites in apps/web + apps/mobile, the intended end state for a tombstone; pinned by services/api/test/retired-routes-2026-09-16.test.ts.",
+      "reviewedAtUtc": "2026-09-16"
     },
     {
       "routeId": "POST /v1/workflows/instances",
@@ -1343,10 +1343,11 @@
     },
     {
       "routeId": "POST /v1/ai/search/nl",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "The 'Ask in plain language' card was WITHDRAWN from /search for every workspace type after an audit of what it displayed, so this route is deliberately unmounted rather than accidentally orphaned. Two defects, both in runStateQuery: (1) two of its seven presets synthesise titles instead of reading the record's name — REVIEW_BACKLOG renders 'Review <id8>… (STATUS)' and REPORTS_RECENT renders 'Report v<n>' while routing to /evidence/:id; (2) the state presets query prisma.evidence / evidenceReviewWorkflow / report directly on teamId alone, bypassing the reviewer-restriction gate executeSearch applies twice, so a non-reviewer saw rows ordinary Search withholds. Cross-workspace leakage was NOT possible — authorizeOrFail verifies ACTIVE membership in body.teamId and every state query carries it. The route is retained (registered, authorized, rate-limited, audited) because this repository does not delete routes; the TEXT_SEARCH branch is unaffected as it delegates to executeSearch. Reintroduction requires: state presets through the authorized search path, canonical display names, a real total rather than the page length, and demonstrated value over ordinary Search.",
-      "evidence": "reg services/api/src/routes/ai-search.routes.ts app.post(\"/v1/ai/search/nl\", { preHandler: requireAuth }) with authorizeOrFail({ permission: \"intelligence.read\", antiEnumeration: true }); the sole product consumer apps/web/components/ai-copilot/NlSearchBox.tsx was deleted in this change and its mount removed from apps/web/app/(app)/search/page.tsx; 0 call sites remain in apps/web + apps/mobile; the withdrawal and its four reintroduction conditions are documented in the route's own docstring and asserted by e2e/search-layout/search-experience.spec.ts \"the plain-language card is gone from the console\"",
-      "reviewedAtUtc": "2026-08-22"
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "retired to a typed 410 naming what replaced it (or that the capability is not offered); kept so a stale client is told rather than 404-ed",
+      "evidence": "reg services/api/src/routes/ai-search.routes.ts:52. Proven obsolete: the plain-language search card was withdrawn (audit: synthesised titles in REVIEW_BACKLOG/REPORTS_RECENT, state presets bypassing the reviewer-restriction gate) and its only consumer apps/web/components/ai-copilot/NlSearchBox.tsx was deleted in commit e2f5cf2d; absence pinned by e2e/search-layout/search-experience.spec.ts. The handler replies 410 NL_SEARCH_RETIRED with `canonical` /v1/search; the route docstring keeps the four reintroduction conditions. The tombstone keeps requireAuth only and reads/writes no domain data; stored rows are untouched. 0 call sites in apps/web + apps/mobile, the intended end state for a tombstone; pinned by services/api/test/retired-routes-2026-09-16.test.ts.",
+      "reviewedAtUtc": "2026-09-16",
+      "replacement": "GET /v1/search"
     },
     {
       "routeId": "GET /v1/admin/organizations",
@@ -1430,52 +1431,56 @@
     },
     {
       "routeId": "GET /v1/collaboration-teams/:teamId/guests",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "its web client was deleted in the 2026-09-06 collaboration closure; the route still answers and has no product caller, and the capability is reached from another surface",
-      "evidence": "reg services/api/src/routes/collaboration-completion.routes.ts:387. Superseded by External Review. The web note records what this actually did: it wrote a row and granted nothing — no email was sent, no read path consulted the table, and the status never left PENDING. apps/web/lib/api/collaboration-completion.ts:179 records the deletion of every client below that point by name, and 0 call sites remain in apps/web + apps/mobile. The route still answers, so it is COMPATIBILITY_TEMPORARY rather than a tombstone: the handler and its service are live code with no consumer, and removing them is a product decision for whoever owns the group surface. Recorded as MISSING_PRODUCT_UI_POST_RELEASE rather than SUPERSEDED_REMOVE because the replacement is a SURFACE, not a route: there is no single routeId that supersedes this one, and the generator refuses a SUPERSEDED_REMOVE with no named replacement — correctly, since a supersession claim that cannot name what supersedes it is not a claim.",
-      "reviewedAtUtc": "2026-09-07"
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "retired to a typed 410 naming what replaced it (or that the capability is not offered); kept so a stale client is told rather than 404-ed",
+      "evidence": "reg services/api/src/routes/collaboration-completion.routes.ts:428. Proven obsolete: WORKSPACE AND COLLABORATION ARCHITECTURE CLOSURE (2026-09-06, commit 27984456) withdrew group guests (a guest invitation wrote a row and granted nothing: no email, no read path consulted the table, status never left PENDING) and deleted the web client (apps/web/lib/api/collaboration-completion.ts:179), whose note records these routes as typed 410s. Handler is `guestsRetired(reply)`, defined at services/api/src/routes/collaboration-completion.routes.ts:418, replying 410 COLLABORATION_TEAM_GUESTS_RETIRED with `canonical` /v1/external-review/invitations. The tombstone keeps requireAuth only and reads/writes no domain data; stored rows are untouched. 0 call sites in apps/web + apps/mobile, the intended end state for a tombstone; pinned by services/api/test/retired-routes-2026-09-16.test.ts.",
+      "reviewedAtUtc": "2026-09-16",
+      "replacement": "GET /v1/external-review/invitations"
     },
     {
       "routeId": "POST /v1/collaboration-teams/:teamId/guests/invite",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "its web client was deleted in the 2026-09-06 collaboration closure; the route still answers and has no product caller, and the capability is reached from another surface",
-      "evidence": "reg services/api/src/routes/collaboration-completion.routes.ts:414. Superseded by External Review, which is the invitation authority that actually delivers and grants. apps/web/lib/api/collaboration-completion.ts:179 records the deletion of every client below that point by name, and 0 call sites remain in apps/web + apps/mobile. The route still answers, so it is COMPATIBILITY_TEMPORARY rather than a tombstone: the handler and its service are live code with no consumer, and removing them is a product decision for whoever owns the group surface. Recorded as MISSING_PRODUCT_UI_POST_RELEASE rather than SUPERSEDED_REMOVE because the replacement is a SURFACE, not a route: there is no single routeId that supersedes this one, and the generator refuses a SUPERSEDED_REMOVE with no named replacement — correctly, since a supersession claim that cannot name what supersedes it is not a claim.",
-      "reviewedAtUtc": "2026-09-07"
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "retired to a typed 410 naming what replaced it (or that the capability is not offered); kept so a stale client is told rather than 404-ed",
+      "evidence": "reg services/api/src/routes/collaboration-completion.routes.ts:436. Proven obsolete: WORKSPACE AND COLLABORATION ARCHITECTURE CLOSURE (2026-09-06, commit 27984456) withdrew group guests (a guest invitation wrote a row and granted nothing: no email, no read path consulted the table, status never left PENDING) and deleted the web client (apps/web/lib/api/collaboration-completion.ts:179), whose note records these routes as typed 410s. Handler is `guestsRetired(reply)`, defined at services/api/src/routes/collaboration-completion.routes.ts:418, replying 410 COLLABORATION_TEAM_GUESTS_RETIRED with `canonical` /v1/external-review/invitations. The tombstone keeps requireAuth only and reads/writes no domain data; stored rows are untouched. 0 call sites in apps/web + apps/mobile, the intended end state for a tombstone; pinned by services/api/test/retired-routes-2026-09-16.test.ts. Previously the service threw the same 410 after authorization; the route now answers it directly.",
+      "reviewedAtUtc": "2026-09-16",
+      "replacement": "POST /v1/external-review/invitations"
     },
     {
       "routeId": "PATCH /v1/collaboration-teams/:teamId/guests/:guestId/revoke",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "its web client was deleted in the 2026-09-06 collaboration closure; the route still answers and has no product caller, and the capability is reached from another surface",
-      "evidence": "reg services/api/src/routes/collaboration-completion.routes.ts:459. Superseded by External Review, where a grant that exists can be withdrawn. apps/web/lib/api/collaboration-completion.ts:179 records the deletion of every client below that point by name, and 0 call sites remain in apps/web + apps/mobile. The route still answers, so it is COMPATIBILITY_TEMPORARY rather than a tombstone: the handler and its service are live code with no consumer, and removing them is a product decision for whoever owns the group surface. Recorded as MISSING_PRODUCT_UI_POST_RELEASE rather than SUPERSEDED_REMOVE because the replacement is a SURFACE, not a route: there is no single routeId that supersedes this one, and the generator refuses a SUPERSEDED_REMOVE with no named replacement — correctly, since a supersession claim that cannot name what supersedes it is not a claim.",
-      "reviewedAtUtc": "2026-09-07"
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "retired to a typed 410 naming what replaced it (or that the capability is not offered); kept so a stale client is told rather than 404-ed",
+      "evidence": "reg services/api/src/routes/collaboration-completion.routes.ts:444. Proven obsolete: WORKSPACE AND COLLABORATION ARCHITECTURE CLOSURE (2026-09-06, commit 27984456) withdrew group guests (a guest invitation wrote a row and granted nothing: no email, no read path consulted the table, status never left PENDING) and deleted the web client (apps/web/lib/api/collaboration-completion.ts:179), whose note records these routes as typed 410s. Handler is `guestsRetired(reply)`, defined at services/api/src/routes/collaboration-completion.routes.ts:418, replying 410 COLLABORATION_TEAM_GUESTS_RETIRED with `canonical` /v1/external-review/invitations. The tombstone keeps requireAuth only and reads/writes no domain data; stored rows are untouched. 0 call sites in apps/web + apps/mobile, the intended end state for a tombstone; pinned by services/api/test/retired-routes-2026-09-16.test.ts.",
+      "reviewedAtUtc": "2026-09-16",
+      "replacement": "POST /v1/external-review/invitations/:id/revoke"
     },
     {
       "routeId": "GET /v1/collaboration-teams/:teamId/access-review",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "its web client was deleted in the 2026-09-06 collaboration closure; the route still answers and has no product caller, and the capability is reached from another surface",
-      "evidence": "reg services/api/src/routes/collaboration-completion.routes.ts:501. Superseded by the group's own surface, which is where an access review is reached from. apps/web/lib/api/collaboration-completion.ts:179 records the deletion of every client below that point by name, and 0 call sites remain in apps/web + apps/mobile. The route still answers, so it is COMPATIBILITY_TEMPORARY rather than a tombstone: the handler and its service are live code with no consumer, and removing them is a product decision for whoever owns the group surface. Recorded as MISSING_PRODUCT_UI_POST_RELEASE rather than SUPERSEDED_REMOVE because the replacement is a SURFACE, not a route: there is no single routeId that supersedes this one, and the generator refuses a SUPERSEDED_REMOVE with no named replacement — correctly, since a supersession claim that cannot name what supersedes it is not a claim.",
-      "reviewedAtUtc": "2026-09-07"
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "retired to a typed 410 naming what replaced it (or that the capability is not offered); kept so a stale client is told rather than 404-ed",
+      "evidence": "reg services/api/src/routes/collaboration-completion.routes.ts:478. Proven obsolete: the same closure (2026-09-06, commit 27984456) removed the group access-review panel because it recorded decisions and enforced none of them (a REVOKE decision changed no membership; complete only flipped status) and deleted its client (apps/web/lib/api/collaboration-completion.ts:194). Handler is `accessReviewRetired(reply)`, defined at services/api/src/routes/collaboration-completion.routes.ts:468, replying 410 COLLABORATION_TEAM_ACCESS_REVIEW_RETIRED with `canonical` /v1/teams/{workspaceId}/access-review (enforced workspace review; governance-platform campaigns also enforce). The tombstone keeps requireAuth only and reads/writes no domain data; stored rows are untouched. 0 call sites in apps/web + apps/mobile, the intended end state for a tombstone; pinned by services/api/test/retired-routes-2026-09-16.test.ts.",
+      "reviewedAtUtc": "2026-09-16",
+      "replacement": "GET /v1/teams/:id/access-review"
     },
     {
       "routeId": "POST /v1/collaboration-teams/:teamId/access-review",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "its web client was deleted in the 2026-09-06 collaboration closure; the route still answers and has no product caller, and the capability is reached from another surface",
-      "evidence": "reg services/api/src/routes/collaboration-completion.routes.ts:528. Superseded by the group's own surface. apps/web/lib/api/collaboration-completion.ts:179 records the deletion of every client below that point by name, and 0 call sites remain in apps/web + apps/mobile. The route still answers, so it is COMPATIBILITY_TEMPORARY rather than a tombstone: the handler and its service are live code with no consumer, and removing them is a product decision for whoever owns the group surface. Recorded as MISSING_PRODUCT_UI_POST_RELEASE rather than SUPERSEDED_REMOVE because the replacement is a SURFACE, not a route: there is no single routeId that supersedes this one, and the generator refuses a SUPERSEDED_REMOVE with no named replacement — correctly, since a supersession claim that cannot name what supersedes it is not a claim.",
-      "reviewedAtUtc": "2026-09-07"
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "retired to a typed 410 naming what replaced it (or that the capability is not offered); kept so a stale client is told rather than 404-ed",
+      "evidence": "reg services/api/src/routes/collaboration-completion.routes.ts:486. Proven obsolete: the same closure (2026-09-06, commit 27984456) removed the group access-review panel because it recorded decisions and enforced none of them (a REVOKE decision changed no membership; complete only flipped status) and deleted its client (apps/web/lib/api/collaboration-completion.ts:194). Handler is `accessReviewRetired(reply)`, defined at services/api/src/routes/collaboration-completion.routes.ts:468, replying 410 COLLABORATION_TEAM_ACCESS_REVIEW_RETIRED with `canonical` /v1/teams/{workspaceId}/access-review (enforced workspace review; governance-platform campaigns also enforce). The tombstone keeps requireAuth only and reads/writes no domain data; stored rows are untouched. 0 call sites in apps/web + apps/mobile, the intended end state for a tombstone; pinned by services/api/test/retired-routes-2026-09-16.test.ts.",
+      "reviewedAtUtc": "2026-09-16"
     },
     {
       "routeId": "PATCH /v1/collaboration-teams/:teamId/access-review/items/:itemId",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "its web client was deleted in the 2026-09-06 collaboration closure; the route still answers and has no product caller, and the capability is reached from another surface",
-      "evidence": "reg services/api/src/routes/collaboration-completion.routes.ts:571. Superseded by the group's own surface. apps/web/lib/api/collaboration-completion.ts:179 records the deletion of every client below that point by name, and 0 call sites remain in apps/web + apps/mobile. The route still answers, so it is COMPATIBILITY_TEMPORARY rather than a tombstone: the handler and its service are live code with no consumer, and removing them is a product decision for whoever owns the group surface. Recorded as MISSING_PRODUCT_UI_POST_RELEASE rather than SUPERSEDED_REMOVE because the replacement is a SURFACE, not a route: there is no single routeId that supersedes this one, and the generator refuses a SUPERSEDED_REMOVE with no named replacement — correctly, since a supersession claim that cannot name what supersedes it is not a claim.",
-      "reviewedAtUtc": "2026-09-07"
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "retired to a typed 410 naming what replaced it (or that the capability is not offered); kept so a stale client is told rather than 404-ed",
+      "evidence": "reg services/api/src/routes/collaboration-completion.routes.ts:494. Proven obsolete: the same closure (2026-09-06, commit 27984456) removed the group access-review panel because it recorded decisions and enforced none of them (a REVOKE decision changed no membership; complete only flipped status) and deleted its client (apps/web/lib/api/collaboration-completion.ts:194). Handler is `accessReviewRetired(reply)`, defined at services/api/src/routes/collaboration-completion.routes.ts:468, replying 410 COLLABORATION_TEAM_ACCESS_REVIEW_RETIRED with `canonical` /v1/teams/{workspaceId}/access-review (enforced workspace review; governance-platform campaigns also enforce). The tombstone keeps requireAuth only and reads/writes no domain data; stored rows are untouched. 0 call sites in apps/web + apps/mobile, the intended end state for a tombstone; pinned by services/api/test/retired-routes-2026-09-16.test.ts.",
+      "reviewedAtUtc": "2026-09-16"
     },
     {
       "routeId": "POST /v1/collaboration-teams/:teamId/access-review/:reviewId/complete",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "its web client was deleted in the 2026-09-06 collaboration closure; the route still answers and has no product caller, and the capability is reached from another surface",
-      "evidence": "reg services/api/src/routes/collaboration-completion.routes.ts:616. Superseded by the group's own surface. apps/web/lib/api/collaboration-completion.ts:179 records the deletion of every client below that point by name, and 0 call sites remain in apps/web + apps/mobile. The route still answers, so it is COMPATIBILITY_TEMPORARY rather than a tombstone: the handler and its service are live code with no consumer, and removing them is a product decision for whoever owns the group surface. Recorded as MISSING_PRODUCT_UI_POST_RELEASE rather than SUPERSEDED_REMOVE because the replacement is a SURFACE, not a route: there is no single routeId that supersedes this one, and the generator refuses a SUPERSEDED_REMOVE with no named replacement — correctly, since a supersession claim that cannot name what supersedes it is not a claim.",
-      "reviewedAtUtc": "2026-09-07"
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "retired to a typed 410 naming what replaced it (or that the capability is not offered); kept so a stale client is told rather than 404-ed",
+      "evidence": "reg services/api/src/routes/collaboration-completion.routes.ts:502. Proven obsolete: the same closure (2026-09-06, commit 27984456) removed the group access-review panel because it recorded decisions and enforced none of them (a REVOKE decision changed no membership; complete only flipped status) and deleted its client (apps/web/lib/api/collaboration-completion.ts:194). Handler is `accessReviewRetired(reply)`, defined at services/api/src/routes/collaboration-completion.routes.ts:468, replying 410 COLLABORATION_TEAM_ACCESS_REVIEW_RETIRED with `canonical` /v1/teams/{workspaceId}/access-review (enforced workspace review; governance-platform campaigns also enforce). The tombstone keeps requireAuth only and reads/writes no domain data; stored rows are untouched. 0 call sites in apps/web + apps/mobile, the intended end state for a tombstone; pinned by services/api/test/retired-routes-2026-09-16.test.ts.",
+      "reviewedAtUtc": "2026-09-16"
     },
     {
       "routeId": "GET /v1/collaboration-teams/:teamId/activity/v2",
