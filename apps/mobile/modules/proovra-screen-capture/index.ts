@@ -158,3 +158,112 @@ export function addScreenFrameListener(cb: NativeEvents["onScreenFrame"]): Subsc
 export function addScreenStoppedListener(cb: NativeEvents["onScreenCaptureStopped"]): Subscription {
   return emitter().addListener("onScreenCaptureStopped", cb as never) as Subscription;
 }
+
+// ===========================================================================
+// UC-3 — CONTINUOUS (streaming) screen capture.
+//
+// Unlike the deliberate-frame mode, continuous capture RECORDS from consent until
+// Stop, splitting the recording into bounded ORIGINAL SEGMENTS (short mp4s) via
+// MediaRecorder. Each finalized segment fires `onScreenSegment` so the client can
+// upload it WHILE recording continues (bounded streaming), and `getContinuousState`
+// lets the UI reconnect after an app switch. Screen-only (no microphone/audio).
+// ===========================================================================
+
+export type ScreenContinuousStopReason =
+  | "USER_STOPPED"
+  | "BOUNDS_REACHED"
+  | "INTERRUPTED"
+  | "PERMISSION_REVOKED"
+  | "ERROR";
+
+export type ScreenSegment = {
+  uri: string;
+  sequence: number;
+  startedAtOffsetMs: number;
+  durationMs: number;
+  widthPx: number;
+  heightPx: number;
+  orientation: "portrait" | "landscape";
+};
+
+export type ScreenContinuousStarted = {
+  osConsentGranted: boolean;
+  captureStartedAtUtc: string;
+  segmentMs: number;
+  maxSegments: number;
+};
+
+export type ScreenContinuousResult = {
+  osConsentGranted: boolean;
+  captureStartedAtUtc: string;
+  captureEndedAtUtc: string;
+  device: ScreenCaptureDevice;
+  totalDurationMs: number;
+  segmentCount: number;
+  sessionCompleteness: "COMPLETE_SESSION" | "INTERRUPTED_SESSION";
+  terminationReason: ScreenContinuousStopReason;
+  limitations: string[];
+};
+
+export type ScreenContinuousState = { active: boolean; segmentCount: number };
+
+export type ScreenContinuousOptions = {
+  /** Per-segment duration ms (native clamps to a safe range). */
+  segmentMs?: number;
+  /** Hard ceiling on segments (bounded session; native clamps to 600). */
+  maxSegments?: number;
+};
+
+type ContinuousNativeModule = {
+  isContinuousSupported(): boolean;
+  getContinuousState(): ScreenContinuousState;
+  startContinuousCapture(options: { segmentMs: number; maxSegments: number }): Promise<ScreenContinuousStarted>;
+  stopContinuousCapture(): Promise<ScreenContinuousResult>;
+};
+
+function continuousModule(): ContinuousNativeModule {
+  return nativeModule() as unknown as ContinuousNativeModule;
+}
+
+export function isScreenContinuousSupported(): boolean {
+  if (Platform.OS !== "android") return false;
+  try {
+    return continuousModule().isContinuousSupported();
+  } catch {
+    return false;
+  }
+}
+
+export function getScreenContinuousState(): ScreenContinuousState {
+  if (Platform.OS !== "android") return { active: false, segmentCount: 0 };
+  try {
+    return continuousModule().getContinuousState();
+  } catch {
+    return { active: false, segmentCount: 0 };
+  }
+}
+
+const DEFAULT_SEGMENT_MS = 6000;
+const DEFAULT_MAX_SEGMENTS = 600;
+
+export async function startContinuousCapture(
+  options: ScreenContinuousOptions = {},
+): Promise<ScreenContinuousStarted> {
+  if (Platform.OS !== "android") throw new Error("Continuous Screen Capture is available on Android only.");
+  return continuousModule().startContinuousCapture({
+    segmentMs: Math.max(2000, Math.min(options.segmentMs ?? DEFAULT_SEGMENT_MS, 30000)),
+    maxSegments: Math.max(1, Math.min(options.maxSegments ?? DEFAULT_MAX_SEGMENTS, 600)),
+  });
+}
+
+export async function stopContinuousCapture(): Promise<ScreenContinuousResult> {
+  if (Platform.OS !== "android") throw new Error("Android only.");
+  return continuousModule().stopContinuousCapture();
+}
+
+export function addScreenSegmentListener(cb: (seg: ScreenSegment) => void): Subscription {
+  return emitter().addListener("onScreenSegment", cb as never) as Subscription;
+}
+export function addContinuousStoppedListener(cb: (r: ScreenContinuousResult) => void): Subscription {
+  return emitter().addListener("onScreenContinuousStopped", cb as never) as Subscription;
+}

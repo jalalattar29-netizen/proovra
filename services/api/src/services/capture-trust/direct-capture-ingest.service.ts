@@ -63,6 +63,9 @@ export const DIRECT_CAPTURE_SESSION_MODES = [
   // UC-2 — the PROOVRA Android app captured the device screen via MediaProjection,
   // in an unbound (no device key) session, exactly like the web mode.
   "DIRECT_SCREEN_CAPTURE_ANDROID",
+  // UC-3 — the PROOVRA Android app recorded a CONTINUOUS screen session (ordered
+  // segments) via MediaProjection, in an unbound session.
+  "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS",
 ] as const;
 export type DirectCaptureSessionMode = (typeof DIRECT_CAPTURE_SESSION_MODES)[number];
 
@@ -78,6 +81,9 @@ export const DIRECT_CAPTURE_CLIENT_SOURCES = [
   // UC-2 screen-capture artifact roles (client-reported; the manifest is authoritative).
   "SCREEN_FRAME",
   "SCREEN_MANIFEST",
+  // UC-3 continuous screen-capture artifact roles.
+  "SCREEN_SEGMENT",
+  "CONTINUOUS_MANIFEST",
 ] as const;
 export type DirectCaptureClientSource = (typeof DIRECT_CAPTURE_CLIENT_SOURCES)[number];
 
@@ -115,6 +121,11 @@ export const DIRECT_CAPTURE_DENIALS = {
   SCREEN_MANIFEST_INVALID: 422,
   SCREEN_MANIFEST_DIGEST_UNDECLARED: 422,
   SCREEN_MANIFEST_ARTIFACT_MISMATCH: 422,
+  // UC-3 continuous screen capture.
+  CONTINUOUS_MANIFEST_REQUIRED: 400,
+  CONTINUOUS_MANIFEST_INVALID: 422,
+  CONTINUOUS_MANIFEST_DIGEST_UNDECLARED: 422,
+  CONTINUOUS_MANIFEST_ARTIFACT_MISMATCH: 422,
 } as const;
 export type DirectCaptureDenial = keyof typeof DIRECT_CAPTURE_DENIALS;
 

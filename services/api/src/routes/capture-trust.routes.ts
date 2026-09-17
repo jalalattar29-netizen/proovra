@@ -58,6 +58,7 @@ import {
 } from "../services/capture-trust/device-identity.service.js";
 import { completeWebCaptureSession } from "../services/capture-trust/web-capture.service.js";
 import { completeScreenCaptureSession } from "../services/capture-trust/screen-capture.service.js";
+import { completeContinuousCaptureSession } from "../services/capture-trust/continuous-capture.service.js";
 import {
   DIRECT_CAPTURE_CLIENT_SOURCES,
   DIRECT_CAPTURE_SESSION_MODES,
@@ -212,6 +213,14 @@ const ScreenCompleteBody = z
     // string. Bounded to the screen manifest size ceiling; the shared validator
     // enforces the schema.
     manifestJson: z.string().min(2).max(128 * 1024),
+  })
+  .strict();
+const ContinuousCompleteBody = z
+  .object({
+    // The EXACT continuity manifest bytes the Android app uploaded, as a string.
+    // Bounded to the continuous manifest size ceiling; the shared validator
+    // enforces the schema and the contiguous segment ordering.
+    manifestJson: z.string().min(2).max(512 * 1024),
   })
   .strict();
 const PartParams = z.object({
@@ -545,6 +554,38 @@ export async function captureTrustRoutes(app: FastifyInstance) {
       if (!(await authorizeOwnedSession(req, reply, id, userId))) return reply;
       try {
         const done = await completeScreenCaptureSession({
+          sessionId: id,
+          ownerUserId: userId,
+          manifestJson: body.manifestJson,
+        });
+        return reply.code(200).send({ result: done });
+      } catch (err) {
+        return sendDirectCaptureError(reply, err);
+      }
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // POST /v1/capture/direct-sessions/:id/continuous-complete  (UC-3 Android
+  // Continuous Screen Capture)
+  //
+  // Seals a DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS session with its continuity
+  // manifest. The manifest is validated server-side (contiguous segment order
+  // enforced), tied to the uploaded segment bytes by digest, cross-checked
+  // against the declared parts, then the session seals through the canonical
+  // direct-capture completion into ONE Evidence. A non-continuous session is
+  // refused here.
+  // ---------------------------------------------------------------------------
+  app.post(
+    "/v1/capture/direct-sessions/:id/continuous-complete",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const userId = getAuthUserId(req);
+      const { id } = SessionParams.parse(req.params);
+      const body = ContinuousCompleteBody.parse(req.body ?? {});
+      if (!(await authorizeOwnedSession(req, reply, id, userId))) return reply;
+      try {
+        const done = await completeContinuousCaptureSession({
           sessionId: id,
           ownerUserId: userId,
           manifestJson: body.manifestJson,

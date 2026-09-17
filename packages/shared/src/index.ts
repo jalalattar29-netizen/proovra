@@ -2405,3 +2405,4 @@ export * from "./queue-job-correlation.js";
 export * from "./evidence-acquisition.js";
 export * from "./web-capture-manifest.js";
 export * from "./screen-capture-manifest.js";
+export * from "./screen-continuous-manifest.js";

@@ -1226,6 +1226,13 @@
       "reviewedAtUtc": "2026-09-17"
     },
     {
+      "routeId": "POST /v1/capture/direct-sessions/:id/continuous-complete",
+      "disposition": "PRODUCT_CONNECTED",
+      "reason": "UC-3 Android Continuous Screen Capture completion — its product consumer is the PROOVRA Android app (apps/mobile), whose native MediaProjection continuous-recording flow the web+mobile consumer analyzer does not statically resolve.",
+      "evidence": "reg services/api/src/routes/capture-trust.routes.ts (POST /v1/capture/direct-sessions/:id/continuous-complete), preHandler requireAuth + authorizeOwnedSession. Consumed by apps/mobile/src/continuous-capture.ts (continuousComplete) via the Android continuous-capture flow. It validates the continuity manifest (contiguous segment order enforced), classes the CAPTURE_MANIFEST part and seals through completeContinuousCaptureSession -> completeDirectCapture into ONE Evidence. Exercised end to end by services/api/test/uc3-continuous-capture.integration.test.ts (5 cases incl. omitted/non-contiguous segment refusals).",
+      "reviewedAtUtc": "2026-09-17"
+    },
+    {
       "routeId": "GET /v1/oauth/extension/authorize",
       "disposition": "PRODUCT_CONNECTED",
       "reason": "UC-1 first-party extension OAuth (Authorization Code + PKCE S256) — its product consumer is the PROOVRA browser extension (apps/extension), which the web+mobile consumer analyzer does not scan.",

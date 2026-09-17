@@ -59,6 +59,18 @@ export const EVIDENCE_ACQUISITION_MODES = [
    * generic mobile submission of a file PROOVRA did not observe being produced.
    */
   "DIRECT_SCREEN_CAPTURE_ANDROID",
+  /**
+   * UC-3 — the PROOVRA Android app captured a CONTINUOUS/streaming screen session
+   * (a bounded recording split into ORIGINAL segments), through MediaProjection
+   * consent, in a server-issued capture session. Like the UC-2 frame mode this is
+   * `isDirectCapture: true` and the server recomputes every segment's digest. It
+   * is a DISTINCT mode from `DIRECT_SCREEN_CAPTURE_ANDROID` (deliberate single
+   * frames) so downstream can state continuity truthfully — a continuous session
+   * can be COMPLETE or INTERRUPTED, and it never proves the displayed content,
+   * source app, device integrity, or that no gap occurred beyond what the
+   * continuity manifest records.
+   */
+  "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS",
 ] as const;
 export type EvidenceAcquisitionMode = (typeof EVIDENCE_ACQUISITION_MODES)[number];
 
@@ -144,6 +156,8 @@ export const ACQUISITION_LIMITATION_CODES = [
   "SCREEN_CONTENT_TRUTH_NOT_PROVEN",
   "SCREEN_SOURCE_APP_NOT_PROVEN",
   "SCREEN_DEVICE_INTEGRITY_NOT_VERIFIED",
+  // UC-3 Android continuous screen capture.
+  "SCREEN_SESSION_CONTINUITY_LIMITED",
 ] as const;
 export type AcquisitionLimitationCode =
   (typeof ACQUISITION_LIMITATION_CODES)[number];
@@ -171,6 +185,8 @@ export const ACQUISITION_LIMITATION_TEXT: Readonly<
     "PROOVRA does not prove which app produced what was on screen, or that the underlying app or server actually supplied the displayed data. Content displayed by a modified app, a mock-up or an overlay cannot be ruled out.",
   SCREEN_DEVICE_INTEGRITY_NOT_VERIFIED:
     "The integrity of the Android device and OS was not independently verified. A rooted, emulated or otherwise modified device cannot be ruled out; protected content (secure windows) may appear blank or be omitted.",
+  SCREEN_SESSION_CONTINUITY_LIMITED:
+    "A continuous screen capture is preserved as a sequence of segments. PROOVRA records the segment order and any interruptions it detected (a stop, an OS revocation, a device or orientation change); it does not guarantee that nothing occurred in a gap, and an interrupted session is recorded as such rather than as a complete one.",
 };
 
 const DESCRIPTORS: Readonly<Record<ProjectedAcquisitionMode, ModeDescriptor>> = {
@@ -224,6 +240,19 @@ const DESCRIPTORS: Readonly<Record<ProjectedAcquisitionMode, ModeDescriptor>> = 
       "SCREEN_CONTENT_TRUTH_NOT_PROVEN",
       "SCREEN_SOURCE_APP_NOT_PROVEN",
       "SCREEN_DEVICE_INTEGRITY_NOT_VERIFIED",
+    ],
+  },
+  DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS: {
+    category: "DIRECT_SCREEN_CAPTURE",
+    label: "Recorded from an Android screen with PROOVRA",
+    statement:
+      "PROOVRA recorded this Android device screen continuously through its app, using Android's screen-capture consent, in a server-issued capture session. The recording is preserved as ordered segments; PROOVRA independently recomputed the digest of every segment and established integrity when the session was completed.",
+    isDirectCapture: true,
+    limitations: [
+      "SCREEN_CONTENT_TRUTH_NOT_PROVEN",
+      "SCREEN_SOURCE_APP_NOT_PROVEN",
+      "SCREEN_DEVICE_INTEGRITY_NOT_VERIFIED",
+      "SCREEN_SESSION_CONTINUITY_LIMITED",
     ],
   },
   LEGACY_NOT_RECORDED: {
@@ -321,6 +350,9 @@ export function acquisitionTimestampLabel(
   }
   if (mode === "DIRECT_SCREEN_CAPTURE_ANDROID") {
     return "Captured from an Android screen at (server UTC)";
+  }
+  if (mode === "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS") {
+    return "Recorded from an Android screen at (server UTC)";
   }
   return "Recorded at submission (server UTC)";
 }

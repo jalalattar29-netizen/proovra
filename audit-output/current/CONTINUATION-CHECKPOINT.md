@@ -37,8 +37,8 @@ tree nobody is still editing.
 
 ```
 ROUTES / TENANCY
-ProductionRegisteredRoutes                  1154
-RegisteredRoutes                            1155
+ProductionRegisteredRoutes                  1155
+RegisteredRoutes                            1156
 TenantBindingUnresolved                        0
 TenantUnboundInsertRoutes                      0
 OrganizationAuthorizationUnresolved            0
@@ -48,8 +48,8 @@ ClassificationConflicts                        0
 AuthorizationUnresolved                        0
 
 MUTATION CLOSURE (eleven disjoint buckets, identity asserted)
-TerminalWriters                             1251
-ROUTE_ATTRIBUTED_REACHABLE                  1120
+TerminalWriters                             1252
+ROUTE_ATTRIBUTED_REACHABLE                  1121
 JOB_ATTRIBUTED_REACHABLE                     113
 MODULE_SCOPED_REACHABLE                        0
 REGISTERED_CLI                                 3
@@ -74,7 +74,7 @@ UnprocessedQueueFamilies                       0
 MutationClosurePass                         true
 
 PRODUCT (route disposition, from the generated map)
-ProductConsumedRoutes                        953
+ProductConsumedRoutes                        954
 NonProductDispositionedRoutes                201
 MissingProductUiReleaseRequired                0
 ConservationIdentityHolds                   true
@@ -151,6 +151,32 @@ workflow engine. The workspace-level `completeAccessReview` in
 `identity/access-review.service.ts` is a different, live function and stays.
 
 Result: DEAD_UNREACHABLE 0, UnwiredExecutableWriters 0, MutationClosurePass true.
+
+### 2026-09-17 — UC-3 ANDROID CONTINUOUS SCREEN CAPTURE (+1 route, +1 writer)
+
+The continuous/streaming screen-capture use case adds ONE product route,
+`POST /v1/capture/direct-sessions/:id/continuous-complete`
+(`services/api/src/routes/capture-trust.routes.ts` →
+`completeContinuousCaptureSession` in
+`services/api/src/services/capture-trust/continuous-capture.service.ts`), which
+seals ONE Evidence from N ORIGINAL segments plus a continuity manifest through
+the SAME canonical direct-capture completion pipeline (`completeDirectCapture`,
+reused — not a second completion authority) and then labels the manifest part.
+It is declared PRODUCT_CONNECTED in `route-dispositions.json` with consumer
+`apps/mobile/src/continuous-capture.ts`. Its two mobile UI call sites build a
+runtime capture-session path that cannot be static (the session is opened at
+START so segments stream during recording), so both are recorded in
+`dynamic-resolutions.json` — the same treatment every runtime-session path
+requires. The acquisition mode `DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS` is
+admitted by EXPAND constraint-swap migration
+`20280640000000_uc3_continuous_screen_capture_acquisition_mode` (registered in
+every gate; NOT applied to Production).
+
+Result deltas from the pre-UC-3 tree: ProductionRegisteredRoutes 1154→1155,
+RegisteredRoutes 1155→1156, ProductConsumedRoutes 953→954, TerminalWriters
+1251→1252, ROUTE_ATTRIBUTED_REACHABLE 1120→1121. UndisposedRoutes 0,
+DynamicUnresolvedConsumers 0, MutationClosurePass true, AuditEngineIntegrity
+PASS.
 
 `ReleaseBlockingClosure` is DERIVED from two inputs — open actionable findings
 and undisposed routes. Both are zero, so it prints PASS. That is a statement

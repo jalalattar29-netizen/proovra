@@ -3105,6 +3105,14 @@
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT to_regclass('public.extension_auth_codes') IS NOT NULL\"",
       "evidence": "UC-1 EXTENSION OAUTH (2026-09-17). One new table extension_auth_codes backing the first-party extension Authorization Code + PKCE S256 flow. The code is never stored (only its SHA-256); single-use via used_at_utc (atomic UPDATE ... WHERE used_at_utc IS NULL); short-lived; bound to client_id, redirect_uri and code_challenge; FK to users ON DELETE CASCADE. EXPAND: nothing existing is altered, no column changed, no row read or written. SAFE ON EITHER IMAGE: the pre-UC-1 image never touches the table; the UC-1 image's /v1/oauth/extension/authorize+token routes read it, so it must be applied before that image. Idempotent (CREATE TABLE/INDEX IF NOT EXISTS + a guarded FK ADD). It is NOT a second auth system: the token endpoint mints an ordinary short-lived AUTH_JWT the canonical requireAuth already accepts. Clean-boot rehearsed on disposable PostgreSQL 16; drift OK. ROLLBACK is code-first: revert the image and leave the table. NOT APPLIED TO PRODUCTION."
     },
+    "20280640000000_uc3_continuous_screen_capture_acquisition_mode": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM pg_constraint WHERE conname='evidence_acquisition_mode_check'\"",
+      "evidence": "UC-3 ANDROID CONTINUOUS SCREEN CAPTURE (2026-09-17). Widens the two acquisition_mode CHECK constraints (evidence_acquisition_mode_check, capture_sessions_acquisition_mode_check) to admit DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS — the third isDirectCapture acquisition mode, produced by the PROOVRA Android app recording a continuous screen session (ordered segments) via MediaProjection. EXPAND: a CHECK IN-list cannot be extended in place, so each constraint is DROPPED and RE-ADDED with the same name and a strictly WIDER value set (a constraint SWAP, not a removal — recognised by the artifact scanner's constraintDropsAreAllSwaps, so it carries no destructive classification). Every existing row already satisfies the narrower set. SAFE ON EITHER IMAGE: the pre-UC-3 image writes only the five prior modes, still admitted; the UC-3 image writes the new mode, admitted only by the widened constraint, so this must be applied BEFORE that image. Idempotent (DROP CONSTRAINT IF EXISTS + ADD). Clean-boot rehearsed on disposable PostgreSQL 16, drift OK. ROLLBACK is code-first. NOT APPLIED TO PRODUCTION."
+    },
     "20280630000000_uc2_screen_capture_acquisition_mode": {
       "classification": "EXPAND",
       "releaseWave": "SAFE_TO_APPLY_NOW",

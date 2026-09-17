@@ -48,6 +48,14 @@ test("every persisted mode resolves to itself, recorded at creation by default",
       assert.equal(a.isDirectCapture, true, `${mode} is a direct capture`);
       assert.ok(a.limitations.includes("SCREEN_CONTENT_TRUTH_NOT_PROVEN"));
       assert.ok(a.limitations.includes("SCREEN_DEVICE_INTEGRITY_NOT_VERIFIED"));
+    } else if (mode === "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS") {
+      // UC-3 — the THIRD direct-capture mode. PROOVRA's own Android adapter
+      // produced the segment bytes of a continuous session; its screen-capture
+      // limitations apply, plus the session-continuity caveat.
+      assert.equal(a.isDirectCapture, true, `${mode} is a direct capture`);
+      assert.ok(a.limitations.includes("SCREEN_CONTENT_TRUTH_NOT_PROVEN"));
+      assert.ok(a.limitations.includes("SCREEN_DEVICE_INTEGRITY_NOT_VERIFIED"));
+      assert.ok(a.limitations.includes("SCREEN_SESSION_CONTINUITY_LIMITED"));
     } else {
       assert.equal(a.isDirectCapture, false, `${mode} is not a direct capture in UC-0`);
       assert.ok(a.limitations.includes("CREATION_NOT_OBSERVED_BY_PROOVRA"));

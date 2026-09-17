@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 274,
-    "classifiedMigrations": 274,
+    "filesystemMigrations": 275,
+    "classifiedMigrations": 275,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 274,
+    "productionSnapshotUnknown": 275,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 274,
-    "classifiedMigrations": 274,
+    "filesystemMigrations": 275,
+    "classifiedMigrations": 275,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 274,
+    "productionSnapshotUnknown": 275,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 52,
+      "EXPAND": 53,
       "BACKFILL": 21,
       "CONTRACT_DROP": 12,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 63,
+      "SAFE_TO_APPLY_NOW": 64,
       "WAIT_FOR_BACKFILL_READINESS": 13,
       "CONTRACT_DROP_LATER": 12,
       "WAIT_FOR_RUNTIME_CUTOVER": 1
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 274
+    "ProductionMigrationStateUnknown": 275
   },
   "gateFailures": [],
   "migrations": [
@@ -21247,7 +21247,7 @@
       "checksumSha256": "9600c082bb60b92790c2b92148d08e09aacec5ee77e17cd5c0c451072f8739c3",
       "checksumSha256Raw": "9600c082bb60b92790c2b92148d08e09aacec5ee77e17cd5c0c451072f8739c3",
       "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
-      "gitTracked": false,
+      "gitTracked": true,
       "gitIntroductionCommit": null,
       "sqlChangedSinceIntroduction": false,
       "classification": "EXPAND",
@@ -21306,8 +21306,74 @@
       "evidence": "UC-2 ANDROID DIRECT SCREEN CAPTURE (2026-09-17). Widens the two acquisition_mode CHECK constraints (evidence_acquisition_mode_check, capture_sessions_acquisition_mode_check) to admit DIRECT_SCREEN_CAPTURE_ANDROID — the second isDirectCapture acquisition mode, produced by the PROOVRA Android app via MediaProjection in a server-issued capture session. EXPAND: a CHECK IN-list cannot be extended in place, so each constraint is DROPPED and RE-ADDED with the same name and a strictly WIDER value set (a constraint SWAP, not a removal — recognised as such by the artifact scanner's constraintDropsAreAllSwaps, so it carries no destructive classification). Every existing row already satisfies the narrower set, so it satisfies the wider one. SAFE ON EITHER IMAGE: the pre-UC-2 image writes only the four prior modes, still admitted; the UC-2 image writes the new mode, admitted only by the widened constraint, so this must be applied BEFORE that image. Idempotent (DROP CONSTRAINT IF EXISTS + ADD). Clean-boot rehearsed on disposable PostgreSQL 16, drift OK. ROLLBACK is code-first: revert the image and leave the widened constraint. NOT APPLIED TO PRODUCTION."
     },
     {
-      "name": "email_password_auth",
+      "name": "20280640000000_uc3_continuous_screen_capture_acquisition_mode",
       "order": 273,
+      "sqlPresent": true,
+      "byteLength": 2109,
+      "checksumSha256": "f45cf4b859ba955ae74b60a7d8fa617eb9b655a82ab0ac255098fbeff5470830",
+      "checksumSha256Raw": "f45cf4b859ba955ae74b60a7d8fa617eb9b655a82ab0ac255098fbeff5470830",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": false,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "REPAIR",
+      "sqlShapeEvidence": "alters existing objects only (defaults / nullability / constraints / indexes / type conversion); creates nothing, drops nothing, mutates no pre-existing rows",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "capture_sessions",
+          "evidence"
+        ],
+        "addedColumns": [],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [],
+        "droppedIndexes": [],
+        "addedConstraints": [
+          "capture_sessions_acquisition_mode_check",
+          "evidence_acquisition_mode_check"
+        ],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20260131235343_init",
+        "20260510120000_add_capture_sessions"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM pg_constraint WHERE conname='evidence_acquisition_mode_check'\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "UC-3 ANDROID CONTINUOUS SCREEN CAPTURE (2026-09-17). Widens the two acquisition_mode CHECK constraints (evidence_acquisition_mode_check, capture_sessions_acquisition_mode_check) to admit DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS — the third isDirectCapture acquisition mode, produced by the PROOVRA Android app recording a continuous screen session (ordered segments) via MediaProjection. EXPAND: a CHECK IN-list cannot be extended in place, so each constraint is DROPPED and RE-ADDED with the same name and a strictly WIDER value set (a constraint SWAP, not a removal — recognised by the artifact scanner's constraintDropsAreAllSwaps, so it carries no destructive classification). Every existing row already satisfies the narrower set. SAFE ON EITHER IMAGE: the pre-UC-3 image writes only the five prior modes, still admitted; the UC-3 image writes the new mode, admitted only by the widened constraint, so this must be applied BEFORE that image. Idempotent (DROP CONSTRAINT IF EXISTS + ADD). Clean-boot rehearsed on disposable PostgreSQL 16, drift OK. ROLLBACK is code-first. NOT APPLIED TO PRODUCTION."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 274,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

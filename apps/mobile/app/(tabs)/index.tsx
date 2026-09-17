@@ -46,6 +46,17 @@ export default function HomeScreen() {
               </Text>
             </Pressable>
           )}
+
+          {Platform.OS === "android" && (
+            <Pressable
+              style={styles.heroSecondaryButton}
+              onPress={() => router.push("/continuous-capture")}
+            >
+              <Text style={[styles.heroButtonText, { fontFamily: fontFamilyBold }]}>
+                Continuous Screen Capture
+              </Text>
+            </Pressable>
+          )}
         </View>
 
         <Text

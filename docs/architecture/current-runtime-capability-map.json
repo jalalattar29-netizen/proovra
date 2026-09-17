@@ -4,18 +4,18 @@
   "generator": "services/api/scripts/generate-runtime-capability-map.mjs",
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "3bac000a27b54b5cb5d93fa2f289293508372f4566003d736343ac67212204bc",
-  "routeInventoryHash": "8061f3f2942058a3baea958e660ddea8a1da809d6095096f7be3a0d2771eae2d",
-  "consumerInventoryHash": "a0f43980e5c9783006f6c4895ac2534152b44ae111f968b6ddcf79f8ba69779c",
-  "dispositionsHash": "207deeffb74ad31cedbb1b389e1a071e33cc0638b92cc2263c8038cfe9b2ef65",
+  "routeInventoryHash": "8f295f914e42e852ffca34d198868e273e5ec6edcde9e19e68cfa1132d78d154",
+  "consumerInventoryHash": "0eca6fc563d1a3592c6a3905603bb503fee4efde393dc007a8a27700ff668dd6",
+  "dispositionsHash": "3d02fe259d3b7e3c281aec0df6da9194403d68cc7d98c8a482b54864296cd965",
   "totals": {
-    "RegisteredRoutes": 1155,
-    "ProductionRegisteredRoutes": 1154,
+    "RegisteredRoutes": 1156,
+    "ProductionRegisteredRoutes": 1155,
     "DevelopmentOnlyRoutes": 1,
-    "ProductConsumedRoutes": 953,
+    "ProductConsumedRoutes": 954,
     "NonProductDispositionedRoutes": 201,
     "UndisposedRoutes": 0,
     "ConservationIdentityHolds": true,
-    "ProductConsumerRoutes": 953,
+    "ProductConsumerRoutes": 954,
     "MachineOnlyConsumerRoutes": 6,
     "NoConsumerRoutes": 196,
     "AuthorizationUnresolved": 0,
@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 30
     },
-    "TerminalWriters": 1251,
-    "ReachableSensitiveMutations": 1244,
-    "ClassifiedSensitiveMutations": 1244,
+    "TerminalWriters": 1252,
+    "ReachableSensitiveMutations": 1245,
+    "ClassifiedSensitiveMutations": 1245,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 0,
     "NonRequestWriters": 7,
@@ -77,7 +77,7 @@
       "WORKSPACE": 55,
       "WORKSPACE_MEMBERSHIP_INVITATION": 52,
       "CASE": 79,
-      "EVIDENCE_CUSTODY_FINALIZATION": 288,
+      "EVIDENCE_CUSTODY_FINALIZATION": 289,
       "LEGAL_HOLD_RETENTION_DELETION": 51,
       "EXTERNAL_REVIEW_INTAKE_SHARE": 78,
       "BILLING_SUBSCRIPTION_SEAT": 62,
@@ -100,7 +100,7 @@
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1120,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1121,
       "JOB_ATTRIBUTED_REACHABLE": 113,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 3,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 8642,
-      "UNRESOLVED_IDENTIFIER": 1085
+      "METHOD_ON_VALUE": 8657,
+      "UNRESOLVED_IDENTIFIER": 1086
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": true,
@@ -134,7 +134,7 @@
     "byMandateDisposition": {
       "DEVELOPMENT_ONLY": 2,
       "UNDISPOSED": 0,
-      "PRODUCT_CONNECTED": 956,
+      "PRODUCT_CONNECTED": 957,
       "EXTERNAL_API": 30,
       "MACHINE_OR_CRON": 21,
       "WEBHOOK": 4,
@@ -146,13 +146,13 @@
       "MISSING_PRODUCT_UI_POST_RELEASE": 30
     },
     "MandateDispositionConservationHolds": true,
-    "TenantBindingResolved": 1153,
+    "TenantBindingResolved": 1154,
     "TenantBindingUnresolved": 0,
     "byDataScope": {
       "PUBLIC_DATA": 16,
       "GLOBAL_USER_SELF": 58,
       "PLATFORM_GLOBAL": 52,
-      "WORKSPACE_SCOPED": 689,
+      "WORKSPACE_SCOPED": 690,
       "ORGANIZATION_SCOPED": 105,
       "MULTI_TENANT_PLATFORM_ADMIN": 119,
       "TOKEN_SCOPED": 45,
@@ -161,11 +161,11 @@
       "NO_DATA_ACCESS": 49
     },
     "TenantUnboundInsertRoutes": 0,
-    "OrganizationRoutesMeasured": 223,
+    "OrganizationRoutesMeasured": 224,
     "OrganizationAuthorizationUnresolved": 0,
     "OrganizationRoutesMissingRequiredAuthorization": 0,
     "CurrentWorkspaceIdAuthorizationUses": 0,
-    "ClassifiedSecurityRoutes": 1153,
+    "ClassifiedSecurityRoutes": 1154,
     "UnclassifiedSecurityRoutes": 0,
     "DevelopmentGatedRoutes": 1,
     "SecurityFamilyConservationHolds": true,
@@ -183,8 +183,8 @@
         "tagged": 413
       },
       "WORKSPACE_AUTHORIZED": {
-        "primary": 378,
-        "tagged": 378
+        "primary": 379,
+        "tagged": 379
       },
       "ORGANIZATION_AUTHORIZED": {
         "primary": 105,
@@ -240,24 +240,24 @@
       }
     }
   },
-  "totalRoutes": 1155,
+  "totalRoutes": 1156,
   "classificationCounts": {
     "COMPATIBILITY_TEMPORARY": 17,
     "INTERNAL_REQUIRED": 185,
-    "TARGET_COMPLETE": 953
+    "TARGET_COMPLETE": 954
   },
   "evidenceLevelCounts": {
     "BEHAVIORALLY_PROVEN": 401,
     "BEHAVIORAL_SERVICE_ONLY": 15,
     "STRUCTURALLY_CONNECTED_ONLY": 516,
-    "UNPROVEN": 223
+    "UNPROVEN": 224
   },
   "verticalCounts": {
     "ENTERPRISE_IDENTITY_SECURITY": 178,
     "EVIDENCE_OPERATIONS": 277,
     "OPERATIONS_AUTOMATION": 1,
     "OPERATIONS_INTELLIGENCE": 126,
-    "PLATFORM_CORE": 429,
+    "PLATFORM_CORE": 430,
     "TRUST_ADMINISTRATION": 144
   },
   "capabilities": [
@@ -8343,7 +8343,7 @@
       "method": "POST",
       "route": "/v1/capture/direct-sessions",
       "registeringFile": "services/api/src/routes/capture-trust.routes.ts",
-      "productConsumer": "apps/mobile/src/direct-capture.ts:46",
+      "productConsumer": "apps/mobile/src/direct-capture.ts:55",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -8367,7 +8367,19 @@
       "method": "POST",
       "route": "/v1/capture/direct-sessions/:id/complete",
       "registeringFile": "services/api/src/routes/capture-trust.routes.ts",
-      "productConsumer": "apps/mobile/src/direct-capture.ts:147",
+      "productConsumer": "apps/mobile/src/direct-capture.ts:156",
+      "machineConsumer": null,
+      "authorization": "MULTI_GATE",
+      "classification": "TARGET_COMPLETE",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
+      "capabilityId": "POST:/v1/capture/direct-sessions/:id/continuous-complete",
+      "vertical": "PLATFORM_CORE",
+      "method": "POST",
+      "route": "/v1/capture/direct-sessions/:id/continuous-complete",
+      "registeringFile": "services/api/src/routes/capture-trust.routes.ts",
+      "productConsumer": "apps/mobile/src/continuous-capture.ts:174",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -8379,7 +8391,7 @@
       "method": "POST",
       "route": "/v1/capture/direct-sessions/:id/evidence",
       "registeringFile": "services/api/src/routes/capture-trust.routes.ts",
-      "productConsumer": "apps/mobile/src/direct-capture.ts:71",
+      "productConsumer": "apps/mobile/src/direct-capture.ts:80",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -8391,7 +8403,7 @@
       "method": "POST",
       "route": "/v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
       "registeringFile": "services/api/src/routes/capture-trust.routes.ts",
-      "productConsumer": "apps/mobile/src/direct-capture.ts:109",
+      "productConsumer": "apps/mobile/src/direct-capture.ts:118",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -9435,7 +9447,7 @@
       "method": "POST",
       "route": "/v1/evidence/:id/parts",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
-      "productConsumer": "apps/mobile/src/direct-capture.ts:121",
+      "productConsumer": "apps/mobile/src/direct-capture.ts:130",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -16099,6 +16111,7 @@
       "insideTransaction": false,
       "entryRoutes": [
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
         "POST /v1/capture/direct-sessions/:id/web-complete",
         "POST /v1/evidence/:evidenceId/media-intelligence/run",
@@ -16366,6 +16379,7 @@
       "insideTransaction": false,
       "entryRoutes": [
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
         "POST /v1/capture/direct-sessions/:id/web-complete",
         "POST /v1/evidence/:id/complete",
@@ -16475,6 +16489,7 @@
       "insideTransaction": false,
       "entryRoutes": [
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
         "POST /v1/capture/direct-sessions/:id/web-complete",
         "POST /v1/evidence/:evidenceId/derived-assets/run",
@@ -16591,6 +16606,7 @@
       "insideTransaction": false,
       "entryRoutes": [
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
         "POST /v1/capture/direct-sessions/:id/web-complete",
         "POST /v1/evidence/:id/complete",
@@ -16632,6 +16648,7 @@
       "insideTransaction": false,
       "entryRoutes": [
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
         "POST /v1/capture/direct-sessions/:id/web-complete",
         "POST /v1/evidence/:evidenceId/media-intelligence/run",
@@ -16740,6 +16757,7 @@
       "insideTransaction": false,
       "entryRoutes": [
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
         "POST /v1/capture/direct-sessions/:id/web-complete",
         "POST /v1/evidence/:id/complete",
@@ -25071,6 +25089,7 @@
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/attestation",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
@@ -26058,6 +26077,7 @@
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/attestation",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
@@ -27045,6 +27065,7 @@
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/attestation",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
@@ -28413,6 +28434,7 @@
       "entryRoutes": [
         "POST /v1/automation/runs/process",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
         "POST /v1/capture/direct-sessions/:id/web-complete",
@@ -29156,6 +29178,7 @@
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/attestation",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
@@ -30182,6 +30205,7 @@
       "insideTransaction": false,
       "entryRoutes": [
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
         "POST /v1/capture/direct-sessions/:id/web-complete",
         "POST /v1/evidence/:id/complete",
@@ -30259,6 +30283,7 @@
       "insideTransaction": false,
       "entryRoutes": [
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
         "POST /v1/capture/direct-sessions/:id/web-complete",
         "POST /v1/evidence/:id/complete",
@@ -30884,6 +30909,39 @@
       }
     },
     {
+      "writerId": "services/api/src/services/capture-trust/continuous-capture.service.ts#evidencePart.updateMany@132",
+      "terminalLocation": "services/api/src/services/capture-trust/continuous-capture.service.ts:132",
+      "file": "services/api/src/services/capture-trust/continuous-capture.service.ts",
+      "enclosingDeclaration": "completeContinuousCaptureSession",
+      "kind": "DATABASE",
+      "target": "evidencePart",
+      "mutationKind": "updateMany",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/capture/direct-sessions/:id/continuous-complete"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/capture-trust.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
       "writerId": "services/api/src/services/capture-trust/device-identity.service.ts#device.create@150",
       "terminalLocation": "services/api/src/services/capture-trust/device-identity.service.ts:150",
       "file": "services/api/src/services/capture-trust/device-identity.service.ts",
@@ -30950,8 +31008,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts#captureSession.create@229",
-      "terminalLocation": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts:229",
+      "writerId": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts#captureSession.create@240",
+      "terminalLocation": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts:240",
       "file": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts",
       "enclosingDeclaration": "openDirectCaptureSession",
       "kind": "DATABASE",
@@ -30983,8 +31041,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts#captureSession.update@379",
-      "terminalLocation": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts:379",
+      "writerId": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts#captureSession.update@390",
+      "terminalLocation": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts:390",
       "file": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts",
       "enclosingDeclaration": "reserveDirectCaptureEvidence",
       "kind": "DATABASE",
@@ -31016,8 +31074,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts#captureSession.updateMany@305",
-      "terminalLocation": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts:305",
+      "writerId": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts#captureSession.updateMany@316",
+      "terminalLocation": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts:316",
       "file": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts",
       "enclosingDeclaration": "interruptSession",
       "kind": "DATABASE",
@@ -31028,6 +31086,7 @@
       "entryRoutes": [
         "POST /v1/capture/direct-sessions/:id/attestation",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
@@ -31054,8 +31113,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts#captureSession.updateMany@724",
-      "terminalLocation": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts:724",
+      "writerId": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts#captureSession.updateMany@735",
+      "terminalLocation": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts:735",
       "file": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts",
       "enclosingDeclaration": "completeDirectCapture",
       "kind": "DATABASE",
@@ -31065,6 +31124,7 @@
       "insideTransaction": false,
       "entryRoutes": [
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
         "POST /v1/capture/direct-sessions/:id/web-complete"
       ],
@@ -31137,6 +31197,7 @@
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/attestation",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
@@ -33892,6 +33953,7 @@
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/attestation",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
@@ -36228,6 +36290,7 @@
       "insideTransaction": false,
       "entryRoutes": [
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
         "POST /v1/capture/direct-sessions/:id/web-complete",
         "POST /v1/evidence/:id/complete",
@@ -36267,6 +36330,7 @@
       "insideTransaction": true,
       "entryRoutes": [
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
         "POST /v1/capture/direct-sessions/:id/web-complete",
         "POST /v1/evidence/:id/complete",
@@ -36306,6 +36370,7 @@
       "insideTransaction": false,
       "entryRoutes": [
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
         "POST /v1/capture/direct-sessions/:id/web-complete",
         "POST /v1/evidence/:id/complete",
@@ -36345,6 +36410,7 @@
       "insideTransaction": true,
       "entryRoutes": [
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
         "POST /v1/capture/direct-sessions/:id/web-complete",
         "POST /v1/evidence/:id/complete",
@@ -37281,8 +37347,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence.service.ts#evidence.create@424",
-      "terminalLocation": "services/api/src/services/evidence.service.ts:424",
+      "writerId": "services/api/src/services/evidence.service.ts#evidence.create@426",
+      "terminalLocation": "services/api/src/services/evidence.service.ts:426",
       "file": "services/api/src/services/evidence.service.ts",
       "enclosingDeclaration": "createEvidence",
       "kind": "DATABASE",
@@ -37318,8 +37384,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence.service.ts#evidence.update@564",
-      "terminalLocation": "services/api/src/services/evidence.service.ts:564",
+      "writerId": "services/api/src/services/evidence.service.ts#evidence.update@566",
+      "terminalLocation": "services/api/src/services/evidence.service.ts:566",
       "file": "services/api/src/services/evidence.service.ts",
       "enclosingDeclaration": "createEvidence",
       "kind": "DATABASE",
@@ -44161,6 +44227,7 @@
       "insideTransaction": false,
       "entryRoutes": [
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
         "POST /v1/capture/direct-sessions/:id/web-complete",
@@ -44244,6 +44311,7 @@
       "insideTransaction": false,
       "entryRoutes": [
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
         "POST /v1/capture/direct-sessions/:id/web-complete",
@@ -44331,6 +44399,7 @@
       "insideTransaction": false,
       "entryRoutes": [
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
         "POST /v1/capture/direct-sessions/:id/web-complete",
@@ -44418,6 +44487,7 @@
       "insideTransaction": false,
       "entryRoutes": [
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
         "POST /v1/capture/direct-sessions/:id/web-complete",
@@ -44505,6 +44575,7 @@
       "insideTransaction": false,
       "entryRoutes": [
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
         "POST /v1/capture/direct-sessions/:id/web-complete",
@@ -44757,6 +44828,7 @@
       "insideTransaction": false,
       "entryRoutes": [
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
         "POST /v1/capture/direct-sessions/:id/web-complete",
@@ -44877,6 +44949,7 @@
       "insideTransaction": false,
       "entryRoutes": [
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
         "POST /v1/capture/direct-sessions/:id/web-complete",
@@ -44964,6 +45037,7 @@
       "insideTransaction": false,
       "entryRoutes": [
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
         "POST /v1/capture/direct-sessions/:id/web-complete",
@@ -45051,6 +45125,7 @@
       "insideTransaction": false,
       "entryRoutes": [
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
         "POST /v1/capture/direct-sessions/:id/web-complete",
@@ -45138,6 +45213,7 @@
       "insideTransaction": false,
       "entryRoutes": [
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
         "POST /v1/capture/direct-sessions/:id/web-complete",
         "POST /v1/evidence/:id/complete",
@@ -47755,6 +47831,7 @@
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/attestation",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
@@ -48680,6 +48757,7 @@
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/attestation",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
@@ -49608,6 +49686,7 @@
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/attestation",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
@@ -50533,6 +50612,7 @@
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/attestation",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
@@ -51458,6 +51538,7 @@
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/attestation",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
@@ -52383,6 +52464,7 @@
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/attestation",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
@@ -53308,6 +53390,7 @@
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/attestation",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
@@ -54233,6 +54316,7 @@
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/attestation",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
@@ -55161,6 +55245,7 @@
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/attestation",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
@@ -56086,6 +56171,7 @@
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/attestation",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
@@ -57525,6 +57611,7 @@
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/attestation",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
@@ -58450,6 +58537,7 @@
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/attestation",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
@@ -59375,6 +59463,7 @@
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/attestation",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
@@ -60300,6 +60389,7 @@
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/attestation",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
@@ -61225,6 +61315,7 @@
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/attestation",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
@@ -62150,6 +62241,7 @@
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/attestation",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
@@ -63075,6 +63167,7 @@
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/attestation",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
@@ -64003,6 +64096,7 @@
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/attestation",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
@@ -64931,6 +65025,7 @@
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/attestation",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
@@ -65856,6 +65951,7 @@
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/attestation",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
@@ -66784,6 +66880,7 @@
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/attestation",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
@@ -67709,6 +67806,7 @@
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/attestation",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
@@ -68637,6 +68735,7 @@
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/attestation",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
@@ -71781,6 +71880,7 @@
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/attestation",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
@@ -73846,6 +73946,7 @@
       "insideTransaction": false,
       "entryRoutes": [
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
         "POST /v1/capture/direct-sessions/:id/web-complete",
@@ -73892,6 +73993,7 @@
       "insideTransaction": false,
       "entryRoutes": [
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
         "POST /v1/capture/direct-sessions/:id/web-complete",
         "POST /v1/evidence/:id/complete",
@@ -75748,6 +75850,7 @@
       "entryRoutes": [
         "PATCH /v1/evidence/:id/label",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
         "POST /v1/capture/direct-sessions/:id/web-complete",
         "POST /v1/evidence-requests/:id/responses/:responseId/request-more",
@@ -75803,6 +75906,7 @@
       "entryRoutes": [
         "PATCH /v1/evidence/:id/label",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
         "POST /v1/capture/direct-sessions/:id/web-complete",
         "POST /v1/evidence-requests/:id/responses/:responseId/request-more",
@@ -76058,6 +76162,7 @@
       "insideTransaction": false,
       "entryRoutes": [
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
         "POST /v1/capture/direct-sessions/:id/web-complete",
         "POST /v1/evidence/:id/complete",
@@ -76097,6 +76202,7 @@
       "insideTransaction": false,
       "entryRoutes": [
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
         "POST /v1/capture/direct-sessions/:id/web-complete",
         "POST /v1/evidence/:id/complete",
@@ -76136,6 +76242,7 @@
       "insideTransaction": false,
       "entryRoutes": [
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
         "POST /v1/capture/direct-sessions/:id/web-complete",
         "POST /v1/evidence/:id/complete",
@@ -77744,6 +77851,7 @@
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/attestation",
         "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
         "POST /v1/capture/direct-sessions/:id/screen-complete",
@@ -93109,7 +93217,7 @@
       "method": "GET",
       "path": "/v1/capture/devices",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:265",
+      "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:274",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -93170,7 +93278,7 @@
       "method": "GET",
       "path": "/v1/capture/devices/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:284",
+      "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:293",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -93414,7 +93522,7 @@
       "method": "GET",
       "path": "/v1/capture/sessions/:id/trust-timeline",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:562",
+      "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:603",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -112227,7 +112335,7 @@
       "method": "GET",
       "path": "/v1/provenance/:evidenceId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:588",
+      "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:629",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -129195,7 +129303,7 @@
       "method": "POST",
       "path": "/v1/capture/devices",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:232",
+      "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:241",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -129257,7 +129365,7 @@
       "method": "POST",
       "path": "/v1/capture/devices/:id/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:300",
+      "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:309",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -129326,7 +129434,7 @@
       "method": "POST",
       "path": "/v1/capture/direct-sessions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:347",
+      "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:356",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeDirectCapture -> services/api/src/routes/capture-trust.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -129339,7 +129447,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/direct-capture.ts",
-          "line": 46,
+          "line": 55,
           "caller": "openDirectCaptureSession",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -129349,7 +129457,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/direct-capture.ts:46 (openDirectCaptureSession, MOBILE)",
+      "dispositionEvidence": "apps/mobile/src/direct-capture.ts:55 (openDirectCaptureSession, MOBILE)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -129425,7 +129533,7 @@
       "method": "POST",
       "path": "/v1/capture/direct-sessions/:id/attestation",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:459",
+      "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:468",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOwnedSession -> services/api/src/routes/capture-trust.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -129493,7 +129601,7 @@
       "method": "POST",
       "path": "/v1/capture/direct-sessions/:id/complete",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:483",
+      "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:492",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOwnedSession -> services/api/src/routes/capture-trust.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -129506,7 +129614,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/direct-capture.ts",
-          "line": 147,
+          "line": 156,
           "caller": "completeDirectCapture",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -129516,7 +129624,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/direct-capture.ts:147 (completeDirectCapture, MOBILE)",
+      "dispositionEvidence": "apps/mobile/src/direct-capture.ts:156 (completeDirectCapture, MOBILE)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -129606,11 +129714,129 @@
       "tenantUnboundInsertSites": []
     },
     {
+      "routeId": "POST /v1/capture/direct-sessions/:id/continuous-complete",
+      "method": "POST",
+      "path": "/v1/capture/direct-sessions/:id/continuous-complete",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:579",
+      "authorizationClass": "MULTI_GATE",
+      "authorizationEvidence": [
+        "authorizeOwnedSession -> services/api/src/routes/capture-trust.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
+        "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "CAPABILITY_GATED",
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [
+        {
+          "file": "apps/mobile/src/continuous-capture.ts",
+          "line": 174,
+          "caller": "finalizeContinuousCapture",
+          "class": "MOBILE",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
+      "nonProductConsumers": [],
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/mobile/src/continuous-capture.ts:174 (finalizeContinuousCapture, MOBILE)",
+      "dispositionReason": "reached from a product surface",
+      "replacement": null,
+      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "primarySecurityFamily": "WORKSPACE_AUTHORIZED",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "WORKSPACE_SCOPED",
+      "tenantType": "WORKSPACE",
+      "tenantBindingAuthority": "authorizeOrFail + evaluateMemberAccess + teamMemberStatusGrantsAccess",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "authenticatedSession",
+        "automationRule",
+        "captureSession",
+        "captureTrustEventRecord",
+        "custodyEvent",
+        "enterpriseContract",
+        "entitlement",
+        "evidence",
+        "evidenceCreditLedgerEntry",
+        "evidenceEntity",
+        "evidenceExtractedText",
+        "evidenceLegalHold",
+        "evidencePart",
+        "evidencePartDerivedAsset",
+        "evidenceWorkflowInstanceEvidence",
+        "fileSecurityScan",
+        "organization",
+        "organizationSecurityPolicy",
+        "report",
+        "reportGenerationRequest",
+        "revokedSession",
+        "ssoConnection",
+        "subscription",
+        "supportAccessGrant",
+        "team",
+        "teamMember",
+        "uploadSession",
+        "user",
+        "verificationPackage",
+        "webhookEndpoint",
+        "workflowIntakeSession",
+        "workspaceGovernancePolicy"
+      ],
+      "modelsWritten": [
+        "automationRun",
+        "captureSession",
+        "captureTrustEventRecord",
+        "custodyEvent",
+        "entitlement",
+        "evidence",
+        "evidenceCreditLedgerEntry",
+        "evidencePart",
+        "evidenceSearchDocument",
+        "fileSecurityScan",
+        "integrationWebhookDelivery",
+        "reportGenerationRequest",
+        "uploadSession",
+        "webhookEndpoint"
+      ],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/middleware/authorize.ts: the canonical authorization evaluator (ACTIVE membership + tenant + capability)",
+        "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
+        "services/api/src/services/identity/access-policy.service.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts: evidence.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/billing/commercial-context.service.ts: subscription.findMany — no tenant or self predicate",
+        "services/api/src/services/billing/commercial-context.service.ts: subscription.findFirst — no tenant or self predicate",
+        "services/api/src/services/billing/commercial-context.service.ts: subscription.findFirst — no tenant or self predicate",
+        "services/api/src/services/reliability/upload-session.service.ts: uploadSession.findUnique — no tenant or self predicate"
+      ],
+      "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
+      "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
+      "crossTenantRefusalSemantics": "refuses with 403/404",
+      "tenantStampingInsertSites": [
+        "services/api/src/services/capture-trust/trust-event.service.ts: captureTrustEventRecord.create",
+        "packages/shared-runtime/src/reports/report-generation-request.ts: reportGenerationRequest.create",
+        "services/api/src/services/integrations/webhook-dispatcher.ts: integrationWebhookDelivery.create",
+        "services/api/src/services/security/file-security-scan.service.ts: fileSecurityScan.create",
+        "services/api/src/services/security/file-security-scan.service.ts: fileSecurityScan.create"
+      ],
+      "tenantUnboundInsertSites": []
+    },
+    {
       "routeId": "POST /v1/capture/direct-sessions/:id/evidence",
       "method": "POST",
       "path": "/v1/capture/direct-sessions/:id/evidence",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:393",
+      "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:402",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOwnedSession -> services/api/src/routes/capture-trust.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -129623,7 +129849,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/direct-capture.ts",
-          "line": 71,
+          "line": 80,
           "caller": "reserveDirectCaptureEvidence",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -129633,7 +129859,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/direct-capture.ts:71 (reserveDirectCaptureEvidence, MOBILE)",
+      "dispositionEvidence": "apps/mobile/src/direct-capture.ts:80 (reserveDirectCaptureEvidence, MOBILE)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -129717,7 +129943,7 @@
       "method": "POST",
       "path": "/v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:421",
+      "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:430",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOwnedSession -> services/api/src/routes/capture-trust.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -129730,7 +129956,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/direct-capture.ts",
-          "line": 109,
+          "line": 118,
           "caller": "uploadDirectCaptureItem",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -129740,7 +129966,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/direct-capture.ts:109 (uploadDirectCaptureItem, MOBILE)",
+      "dispositionEvidence": "apps/mobile/src/direct-capture.ts:118 (uploadDirectCaptureItem, MOBILE)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -129792,7 +130018,7 @@
       "method": "POST",
       "path": "/v1/capture/direct-sessions/:id/screen-complete",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:538",
+      "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:547",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOwnedSession -> services/api/src/routes/capture-trust.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -129910,7 +130136,7 @@
       "method": "POST",
       "path": "/v1/capture/direct-sessions/:id/web-complete",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:507",
+      "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:516",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOwnedSession -> services/api/src/routes/capture-trust.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -130019,7 +130245,7 @@
       "method": "POST",
       "path": "/v1/capture/mobile/ingest",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:333",
+      "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:342",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -135692,7 +135918,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/direct-capture.ts",
-          "line": 121,
+          "line": 130,
           "caller": "uploadDirectCaptureItem",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -135710,7 +135936,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/direct-capture.ts:121 (uploadDirectCaptureItem, MOBILE); apps/web/app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts:768 (finalizeSession, WEB)",
+      "dispositionEvidence": "apps/mobile/src/direct-capture.ts:130 (uploadDirectCaptureItem, MOBILE); apps/web/app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts:768 (finalizeSession, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",

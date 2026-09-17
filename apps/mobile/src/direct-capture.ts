@@ -35,10 +35,19 @@ export type DirectCaptureSession = {
   expiresAtUtc: string;
 };
 
-export type DirectCaptureItemSource = "CAMERA" | "FILE_PICKER" | "SCREEN_FRAME" | "SCREEN_MANIFEST";
+export type DirectCaptureItemSource =
+  | "CAMERA"
+  | "FILE_PICKER"
+  | "SCREEN_FRAME"
+  | "SCREEN_MANIFEST"
+  | "SCREEN_SEGMENT"
+  | "CONTINUOUS_MANIFEST";
 
 /** Acquisition modes the mobile app may open a direct-capture session for. */
-export type DirectCaptureSessionMode = "PROOVRA_MOBILE_APP" | "DIRECT_SCREEN_CAPTURE_ANDROID";
+export type DirectCaptureSessionMode =
+  | "PROOVRA_MOBILE_APP"
+  | "DIRECT_SCREEN_CAPTURE_ANDROID"
+  | "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS";
 
 export async function openDirectCaptureSession(
   mode: DirectCaptureSessionMode = "PROOVRA_MOBILE_APP",
