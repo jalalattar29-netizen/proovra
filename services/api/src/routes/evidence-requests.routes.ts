@@ -177,10 +177,15 @@ async function assigneeBelongsToWorkspace(
   if (!assignedReviewerUserId) return true;
   const target = await prisma.teamMember.findUnique({
     where: { teamId_userId: { teamId, userId: assignedReviewerUserId } },
-    select: { userId: true },
+    select: { status: true },
   });
-  return target !== null;
+  // D36 — a suspended or revoked member cannot be handed a request (and
+  // would be emailed its title and link on send).
+  return target?.status === "ACTIVE";
 }
+
+/** D36 — a cancelled or closed request is finished; it takes no assignee. */
+const UNASSIGNABLE_REQUEST_STATUSES: ReadonlySet<string> = new Set(["CANCELLED", "CLOSED"]);
 
 function sendAssigneeNotMember(reply: FastifyReply): void {
   reply.code(400).send({
@@ -809,24 +814,19 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       const ok = await requireMember(req, reply, existing.teamId, "evidence_request.assign");
       if (!ok) return;
 
-      // Verify the target is a workspace member (when not null).
-      if (body.assignedReviewerUserId) {
-        const target = await prisma.teamMember.findUnique({
-          where: {
-            teamId_userId: {
-              teamId: existing.teamId,
-              userId: body.assignedReviewerUserId,
-            },
+      if (UNASSIGNABLE_REQUEST_STATUSES.has(existing.status)) {
+        return reply.code(409).send({
+          error: {
+            code: "request_not_assignable",
+            message: "A cancelled or closed request cannot be reassigned.",
           },
         });
-        if (!target) {
-          return reply.code(400).send({
-            error: {
-              code: "assignee_not_workspace_member",
-              message: "Assigned reviewer must be a member of the workspace.",
-            },
-          });
-        }
+      }
+
+      // The target must be an ACTIVE member of the request's workspace (the
+      // same rule create and PATCH apply).
+      if (!(await assigneeBelongsToWorkspace(existing.teamId, body.assignedReviewerUserId))) {
+        return sendAssigneeNotMember(reply);
       }
 
       const updated = await prisma.evidenceRequest.update({

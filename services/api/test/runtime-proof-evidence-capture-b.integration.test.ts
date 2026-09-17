@@ -279,6 +279,32 @@ describe("K3 runtime proof — evidence capture (part B)", () => {
       expect(assigned).toMatchObject({ actorUserId: teamA.memberUserId, payload: { assignedReviewerUserId: teamA.adminUserId } });
     });
 
+    it("POST /v1/evidence-requests/:id/assign — a suspended member and a finished request are refused (D36)", async () => {
+      const { teamA } = harness.fixtures;
+      const request = await createRequest("Request for D36");
+      await prisma.teamMember.update({
+        where: { teamId_userId: { teamId: teamA.teamId, userId: teamA.viewerUserId } },
+        data: { status: "SUSPENDED" },
+      });
+      try {
+        const res = await call("POST", `${base}/${request.id}/assign`, teamA.memberToken, { assignedReviewerUserId: teamA.viewerUserId });
+        expect(res.statusCode, res.body).toBe(400);
+        expect(json(res).error.code).toBe("assignee_not_workspace_member");
+      } finally {
+        await prisma.teamMember.update({
+          where: { teamId_userId: { teamId: teamA.teamId, userId: teamA.viewerUserId } },
+          data: { status: "ACTIVE" },
+        });
+      }
+      expect((await prisma.evidenceRequest.findUniqueOrThrow({ where: { id: request.id } })).assignedReviewerUserId).toBeNull();
+
+      await prisma.evidenceRequest.update({ where: { id: request.id }, data: { status: "CLOSED" } });
+      const closed = await call("POST", `${base}/${request.id}/assign`, teamA.memberToken, { assignedReviewerUserId: teamA.adminUserId });
+      expect(closed.statusCode, closed.body).toBe(409);
+      expect(json(closed).error.code).toBe("request_not_assignable");
+      expect((await prisma.evidenceRequest.findUniqueOrThrow({ where: { id: request.id } })).assignedReviewerUserId).toBeNull();
+    });
+
     it("POST /v1/evidence-requests/:id/cancel — cancels with the reviewer's justification", async () => {
       const { teamA, teamB } = harness.fixtures;
       const request = await createRequest("Request to cancel");
