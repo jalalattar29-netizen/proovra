@@ -169,11 +169,11 @@ async function requireSearchActor(
   req: FastifyRequest,
   reply: FastifyReply,
   teamId: string
-): Promise<{ userId: string; isReviewerCapable: boolean } | null> {
+): Promise<{ userId: string; isReviewerCapable: boolean; role: string | null } | null> {
   const userId = getAuthUserId(req);
   const member = await prisma.teamMember.findUnique({
     where: { teamId_userId: { teamId, userId } },
-    select: { id: true },
+    select: { id: true, role: true },
   });
   if (!member) {
     reply.code(404).send({ error: { code: "not_found" } });
@@ -199,7 +199,11 @@ async function requireSearchActor(
     userId,
     permission: "identity.access_review.action",
   });
-  return { userId, isReviewerCapable: reviewerDecision.allowed };
+  return {
+    userId,
+    isReviewerCapable: reviewerDecision.allowed,
+    role: member.role ?? null,
+  };
 }
 
 /**
@@ -480,6 +484,7 @@ export async function searchRoutes(app: FastifyInstance) {
         teamId: q.teamId,
         actorUserId: actor.userId,
         id,
+        canManageShared: actor.role === "OWNER" || actor.role === "ADMIN",
       });
       if (!ok) {
         return reply.code(404).send({ error: { code: "not_found" } });

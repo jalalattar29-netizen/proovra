@@ -1667,10 +1667,12 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       const q = z.object({ teamId: z.string().uuid() }).parse(req.query ?? {});
       const ctx = await requireReviewerActor(req, reply, q.teamId);
       if (!ctx) return;
+      const role = provenRole(ctx);
       const ok = await deleteReviewerOpsSavedView({
         teamId: q.teamId,
         actorUserId: ctx.actorUserId,
         id,
+        canManageShared: role === "OWNER" || role === "ADMIN",
       });
       if (!ok) {
         return reply.code(404).send({ error: { code: "not_found" } });

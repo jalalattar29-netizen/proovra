@@ -32,8 +32,11 @@ import {
 // cross-team evidence attach gate. Single source of truth in the
 // case-permission matrix.
 import {
+  type CaseAccessRole,
   resolveCaseDestructiveGate,
+  evaluateCaseMutationPermission,
   evaluateCrossTeamAttach,
+  getCaseAssignmentRoles,
 } from "../services/cases/case-permission.service.js";
 import { ensurePersonalWorkspace } from "../services/platform-context/workspace-bootstrap.service.js";
 // PHASE 12 POINT 7 — the canonical commercial chokepoint + the cases plan gate.
@@ -1065,8 +1068,53 @@ export async function casesRoutes(app: FastifyInstance) {
         return reply.code(404).send({ message: "Case not found" });
       }
 
+      // Phase O-blockers / A-1 — destructive case mutation. Replaces
+      // the prior "any team member can delete" check with the bounded
+      // case-permission matrix: OWNER / ADMIN only, plus the
+      // synthetic OWNER role for personal-case owners. Emits a
+      // CaseDeleteDenied audit row on rejection so the security team
+      // can trace attempted destructive actions.
+      const deleteGate = await resolveCaseDestructiveGate({
+        caseRow: item,
+        userId,
+        mutation: "DELETE",
+      });
+      if (!deleteGate.allowed) {
+        // K4 (2026-09-16) — anti-enumeration, as the rename handler does: a
+        // caller with no relationship to the case learns nothing about it.
+        // This used to answer an outsider 403 CASE_DELETE_DENIED (and, when
+        // the legal-hold check ran first, 403 with the hold ids), which
+        // proved the record exists in another tenant.
+        const outsider = deleteGate.accessRole === "NONE";
+        auditCaseAction(req, {
+          userId,
+          action: "cases.delete",
+          outcome: "blocked",
+          severity: "critical",
+          resourceId: id,
+          teamId: item.teamId,
+          metadata: {
+            reason: outsider ? "not_found_concealed" : "forbidden",
+            denyReason: deleteGate.reason,
+            denyCode: "CASE_DELETE_DENIED",
+            accessRole: deleteGate.accessRole,
+            eventKind: "CaseDeleteDenied",
+          },
+        });
+        if (outsider) {
+          return reply.code(404).send({ message: "Case not found" });
+        }
+        return reply.code(403).send({
+          message: "Forbidden",
+          code: "CASE_DELETE_DENIED",
+          detail: deleteGate.reason,
+        });
+      }
+
       // Phase 4B Final Closure I5 — legal-hold gate: a CASE or
       // WORKSPACE hold MUST block deletion. Helper is try/catch-safe.
+      // K4 — evaluated AFTER the permission gate so hold ids are only ever
+      // disclosed to a caller who could otherwise delete the case.
       if (item.teamId) {
         const holdChk = await checkCaseLegalHold(id, item.teamId);
         if (!holdChk.ok) {
@@ -1081,40 +1129,6 @@ export async function casesRoutes(app: FastifyInstance) {
           });
           return reply.code(403).send({ denial: "LEGAL_HOLD_BLOCKED", holdIds: holdChk.holdIds });
         }
-      }
-
-      // Phase O-blockers / A-1 — destructive case mutation. Replaces
-      // the prior "any team member can delete" check with the bounded
-      // case-permission matrix: OWNER / ADMIN only, plus the
-      // synthetic OWNER role for personal-case owners. Emits a
-      // CaseDeleteDenied audit row on rejection so the security team
-      // can trace attempted destructive actions.
-      const deleteGate = await resolveCaseDestructiveGate({
-        caseRow: item,
-        userId,
-        mutation: "DELETE",
-      });
-      if (!deleteGate.allowed) {
-        auditCaseAction(req, {
-          userId,
-          action: "cases.delete",
-          outcome: "blocked",
-          severity: "critical",
-          resourceId: id,
-          teamId: item.teamId,
-          metadata: {
-            reason: "forbidden",
-            denyReason: deleteGate.reason,
-            denyCode: "CASE_DELETE_DENIED",
-            accessRole: deleteGate.accessRole,
-            eventKind: "CaseDeleteDenied",
-          },
-        });
-        return reply.code(403).send({
-          message: "Forbidden",
-          code: "CASE_DELETE_DENIED",
-          detail: deleteGate.reason,
-        });
       }
 
       // Track 1B — case deletion detaches relationships through the
@@ -1173,14 +1187,25 @@ export async function casesRoutes(app: FastifyInstance) {
       }
 
       let hasPermission = caseItem.ownerUserId === userId;
+      // D50 — attaching evidence is a case mutation (EVIDENCE_LINK), the same
+      // rule K4 put on detaching: VIEWER never mutates, and a caller with no
+      // relationship to the case is concealed as a missing case.
+      let isMember = false;
 
       if (!hasPermission && caseItem.teamId) {
         const member = await prisma.teamMember.findUnique({
           where: { teamId_userId: { teamId: caseItem.teamId, userId } },
-          select: { status: true },
+          select: { status: true, role: true },
         });
         // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
-        hasPermission = member?.status === "ACTIVE";
+        isMember = member?.status === "ACTIVE";
+        hasPermission =
+          isMember &&
+          evaluateCaseMutationPermission({
+            mutation: "EVIDENCE_LINK",
+            accessRole: member!.role as CaseAccessRole,
+            assignmentRoles: await getCaseAssignmentRoles(id, userId),
+          }).allowed;
       }
 
       if (!hasPermission) {
@@ -1191,8 +1216,14 @@ export async function casesRoutes(app: FastifyInstance) {
           severity: "warning",
           resourceId: id,
           teamId: caseItem.teamId,
-          metadata: { reason: "forbidden", evidenceId: body.evidenceId },
+          metadata: {
+            reason: isMember ? "forbidden" : "not_found_concealed",
+            evidenceId: body.evidenceId,
+          },
         });
+        if (!isMember) {
+          return reply.code(404).send({ message: "Case not found" });
+        }
         return reply.code(403).send({ message: "Forbidden" });
       }
 
@@ -1364,14 +1395,27 @@ export async function casesRoutes(app: FastifyInstance) {
       }
 
       let hasPermission = caseItem.ownerUserId === userId;
+      // K4 (2026-09-16) — unlinking evidence is a case mutation, so it goes
+      // through the case-permission matrix (EVIDENCE_LINK: VIEWER never
+      // mutates). The former check admitted ANY active member, VIEWER
+      // included. A caller with no relationship to the case is concealed
+      // (404) exactly like a missing case; it used to receive 403.
+      let isMember = false;
 
       if (!hasPermission && caseItem.teamId) {
         const member = await prisma.teamMember.findUnique({
           where: { teamId_userId: { teamId: caseItem.teamId, userId } },
-          select: { status: true },
+          select: { status: true, role: true },
         });
         // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
-        hasPermission = member?.status === "ACTIVE";
+        isMember = member?.status === "ACTIVE";
+        hasPermission =
+          isMember &&
+          evaluateCaseMutationPermission({
+            mutation: "EVIDENCE_LINK",
+            accessRole: member!.role as CaseAccessRole,
+            assignmentRoles: await getCaseAssignmentRoles(id, userId),
+          }).allowed;
       }
 
       if (!hasPermission) {
@@ -1382,8 +1426,14 @@ export async function casesRoutes(app: FastifyInstance) {
           severity: "warning",
           resourceId: id,
           teamId: caseItem.teamId,
-          metadata: { reason: "forbidden", evidenceId },
+          metadata: {
+            reason: isMember ? "forbidden" : "not_found_concealed",
+            evidenceId,
+          },
         });
+        if (!isMember) {
+          return reply.code(404).send({ message: "Case not found" });
+        }
         return reply.code(403).send({ message: "Forbidden" });
       }
 
@@ -2001,9 +2051,19 @@ export async function casesRoutes(app: FastifyInstance) {
       const memberTeams = await prisma.teamMember.findMany({
         // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
         where: { userId, status: "ACTIVE" },
-        select: { teamId: true },
+        select: { teamId: true, role: true },
       });
-      const memberTeamIds = memberTeams.map((t) => t.teamId);
+      // K4 (2026-09-16) — a status change is a case mutation and VIEWER
+      // never mutates (case-permission matrix, STATUS_CHANGE). Workspace
+      // membership therefore only makes a case bulk-mutable for a non-viewer;
+      // the single-case status route already refused a VIEWER while this bulk
+      // route closed / archived / resolved the same cases for them.
+      const memberTeamIds = memberTeams
+        .filter((t) => t.role !== "VIEWER")
+        .map((t) => t.teamId);
+      const viewerTeamIds = memberTeams
+        .filter((t) => t.role === "VIEWER")
+        .map((t) => t.teamId);
       const accessOr: Array<Record<string, unknown>> = [
         { ownerUserId: userId },
         { access: { some: { userId } } },
@@ -2019,6 +2079,20 @@ export async function casesRoutes(app: FastifyInstance) {
         select: { id: true },
       });
       const accessibleSet = new Set(accessible.map((c) => c.id));
+      // Cases the caller can READ as a workspace VIEWER are reported as
+      // `forbidden`; anything else they cannot reach stays `not_accessible`.
+      const readOnlyIds =
+        viewerTeamIds.length > 0
+          ? await prisma.case.findMany({
+              where: {
+                id: { in: ids.filter((i) => !accessibleSet.has(i)) },
+                teamId: { in: viewerTeamIds },
+                access: { none: {} },
+              },
+              select: { id: true },
+            })
+          : [];
+      const readOnlySet = new Set(readOnlyIds.map((c) => c.id));
 
       // The target status depends on the action. ARCHIVE goes through
       // CLOSED first per the transition table; we only call
@@ -2044,7 +2118,7 @@ export async function casesRoutes(app: FastifyInstance) {
           results.push({
             id,
             outcome: "SKIPPED",
-            reason: "not_accessible",
+            reason: readOnlySet.has(id) ? "forbidden" : "not_accessible",
           });
           continue;
         }

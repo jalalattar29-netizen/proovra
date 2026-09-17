@@ -148,6 +148,13 @@ export type DeleteSavedViewInput = {
   teamId: string;
   actorUserId: string;
   id: string;
+  /**
+   * K4 (2026-09-16) — true when the caller administers the workspace
+   * (OWNER / ADMIN). The comment below always said the route layer enforced
+   * this for TEAM views; it did not, so any member (a VIEWER included) could
+   * delete a colleague's TEAM view.
+   */
+  canManageShared?: boolean;
 };
 
 export async function deleteSavedView(
@@ -161,7 +168,10 @@ export async function deleteSavedView(
   // Only the creator can delete a PRIVATE view; a TEAM view can be
   // deleted by the creator or by an admin (the route layer enforces
   // the admin check).
-  if (row.visibility === "PRIVATE" && row.createdByUserId !== input.actorUserId) {
+  if (
+    row.createdByUserId !== input.actorUserId &&
+    (row.visibility === "PRIVATE" || input.canManageShared !== true)
+  ) {
     return false;
   }
   await client.savedSearchView.delete({ where: { id: row.id } });

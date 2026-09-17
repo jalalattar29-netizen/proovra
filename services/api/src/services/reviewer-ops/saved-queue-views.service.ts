@@ -148,7 +148,18 @@ export async function createReviewerOpsSavedView(
 // -----------------------------------------------------------------------------
 
 export async function deleteReviewerOpsSavedView(
-  input: { teamId: string; actorUserId: string; id: string },
+  input: {
+    teamId: string;
+    actorUserId: string;
+    id: string;
+    /**
+     * K4 (2026-09-16) — true when the caller administers the workspace
+     * (OWNER / ADMIN). A shared view belongs to the workspace, so only its
+     * creator or an administrator may remove it; before this, ANY member —
+     * a VIEWER included — could delete a colleague's shared view.
+     */
+    canManageShared?: boolean;
+  },
   client: PrismaClient = defaultPrisma,
 ): Promise<boolean> {
   const row = await client.savedSearchView.findFirst({
@@ -159,9 +170,10 @@ export async function deleteReviewerOpsSavedView(
     },
   });
   if (!row) return false;
-  // PRIVATE views are deletable only by the creator.
+  // PRIVATE views are deletable only by the creator; shared views by the
+  // creator or a workspace administrator. Anything else reads as not-found.
   if (
-    row.visibility === "PRIVATE" &&
+    (row.visibility === "PRIVATE" || input.canManageShared !== true) &&
     row.createdByUserId !== input.actorUserId
   ) {
     return false;

@@ -194,18 +194,21 @@ export async function updateSavedView(input: {
   teamId: string;
   userId: string;
   payload: UpdateSavedViewInput;
+  /**
+   * K4 (2026-09-16) — true when the caller administers the workspace
+   * (OWNER / ADMIN). This check used to be "delegated to the route layer",
+   * which never made it: any member (a VIEWER included) could edit or delete
+   * a colleague's team/org view.
+   */
+  canManageShared?: boolean;
 }): Promise<SiuSavedViewRow | null> {
-  // Only the creator can edit a private view; team admins can edit
-  // team/org views (we delegate that check to the route layer; the
-  // service enforces only tenancy + ownership of private rows).
+  // Only the creator can edit a private view; the creator or a workspace
+  // administrator can edit a team/org view.
   const existing = await prisma.caseSiuSavedView.findFirst({
     where: { id: input.id, teamId: input.teamId },
   });
   if (!existing) return null;
-  if (
-    existing.visibility === "private" &&
-    existing.createdByUserId !== input.userId
-  ) {
+  if (!mayManageSavedView(existing, input.userId, input.canManageShared)) {
     return null;
   }
   const patch: Prisma.CaseSiuSavedViewUpdateInput = {
@@ -233,19 +236,27 @@ export async function deleteSavedView(input: {
   id: string;
   teamId: string;
   userId: string;
+  /** See updateSavedView. */
+  canManageShared?: boolean;
 }): Promise<boolean> {
   const existing = await prisma.caseSiuSavedView.findFirst({
     where: { id: input.id, teamId: input.teamId },
   });
   if (!existing) return false;
-  if (
-    existing.visibility === "private" &&
-    existing.createdByUserId !== input.userId
-  ) {
+  if (!mayManageSavedView(existing, input.userId, input.canManageShared)) {
     return false;
   }
   await prisma.caseSiuSavedView.delete({ where: { id: existing.id } });
   return true;
+}
+
+function mayManageSavedView(
+  row: { visibility: string; createdByUserId: string },
+  userId: string,
+  canManageShared: boolean | undefined,
+): boolean {
+  if (row.createdByUserId === userId) return true;
+  return row.visibility !== "private" && canManageShared === true;
 }
 
 export async function markSavedViewUsed(input: {
