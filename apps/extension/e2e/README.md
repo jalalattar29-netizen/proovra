@@ -55,6 +55,31 @@ npx playwright test --project=edge         # Edge acceptance
 A pass on both projects is the UC-1 CLOSED gate. Until both pass, UC-1 status is
 **IMPLEMENTATION COMPLETE — BROWSER ACCEPTANCE PENDING**.
 
+### Fail-fast focused run (debug the first failure)
+
+The orchestrated harness supports a **Chromium + static only** run so you don't
+spend minutes on all eight scenarios while one is failing. Every stage is bounded
+and prints a `PASS`/`FAIL` line (AUTH, CAPTURE, LIBRARY, DETAIL, CASE, SEARCH,
+REPORT, PACKAGE, PACKAGE_VALIDATOR, PUBLIC_VERIFY), and each async poll prints its
+evidence id, endpoint, elapsed time, last HTTP status and last state:
+
+```bash
+pnpm uc1:acceptance:windows --start-infra --browsers=chromium --grep "static"
+```
+
+### Runtime dependencies the harness provides (these are why the first run hung)
+
+The full lifecycle is storage- and render-backed, so the harness (`--start-infra`)
+now also:
+- runs a disposable **MinIO** and points `S3_*` at it — capture upload, the
+  worker's Report + Verification Package writes, and public Verify's package read
+  all need real object storage (the canonical fixture env deliberately has none);
+- **registers the fixture signing key** in the DB (`prisma:seed`) — evidence reads
+  verify the record's signing key and 503 `SIGNING_KEY_MISSING` without it;
+- sets **`PUPPETEER_EXECUTABLE_PATH`** to a resolved Chrome/Chromium — the worker
+  renders the Report PDF with Puppeteer and fails (RETRYABLE_FAILURE) with no
+  browser. Install Google Chrome, or set `PUPPETEER_EXECUTABLE_PATH` yourself.
+
 > **The spec obtains the extension token through the REAL OAuth journey.** It does
 > not seed a static token: each test computes a PKCE verifier/challenge, calls the
 > real `/v1/oauth/extension/authorize` endpoint (carrying the user session as a

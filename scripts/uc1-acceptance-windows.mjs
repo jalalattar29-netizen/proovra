@@ -55,13 +55,23 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 // --- disposable infra identity (kept away from the canonical dev ports) -------
 const PG_CONTAINER = "uc1-acc-pg";
 const REDIS_CONTAINER = "uc1-acc-redis";
+const MINIO_CONTAINER = "uc1-acc-minio";
 const PG_HOST_PORT = "56421";
 const REDIS_HOST_PORT = "56422";
+const MINIO_HOST_PORT = "56423";
 const PG_USER = "proovra";
 const PG_PASSWORD = "uc1_disposable";
 const PG_DB = "uc1_acceptance_test";
+// Disposable object storage. The UC-1 lifecycle is storage-backed end to end
+// (capture PUT, worker Report + Verification Package upload, public Verify read),
+// so the acceptance stack MUST have a real S3 — the canonical fixture env points
+// it at a dead address on purpose. These are disposable local-only credentials.
+const MINIO_USER = "uc1miniolocal";
+const MINIO_PASSWORD = "uc1miniolocalsecret";
+const MINIO_BUCKET = "uc1-acceptance";
 const DEFAULT_DB_URL = `postgresql://${PG_USER}:${PG_PASSWORD}@127.0.0.1:${PG_HOST_PORT}/${PG_DB}`;
 const DEFAULT_REDIS_URL = `redis://127.0.0.1:${REDIS_HOST_PORT}/0`;
+const DEFAULT_S3_ENDPOINT = `http://127.0.0.1:${MINIO_HOST_PORT}`;
 
 function flag(name) {
   return process.argv.includes(`--${name}`);
@@ -85,18 +95,71 @@ const config = {
   keepUp: flag("keep-up"),
   dbUrl: opt("db-url", DEFAULT_DB_URL),
   redisUrl: opt("redis-url", DEFAULT_REDIS_URL),
+  s3Endpoint: opt("s3-endpoint", DEFAULT_S3_ENDPOINT),
+  s3Bucket: opt("s3-bucket", MINIO_BUCKET),
+  s3AccessKey: opt("s3-access-key", MINIO_USER),
+  s3SecretKey: opt("s3-secret-key", MINIO_PASSWORD),
   apiPort: opt("api-port", "4000"),
   webPort: opt("web-port", "3311"),
   fixturePort: opt("fixture-port", "4599"),
   browsers: opt("browsers", "chromium,edge").split(",").map((s) => s.trim()).filter(Boolean),
+  grep: opt("grep", ""),
 };
+
+/**
+ * Resolve a Chromium/Chrome executable for the worker's Report PDF rendering.
+ *
+ * report-v2 renders the Report PDF with Puppeteer, and its resolver only accepts
+ * `PUPPETEER_EXECUTABLE_PATH` or hard-coded Linux paths — so on a Windows host the
+ * worker finds no browser and the Report (and the Package that embeds it) fail
+ * with a RETRYABLE_FAILURE that never clears. We resolve one here and pass it in.
+ * Preference: an explicit env override, then Puppeteer's own downloaded Chromium,
+ * then the system Chrome/Edge, then common Linux paths (for CI/dev).
+ */
+function resolveChromiumPath() {
+  const candidates = [];
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) candidates.push(process.env.PUPPETEER_EXECUTABLE_PATH);
+  try {
+    const r = spawnSync(
+      "pnpm",
+      ["--filter", "proovra-worker", "exec", "node", "-e", "try{process.stdout.write(require('puppeteer').executablePath())}catch{}"],
+      { cwd: REPO_ROOT, encoding: "utf8", shell: process.platform === "win32" },
+    );
+    const ep = (r.stdout || "").trim();
+    if (ep) candidates.push(ep);
+  } catch {
+    /* puppeteer not resolvable — fall through to system browsers */
+  }
+  candidates.push(
+    "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+    "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+    "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+    "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
+    "/usr/bin/chromium",
+    "/usr/bin/chromium-browser",
+    "/usr/bin/google-chrome",
+    "/usr/bin/chrome",
+  );
+  for (const c of candidates) {
+    try {
+      if (c && existsSync(c)) return c;
+    } catch {
+      /* ignore */
+    }
+  }
+  return null;
+}
 
 // ----------------------------------------------------------------------------
 // 0. Independent safety assertions (belt to the local-fixture-env braces).
 // ----------------------------------------------------------------------------
 function assertLocalDisposable() {
   const localHosts = new Set(["localhost", "127.0.0.1", "::1", "0.0.0.0"]);
-  for (const [label, raw] of [["db-url", config.dbUrl], ["redis-url", config.redisUrl]]) {
+  for (const [label, raw] of [
+    ["db-url", config.dbUrl],
+    ["redis-url", config.redisUrl],
+    ["s3-endpoint", config.s3Endpoint],
+  ]) {
     let u;
     try {
       u = new URL(raw);
@@ -132,9 +195,10 @@ function docker(args, { check = true } = {}) {
 }
 
 function startInfra() {
-  log("starting disposable Postgres 16 (pgvector) + Redis …");
+  log("starting disposable Postgres 16 (pgvector) + Redis + MinIO (object storage) …");
   docker(["rm", "-f", PG_CONTAINER], { check: false });
   docker(["rm", "-f", REDIS_CONTAINER], { check: false });
+  docker(["rm", "-f", MINIO_CONTAINER], { check: false });
   docker([
     "run", "-d", "--name", PG_CONTAINER,
     "-p", `127.0.0.1:${PG_HOST_PORT}:5432`,
@@ -147,6 +211,16 @@ function startInfra() {
     "run", "-d", "--name", REDIS_CONTAINER,
     "-p", `127.0.0.1:${REDIS_HOST_PORT}:6379`,
     "redis:7-alpine",
+  ]);
+  // The UC-1 lifecycle is storage-backed; without a real S3 the capture upload,
+  // the worker's Report + Verification Package writes, and public Verify's
+  // package read all fail — which is exactly a 360s hang, not a fast failure.
+  docker([
+    "run", "-d", "--name", MINIO_CONTAINER,
+    "-p", `127.0.0.1:${MINIO_HOST_PORT}:9000`,
+    "-e", `MINIO_ROOT_USER=${MINIO_USER}`,
+    "-e", `MINIO_ROOT_PASSWORD=${MINIO_PASSWORD}`,
+    "minio/minio", "server", "/data",
   ]);
 }
 
@@ -164,11 +238,50 @@ async function waitForPostgres() {
   fail("Postgres did not become ready in 60s.");
 }
 
+async function waitForMinioAndBucket() {
+  log("waiting for MinIO to become ready …");
+  let ready = false;
+  for (let i = 0; i < 60; i++) {
+    try {
+      const res = await fetch(`${config.s3Endpoint}/minio/health/ready`);
+      if (res.status === 200) {
+        ready = true;
+        break;
+      }
+    } catch {
+      /* not up yet */
+    }
+    await sleep(1000);
+  }
+  if (!ready) fail("MinIO did not become ready in 60s.");
+  // Create the disposable bucket via the API workspace's own S3 SDK.
+  const r = spawnSync(
+    "pnpm",
+    ["--filter", "proovra-api", "exec", "node", "scripts/uc1-ensure-bucket.mjs"],
+    {
+      cwd: REPO_ROOT,
+      env: {
+        ...process.env,
+        S3_ENDPOINT: config.s3Endpoint,
+        S3_BUCKET: config.s3Bucket,
+        S3_REGION: "us-east-1",
+        S3_ACCESS_KEY: config.s3AccessKey,
+        S3_SECRET_KEY: config.s3SecretKey,
+      },
+      encoding: "utf8",
+      shell: process.platform === "win32",
+    },
+  );
+  process.stdout.write(r.stdout || "");
+  if (r.status !== 0) fail(`bucket creation failed:\n${r.stderr || r.stdout}`);
+}
+
 function stopInfra() {
   if (config.startInfra && !config.keepInfra) {
     log("removing disposable containers …");
     docker(["rm", "-f", PG_CONTAINER], { check: false });
     docker(["rm", "-f", REDIS_CONTAINER], { check: false });
+    docker(["rm", "-f", MINIO_CONTAINER], { check: false });
   }
 }
 
@@ -242,6 +355,25 @@ async function waitForHttp(url, label, { tries = 120, expectStatus = null } = {}
  * The API keeps `PORT = apiPort`; the worker uses `WORKER_PORT`; the fixture
  * server gets the fixture port. No two services share a port.
  */
+/**
+ * The S3 overrides that replace the canonical "dead storage" with the disposable
+ * MinIO. EXPORTED so a regression can prove the acceptance stack points at a real,
+ * local, disposable object store — the absence of one is what hangs the whole
+ * capture -> report -> package -> verify lifecycle to the test timeout.
+ */
+export function s3FixtureOverrides(config) {
+  return {
+    S3_ENDPOINT: config.s3Endpoint,
+    S3_PUBLIC_BASE_URL: config.s3Endpoint,
+    S3_BUCKET: config.s3Bucket,
+    S3_REGION: "us-east-1",
+    S3_ACCESS_KEY: config.s3AccessKey,
+    S3_SECRET_KEY: config.s3SecretKey,
+    S3_FORCE_PATH_STYLE: "true",
+    S3_ALLOW_INSECURE: "true",
+  };
+}
+
 export function planServiceChildren({ fixtureEnv, config }) {
   const children = [
     { name: "api", cmd: "pnpm", args: ["--filter", "proovra-api", "dev"], env: fixtureEnv },
@@ -281,6 +413,16 @@ function run(name, cmd, args, { cwd, env } = {}) {
 async function main() {
   assertLocalDisposable();
 
+  // The worker renders the Report PDF with Puppeteer; without a browser the
+  // Report and Package fail forever (RETRYABLE_FAILURE). Resolve one up front.
+  const chromiumPath = resolveChromiumPath();
+  if (!chromiumPath) {
+    fail(
+      "No Chromium/Chrome/Edge found for the worker's Report PDF rendering. " +
+        "Install Google Chrome, or set PUPPETEER_EXECUTABLE_PATH to a Chromium executable.",
+    );
+  }
+
   // The canonical safe child environment. Throws if anything is unsafe — this is
   // the hard production-safety gate. API port is chosen to match the extension's
   // default origin so the built artifact needs no rebuild per run.
@@ -289,9 +431,15 @@ async function main() {
     webPort: config.webPort,
     databaseUrl: config.dbUrl,
     redisUrl: config.redisUrl,
+    // Override the canonical "dead storage" with the disposable MinIO (so capture
+    // upload, the worker's Report + Package writes, and public Verify's package
+    // read all work), and give the worker a Puppeteer browser. All local paths /
+    // non-credential-shaped values, so the fixture-env leak scan still passes.
+    extra: { ...s3FixtureOverrides(config), PUPPETEER_EXECUTABLE_PATH: chromiumPath },
   });
   const apiOrigin = `http://localhost:${config.apiPort}`;
   const fixtureOrigin = `http://127.0.0.1:${config.fixturePort}`;
+  log(`report PDF renderer: ${chromiumPath}`);
   log("environment is safe:");
   process.stdout.write(describeLocalFixtureEnv(fixtureEnv) + "\n");
 
@@ -299,11 +447,20 @@ async function main() {
     if (config.startInfra) {
       startInfra();
       await waitForPostgres();
+      await waitForMinioAndBucket();
     }
 
     // 1. Migrate the disposable DB (safe-migrate refuses non-local hosts).
     run("migrate", "node", ["services/api/scripts/safe-migrate.mjs", "deploy"], {
       env: { ...process.env, DATABASE_URL: config.dbUrl, DIRECT_URL: config.dbUrl },
+    });
+
+    // 1b. Register the fixture signing key(s) in the DB. Evidence reads verify the
+    //     record's signing key against this registry, so without it every read
+    //     after a capture 503s SIGNING_KEY_MISSING. Uses the same SIGNING_* the
+    //     fixture env signs with.
+    run("seed:signing-key", "pnpm", ["--filter", "proovra-api", "exec", "tsx", "src/seed-signing-key.ts"], {
+      env: fixtureEnv,
     });
 
     // 2. Build shared packages + the extension (reproducible; local origin).
@@ -367,10 +524,13 @@ async function main() {
       EXTENSION_DIST: extDist,
       FIXTURE_ORIGIN: fixtureOrigin,
     };
+    // A --grep passes straight through to Playwright, so the focused
+    // Chromium/static run is: --browsers=chromium --grep=static
+    const grepArgs = config.grep ? ["--grep", config.grep] : [];
     const results = {};
     for (const project of config.browsers) {
-      log(`running Playwright acceptance: ${project}`);
-      const r = spawnSync("npx", ["playwright", "test", `--project=${project}`], {
+      log(`running Playwright acceptance: ${project}${config.grep ? ` (grep: ${config.grep})` : ""}`);
+      const r = spawnSync("npx", ["playwright", "test", `--project=${project}`, ...grepArgs], {
         cwd: e2eDir,
         env: acceptanceEnv,
         stdio: "inherit",

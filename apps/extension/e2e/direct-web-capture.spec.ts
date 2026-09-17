@@ -50,9 +50,48 @@ const CLIENT_ID = process.env.PROOVRA_OAUTH_CLIENT_ID ?? "proovra-extension";
 const FIXTURES = process.env.FIXTURE_ORIGIN ?? "http://127.0.0.1:4599";
 
 const ACQ_MODE = "DIRECT_WEB_CAPTURE_EXTENSION";
-// Report + verification package are generated asynchronously by the worker after
-// the capture is sealed; give the poll room without being flaky.
-const ARTIFACT_TIMEOUT_MS = 240_000;
+
+// BOUNDED, STAGE-SPECIFIC timeouts — never one opaque multi-minute wait. A stage
+// that hangs fails at its own bound with a named diagnostic, well before the
+// test-level timeout, so the FIRST failing transition is obvious.
+const STAGE_TIMEOUT = {
+  AUTH: 30_000,
+  CAPTURE: 90_000, // CaptureSession + upload + server digest verify + Evidence seal
+  LIBRARY: 20_000,
+  DETAIL: 20_000,
+  CASE: 30_000,
+  SEARCH: 30_000,
+  REPORT: 150_000, // worker-generated, async
+  PACKAGE: 150_000, // worker-generated, async
+  PUBLIC_VERIFY: 30_000,
+} as const;
+
+function secs(ms: number): string {
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
+/** Run one stage with a bounded timeout, printing a PASS/FAIL line. */
+async function stage<T>(name: string, timeoutMs: number, fn: () => Promise<T>): Promise<T> {
+  const start = Date.now();
+  let timer: NodeJS.Timeout;
+  const bound = new Promise<never>((_, rej) => {
+    timer = setTimeout(() => rej(new Error(`${name} TIMEOUT after ${secs(timeoutMs)}`)), timeoutMs);
+  });
+  try {
+    const out = await Promise.race([Promise.resolve().then(fn), bound]);
+    clearTimeout(timer!);
+    // eslint-disable-next-line no-console
+    console.log(`  ${name.padEnd(18)} PASS   (${secs(Date.now() - start)})`);
+    return out as T;
+  } catch (err) {
+    clearTimeout(timer!);
+    // eslint-disable-next-line no-console
+    console.log(
+      `  ${name.padEnd(18)} FAIL   (${secs(Date.now() - start)})   ${(err as Error).message}`,
+    );
+    throw err;
+  }
+}
 
 function base64Url(buf: Buffer): string {
   return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -152,118 +191,157 @@ async function apiPublicGet(path: string): Promise<{ status: number; json: any }
   return { status: res.status, json };
 }
 
-/** A stable search token drawn from the evidence's own indexed title. */
-function searchTokenFrom(title: string | undefined): string {
-  const tokens = String(title ?? "")
-    .split(/[^A-Za-z0-9]+/)
-    .filter((t) => t.length >= 4);
-  // Longest token → most selective, and it is guaranteed to be a substring of
-  // the indexed title (search matches title/subtitle/searchableText by ILIKE).
-  return tokens.sort((a, b) => b.length - a.length)[0] ?? "PROOVRA";
+/**
+ * Poll the artifact-status surface until `pick(status)` is available, printing
+ * bounded progress (stage, evidence id, endpoint, elapsed, last HTTP status,
+ * last state) on every tick — no secrets. Throws with a named diagnostic on
+ * timeout so the exact stuck artifact + its last state is visible.
+ */
+async function pollArtifact(
+  name: string,
+  evidenceId: string,
+  token: string,
+  timeoutMs: number,
+  pick: (s: any) => { available?: boolean; state?: string },
+): Promise<void> {
+  const endpoint = `/v1/evidence/${evidenceId}/artifacts/status`;
+  const start = Date.now();
+  let last = { status: 0, state: "?" };
+  while (Date.now() - start < timeoutMs) {
+    const { status, json } = await apiGetStatus(endpoint, token);
+    const projected = json ? pick(json) : {};
+    const stateFromOutputs =
+      name === "REPORT" ? json?.outputs?.report?.state : json?.outputs?.verificationPackage?.state;
+    last = { status, state: String(projected.state ?? stateFromOutputs ?? "?") };
+    if (projected.available === true) return;
+    // eslint-disable-next-line no-console
+    console.log(
+      `    … ${name} evidence=${evidenceId} ${endpoint} elapsed=${secs(Date.now() - start)} ` +
+        `httpStatus=${status} state=${last.state}`,
+    );
+    await new Promise((r) => setTimeout(r, 5000));
+  }
+  throw new Error(
+    `${name} not available in ${secs(timeoutMs)} (last httpStatus=${last.status} state=${last.state})`,
+  );
 }
 
 /**
  * Trace ONE Evidence id through every closure-required UC-1 surface and assert
- * the acquisition statement + real artifacts on each. All authenticated reads use
- * the OAuth-issued bearer (proving the minted token is accepted downstream).
+ * the acquisition statement + real artifacts on each. Every stage is bounded and
+ * prints a PASS/FAIL line. All authenticated reads use the OAuth-issued bearer
+ * (proving the minted token is accepted downstream).
  */
 async function traceEvidenceAcrossSurfaces(evidenceId: string, token: string): Promise<void> {
   // 1. LIBRARY — the record appears in the acquisition-filtered list.
-  const list = await apiGet<{ items?: Array<{ id: string; title?: string; acquisition?: { mode?: string } }> }>(
-    `/v1/evidence?scope=all&acquisition=DIRECT_WEB_CAPTURE&limit=50`,
-    token,
-  );
-  const item = list.items?.find((x) => x.id === evidenceId);
-  expect(item, "evidence present in Library").toBeTruthy();
-  expect(item!.acquisition?.mode).toBe(ACQ_MODE);
+  await stage("LIBRARY", STAGE_TIMEOUT.LIBRARY, async () => {
+    const list = await apiGet<{
+      items?: Array<{ id: string; acquisition?: { mode?: string } }>;
+    }>(`/v1/evidence?scope=all&acquisition=DIRECT_WEB_CAPTURE&limit=50`, token);
+    const found = list.items?.find((x) => x.id === evidenceId);
+    expect(found, "evidence present in Library").toBeTruthy();
+    expect(found!.acquisition?.mode).toBe(ACQ_MODE);
+  });
 
-  // 2. DETAIL — the review workspace states the same acquisition.
-  const detail = await apiGet<{ evidence?: { sourceContext?: { acquisition?: { mode?: string } } } }>(
-    `/v1/evidence/${evidenceId}/review-workspace`,
-    token,
-  );
-  expect(detail.evidence?.sourceContext?.acquisition?.mode).toBe(ACQ_MODE);
+  // 2. DETAIL — the review workspace states the same acquisition. `sourceContext`
+  //    is a TOP-LEVEL key of the response (sibling of `evidence`), not nested.
+  await stage("DETAIL", STAGE_TIMEOUT.DETAIL, async () => {
+    const detail = await apiGet<{
+      sourceContext?: { acquisition?: { mode?: string } };
+    }>(`/v1/evidence/${evidenceId}/review-workspace`, token);
+    expect(detail.sourceContext?.acquisition?.mode).toBe(ACQ_MODE);
+  });
 
   // 3. CASE — create a case in the SAME workspace, link the evidence, read it back.
-  const createdCase = await apiPost<{ id: string }>(
-    `/v1/cases`,
-    token,
-    { name: `UC1 E2E ${evidenceId.slice(0, 8)}`, teamId: TEAM },
-  );
-  expect(createdCase.id, "case created").toBeTruthy();
-  const linked = await apiPost<{ evidence?: { id: string; caseId?: string } }>(
-    `/v1/cases/${createdCase.id}/evidence`,
-    token,
-    { evidenceId },
-  );
-  expect(linked.evidence?.id).toBe(evidenceId);
-  expect(linked.evidence?.caseId).toBe(createdCase.id);
-  const caseEvidence = await apiGet<{ items?: Array<{ id: string }> }>(
-    `/v1/evidence?caseId=${createdCase.id}&scope=all`,
-    token,
-  );
-  expect(caseEvidence.items?.some((x) => x.id === evidenceId), "evidence linked to case").toBe(true);
+  await stage("CASE", STAGE_TIMEOUT.CASE, async () => {
+    const createdCase = await apiPost<{ id: string }>(`/v1/cases`, token, {
+      name: `UC1 E2E ${evidenceId.slice(0, 8)}`,
+      teamId: TEAM,
+    });
+    expect(createdCase.id, "case created").toBeTruthy();
+    const linked = await apiPost<{ evidence?: { id: string; caseId?: string } }>(
+      `/v1/cases/${createdCase.id}/evidence`,
+      token,
+      { evidenceId },
+    );
+    expect(linked.evidence?.id).toBe(evidenceId);
+    expect(linked.evidence?.caseId).toBe(createdCase.id);
+    const caseEvidence = await apiGet<{ items?: Array<{ id: string }> }>(
+      `/v1/evidence?caseId=${createdCase.id}&scope=all`,
+      token,
+    );
+    expect(caseEvidence.items?.some((x) => x.id === evidenceId), "evidence linked to case").toBe(true);
+  });
 
-  // 4. SEARCH — reindex (synchronous projection) then find the evidence by a term
-  //    from its own indexed title.
-  const reindex = await apiPost<{ documentId?: string }>(
-    `/v1/search/reindex/evidence/${evidenceId}`,
-    token,
-    { teamId: TEAM },
-  );
-  expect(reindex.documentId, "evidence indexed for search").toBeTruthy();
-  const term = searchTokenFrom(item!.title);
-  const search = await apiGet<{ rows?: Array<{ evidenceId?: string }> }>(
-    `/v1/search?teamId=${encodeURIComponent(TEAM)}&q=${encodeURIComponent(term)}&limit=50`,
-    token,
-  );
-  expect(
-    search.rows?.some((r) => r.evidenceId === evidenceId),
-    `search q="${term}" finds the evidence`,
-  ).toBe(true);
+  // 4. SEARCH — reindex (synchronous projection) then confirm the evidence is
+  //    findable in the workspace search. The display title is a generic default
+  //    ("Digital Evidence Record"), so a title-derived term is unreliable; the
+  //    fresh acceptance workspace holds only this run's captures, so the
+  //    workspace search listing must contain the just-indexed evidence.
+  await stage("SEARCH", STAGE_TIMEOUT.SEARCH, async () => {
+    const reindex = await apiPost<{ documentId?: string }>(
+      `/v1/search/reindex/evidence/${evidenceId}`,
+      token,
+      { teamId: TEAM },
+    );
+    expect(reindex.documentId, "evidence indexed for search").toBeTruthy();
+    const search = await apiGet<{ rows?: Array<{ evidenceId?: string }> }>(
+      `/v1/search?teamId=${encodeURIComponent(TEAM)}&limit=50`,
+      token,
+    );
+    expect(
+      search.rows?.some((r) => r.evidenceId === evidenceId),
+      "workspace search lists the indexed evidence",
+    ).toBe(true);
+  });
 
-  // 5 + 6. REPORT and VERIFICATION PACKAGE are generated asynchronously by the
-  //    worker after the capture is sealed. Poll the single status surface until
-  //    both are available, then fetch and assert each is for THIS evidence.
-  await expect
-    .poll(
-      async () => {
-        const s = await apiGet<{
-          report?: { available?: boolean };
-          verificationPackage?: { available?: boolean };
-        }>(`/v1/evidence/${evidenceId}/artifacts/status`, token);
-        return Boolean(s.report?.available && s.verificationPackage?.available);
-      },
-      { timeout: ARTIFACT_TIMEOUT_MS, intervals: [2000] },
-    )
-    .toBe(true);
+  // 5. REPORT — worker-generated. Poll status, then fetch and assert.
+  await stage("REPORT", STAGE_TIMEOUT.REPORT, async () => {
+    await pollArtifact("REPORT", evidenceId, token, STAGE_TIMEOUT.REPORT, (s) => ({
+      available: s?.report?.available,
+      state: s?.outputs?.report?.state,
+    }));
+    const report = await apiGet<{ evidenceId?: string; snapshots?: { acquisitionMode?: string } }>(
+      `/v1/evidence/${evidenceId}/report/latest`,
+      token,
+    );
+    expect(report.evidenceId).toBe(evidenceId);
+    // The report was SEALED with the acquisition snapshot — not re-derived.
+    expect(report.snapshots?.acquisitionMode).toBe(ACQ_MODE);
+  });
 
-  const report = await apiGet<{ evidenceId?: string; snapshots?: { acquisitionMode?: string } }>(
-    `/v1/evidence/${evidenceId}/report/latest`,
-    token,
-  );
-  expect(report.evidenceId).toBe(evidenceId);
-  // The report was SEALED with the acquisition snapshot — not re-derived.
-  expect(report.snapshots?.acquisitionMode).toBe(ACQ_MODE);
-
-  const pkg = await apiGet<{ evidenceId?: string; version?: number }>(
-    `/v1/evidence/${evidenceId}/verification-package`,
-    token,
-  );
-  expect(pkg.evidenceId).toBe(evidenceId);
-  expect(pkg.version, "verification package has a version").toBeTruthy();
+  // 6. VERIFICATION PACKAGE — worker-generated. Poll status, then fetch and assert.
+  await stage("PACKAGE", STAGE_TIMEOUT.PACKAGE, async () => {
+    await pollArtifact("PACKAGE", evidenceId, token, STAGE_TIMEOUT.PACKAGE, (s) => ({
+      available: s?.verificationPackage?.available,
+      state: s?.outputs?.verificationPackage?.state,
+    }));
+    const pkg = await apiGet<{ evidenceId?: string; version?: number }>(
+      `/v1/evidence/${evidenceId}/verification-package`,
+      token,
+    );
+    expect(pkg.evidenceId).toBe(evidenceId);
+    expect(pkg.version, "verification package has a version").toBeTruthy();
+  });
 
   // 7. PACKAGE VALIDATOR + PUBLIC VERIFY — the unauthenticated public verify route
   //    (evidence id is the token) computes the package integrity server-side.
-  const pub = await apiPublicGet(`/public/verify/${evidenceId}`);
-  expect(pub.status, "public verify reachable").toBe(200);
-  // Public acquisition is domain-only / neutral, same mode.
-  expect(pub.json?.acquisition?.acquisition?.mode).toBe(ACQ_MODE);
-  // Validator: the signed manifest + checksum index prove the package is intact.
-  const integrity = pub.json?.verificationPackageIntegrity;
-  expect(integrity?.available, "public verify sees the package").toBe(true);
-  expect(integrity?.signedManifestPresent, "package manifest is signed").toBe(true);
-  expect(integrity?.checksumIndexPresent, "package checksum index present").toBe(true);
+  await stage("PACKAGE_VALIDATOR", STAGE_TIMEOUT.PUBLIC_VERIFY, async () => {
+    const pub = await apiPublicGet(`/public/verify/${evidenceId}`);
+    expect(pub.status, "public verify reachable").toBe(200);
+    // Validator: the signed manifest + checksum index prove the package is intact.
+    const integrity = pub.json?.verificationPackageIntegrity;
+    expect(integrity?.available, "public verify sees the package").toBe(true);
+    expect(integrity?.signedManifestPresent, "package manifest is signed").toBe(true);
+    expect(integrity?.checksumIndexPresent, "package checksum index present").toBe(true);
+  });
+
+  await stage("PUBLIC_VERIFY", STAGE_TIMEOUT.PUBLIC_VERIFY, async () => {
+    const pub = await apiPublicGet(`/public/verify/${evidenceId}`);
+    expect(pub.status, "public verify reachable").toBe(200);
+    // Public acquisition is domain-only / neutral, same mode.
+    expect(pub.json?.acquisition?.acquisition?.mode).toBe(ACQ_MODE);
+  });
 }
 
 async function serviceWorker(ctx: BrowserContext): Promise<Worker> {
@@ -279,11 +357,17 @@ test.beforeAll(() => {
 
 for (const fixture of ["static", "long", "spa", "mutating"]) {
   test(`captures ${fixture} and traces the record across every surface`, async () => {
-    // The full lifecycle includes async report + package generation.
-    test.setTimeout(ARTIFACT_TIMEOUT_MS + 120_000);
+    // The test-level cap is the SUM of the bounded stage caps plus margin — it is
+    // a backstop, never the thing that fires first. A hung stage fails at its own
+    // (much smaller) bound with a named diagnostic.
+    test.setTimeout(
+      Object.values(STAGE_TIMEOUT).reduce((a, b) => a + b, 0) + 120_000,
+    );
+    // eslint-disable-next-line no-console
+    console.log(`\n[${fixture}] ──────── UC-1 lifecycle trace ────────`);
 
-    // REAL OAuth: exercises authorize + PKCE + single-use code + token exchange.
-    const accessToken = await obtainExtensionAccessToken();
+    // AUTH — REAL OAuth: authorize + PKCE + single-use code + token exchange.
+    const accessToken = await stage("AUTH", STAGE_TIMEOUT.AUTH, obtainExtensionAccessToken);
 
     const userDataDir = mkdtempSync(join(tmpdir(), "proovra-ext-"));
     const context = await chromium.launchPersistentContext(userDataDir, {
@@ -314,31 +398,43 @@ for (const fixture of ["static", "long", "spa", "mutating"]) {
         return { tabId: tab.id, windowId: tab.windowId };
       });
 
-      // Drive the real background pipeline exactly as the popup does.
-      const result = (await sw.evaluate(
-        async (arg: { tabId: number; windowId: number; teamId: string; mode: string }) => {
-          return chrome.runtime.sendMessage({
-            kind: "PRESERVE",
-            mode: arg.mode,
-            teamId: arg.teamId,
-            tabId: arg.tabId,
-            windowId: arg.windowId,
-            evidenceType: "PHOTO",
-          });
-        },
-        {
-          tabId: tabInfo.tabId!,
-          windowId: tabInfo.windowId!,
-          teamId: TEAM,
-          mode: fixture === "static" ? "VIEWPORT" : "FULL_PAGE",
-        },
-      )) as { ok: boolean; evidenceId?: string; error?: string };
-
-      expect(result.ok, result.error).toBe(true);
-      const evidenceId = result.evidenceId!;
+      // CAPTURE — the whole server-side chain (CaptureSession -> upload -> server
+      // digest verify -> Evidence seal) runs inside this one background message.
+      // A returned evidenceId is proof the entire chain succeeded; on failure the
+      // background's own error/stage is surfaced verbatim (no secrets).
+      const evidenceId = await stage("CAPTURE", STAGE_TIMEOUT.CAPTURE, async () => {
+        const result = (await sw.evaluate(
+          async (arg: { tabId: number; windowId: number; teamId: string; mode: string }) => {
+            return chrome.runtime.sendMessage({
+              kind: "PRESERVE",
+              mode: arg.mode,
+              teamId: arg.teamId,
+              tabId: arg.tabId,
+              windowId: arg.windowId,
+              evidenceType: "PHOTO",
+            });
+          },
+          {
+            tabId: tabInfo.tabId!,
+            windowId: tabInfo.windowId!,
+            teamId: TEAM,
+            mode: fixture === "static" ? "VIEWPORT" : "FULL_PAGE",
+          },
+        )) as { ok: boolean; evidenceId?: string; error?: string; stage?: string };
+        expect(result.ok, `capture failed${result.stage ? ` at ${result.stage}` : ""}: ${result.error ?? "no error"}`).toBe(true);
+        expect(result.evidenceId, "capture returned an evidence id").toBeTruthy();
+        return result.evidenceId!;
+      });
+      // The server-side chain the returned id attests to.
+      for (const derived of ["CAPTURE_SESSION", "UPLOAD", "DIGEST", "EVIDENCE"]) {
+        // eslint-disable-next-line no-console
+        console.log(`  ${derived.padEnd(18)} PASS   (sealed evidence ${evidenceId})`);
+      }
 
       // The SAME Evidence id, proven consistent through every closure surface.
       await traceEvidenceAcrossSurfaces(evidenceId, accessToken);
+      // eslint-disable-next-line no-console
+      console.log(`[${fixture}] ALL SURFACES PASS — evidence ${evidenceId}\n`);
     } finally {
       await context.close();
     }

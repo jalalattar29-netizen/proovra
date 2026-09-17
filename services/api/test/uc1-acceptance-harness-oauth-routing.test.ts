@@ -22,7 +22,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { planServiceChildren } from "../../../scripts/uc1-acceptance-windows.mjs";
+import { planServiceChildren, s3FixtureOverrides } from "../../../scripts/uc1-acceptance-windows.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "..", "..", "..");
@@ -68,6 +68,27 @@ describe("UC-1 acceptance harness — OAuth/API routing", () => {
     );
     // The OAuth endpoints must never be derived from a web/app base URL.
     expect(build).not.toMatch(/WEB_BASE|APP_BASE_URL|NEXT_PUBLIC_APP/);
+  });
+
+  it("wires the acceptance stack to a REAL local disposable object store (not the dead endpoint)", () => {
+    // The UC-1 lifecycle is storage-backed end to end; the canonical fixture env
+    // points S3 at a dead localhost:59900 on purpose. The harness MUST override
+    // it or capture upload / worker report+package writes / public-verify reads
+    // all fail — which is a hang to the test timeout, not a fast failure.
+    const s3cfg = {
+      s3Endpoint: "http://127.0.0.1:56423",
+      s3Bucket: "uc1-acceptance",
+      s3AccessKey: "uc1miniolocal",
+      s3SecretKey: "uc1miniolocalsecret",
+    };
+    const extra = s3FixtureOverrides(s3cfg);
+    expect(extra.S3_ENDPOINT).toBe(s3cfg.s3Endpoint);
+    expect(extra.S3_ENDPOINT).not.toContain("59900"); // never the dead canonical endpoint
+    // A local, path-style S3 (MinIO) with a disposable bucket.
+    expect(new URL(extra.S3_ENDPOINT).hostname).toBe("127.0.0.1");
+    expect(extra.S3_FORCE_PATH_STYLE).toBe("true");
+    expect(extra.S3_BUCKET).toBe(s3cfg.s3Bucket);
+    expect(extra.S3_PUBLIC_BASE_URL).toBe(s3cfg.s3Endpoint);
   });
 
   it("the e2e acceptance builds authorize + token from PROOVRA_API_ORIGIN", () => {

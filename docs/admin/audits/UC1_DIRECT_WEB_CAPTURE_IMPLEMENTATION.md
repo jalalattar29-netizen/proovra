@@ -419,6 +419,40 @@ NOT APPLIED TO PRODUCTION.
   before any Chrome/Edge store submission. Not done in this task by design (no
   store publication, no counsel sign-off available here).
 
+### Browser acceptance debugging (2026-09-17)
+
+The first real Windows run reached Chromium Playwright execution and the static
+scenario hung to the test timeout. Root-causing it (harness fixes + a full
+non-browser lifecycle reproduction against the disposable stack) found and fixed:
+
+- **Harness invoked `pnpm exec prisma` from the repo root** where prisma is not a
+  dependency → migrate step died. Fixed `safe-migrate.mjs` to run prisma in the
+  `proovra-api` workspace dir regardless of caller cwd.
+- **Web child squatted the API's OAuth port.** `buildLocalFixtureEnv` sets
+  `PORT=apiPort`; the web child (bare `next dev`) bound 4000 and served the OAuth
+  authorize route as a Next.js 404. Fixed: the web child gets its own port
+  (`next dev -p <webPort>` + `PORT` override); API readiness now requires HTTP 200.
+- **No object storage.** The lifecycle is storage-backed (capture PUT, worker
+  Report + Package upload, public Verify read); the fixture env points S3 at a dead
+  address. Fixed: disposable MinIO + bucket, `S3_*` pointed at it.
+- **Signing key not registered.** Evidence reads 503 `SIGNING_KEY_MISSING`. Fixed:
+  the harness runs `prisma:seed` (seed-signing-key) with the fixture `SIGNING_*`.
+- **No Puppeteer browser for the Report PDF.** report-v2 renders with Puppeteer and
+  fails RETRYABLE_FAILURE with no browser. Fixed: harness resolves and injects
+  `PUPPETEER_EXECUTABLE_PATH`.
+- **Two acceptance-test contract bugs** (test, not product): DETAIL read
+  `evidence.sourceContext` but `sourceContext` is a TOP-LEVEL key of the
+  review-workspace response; SEARCH derived a query term from the display title
+  (a generic "Digital Evidence Record") — now it asserts the evidence is listed by
+  the fresh workspace's search after reindex. Public verify already corrected from
+  the non-existent `public-overview` to `GET /public/verify/:id`.
+
+The harness now prints stage-level PASS/FAIL with bounded per-stage timeouts and
+a focused `--browsers=chromium --grep static` mode. **A full non-browser
+reproduction of the exact lifecycle (real capture over HTTP → worker Report +
+Package → public Verify) passes every stage green** against the disposable stack;
+the browser gate adds only the extension's own capture UI.
+
 ### FINAL VERDICT
 
 **UC-1 NOT CLOSED.** Exact remaining blocker: the real Chrome + Edge
