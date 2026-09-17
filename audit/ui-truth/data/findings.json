@@ -31,14 +31,14 @@
     },
     {
       "id": "UIT-OD-002",
-      "question": "Is the surface-tier table (apps/web/lib/surface/tiers.ts) still a wanted authority?",
-      "context": "It classifies 129 in-scope surfaces as ENTERPRISE and 99 as notFound on direct access, but the middleware applies it only to INTERNAL surfaces for signed-out requests, and the route registry's plan gate decides for everyone else. For 63 surfaces the two disagree.",
+      "question": "Which authority should answer \"may this surface load\" — the route registry's plan gate, or the surface-tier table?",
+      "context": "Both exist. The tier table is enforced client-side by SurfaceGate and answers notFound; the registry gate resolves NEEDS_UPGRADE with an upgrade action. For 63 surfaces they disagree, and where the tier wins the customer is told the page does not exist (UIT-005).",
       "options": [
-        "Retire the tier table and keep the registry gate",
-        "Re-enable tier enforcement",
-        "Keep as documentation only, with a comment saying it is inert"
+        "Registry gate only; SurfaceGate defers to it and the tier table is retired",
+        "Tier table only, but changed to render an explained refusal rather than notFound",
+        "Keep both, with the tier table reduced to surfaces that must be concealed from everyone"
       ],
-      "recommendation": "Retire it; a second gating table that never fires is a trap for the next reader."
+      "recommendation": "Registry gate only. It already carries the reason and the upgrade action, and one authority per question is the rule the rest of this codebase follows."
     }
   ],
   "findings": [
@@ -157,33 +157,48 @@
     },
     {
       "id": "UIT-005",
-      "severity": "P3",
-      "category": "PARALLEL_AUTHORITY",
-      "title": "A second surface-gating table that never fires for a signed-in user",
+      "severity": "P2",
+      "category": "PLAN_REFUSAL_PRESENTATION",
+      "title": "A plan refusal reaches paying customers as \"We couldn't find that page\", with no upgrade path",
       "affectedRoutes": [
+        "/security-center",
+        "/governance",
         "/governance-platform",
+        "/review",
+        "/redaction",
+        "/investigation",
+        "/intelligence",
+        "/integrations",
+        "/packaging",
+        "/workflows",
         "/executive",
-        "/communications",
         "/budget-center",
-        "/audit-transparency"
+        "/communications",
+        "/audit-transparency",
+        "/reviewer-ops/queue"
       ],
       "affectedActors": [
-        "maintainer"
+        "team-owned-owner",
+        "org-owner",
+        "free-personal-owner",
+        "pro-personal-owner"
       ],
-      "reproduction": "Compare getSurfaceTier/getDirectAccessPolicy for each in-scope surface with the route registry's decision for an ENTERPRISE organization owner.",
-      "expected": "One authority decides whether a surface loads.",
-      "observed": "The tier table marks 129 in-scope surfaces ENTERPRISE and 99 notFound, but middleware.ts applies the rule only when tier is INTERNAL and no session cookie is present. For 63 surfaces the registry allows an ENTERPRISE owner while the tier table says notFound, and nothing enforces the tier.",
+      "reproduction": "Sign in to the fixture as org-owner@fixture.local (a TEAM workspace) and open /security-center, /governance-platform or /budget-center. Then open the same URLs as platform-admin@fixture.local.",
+      "expected": "A surface withheld by plan says so and offers the upgrade path, as the canonical route gate does: it resolves NEEDS_UPGRADE with the reason \"This surface is part of the Enterprise workspace experience\" and a \"View plans\" action, and PageRouteGate renders that as a structured panel.",
+      "observed": "22 of the 49 audited surfaces render the product's not-found state (data-system-state-kind=\"not-found\", \"We couldn't find that page\") for a TEAM org owner and for a FREE personal owner. All 22 render content for a platform admin, so the pages exist and work. Exactly one surface in the same run produced the intended upgrade panel. The cause is a second gate: the layouts of 20 areas wrap their children in SurfaceGate, which reads the surface-tier table and calls next/navigation notFound() when the tier's directAccessPolicy is \"notFound\" — before the canonical gate can explain anything.",
       "evidence": [
-        "apps/web/middleware.ts:64 — the gate fires only for rule.tier === \"INTERNAL\" and no proovra_session cookie",
-        "apps/web/lib/navigation/routeRegistry.ts:141-146 — requiredPlanFeature \"replaces the deleted lib/surface/tiers.ts entitlementOverride mechanism\"",
-        "audit/ui-truth/data/access-matrix.json — 63 surfaces where the two systems disagree"
+        "audit/ui-truth/data/browser-probe-org-owner.json — 22 NOT_FOUND, 1 GATE_NEEDS_UPGRADE, 4 GATE_PLATFORM_ADMIN_ONLY; every verdict decided by the product's own data-system-state-kind or data-page-route-gate-state marker",
+        "audit/ui-truth/data/browser-probe-platform-admin.json — the same 22 routes render content",
+        "apps/web/components/surface/SurfaceGate.tsx:204-205 — if (decision.kind === \"notFound\") notFound()",
+        "apps/web/lib/navigation/routeAccessResolver.ts:241-253 — the canonical gate's NEEDS_UPGRADE carries a reason and a \"View plans\" action",
+        "apps/web/lib/surface/tiers.ts — 129 in-scope surfaces are tiered ENTERPRISE and 99 carry directAccessPolicy notFound"
       ],
-      "rootCause": "The tier table survived the migration to registry plan gates and still carries rules that no longer decide anything.",
-      "blastRadius": "No user-facing effect today. The risk is a maintainer reading the tier table as the access rule, or re-enabling it and 404-ing 63 entitled surfaces.",
-      "recommendedFix": "Retire the table, or reduce it to the INTERNAL rows the middleware actually uses and say so in its header.",
-      "requiredAcceptanceProof": "One authority answers \"can this surface load\"; a test asserts the tier table is either gone or consulted only for INTERNAL, signed-out requests.",
+      "rootCause": "Two gating authorities decide the same question in sequence. The tier table's notFound policy runs first inside SurfaceGate and destroys the refusal's meaning; the route registry's plan gate, which knows how to explain and where to send the customer, never runs.",
+      "blastRadius": "Every non-enterprise customer, including paying TEAM and PRO workspaces, is told that 22 of the product's surfaces do not exist. There is no upgrade affordance on any of them, and support cannot distinguish a plan refusal from a broken link. The same shape hides genuine 404s.",
+      "recommendedFix": "Let the canonical gate answer plan questions: have SurfaceGate defer to routeAccessResolver and render the NEEDS_UPGRADE panel instead of calling notFound(), and keep notFound() only for surfaces that genuinely do not exist for anyone.",
+      "requiredAcceptanceProof": "Re-run the signed-in state matrix for a TEAM and a FREE persona: no surface answers with the not-found state where a platform admin sees content, and every plan-withheld surface renders the upgrade panel with its action.",
       "dependencies": [],
-      "evidenceClass": "SOURCE_PROVEN"
+      "evidenceClass": "SOURCE_AND_RUNTIME_PROVEN"
     },
     {
       "id": "UIT-006",
@@ -442,6 +457,32 @@
       "requiredAcceptanceProof": "The count names its denominator, and the 62 undecidable files are each dispositioned.",
       "dependencies": [],
       "evidenceClass": "SOURCE_PROVEN"
+    },
+    {
+      "id": "UIT-015",
+      "severity": "P3",
+      "category": "INFORMATION_ARCHITECTURE",
+      "title": "The in-app Trust Center index throws a signed-in user out to the marketing site",
+      "affectedRoutes": [
+        "/trust-center"
+      ],
+      "affectedActors": [
+        "every-authenticated-user"
+      ],
+      "reproduction": "Sign in and open /trust-center, then open /trust-center/security.",
+      "expected": "An in-app surface keeps the application shell, exactly as its own children do.",
+      "observed": "/trust-center is a redirect shim to the public /trust page, so a signed-in user lands on the marketing site with its Platform/Solutions/Pricing navigation, a \"Sign in\" link and a \"Request a demo\" call to action. Its children (/trust-center/security, /methodology, /status, /subprocessors, /ai-disclosure) stay inside the app and render through the canonical route gate, so one family answers in two different shells.",
+      "evidence": [
+        "apps/web/app/(app)/trust-center/page.tsx:1-5 — the whole page is redirect(\"/trust\")",
+        "apps/web/app/(app)/trust-center/security/page.tsx:1-6 — the sibling renders in-app behind PageRouteGate",
+        "audit/ui-truth/data/browser-probe-org-owner.json — /trust-center renders \"Platform Technology Solutions Resources Company Pricing Verify EN Sign in Request a demo\" to a signed-in org owner"
+      ],
+      "rootCause": "The index was left as a redirect when the in-app trust pages were added.",
+      "blastRadius": "A signed-in customer is shown a sign-in link and a sales call to action, and loses the workspace context and navigation.",
+      "recommendedFix": "Render the in-app trust index (the section list its children already use), or point the navigation entry at a child that stays in the shell.",
+      "requiredAcceptanceProof": "A signed-in visit to /trust-center keeps the application shell, and no app route links out to the marketing site.",
+      "dependencies": [],
+      "evidenceClass": "SOURCE_AND_RUNTIME_PROVEN"
     }
   ]
 }

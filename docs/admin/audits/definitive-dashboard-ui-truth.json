@@ -1,0 +1,3661 @@
+{
+  "phase": "UI-TRUTH",
+  "kind": "definitive-dashboard-ui-truth",
+  "schemaVersion": 1,
+  "auditedSha": "d6371ecc5a374a20fe7a96d9717c0eb2ad7082e8",
+  "originMainSha": "d6371ecc5a374a20fe7a96d9717c0eb2ad7082e8",
+  "auditBranch": "audit/definitive-dashboard-ui-truth",
+  "auditWorktree": "D:/pv-uitruth",
+  "productFilesChanged": 0,
+  "productionContacted": false,
+  "method": [
+    "Surface universe generated from the Next.js app router (208 pages, 168 in scope).",
+    "Every surface joined to the canonical authorities it already has: routeRegistry.ts, adminNavigation.ts, adminScopeDispositions.ts, surface tiers, and the generated capability map.",
+    "Role/plan/workspace expectations computed by calling the product's OWN resolvers (capability-registry.ts and routeAccessResolver.ts) for 12 personas.",
+    "Controls extracted statically with the TypeScript compiler API and matched to endpoints through the capability map.",
+    "Runtime authorization probed against a disposable loopback fixture (fresh PostgreSQL, fresh Redis, fixture API on 127.0.0.1:8931, GET only) for 7 personas.",
+    "Layout, state and accessibility evidence re-measured once on the audit SHA with the eight layout Playwright projects, which intercept every /v1 call with contract-shaped fixtures."
+  ],
+  "limitations": [
+    "The runtime probe issues GET requests only, so mutation behaviour is proven from source and from the existing admin mutation matrix, not re-executed here.",
+    "105 of 326 read endpoints could not be probed because the fixture holds no record for their path parameter; they are recorded as BLOCKED_FIXTURE_CAPABILITY rather than assumed.",
+    "Integrations, notifications, AI and communications are flag-disabled in the fixture, so their surfaces answer 503 INTEGRATIONS_DISABLED and their states could not be exercised.",
+    "Static control extraction cannot resolve 1,231 controls whose handler is supplied by a parent component; these are marked UNRESOLVED_DYNAMIC, never guessed.",
+    "The layout projects mock the API at the browser boundary, so their evidence is about rendering and state, not about live data."
+  ],
+  "counts": {
+    "filesystemPages": 208,
+    "surfacesInScope": 168,
+    "surfacesOutOfScope": 40,
+    "detailPages": 43,
+    "surfacesByArea": {
+      "AUTH": 9,
+      "EXTERNAL_PORTAL": 4,
+      "GOVERNANCE": 14,
+      "ORGANIZATION_NAMESPACE": 21,
+      "PLATFORM_ADMIN_NAMESPACE": 35,
+      "PUBLIC_EXCHANGE": 7,
+      "PUBLIC_MARKETING": 23,
+      "PUBLIC_PLATFORM": 1,
+      "SECURITY_CENTER": 13,
+      "SETTINGS": 5,
+      "WORKSPACE_DASHBOARD": 76
+    },
+    "surfaceAccounting": {
+      "REGISTERED_OWN_ROUTE_ID": 131,
+      "GATED_BY_ANCESTOR_ROUTE_ID": 31,
+      "NO_REGISTRY_ENTRY_AND_NO_GATE": 6
+    },
+    "registeredRoutesInCapabilityMap": null,
+    "endpointsConsumedBySurfaces": 683,
+    "surfacesWithMutations": 87,
+    "controls": 7439,
+    "controlsByType": {
+      "BUTTON": 2911,
+      "CHECKBOX": 85,
+      "FORM": 106,
+      "INPUT": 1080,
+      "LINK": 952,
+      "OTHER": 1801,
+      "RADIO": 24,
+      "SELECT": 427,
+      "TAB": 37,
+      "TOGGLE": 10,
+      "UPLOAD": 6
+    },
+    "controlsByKind": {
+      "LOCAL_ONLY": 4433,
+      "MUTATION": 615,
+      "NAVIGATIONAL": 958,
+      "READ": 202,
+      "UNRESOLVED_DYNAMIC": 1231
+    },
+    "mutationsResolvedToEndpoint": null,
+    "surfacesWithControls": 166,
+    "accessMatrixCells": 2016,
+    "personas": 12,
+    "runtimeEndpointsProbed": 221,
+    "runtimeRequests": 1547,
+    "runtimeBlockedByFixture": 105,
+    "placementVerdicts": {
+      "ACCOUNT_LEVEL_ONLY": 2,
+      "AGREES": 113,
+      "AGREES_WITH_SECONDARY_AUTHORITY": 7,
+      "DISAGREES": 12,
+      "MIXED_AUTHORITY": 5,
+      "NO_BACKEND_EVIDENCE": 29
+    },
+    "placementDecisions": 17,
+    "labels": 23894,
+    "rawValueExposures": 117,
+    "labelsByVerdict": {
+      "AMBIGUOUS_LABEL": 49,
+      "DEVELOPER_LANGUAGE": 61,
+      "HUMAN_READABLE": 23248,
+      "RAW_ENUM": 84,
+      "SCREAMING_SNAKE": 1,
+      "SNAKE_CASE": 32,
+      "UNEXPLAINED_ACRONYM": 419
+    },
+    "dataElements": 3003,
+    "dataTruthHazards": 90,
+    "dataTruthHazardsVerified": {
+      "flagged": 65,
+      "confirmedSilent": 36,
+      "demoted": 19,
+      "documentedDeliberate": 9,
+      "unverifiable": 1,
+      "confirmedByRoute": {
+        "SHARED_COMPONENT": 6,
+        "/security-center": 4,
+        "/investigation": 3,
+        "/redaction": 3,
+        "/review/external": 2,
+        "/search": 2,
+        "/security-center/mfa-recovery": 2,
+        "/teams/[id]": 2,
+        "/audit-transparency": 1,
+        "/budget-center": 1,
+        "/cases": 1,
+        "/executive": 1,
+        "/governance-platform/cross-org": 1,
+        "/governance-platform/delegated-admin": 1,
+        "/governance-platform": 1,
+        "/intelligence-quality": 1,
+        "/investigation/duplicates": 1,
+        "/organizations/[id]": 1,
+        "/settings": 1,
+        "/workflows/[id]": 1
+      }
+    },
+    "layoutFailuresMeasured": 234,
+    "layoutClassification": {
+      "FIXTURE_DEFECT": 105,
+      "STALE_TEST": 112,
+      "DUPLICATE_ASSERTION": 12,
+      "REAL_PRODUCT_DEFECT": 4,
+      "EXPECTED_BY_DESIGN": 1
+    },
+    "findings": 15,
+    "findingsBySeverity": {
+      "P0": 0,
+      "P1": 1,
+      "P2": 6,
+      "P3": 8
+    },
+    "findingsByEvidenceClass": {
+      "SOURCE_AND_RUNTIME_PROVEN": 3,
+      "RUNTIME_PROVEN": 3,
+      "SOURCE_PROVEN": 9
+    },
+    "blockedProofs": 0,
+    "ownerDecisions": 2,
+    "browserProbePersonas": 3
+  },
+  "surfaces": [
+    {
+      "route": "/admin",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/admin/adoption",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/adoption/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/admin/alerts",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/alerts/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/admin/audit",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/audit/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/admin/billing",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/billing/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/admin/contact-sales",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/contact-sales/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/admin/contact-sales/[id]",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/contact-sales/[id]/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/admin/costs",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/costs/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/admin/customers",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/customers/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/admin/customers/[id]",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/customers/[id]/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/admin/dashboard",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/dashboard/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/admin/demo-requests",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/demo-requests/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/admin/demo-requests/[id]",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/demo-requests/[id]/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/admin/evidence-ops",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/evidence-ops/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/admin/evidence-ops/records",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/evidence-ops/records/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/admin/executive",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/executive/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/admin/operations",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/operations/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/admin/platform-health",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/platform-health/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/admin/platform/exports",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/platform/exports/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/admin/platform/media-graph",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/platform/media-graph/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/admin/platform/observability",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/platform/observability/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/admin/platform/queues",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/platform/queues/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/admin/platform/readiness",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/platform/readiness/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/admin/platform/recovery",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/platform/recovery/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/admin/platform/runbooks",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/platform/runbooks/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/admin/platform/runbooks/[slug]",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/platform/runbooks/[slug]/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/admin/platform/signers",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/admin/provisioning",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/provisioning/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/admin/search",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/search/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/admin/support-access",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/support-access/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/admin/timeline",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/timeline/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/admin/users",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/users/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/admin/users/[id]",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/users/[id]/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/admin/workspaces",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/workspaces/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/admin/workspaces/[id]",
+      "area": "PLATFORM_ADMIN_NAMESPACE",
+      "file": "apps/web/app/(app)/admin/workspaces/[id]/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/audit-transparency",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/audit-transparency/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/billing",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/billing/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/budget-center",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/budget-center/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/capture",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/capture/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/cases",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/cases/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/cases/[id]",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/cases/[id]/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/collaboration-teams",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/collaboration-teams/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/collaboration-teams/[teamId]",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/collaboration-teams/[teamId]/collaboration",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/collaboration-teams/[teamId]/collaboration/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/collaboration-teams/invites/[token]/accept",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/communications",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/communications/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/evidence",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/evidence/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/evidence-lifecycle",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/evidence-lifecycle/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/evidence-lifecycle/archive",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/evidence-lifecycle/archive/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/evidence-lifecycle/chain-transfers",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/evidence-lifecycle/chain-transfers/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/evidence-lifecycle/destruction",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/evidence-lifecycle/destruction/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/evidence-lifecycle/legal-holds",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/evidence-lifecycle/legal-holds/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/evidence-lifecycle/retention",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/evidence-lifecycle/retention/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/evidence-lifecycle/webhooks",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/evidence-lifecycle/webhooks/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/evidence-requests/[id]",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/evidence-requests/[id]/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/evidence/[id]",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/exchange",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/exchange/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/executive",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/executive/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/governance",
+      "area": "GOVERNANCE",
+      "file": "apps/web/app/(app)/governance/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/governance-platform",
+      "area": "GOVERNANCE",
+      "file": "apps/web/app/(app)/governance-platform/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/governance-platform/access-reviews",
+      "area": "GOVERNANCE",
+      "file": "apps/web/app/(app)/governance-platform/access-reviews/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/governance-platform/access-reviews/[campaignId]",
+      "area": "GOVERNANCE",
+      "file": "apps/web/app/(app)/governance-platform/access-reviews/[campaignId]/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/governance-platform/cross-org",
+      "area": "GOVERNANCE",
+      "file": "apps/web/app/(app)/governance-platform/cross-org/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/governance-platform/delegated-admin",
+      "area": "GOVERNANCE",
+      "file": "apps/web/app/(app)/governance-platform/delegated-admin/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/governance-platform/departments",
+      "area": "GOVERNANCE",
+      "file": "apps/web/app/(app)/governance-platform/departments/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/governance-platform/policies",
+      "area": "GOVERNANCE",
+      "file": "apps/web/app/(app)/governance-platform/policies/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/governance/analytics",
+      "area": "GOVERNANCE",
+      "file": "apps/web/app/(app)/governance/analytics/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/governance/destruction",
+      "area": "GOVERNANCE",
+      "file": "apps/web/app/(app)/governance/destruction/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/governance/lifecycle",
+      "area": "GOVERNANCE",
+      "file": "apps/web/app/(app)/governance/lifecycle/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/governance/notifications",
+      "area": "GOVERNANCE",
+      "file": "apps/web/app/(app)/governance/notifications/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/governance/policy",
+      "area": "GOVERNANCE",
+      "file": "apps/web/app/(app)/governance/policy/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/governance/retention",
+      "area": "GOVERNANCE",
+      "file": "apps/web/app/(app)/governance/retention/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/home",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/home/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/inbox",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/inbox/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/intake-links",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/intake-links/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/integrations",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/integrations/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/intelligence",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/intelligence/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/intelligence-quality",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/intelligence-quality/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/investigation",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/investigation/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/investigation/cases/[caseId]/graph",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/investigation/cases/[caseId]/graph/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/investigation/duplicates",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/investigation/duplicates/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/investigation/graph",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/investigation/graph/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/investigation/relationships",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/investigation/relationships/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/investigation/reviewers",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/investigation/reviewers/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/investigation/timeline",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/investigation/timeline/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/notifications",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/notifications/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/operations",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/operations/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/operations/analytics",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/operations/analytics/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/operations/automation",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/operations/automation/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/operations/batch-analysis",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/operations/batch-analysis/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/operations/health",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/operations/health/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/operations/quotas",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/operations/quotas/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/operations/reliability",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/operations/reliability/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/org-invites/[token]/accept",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/org-invites/[token]/accept/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/organizations",
+      "area": "ORGANIZATION_NAMESPACE",
+      "file": "apps/web/app/(app)/organizations/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/organizations/[id]",
+      "area": "ORGANIZATION_NAMESPACE",
+      "file": "apps/web/app/(app)/organizations/[id]/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/organizations/[id]/admin",
+      "area": "ORGANIZATION_NAMESPACE",
+      "file": "apps/web/app/(app)/organizations/[id]/admin/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/organizations/[id]/admin/access-reviews",
+      "area": "ORGANIZATION_NAMESPACE",
+      "file": "apps/web/app/(app)/organizations/[id]/admin/access-reviews/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/organizations/[id]/admin/audit",
+      "area": "ORGANIZATION_NAMESPACE",
+      "file": "apps/web/app/(app)/organizations/[id]/admin/audit/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/organizations/[id]/admin/billing",
+      "area": "ORGANIZATION_NAMESPACE",
+      "file": "apps/web/app/(app)/organizations/[id]/admin/billing/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/organizations/[id]/admin/bulk-invite",
+      "area": "ORGANIZATION_NAMESPACE",
+      "file": "apps/web/app/(app)/organizations/[id]/admin/bulk-invite/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/organizations/[id]/admin/departments",
+      "area": "ORGANIZATION_NAMESPACE",
+      "file": "apps/web/app/(app)/organizations/[id]/admin/departments/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/organizations/[id]/admin/domains",
+      "area": "ORGANIZATION_NAMESPACE",
+      "file": "apps/web/app/(app)/organizations/[id]/admin/domains/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/organizations/[id]/admin/governance",
+      "area": "ORGANIZATION_NAMESPACE",
+      "file": "apps/web/app/(app)/organizations/[id]/admin/governance/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/organizations/[id]/admin/governance/external-reviewers",
+      "area": "ORGANIZATION_NAMESPACE",
+      "file": "apps/web/app/(app)/organizations/[id]/admin/governance/external-reviewers/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/organizations/[id]/admin/integrations",
+      "area": "ORGANIZATION_NAMESPACE",
+      "file": "apps/web/app/(app)/organizations/[id]/admin/integrations/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/organizations/[id]/admin/members",
+      "area": "ORGANIZATION_NAMESPACE",
+      "file": "apps/web/app/(app)/organizations/[id]/admin/members/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/organizations/[id]/admin/overview",
+      "area": "ORGANIZATION_NAMESPACE",
+      "file": "apps/web/app/(app)/organizations/[id]/admin/overview/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/organizations/[id]/admin/readiness",
+      "area": "ORGANIZATION_NAMESPACE",
+      "file": "apps/web/app/(app)/organizations/[id]/admin/readiness/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/organizations/[id]/admin/reports",
+      "area": "ORGANIZATION_NAMESPACE",
+      "file": "apps/web/app/(app)/organizations/[id]/admin/reports/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/organizations/[id]/admin/retention",
+      "area": "ORGANIZATION_NAMESPACE",
+      "file": "apps/web/app/(app)/organizations/[id]/admin/retention/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/organizations/[id]/admin/roles",
+      "area": "ORGANIZATION_NAMESPACE",
+      "file": "apps/web/app/(app)/organizations/[id]/admin/roles/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/organizations/[id]/admin/security",
+      "area": "ORGANIZATION_NAMESPACE",
+      "file": "apps/web/app/(app)/organizations/[id]/admin/security/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/organizations/[id]/admin/trust",
+      "area": "ORGANIZATION_NAMESPACE",
+      "file": "apps/web/app/(app)/organizations/[id]/admin/trust/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/organizations/[id]/setup",
+      "area": "ORGANIZATION_NAMESPACE",
+      "file": "apps/web/app/(app)/organizations/[id]/setup/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/packaging",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/packaging/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/people",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/people/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/portal",
+      "area": "EXTERNAL_PORTAL",
+      "file": "apps/web/app/portal/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/portal/[token]",
+      "area": "EXTERNAL_PORTAL",
+      "file": "apps/web/app/portal/[token]/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/portal/[token]/work/[workflowId]",
+      "area": "EXTERNAL_PORTAL",
+      "file": "apps/web/app/portal/[token]/work/[workflowId]/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/portal/accept/[grantId]",
+      "area": "EXTERNAL_PORTAL",
+      "file": "apps/web/app/portal/accept/[grantId]/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/redaction",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/redaction/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/redaction/[projectId]",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/redaction/[projectId]/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/redaction/policy",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/redaction/policy/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/reports",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/reports/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/review",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/review/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/review/disagreements",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/review/disagreements/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/review/external",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/review/external/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/review/metrics",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/review/metrics/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/review/operations",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/review/operations/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/review/qc",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/review/qc/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/review/queues",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/review/queues/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/review/schemas",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/review/schemas/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/review/workspace",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/review/workspace/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/reviewer-ops/[reviewId]",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/reviewer-ops/escalations",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/reviewer-ops/queue",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/reviewer-ops/queue/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/reviewer-ops/sla",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/reviewer-ops/sla/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/search",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/search/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/security-center",
+      "area": "SECURITY_CENTER",
+      "file": "apps/web/app/(app)/security-center/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/security-center/identity",
+      "area": "SECURITY_CENTER",
+      "file": "apps/web/app/(app)/security-center/identity/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/security-center/identity/access-reviews",
+      "area": "SECURITY_CENTER",
+      "file": "apps/web/app/(app)/security-center/identity/access-reviews/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/security-center/identity/permission-matrix",
+      "area": "SECURITY_CENTER",
+      "file": "apps/web/app/(app)/security-center/identity/permission-matrix/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/security-center/identity/runtime",
+      "area": "SECURITY_CENTER",
+      "file": "apps/web/app/(app)/security-center/identity/runtime/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/security-center/identity/scim",
+      "area": "SECURITY_CENTER",
+      "file": "apps/web/app/(app)/security-center/identity/scim/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/security-center/identity/sessions",
+      "area": "SECURITY_CENTER",
+      "file": "apps/web/app/(app)/security-center/identity/sessions/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/security-center/identity/timeline",
+      "area": "SECURITY_CENTER",
+      "file": "apps/web/app/(app)/security-center/identity/timeline/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/security-center/mfa-recovery",
+      "area": "SECURITY_CENTER",
+      "file": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/security-center/posture",
+      "area": "SECURITY_CENTER",
+      "file": "apps/web/app/(app)/security-center/posture/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/security-center/sso",
+      "area": "SECURITY_CENTER",
+      "file": "apps/web/app/(app)/security-center/sso/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/security-center/sso/health",
+      "area": "SECURITY_CENTER",
+      "file": "apps/web/app/(app)/security-center/sso/health/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/security-center/sso/mapping",
+      "area": "SECURITY_CENTER",
+      "file": "apps/web/app/(app)/security-center/sso/mapping/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/settings",
+      "area": "SETTINGS",
+      "file": "apps/web/app/(app)/settings/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/settings/legal/[slug]",
+      "area": "SETTINGS",
+      "file": "apps/web/app/(app)/settings/legal/[slug]/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/settings/notifications/deliveries",
+      "area": "SETTINGS",
+      "file": "apps/web/app/(app)/settings/notifications/deliveries/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/settings/reviewer-criteria",
+      "area": "SETTINGS",
+      "file": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/settings/security/saml",
+      "area": "SETTINGS",
+      "file": "apps/web/app/(app)/settings/security/saml/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/teams/[id]",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/teams/[id]/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/tools",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/tools/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/trust-center",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/trust-center/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/trust-center/ai-disclosure",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/trust-center/ai-disclosure/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/trust-center/methodology",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/trust-center/methodology/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/trust-center/security",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/trust-center/security/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/trust-center/status",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/trust-center/status/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/trust-center/subprocessors",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/trust-center/subprocessors/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/workflows",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/workflows/page.tsx",
+      "isDetail": false
+    },
+    {
+      "route": "/workflows/[id]",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/workflows/[id]/page.tsx",
+      "isDetail": true
+    },
+    {
+      "route": "/workspaces",
+      "area": "WORKSPACE_DASHBOARD",
+      "file": "apps/web/app/(app)/workspaces/page.tsx",
+      "isDetail": false
+    }
+  ],
+  "placement": [
+    {
+      "route": "/admin",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": "PLATFORM",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/admin/adoption",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": "PLATFORM",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/admin/alerts",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": "PLATFORM",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/admin/audit",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": "PLATFORM",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/admin/billing",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": "PLATFORM",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/admin/contact-sales",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": "PLATFORM",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/admin/contact-sales/[id]",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": "PLATFORM",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/admin/costs",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": "PLATFORM",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/admin/customers",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": "PLATFORM",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/admin/customers/[id]",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": "PLATFORM",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/admin/dashboard",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": "PLATFORM",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/admin/demo-requests",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": "PLATFORM",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/admin/demo-requests/[id]",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": "PLATFORM",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/admin/evidence-ops",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": "PLATFORM",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/admin/evidence-ops/records",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": "PLATFORM",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/admin/executive",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": "PLATFORM",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/admin/operations",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": "PLATFORM",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/admin/platform-health",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": "PLATFORM",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/admin/platform/exports",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": "PLATFORM",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/admin/platform/media-graph",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": "PLATFORM",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/admin/platform/observability",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": "PLATFORM",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/admin/platform/queues",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": "PLATFORM",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/admin/platform/readiness",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": "PLATFORM",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/admin/platform/recovery",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": "PLATFORM",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/admin/platform/runbooks",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": null,
+      "verdict": "NO_BACKEND_EVIDENCE",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/admin/platform/runbooks/[slug]",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": null,
+      "verdict": "NO_BACKEND_EVIDENCE",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/admin/platform/signers",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": "PLATFORM",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/admin/provisioning",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": "ORGANIZATION",
+      "verdict": "MIXED_AUTHORITY",
+      "decision": "CORRECT_AS_IS",
+      "decisionReason": "A platform operator provisions CUSTOMER organizations, so organization-scoped endpoints are the OBJECT of the administration, not evidence of tenant placement. The page is platform-gated and appears only in the platform admin navigation."
+    },
+    {
+      "route": "/admin/search",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": "PLATFORM",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/admin/support-access",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": "PLATFORM",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/admin/timeline",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": "PLATFORM",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/admin/users",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": "PLATFORM",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/admin/users/[id]",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": "PLATFORM",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/admin/workspaces",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": "PLATFORM",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/admin/workspaces/[id]",
+      "observedArea": "PLATFORM_ADMIN_NAMESPACE",
+      "backendArea": "PLATFORM",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/audit-transparency",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/billing",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "ORGANIZATION",
+      "verdict": "DISAGREES",
+      "decision": "CORRECT_AS_IS",
+      "decisionReason": "The commercial subject is the active workspace, and for an organization workspace that subject is the organization. Organization-scoped billing reads on a workspace surface are the documented model, not a placement error."
+    },
+    {
+      "route": "/budget-center",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/capture",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/cases",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/cases/[id]",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": null,
+      "verdict": "NO_BACKEND_EVIDENCE",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/collaboration-teams",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": null,
+      "verdict": "NO_BACKEND_EVIDENCE",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/collaboration-teams/[teamId]",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": null,
+      "verdict": "NO_BACKEND_EVIDENCE",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/collaboration-teams/[teamId]/collaboration",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": null,
+      "verdict": "NO_BACKEND_EVIDENCE",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/collaboration-teams/invites/[token]/accept",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": null,
+      "verdict": "NO_BACKEND_EVIDENCE",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/communications",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/evidence",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/evidence-lifecycle",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/evidence-lifecycle/archive",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/evidence-lifecycle/chain-transfers",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/evidence-lifecycle/destruction",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/evidence-lifecycle/legal-holds",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/evidence-lifecycle/retention",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/evidence-lifecycle/webhooks",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/evidence-requests/[id]",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/evidence/[id]",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/exchange",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/executive",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/governance",
+      "observedArea": "GOVERNANCE",
+      "backendArea": null,
+      "verdict": "NO_BACKEND_EVIDENCE",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/governance-platform",
+      "observedArea": "GOVERNANCE",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/governance-platform/access-reviews",
+      "observedArea": "GOVERNANCE",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/governance-platform/access-reviews/[campaignId]",
+      "observedArea": "GOVERNANCE",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/governance-platform/cross-org",
+      "observedArea": "GOVERNANCE",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/governance-platform/delegated-admin",
+      "observedArea": "GOVERNANCE",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/governance-platform/departments",
+      "observedArea": "GOVERNANCE",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/governance-platform/policies",
+      "observedArea": "GOVERNANCE",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/governance/analytics",
+      "observedArea": "GOVERNANCE",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/governance/destruction",
+      "observedArea": "GOVERNANCE",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/governance/lifecycle",
+      "observedArea": "GOVERNANCE",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/governance/notifications",
+      "observedArea": "GOVERNANCE",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/governance/policy",
+      "observedArea": "GOVERNANCE",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/governance/retention",
+      "observedArea": "GOVERNANCE",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/home",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": null,
+      "verdict": "NO_BACKEND_EVIDENCE",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/inbox",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/intake-links",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/integrations",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/intelligence",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/intelligence-quality",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/investigation",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES_WITH_SECONDARY_AUTHORITY",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/investigation/cases/[caseId]/graph",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/investigation/duplicates",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/investigation/graph",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/investigation/relationships",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/investigation/reviewers",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/investigation/timeline",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/notifications",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": null,
+      "verdict": "NO_BACKEND_EVIDENCE",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/operations",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "PLATFORM",
+      "verdict": "DISAGREES",
+      "decision": "CORRECT_BUT_AUTHORITY_MISLABELLED",
+      "decisionReason": "The page is a tenant surface and the endpoints behave as workspace-anchored at runtime: /v1/ops/incidents refuses a request without teamId and answers 404 for another tenant's workspace in both directions. The capability map labels them PLATFORM/PLATFORM_GLOBAL, which is what produced the disagreement. Placement stands; the label is the defect (UIT-001)."
+    },
+    {
+      "route": "/operations/analytics",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/operations/automation",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/operations/batch-analysis",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "ACCOUNT",
+      "verdict": "ACCOUNT_LEVEL_ONLY",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/operations/health",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/operations/quotas",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/operations/reliability",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "PLATFORM",
+      "verdict": "DISAGREES",
+      "decision": "CORRECT_BUT_AUTHORITY_MISLABELLED",
+      "decisionReason": "Same family as /operations: GET /v1/reliability/summary answers 200 for a member of the workspace, 404 for another tenant's workspace, and 403 for a read-only member. The PLATFORM_GLOBAL label does not describe the runtime scope."
+    },
+    {
+      "route": "/org-invites/[token]/accept",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/organizations",
+      "observedArea": "ORGANIZATION_NAMESPACE",
+      "backendArea": "WORKSPACE",
+      "verdict": "DISAGREES",
+      "decision": "CORRECT_AS_IS",
+      "decisionReason": "The organization list is assembled from the caller's own workspace memberships, so workspace-scoped reads are the correct source for it."
+    },
+    {
+      "route": "/organizations/[id]",
+      "observedArea": "ORGANIZATION_NAMESPACE",
+      "backendArea": "ORGANIZATION",
+      "verdict": "AGREES_WITH_SECONDARY_AUTHORITY",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/organizations/[id]/admin",
+      "observedArea": "ORGANIZATION_NAMESPACE",
+      "backendArea": "ORGANIZATION",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/organizations/[id]/admin/access-reviews",
+      "observedArea": "ORGANIZATION_NAMESPACE",
+      "backendArea": null,
+      "verdict": "NO_BACKEND_EVIDENCE",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/organizations/[id]/admin/audit",
+      "observedArea": "ORGANIZATION_NAMESPACE",
+      "backendArea": "ORGANIZATION",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/organizations/[id]/admin/billing",
+      "observedArea": "ORGANIZATION_NAMESPACE",
+      "backendArea": "ORGANIZATION",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/organizations/[id]/admin/bulk-invite",
+      "observedArea": "ORGANIZATION_NAMESPACE",
+      "backendArea": "ORGANIZATION",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/organizations/[id]/admin/departments",
+      "observedArea": "ORGANIZATION_NAMESPACE",
+      "backendArea": null,
+      "verdict": "NO_BACKEND_EVIDENCE",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/organizations/[id]/admin/domains",
+      "observedArea": "ORGANIZATION_NAMESPACE",
+      "backendArea": "ORGANIZATION",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/organizations/[id]/admin/governance",
+      "observedArea": "ORGANIZATION_NAMESPACE",
+      "backendArea": "ORGANIZATION",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/organizations/[id]/admin/governance/external-reviewers",
+      "observedArea": "ORGANIZATION_NAMESPACE",
+      "backendArea": "WORKSPACE",
+      "verdict": "DISAGREES",
+      "decision": "CORRECT_AS_IS",
+      "decisionReason": "A read-only organization governance view over external reviewer grants. The page states that issuance, revocation and rotation live on their canonical operator surface, so the single workspace-scoped read is a governance projection rather than a misplaced operator control."
+    },
+    {
+      "route": "/organizations/[id]/admin/integrations",
+      "observedArea": "ORGANIZATION_NAMESPACE",
+      "backendArea": "ORGANIZATION",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/organizations/[id]/admin/members",
+      "observedArea": "ORGANIZATION_NAMESPACE",
+      "backendArea": "ORGANIZATION",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/organizations/[id]/admin/overview",
+      "observedArea": "ORGANIZATION_NAMESPACE",
+      "backendArea": "ORGANIZATION",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/organizations/[id]/admin/readiness",
+      "observedArea": "ORGANIZATION_NAMESPACE",
+      "backendArea": "WORKSPACE",
+      "verdict": "MIXED_AUTHORITY",
+      "decision": "CORRECT_AS_IS",
+      "decisionReason": "An organization readiness view legitimately mixes organization posture with the workspace evidence that produces it; the page is reachable only inside an organization admin route whose gate requires the organization."
+    },
+    {
+      "route": "/organizations/[id]/admin/reports",
+      "observedArea": "ORGANIZATION_NAMESPACE",
+      "backendArea": "ORGANIZATION",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/organizations/[id]/admin/retention",
+      "observedArea": "ORGANIZATION_NAMESPACE",
+      "backendArea": "ORGANIZATION",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/organizations/[id]/admin/roles",
+      "observedArea": "ORGANIZATION_NAMESPACE",
+      "backendArea": "ORGANIZATION",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/organizations/[id]/admin/security",
+      "observedArea": "ORGANIZATION_NAMESPACE",
+      "backendArea": null,
+      "verdict": "NO_BACKEND_EVIDENCE",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/organizations/[id]/admin/trust",
+      "observedArea": "ORGANIZATION_NAMESPACE",
+      "backendArea": "WORKSPACE",
+      "verdict": "MIXED_AUTHORITY",
+      "decision": "CORRECT_AS_IS",
+      "decisionReason": "Trust posture for an organization is computed from workspace-level evidence; the ten workspace reads are the inputs to the organization view, not a tenant surface hiding in an organization namespace."
+    },
+    {
+      "route": "/organizations/[id]/setup",
+      "observedArea": "ORGANIZATION_NAMESPACE",
+      "backendArea": "ORGANIZATION",
+      "verdict": "AGREES_WITH_SECONDARY_AUTHORITY",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/packaging",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/people",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": null,
+      "verdict": "NO_BACKEND_EVIDENCE",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/portal",
+      "observedArea": "EXTERNAL_PORTAL",
+      "backendArea": "ACCOUNT",
+      "verdict": "ACCOUNT_LEVEL_ONLY",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/portal/[token]",
+      "observedArea": "EXTERNAL_PORTAL",
+      "backendArea": null,
+      "verdict": "NO_BACKEND_EVIDENCE",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/portal/[token]/work/[workflowId]",
+      "observedArea": "EXTERNAL_PORTAL",
+      "backendArea": null,
+      "verdict": "NO_BACKEND_EVIDENCE",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/portal/accept/[grantId]",
+      "observedArea": "EXTERNAL_PORTAL",
+      "backendArea": null,
+      "verdict": "NO_BACKEND_EVIDENCE",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/redaction",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "ORGANIZATION",
+      "verdict": "DISAGREES",
+      "decision": "CORRECT_BUT_AUTHORITY_MISLABELLED",
+      "decisionReason": "The page declares itself workspace-anchored and calls /v1/redaction/workspace/*; the capability map labels those endpoints ORGANIZATION_SCOPED. Placement stands; the tenancy label is inconsistent with the route's own contract (UIT-001)."
+    },
+    {
+      "route": "/redaction/[projectId]",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "ORGANIZATION",
+      "verdict": "DISAGREES",
+      "decision": "CORRECT_BUT_AUTHORITY_MISLABELLED",
+      "decisionReason": "Detail surface of the same workspace-anchored family; inherits the parent's contract and the same map labelling."
+    },
+    {
+      "route": "/redaction/policy",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "ORGANIZATION",
+      "verdict": "DISAGREES",
+      "decision": "CORRECT_BUT_AUTHORITY_MISLABELLED",
+      "decisionReason": "Policy editing for the same workspace-anchored family."
+    },
+    {
+      "route": "/reports",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": null,
+      "verdict": "NO_BACKEND_EVIDENCE",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/review",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": null,
+      "verdict": "NO_BACKEND_EVIDENCE",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/review/disagreements",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "PLATFORM",
+      "verdict": "DISAGREES",
+      "decision": "CORRECT_BUT_AUTHORITY_MISLABELLED",
+      "decisionReason": "Proven at runtime to be workspace-anchored: 200 for the org owner and workspace admin, 403 for another tenant's workspace, 403 for personal-space callers. The route file states the rule explicitly. The map's MULTI_TENANT_PLATFORM_ADMIN label is wrong (UIT-001)."
+    },
+    {
+      "route": "/review/external",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/review/metrics",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": null,
+      "verdict": "NO_BACKEND_EVIDENCE",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/review/operations",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/review/qc",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "PLATFORM",
+      "verdict": "MIXED_AUTHORITY",
+      "decision": "CORRECT_BUT_AUTHORITY_MISLABELLED",
+      "decisionReason": "Same route file and same runtime behaviour as /review/disagreements."
+    },
+    {
+      "route": "/review/queues",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/review/schemas",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "PLATFORM",
+      "verdict": "DISAGREES",
+      "decision": "CORRECT_BUT_AUTHORITY_MISLABELLED",
+      "decisionReason": "GET /v1/coding/schemas answers 200 for tenant admins and 403 for another tenant's workspace, so the coding schema library is workspace-anchored despite the platform label."
+    },
+    {
+      "route": "/review/workspace",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": null,
+      "verdict": "NO_BACKEND_EVIDENCE",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/reviewer-ops/[reviewId]",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/reviewer-ops/escalations",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/reviewer-ops/queue",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": null,
+      "verdict": "NO_BACKEND_EVIDENCE",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/reviewer-ops/sla",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/search",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES_WITH_SECONDARY_AUTHORITY",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/security-center",
+      "observedArea": "SECURITY_CENTER",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/security-center/identity",
+      "observedArea": "SECURITY_CENTER",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES_WITH_SECONDARY_AUTHORITY",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/security-center/identity/access-reviews",
+      "observedArea": "SECURITY_CENTER",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/security-center/identity/permission-matrix",
+      "observedArea": "SECURITY_CENTER",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/security-center/identity/runtime",
+      "observedArea": "SECURITY_CENTER",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES_WITH_SECONDARY_AUTHORITY",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/security-center/identity/scim",
+      "observedArea": "SECURITY_CENTER",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/security-center/identity/sessions",
+      "observedArea": "SECURITY_CENTER",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/security-center/identity/timeline",
+      "observedArea": "SECURITY_CENTER",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/security-center/mfa-recovery",
+      "observedArea": "SECURITY_CENTER",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/security-center/posture",
+      "observedArea": "SECURITY_CENTER",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/security-center/sso",
+      "observedArea": "SECURITY_CENTER",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/security-center/sso/health",
+      "observedArea": "SECURITY_CENTER",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/security-center/sso/mapping",
+      "observedArea": "SECURITY_CENTER",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/settings",
+      "observedArea": "SETTINGS",
+      "backendArea": "WORKSPACE",
+      "verdict": "MIXED_AUTHORITY",
+      "decision": "CORRECT_AS_IS",
+      "decisionReason": "Settings is deliberately one shell over account, workspace and organization panes, resolved by the canonical settings navigation model. Mixed tenancy is the design, and each pane names its own scope."
+    },
+    {
+      "route": "/settings/legal/[slug]",
+      "observedArea": "SETTINGS",
+      "backendArea": null,
+      "verdict": "NO_BACKEND_EVIDENCE",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/settings/notifications/deliveries",
+      "observedArea": "SETTINGS",
+      "backendArea": "WORKSPACE",
+      "verdict": "DISAGREES",
+      "decision": "MOVE_RECOMMENDED",
+      "decisionReason": "A delivery log for the active workspace's notifications sits under the ACCOUNT settings namespace. Nothing on the path says which workspace's deliveries are listed, and the two reads are workspace-scoped, so the page changes meaning on a workspace switch while its URL does not."
+    },
+    {
+      "route": "/settings/reviewer-criteria",
+      "observedArea": "SETTINGS",
+      "backendArea": "WORKSPACE",
+      "verdict": "DISAGREES",
+      "decision": "MOVE_RECOMMENDED",
+      "decisionReason": "Eleven workspace-scoped reads and writes for reviewer criteria live under ACCOUNT settings. The criteria belong to the workspace, not to the signed-in person, so an operator editing them from the account namespace cannot tell whose criteria they are changing."
+    },
+    {
+      "route": "/settings/security/saml",
+      "observedArea": "SETTINGS",
+      "backendArea": null,
+      "verdict": "NO_BACKEND_EVIDENCE",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/teams/[id]",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/tools",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": null,
+      "verdict": "NO_BACKEND_EVIDENCE",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/trust-center",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/trust-center/ai-disclosure",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": null,
+      "verdict": "NO_BACKEND_EVIDENCE",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/trust-center/methodology",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": null,
+      "verdict": "NO_BACKEND_EVIDENCE",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/trust-center/security",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": null,
+      "verdict": "NO_BACKEND_EVIDENCE",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/trust-center/status",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/trust-center/subprocessors",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES_WITH_SECONDARY_AUTHORITY",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/workflows",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/workflows/[id]",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": "WORKSPACE",
+      "verdict": "AGREES",
+      "decision": null,
+      "decisionReason": null
+    },
+    {
+      "route": "/workspaces",
+      "observedArea": "WORKSPACE_DASHBOARD",
+      "backendArea": null,
+      "verdict": "NO_BACKEND_EVIDENCE",
+      "decision": null,
+      "decisionReason": null
+    }
+  ],
+  "accessMatrix": {
+    "personas": [
+      {
+        "id": "anonymous",
+        "label": "Signed out",
+        "kind": null,
+        "role": null,
+        "plan": null,
+        "platformAdmin": false,
+        "authenticated": false
+      },
+      {
+        "id": "authenticated-no-workspace",
+        "label": "Signed in, no workspace",
+        "kind": null,
+        "role": null,
+        "plan": "FREE",
+        "platformAdmin": false,
+        "authenticated": true
+      },
+      {
+        "id": "free-personal-owner",
+        "label": "FREE personal owner",
+        "kind": "PERSONAL",
+        "role": "OWNER",
+        "plan": "FREE",
+        "platformAdmin": false,
+        "authenticated": true
+      },
+      {
+        "id": "pro-personal-owner",
+        "label": "PRO personal owner",
+        "kind": "PERSONAL",
+        "role": "OWNER",
+        "plan": "PRO",
+        "platformAdmin": false,
+        "authenticated": true
+      },
+      {
+        "id": "team-owned-owner",
+        "label": "TEAM shared workspace owner",
+        "kind": "OWNED",
+        "role": "OWNER",
+        "plan": "TEAM",
+        "platformAdmin": false,
+        "authenticated": true
+      },
+      {
+        "id": "org-owner",
+        "label": "ENTERPRISE organization owner",
+        "kind": "ORGANIZATION",
+        "role": "OWNER",
+        "plan": "ENTERPRISE",
+        "platformAdmin": false,
+        "authenticated": true
+      },
+      {
+        "id": "org-admin",
+        "label": "ENTERPRISE organization admin",
+        "kind": "ORGANIZATION",
+        "role": "ADMIN",
+        "plan": "ENTERPRISE",
+        "platformAdmin": false,
+        "authenticated": true
+      },
+      {
+        "id": "org-member-reviewer",
+        "label": "ENTERPRISE member (reviewer tier)",
+        "kind": "ORGANIZATION",
+        "role": "MEMBER",
+        "plan": "ENTERPRISE",
+        "platformAdmin": false,
+        "authenticated": true
+      },
+      {
+        "id": "org-viewer",
+        "label": "ENTERPRISE viewer",
+        "kind": "ORGANIZATION",
+        "role": "VIEWER",
+        "plan": "ENTERPRISE",
+        "platformAdmin": false,
+        "authenticated": true
+      },
+      {
+        "id": "team-member",
+        "label": "TEAM member",
+        "kind": "OWNED",
+        "role": "MEMBER",
+        "plan": "TEAM",
+        "platformAdmin": false,
+        "authenticated": true
+      },
+      {
+        "id": "team-viewer",
+        "label": "TEAM viewer",
+        "kind": "OWNED",
+        "role": "VIEWER",
+        "plan": "TEAM",
+        "platformAdmin": false,
+        "authenticated": true
+      },
+      {
+        "id": "platform-admin",
+        "label": "Platform admin",
+        "kind": "ORGANIZATION",
+        "role": "OWNER",
+        "plan": "ENTERPRISE",
+        "platformAdmin": true,
+        "authenticated": true
+      }
+    ],
+    "perPersona": {
+      "anonymous": {
+        "UNAUTHENTICATED": 162,
+        "NO_REGISTRY_GATE": 6
+      },
+      "authenticated-no-workspace": {
+        "PLATFORM_ADMIN_ONLY": 36,
+        "NEEDS_ORGANIZATION": 57,
+        "ALLOWED": 9,
+        "NEEDS_PERSONAL_OR_ORG": 38,
+        "NO_REGISTRY_GATE": 6,
+        "NEEDS_UPGRADE": 20,
+        "DENIED_NO_CAPABILITY": 2
+      },
+      "free-personal-owner": {
+        "PLATFORM_ADMIN_ONLY": 36,
+        "NEEDS_ORGANIZATION": 57,
+        "ALLOWED": 28,
+        "NEEDS_UPGRADE": 38,
+        "NO_REGISTRY_GATE": 6,
+        "DENIED_NO_CAPABILITY": 3
+      },
+      "pro-personal-owner": {
+        "PLATFORM_ADMIN_ONLY": 36,
+        "NEEDS_ORGANIZATION": 57,
+        "ALLOWED": 30,
+        "NEEDS_UPGRADE": 36,
+        "NO_REGISTRY_GATE": 6,
+        "DENIED_NO_CAPABILITY": 3
+      },
+      "team-owned-owner": {
+        "PLATFORM_ADMIN_ONLY": 36,
+        "NEEDS_UPGRADE": 93,
+        "ALLOWED": 33,
+        "NO_REGISTRY_GATE": 6
+      },
+      "org-owner": {
+        "PLATFORM_ADMIN_ONLY": 36,
+        "ALLOWED": 124,
+        "NEEDS_UPGRADE": 2,
+        "NO_REGISTRY_GATE": 6
+      },
+      "org-admin": {
+        "PLATFORM_ADMIN_ONLY": 36,
+        "ALLOWED": 124,
+        "NEEDS_UPGRADE": 2,
+        "NO_REGISTRY_GATE": 6
+      },
+      "org-member-reviewer": {
+        "PLATFORM_ADMIN_ONLY": 36,
+        "ALLOWED": 102,
+        "NEEDS_UPGRADE": 2,
+        "NO_REGISTRY_GATE": 6,
+        "DENIED_NO_CAPABILITY": 22
+      },
+      "org-viewer": {
+        "PLATFORM_ADMIN_ONLY": 36,
+        "ALLOWED": 98,
+        "NEEDS_UPGRADE": 2,
+        "NO_REGISTRY_GATE": 6,
+        "DENIED_NO_CAPABILITY": 26
+      },
+      "team-member": {
+        "PLATFORM_ADMIN_ONLY": 36,
+        "NEEDS_UPGRADE": 93,
+        "ALLOWED": 33,
+        "NO_REGISTRY_GATE": 6
+      },
+      "team-viewer": {
+        "PLATFORM_ADMIN_ONLY": 36,
+        "NEEDS_UPGRADE": 93,
+        "ALLOWED": 31,
+        "NO_REGISTRY_GATE": 6,
+        "DENIED_NO_CAPABILITY": 2
+      },
+      "platform-admin": {
+        "ALLOWED": 162,
+        "NO_REGISTRY_GATE": 6
+      }
+    }
+  },
+  "runtimeAuthorization": {
+    "endpointsConsideredGET": 326,
+    "probed": 221,
+    "blockedByFixture": 105,
+    "requests": 1547,
+    "byPersonaOutcome": {
+      "platform-admin": {
+        "OK": 105,
+        "OK_EMPTY": 99,
+        "OTHER_400": 3,
+        "REFUSED_BOUNDED": 3,
+        "SERVER_FAULT": 5,
+        "REFUSED_FORBIDDEN": 5,
+        "NOT_FOUND_OR_CONCEALED": 1
+      },
+      "org-owner": {
+        "REFUSED_FORBIDDEN": 41,
+        "OTHER_400": 4,
+        "OK_EMPTY": 87,
+        "OK": 78,
+        "REFUSED_BOUNDED": 3,
+        "NOT_FOUND_OR_CONCEALED": 3,
+        "SERVER_FAULT": 5
+      },
+      "workspace-admin": {
+        "REFUSED_FORBIDDEN": 43,
+        "OTHER_400": 2,
+        "OK_EMPTY": 88,
+        "OK": 77,
+        "REFUSED_BOUNDED": 3,
+        "NOT_FOUND_OR_CONCEALED": 3,
+        "SERVER_FAULT": 5
+      },
+      "read-only": {
+        "REFUSED_FORBIDDEN": 101,
+        "OTHER_400": 2,
+        "OK_EMPTY": 58,
+        "OK": 50,
+        "NOT_FOUND_OR_CONCEALED": 4,
+        "SERVER_FAULT": 5,
+        "REFUSED_BOUNDED": 1
+      },
+      "free-personal": {
+        "REFUSED_FORBIDDEN": 46,
+        "OTHER_400": 4,
+        "NOT_FOUND_OR_CONCEALED": 85,
+        "OK": 42,
+        "OK_EMPTY": 37,
+        "SERVER_FAULT": 6,
+        "REFUSED_BOUNDED": 1
+      },
+      "pro-personal": {
+        "REFUSED_FORBIDDEN": 60,
+        "OTHER_400": 2,
+        "NOT_FOUND_OR_CONCEALED": 122,
+        "OK": 18,
+        "OK_EMPTY": 14,
+        "SERVER_FAULT": 5
+      },
+      "anonymous": {
+        "UNAUTHENTICATED": 220,
+        "OK": 1
+      }
+    }
+  },
+  "layout": {
+    "artifact": "ui-truth/layout-classification-summary",
+    "schemaVersion": 1,
+    "measuredAtSha": "d6371ecc",
+    "earlierMeasurementSha": "e341e5be",
+    "totals": {
+      "measuredFailures": 234,
+      "classifiedRows": 234,
+      "byClassification": {
+        "FIXTURE_DEFECT": 105,
+        "STALE_TEST": 112,
+        "DUPLICATE_ASSERTION": 12,
+        "REAL_PRODUCT_DEFECT": 4,
+        "EXPECTED_BY_DESIGN": 1
+      },
+      "byProject": {
+        "search-layout": 8,
+        "intake-links-layout": 19,
+        "evidence-detail-layout": 78,
+        "attention-layout": 27,
+        "operations-layout": 85,
+        "billing-layout": 2,
+        "settings-layout": 15
+      },
+      "realProductDefectsBySeverity": {
+        "P3": 3,
+        "P2": 1
+      },
+      "resolvedSinceEarlierMeasurement": 1,
+      "newSinceEarlierMeasurement": 2,
+      "distinctGroups": 24
+    },
+    "byGroup": {
+      "EVDETAIL-ROUTE-PRECONDITION": 78,
+      "OPS-DEFAULT-VIEW-IS-GROUPED": 64,
+      "NOTIF-CONSENT-BANNER-INTERCEPTS-CLICKS": 19,
+      "OPS-METRIC-WARNING-CARD": 9,
+      "OPS-INCIDENT-GROUPS-ENDPOINT-NOT-WHITELISTED": 9,
+      "SETTINGS-AI-PANE-DUPLICATE-ASSERTIONS": 7,
+      "INTAKE-TABLE-CARD-CUTOVER-MOVED-TO-1199": 6,
+      "OPS-DEFAULT-VIEW-IS-GROUPED-ATTENTION": 6,
+      "INTAKE-ROW-MODEL-RECOLUMNED": 5,
+      "SETTINGS-SECONDARY-ACTION-INK": 5,
+      "INTAKE-CUTOVER-DUPLICATE-ASSERTIONS": 4,
+      "COLLAB-TEAMS-PLAN-LOCKED-BY-EMPTY-FIXTURE": 3,
+      "CONSENT-BANNER-NOT-SUPPRESSED-IN-FIXTURE": 3,
+      "SETTINGS-AI-PANE-NOW-OFFERED-EVERYWHERE": 3,
+      "INTAKE-KPI-TONES-REASSIGNED": 2,
+      "NOTIF-METRIC-TONE-RAMP-REMAPPED": 2,
+      "BILLING-START-SUBSCRIPTION-MISSING-FILLED-MODIFIER": 2,
+      "SEARCH-COPILOT-FIXTURE-SELF-CHECK": 1,
+      "SEARCH-TYPEAHEAD-OVERLAY-FLAKE": 1,
+      "CASE-STATUS-ORANGE-TOKEN-CHOICE": 1,
+      "INTAKE-TIMELINE-REM-KEY-VS-CH-COLUMN-CAP": 1,
+      "OPS-SLA-BADGE-DUPLICATE": 1,
+      "OPS-GROUPED-READ-NOT-GATE-GUARDED": 1,
+      "SHELL-PERSONAL-SPACE-NO-TEAM-RUNTIME": 1
+    },
+    "realProductDefects": [
+      {
+        "failureId": "LAY-0452",
+        "route": "/intake-links",
+        "severity": "P3",
+        "title": "localization: long translated and user-generated values › a doubled text scale still contains every column"
+      },
+      {
+        "failureId": "LAY-0967",
+        "route": "/operations",
+        "severity": "P2",
+        "title": "wrong-workspace: ZERO operational requests — the envelope describes a DIFFERENT workspace, so its capabilities are the wrong evidence for this read"
+      },
+      {
+        "failureId": "LAY-1035",
+        "route": "/billing",
+        "severity": "P3",
+        "title": "billing — the plan card's two actions › they are separated, aligned, and weighted differently"
+      },
+      {
+        "failureId": "LAY-1036",
+        "route": "/billing",
+        "severity": "P3",
+        "title": "billing — the plan card's two actions › the purchase action does not turn violet on hover"
+      }
+    ],
+    "affectedRoutes": [
+      "/billing",
+      "/cases",
+      "/cases/[id]",
+      "/collaboration-teams",
+      "/evidence/[id]",
+      "/intake-links",
+      "/notifications",
+      "/operations",
+      "/search",
+      "/search, /intake-links",
+      "/settings"
+    ]
+  },
+  "labels": {
+    "surfaces": 168,
+    "strings": 23894,
+    "distinctStrings": 9785,
+    "rawValueStrings": 117,
+    "byVerdict": {
+      "AMBIGUOUS_LABEL": 49,
+      "DEVELOPER_LANGUAGE": 61,
+      "HUMAN_READABLE": 23248,
+      "RAW_ENUM": 84,
+      "SCREAMING_SNAKE": 1,
+      "SNAKE_CASE": 32,
+      "UNEXPLAINED_ACRONYM": 419
+    },
+    "byAudience": {
+      "EXTERNAL_PORTAL": 188,
+      "PLATFORM_OPERATOR": 3607,
+      "TENANT_USER": 20099
+    },
+    "byArea": {
+      "EXTERNAL_PORTAL": 188,
+      "GOVERNANCE": 1839,
+      "ORGANIZATION_NAMESPACE": 2035,
+      "PLATFORM_ADMIN_NAMESPACE": 3607,
+      "SECURITY_CENTER": 2302,
+      "SETTINGS": 846,
+      "WORKSPACE_DASHBOARD": 13077
+    },
+    "excluded": {
+      "CSS_CLASS_OR_STYLE": 32018,
+      "DATA_ATTRIBUTE": 17229,
+      "INSIDE_CODE_OR_PRE": 622,
+      "NON_TEXT_PROP": 17333,
+      "NOT_A_TEXT_SLOT": 27668,
+      "NO_LETTERS": 1865,
+      "TEST_ID": 865,
+      "URL_OR_PATH": 70
+    }
+  },
+  "dataElements": {
+    "surfaces": 168,
+    "dataElements": 3003,
+    "distinctFiles": 301,
+    "endpointResolved": 1060,
+    "endpointUnresolved": 1943,
+    "byElementKind": {
+      "COUNT_OR_TOTAL": 592,
+      "METRIC_CARD": 311,
+      "STATUS_BADGE": 639,
+      "TABLE_COLUMN": 1461
+    },
+    "byAudience": {
+      "EXTERNAL_PORTAL": 13,
+      "PLATFORM_OPERATOR": 644,
+      "TENANT_USER": 2346
+    },
+    "byArea": {
+      "EXTERNAL_PORTAL": 13,
+      "GOVERNANCE": 252,
+      "ORGANIZATION_NAMESPACE": 197,
+      "PLATFORM_ADMIN_NAMESPACE": 644,
+      "SECURITY_CENTER": 293,
+      "SETTINGS": 70,
+      "WORKSPACE_DASHBOARD": 1534
+    },
+    "byEndpointTenantType": {
+      "NONE": 10,
+      "ORGANIZATION": 77,
+      "PLATFORM": 458,
+      "UNRESOLVED": 1943,
+      "WORKSPACE": 515
+    },
+    "hazards": 90,
+    "hazardsByType": {
+      "CACHED_VALUE_PRESENTED_AS_LIVE": 6,
+      "COUNT_BESIDE_AN_UNDISCLOSED_CAP": 1,
+      "FAILED_READ_COERCED_TO_ZERO_OR_EMPTY": 65,
+      "SUCCESS_WORDING_REACHABLE_ON_A_FAILED_READ": 3,
+      "TENANT_SURFACE_RENDERS_A_PLATFORM_SCOPED_READ": 15
+    },
+    "capRuleUndecidableFiles": 62
+  },
+  "findings": [
+    {
+      "id": "UIT-001",
+      "severity": "P2",
+      "category": "AUTHORITY_ACCURACY",
+      "title": "The generated capability map labels workspace-anchored routes as multi-tenant platform-admin data",
+      "affectedRoutes": [
+        "/review/disagreements",
+        "/review/qc",
+        "/review/schemas",
+        "/operations",
+        "/operations/reliability",
+        "/redaction"
+      ],
+      "affectedActors": [
+        "platform-operator",
+        "auditor",
+        "release-gate"
+      ],
+      "reproduction": "Read docs/architecture/current-runtime-capability-map.json for GET /v1/reviewer/disagreements, GET /v1/coding/schemas and GET /v1/ops/incidents, then call each against the fixture API as org-owner with the fixture organization workspace and again with another tenant's workspace.",
+      "expected": "A route that refuses another tenant's workspace and requires ACTIVE membership is recorded as WORKSPACE tenancy.",
+      "observed": "The map records tenantType PLATFORM with dataScope MULTI_TENANT_PLATFORM_ADMIN (reviewer, coding) or PLATFORM_GLOBAL (ops), while at runtime the same routes answer 200 for a member, 403/404 for another tenant, and 400 when the workspace is not named. 64 routes carry MULTI_TENANT_PLATFORM_ADMIN outside /v1/admin and /v1/platform, 56 of them with web callers.",
+      "evidence": [
+        "services/api/src/routes/reviewer-workspace.routes.ts:26-27 — \"Every route is workspace-anchored. Personal-space callers receive a bounded 403 with denial WORKSPACE_NOT_FOUND\"",
+        "runtime: GET /v1/reviewer/disagreements own workspace 200, other tenant 403; GET /v1/coding/schemas 200/403; GET /v1/ops/incidents 400 without teamId, 404 for another tenant in both directions",
+        "audit/ui-truth/data/runtime-authz.json",
+        "audit/ui-truth/data/placement-verdicts.json — the mislabel produces 9 of the 17 placement disagreements"
+      ],
+      "rootCause": "The tenancy classifier credits the route to the table family it reads rather than to the authority that scopes the query, so a workspace-anchored reviewer or operations route reading a platform-wide table is recorded as platform data.",
+      "blastRadius": "The map gates release decisions and feeds the admin scope reporting, so every consumer of it inherits a wrong tenancy fact for up to 56 routes. No user-facing behaviour is wrong.",
+      "recommendedFix": "Derive tenantType from the resolved tenant binding authority (the evaluator guard that produced the teamId), not from the table family, and re-run the generator.",
+      "requiredAcceptanceProof": "The three named routes report tenantType WORKSPACE; the generator reruns with zero diff; the placement disagreements drop from 17 to the 8 that are not caused by the label.",
+      "dependencies": [],
+      "evidenceClass": "SOURCE_AND_RUNTIME_PROVEN"
+    },
+    {
+      "id": "UIT-002",
+      "severity": "P2",
+      "category": "ERROR_HANDLING",
+      "title": "Trust Center status returns a 500 DATABASE_ERROR for a FREE personal workspace",
+      "affectedRoutes": [
+        "/trust-center/status"
+      ],
+      "affectedActors": [
+        "free-personal-owner"
+      ],
+      "reproduction": "Sign in as free-personal@fixture.local against the fixture API and GET /v1/trust/status.",
+      "expected": "Either the status projection, or a bounded refusal that the page can render as a decision.",
+      "observed": "HTTP 500 with {\"error\":{\"code\":\"DATABASE_ERROR\",\"message\":\"Request failed.\"}}. The same call succeeds for the organization and platform personas.",
+      "evidence": [
+        "runtime: GET /v1/trust/status as free-personal -> 500 DATABASE_ERROR; as org-owner -> 200",
+        "audit/ui-truth/data/runtime-authz.json — free-personal is the only persona with 6 SERVER_FAULT outcomes"
+      ],
+      "rootCause": "Not established from source in this audit; the failure is specific to the personal-workspace shape, which suggests a query that assumes an organization row exists.",
+      "blastRadius": "Every FREE personal user opening the Trust Center status page gets a server fault rather than content or a refusal.",
+      "recommendedFix": "Reproduce with the personal persona, make the missing organization row a bounded empty projection, and pin it with a test that runs as a personal workspace.",
+      "requiredAcceptanceProof": "GET /v1/trust/status returns 200 or a typed refusal for a FREE personal owner, with a regression test using a personal-space fixture.",
+      "dependencies": [],
+      "evidenceClass": "RUNTIME_PROVEN"
+    },
+    {
+      "id": "UIT-003",
+      "severity": "P3",
+      "category": "OPERATIONAL_TRUTH",
+      "title": "The system opens LEGACY_UNSCOPED incidents that no surface can ever display or resolve",
+      "affectedRoutes": [
+        "/operations"
+      ],
+      "affectedActors": [
+        "platform-operator",
+        "org-admin"
+      ],
+      "reproduction": "Cause permission denials against the fixture API (any 403), then query operational_incidents: a row appears with team_id NULL and scope LEGACY_UNSCOPED. Every /v1/ops read requires teamId, so no query returns it.",
+      "expected": "An incident the product opens is reachable on some surface, or it is not opened.",
+      "observed": "One OPEN incident, scope LEGACY_UNSCOPED, team_id NULL, title \"Security signal: permission_denied\", opened_by_system true, created by this audit's own probing and invisible to every surface.",
+      "evidence": [
+        "runtime: select scope, source_id, title, opened_by_system from operational_incidents where team_id is null -> LEGACY_UNSCOPED | identity.security_condition | Security signal: permission_denied | t",
+        "runtime: GET /v1/ops/incidents without teamId -> 400 INVALID_INPUT, so an unscoped row cannot be listed"
+      ],
+      "rootCause": "The security-signal writer opens an incident without a workspace binding, while every read path requires one.",
+      "blastRadius": "A silently growing set of open incidents that no operator can see, action or close; it also inflates any count taken directly from the table.",
+      "recommendedFix": "Bind the security-signal incident to the workspace whose request produced it, or route unscoped signals to a platform surface that can display and close them.",
+      "requiredAcceptanceProof": "After a permission denial, the resulting incident is returned by a surface a human can open, or no row is written.",
+      "dependencies": [],
+      "evidenceClass": "RUNTIME_PROVEN"
+    },
+    {
+      "id": "UIT-004",
+      "severity": "P3",
+      "category": "API_CONSISTENCY",
+      "title": "Three different error envelopes for the same validation failure",
+      "affectedRoutes": [
+        "/admin/identity",
+        "/admin/search",
+        "/operations/analytics"
+      ],
+      "affectedActors": [
+        "every-authenticated-user"
+      ],
+      "reproduction": "Call GET /v1/admin/identity/providers, GET /v1/admin/search and GET /v1/analytics/artifacts without their required query parameter.",
+      "expected": "One envelope shape for a validation refusal, so one client helper can render it.",
+      "observed": "{\"error\":{\"code\":\"INVALID_INPUT\",\"fields\":[...]}}, {\"error\":{\"code\":\"validation_error\",\"detail\":{...}}} and a bare {\"message\":\"Invalid query\",\"issues\":[...]} — three shapes, two casings of the code, and one response with no error wrapper at all.",
+      "evidence": [
+        "runtime: GET /v1/admin/identity/providers -> INVALID_INPUT with fields[]",
+        "runtime: GET /v1/admin/search -> validation_error with detail.fieldErrors",
+        "runtime: GET /v1/analytics/artifacts -> {message, issues} with no error envelope"
+      ],
+      "rootCause": "Three validation paths (canonical refusal helper, a local zod handler, and a raw zod flush) reach the wire without a shared serializer.",
+      "blastRadius": "Client error rendering has to special-case each shape; the bare shape has no code at all, so a generic handler cannot classify it and falls back to a generic failure message.",
+      "recommendedFix": "Route every validation refusal through the canonical refusal helper and pin the envelope with a contract test.",
+      "requiredAcceptanceProof": "All three routes answer with one envelope shape and one code vocabulary, pinned by a test that enumerates validation refusals.",
+      "dependencies": [],
+      "evidenceClass": "RUNTIME_PROVEN"
+    },
+    {
+      "id": "UIT-005",
+      "severity": "P2",
+      "category": "PLAN_REFUSAL_PRESENTATION",
+      "title": "A plan refusal reaches paying customers as \"We couldn't find that page\", with no upgrade path",
+      "affectedRoutes": [
+        "/security-center",
+        "/governance",
+        "/governance-platform",
+        "/review",
+        "/redaction",
+        "/investigation",
+        "/intelligence",
+        "/integrations",
+        "/packaging",
+        "/workflows",
+        "/executive",
+        "/budget-center",
+        "/communications",
+        "/audit-transparency",
+        "/reviewer-ops/queue"
+      ],
+      "affectedActors": [
+        "team-owned-owner",
+        "org-owner",
+        "free-personal-owner",
+        "pro-personal-owner"
+      ],
+      "reproduction": "Sign in to the fixture as org-owner@fixture.local (a TEAM workspace) and open /security-center, /governance-platform or /budget-center. Then open the same URLs as platform-admin@fixture.local.",
+      "expected": "A surface withheld by plan says so and offers the upgrade path, as the canonical route gate does: it resolves NEEDS_UPGRADE with the reason \"This surface is part of the Enterprise workspace experience\" and a \"View plans\" action, and PageRouteGate renders that as a structured panel.",
+      "observed": "22 of the 49 audited surfaces render the product's not-found state (data-system-state-kind=\"not-found\", \"We couldn't find that page\") for a TEAM org owner and for a FREE personal owner. All 22 render content for a platform admin, so the pages exist and work. Exactly one surface in the same run produced the intended upgrade panel. The cause is a second gate: the layouts of 20 areas wrap their children in SurfaceGate, which reads the surface-tier table and calls next/navigation notFound() when the tier's directAccessPolicy is \"notFound\" — before the canonical gate can explain anything.",
+      "evidence": [
+        "audit/ui-truth/data/browser-probe-org-owner.json — 22 NOT_FOUND, 1 GATE_NEEDS_UPGRADE, 4 GATE_PLATFORM_ADMIN_ONLY; every verdict decided by the product's own data-system-state-kind or data-page-route-gate-state marker",
+        "audit/ui-truth/data/browser-probe-platform-admin.json — the same 22 routes render content",
+        "apps/web/components/surface/SurfaceGate.tsx:204-205 — if (decision.kind === \"notFound\") notFound()",
+        "apps/web/lib/navigation/routeAccessResolver.ts:241-253 — the canonical gate's NEEDS_UPGRADE carries a reason and a \"View plans\" action",
+        "apps/web/lib/surface/tiers.ts — 129 in-scope surfaces are tiered ENTERPRISE and 99 carry directAccessPolicy notFound"
+      ],
+      "rootCause": "Two gating authorities decide the same question in sequence. The tier table's notFound policy runs first inside SurfaceGate and destroys the refusal's meaning; the route registry's plan gate, which knows how to explain and where to send the customer, never runs.",
+      "blastRadius": "Every non-enterprise customer, including paying TEAM and PRO workspaces, is told that 22 of the product's surfaces do not exist. There is no upgrade affordance on any of them, and support cannot distinguish a plan refusal from a broken link. The same shape hides genuine 404s.",
+      "recommendedFix": "Let the canonical gate answer plan questions: have SurfaceGate defer to routeAccessResolver and render the NEEDS_UPGRADE panel instead of calling notFound(), and keep notFound() only for surfaces that genuinely do not exist for anyone.",
+      "requiredAcceptanceProof": "Re-run the signed-in state matrix for a TEAM and a FREE persona: no surface answers with the not-found state where a platform admin sees content, and every plan-withheld surface renders the upgrade panel with its action.",
+      "dependencies": [],
+      "evidenceClass": "SOURCE_AND_RUNTIME_PROVEN"
+    },
+    {
+      "id": "UIT-006",
+      "severity": "P2",
+      "category": "CORRECTNESS",
+      "title": "The Operations grouped read is issued for a workspace the page gate has refused",
+      "affectedRoutes": [
+        "/operations"
+      ],
+      "affectedActors": [
+        "org-viewer",
+        "team-member",
+        "any-refused-actor"
+      ],
+      "reproduction": "Open /operations in a workspace whose gate refuses the operations capability and watch the network: the grouped read fires anyway.",
+      "expected": "Every read on the page is guarded by the same gate; a refused workspace issues none of them.",
+      "observed": "The grouped read is guarded by `!teamId || !grouped` while every sibling read is guarded by `gate || !teamId`, so a gate-refused workspace still issues GET /v1/ops/incident-groups.",
+      "evidence": [
+        "apps/web/app/(app)/operations/page.tsx:388 — the grouped effect omits the gate term that its siblings carry",
+        "audit/ui-truth/data/layout-classification.json — LAY-0967"
+      ],
+      "rootCause": "A guard clause written per-effect rather than from one gate predicate.",
+      "blastRadius": "A refused actor triggers an authorized-looking request the server then refuses; the denial also opens a security-signal incident (see UIT-003).",
+      "recommendedFix": "Use the same gate predicate for every read effect on the page.",
+      "requiredAcceptanceProof": "With the gate refusing, no /v1/ops request leaves the page; pinned by the existing operations layout spec.",
+      "dependencies": [],
+      "evidenceClass": "SOURCE_PROVEN"
+    },
+    {
+      "id": "UIT-007",
+      "severity": "P2",
+      "category": "TEST_INTEGRITY",
+      "title": "The layout suite is not a working gate: 216 of its 233 failures prove nothing about the product",
+      "affectedRoutes": [
+        "/operations",
+        "/evidence/[id]",
+        "/intake-links",
+        "/notifications",
+        "/settings"
+      ],
+      "affectedActors": [
+        "maintainer",
+        "release-gate"
+      ],
+      "reproduction": "Run the eight layout Playwright projects and classify each failure against the spec and the current product source.",
+      "expected": "A failing suite names product defects.",
+      "observed": "233 failures: 112 stale tests pinning contracts the product deliberately changed, 104 fixture defects where the test never reached the state it asserts, 12 duplicate assertions, 1 expected by design — and only 4 real product defects.",
+      "evidence": [
+        "audit/ui-truth/data/layout-classification-summary.json",
+        "audit/ui-truth/data/layout-classification.json — e.g. OPS-DEFAULT-VIEW-IS-GROUPED (70 rows) pins a flat table the page no longer renders by default",
+        "apps/web/app/(app)/operations/page.tsx:352,1797 — grouped is the default view"
+      ],
+      "rootCause": "The suite was left red across a product change, so it stopped being read and then stopped being maintained.",
+      "blastRadius": "A permanently red suite hides the four real defects inside it and cannot gate a release.",
+      "recommendedFix": "Repair or retire by group: re-point the operations specs at the grouped view, suppress the consent overlay in the three fixtures that lack it, seed /evidence/:id, and fix the four real defects.",
+      "requiredAcceptanceProof": "The eight layout projects run green on an unchanged tree, twice in a row.",
+      "dependencies": [
+        "UIT-006"
+      ],
+      "evidenceClass": "SOURCE_PROVEN"
+    },
+    {
+      "id": "UIT-008",
+      "severity": "P3",
+      "category": "VISUAL_CONSISTENCY",
+      "title": "The billing purchase call to action paints as a secondary outline beside filled siblings",
+      "affectedRoutes": [
+        "/billing"
+      ],
+      "affectedActors": [
+        "any-purchasing-actor"
+      ],
+      "reproduction": "Open /billing and compare the \"Start <tier> subscription\" button with the other primary actions on the page.",
+      "expected": "The primary commercial action carries the filled primary treatment.",
+      "observed": "The button omits app-secondary-action--filled and renders outlined-secondary next to dark-filled siblings.",
+      "evidence": [
+        "audit/ui-truth/data/layout-classification.json — LAY-1035, LAY-1036"
+      ],
+      "rootCause": "A missing modifier class on the purchase action.",
+      "blastRadius": "The most consequential action on the page reads as the least important one.",
+      "recommendedFix": "Apply the filled primary treatment to the purchase action.",
+      "requiredAcceptanceProof": "The billing layout spec passes and a screenshot shows the filled treatment at 1440 and 390.",
+      "dependencies": [],
+      "evidenceClass": "SOURCE_PROVEN"
+    },
+    {
+      "id": "UIT-009",
+      "severity": "P3",
+      "category": "RESPONSIVE",
+      "title": "The intake timeline date escapes its cell at 125% text scale",
+      "affectedRoutes": [
+        "/intake-links"
+      ],
+      "affectedActors": [
+        "any-actor-with-enlarged-text"
+      ],
+      "reproduction": "Open /intake-links at 125% text scale and read the timeline column.",
+      "expected": "The date stays inside its cell at every supported text scale.",
+      "observed": "The key is sized in rem against a ch-based column cap computed for fixed 12.5px type, so the nowrap date overflows its td.",
+      "evidence": [
+        "audit/ui-truth/data/layout-classification.json — LAY-0452"
+      ],
+      "rootCause": "Two different sizing units for the same column budget.",
+      "blastRadius": "Text overflow on a tenant-facing list at an accessibility setting users really use.",
+      "recommendedFix": "Express the column cap and the key in the same unit.",
+      "requiredAcceptanceProof": "The intake layout spec passes at 100% and 125% text scale.",
+      "dependencies": [],
+      "evidenceClass": "SOURCE_PROVEN"
+    },
+    {
+      "id": "UIT-010",
+      "severity": "P3",
+      "category": "INFORMATION_ARCHITECTURE",
+      "title": "Two authenticated surfaces run no canonical route gate",
+      "affectedRoutes": [
+        "/collaboration-teams/[teamId]/collaboration",
+        "/settings/security/saml"
+      ],
+      "affectedActors": [
+        "any-authenticated-user"
+      ],
+      "reproduction": "Search both page files for PageRouteGate and for a routeRegistry entry matching their href.",
+      "expected": "Every authenticated surface is gated by its own routeId or an ancestor's.",
+      "observed": "Neither page declares a gate nor has a registry entry. /settings/security/saml is a redirect shim to /security-center/sso, which is harmless; /collaboration-teams/[teamId]/collaboration renders a real surface with no canonical gate.",
+      "evidence": [
+        "audit/ui-truth/data/placement.json — accounting NO_REGISTRY_ENTRY_AND_NO_GATE",
+        "audit/ui-truth/data/controls-coverage.json — /settings/security/saml is a 22-line redirect page"
+      ],
+      "rootCause": "A child surface added under a gated parent without inheriting the parent's routeId.",
+      "blastRadius": "The collaboration child page depends entirely on its parent layout and the API for refusal; the canonical web gate never runs for it.",
+      "recommendedFix": "Declare the parent's routeId on the collaboration child; retire the saml redirect shim or register it.",
+      "requiredAcceptanceProof": "The route-registry coverage test reports zero ungated pages under app/(app).",
+      "dependencies": [],
+      "evidenceClass": "SOURCE_PROVEN"
+    },
+    {
+      "id": "UIT-011",
+      "severity": "P1",
+      "category": "DATA_TRUTH",
+      "title": "A failed read renders as empty or zero on 36 verified sites, with nothing recorded for the user",
+      "affectedRoutes": [
+        "/security-center",
+        "/budget-center",
+        "/redaction",
+        "/investigation",
+        "/search",
+        "/review/external",
+        "/teams/[id]",
+        "/cases",
+        "/audit-transparency",
+        "/executive"
+      ],
+      "affectedActors": [
+        "every-authenticated-user"
+      ],
+      "reproduction": "Make the named read fail (block the endpoint, or sign in as a persona it refuses) and open the surface: the list renders empty and the counters render zero, with no banner, no toast and no state change.",
+      "expected": "A failed read is distinguishable from a genuine empty result.",
+      "observed": "36 catch blocks write an empty array, a zero or a null into rendered state and record nothing else. /budget-center is the clearest: the catch nulls both reads, the header then prints \"0 total, 0 soft, 0 hard\" and the table prints \"No breaches in window.\" /security-center swallows the devices, sessions, risk and recovery reads individually, so a security page can report no trusted devices and no revoked sessions when neither read succeeded.",
+      "evidence": [
+        "audit/ui-truth/data/empty-on-failure-verification.json — 65 flagged, 36 CONFIRMED_SILENT, 19 demoted because they record a typed failure, 9 documented as deliberate, 1 unverifiable",
+        "apps/web/app/(app)/budget-center/page.tsx:53-56 — catch sets spend and breaches to null; :142-145 renders 0/0/0 and the table; :217-219 prints \"No breaches in window.\"",
+        "apps/web/app/(app)/security-center/page.tsx:150-171 — four reads carry .catch(() => empty) with no failure state"
+      ],
+      "rootCause": "Per-read catch blocks substitute an empty value for the missing answer instead of a read state the surface can render.",
+      "blastRadius": "Any of these surfaces can state an all-clear the data never supported. On the security and budget surfaces that is a safety-relevant false negative.",
+      "recommendedFix": "Give every read a state (ready, refused, failed) exactly as /governance/destruction and /evidence-lifecycle already do with classifyReadFailure, and render the failure where the empty state would have gone.",
+      "requiredAcceptanceProof": "For each of the 36 sites a forced read failure renders a visible failure state; render tests pin at least the security-center and budget-center cases.",
+      "dependencies": [],
+      "evidenceClass": "SOURCE_PROVEN"
+    },
+    {
+      "id": "UIT-012",
+      "severity": "P2",
+      "category": "CONTENT",
+      "title": "Raw enum values are rendered to customers as labels and control options",
+      "affectedRoutes": [
+        "/redaction/[projectId]",
+        "/redaction",
+        "/workspaces",
+        "/security-center/sso/mapping",
+        "/reviewer-ops/[reviewId]",
+        "/organizations/[id]/admin/billing",
+        "/admin/platform/exports",
+        "/admin/evidence-ops/records"
+      ],
+      "affectedActors": [
+        "tenant-user",
+        "platform-operator"
+      ],
+      "reproduction": "Open the redaction viewer mode picker, the workspace administration table, or the SSO role mapping, and read the option text and column headers.",
+      "expected": "A customer-facing control offers human wording; the technical token belongs in details, if anywhere.",
+      "observed": "117 raw-value occurrences at 51 distinct sites. Redaction offers BLACKOUT, BLUR, PIXELATE and REMOVE_CONTENT as option text; workspace administration uses OWNER as a column header; SSO mapping and reviewer operations show OWNER/ADMIN/MEMBER/VIEWER and FIRST/SECOND/ADJUDICATION; billing shows FREE and NONE; three operator panels fall back to the strings governance_snapshot_unavailable, timeline_unavailable and readiness_unavailable when the API returns no safe message.",
+      "evidence": [
+        "apps/web/components/redaction/ImageRedactionViewer.tsx:182-184 — <option value=\"BLACKOUT\">BLACKOUT</option> and its siblings",
+        "apps/web/components/workspace-admin/WorkspaceAdminPanel.tsx:443 — <th>OWNER</th>",
+        "audit/ui-truth/data/labels.json — 84 RAW_ENUM, 32 SNAKE_CASE, 1 SCREAMING_SNAKE and 61 DEVELOPER_LANGUAGE strings, each with file and line"
+      ],
+      "rootCause": "Enum values are rendered directly where a display mapping was never written.",
+      "blastRadius": "Customer-facing vocabulary reads as internal database values, and the three fallback codes put an internal token in front of a user at exactly the moment something failed.",
+      "recommendedFix": "Map each enum to human wording at the render boundary and replace the three fallback codes with sentences.",
+      "requiredAcceptanceProof": "The 51 sites render human wording, and the existing raw-operator-language scanner covers the tenant surfaces, not only the admin console.",
+      "dependencies": [],
+      "evidenceClass": "SOURCE_PROVEN"
+    },
+    {
+      "id": "UIT-013",
+      "severity": "P3",
+      "category": "DATA_TRUTH",
+      "title": "Six surfaces call a polled or cached value live",
+      "affectedRoutes": [
+        "/admin/billing",
+        "/admin/evidence-ops",
+        "/inbox",
+        "/organizations/[id]/admin/readiness",
+        "/home"
+      ],
+      "affectedActors": [
+        "tenant-user",
+        "platform-operator"
+      ],
+      "reproduction": "Read the labels beside the figures on each named surface and compare them with the read that supplies the figure.",
+      "expected": "Live means the figure is current at render, or the surface states when it was measured.",
+      "observed": "Six labels assert liveness over values that arrive from an interval poll or a cached projection, with no measurement time beside them.",
+      "evidence": [
+        "audit/ui-truth/data/data-elements.json — CACHED_VALUE_PRESENTED_AS_LIVE, six rows with file and line",
+        "apps/web/app/(app)/organizations/[id]/admin/readiness/page.tsx:301 — \"Live operational health\""
+      ],
+      "rootCause": "Copy written for a streaming source that was implemented as a periodic read.",
+      "blastRadius": "An operator can act on a figure believing it is current.",
+      "recommendedFix": "State the measurement time beside the figure, or drop the word.",
+      "requiredAcceptanceProof": "No surface asserts liveness without a measured-at value beside it.",
+      "dependencies": [],
+      "evidenceClass": "SOURCE_PROVEN"
+    },
+    {
+      "id": "UIT-014",
+      "severity": "P3",
+      "category": "DATA_TRUTH",
+      "title": "A drift count is printed beside a capped read without disclosing the cap",
+      "affectedRoutes": [
+        "/security-center"
+      ],
+      "affectedActors": [
+        "tenant-user"
+      ],
+      "reproduction": "Open the panel that renders the access-anomaly drift count and compare its denominator with the read limit.",
+      "expected": "A count taken over a capped list says so.",
+      "observed": "The panel prints a drift count out of rows.length checked, where rows is the capped access-anomalies read, so both numbers describe the fetched page rather than the workspace. A further 62 files cap a read and render a count whose collection could not be traced to that read; they are recorded as undecidable rather than asserted.",
+      "evidence": [
+        "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:545",
+        "audit/ui-truth/data/data-elements.json — COUNT_BESIDE_AN_UNDISCLOSED_CAP, plus capRuleUndecidable.files"
+      ],
+      "rootCause": "The count is derived from the fetched page rather than from a server total.",
+      "blastRadius": "A reader can believe the workspace has no drift when only the first page was checked.",
+      "recommendedFix": "Print the server total, or say \"of the first N checked\".",
+      "requiredAcceptanceProof": "The count names its denominator, and the 62 undecidable files are each dispositioned.",
+      "dependencies": [],
+      "evidenceClass": "SOURCE_PROVEN"
+    },
+    {
+      "id": "UIT-015",
+      "severity": "P3",
+      "category": "INFORMATION_ARCHITECTURE",
+      "title": "The in-app Trust Center index throws a signed-in user out to the marketing site",
+      "affectedRoutes": [
+        "/trust-center"
+      ],
+      "affectedActors": [
+        "every-authenticated-user"
+      ],
+      "reproduction": "Sign in and open /trust-center, then open /trust-center/security.",
+      "expected": "An in-app surface keeps the application shell, exactly as its own children do.",
+      "observed": "/trust-center is a redirect shim to the public /trust page, so a signed-in user lands on the marketing site with its Platform/Solutions/Pricing navigation, a \"Sign in\" link and a \"Request a demo\" call to action. Its children (/trust-center/security, /methodology, /status, /subprocessors, /ai-disclosure) stay inside the app and render through the canonical route gate, so one family answers in two different shells.",
+      "evidence": [
+        "apps/web/app/(app)/trust-center/page.tsx:1-5 — the whole page is redirect(\"/trust\")",
+        "apps/web/app/(app)/trust-center/security/page.tsx:1-6 — the sibling renders in-app behind PageRouteGate",
+        "audit/ui-truth/data/browser-probe-org-owner.json — /trust-center renders \"Platform Technology Solutions Resources Company Pricing Verify EN Sign in Request a demo\" to a signed-in org owner"
+      ],
+      "rootCause": "The index was left as a redirect when the in-app trust pages were added.",
+      "blastRadius": "A signed-in customer is shown a sign-in link and a sales call to action, and loses the workspace context and navigation.",
+      "recommendedFix": "Render the in-app trust index (the section list its children already use), or point the navigation entry at a child that stays in the shell.",
+      "requiredAcceptanceProof": "A signed-in visit to /trust-center keeps the application shell, and no app route links out to the marketing site.",
+      "dependencies": [],
+      "evidenceClass": "SOURCE_AND_RUNTIME_PROVEN"
+    }
+  ],
+  "remediationBacklog": [
+    {
+      "position": 1,
+      "id": "UIT-011",
+      "severity": "P1",
+      "title": "A failed read renders as empty or zero on 36 verified sites, with nothing recorded for the user",
+      "routeFamily": "security-center",
+      "affectedRoutes": [
+        "/security-center",
+        "/budget-center",
+        "/redaction",
+        "/investigation",
+        "/search",
+        "/review/external",
+        "/teams/[id]",
+        "/cases",
+        "/audit-transparency",
+        "/executive"
+      ],
+      "blastRadius": "Any of these surfaces can state an all-clear the data never supported. On the security and budget surfaces that is a safety-relevant false negative.",
+      "dependencies": [],
+      "requiredAcceptanceProof": "For each of the 36 sites a forced read failure renders a visible failure state; render tests pin at least the security-center and budget-center cases."
+    },
+    {
+      "position": 2,
+      "id": "UIT-006",
+      "severity": "P2",
+      "title": "The Operations grouped read is issued for a workspace the page gate has refused",
+      "routeFamily": "operations",
+      "affectedRoutes": [
+        "/operations"
+      ],
+      "blastRadius": "A refused actor triggers an authorized-looking request the server then refuses; the denial also opens a security-signal incident (see UIT-003).",
+      "dependencies": [],
+      "requiredAcceptanceProof": "With the gate refusing, no /v1/ops request leaves the page; pinned by the existing operations layout spec."
+    },
+    {
+      "position": 3,
+      "id": "UIT-012",
+      "severity": "P2",
+      "title": "Raw enum values are rendered to customers as labels and control options",
+      "routeFamily": "redaction",
+      "affectedRoutes": [
+        "/redaction/[projectId]",
+        "/redaction",
+        "/workspaces",
+        "/security-center/sso/mapping",
+        "/reviewer-ops/[reviewId]",
+        "/organizations/[id]/admin/billing",
+        "/admin/platform/exports",
+        "/admin/evidence-ops/records"
+      ],
+      "blastRadius": "Customer-facing vocabulary reads as internal database values, and the three fallback codes put an internal token in front of a user at exactly the moment something failed.",
+      "dependencies": [],
+      "requiredAcceptanceProof": "The 51 sites render human wording, and the existing raw-operator-language scanner covers the tenant surfaces, not only the admin console."
+    },
+    {
+      "position": 4,
+      "id": "UIT-001",
+      "severity": "P2",
+      "title": "The generated capability map labels workspace-anchored routes as multi-tenant platform-admin data",
+      "routeFamily": "review",
+      "affectedRoutes": [
+        "/review/disagreements",
+        "/review/qc",
+        "/review/schemas",
+        "/operations",
+        "/operations/reliability",
+        "/redaction"
+      ],
+      "blastRadius": "The map gates release decisions and feeds the admin scope reporting, so every consumer of it inherits a wrong tenancy fact for up to 56 routes. No user-facing behaviour is wrong.",
+      "dependencies": [],
+      "requiredAcceptanceProof": "The three named routes report tenantType WORKSPACE; the generator reruns with zero diff; the placement disagreements drop from 17 to the 8 that are not caused by the label."
+    },
+    {
+      "position": 5,
+      "id": "UIT-005",
+      "severity": "P2",
+      "title": "A plan refusal reaches paying customers as \"We couldn't find that page\", with no upgrade path",
+      "routeFamily": "security-center",
+      "affectedRoutes": [
+        "/security-center",
+        "/governance",
+        "/governance-platform",
+        "/review",
+        "/redaction",
+        "/investigation",
+        "/intelligence",
+        "/integrations",
+        "/packaging",
+        "/workflows",
+        "/executive",
+        "/budget-center",
+        "/communications",
+        "/audit-transparency",
+        "/reviewer-ops/queue"
+      ],
+      "blastRadius": "Every non-enterprise customer, including paying TEAM and PRO workspaces, is told that 22 of the product's surfaces do not exist. There is no upgrade affordance on any of them, and support cannot distinguish a plan refusal from a broken link. The same shape hides genuine 404s.",
+      "dependencies": [],
+      "requiredAcceptanceProof": "Re-run the signed-in state matrix for a TEAM and a FREE persona: no surface answers with the not-found state where a platform admin sees content, and every plan-withheld surface renders the upgrade panel with its action."
+    },
+    {
+      "position": 6,
+      "id": "UIT-002",
+      "severity": "P2",
+      "title": "Trust Center status returns a 500 DATABASE_ERROR for a FREE personal workspace",
+      "routeFamily": "trust-center",
+      "affectedRoutes": [
+        "/trust-center/status"
+      ],
+      "blastRadius": "Every FREE personal user opening the Trust Center status page gets a server fault rather than content or a refusal.",
+      "dependencies": [],
+      "requiredAcceptanceProof": "GET /v1/trust/status returns 200 or a typed refusal for a FREE personal owner, with a regression test using a personal-space fixture."
+    },
+    {
+      "position": 7,
+      "id": "UIT-007",
+      "severity": "P2",
+      "title": "The layout suite is not a working gate: 216 of its 233 failures prove nothing about the product",
+      "routeFamily": "operations",
+      "affectedRoutes": [
+        "/operations",
+        "/evidence/[id]",
+        "/intake-links",
+        "/notifications",
+        "/settings"
+      ],
+      "blastRadius": "A permanently red suite hides the four real defects inside it and cannot gate a release.",
+      "dependencies": [
+        "UIT-006"
+      ],
+      "requiredAcceptanceProof": "The eight layout projects run green on an unchanged tree, twice in a row."
+    },
+    {
+      "position": 8,
+      "id": "UIT-004",
+      "severity": "P3",
+      "title": "Three different error envelopes for the same validation failure",
+      "routeFamily": "admin",
+      "affectedRoutes": [
+        "/admin/identity",
+        "/admin/search",
+        "/operations/analytics"
+      ],
+      "blastRadius": "Client error rendering has to special-case each shape; the bare shape has no code at all, so a generic handler cannot classify it and falls back to a generic failure message.",
+      "dependencies": [],
+      "requiredAcceptanceProof": "All three routes answer with one envelope shape and one code vocabulary, pinned by a test that enumerates validation refusals."
+    },
+    {
+      "position": 9,
+      "id": "UIT-013",
+      "severity": "P3",
+      "title": "Six surfaces call a polled or cached value live",
+      "routeFamily": "admin",
+      "affectedRoutes": [
+        "/admin/billing",
+        "/admin/evidence-ops",
+        "/inbox",
+        "/organizations/[id]/admin/readiness",
+        "/home"
+      ],
+      "blastRadius": "An operator can act on a figure believing it is current.",
+      "dependencies": [],
+      "requiredAcceptanceProof": "No surface asserts liveness without a measured-at value beside it."
+    },
+    {
+      "position": 10,
+      "id": "UIT-008",
+      "severity": "P3",
+      "title": "The billing purchase call to action paints as a secondary outline beside filled siblings",
+      "routeFamily": "billing",
+      "affectedRoutes": [
+        "/billing"
+      ],
+      "blastRadius": "The most consequential action on the page reads as the least important one.",
+      "dependencies": [],
+      "requiredAcceptanceProof": "The billing layout spec passes and a screenshot shows the filled treatment at 1440 and 390."
+    },
+    {
+      "position": 11,
+      "id": "UIT-010",
+      "severity": "P3",
+      "title": "Two authenticated surfaces run no canonical route gate",
+      "routeFamily": "collaboration-teams",
+      "affectedRoutes": [
+        "/collaboration-teams/[teamId]/collaboration",
+        "/settings/security/saml"
+      ],
+      "blastRadius": "The collaboration child page depends entirely on its parent layout and the API for refusal; the canonical web gate never runs for it.",
+      "dependencies": [],
+      "requiredAcceptanceProof": "The route-registry coverage test reports zero ungated pages under app/(app)."
+    },
+    {
+      "position": 12,
+      "id": "UIT-009",
+      "severity": "P3",
+      "title": "The intake timeline date escapes its cell at 125% text scale",
+      "routeFamily": "intake-links",
+      "affectedRoutes": [
+        "/intake-links"
+      ],
+      "blastRadius": "Text overflow on a tenant-facing list at an accessibility setting users really use.",
+      "dependencies": [],
+      "requiredAcceptanceProof": "The intake layout spec passes at 100% and 125% text scale."
+    },
+    {
+      "position": 13,
+      "id": "UIT-003",
+      "severity": "P3",
+      "title": "The system opens LEGACY_UNSCOPED incidents that no surface can ever display or resolve",
+      "routeFamily": "operations",
+      "affectedRoutes": [
+        "/operations"
+      ],
+      "blastRadius": "A silently growing set of open incidents that no operator can see, action or close; it also inflates any count taken directly from the table.",
+      "dependencies": [],
+      "requiredAcceptanceProof": "After a permission denial, the resulting incident is returned by a surface a human can open, or no row is written."
+    },
+    {
+      "position": 14,
+      "id": "UIT-014",
+      "severity": "P3",
+      "title": "A drift count is printed beside a capped read without disclosing the cap",
+      "routeFamily": "security-center",
+      "affectedRoutes": [
+        "/security-center"
+      ],
+      "blastRadius": "A reader can believe the workspace has no drift when only the first page was checked.",
+      "dependencies": [],
+      "requiredAcceptanceProof": "The count names its denominator, and the 62 undecidable files are each dispositioned."
+    },
+    {
+      "position": 15,
+      "id": "UIT-015",
+      "severity": "P3",
+      "title": "The in-app Trust Center index throws a signed-in user out to the marketing site",
+      "routeFamily": "trust-center",
+      "affectedRoutes": [
+        "/trust-center"
+      ],
+      "blastRadius": "A signed-in customer is shown a sign-in link and a sales call to action, and loses the workspace context and navigation.",
+      "dependencies": [],
+      "requiredAcceptanceProof": "A signed-in visit to /trust-center keeps the application shell, and no app route links out to the marketing site."
+    }
+  ],
+  "ownerDecisions": [
+    {
+      "id": "UIT-OD-001",
+      "question": "Should /settings/notifications/deliveries and /settings/reviewer-criteria stay in the ACCOUNT settings namespace while acting on the active workspace, or move under workspace settings?",
+      "context": "Both pages read and write workspace-scoped data from an account-domain route, so their meaning changes on a workspace switch while the URL does not.",
+      "options": [
+        "Move under workspace settings",
+        "Keep and state the active workspace in the header and on every write"
+      ],
+      "recommendation": "Move under workspace settings; it is the only option that makes the URL honest."
+    },
+    {
+      "id": "UIT-OD-002",
+      "question": "Which authority should answer \"may this surface load\" — the route registry's plan gate, or the surface-tier table?",
+      "context": "Both exist. The tier table is enforced client-side by SurfaceGate and answers notFound; the registry gate resolves NEEDS_UPGRADE with an upgrade action. For 63 surfaces they disagree, and where the tier wins the customer is told the page does not exist (UIT-005).",
+      "options": [
+        "Registry gate only; SurfaceGate defers to it and the tier table is retired",
+        "Tier table only, but changed to render an explained refusal rather than notFound",
+        "Keep both, with the tier table reduced to surfaces that must be concealed from everyone"
+      ],
+      "recommendation": "Registry gate only. It already carries the reason and the upgrade action, and one authority per question is the rule the rest of this codebase follows."
+    }
+  ],
+  "blockedProofs": []
+}

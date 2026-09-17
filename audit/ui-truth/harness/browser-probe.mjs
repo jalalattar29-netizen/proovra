@@ -39,26 +39,57 @@ const routes =
     ? routeArgs
     : JSON.parse(readFileSync(join(REPO, "audit", "ui-truth", "data", "browser-probe-routes.json"), "utf8")).routes;
 
-/** What the page is showing, decided from the DOM the user would see. */
+/**
+ * What the page is showing, decided from the PRODUCT'S OWN markers.
+ *
+ * An earlier version read free text and mislabelled pages: the single sign-on
+ * page contains the words "Sign in", and an identity panel contains "not
+ * found", so both were scored as denials when they had rendered fine. The
+ * product marks its own states — `data-system-state-kind` on the shared state
+ * component, `data-page-route-gate-state` on the canonical gate — and those
+ * are what this reads. Free text is now only a fallback, and it says so.
+ */
 async function classify(page) {
   return page.evaluate(() => {
     const text = document.body.innerText ?? "";
-    const has = (re) => re.test(text);
-    const state = has(/ERROR\s*[·.]\s*5\d\d|Something went wrong on our end/i)
-      ? "ERROR_BOUNDARY_5XX"
-      : has(/ERROR\s*[·.]\s*4\d\d|not found|Page not found/i)
-        ? "NOT_FOUND"
-        : has(/Sign in|Log in to PROOVRA/i)
-          ? "REDIRECTED_TO_LOGIN"
-          : has(/not available for this workspace|Platform admin elevation|requires an organization|Upgrade|Enterprise agreement/i)
-            ? "REFUSED_OR_UPGRADE"
-            : has(/Could not load|Unable to load|failed to load|try again in a moment/i)
-              ? "READ_FAILURE_STATED"
-              : has(/No .{0,40}(yet|found)|nothing here|Nothing to show|is empty/i)
-                ? "EMPTY_STATE"
-                : "CONTENT";
+    const url = window.location.pathname;
+    const gate = document.querySelector("[data-page-route-gate-state]");
+    const systemState = document.querySelector("[data-system-state-kind]");
+    const kind = systemState?.getAttribute("data-system-state-kind") ?? null;
+    const gateState = gate?.getAttribute("data-page-route-gate-state") ?? null;
+
+    let state;
+    let decidedBy;
+    if (url.startsWith("/login")) {
+      state = "REDIRECTED_TO_LOGIN";
+      decidedBy = "URL";
+    } else if (gateState) {
+      state = `GATE_${gateState}`;
+      decidedBy = "data-page-route-gate-state";
+    } else if (kind === "not-found") {
+      state = "NOT_FOUND";
+      decidedBy = "data-system-state-kind";
+    } else if (kind === "error" || /ERROR\s*[·.]\s*5\d\d|Something went wrong on our end/i.test(text)) {
+      state = "ERROR_BOUNDARY_5XX";
+      decidedBy = kind ? "data-system-state-kind" : "TEXT_FALLBACK";
+    } else if (kind === "forbidden" || kind === "upgrade") {
+      state = "REFUSED_OR_UPGRADE";
+      decidedBy = "data-system-state-kind";
+    } else if (kind) {
+      state = `SYSTEM_STATE_${kind.toUpperCase()}`;
+      decidedBy = "data-system-state-kind";
+    } else if (/Could not load|Unable to load|failed to load|try again in a moment/i.test(text)) {
+      state = "READ_FAILURE_STATED";
+      decidedBy = "TEXT_FALLBACK";
+    } else {
+      state = "CONTENT_OR_EMPTY";
+      decidedBy = "NO_STATE_MARKER";
+    }
     return {
       state,
+      decidedBy,
+      systemStateKind: kind,
+      gateState,
       h1Count: document.querySelectorAll("h1").length,
       firstH1: document.querySelector("h1")?.textContent?.trim() ?? null,
       mainLandmarks: document.querySelectorAll("main").length,

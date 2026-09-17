@@ -56,7 +56,7 @@ const coverage = read("controls-coverage");
 const runtimeAuthz = read("runtime-authz");
 const findings = read("findings");
 const decisions = read("placement-decisions");
-const layoutClass = read("layout-classification", { required: false });
+const layoutClass = read("layout-classification-current", { required: false });
 const layoutSummary = read("layout-classification-summary", { required: false });
 const layoutCurrent = read("layout-failures-current", { required: false });
 const labels = read("labels", { required: false });
@@ -153,17 +153,20 @@ const counts = {
   runtimeBlockedByFixture: runtimeAuthz.totals.blockedByFixture,
   placementVerdicts: verdicts.totals.byVerdict,
   placementDecisions: decisions?.decisions?.length ?? 0,
-  labels: labels ? (labels.labels ?? labels.rows ?? []).length : null,
-  rawValueExposures: labels?.totals?.rawExposures ?? null,
-  dataElements: dataElements ? (dataElements.elements ?? dataElements.rows ?? []).length : null,
-  dataTruthHazards: dataElements?.totals?.hazards ?? dataElements?.hazards?.length ?? null,
+  labels: labels?.totals?.strings ?? null,
+  rawValueExposures: labels?.totals?.rawValueStrings ?? null,
+  labelsByVerdict: labels?.totals?.byVerdict ?? null,
+  dataElements: dataElements?.totals?.dataElements ?? null,
+  dataTruthHazards: dataElements?.hazards?.length ?? null,
+  dataTruthHazardsVerified: JSON.parse(readFileSync(join(DATA, "empty-on-failure-verification.json"), "utf8")).totals,
   layoutFailuresMeasured: (layoutCurrent ?? read("layout-failures-prior")).totals.failed,
   layoutClassification: layoutSummary?.totals?.byClassification ?? null,
   findings: findings.findings.length,
   findingsBySeverity: bySeverity,
   findingsByEvidenceClass: byEvidenceClass,
   blockedProofs: findings.findings.filter((f) => f.evidenceClass.startsWith("BLOCKED")).length,
-  ownerDecisions: findings.findings.filter((f) => f.evidenceClass === "OWNER_DECISION_REQUIRED").length,
+  ownerDecisions: (findings.ownerDecisions ?? []).length,
+  browserProbePersonas: 3,
 };
 
 /* -------------------------------------------------------------------------
