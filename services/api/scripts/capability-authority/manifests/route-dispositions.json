@@ -1228,6 +1228,14 @@
       "reason": "UC-1 Direct Web Capture completion — its product consumer is the PROOVRA browser extension (apps/extension), which the web+mobile consumer analyzer does not scan.",
       "evidence": "reg services/api/src/routes/capture-trust.routes.ts (POST /v1/capture/direct-sessions/:id/web-complete), preHandler requireAuth + authorizeOwnedSession. Consumed by apps/extension/src/lib/api-client.ts (apiClient.webComplete) via apps/extension/src/background.ts. It validates the capture manifest, classes the CAPTURE_MANIFEST part and seals through completeWebCaptureSession -> completeDirectCapture. Exercised end to end by services/api/test/uc1-web-capture.integration.test.ts (4 cases incl. refusals).",
       "reviewedAtUtc": "2026-09-17"
+    },
+    {
+      "routeId": "POST /v1/collaboration-team-invites/:token/accept",
+      "disposition": "SUPERSEDED_REMOVE",
+      "replacement": "POST /v1/collaboration-team-invites/accept",
+      "reason": "path-token alias of the invite accept; the token belongs in the body (WCR-20) and the product now sends it there",
+      "evidence": "reg services/api/src/routes/collaboration-teams.routes.ts — the path form forwards to the same acceptInviteHandler as the body form, with Referrer-Policy: no-referrer. Invitation emails link to the web page apps/web/app/(app)/collaboration-teams/invites/[token]/accept, whose acceptInvite (apps/web/lib/api/collaboration-teams.ts) posts { token } to POST /v1/collaboration-team-invites/accept since D9 (2026-09-17). No web, mobile or e2e caller of the path form remains; it stays answerable for stale clients until no PENDING legacy invitation can be in flight (no writer creates new ones).",
+      "reviewedAtUtc": "2026-09-17"
     }
   ]
 }
