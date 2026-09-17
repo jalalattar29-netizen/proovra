@@ -310,10 +310,12 @@ export const WorkspaceMembersPanel = forwardRef<
                 <path d="m21 21-4.3-4.3" />
               </svg>
             </span>
+            {/* D45 — the server searches addresses only for ADMIN+ (the people
+                who may see them), so the box only promises what it will do. */}
             <input
               type="search"
               className="app-search-input"
-              placeholder="Search by name or email"
+              placeholder={canManageTeam ? "Search by name or email" : "Search by name"}
               aria-label="Search members"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
@@ -363,7 +365,9 @@ export const WorkspaceMembersPanel = forwardRef<
             <strong>{filtered ? "Nobody here matches that" : "Nobody has access to this workspace yet"}</strong>
             <p>
               {filtered
-                ? "Try a different name, address or status."
+                ? canManageTeam
+                  ? "Try a different name, address or status."
+                  : "Try a different name or status."
                 : "Invite a colleague to give them access to this workspace's evidence, cases and reports."}
             </p>
             {!filtered && canManageTeam ? (

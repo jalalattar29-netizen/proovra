@@ -685,26 +685,13 @@ function TeamDetailPageBody() {
    */
 
   // PHASE 13 — POST /v1/teams/:id/transfer-ownership can only target an
-  // ACTIVE member who is not already the owner; the roster the page already
-  // read is the source, so the control never offers an ineligible target.
-  const ownershipTransferCandidates = useMemo(
-    () =>
-      (team?.members ?? [])
-        .filter(
-          (member) =>
-            member.userId !== team?.ownerUserId &&
-            member.userId !== currentUserId,
-        )
-        .map((member) => ({
-          userId: member.userId,
-          label:
-            member.user?.displayName ||
-            member.label ||
-            member.user?.email ||
-            member.userId,
-        })),
-    [team?.members, team?.ownerUserId, currentUserId],
-  );
+  // ACTIVE member who is not already the owner.
+  //
+  // D46 — the candidates are NOT built from `team.members` any more: that is
+  // the detail read's bounded first page (50), so every eligible member after
+  // it could never be offered. The card reads
+  // `GET /v1/teams/:id/members?eligible=ownership_transfer`, where the server
+  // applies eligibility, search and paging.
 
   const handleStartEditName = () => {
     setTeamName(team?.name ?? "");
@@ -1807,7 +1794,7 @@ function TeamDetailPageBody() {
               <WorkspaceOwnershipTransferCard
                 teamId={teamId}
                 teamName={team?.name ?? "this workspace"}
-                candidates={ownershipTransferCandidates}
+                currentUserId={currentUserId}
                 onTransferred={async (notice) => {
                   setOwnershipNotice(notice);
                   await loadData();

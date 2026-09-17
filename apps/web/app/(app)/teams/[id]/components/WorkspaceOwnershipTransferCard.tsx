@@ -24,6 +24,17 @@
  *
  * Ownership moves billing with it, so the control requires an explicit
  * confirmation step before the request leaves, and step-up on top of that.
+ *
+ * D46 — WHO CAN BE CHOSEN. The target list used to be built from the members
+ * embedded in `GET /v1/teams/:id`, which is a bounded FIRST PAGE of 50, so on
+ * a larger workspace everyone after the fiftieth could never be offered. The
+ * picker now reads
+ *
+ *   GET /v1/teams/:id/members?eligible=ownership_transfer&q&cursor&limit
+ *
+ * — the server applies the transfer command's own eligibility (ACTIVE, not the
+ * owner), runs the search, and pages with a cursor, so every eligible member
+ * is reachable.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -39,6 +50,37 @@ import {
 } from "../../../security-center/components/PersonalSecuritySections";
 
 export type TransferCandidate = { userId: string; label: string };
+
+type EligibleMember = {
+  userId: string;
+  label?: string | null;
+  user?: { displayName?: string | null; email?: string | null } | null;
+};
+
+type EligiblePage = {
+  members?: EligibleMember[];
+  nextCursor?: string | null;
+  total?: number;
+};
+
+type CandidateList =
+  | { kind: "loading" }
+  | { kind: "ready"; rows: TransferCandidate[]; nextCursor: string | null; total: number }
+  | { kind: "failed"; message: string };
+
+const CANDIDATE_PAGE_SIZE = 50;
+const CANDIDATE_SEARCH_DEBOUNCE_MS = 300;
+
+function candidateOf(member: EligibleMember): TransferCandidate {
+  return {
+    userId: member.userId,
+    label:
+      member.user?.displayName?.trim() ||
+      member.user?.email ||
+      member.label ||
+      "Workspace member",
+  };
+}
 
 /**
  * The step-up denial body is `{ error: { code, methods, message } }`. The
@@ -87,13 +129,17 @@ function denialCopy(err: unknown): string {
 export function WorkspaceOwnershipTransferCard({
   teamId,
   teamName,
-  candidates,
+  currentUserId,
   onTransferred,
 }: {
   teamId: string;
   teamName: string;
-  /** Active members other than the current owner. */
-  candidates: TransferCandidate[];
+  /**
+   * The signed-in owner. The server already leaves the owner out of the
+   * eligible list; this is excluded as well so the caller is never offered to
+   * themselves while the page's identity and the team row disagree.
+   */
+  currentUserId?: string | null;
   /**
    * Called after a successful transfer, WITH the outcome sentence.
    *
@@ -104,6 +150,18 @@ export function WorkspaceOwnershipTransferCard({
   onTransferred: (notice: string) => void | Promise<void>;
 }) {
   const [targetUserId, setTargetUserId] = useState("");
+  // The chosen member's label is held on its own: a later search replaces the
+  // loaded rows, and the confirmation must still name the person chosen.
+  const [targetLabel, setTargetLabel] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [query, setQuery] = useState("");
+  const [list, setList] = useState<CandidateList>({ kind: "loading" });
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  // The picker (and its search box) stays mounted once a first page arrived,
+  // so clearing a search does not blank the control under the cursor.
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const listSeqRef = useRef(0);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -122,6 +180,101 @@ export function WorkspaceOwnershipTransferCard({
       mountedRef.current = false;
     };
   }, []);
+
+  // Debounce the search box; the SERVER runs the search.
+  useEffect(() => {
+    const handle = setTimeout(
+      () => setQuery(searchInput.trim()),
+      CANDIDATE_SEARCH_DEBOUNCE_MS,
+    );
+    return () => clearTimeout(handle);
+  }, [searchInput]);
+
+  const candidatesUrl = useCallback(
+    (cursor: string | null) => {
+      const params = new URLSearchParams({
+        eligible: "ownership_transfer",
+        limit: String(CANDIDATE_PAGE_SIZE),
+      });
+      if (query) params.set("q", query);
+      if (cursor) params.set("cursor", cursor);
+      return `/v1/teams/${encodeURIComponent(teamId)}/members?${params.toString()}`;
+    },
+    [teamId, query],
+  );
+
+  const toRows = useCallback(
+    (page: EligiblePage | null | undefined) =>
+      (page?.members ?? [])
+        .filter((m) => m.userId && m.userId !== currentUserId)
+        .map(candidateOf),
+    [currentUserId],
+  );
+
+  useEffect(() => {
+    const mine = ++listSeqRef.current;
+    setList({ kind: "loading" });
+    void (async () => {
+      try {
+        const page = (await apiFetch(candidatesUrl(null))) as EligiblePage;
+        if (!mountedRef.current || mine !== listSeqRef.current) return;
+        const rows = toRows(page);
+        setHasLoaded(true);
+        setList({
+          kind: "ready",
+          rows,
+          nextCursor: page?.nextCursor ?? null,
+          total: typeof page?.total === "number" ? page.total : rows.length,
+        });
+      } catch (err) {
+        if (!mountedRef.current || mine !== listSeqRef.current) return;
+        setList({
+          kind: "failed",
+          message: toSafeUserError(err, {
+            message: "The members who can take ownership could not be loaded.",
+          }).message,
+        });
+      }
+    })();
+  }, [candidatesUrl, toRows, reloadKey]);
+
+  const loadMoreCandidates = async () => {
+    if (list.kind !== "ready" || !list.nextCursor || loadingMore) return;
+    const mine = listSeqRef.current;
+    setLoadingMore(true);
+    try {
+      const page = (await apiFetch(candidatesUrl(list.nextCursor))) as EligiblePage;
+      if (!mountedRef.current || mine !== listSeqRef.current) return;
+      setList((prev) =>
+        prev.kind === "ready"
+          ? {
+              kind: "ready",
+              rows: [...prev.rows, ...toRows(page)],
+              nextCursor: page?.nextCursor ?? null,
+              total: typeof page?.total === "number" ? page.total : prev.total,
+            }
+          : prev,
+      );
+    } catch (err) {
+      if (!mountedRef.current || mine !== listSeqRef.current) return;
+      setError(
+        toSafeUserError(err, {
+          message: "More members could not be loaded. Try again.",
+        }).message,
+      );
+    } finally {
+      if (mountedRef.current) setLoadingMore(false);
+    }
+  };
+
+  const candidates: TransferCandidate[] = list.kind === "ready" ? list.rows : [];
+  // Keep the chosen member selectable after a search that no longer lists them.
+  const options: TransferCandidate[] =
+    targetUserId && !candidates.some((c) => c.userId === targetUserId)
+      ? [{ userId: targetUserId, label: targetLabel || "Selected member" }, ...candidates]
+      : candidates;
+  const nobodyEligible =
+    list.kind === "ready" && list.total === 0 && query === "" && !targetUserId;
 
   const transfer = useCallback(
     async (proof?: StepUpProof) => {
@@ -145,12 +298,11 @@ export function WorkspaceOwnershipTransferCard({
           }),
         });
         if (!mountedRef.current || seq !== seqRef.current) return;
-        const label =
-          candidates.find((c) => c.userId === targetUserId)?.label ??
-          "the new owner";
+        const label = targetLabel || "the new owner";
         setStepUpOpen(false);
         setConfirming(false);
         setTargetUserId("");
+        setTargetLabel("");
         const outcome = `${label} now owns ${teamName}. Billing ownership moved with it; you remain a member.`;
         setNotice(outcome);
         /**
@@ -181,7 +333,7 @@ export function WorkspaceOwnershipTransferCard({
         if (mountedRef.current && seq === seqRef.current) setBusy(false);
       }
     },
-    [targetUserId, teamId, teamName, candidates, onTransferred],
+    [targetUserId, targetLabel, teamId, teamName, onTransferred],
   );
 
   /**
@@ -207,7 +359,29 @@ export function WorkspaceOwnershipTransferCard({
           history are unaffected.
         </p>
 
-      {candidates.length === 0 ? (
+      {list.kind === "loading" && !hasLoaded ? (
+        <p
+          data-state="candidates-loading"
+          role="status"
+          style={{ color: "#6a777b", fontSize: 13, marginTop: 10 }}
+        >
+          Loading the members who can take ownership…
+        </p>
+      ) : list.kind === "failed" ? (
+        <div data-state="candidates-failed" role="alert" style={{ marginTop: 10, fontSize: 13, color: "#8f1d16" }}>
+          <span>{list.message}</span>{" "}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={busy}
+            onClick={() => setReloadKey((k) => k + 1)}
+            data-action="retry-workspace-transfer-candidates"
+          >
+            Try again
+          </Button>
+        </div>
+      ) : nobodyEligible ? (
         <p
           data-state="no-candidates"
           style={{ color: "#6a777b", fontSize: 13, marginTop: 10 }}
@@ -217,6 +391,23 @@ export function WorkspaceOwnershipTransferCard({
         </p>
       ) : (
         <div style={{ marginTop: 10 }}>
+          <label
+            htmlFor="workspace-transfer-search"
+            style={{ display: "block", fontSize: 12.5, fontWeight: 600, color: "#475569" }}
+          >
+            Find a member
+          </label>
+          <input
+            id="workspace-transfer-search"
+            type="search"
+            className="app-search-input"
+            placeholder="Search by name or email"
+            value={searchInput}
+            disabled={busy}
+            onChange={(e) => setSearchInput(e.target.value)}
+            data-control="workspace-transfer-search"
+            style={{ marginTop: 4, marginBottom: 8, minWidth: 240 }}
+          />
           <label
             htmlFor="workspace-transfer-target"
             style={{ display: "block", fontSize: 12.5, fontWeight: 600, color: "#475569" }}
@@ -229,7 +420,11 @@ export function WorkspaceOwnershipTransferCard({
             disabled={busy}
             aria-invalid={validationError ? true : undefined}
             onChange={(e) => {
-              setTargetUserId(e.target.value);
+              const next = e.target.value;
+              setTargetUserId(next);
+              setTargetLabel(
+                options.find((c) => c.userId === next)?.label ?? "",
+              );
               setConfirming(false);
               if (validationError) setValidationError(null);
             }}
@@ -244,12 +439,38 @@ export function WorkspaceOwnershipTransferCard({
             }}
           >
             <option value="">Select the new owner…</option>
-            {candidates.map((c) => (
+            {options.map((c) => (
               <option key={c.userId} value={c.userId}>
                 {c.label}
               </option>
             ))}
           </select>
+
+          <p
+            data-state="candidates-count"
+            style={{ margin: "6px 0 0", fontSize: 12, color: "#6a777b" }}
+          >
+            {list.kind === "loading"
+              ? "Searching…"
+              : list.kind === "ready" && list.total === 0
+                ? "No active member matches that search."
+                : list.kind === "ready"
+                  ? `Showing ${list.rows.length} of ${list.total} ${query ? "matching " : ""}member${list.total === 1 ? "" : "s"} who can take ownership`
+                  : ""}
+          </p>
+          {list.kind === "ready" && list.nextCursor ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              loading={loadingMore}
+              disabled={busy || loadingMore}
+              onClick={() => void loadMoreCandidates()}
+              data-action="workspace-transfer-load-more"
+            >
+              Show more members
+            </Button>
+          ) : null}
 
           {validationError ? (
             <p data-state="invalid" style={{ margin: "6px 0 0", fontSize: 12, color: "#991b1b" }}>
@@ -288,8 +509,7 @@ export function WorkspaceOwnershipTransferCard({
               <p style={{ margin: 0, fontSize: 12.5, color: "#475569" }}>
                 Transfer <strong>{teamName}</strong> to{" "}
                 <strong>
-                  {candidates.find((c) => c.userId === targetUserId)?.label ??
-                    "the selected member"}
+                  {targetLabel || "the selected member"}
                 </strong>
                 ? They gain owner-only controls, including closing this
                 workspace, and billing ownership moves with them. You can only

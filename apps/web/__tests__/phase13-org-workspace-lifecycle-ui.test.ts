@@ -373,11 +373,19 @@ test("transfer workspace ownership: owner-only, and never offers an ineligible t
   );
   assert.match(page, /const isOwner = team\?\.canManageWorkspace === true/);
 
-  // Candidates come from the roster the page already read, minus the owner
-  // and the caller — the route refuses both.
-  assert.match(page, /ownershipTransferCandidates/);
-  assert.match(page, /member\.userId !== team\?\.ownerUserId/);
-  assert.match(page, /member\.userId !== currentUserId/);
+  // D46 (2026-09-17) — candidates USED to come from the roster the page had
+  // already read (`team.members`), which is the detail read's bounded first
+  // page of 50, so every eligible member after it could never be offered. That
+  // is why the old pins on `ownershipTransferCandidates` are gone. Eligibility
+  // (ACTIVE, not the owner) is now applied by the SERVER on the paged, searched
+  // members read, and the card additionally leaves out the caller.
+  assert.doesNotMatch(page, /ownershipTransferCandidates/);
+  assert.match(page, /currentUserId=\{currentUserId\}/);
+  const card = read(TRANSFER_CARD);
+  assert.match(card, /eligible: "ownership_transfer"/);
+  assert.match(card, /\/v1\/teams\/\$\{encodeURIComponent\(teamId\)\}\/members\?/);
+  assert.match(card, /m\.userId !== currentUserId/);
+  assert.match(card, /data-action="workspace-transfer-load-more"/);
   // NEW-049: the page takes the outcome, holds it, THEN refreshes — and keeps
   // it in a live region that is not inside the owner-gated card, because that
   // card is about to unmount.

@@ -306,6 +306,25 @@ export async function collaborationRoutes(app: FastifyInstance) {
       if (!thread || thread.teamId !== body.teamId) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
+      // D34 — the assignee must be an ACTIVE member of the thread's workspace.
+      // Any uuid used to be accepted, so a thread could be handed to another
+      // tenant's user (who was then written in as a RESOLVER participant) or to
+      // a suspended/revoked member. Refused before anything is written; the
+      // code is the one evidence-request assignment already uses.
+      const assignee = await prisma.teamMember.findUnique({
+        where: {
+          teamId_userId: { teamId: thread.teamId, userId: body.assignedToUserId },
+        },
+        select: { status: true },
+      });
+      if (assignee?.status !== prismaPkg.TeamMemberStatus.ACTIVE) {
+        return reply.code(400).send({
+          error: {
+            code: "assignee_not_workspace_member",
+            message: "A thread can only be assigned to an active member of this workspace.",
+          },
+        });
+      }
       try {
         const updated = await assignDiscussionThread({
           threadId: id,
