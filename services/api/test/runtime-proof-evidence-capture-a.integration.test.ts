@@ -134,10 +134,17 @@ describe("K3 runtime proof — evidence capture (part A)", () => {
   let harness: IntegrationHarness;
   let prisma: (typeof import("../src/db.js"))["prisma"];
 
-  const call = (method: "GET" | "POST" | "PATCH" | "DELETE", url: string, token: string | null, payload?: unknown) =>
+  const call = (
+    method: "GET" | "POST" | "PATCH" | "DELETE",
+    url: string,
+    token: string | null,
+    payload?: unknown,
+    remoteAddress?: string,
+  ) =>
     harness.app.inject({
       method,
       url,
+      ...(remoteAddress ? { remoteAddress } : {}),
       headers: {
         ...(token ? { authorization: `Bearer ${token}` } : {}),
         ...(payload !== undefined ? { "content-type": "application/json" } : {}),
@@ -406,6 +413,11 @@ describe("K3 runtime proof — evidence capture (part A)", () => {
     });
 
     const RETIRED = { denial: "CITIZEN_CAPTURE_RETIRED", replacement: "/intake/{token}" };
+    // The citizen rate limiter runs BEFORE the 410 (by design) and its per-IP
+    // bucket is shared by every suite in a run, so each request here comes from
+    // its own IPv6 documentation address (RFC 3849), unique per request so no
+    // other suite's exhausted IPv4 bucket can be hit — nothing is dialled.
+    const freshClient = () => `2001:db8:${randomUUID().slice(0, 4)}:${randomUUID().slice(0, 4)}::1`;
 
     it("POST /v1/intake/citizen/sessions is retired (410) and binds no key, even for a live link", async () => {
       const key = ed25519Key();
@@ -413,7 +425,7 @@ describe("K3 runtime proof — evidence capture (part A)", () => {
         intakeTokenId: linkId,
         publicKeyHex: key.publicKeyHex,
         userAgent: "Mozilla/5.0 (fixture)",
-      });
+      }, freshClient());
       expect(res.statusCode, res.body).toBe(410);
       expect(json(res)).toEqual(RETIRED);
       const fingerprint = createHash("sha256").update(key.publicKeyHex).digest("hex");
@@ -428,7 +440,7 @@ describe("K3 runtime proof — evidence capture (part A)", () => {
         payload: { captureMode: "CITIZEN_PWA" },
         signatureHex: "00",
         assetBase64: Buffer.from("citizen-capture").toString("base64"),
-      });
+      }, freshClient());
       expect(res.statusCode, res.body).toBe(410);
       expect(json(res)).toEqual(RETIRED);
       expect(await prisma.evidence.count({ where: { teamId: teamA.teamId } })).toBe(before);
