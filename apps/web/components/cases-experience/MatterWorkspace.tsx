@@ -80,6 +80,9 @@ import { SiuPanel } from "../../app/(app)/cases/components/SiuPanel";
 import { SiuWorklistPanel } from "../../app/(app)/cases/components/SiuWorklistPanel";
 // O1 — who can open the case, and the grant / revoke controls.
 import { MatterAccessTab } from "./MatterAccessTab";
+import type { CaseScope } from "./types";
+import { usePlatformContext } from "../../lib/platform-context";
+import type { PlatformContextEnvelope } from "../../lib/platform-context/types";
 import { ReasonedActionButton } from "../../app/(app)/evidence/[id]/components/ReasonedActionButton";
 
 // =============================================================================
@@ -97,7 +100,7 @@ type MatterEnvelope = {
     description: string | null;
     status: string;
     priority: string;
-    scope: "PERSONAL" | "TEAM";
+    scope: CaseScope;
     ownerUserId: string;
     teamId: string | null;
     closedAtUtc: string | null;
@@ -411,6 +414,45 @@ const TABS: ReadonlyArray<{
 ];
 
 // =============================================================================
+// D56 — breadcrumb scope crumb
+// =============================================================================
+
+/**
+ * The leading breadcrumb crumb names the workspace that OWNS the case.
+ *
+ * It used to test `case.scope === "TEAM"`, a value the server never sends
+ * (its vocabulary is SHARED / SINGLE_OCCUPANT), so every case read
+ * "Personal Space". The scope is also the wrong field: a Personal Space case
+ * carries its personal Team id and is therefore SHARED too. The owner is
+ * `case.teamId`, resolved against the server-authorized context options.
+ */
+export function resolveCaseScopeLabel(
+  teamId: string | null,
+  context: PlatformContextEnvelope | null,
+): string {
+  if (!teamId) return "Personal Space";
+  if (!context) return "Workspace";
+  const options = context.contextOptions;
+  if (
+    options?.personalSpace?.workspaceId === teamId ||
+    context.personalSpace?.id === teamId
+  ) {
+    return "Personal Space";
+  }
+  const owned = options?.ownedWorkspaces.find((w) => w.workspaceId === teamId);
+  if (owned) return owned.name ?? "Workspace";
+  for (const org of options?.organizations ?? []) {
+    const ws = org.workspaces.find((w) => w.workspaceId === teamId);
+    if (ws) return ws.workspaceName ?? org.organizationName ?? "Organization";
+  }
+  if (context.workspace?.id === teamId) {
+    if (context.workspace.workspaceKind === "PERSONAL") return "Personal Space";
+    return context.workspace.name ?? "Workspace";
+  }
+  return "Workspace";
+}
+
+// =============================================================================
 // Component
 // =============================================================================
 
@@ -423,6 +465,7 @@ export function MatterWorkspace({
   onOpenEvidence?: (evidenceId: string) => void;
 }) {
   const [envelope, setEnvelope] = useState<MatterEnvelope | null>(null);
+  const platformEnvelope = usePlatformContext().envelope;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>("overview");
@@ -760,6 +803,8 @@ export function MatterWorkspace({
     );
   }
 
+  const scopeLabel = resolveCaseScopeLabel(envelope.case.teamId, platformEnvelope);
+
   // The server keys its disabled reasons by camel-cased action name
   // (matter-workspace.service.ts `viewer.disabledReasons`).
   const canLinkEvidence =
@@ -802,7 +847,7 @@ export function MatterWorkspace({
           setActiveTab("evidence");
           setLinkModalOpen(true);
         }}
-        scopeLabel={envelope.case.scope === "TEAM" ? "Organization" : "Personal Space"}
+        scopeLabel={scopeLabel}
         primaryActionLabel="Add evidence"
         extraMeta={
           <>

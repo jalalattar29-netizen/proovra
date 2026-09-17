@@ -48,6 +48,7 @@ import {
   listPackageDeliveries,
   recordPackageDelivery,
   recordPackageDownload,
+  requestExchangePackageRebuild,
   revokePackage,
 } from "../services/exchange/evidence-exchange.service.js";
 import { listDeliveryActivity } from "../services/exchange/signed-delivery.service.js";
@@ -380,6 +381,95 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       });
       if (!res.ok) return reply.code(409).send({ denial: res.denial });
       return reply.code(201).send({ packageId: res.packageId });
+    },
+  );
+
+  // D59 — "Build again". A failed build returns the package to DRAFT, and
+  // until this route nothing could hand it back to the builder. Same gates as
+  // creation (a build that succeeds meters the export allowance), a
+  // conditional DRAFT -> BUILDING, and a package in another workspace answers
+  // exactly like a missing one.
+  app.post(
+    "/v1/exchange/packages/:id/build",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const ctx = await resolveWorkspace(req, reply);
+      if (!ctx) return reply;
+      if (
+        !(await authorizeOrFail(req, reply, {
+          teamId: ctx.teamId,
+          permission: "evidence.generate_package",
+          antiEnumeration: true,
+        }))
+      ) {
+        return reply;
+      }
+      const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+
+      const featureOk = await assertFeatureEntitlement({
+        teamId: ctx.teamId,
+        key: "FEATURE_EVIDENCE_EXCHANGE",
+      });
+      if (!featureOk.ok) {
+        return reply.code(403).send({
+          denial: "ENTITLEMENT_REQUIRED",
+          key: "FEATURE_EVIDENCE_EXCHANGE",
+        });
+      }
+      const quotaOk = await assertQuotaEntitlement({
+        teamId: ctx.teamId,
+        key: "QUOTA_EXPORT_PACKAGES_PER_MONTH",
+        requested: 1,
+      });
+      if (!quotaOk.ok) {
+        return reply.code(429).send({
+          denial: "QUOTA_EXCEEDED",
+          key: "QUOTA_EXPORT_PACKAGES_PER_MONTH",
+        });
+      }
+
+      const res = await requestExchangePackageRebuild({
+        teamId: ctx.teamId,
+        packageId: id,
+      });
+      if (!res.ok && res.reason === "NOT_FOUND") {
+        return reply.code(404).send({ denial: "NOT_FOUND" });
+      }
+      if (!res.ok) {
+        await emitTenantAudit({
+          action: "exchange.package.build_requested",
+          outcome: "denied",
+          sourceApp: "API",
+          actorUserId: ctx.userId,
+          workspaceId: ctx.teamId,
+          resourceType: "evidence_exchange_package",
+          resourceId: id,
+          capability: "evidence.generate_package",
+          previousState: res.state,
+          requestedState: "BUILDING",
+          resultingState: res.state,
+          reasonCode: "EXCHANGE_PACKAGE_NOT_DRAFT",
+        });
+        return reply.code(409).send({
+          code: "EXCHANGE_PACKAGE_NOT_DRAFT",
+          denial: "EXCHANGE_PACKAGE_NOT_DRAFT",
+          state: res.state,
+        });
+      }
+      await emitTenantAudit({
+        action: "exchange.package.build_requested",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: ctx.userId,
+        workspaceId: ctx.teamId,
+        resourceType: "evidence_exchange_package",
+        resourceId: id,
+        capability: "evidence.generate_package",
+        previousState: res.previousState,
+        requestedState: "BUILDING",
+        resultingState: "BUILDING",
+      });
+      return reply.code(202).send({ packageId: id, state: "BUILDING" });
     },
   );
 

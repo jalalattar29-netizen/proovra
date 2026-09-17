@@ -27,6 +27,13 @@
  * Success is announced only when the reread shows the package REVOKED. A
  * revoked package offers no link, delivery or download action. A package list
  * that could not be read says so; it is never shown as "No packages".
+ *
+ * D59 — POST /v1/exchange/packages/:id/build is wired as a per-row "Build
+ * again" action on a DRAFT package whose last build failed (the projection's
+ * bounded `lastBuild`). No confirmation (it only retries the build); success
+ * is announced only when the package list reread shows the package has left
+ * DRAFT. A refusal (EXCHANGE_PACKAGE_NOT_DRAFT, missing, role, allowance) is
+ * said in words.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -62,11 +69,33 @@ interface ExchangePackage {
   createdAt: string;
   /** Server-side total number of recorded deliveries. */
   deliveryCount?: number;
+  /** D59 — set when the package's most recent build failed. */
+  lastBuild?: { state: "FAILED"; failedAtUtc: string | null } | null;
 }
 
 const PACKAGE_KINDS = ["SHARE", "EXPORT", "LEGAL_PRODUCTION", "INTERNAL_TRANSFER"] as const;
 
 const REVOKED_REASON = "This package was revoked. Its links no longer work.";
+
+/** D59 — the operator sentence for a refused or failed "Build again". */
+function rebuildFailureMessage(err: unknown): string {
+  const e = err as { statusCode?: number; code?: string } | null;
+  if (e?.statusCode === 409 || e?.code === "EXCHANGE_PACKAGE_NOT_DRAFT") {
+    return "This package is no longer waiting for a build, so nothing was changed. Refresh the list to see its current state.";
+  }
+  if (e?.statusCode === 404) {
+    return "This package no longer exists in this workspace. Refresh the list.";
+  }
+  if (e?.statusCode === 403) {
+    return "Your role cannot build exchange packages in this workspace.";
+  }
+  if (e?.statusCode === 429) {
+    return "This month's export package allowance is used up, so the package cannot be built now.";
+  }
+  return toSafeUserError(err, {
+    message: "The build could not be requested. Refresh the list and try again.",
+  }).message;
+}
 
 type PackageListState =
   | { status: "loading" }
@@ -150,6 +179,8 @@ function Shell() {
   const { confirm: confirmAction } = useConfirmAction();
   const [revokeBusy, setRevokeBusy] = useState<string | null>(null);
   const [revokeNotice, setRevokeNotice] = useState<string | null>(null);
+  const [rebuildBusy, setRebuildBusy] = useState<string | null>(null);
+  const [rebuildNotice, setRebuildNotice] = useState<string | null>(null);
   const [denial, setDenial] = useState<PermissionDenialState>(null);
 
   // Create form state
@@ -331,6 +362,57 @@ function Shell() {
     [confirmAction, refresh, revokeBusy],
   );
 
+  /**
+   * D59 — POST /v1/exchange/packages/:id/build. Hands a DRAFT package whose
+   * build failed back to the builder; announced only after the reread shows
+   * the package has left DRAFT.
+   */
+  const rebuildPackage = useCallback(
+    async (pkg: ExchangePackage) => {
+      if (rebuildBusy) return;
+      setRebuildNotice(null);
+      setActionError(null);
+      const requestWorkspaceId = activeWorkspaceRef.current;
+      setRebuildBusy(pkg.id);
+      let written = false;
+      try {
+        await apiFetch(`/v1/exchange/packages/${encodeURIComponent(pkg.id)}/build`, {
+          method: "POST",
+          body: JSON.stringify({}),
+        });
+        written = true;
+        if (requestWorkspaceId !== activeWorkspaceRef.current) return;
+        const rows = await refresh();
+        if (requestWorkspaceId !== activeWorkspaceRef.current) return;
+        const reread = rows?.find((row) => row.id === pkg.id);
+        if (rows === null) {
+          setActionError(
+            "The build was requested, but the package list could not be reloaded to confirm it. Refresh to check.",
+          );
+        } else if (reread && reread.state !== "DRAFT") {
+          setRebuildNotice(
+            `Build requested for the ${identifierLabel(pkg.kind)} package and confirmed from the saved record. It now shows as ${identifierLabel(reread.state)}.`,
+          );
+        } else {
+          setActionError(
+            reread
+              ? "The build was requested, but the package still shows as waiting for a build. Refresh and check again."
+              : "The build was requested, but the package no longer appears in this workspace's list.",
+          );
+        }
+      } catch (err) {
+        if (requestWorkspaceId !== activeWorkspaceRef.current) return;
+        if (!written) {
+          applyDenial(err, setDenial);
+          setActionError(rebuildFailureMessage(err));
+        }
+      } finally {
+        setRebuildBusy(null);
+      }
+    },
+    [rebuildBusy, refresh],
+  );
+
   const create = useCallback(async () => {
     setCreating(true);
     setDenial(null);
@@ -496,6 +578,7 @@ function Shell() {
     setPackages([]);
     setListState({ status: "loading" });
     setRevokeNotice(null);
+    setRebuildNotice(null);
     // Workspace switch clears the durable-history cache and its error state.
     setDeliveries({});
     setDeliveriesError(null);
@@ -561,6 +644,12 @@ function Shell() {
       {revokeNotice ? (
         <div role="status" data-exchange-revoke-notice style={{ fontSize: 12, marginBottom: 10 }}>
           {revokeNotice}
+        </div>
+      ) : null}
+
+      {rebuildNotice ? (
+        <div role="status" data-exchange-rebuild-notice style={{ fontSize: 12, marginBottom: 10 }}>
+          {rebuildNotice}
         </div>
       ) : null}
 
@@ -699,6 +788,7 @@ function Shell() {
             ) : (
               packages.map((pkg) => {
                 const revoked = pkg.state === "REVOKED";
+                const buildFailed = pkg.state === "DRAFT" && pkg.lastBuild?.state === "FAILED";
                 return (
                 <tr
                   key={pkg.id}
@@ -709,6 +799,13 @@ function Shell() {
                   <td style={td}>{pkg.evidenceIds.length}</td>
                   <td style={td}>
                     <strong>{identifierLabel(pkg.state)}</strong>
+                    {buildFailed ? (
+                      <div data-exchange-build-failed style={{ fontSize: 11, color: "#991b1b", marginTop: 2 }}>
+                        {pkg.lastBuild?.failedAtUtc
+                          ? `Last build failed ${formatUserDateTime(pkg.lastBuild.failedAtUtc)}`
+                          : "Last build failed"}
+                      </div>
+                    ) : null}
                   </td>
                   <td style={td}>{formatUserDate(pkg.createdAt)}</td>
                   <td style={td}>
@@ -730,6 +827,24 @@ function Shell() {
                   </td>
                   <td style={td}>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+                      {buildFailed ? (
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          data-exchange-rebuild={pkg.id}
+                          aria-label={`Build again: ${identifierLabel(pkg.kind)} package created ${formatUserDate(pkg.createdAt)}`}
+                          loading={rebuildBusy === pkg.id}
+                          disabled={rebuildBusy !== null}
+                          disabledReason={
+                            rebuildBusy !== null && rebuildBusy !== pkg.id
+                              ? "Another package build is being requested. Wait for it to finish."
+                              : undefined
+                          }
+                          onClick={() => void rebuildPackage(pkg)}
+                        >
+                          {rebuildBusy === pkg.id ? "Requesting build…" : "Build again"}
+                        </Button>
+                      ) : null}
                       <Button
                         size="sm"
                         loading={signBusy === pkg.id}

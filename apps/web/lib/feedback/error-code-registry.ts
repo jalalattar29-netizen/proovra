@@ -59,6 +59,7 @@ export type ErrorCodeDisposition =
 
 const PUBLIC_INTAKE = "apps/web/app/intake/[token]/page.tsx";
 const REGISTER = "apps/web/app/register/page.tsx";
+const EXCHANGE = "apps/web/app/(app)/exchange/page.tsx";
 
 export const ERROR_CODE_DISPOSITIONS: Readonly<
   Record<string, ErrorCodeDisposition>
@@ -479,6 +480,11 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
     disposition: "internal",
     why: "An external-portal outcome code, not a failure.",
   },
+
+  // -- Evidence Exchange ----------------------------------------------------
+  // D59 — "Build again" on a package that is no longer DRAFT (already
+  // building, built, delivered or revoked). The Exchange page says so.
+  EXCHANGE_PACKAGE_NOT_DRAFT: { disposition: "customer", where: EXCHANGE },
 
   // -- Genuine server faults ------------------------------------------------
   INTERNAL_ERROR: {

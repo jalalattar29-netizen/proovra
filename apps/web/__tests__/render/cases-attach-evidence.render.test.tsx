@@ -81,7 +81,7 @@ const H = vi.hoisted(() => {
           description: null,
           status: "CLOSED",
           priority: "P2",
-          scope: "TEAM",
+          scope: "SHARED",
           ownerUserId: "u-1",
           teamId: "44444444-4444-4444-8444-444444444444",
           closedAtUtc: iso,

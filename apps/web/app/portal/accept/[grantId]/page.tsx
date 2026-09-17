@@ -46,6 +46,7 @@ import {
   type PortalMfaDetail,
 } from "../../../../lib/external-portal/portal-client";
 import { PortalMfaCodeStep } from "../../../../components/external-portal/PortalMfaCodeStep";
+import { PortalDenialNotice } from "../../../../components/external-portal/PortalDenialNotice";
 
 /** D27 — denials answered by the emailed-code step. */
 const CODE_STEP_DENIALS = new Set([
@@ -227,6 +228,7 @@ export default function PortalAcceptPage({
       {ssoOutcome === "denied" ? (
         <div
           data-portal-accept-sso-denied
+          data-portal-denial-code={denialReason ?? undefined}
           role="alert"
           style={{
             marginTop: 12,
@@ -238,15 +240,16 @@ export default function PortalAcceptPage({
             fontSize: 12,
           }}
         >
-          SSO sign-in was refused{denialReason ? `: ${denialReason}` : ""}.
-          You can still continue with the invitation link below.
+          {/* D58 — the IdP's refusal reason stays a data attribute; it is a
+              code, not a sentence. */}
+          Single sign-on did not accept this sign-in. You can still continue
+          with the invitation link below.
         </div>
       ) : null}
 
       {error ? (
         <div
           data-portal-accept-error
-          role="alert"
           style={{
             marginTop: 12,
             padding: "8px 12px",
@@ -257,7 +260,13 @@ export default function PortalAcceptPage({
             fontSize: 12,
           }}
         >
-          <code>{error}</code>
+          {/* D58 — product copy; the denial code is a data attribute only. */}
+          <PortalDenialNotice
+            denial={error}
+            headingLevel="h2"
+            busy={busy}
+            onRetry={() => void onOpenWithToken()}
+          />
         </div>
       ) : null}
 

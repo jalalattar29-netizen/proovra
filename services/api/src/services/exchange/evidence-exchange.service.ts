@@ -7,8 +7,12 @@
  *   DRAFT → BUILDING → READY → DELIVERED → (EXPIRED | REVOKED)
  *
  *   DRAFT → BUILDING is the build REQUEST (`requestExchangePackageBuild`),
- *   made by `createExchangePackage`. The worker's package builder only picks
- *   up BUILDING packages, and a failed build returns the package to DRAFT.
+ *   made by `createExchangePackage` and — D59 — by an operator's
+ *   "Build again" on a DRAFT package (`requestExchangePackageRebuild`,
+ *   POST /v1/exchange/packages/:id/build). The worker's package builder only
+ *   picks up BUILDING packages, and a failed build returns the package to
+ *   DRAFT (its build tracker row says FAILED; the list projects that as the
+ *   bounded `lastBuild`).
  *
  * Hard rules:
  *   * Every entry point is workspace-anchored (teamId).
@@ -170,6 +174,48 @@ export async function requestExchangePackageBuild(input: {
     data: { state: "BUILDING" },
   });
   return { requested: moved.count === 1 };
+}
+
+// ---------------------------------------------------------------------------
+// requestExchangePackageRebuild — operator "Build again" (D59)
+// ---------------------------------------------------------------------------
+
+export type RequestExchangePackageRebuildResult =
+  | { ok: true; previousState: "DRAFT" }
+  | { ok: false; reason: "NOT_FOUND" }
+  | { ok: false; reason: "NOT_DRAFT"; state: ExchangePackageState };
+
+/**
+ * Ask the builder to build a DRAFT package again (a failed build returns the
+ * package to DRAFT, and until this existed nothing could move it on).
+ *
+ * Workspace-anchored: a package in another workspace is NOT_FOUND, exactly
+ * like a missing one. The transition is the same conditional DRAFT → BUILDING
+ * write the creation path uses, so a concurrent request or a package that
+ * moved on meanwhile is reported as NOT_DRAFT with the state it is in now.
+ */
+export async function requestExchangePackageRebuild(input: {
+  prisma?: PrismaClient;
+  teamId: string;
+  packageId: string;
+}): Promise<RequestExchangePackageRebuildResult> {
+  const prisma = input.prisma ?? defaultPrisma;
+  const current = await prisma.evidenceExchangePackage.findFirst({
+    where: { id: input.packageId, teamId: input.teamId },
+    select: { state: true },
+  });
+  if (!current) return { ok: false, reason: "NOT_FOUND" };
+  if (current.state !== "DRAFT") {
+    return { ok: false, reason: "NOT_DRAFT", state: current.state as ExchangePackageState };
+  }
+  const { requested } = await requestExchangePackageBuild(input);
+  if (requested) return { ok: true, previousState: "DRAFT" };
+  const now = await prisma.evidenceExchangePackage.findFirst({
+    where: { id: input.packageId, teamId: input.teamId },
+    select: { state: true },
+  });
+  if (!now) return { ok: false, reason: "NOT_FOUND" };
+  return { ok: false, reason: "NOT_DRAFT", state: now.state as ExchangePackageState };
 }
 
 // ---------------------------------------------------------------------------
@@ -562,9 +608,24 @@ export type ListPackagesInput = {
   limit?: number;
 };
 
+/**
+ * D59 — the bounded outcome of a package's most recent build, when it failed.
+ * Read from the build tracker's state + completion time only: the tracker's
+ * free-text `failure_reason` is an internal error message and never leaves
+ * the API.
+ */
+export type ExchangePackageLastBuild = {
+  state: "FAILED";
+  failedAtUtc: string | null;
+};
+
+export type ExchangePackageListItem = ExchangePackageProjection & {
+  lastBuild: ExchangePackageLastBuild | null;
+};
+
 export async function listPackages(
   input: ListPackagesInput,
-): Promise<ReadonlyArray<ExchangePackageProjection>> {
+): Promise<ReadonlyArray<ExchangePackageListItem>> {
   const prisma = input.prisma ?? defaultPrisma;
   const limit = Math.min(input.limit ?? 100, 500);
   const rows = await prisma.evidenceExchangePackage.findMany({
@@ -577,6 +638,20 @@ export async function listPackages(
     take: limit,
     include: { _count: { select: { deliveries: true } } },
   });
+  const failedBuilds =
+    rows.length === 0
+      ? []
+      : await prisma.evidenceExchangePackageBuild.findMany({
+          where: {
+            teamId: input.teamId,
+            packageId: { in: rows.map((r) => r.id) },
+            state: "FAILED",
+          },
+          select: { packageId: true, completedAtUtc: true },
+        });
+  const failedAt = new Map(
+    failedBuilds.map((b) => [b.packageId, b.completedAtUtc?.toISOString() ?? null]),
+  );
   return rows.map((r) => ({
     id: r.id,
     teamId: r.teamId,
@@ -599,6 +674,9 @@ export async function listPackages(
     expiredAtUtc: r.expiredAtUtc?.toISOString() ?? null,
     revokedAtUtc: r.revokedAtUtc?.toISOString() ?? null,
     deliveryCount: r._count?.deliveries ?? 0,
+    lastBuild: failedAt.has(r.id)
+      ? { state: "FAILED" as const, failedAtUtc: failedAt.get(r.id) ?? null }
+      : null,
   }));
 }
 

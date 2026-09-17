@@ -27,9 +27,11 @@ import {
 
 import { WatermarkOverlay } from "../../../../../components/external-portal/WatermarkOverlay";
 import { PortalMfaCodeStep } from "../../../../../components/external-portal/PortalMfaCodeStep";
+import { PortalDenialNotice } from "../../../../../components/external-portal/PortalDenialNotice";
 
 import {
   authenticate,
+  clearSessionId,
   fetchComments,
   fetchDecisions,
   fetchPortalDashboard,
@@ -60,6 +62,18 @@ type DecisionState =
   | { kind: "denied" }
   | { kind: "failed"; message: string };
 
+/**
+ * D58 — denials that mean the SESSION is gone (or cannot be checked), not
+ * that this one request was refused. Any request on the page can meet them
+ * once an operator ends the session, so they replace the page with the
+ * portal denial notice and its way back.
+ */
+const SESSION_LOSS_DENIALS = new Set([
+  "SESSION_ENDED",
+  "SESSION_UNAVAILABLE",
+  "INACTIVITY_TIMEOUT",
+]);
+
 function portalStatus(err: unknown): number {
   const s = (err as { status?: unknown } | null)?.status;
   return typeof s === "number" ? s : 0;
@@ -88,6 +102,21 @@ export default function PortalReviewPage({
   const [deciding, setDeciding] = useState(false);
   const decisionSeq = useRef(0);
 
+  // D58 — route a lost session (or a lapsed MFA satisfaction) met by ANY
+  // request to the page-level handling. Returns true when it took the error.
+  const takeSessionLoss = useCallback((err: unknown): boolean => {
+    const failure = readPortalFailure(err);
+    if (failure.denial && isPortalMfaDenial(failure.denial)) {
+      setMfaStep({ denial: failure.denial, detail: failure.mfa });
+      return true;
+    }
+    if (failure.denial && SESSION_LOSS_DENIALS.has(failure.denial)) {
+      setDenial(failure.denial);
+      return true;
+    }
+    return false;
+  }, []);
+
   const loadDecision = useCallback(async (): Promise<PortalDecision | null | undefined> => {
     const seq = ++decisionSeq.current;
     setDecisionState((prev) => (prev.kind === "ready" ? prev : { kind: "loading" }));
@@ -97,7 +126,7 @@ export default function PortalReviewPage({
       if (seq === decisionSeq.current) setDecisionState({ kind: "ready", decision: mine });
       return mine;
     } catch (err) {
-      if (seq === decisionSeq.current) {
+      if (seq === decisionSeq.current && !takeSessionLoss(err)) {
         const status = portalStatus(err);
         setDecisionState(
           status === 403 || status === 404
@@ -112,7 +141,7 @@ export default function PortalReviewPage({
       }
       return undefined;
     }
-  }, [workflowId]);
+  }, [workflowId, takeSessionLoss]);
 
   const reauth = useCallback(async () => {
     setBearer(decodeURIComponent(token));
@@ -198,6 +227,7 @@ export default function PortalReviewPage({
           });
           replaced = res.replaced;
         } catch (err) {
+          if (takeSessionLoss(err)) return;
           const status = portalStatus(err);
           setDecisionStatus(
             status === 403
@@ -227,8 +257,17 @@ export default function PortalReviewPage({
         setDeciding(false);
       }
     },
-    [workflowId, verdictRationale, deciding, loadDecision],
+    [workflowId, verdictRationale, deciding, loadDecision, takeSessionLoss],
   );
+
+  // D58 — exchange the invitation token again WITHOUT the ended session id:
+  // that opens a fresh session (an MFA grant is sent a fresh code and lands
+  // on the code step). Drafts on this page are kept.
+  const signInAgain = () => {
+    clearSessionId();
+    setDenial(null);
+    void refresh();
+  };
 
   if (mfaStep) {
     return (
@@ -253,9 +292,15 @@ export default function PortalReviewPage({
 
   if (denial) {
     return (
-      <main style={{ padding: 40, textAlign: "center" }}>
-        <h1 style={{ fontSize: 20 }}>Portal access denied</h1>
-        <p>{identifierLabel(denial)}</p>
+      <main data-portal-denied style={{ maxWidth: 480, margin: "0 auto", padding: 40, textAlign: "center" }}>
+        <PortalDenialNotice
+          denial={denial}
+          onReauthenticate={signInAgain}
+          onRetry={() => {
+            setDenial(null);
+            void refresh();
+          }}
+        />
       </main>
     );
   }
@@ -349,18 +394,28 @@ export default function PortalReviewPage({
             onPostRoot={async () => {
               const body = rootDraft.trim();
               if (!body) return;
-              await postComment({ workflowId, body });
+              try {
+                await postComment({ workflowId, body });
+              } catch (err) {
+                if (takeSessionLoss(err)) return;
+                throw err;
+              }
               setRootDraft("");
               await refresh();
             }}
             onPostReply={async (parentId) => {
               const body = (replyDraft[parentId] ?? "").trim();
               if (!body) return;
-              await postComment({
-                workflowId,
-                body,
-                parentCommentId: parentId,
-              });
+              try {
+                await postComment({
+                  workflowId,
+                  body,
+                  parentCommentId: parentId,
+                });
+              } catch (err) {
+                if (takeSessionLoss(err)) return;
+                throw err;
+              }
               setReplyDraft((d) => ({ ...d, [parentId]: "" }));
               await refresh();
             }}

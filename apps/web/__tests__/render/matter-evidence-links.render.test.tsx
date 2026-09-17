@@ -10,6 +10,12 @@ const linkA = "10000000-0000-4000-8000-00000000000a";
 
 const mocks = vi.hoisted(() => ({ fetch: vi.fn(), confirm: vi.fn() }));
 vi.mock("../../lib/api", () => ({ apiFetch: mocks.fetch }));
+// D56 — MatterWorkspace now reads the platform context to name the case's
+// workspace in the breadcrumb; this suite does not assert that crumb.
+vi.mock("../../lib/platform-context", async (orig) => ({
+  ...(await orig<typeof import("../../lib/platform-context")>()),
+  usePlatformContext: () => ({ envelope: null }),
+}));
 vi.mock("../../components/ui/ConfirmActionModal", () => ({ useConfirmAction: () => ({ confirm: mocks.confirm }) }));
 vi.mock("../../components/presence/PresenceIndicator", () => ({ PresenceIndicator: () => null }));
 vi.mock("../../components/collaboration/TeamResponsibilityPanel", () => ({ TeamResponsibilityPanel: () => null }));
@@ -52,7 +58,7 @@ function envelope(): unknown {
   const ok = <T,>(extra: T) => ({ status: "ok", ...extra });
   return {
     generatedAt: iso,
-    case: { id: caseId, name: "Harbor claim", referenceNumber: null, description: null, status: "OPEN", priority: "P2", scope: "TEAM", ownerUserId: "u-1", teamId, closedAtUtc: null, closureReason: null, createdAt: iso, updatedAt: iso },
+    case: { id: caseId, name: "Harbor claim", referenceNumber: null, description: null, status: "OPEN", priority: "P2", scope: "SHARED", ownerUserId: "u-1", teamId, closedAtUtc: null, closureReason: null, createdAt: iso, updatedAt: iso },
     viewer: server.viewer,
     risk: { status: "ok", data: null, sampledAtUtc: iso },
     sections: {
