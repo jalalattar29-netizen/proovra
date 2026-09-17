@@ -466,6 +466,7 @@ export default function AdminPersonDetailPage() {
                   {detail.personalWorkspaceId ? (
                     <Link
                       href={`/admin/workspaces/${encodeURIComponent(detail.personalWorkspaceId)}`}
+                      className="admin-hit-link"
                     >
                       Open personal space
                     </Link>

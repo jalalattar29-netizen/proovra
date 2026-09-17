@@ -985,7 +985,11 @@ export default function AdminOverviewPage() {
                     },
                   ]}
                 />
-                <Link href="/admin/dashboard" style={{ fontSize: 13, fontWeight: 600 }}>
+                <Link
+                  href="/admin/dashboard"
+                  className="admin-hit-link"
+                  style={{ fontSize: 13, fontWeight: 600 }}
+                >
                   Platform Analytics →
                 </Link>
               </AdmCard>
