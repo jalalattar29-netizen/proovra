@@ -8,7 +8,8 @@
  *   POST  /v1/reliability/reconcile          (cron-protected)
  *
  * All read + manual-action routes require authenticated OWNER/ADMIN
- * membership (404s for non-admins so role enumeration is not possible).
+ * membership (404 for callers outside the workspace; 403 for a member who
+ * is not OWNER/ADMIN — see requireAdminMember).
  * The cron route uses INTEGRATION_CRON_SECRET — same protection as the
  * webhook retry sweeper.
  */
@@ -48,7 +49,13 @@ const ParamsEvidenceId = z.object({ evidenceId: z.string().uuid() });
  * Routes through authorizeOrFail (ACTIVE membership + org lifecycle +
  * `identity.org_policy.read` + fail-closed + anti-enumeration) THEN preserves
  * the OWNER/ADMIN-only restriction (identity.org_policy.read is not
- * admin-exclusive). Every denial is 404 so role/record is not enumerated.
+ * admin-exclusive).
+ *
+ * D60 — an outsider is answered 404 (the primitive's anti-enumeration); an
+ * ACTIVE member who is not OWNER/ADMIN is answered 403 permission_denied,
+ * byte-identical to the primitive's refusal of a member without the
+ * capability (the MFA admin family's D14 rule). Records the caller may not
+ * see stay 404.
  */
 async function requireAdminMember(
   req: FastifyRequest,
@@ -65,8 +72,19 @@ async function requireAdminMember(
     where: { teamId_userId: { teamId, userId: outcome.actorUserId } },
     select: { role: true },
   });
-  if (!membership || (membership.role !== "OWNER" && membership.role !== "ADMIN")) {
+  // No membership row is an outsider however authorization was satisfied,
+  // and stays concealed.
+  if (!membership) {
     reply.code(404).send({ error: { code: "not_found" } });
+    return null;
+  }
+  if (membership.role !== "OWNER" && membership.role !== "ADMIN") {
+    // D60 — a member without authority, not an outsider: the canonical 403,
+    // byte-identical to the refusal `authorizeOrFail` sends a member who
+    // lacks the capability (the MFA admin family's D14 rule).
+    reply.code(403).send({
+      error: { code: "permission_denied", reason: "permission_not_granted" },
+    });
     return null;
   }
   return { userId: outcome.actorUserId };

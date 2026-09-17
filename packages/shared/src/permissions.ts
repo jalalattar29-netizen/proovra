@@ -158,6 +158,12 @@ export const PERMISSIONS = [
   "identity.service_account.disable",
   "identity.contributor_session.revoke",
   "identity.org_policy.read",
+  // PV-OD-002 — explicit READ capabilities for the two identity surfaces
+  // a read-only auditor legitimately needs: the SSO configuration (never
+  // its secrets) and the identity audit trail. They exist so the grant is
+  // a named decision rather than a side effect of a generic label.
+  "identity.sso.read",
+  "identity.audit.read",
   "identity.org_policy.manage",
   "identity.access_review.read",
   "identity.access_review.action",
@@ -401,6 +407,8 @@ const ROLE_PERMISSIONS: Readonly<Record<CanonicalRole, ReadonlyArray<Permission>
     "identity.service_account.disable",
     "identity.contributor_session.revoke",
     "identity.org_policy.read",
+    "identity.sso.read",
+    "identity.audit.read",
     "identity.org_policy.manage",
     "identity.access_review.read",
     "identity.access_review.action",
@@ -473,6 +481,8 @@ const ROLE_PERMISSIONS: Readonly<Record<CanonicalRole, ReadonlyArray<Permission>
     "redaction.detection.review",
     "identity.member.read",
     "identity.org_policy.read",
+    "identity.sso.read",
+    "identity.audit.read",
     "identity.access_review.read",
     "identity.external_mapping.read",
     "billing.read",
@@ -530,6 +540,8 @@ const ROLE_PERMISSIONS: Readonly<Record<CanonicalRole, ReadonlyArray<Permission>
     "collaboration.thread.read",
     "identity.member.read",
     "identity.org_policy.read",
+    "identity.sso.read",
+    "identity.audit.read",
     // PHASE 4B — VIEWER may look and may not act. Every Operations mutation
     // is absent here, deliberately and by omission rather than by a runtime
     // role-name comparison somewhere else.

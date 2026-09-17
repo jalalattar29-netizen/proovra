@@ -42,6 +42,7 @@ import { Card } from "../../../../../../components/ui/Card";
 import { Button } from "../../../../../../components/ui/Button";
 import { DataTable, type DataTableColumn } from "../../../../../../components/ui/DataTable";
 import { EmptyState } from "../../../../../../components/ui/EmptyState";
+import { identifierLabel } from "@proovra/shared";
 
 // ---------------------------------------------------------------------------
 // Wire type — mirrors GET /v1/orgs/:id/workspaces (organizations.routes.ts).
@@ -296,7 +297,13 @@ function IntegrationsTab() {
                 fontSize: 13,
               }}
             >
-              <code style={{ fontSize: 12 }}>{ev.eventType}</code>
+              <div style={{ fontWeight: 600 }}>
+                {identifierLabel(ev.eventType)}
+              </div>
+              {/* PV-LANG-003 — the exact name a webhook receiver matches on. */}
+              <code data-identifier style={{ fontSize: 12 }}>
+                {ev.eventType}
+              </code>
               <div
                 style={{
                   fontSize: 12,

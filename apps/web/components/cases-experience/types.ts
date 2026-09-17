@@ -10,7 +10,14 @@ import type { EvidenceOutputState } from "@proovra/shared";
 
 export type SectionStatus = "ok" | "degraded" | "unavailable" | "not_applicable";
 
-export type CaseScope = "PERSONAL" | "TEAM";
+/**
+ * D56 — the server's case/workspace scope vocabulary
+ * (services/api/src/services/cases/matter-workspace.service.ts and
+ * case-workspace.service.ts `CaseScope`). A case is SHARED whenever it has a
+ * `teamId` — which includes a Personal Space case (its personal Team) — so
+ * the scope alone never says WHICH workspace owns the case; read `teamId`.
+ */
+export type CaseScope = "SINGLE_OCCUPANT" | "SHARED";
 
 // =============================================================================
 // Phase 32.8D — Matter Workspace frontend types.

@@ -20,11 +20,27 @@
  *     `user.currentWorkspaceId` server-side, so the page sends no teamId.
  *     It re-loads on a workspace switch and DISCARDS in-flight responses
  *     whose workspace generation changed.
+ *
+ * BATCH J — POST /v1/exchange/packages/:id/revoke is wired as a per-row
+ * "Revoke" action: a danger confirmation that says existing links stop
+ * working, then the write, then an authoritative reread of the package list.
+ * Success is announced only when the reread shows the package REVOKED. A
+ * revoked package offers no link, delivery or download action. A package list
+ * that could not be read says so; it is never shown as "No packages".
+ *
+ * D59 — POST /v1/exchange/packages/:id/build is wired as a per-row "Build
+ * again" action on a DRAFT package whose last build failed (the projection's
+ * bounded `lastBuild`). No confirmation (it only retries the build); success
+ * is announced only when the package list reread shows the package has left
+ * DRAFT. A refusal (EXCHANGE_PACKAGE_NOT_DRAFT, missing, role, allowance) is
+ * said in words.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
+import { Button } from "../../../components/ui/Button";
+import { useConfirmAction } from "../../../components/ui/ConfirmActionModal";
 import { apiFetch, ApiError } from "../../../lib/api";
 import {
   StepUpModal,
@@ -33,6 +49,8 @@ import {
 import { formatUserDate, formatUserDateTime } from "../../../lib/date";
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import { usePlatformContext } from "../../../lib/platform-context";
+import { identifierLabel } from "@proovra/shared";
+import { permissionDenialCopy } from "../../../lib/labels/governanceReviewLabels";
 
 type PermissionDenialState = { denial: string; tier: string } | null;
 
@@ -51,9 +69,52 @@ interface ExchangePackage {
   createdAt: string;
   /** Server-side total number of recorded deliveries. */
   deliveryCount?: number;
+  /** D59 — set when the package's most recent build failed. */
+  lastBuild?: { state: "FAILED"; failedAtUtc: string | null } | null;
 }
 
 const PACKAGE_KINDS = ["SHARE", "EXPORT", "LEGAL_PRODUCTION", "INTERNAL_TRANSFER"] as const;
+
+const REVOKED_REASON = "This package was revoked. Its links no longer work.";
+
+/** D59 — the operator sentence for a refused or failed "Build again". */
+function rebuildFailureMessage(err: unknown): string {
+  const e = err as { statusCode?: number; code?: string } | null;
+  if (e?.statusCode === 409 || e?.code === "EXCHANGE_PACKAGE_NOT_DRAFT") {
+    return "This package is no longer waiting for a build, so nothing was changed. Refresh the list to see its current state.";
+  }
+  if (e?.statusCode === 404) {
+    return "This package no longer exists in this workspace. Refresh the list.";
+  }
+  if (e?.statusCode === 403) {
+    return "Your role cannot build exchange packages in this workspace.";
+  }
+  if (e?.statusCode === 429) {
+    return "This month's export package allowance is used up, so the package cannot be built now.";
+  }
+  return toSafeUserError(err, {
+    message: "The build could not be requested. Refresh the list and try again.",
+  }).message;
+}
+
+type PackageListState =
+  | { status: "loading" }
+  | { status: "ready" }
+  | { status: "failed"; message: string };
+
+/** The operator sentence for a refused or failed revoke. */
+function revokeFailureMessage(err: unknown): string {
+  const e = err as { statusCode?: number } | null;
+  if (e?.statusCode === 404) {
+    return "This package no longer exists in this workspace. Refresh the list.";
+  }
+  if (e?.statusCode === 403) {
+    return "Only an organization administrator can revoke a package.";
+  }
+  return toSafeUserError(err, {
+    message: "The package could not be revoked. Refresh the list and try again.",
+  }).message;
+}
 
 function applyDenial(err: unknown, setDenial: (v: PermissionDenialState) => void): void {
   const e = err as { statusCode?: number; details?: Record<string, unknown> };
@@ -113,7 +174,13 @@ function Shell() {
   }, [activeWorkspaceId]);
 
   const [packages, setPackages] = useState<ExchangePackage[]>([]);
+  const [listState, setListState] = useState<PackageListState>({ status: "loading" });
   const [busy, setBusy] = useState(false);
+  const { confirm: confirmAction } = useConfirmAction();
+  const [revokeBusy, setRevokeBusy] = useState<string | null>(null);
+  const [revokeNotice, setRevokeNotice] = useState<string | null>(null);
+  const [rebuildBusy, setRebuildBusy] = useState<string | null>(null);
+  const [rebuildNotice, setRebuildNotice] = useState<string | null>(null);
   const [denial, setDenial] = useState<PermissionDenialState>(null);
 
   // Create form state
@@ -197,7 +264,12 @@ function Shell() {
     [],
   );
 
-  const refresh = useCallback(async () => {
+  /**
+   * Reads the package list. Resolves with the rows it painted, or null when
+   * the read failed or was discarded — a caller confirming a write (revoke)
+   * reads these rows, never a local guess.
+   */
+  const refresh = useCallback(async (): Promise<ExchangePackage[] | null> => {
     setBusy(true);
     setDenial(null);
     const requestWorkspaceId = activeWorkspaceRef.current;
@@ -205,16 +277,141 @@ function Shell() {
       const res = (await apiFetch("/v1/exchange/packages", {
         method: "GET",
       })) as { packages?: ExchangePackage[] } | null;
-      if (requestWorkspaceId !== activeWorkspaceRef.current) return;
-      setPackages((res?.packages ?? []) as ExchangePackage[]);
+      if (requestWorkspaceId !== activeWorkspaceRef.current) return null;
+      const rows = (res?.packages ?? []) as ExchangePackage[];
+      setPackages(rows);
+      setListState({ status: "ready" });
+      return rows;
     } catch (err) {
-      if (requestWorkspaceId !== activeWorkspaceRef.current) return;
+      if (requestWorkspaceId !== activeWorkspaceRef.current) return null;
       setPackages([]);
       applyDenial(err, setDenial);
+      const status = (err as { statusCode?: number } | null)?.statusCode;
+      setListState({
+        status: "failed",
+        message:
+          status === 403 || status === 404
+            ? "You do not have access to this workspace's exchange packages. This is not an empty list."
+            : `The package list could not be loaded, so this is not an empty list. ${
+                toSafeUserError(err, { message: "Refresh to try again." }).message
+              }`,
+      });
+      return null;
     } finally {
       setBusy(false);
     }
   }, []);
+
+  /**
+   * POST /v1/exchange/packages/:id/revoke — withdraws a shared package.
+   * Confirmed first; announced only after the reread shows it REVOKED.
+   */
+  const revokePackage = useCallback(
+    async (pkg: ExchangePackage) => {
+      if (revokeBusy) return;
+      setRevokeNotice(null);
+      setActionError(null);
+      const confirmed = await confirmAction({
+        title: "Revoke this package?",
+        description:
+          "Every existing link to this package stops working immediately, and it can no longer be opened, delivered or downloaded. Recorded deliveries stay in the history. This cannot be undone.",
+        confirmLabel: "Revoke package",
+        tone: "danger",
+        testId: "exchange-revoke-package",
+      });
+      if (!confirmed) return;
+      const requestWorkspaceId = activeWorkspaceRef.current;
+      setRevokeBusy(pkg.id);
+      let written = false;
+      try {
+        await apiFetch(`/v1/exchange/packages/${encodeURIComponent(pkg.id)}/revoke`, {
+          method: "POST",
+          body: JSON.stringify({}),
+        });
+        written = true;
+        if (requestWorkspaceId !== activeWorkspaceRef.current) return;
+        const rows = await refresh();
+        if (requestWorkspaceId !== activeWorkspaceRef.current) return;
+        const reread = rows?.find((row) => row.id === pkg.id);
+        if (rows === null) {
+          setActionError(
+            "The revoke was sent, but the package list could not be reloaded to confirm it. Refresh before sharing this package again.",
+          );
+        } else if (!reread || reread.state === "REVOKED") {
+          setSignResult((current) => (current?.id === pkg.id ? null : current));
+          setRevokeNotice(
+            reread
+              ? `${identifierLabel(pkg.kind)} package revoked and confirmed from the saved record. Its links no longer work.`
+              : `${identifierLabel(pkg.kind)} package revoked; it no longer appears in this workspace's list.`,
+          );
+        } else {
+          setActionError(
+            `The revoke was sent, but the package still shows as ${identifierLabel(reread.state)}. Refresh and check again.`,
+          );
+        }
+      } catch (err) {
+        if (requestWorkspaceId !== activeWorkspaceRef.current) return;
+        if (!written) {
+          applyDenial(err, setDenial);
+          setActionError(revokeFailureMessage(err));
+        }
+      } finally {
+        setRevokeBusy(null);
+      }
+    },
+    [confirmAction, refresh, revokeBusy],
+  );
+
+  /**
+   * D59 — POST /v1/exchange/packages/:id/build. Hands a DRAFT package whose
+   * build failed back to the builder; announced only after the reread shows
+   * the package has left DRAFT.
+   */
+  const rebuildPackage = useCallback(
+    async (pkg: ExchangePackage) => {
+      if (rebuildBusy) return;
+      setRebuildNotice(null);
+      setActionError(null);
+      const requestWorkspaceId = activeWorkspaceRef.current;
+      setRebuildBusy(pkg.id);
+      let written = false;
+      try {
+        await apiFetch(`/v1/exchange/packages/${encodeURIComponent(pkg.id)}/build`, {
+          method: "POST",
+          body: JSON.stringify({}),
+        });
+        written = true;
+        if (requestWorkspaceId !== activeWorkspaceRef.current) return;
+        const rows = await refresh();
+        if (requestWorkspaceId !== activeWorkspaceRef.current) return;
+        const reread = rows?.find((row) => row.id === pkg.id);
+        if (rows === null) {
+          setActionError(
+            "The build was requested, but the package list could not be reloaded to confirm it. Refresh to check.",
+          );
+        } else if (reread && reread.state !== "DRAFT") {
+          setRebuildNotice(
+            `Build requested for the ${identifierLabel(pkg.kind)} package and confirmed from the saved record. It now shows as ${identifierLabel(reread.state)}.`,
+          );
+        } else {
+          setActionError(
+            reread
+              ? "The build was requested, but the package still shows as waiting for a build. Refresh and check again."
+              : "The build was requested, but the package no longer appears in this workspace's list.",
+          );
+        }
+      } catch (err) {
+        if (requestWorkspaceId !== activeWorkspaceRef.current) return;
+        if (!written) {
+          applyDenial(err, setDenial);
+          setActionError(rebuildFailureMessage(err));
+        }
+      } finally {
+        setRebuildBusy(null);
+      }
+    },
+    [rebuildBusy, refresh],
+  );
 
   const create = useCallback(async () => {
     setCreating(true);
@@ -379,6 +576,9 @@ function Shell() {
     // Re-load whenever the active workspace changes — the packages list is
     // resolved server-side from the current workspace.
     setPackages([]);
+    setListState({ status: "loading" });
+    setRevokeNotice(null);
+    setRebuildNotice(null);
     // Workspace switch clears the durable-history cache and its error state.
     setDeliveries({});
     setDeliveriesError(null);
@@ -418,7 +618,8 @@ function Shell() {
             marginBottom: 10,
           }}
         >
-          <strong>Permission required:</strong> {denial.tier}
+          <strong>{permissionDenialCopy(denial.denial, denial.tier).title}</strong>{" "}
+          {permissionDenialCopy(denial.denial, denial.tier).detail}
         </div>
       ) : null}
 
@@ -437,6 +638,18 @@ function Shell() {
           }}
         >
           {actionError}
+        </div>
+      ) : null}
+
+      {revokeNotice ? (
+        <div role="status" data-exchange-revoke-notice style={{ fontSize: 12, marginBottom: 10 }}>
+          {revokeNotice}
+        </div>
+      ) : null}
+
+      {rebuildNotice ? (
+        <div role="status" data-exchange-rebuild-notice style={{ fontSize: 12, marginBottom: 10 }}>
+          {rebuildNotice}
         </div>
       ) : null}
 
@@ -509,6 +722,7 @@ function Shell() {
           <button
             type="button"
             disabled={creating || !evidenceIds}
+            title={!evidenceIds ? "Enter at least one evidence ID to package." : undefined}
             onClick={() => void create()}
             style={primaryButton}
           >
@@ -548,21 +762,50 @@ function Shell() {
             </tr>
           </thead>
           <tbody>
-            {packages.length === 0 ? (
+            {listState.status === "loading" ? (
+              <tr>
+                <td colSpan={6} style={{ ...td, color: "#475569" }} role="status">
+                  Loading packages…
+                </td>
+              </tr>
+            ) : listState.status === "failed" ? (
+              <tr>
+                <td
+                  colSpan={6}
+                  style={{ ...td, color: "#991b1b" }}
+                  role="alert"
+                  data-exchange-list-error
+                >
+                  {listState.message}
+                </td>
+              </tr>
+            ) : packages.length === 0 ? (
               <tr>
                 <td colSpan={6} style={{ ...td, color: "#475569" }}>
                   No packages.
                 </td>
               </tr>
             ) : (
-              packages.map((pkg) => (
-                <tr key={pkg.id} data-exchange-package-row={pkg.id}>
-                  <td style={td}>
-                    <code>{pkg.kind}</code>
-                  </td>
+              packages.map((pkg) => {
+                const revoked = pkg.state === "REVOKED";
+                const buildFailed = pkg.state === "DRAFT" && pkg.lastBuild?.state === "FAILED";
+                return (
+                <tr
+                  key={pkg.id}
+                  data-exchange-package-row={pkg.id}
+                  data-exchange-package-state={pkg.state}
+                >
+                  <td style={td}>{identifierLabel(pkg.kind)}</td>
                   <td style={td}>{pkg.evidenceIds.length}</td>
                   <td style={td}>
-                    <strong>{pkg.state}</strong>
+                    <strong>{identifierLabel(pkg.state)}</strong>
+                    {buildFailed ? (
+                      <div data-exchange-build-failed style={{ fontSize: 11, color: "#991b1b", marginTop: 2 }}>
+                        {pkg.lastBuild?.failedAtUtc
+                          ? `Last build failed ${formatUserDateTime(pkg.lastBuild.failedAtUtc)}`
+                          : "Last build failed"}
+                      </div>
+                    ) : null}
                   </td>
                   <td style={td}>{formatUserDate(pkg.createdAt)}</td>
                   <td style={td}>
@@ -576,36 +819,76 @@ function Shell() {
                       onLoad={() => void loadDeliveries(pkg.id)}
                       onLoadMore={(cursor) => void loadDeliveries(pkg.id, cursor)}
                       downloadBusy={downloadBusy}
+                      downloadDisabledReason={revoked ? REVOKED_REASON : undefined}
                       onDownload={(deliveryId) =>
                         void downloadDelivery(pkg.id, deliveryId)
                       }
                     />
                   </td>
                   <td style={td}>
-                    <button
-                      type="button"
-                      disabled={signBusy === pkg.id}
-                      onClick={() => void signUrl(pkg.id)}
-                      style={secondaryButton}
-                    >
-                      {signBusy === pkg.id ? "Opening…" : "Open package"}
-                    </button>{" "}
-                    <button
-                      type="button"
-                      data-exchange-record-delivery={pkg.id}
-                      disabled={deliveryBusy === pkg.id}
-                      onClick={() =>
-                        setDeliveryForm({
-                          packageId: pkg.id,
-                          recipientEmail: "",
-                          recipientOrgSlug: "",
-                        })
-                      }
-                      style={secondaryButton}
-                    >
-                      Record delivery
-                    </button>
-                    {pkg.signedUrlExpiresAtUtc ? (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+                      {buildFailed ? (
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          data-exchange-rebuild={pkg.id}
+                          aria-label={`Build again: ${identifierLabel(pkg.kind)} package created ${formatUserDate(pkg.createdAt)}`}
+                          loading={rebuildBusy === pkg.id}
+                          disabled={rebuildBusy !== null}
+                          disabledReason={
+                            rebuildBusy !== null && rebuildBusy !== pkg.id
+                              ? "Another package build is being requested. Wait for it to finish."
+                              : undefined
+                          }
+                          onClick={() => void rebuildPackage(pkg)}
+                        >
+                          {rebuildBusy === pkg.id ? "Requesting build…" : "Build again"}
+                        </Button>
+                      ) : null}
+                      <Button
+                        size="sm"
+                        loading={signBusy === pkg.id}
+                        disabled={revoked || signBusy === pkg.id}
+                        disabledReason={revoked ? REVOKED_REASON : undefined}
+                        onClick={() => void signUrl(pkg.id)}
+                      >
+                        {signBusy === pkg.id ? "Opening…" : "Open package"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        data-exchange-record-delivery={pkg.id}
+                        disabled={revoked || deliveryBusy === pkg.id}
+                        disabledReason={revoked ? REVOKED_REASON : undefined}
+                        onClick={() =>
+                          setDeliveryForm({
+                            packageId: pkg.id,
+                            recipientEmail: "",
+                            recipientOrgSlug: "",
+                          })
+                        }
+                      >
+                        Record delivery
+                      </Button>
+                      {revoked ? null : (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          data-exchange-revoke={pkg.id}
+                          aria-label={`Revoke ${identifierLabel(pkg.kind)} package created ${formatUserDate(pkg.createdAt)}`}
+                          loading={revokeBusy === pkg.id}
+                          disabled={revokeBusy !== null}
+                          disabledReason={
+                            revokeBusy !== null && revokeBusy !== pkg.id
+                              ? "Another package is being revoked. Wait for it to finish."
+                              : undefined
+                          }
+                          onClick={() => void revokePackage(pkg)}
+                        >
+                          {revokeBusy === pkg.id ? "Revoking…" : "Revoke"}
+                        </Button>
+                      )}
+                    </div>
+                    {pkg.signedUrlExpiresAtUtc && !revoked ? (
                       <span style={{ marginLeft: 8, fontSize: 11, color: "#475569" }}>
                         Link expires:{" "}
                         {formatUserDate(pkg.signedUrlExpiresAtUtc)}
@@ -613,7 +896,8 @@ function Shell() {
                     ) : null}
                   </td>
                 </tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>
@@ -655,6 +939,7 @@ function DeliveryCell({
   deliveryCount,
   deliveries,
   downloadBusy,
+  downloadDisabledReason,
   onDownload,
   nextCursor,
   loading,
@@ -673,6 +958,8 @@ function DeliveryCell({
     downloadedAtUtc: string | null;
   }>;
   downloadBusy: string | null;
+  /** Set when the package can no longer be downloaded (it was revoked). */
+  downloadDisabledReason?: string;
   onDownload: (deliveryId: string) => void;
   nextCursor: string | null;
   loading: boolean;
@@ -734,17 +1021,16 @@ function DeliveryCell({
                     ? `Download authorized ${formatUserDateTime(d.downloadAuthorizedAtUtc)} · completion not confirmed`
                     : "No download authorized"}
               </div>
-              <button
-                type="button"
+              <Button
+                size="sm"
                 data-exchange-delivery-download={d.id}
-                disabled={downloadBusy === d.id}
+                loading={downloadBusy === d.id}
+                disabled={Boolean(downloadDisabledReason) || downloadBusy === d.id}
+                disabledReason={downloadDisabledReason}
                 onClick={() => onDownload(d.id)}
-                style={secondaryButton}
               >
-                {downloadBusy === d.id
-                  ? "Authorizing…"
-                  : "Download (audited)"}
-              </button>
+                {downloadBusy === d.id ? "Authorizing…" : "Download (audited)"}
+              </Button>
             </li>
           ))}
         </ul>

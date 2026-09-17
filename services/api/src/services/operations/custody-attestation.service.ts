@@ -29,7 +29,10 @@ import { createHash } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { safeEmitSecurityEvent } from "../security/security-event.service.js";
+import {
+  emitSecurityEvent,
+  safeEmitSecurityEvent,
+} from "../security/security-event.service.js";
 import { bump } from "../ops/metrics.service.js";
 import {
   PROOVRA_SPAN_NAMES,
@@ -224,39 +227,32 @@ async function signCustodyEventInner(
   const hash = hashCanonicalPayload(canonical);
   // Duplicate check: have we already attested this custody event with
   // this signer's current keyVersion?
-  const existing = await client.securityEvent.findFirst({
+  //
+  // K8 (2026-09-16) — this used to open with a `findFirst({ take: 200 })`
+  // "is there any attestation at all" probe. Prisma rejects that argument
+  // shape (P2019), so EVERY sign and backfill request answered 500 before
+  // signing anything. The scan below is the check.
+  const recent = await client.securityEvent.findMany({
     where: {
       teamId: input.teamId,
       eventType: "custody_attestation_signed",
     },
     orderBy: { createdAt: "desc" },
-    take: 200,
+    take: 500,
     select: { id: true, details: true },
   });
-  if (existing) {
-    // Scan recent attestations for a match.
-    const recent = await client.securityEvent.findMany({
-      where: {
-        teamId: input.teamId,
-        eventType: "custody_attestation_signed",
-      },
-      orderBy: { createdAt: "desc" },
-      take: 500,
-      select: { id: true, details: true },
-    });
-    for (const r of recent) {
-      const d = (r.details ?? {}) as Record<string, unknown>;
-      if (
-        d.custodyEventId === input.custodyEventId &&
-        d.signerId === signer.signerId &&
-        d.keyVersion === signer.keyVersion
-      ) {
-        return {
-          ok: false,
-          code: "duplicate",
-          message: "Custody event already attested by this signer + key version.",
-        };
-      }
+  for (const r of recent) {
+    const d = (r.details ?? {}) as Record<string, unknown>;
+    if (
+      d.custodyEventId === input.custodyEventId &&
+      d.signerId === signer.signerId &&
+      d.keyVersion === signer.keyVersion
+    ) {
+      return {
+        ok: false,
+        code: "duplicate",
+        message: "Custody event already attested by this signer + key version.",
+      };
     }
   }
 
@@ -323,7 +319,13 @@ async function signCustodyEventInner(
     verificationError: null,
   };
   bump("custody_attestation_signed_total");
-  safeEmitSecurityEvent({
+  // K8 (2026-09-16) — THE ATTESTATION ROW IS THE ATTESTATION. It was written
+  // fire-and-forget, so a caller (and a backfill's `signed` count) was told an
+  // event was attested before — or without — the row existing, and the
+  // duplicate scan above could miss a signature still in flight. It is
+  // awaited, and an unrecorded signature is not reported as signed. The event
+  // is INFO, so awaiting `emitSecurityEvent` skips no incident bridge.
+  const recorded = await emitSecurityEvent({
     teamId: input.teamId,
     eventType: "custody_attestation_signed",
     severity: "INFO",
@@ -343,7 +345,14 @@ async function signCustodyEventInner(
       // re-derivable from the canonical payload + signer.
       attestation,
     },
-  });
+  }, client);
+  if (!recorded) {
+    return {
+      ok: false,
+      code: "signer_unavailable",
+      message: "The attestation could not be recorded.",
+    };
+  }
   return { ok: true, attestation };
 }
 
@@ -745,7 +754,9 @@ async function backfillCustodyAttestationsInner(
     else failed++;
   }
   const finishedAtUtc = new Date().toISOString();
-  safeEmitSecurityEvent({
+  // Awaited: this INFO row is the operator's record of the batch, and the
+  // console reloads right after the 200.
+  await emitSecurityEvent({
     teamId: input.teamId,
     eventType: "custody_attestation_backfill_completed",
     severity: "INFO",

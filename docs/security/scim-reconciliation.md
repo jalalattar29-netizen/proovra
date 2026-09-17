@@ -4,8 +4,8 @@
 
 **Canonical paths:**
 
-- `/admin/identity/scim` → **Drift detection** tab — preview + execute drift reconciliation.
-- `/admin/identity/scim` → **Sync replay** tab — replay transient sync failures.
+- `/security-center/identity/scim` → **Drift detection** tab — preview + execute drift reconciliation.
+- `/security-center/identity/scim` → **Sync replay** tab — replay transient sync failures.
 
 ---
 
@@ -34,7 +34,7 @@ The full preview is capped at 200 items per scan; truncation is surfaced explici
 
 ### Run a drift scan
 
-1. Open `/admin/identity/scim`.
+1. Open `/security-center/identity/scim`.
 2. Click the **Drift detection** tab. The scan runs automatically.
 3. Review the summary card: drift count by category, by risk level, and the destructive subset.
 

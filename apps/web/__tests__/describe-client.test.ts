@@ -1,7 +1,8 @@
 /**
  * A DEVICE COLUMN MUST NOT BE A USER-AGENT STRING.
  *
- * `/admin/identity/sessions` printed the stored 120-character user-agent in a
+ * `/security-center/identity/sessions` (then `/admin/identity/sessions`,
+ * before PV-PLACE-001 moved it) printed the stored 120-character user-agent in a
  * 207px column. It wrapped to five or six lines, every cell in the row
  * stretched to match, and the table reached 15,409px over 75 rows — pushing
  * four further sections of the page past 16,000px.

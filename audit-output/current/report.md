@@ -10,8 +10,8 @@ Every number below is produced by an analyzer executed at generation time and re
 
 | dimension            | status  | basis                                                                 |
 | -------------------- | ------- | --------------------------------------------------------------------- |
-| AuditEngineIntegrity | PASS    | instrument counters, conservation identities, single-authority checks |
-| ProductClosure       | CLOSED  | undisposed routes + locally actionable open findings                  |
+| AuditEngineIntegrity | FAIL    | instrument counters, conservation identities, single-authority checks |
+| ProductClosure       | OPEN    | undisposed routes + locally actionable open findings                  |
 | ExternalClosure      | NOT RUN | requires a real environment; never asserted from source analysis      |
 
 `AuditEngineIntegrity = PASS` alongside `ProductClosure = OPEN` is the expected state while work remains. They are separate exit codes on purpose: a permanent red meaning "open work" teaches everyone to ignore a red meaning "every number here is a guess".
@@ -21,19 +21,19 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | 94340f79f7fe87582ff5f8622ebfd224b514a40f7be69222a6d10441b112917f |
+| engineHash    | b76c8ea81bd1b6240183f67105f1748729575275dd7123553497bce7bfe224ad |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
 
 | counter                       | value |
 | ----------------------------- | ----- |
-| registeredRoutes              | 1154  |
+| registeredRoutes              | 1155  |
 | developmentOnlyRoutes         | 1     |
-| productConsumerRoutes         | 900   |
+| productConsumerRoutes         | 953   |
 | machineOnlyConsumerRoutes     | 6     |
-| noConsumerRoutes              | 248   |
-| dispositionedNonProductRoutes | 253   |
+| noConsumerRoutes              | 196   |
+| dispositionedNonProductRoutes | 201   |
 | undisposedRoutes              | 0     |
 | authorizationUnresolved       | 0     |
 | publicUnguardedRoutes         | 21    |
@@ -75,7 +75,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 
 | counter                                    | value |
 | ------------------------------------------ | ----- |
-| AuditFilesInventoried                      | 356   |
+| AuditFilesInventoried                      | 383   |
 | AuditFilesUnclassified                     | 0     |
 | AuditArtifactProducersUnknown              | 0     |
 | AuditArtifactConsumersUnknown              | 0     |
@@ -123,12 +123,12 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | AmbiguousReportRoles                       | 0     |
 | Phase0ChangedPathsFromManualDeclaration    | 0     |
 | UndeclaredPhase0ChangedPaths               | 0     |
-| Phase0ChangedPathClassificationMissing     | 0     |
+| Phase0ChangedPathClassificationMissing     | 2     |
 | ManualPhase0ChangeInventories              | 0     |
 | ProductionRuntimeFilesModifiedByPhase0     | 0     |
 | ProductBehaviorTestsRemoved                | 0     |
 | HistoricalMigrationsModifiedByPhase0       | 0     |
-| ProductBehaviorTestsInventoried            | 206   |
+| ProductBehaviorTestsInventoried            | 231   |
 
 ### Report roles
 
@@ -200,8 +200,9 @@ Referenced, never transcribed. Each is measured by its own producer; this report
 
 ### Engine
 
-_(none — the instrument is sound)_
+- CHANGED PATH WITH NO CLASSIFICATION: services/api/prisma.config.ts
+- CHANGED PATH WITH NO CLASSIFICATION: vercel.json
 
 ### Product closure
 
-_(none)_
+- CHECKPOINT: 6 violation(s) — SCALAR_DISAGREES_WITH_FACTS: ProductionRegisteredRoutes: checkpoint says 1151, facts say 1154 | SCALAR_DISAGREES_WITH_FACTS: RegisteredRoutes: checkpoint says 1152, facts say 1155 | SCALAR_DISAGREES_WITH_FACTS: TerminalWriters: checkpoint says 1248, facts say 1251 | SCALAR_DISAGREES_WITH_FACTS: ROUTE_ATTRIBUTED_REACHABLE: checkpoint says 1117, facts say 1120 | SCALAR_DISAGREES_WITH_FACTS: ProductConsumedRoutes: checkpoint says 952, facts say 953

@@ -119,10 +119,12 @@ function RunbookCatalog() {
               purpose="Try a subsystem id instead — a readiness banner names the subsystem, not the runbook. Every runbook is listed in the sidebar."
             />
           ) : (
-            grouped.map((g) => (
-              <section key={g.category} style={{ marginBottom: 28 }}>
+            // PV-LANG-003 — a runbook category is an authored heading
+            // ("Workers & queues"), not a stored key, so it renders as is.
+            grouped.map(({ category, entries }) => (
+              <section key={category} style={{ marginBottom: 28 }}>
                 <h2 className="rb-group-title" style={{ padding: 0 }}>
-                  {g.category}
+                  {category}
                 </h2>
                 <div
                   style={{
@@ -132,7 +134,7 @@ function RunbookCatalog() {
                     gap: 12,
                   }}
                 >
-                  {g.entries.map((r) => (
+                  {entries.map((r) => (
                     <Link
                       key={r.slug}
                       href={`/admin/platform/runbooks/${r.slug}`}

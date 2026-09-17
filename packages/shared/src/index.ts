@@ -1020,11 +1020,16 @@ export type {
   RiskSignalKind,
   SessionRevocationReason,
   StepUpChallengeStatus,
+  StepUpFactorKind,
   StepUpPurpose,
   TrustedDeviceStatus,
 } from "./identity-security.js";
 
 export {
+  // PV-STEPUP-001 — the per-purpose step-up factor policy.
+  STEP_UP_FACTOR_KINDS,
+  STEP_UP_PURPOSE_FACTOR_POLICY,
+  stepUpFactorKindsFor,
   MFA_POLICY_LEVELS,
   MfaPolicyLevelSchema,
   RISK_LEVELS,
@@ -1153,6 +1158,10 @@ export {
   FILE_SECURITY_SCAN_STATUSES,
   SECURITY_EVENT_SEVERITIES,
   SECURITY_EVENT_TYPES,
+  // PV-LANG-001 — the one operator-facing label for an event type.
+  securityEventLabel,
+  // PV-LANG-003 — the generic reading of any stored identifier.
+  identifierLabel,
   classifyFileValidation,
   hasDoubleExtension,
   isDangerousExtension,

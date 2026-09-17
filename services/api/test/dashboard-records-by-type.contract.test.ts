@@ -52,6 +52,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { enclosingSource, routeSource, betweenMarkers } from "../../../scripts/source-contract/index.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -163,9 +164,7 @@ describe("Phase HOME-RECORDS-BY-TYPE — route registration", () => {
     );
     // requireMember gate + member-inactive short-circuit is the same
     // pattern as the rest of /v1/dashboard/*.
-    const idx = ROUTES.indexOf("/v1/dashboard/records-by-type");
-    expect(idx).toBeGreaterThan(0);
-    const handlerSlice = ROUTES.slice(idx, idx + 800);
+    const handlerSlice = routeSource(ROUTES, "GET", "/v1/dashboard/records-by-type");
     expect(handlerSlice).toMatch(
       /const\s+member\s*=\s*await\s+requireMember\(req,\s*reply,\s*query\.teamId\)/,
     );
@@ -186,9 +185,9 @@ describe("Phase HOME-RECORDS-BY-TYPE — frontend hook wiring", () => {
   });
 
   it("is partial-failure tolerant — `.catch(() => null)` mirrors the rest of Home", () => {
-    const idx = HOOK.indexOf("/v1/dashboard/records-by-type");
-    expect(idx).toBeGreaterThan(0);
-    const slice = HOOK.slice(idx, idx + 400);
+    const slice = enclosingSource(HOOK, "/v1/dashboard/records-by-type", "statement", {
+      fileName: "useHomeData.ts",
+    });
     expect(slice).toMatch(/\.catch\(\(\)\s*=>\s*null\)/);
   });
 
@@ -241,11 +240,13 @@ describe("Phase HOME-RECORDS-BY-TYPE — view-model surface", () => {
     // Use the indexOf trick to find the integration block precisely
     // rather than letting a free-form regex span 200+ lines and
     // accidentally match unrelated code.
-    const start = VM.indexOf(
+    // From the comment that introduces the four aggregate statements to the
+    // statement that follows them (WCC-NEW-027: no character budget).
+    const block = betweenMarkers(
+      VM,
       "Phase HOME-RECORDS-BY-TYPE — prefer the workspace-aggregate",
+      "const richRecentEvidence",
     );
-    expect(start).toBeGreaterThan(0);
-    const block = VM.slice(start, start + 1_500);
     expect(block).toMatch(
       /const\s+recordsAggregate\s*=\s*inputs\.recordsByType\?\.records/,
     );

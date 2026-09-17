@@ -1,0 +1,861 @@
+"use client";
+
+/**
+ * Phase E3 — Operational Automation page.
+ *
+ * Lives UNDER the Operations Center hub (`/operations/automation`). NOT a
+ * root nav item — 32.8 IA pinned by Test 1 + Test 2 keeps root at the
+ * 6 canonical primaries.
+ *
+ * Scope:
+ *   - List rules with enabled / trigger / action / last-run
+ *   - View run history (no execution yet — dispatcher is E3.1)
+ *   - Create / Edit rules (PHASE 13 §UI — the lifecycle is now reachable
+ *     from the product; see components/automation/AutomationRuleForm.tsx)
+ *   - Enable / Disable existing rules (AutomationRuleToggle — one control,
+ *     whose leg is derived from the rule's CURRENT state)
+ *   - Show the bounded trigger + action allowlists
+ *
+ * Hard rules (also enforced by phase-e3-automation-foundation.test.ts):
+ *   - No drag-and-drop builder.
+ *   - No visual workflow canvas.
+ *   - No scripting / code editor.
+ *   - No AI workflow generator.
+ *   - No marketplace / template gallery.
+ *   - All numbers / counters trace back to real backend rows.
+ *
+ * PHASE 13 §UI (2026-08-16) — the deferred rule-form work is CLOSED.
+ * Create, edit, enable and disable are all reachable here; the four
+ * lifecycle routes had no product surface at all before this.
+ */
+
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
+import { useCallback, useEffect, useState, type CSSProperties } from "react";
+
+import { apiFetch } from "../../../../lib/api";
+import {
+  useActiveSpaceId,
+  usePlatformContext,
+} from "../../../../lib/platform-context";
+import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import {
+  PageShell,
+  PageHeader,
+} from "../../../../components/ui/PageShell";
+import "../../admin/platform/admin-platform.css";
+import { AutomationRuleForm } from "../../../../components/automation/AutomationRuleForm";
+import { AutomationRuleToggle } from "../../../../components/automation/AutomationRuleToggle";
+import {
+  AutomationWebhookDestinationsPanel,
+  type AutomationWebhookDestination,
+} from "../../../../components/automation/AutomationWebhookDestinationsPanel";
+import type { AutomationRule } from "../../../../components/automation/types";
+import { identifierLabel } from "@proovra/shared";
+import { formatUserDateTime } from "../../../../lib/date";
+import { ResultCount } from "../../../../components/ui/ResultCount";
+import { FilterBar } from "../../../../components/ui/FilterBar";
+import { Button } from "../../../../components/ui/Button";
+
+type AutomationRun = {
+  id: string;
+  teamId: string;
+  ruleId: string;
+  triggerType: string;
+  targetType: string;
+  targetId: string;
+  status: "PENDING" | "RUNNING" | "SUCCEEDED" | "FAILED" | "SKIPPED";
+  reason: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+};
+
+/** PV-ALLOW-001 — one allowlisted value, as the server describes it. */
+type CatalogEntry = {
+  value: string;
+  label: string;
+  description: string;
+  internalOnly?: boolean;
+};
+
+type RulesEnvelope = {
+  rules: AutomationRule[];
+  allowlist: {
+    triggerTypes: readonly string[];
+    actionTypes: readonly string[];
+  };
+  /** Absent from an older API; every read below falls back to the identifier. */
+  catalog?: {
+    triggers: readonly CatalogEntry[];
+    actions: readonly CatalogEntry[];
+  };
+};
+
+/** value → label for one catalog list (empty when the API sent none). */
+function catalogLabels(
+  entries: readonly CatalogEntry[] | undefined,
+): Readonly<Record<string, string>> {
+  const labels: Record<string, string> = {};
+  for (const entry of entries ?? []) labels[entry.value] = entry.label;
+  return labels;
+}
+
+const catalogListStyle: CSSProperties = {
+  listStyle: "none",
+  margin: 0,
+  padding: 0,
+  display: "grid",
+  gap: 10,
+  fontSize: 12.5,
+};
+
+/** One allowlisted value in the reference list: label, meaning, identifier. */
+function CatalogItem({
+  value,
+  entries,
+}: {
+  value: string;
+  entries: readonly CatalogEntry[] | undefined;
+}): JSX.Element {
+  const entry = entries?.find((e) => e.value === value);
+  return (
+    <li data-automation-catalog-value={value}>
+      <strong style={{ display: "block" }}>{entry?.label ?? value}</strong>
+      {entry ? (
+        <span style={{ display: "block", color: "var(--ink-secondary)" }}>
+          {entry.description}
+          {entry.internalOnly ? " Only to destinations this workspace registered." : ""}
+        </span>
+      ) : null}
+      {entry ? (
+        <code style={{ fontSize: 11, color: "var(--ink-muted)" }}>{value}</code>
+      ) : null}
+    </li>
+  );
+}
+
+/**
+ * A trigger or action as an operator reads it: the label, with the stored
+ * identifier beneath as the detail support asks for.
+ */
+function CatalogValue({
+  value,
+  labels,
+}: {
+  value: string;
+  labels: Readonly<Record<string, string>>;
+}): JSX.Element {
+  const label = labels[value];
+  if (!label) return <code style={{ fontSize: 12 }}>{value}</code>;
+  return (
+    <span style={{ display: "grid", gap: 1 }}>
+      <span>{label}</span>
+      <code style={{ fontSize: 11, color: "var(--ink-muted)" }}>{value}</code>
+    </span>
+  );
+}
+
+/** A run status as an operator reads it — the same words as the status filter. */
+const RUN_STATUS_LABEL: Readonly<Record<string, string>> = {
+  PENDING: "Pending",
+  RUNNING: "Running",
+  RETRY_SCHEDULED: "Retry scheduled",
+  SUCCEEDED: "Succeeded",
+  FAILED: "Failed",
+  SKIPPED: "Skipped",
+  DEAD_LETTERED: "Gave up after retries",
+};
+
+function runStatusLabel(status: string): string {
+  return RUN_STATUS_LABEL[status] ?? identifierLabel(status);
+}
+
+type LoadState =
+  | { status: "loading" }
+  | {
+      status: "ready";
+      envelope: RulesEnvelope;
+      runs: AutomationRun[];
+      /** The server count for the current filter. null when it did not send one. */
+      runsTotal: number | null;
+      /** The cap the request asked for, echoed back. */
+      runsLimit: number | null;
+      /**
+       * THE RUN HISTORY FAILED WHILE THE RULES ANSWERED.
+       *
+       * GATE B — the two reads were awaited with `Promise.all` behind one
+       * catch, so a failure of `/v1/automation/runs` — the one that carries a
+       * status filter, and therefore the one a reader is most likely to make
+       * fail — discarded the RULES as well and rendered the whole page as
+       * "Unable to load automation." The rules are this page's subject; they
+       * had answered.
+       *
+       * Non-null means: the rules are real and complete, the run history is
+       * not, and here is why. `null` is the ordinary case.
+       */
+      runsError: string | null;
+    }
+  | { status: "auth_error"; code: "auth_required" | "permission_denied" }
+  | { status: "unavailable"; message: string };
+
+// ---------------------------------------------------------------------------
+// Inner page (PageRouteGate handles capability gating)
+// ---------------------------------------------------------------------------
+
+function AutomationPageInner(): JSX.Element {
+  /**
+   * A filter the endpoint has always accepted.
+   *
+   * /v1/automation/runs takes `status`; the page never sent it, so the run
+   * list was the newest 50 of every state mixed together. Server-side: a
+   * browser filter would keep the 50-row cap over an unfiltered window.
+   */
+  const [statusFilter, setStatusFilter] = useState("");
+  const ctx = usePlatformContext();
+  const teamId = useActiveSpaceId();
+  const [state, setState] = useState<LoadState>({ status: "loading" });
+  // PHASE 13 §UI — bumped by every successful lifecycle mutation so the rule
+  // list is refetched from the server (the projection, including `version`
+  // and `disabledAt`, is the server's to compute — never patched locally).
+  const [reloadToken, setReloadToken] = useState(0);
+  const [formMode, setFormMode] = useState<
+    { kind: "closed" } | { kind: "create" } | { kind: "edit"; ruleId: string }
+ >({ kind: "closed" });
+  const [lastAction, setLastAction] = useState<string | null>(null);
+  const canManage = ctx.can("AUTOMATION_MANAGE");
+  // BATCH J — the registered webhook destinations, as the destinations panel
+  // last read them. undefined = not read yet, null = the read failed.
+  const [destinations, setDestinations] = useState<
+    AutomationWebhookDestination[] | null | undefined
+  >(undefined);
+  const onDestinationsChange = useCallback(
+    (list: AutomationWebhookDestination[] | null) => setDestinations(list),
+    [],
+  );
+
+  const reload = useCallback(() => {
+    setReloadToken((n) => n + 1);
+  }, []);
+
+  useEffect(() => {
+    if (!teamId) {
+      setState({ status: "loading" });
+      return;
+    }
+    let cancelled = false;
+    // Keep the ready surface mounted across a post-mutation refetch — a
+    // flash back to the skeleton would unmount the very control the user
+    // just used (and its success message) mid-announcement.
+    setState((prev) => (prev.status === "ready" ? prev : { status: "loading" }));
+    (async () => {
+      try {
+        // THE RULES DECIDE THE PAGE; THE RUN HISTORY IS A SECTION OF IT.
+        // Awaited separately so a failure of one is not a failure of both —
+        // see `runsError` on the ready state.
+        const envelope = (await apiFetch(
+          `/v1/automation/rules?teamId=${encodeURIComponent(teamId)}`,
+        )) as RulesEnvelope;
+        if (cancelled) return;
+
+        const runsOutcome = await Promise.allSettled([
+          apiFetch(
+            `/v1/automation/runs?${runsQuery(teamId, statusFilter)}`,
+          ) as Promise<{ runs: AutomationRun[]; total?: number; limit?: number }>,
+        ]);
+        if (cancelled) return;
+        const runs = runsOutcome[0];
+
+        setState({
+          status: "ready",
+          envelope,
+          runs: runs.status === "fulfilled" ? runs.value.runs : [],
+          runsTotal:
+            runs.status === "fulfilled" && typeof runs.value.total === "number"
+              ? runs.value.total
+              : null,
+          runsLimit:
+            runs.status === "fulfilled" && typeof runs.value.limit === "number"
+              ? runs.value.limit
+              : null,
+          runsError:
+            runs.status === "fulfilled"
+              ? null
+              : toSafeUserError(runs.reason, {
+                  message: "The run history could not be read.",
+                }).message,
+        });
+      } catch (err) {
+        if (cancelled) return;
+        const e = err as { statusCode?: number; message?: string };
+        if (e.statusCode === 401) {
+          setState({ status: "auth_error", code: "auth_required" });
+        } else if (e.statusCode === 403) {
+          setState({ status: "auth_error", code: "permission_denied" });
+        } else {
+          setState({
+            status: "unavailable",
+            message: toSafeUserError(e, { message: "Unable to load automation." }).message,
+          });
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [teamId, reloadToken, statusFilter]);
+
+  // ----- Render branches -----
+
+  if (state.status === "loading") {
+    return (
+      <PageShell
+      width="full" data-automation-loading
+      header={
+        <PageHeader
+          eyebrow={"Operations Center · Automation"}
+          title={"Automation rules"}
+        />
+      }
+      >
+        <section className="apf-section">
+          <div className="adm-skeleton" />
+        </section>
+      </PageShell>
+    );
+  }
+
+  if (state.status === "auth_error") {
+    return (
+      <PageShell
+      width="full" data-automation-auth-error={state.code}
+      header={
+        <PageHeader
+          eyebrow={"Operations Center · Automation"}
+          title={state.code === "auth_required"
+                ? "Sign in required"
+                : "Permission required"}
+          /*
+           * ADM-P3-012 — same defect, same page family. The audit named only
+           * the analytics console; this is the identical sentence one route
+           * over, and fixing one of two would leave the rule half-kept and the
+           * next reader unsure which spelling is intended.
+           */
+          subtitle={
+            state.code === "auth_required"
+              ? "Your session has ended. Sign in again to view automation rules."
+              : "Your account cannot view automation rules. A workspace administrator can grant access."
+          }
+        />
+      }
+      >
+      </PageShell>
+    );
+  }
+
+  if (state.status === "unavailable") {
+    return (
+      <PageShell
+      width="full" data-automation-unavailable
+      header={
+        <PageHeader
+          eyebrow={"Operations Center · Automation"}
+          title={"Automation temporarily unavailable"}
+          subtitle={state.message}
+        />
+      }
+      >
+      </PageShell>
+    );
+  }
+
+  const { envelope, runs, runsTotal, runsLimit, runsError } = state;
+  const triggerLabels = catalogLabels(envelope.catalog?.triggers);
+  const actionLabels = catalogLabels(envelope.catalog?.actions);
+  const enabledCount = envelope.rules.filter((r) => r.enabled).length;
+  const editingRule =
+    formMode.kind === "edit"
+      ? envelope.rules.find((r) => r.id === formMode.ruleId) ?? null
+      : null;
+
+  const destinationOptions =
+    destinations === undefined
+      ? undefined
+      : destinations === null
+        ? null
+        : destinations.map((d) => ({
+            id: d.id,
+            label: `${d.name} (${d.urlOrigin})${d.enabled ? "" : " — disabled"}`,
+          }));
+  const closeForm = () => setFormMode({ kind: "closed" });
+  const afterSave = (message: string) => {
+    setLastAction(message);
+    setFormMode({ kind: "closed" });
+    reload();
+  };
+
+  return (
+    <PageShell
+      width="full" data-automation-ready
+      header={
+        <PageHeader
+          eyebrow={"Operations Center · Automation"}
+          title={"Automation rules"}
+          subtitle={"Bounded operational automation. Each rule has a strictly-typed trigger and a strictly-typed action — no scripts, no visual builder, no marketplace. Rules are team-scoped and audited."}
+          secondaryActions={
+            <>
+              {/*
+                ADM-P3-009 — the rules count goes through ResultCount like the
+                other three declared-complete lists.
+
+                It was a bare `{envelope.rules.length} rules` template. That was
+                TRUE — the handler runs findMany with no take, and an API test
+                asserts it, which is why the route is in
+                apps/web/scripts/admin-complete-lists.mjs — but a bare length
+                cannot SAY it is the whole population, and it cannot say the
+                read failed. Three of the four declared-complete lists stated
+                their completeness through the one component built to carry the
+                claim; this one asserted it by being written next to a comment.
+
+                `complete` is the whole point of the move: it makes the sentence
+                "N rules" mean "N rules, all of them", which is a different
+                statement from the identical-looking one a capped list prints.
+              */}
+              <ResultCount
+                shown={envelope.rules.length}
+                complete
+                noun="rule"
+                data-testid="admin-automation-rules-count"
+                style={{ marginTop: 0 }}
+              />
+              <div className="apf-muted">
+              <span data-automation-counts>{enabledCount} enabled</span>
+              </div>
+            </>
+          }
+        />
+      }
+      >
+
+      {/* Phase E3.1 — execution runtime active. The dispatcher accepts
+          trigger events from internal services, matches enabled rules,
+          and synchronously executes the bounded action handlers. Each
+          lifecycle transition emits an `automation_*` security event. */}
+      <section
+        className="apf-section"
+        data-automation-execution-notice
+        style={{
+          borderInlineStart: "4px solid var(--success)",
+          paddingInlineStart: 12,
+          background: "var(--success-subtle-bg)",
+        }}
+      >
+        <p style={{ margin: 0, fontSize: 13, color: "var(--success-strong)" }}>
+          <strong>Phase E3.1 — execution runtime active.</strong> Enabled
+          rules execute when matching trigger events fire from internal
+          services. Rules are always created disabled by default; flip
+          the enable switch only after reviewing the action config. The
+          webhook action sends only to destinations registered below.
+        </p>
+      </section>
+
+      {/* Rules list */}
+      <section className="apf-section" data-automation-rules-list>
+        <header className="apf-section-head">
+          <h2 className="apf-section-title">Rules</h2>
+          <span
+            className="apf-section-note"
+            data-automation-manage-hint
+          >
+            {/*
+              PHASE 13 (NEW-034) — both requirements, stated.
+              This console is a PLATFORM-ADMIN surface (`platform.automation`
+              declares `requiredActiveSpace: "PLATFORM_ADMIN"`), while
+              AUTOMATION_MANAGE is a WORKSPACE capability held by an owner or
+              admin. Naming only the second told a workspace owner who is not a
+              platform admin that they were one capability away from acting,
+              when in fact they cannot open this page at all.
+            */}
+            {canManage
+              ? "Owner/admin: create, edit, enable and disable rules here."
+              : "View-only access — changing a rule needs the AUTOMATION_MANAGE capability, held by a workspace owner or admin, on this platform-admin console. Both are required."}
+          </span>
+          <Button variant="secondary" size="sm"
+            data-automation-new-rule
+            onClick={() => {
+              setLastAction(null);
+              setFormMode({ kind: "create" });
+            }}
+            disabled={!canManage || formMode.kind === "create" || !teamId}
+            title={
+              canManage
+                ? undefined
+                : "Requires the AUTOMATION_MANAGE capability (workspace owner or admin) on this platform-admin console."
+            }
+          >
+            New rule
+          </Button>
+        </header>
+
+        {/* Page-level screen-reader status for a control that closes on
+            success (the form unmounts with its own status region). */}
+        <div
+          role="status"
+          aria-live="polite"
+          data-automation-page-status
+          style={{ minHeight: 16, fontSize: 12, color: "var(--success-strong)" }}
+        >
+          {lastAction ?? ""}
+        </div>
+
+        {formMode.kind === "create" && teamId ? (
+          <AutomationRuleForm
+            mode="create"
+            teamId={teamId}
+            triggerTypes={envelope.allowlist.triggerTypes}
+            actionTypes={envelope.allowlist.actionTypes}
+            triggerLabels={triggerLabels}
+            actionLabels={actionLabels}
+            canManage={canManage}
+            destinationOptions={destinationOptions}
+            onSaved={() =>
+              afterSave(
+                "Rule created. It starts disabled — review it, then enable it.",
+              )
+            }
+            onCancel={closeForm}
+          />
+        ) : null}
+
+        {formMode.kind === "edit" && editingRule && teamId ? (
+          <AutomationRuleForm
+            key={editingRule.id}
+            mode="edit"
+            teamId={teamId}
+            rule={editingRule}
+            triggerTypes={envelope.allowlist.triggerTypes}
+            actionTypes={envelope.allowlist.actionTypes}
+            triggerLabels={triggerLabels}
+            actionLabels={actionLabels}
+            canManage={canManage}
+            destinationOptions={destinationOptions}
+            onSaved={() => afterSave("Rule updated.")}
+            onCancel={closeForm}
+          />
+        ) : null}
+
+        {envelope.rules.length === 0 ? (
+          <div className="apf-empty" data-automation-empty>
+            <p>No automation rules configured yet.</p>
+            <p style={{ fontSize: 12, color: "var(--ink-muted)" }}>
+              Allowed triggers: {envelope.allowlist.triggerTypes.length}.
+              Allowed actions: {envelope.allowlist.actionTypes.length}.
+            </p>
+            <Button variant="secondary" size="sm"
+              data-automation-empty-create
+              onClick={() => {
+                setLastAction(null);
+                setFormMode({ kind: "create" });
+              }}
+              disabled={!canManage || formMode.kind === "create" || !teamId}
+              title={
+                canManage
+                  ? undefined
+                  : "Requires the AUTOMATION_MANAGE capability (workspace owner or admin) on this platform-admin console."
+              }
+            >
+              Create the first rule
+            </Button>
+          </div>
+        ) : (
+          <div className="apf-table-wrap">
+            <table
+              className="apf-table"
+              data-automation-rules-table
+              style={{ width: "100%", fontSize: 13 }}
+            >
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Trigger</th>
+                  <th>Action</th>
+                  <th>Enabled</th>
+                  <th>Updated</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {envelope.rules.map((r) => (
+                  // PHASE 13 (NEW-065) — the ROW reports its own armed state.
+                  //
+                  // `data-automation-rule-enabled` existed only on the "Enabled"
+                  // cell below. The row is the element carrying the rule's
+                  // IDENTITY (`data-automation-rule-id`), so it was the one place
+                  // a consumer could ask "what is rule X's state now?" and get
+                  // nothing back — you had to already know which cell held the
+                  // answer. Every other lifecycle row in this product states its
+                  // state on the entity element itself (`member-status-{id}`,
+                  // `data-org-workspace-lifecycle`, `data-cross-org-state`).
+                  //
+                  // Additive: the cell keeps both its copy and its attribute, so
+                  // nothing that read the old position changes.
+                  <tr
+                    key={r.id}
+                    data-automation-rule-id={r.id}
+                    data-automation-rule-enabled={String(r.enabled)}
+                  >
+                    <td>
+                      <strong>{r.name}</strong>
+                      {r.description ? (
+                        <div style={{ fontSize: 12, color: "var(--ink-muted)" }}>
+                          {r.description}
+                        </div>
+                      ) : null}
+                    </td>
+                    <td>
+                      <CatalogValue value={r.triggerType} labels={triggerLabels} />
+                    </td>
+                    <td>
+                      <CatalogValue value={r.actionType} labels={actionLabels} />
+                    </td>
+                    <td data-automation-rule-enabled={String(r.enabled)}>
+                      {r.enabled ? "Yes" : "No"}
+                    </td>
+                    <td style={{ color: "var(--ink-muted)", fontSize: 12 }}>
+                      {formatUserDateTime(r.updatedAt)}
+                    </td>
+                    <td>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 6,
+                          alignItems: "flex-start",
+                        }}
+                      >
+                        <AutomationRuleToggle
+                          rule={r}
+                          canManage={canManage}
+                          onChanged={() => {
+                            setLastAction(null);
+                            reload();
+                          }}
+                        />
+                        <Button variant="secondary" size="sm"
+                          data-automation-rule-edit={r.id}
+                          onClick={() => {
+                            setLastAction(null);
+                            setFormMode({ kind: "edit", ruleId: r.id });
+                          }}
+                          disabled={!canManage || !teamId}
+                          aria-label={`Edit automation rule ${r.name}`}
+                          title={
+                            canManage
+                              ? undefined
+                              : "Requires the AUTOMATION_MANAGE capability (workspace owner or admin) on this platform-admin console."
+                          }
+                        >
+                          Edit
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* BATCH J — webhook destinations: the targets of the internal
+          webhook delivery action (register, edit, enable, disable, rotate). */}
+      {teamId ? (
+        <AutomationWebhookDestinationsPanel
+          teamId={teamId}
+          canManage={canManage}
+          onDestinationsChange={onDestinationsChange}
+        />
+      ) : null}
+
+      {/* Run history */}
+      <section className="apf-section" data-automation-runs-list>
+        <header className="apf-section-head">
+          <h2 className="apf-section-title">Recent runs</h2>
+          {/* "Latest 50 runs" was almost honest — it said "latest" — but it
+              could not say latest of HOW MANY, so an operator could not tell a
+              quiet day from a truncated window. The server now returns a count
+              for the current filter. */}
+          <ResultCount
+            shown={runs.length}
+            total={runsTotal ?? undefined}
+            cap={runsLimit ?? undefined}
+            noun="run"
+            filtered={statusFilter !== ""}
+            failed={runsError !== null}
+            style={{ marginTop: 0 }}
+            data-testid="admin-automation-runs-count"
+          />
+        </header>
+        {/* THE RUN HISTORY'S OWN FAILURE, IN THE RUN HISTORY.
+            An empty list and an unreadable one are different facts, and this
+            section used to be unable to say which it had — because a failure
+            here took the whole page down with it. The rules above are real
+            and complete either way. */}
+        {runsError ? (
+          <div
+            className="apf-note"
+            data-tone="warning"
+            data-automation-runs-error
+          >
+            {runsError} The rules above are unaffected.
+          </div>
+        ) : null}
+        {/* Server-side: status goes into the request, so the 50-row cap
+            applies to the narrowed set rather than to a mixed window that is
+            then filtered in the browser. */}
+        <FilterBar style={{ marginBottom: 12 }}>
+          <FilterBar.Select
+            label="Run status"
+            value={statusFilter}
+            onChange={setStatusFilter}
+            options={[
+              { value: "", label: "All statuses" },
+              { value: "FAILED", label: "Failed" },
+              { value: "DEAD_LETTERED", label: "Gave up after retries" },
+              { value: "RETRY_SCHEDULED", label: "Retry scheduled" },
+              { value: "RUNNING", label: "Running" },
+              { value: "PENDING", label: "Pending" },
+              { value: "SUCCEEDED", label: "Succeeded" },
+              { value: "SKIPPED", label: "Skipped" },
+            ]}
+          />
+        </FilterBar>
+        {runs.length === 0 ? (
+          <div className="apf-empty">
+            {/* Two different statements. "No runs recorded" while a status
+                filter is applied tells the reader their history is gone. */}
+            <p>No automation runs recorded yet.</p>
+            <p style={{ fontSize: 12, color: "var(--ink-muted)" }}>
+              Runs appear here once the E3.1 trigger dispatcher is wired.
+            </p>
+          </div>
+        ) : (
+          <div className="apf-table-wrap">
+            <table
+              className="apf-table"
+              data-automation-runs-table
+              style={{ width: "100%", fontSize: 13 }}
+            >
+              <thead>
+                <tr>
+                  <th>When</th>
+                  <th>Trigger</th>
+                  <th>Target</th>
+                  <th>Status</th>
+                  <th>Reason</th>
+                </tr>
+              </thead>
+              <tbody>
+                {runs.map((r) => (
+                  <tr key={r.id} data-automation-run-id={r.id}>
+                    <td style={{ color: "var(--ink-muted)", fontSize: 12 }}>
+                      {formatUserDateTime(r.createdAt)}
+                    </td>
+                    <td>
+                      <CatalogValue value={r.triggerType} labels={triggerLabels} />
+                    </td>
+                    <td>
+                      <code style={{ fontSize: 12 }}>
+                        {r.targetType}:{r.targetId.slice(0, 8)}…
+                      </code>
+                    </td>
+                    <td data-automation-run-status={r.status}>{runStatusLabel(r.status)}</td>
+                    <td style={{ color: "var(--ink-muted)", fontSize: 12 }}>
+                      {r.reason ?? ""}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {/* Automation runs are capped at 50; a bare count would read as the total number of runs ever. */}
+            <ResultCount
+              shown={runs.length}
+              cap={50}
+              noun="run"
+              data-testid="admin-automation-runs-count"
+            />
+          </div>
+        )}
+      </section>
+
+      {/*
+        PV-ALLOW-001 — WHAT A RULE CAN RESPOND TO, AND WHAT IT CAN DO.
+        This listed two columns of bare identifiers under "Bounded allowlists"
+        with a developer's note about DB migrations, in a fixed two-column
+        grid that crushed both lists on a narrow screen. Each value is now its
+        label and one sentence of meaning from the server catalog, the
+        identifier is the secondary detail, and the columns wrap.
+      */}
+      <section className="apf-section" data-automation-allowlists>
+        <header className="apf-section-head">
+          <h2 className="apf-section-title">What rules can respond to and do</h2>
+          <span className="apf-section-note">
+            The platform defines these. New triggers and actions arrive with
+            product releases.
+          </span>
+        </header>
+        <div
+          style={{
+            display: "grid",
+            gap: 16,
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))",
+          }}
+        >
+          <div>
+            <h3 style={{ fontSize: 13 }}>Triggers</h3>
+            <ul style={catalogListStyle} data-automation-catalog="triggers">
+              {envelope.allowlist.triggerTypes.map((t) => (
+                <CatalogItem key={t} value={t} entries={envelope.catalog?.triggers} />
+              ))}
+            </ul>
+          </div>
+          <div>
+            <h3 style={{ fontSize: 13 }}>Actions</h3>
+            <ul style={catalogListStyle} data-automation-catalog="actions">
+              {envelope.allowlist.actionTypes.map((a) => (
+                <CatalogItem key={a} value={a} entries={envelope.catalog?.actions} />
+              ))}
+            </ul>
+          </div>
+        </div>
+      </section>
+    </PageShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Default export — PageRouteGate wrapper enforces AUTOMATION_VIEW.
+// ---------------------------------------------------------------------------
+
+/**
+ * The run-list query.
+ *
+ * `status` is a filter the endpoint has always accepted — the page simply
+ * never sent it, so the run list was the newest 50 of every state mixed
+ * together and an operator looking for failures had to read past the
+ * successes. Empty means "no filter" and is omitted rather than sent blank:
+ * the route validates with z.enum, so "" would be a 400.
+ */
+function runsQuery(teamId: string, status: string): string {
+  const p = new URLSearchParams();
+  p.set("teamId", teamId);
+  p.set("limit", "50");
+  if (status) p.set("status", status);
+  return p.toString();
+}
+
+export default function AutomationPage(): JSX.Element {
+  return (
+    <PageRouteGate routeId="operations.automation">
+      <AutomationPageInner />
+    </PageRouteGate>
+  );
+}

@@ -77,6 +77,7 @@ import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 import { MEDIA_INTELLIGENCE_JOB_KINDS } from "@proovra/shared";
 
 const API_ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -692,17 +693,16 @@ describe("Phase 13 G4 — core daily routes remain sidebar + cmd-K discoverable"
 
   for (const { id, requiresSidebar, requiresPalette } of CORE_ROUTES) {
     it(`route "${id}" keeps the canonical discoverability flags`, () => {
-      // Find the bounded definition block for this route id. The
-      // registry uses a single-line `id: "..."` followed by the
-      // definition body, terminated by the next `id: "` or end of
-      // array. We scan a bounded window after the id marker.
+      // Find the definition for this route id: the RouteDefinition object
+      // literal that carries the single-line `id: "..."` (WCC-NEW-027 —
+      // the whole object, never a character window that could read the
+      // next definition's flags).
       const idMarker = new RegExp(`id:\\s*"${id.replace(/\./g, "\\.")}"`);
       const idMatch = idMarker.exec(registry);
       expect(idMatch, `route id "${id}" not found in routeRegistry.ts`).not.toBeNull();
-      const startIdx = idMatch?.index ?? 0;
-      // Bounded definition window: 2000 chars is comfortably more
-      // than the largest single RouteDefinition in the registry.
-      const block = registry.slice(startIdx, startIdx + 2000);
+      const block = enclosingSource(registry, idMatch?.[0] ?? `id: "${id}"`, "object", {
+        fileName: "routeRegistry.ts",
+      });
 
       const sidebarMatch = /sidebarEligible:\s*(true|false)/.exec(block);
       const paletteMatch = /commandPaletteVisible:\s*(true|false)/.exec(block);

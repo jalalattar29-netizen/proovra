@@ -53,6 +53,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
 
 function readRepo(rel: string): string {
   return readFileSync(
@@ -344,9 +345,7 @@ describe("Phase O Stream A — /v1/reviewer-ops/console (NODE-11)", () => {
 
 describe("Phase O Stream A — /v1/orgs/:id/members (NODE-1D)", () => {
   it("uses UuidParam.safeParse and emits INVALID_ORG_ID 400", () => {
-    const idx = ORGANIZATIONS_ROUTES.indexOf('"/v1/orgs/:id/members"');
-    expect(idx).toBeGreaterThan(-1);
-    const slice = ORGANIZATIONS_ROUTES.slice(idx, idx + 1800);
+    const slice = routeSource(ORGANIZATIONS_ROUTES, "GET", "/v1/orgs/:id/members");
     expect(slice).toMatch(/UuidParam\.safeParse\(/);
     expect(slice).toMatch(
       /code:\s*"INVALID_ORG_ID"[\s\S]{0,300}Invalid organization id[\s\S]{0,300}requestId:\s*req\.id/,
@@ -422,11 +421,11 @@ describe("Phase O Stream C — POST /v1/coding/schemas/seed-defaults (NODE-1P)",
   });
 
   it("route wraps in P2022/P2021 try/catch with degraded 200 fallback", () => {
-    const idx = REVIEWER_WORKSPACE_ROUTES.indexOf(
-      '"/v1/coding/schemas/seed-defaults"',
+    const slice = routeSource(
+      REVIEWER_WORKSPACE_ROUTES,
+      "POST",
+      "/v1/coding/schemas/seed-defaults",
     );
-    expect(idx).toBeGreaterThan(-1);
-    const slice = REVIEWER_WORKSPACE_ROUTES.slice(idx, idx + 2000);
     expect(slice).toMatch(/try\s*\{[\s\S]{0,600}seedDefaultSchemas/);
     expect(slice).toMatch(/code\s*===\s*"P2022"\s*\|\|\s*code\s*===\s*"P2021"/);
     expect(slice).toMatch(/degraded:\s*true[\s\S]{0,200}reason:\s*"SCHEMA_NOT_READY"/);
@@ -439,9 +438,7 @@ describe("Phase O Stream C — POST /v1/coding/schemas/seed-defaults (NODE-1P)",
 
 describe("Phase O Stream C — GET /v1/trust/status (NODE-1E)", () => {
   it("wraps projectStatusPage in try/catch and degrades on P2022/P2021", () => {
-    const idx = TRUST_GOV_ROUTES.indexOf('"/v1/trust/status"');
-    expect(idx).toBeGreaterThan(-1);
-    const slice = TRUST_GOV_ROUTES.slice(idx, idx + 2500);
+    const slice = routeSource(TRUST_GOV_ROUTES, "GET", "/v1/trust/status");
     expect(slice).toMatch(/try\s*\{[\s\S]{0,400}projectStatusPage/);
     expect(slice).toMatch(/code\s*===\s*"P2022"\s*\|\|\s*code\s*===\s*"P2021"/);
     expect(slice).toMatch(

@@ -5325,3 +5325,62 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
 .evd-linkbtn:hover {
   opacity: 0.8;
 }
+
+/* Record lifecycle controls (discussion thread lifecycle, declarations).
+   Wrapping rows only, so every control stacks at narrow widths. */
+.evidence-lifecycle {
+  display: grid;
+  gap: 10px;
+  min-inline-size: 0;
+}
+.evidence-lifecycle__facts {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  min-inline-size: 0;
+}
+.evidence-lifecycle__facts > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  min-inline-size: 0;
+}
+.evidence-lifecycle__facts dt {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--app-ink-secondary);
+}
+.evidence-lifecycle__facts dd {
+  margin: 0;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.evidence-lifecycle__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-inline-size: 0;
+}
+.evidence-lifecycle__form,
+.evidence-lifecycle__field {
+  display: grid;
+  gap: 6px;
+  min-inline-size: 0;
+}
+.evidence-lifecycle__field .app-form-input {
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+.evidence-lifecycle__feedback:focus {
+  outline: none;
+}
+.evidence-lifecycle__row {
+  display: grid;
+  gap: 8px;
+  padding-block: 12px;
+  border-block-start: 1px solid var(--surface-translucent-border-strong);
+  min-inline-size: 0;
+}

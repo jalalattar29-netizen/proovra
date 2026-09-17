@@ -35,11 +35,13 @@ import {
   EXTERNAL_REVIEWER_ROLES,
   PORTAL_AUTH_METHODS,
   WATERMARK_POLICIES,
+  identifierLabel,
   type ExternalReviewerRole,
   type PortalAuthMethod,
 } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { Button } from "../../../../components/ui/Button";
 import {
   StepUpModal,
   useStepUpAction,
@@ -48,14 +50,32 @@ import { apiFetch } from "../../../../lib/api";
 import { formatUserDate, formatUserDateTime } from "../../../../lib/date";
 import { notifyApiError } from "../../../../lib/feedback/notify";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
+import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 import { useToast, PageShell, PageHeader } from "../../../../components/ui";
 import { Card } from "../../../../components/ui/Card";
 import { EmptyState } from "../../../../components/ui/EmptyState";
+import {
+  bulkInvitationOutcomeLabel,
+  invitationDeliveryProviderLabel,
+} from "../../../../lib/labels/governanceReviewLabels";
 import {
   useActiveSpace,
   useCan,
   useTeamId,
 } from "../../../../lib/platform-context";
+
+import {
+  ReviewScopePicker,
+  SCOPE_REQUIRED_REASON,
+  defaultScopeFor,
+  type ReviewScopeState,
+} from "../../../../components/external-review/ReviewScopePicker";
+import {
+  bulkIssueBannerText,
+  bulkOutcomeReason,
+  tallyBulkOutcome,
+  type BulkIssueTally,
+} from "./_components/bulkInviteOutcome";
 
 // ---------------------------------------------------------------------------
 // PHASE 4 — Per-action capability gating.
@@ -88,6 +108,7 @@ type ExternalReviewCapabilities = {
   canBulkRevoke: boolean;
   canResend: boolean;
   canRevoke: boolean;
+  canEndSessions: boolean;
   canRevealToken: boolean;
 };
 
@@ -105,6 +126,8 @@ function useExternalReviewCapabilities(): ExternalReviewCapabilities {
     canBulkRevoke: canAct,
     canResend: canAct,
     canRevoke: canAct,
+    // Same tier as revoke on the server (review.assign + administrative tier).
+    canEndSessions: canAct,
     canRevealToken: canAct && isOwner,
   };
 }
@@ -131,6 +154,37 @@ function denialFromError(err: unknown): string {
   }
   if (code === "RATE_LIMITED" || status === 429) return "RATE_LIMITED";
   return code || "REFUSED";
+}
+
+// POST /v1/external-review/invitations/:id/sessions/revoke — ends every live
+// portal session of the invitation (D2). The invitation itself stays valid.
+async function endInvitationPortalSessions(
+  grantId: string,
+): Promise<{ ok?: boolean; sessionsEnded?: number } | null> {
+  return apiFetch(`/v1/external-review/invitations/${grantId}/sessions/revoke`, {
+    method: "POST",
+    body: JSON.stringify({ reason: "OPERATOR_REVOKE" }),
+  });
+}
+
+// Bounded copy for a refused "End sessions". Never the raw server string.
+function endSessionsFailureText(err: unknown): string {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const status = typeof (err as any)?.statusCode === "number" ? (err as any).statusCode : 0;
+  if (status === 403) {
+    return "You do not have permission to end this reviewer's sessions. Nothing was changed.";
+  }
+  if (status === 404) {
+    return "This invitation is no longer available in this workspace. Nothing was changed.";
+  }
+  if (status === 503) {
+    return "Sessions could not be ended right now because the session service is unavailable. Nothing was changed; try again shortly.";
+  }
+  const safe = toSafeUserError(err, {
+    title: "Could not end sessions",
+    message: "The sessions could not be ended. Nothing was changed.",
+  });
+  return safe.message;
 }
 
 // ---------------------------------------------------------------------------
@@ -252,13 +306,16 @@ function ExternalReviewManagementConsole() {
     text: string;
   } | null>(null);
 
-  const refresh = useCallback(async () => {
+  // Resolves true only when the list was actually reread, so a caller can
+  // tell a confirmed change apart from one it could not confirm.
+  const refresh = useCallback(async (): Promise<boolean> => {
     try {
       const res = await apiFetch("/v1/external-review/invitations", {
         method: "GET",
       });
       setRows((res?.invitations ?? []) as InvitationRow[]);
       setListDenied(false);
+      return true;
     } catch (err) {
       // eslint-disable-next-line no-console
       console.warn("[external-review] invitations list refresh failed", {
@@ -270,6 +327,7 @@ function ExternalReviewManagementConsole() {
       const denial = denialFromError(err);
       setRows([]);
       setListDenied(denial === "NOT_PERMITTED");
+      return false;
     }
   }, []);
 
@@ -323,13 +381,24 @@ function ExternalReviewManagementConsole() {
           body: JSON.stringify({ grantIds: ids, reason: "Operator bulk revoke" }),
         },
       );
-      const revokedCount =
-        (res?.rows as Array<{ outcome: string }> | undefined)?.filter(
-          (r) => r.outcome === "REVOKED",
-        ).length ?? 0;
+      // PV-DEFECT-002 — every row reports its own outcome. An id that no
+      // longer answers in this workspace is decided before any write and
+      // named here, instead of failing the whole batch as a server error.
+      const rows = (res?.rows as Array<{ outcome: string }> | undefined) ?? [];
+      const count = (outcome: string) => rows.filter((r) => r.outcome === outcome).length;
+      const revokedCount = count("REVOKED");
+      const already = count("ALREADY_REVOKED");
+      const missing = count("NOT_FOUND");
+      const failed = count("FAILED");
+      const parts = [`Revoked ${revokedCount} of ${ids.length} invitations.`];
+      if (already > 0) parts.push(`${already} were already revoked.`);
+      if (missing > 0) {
+        parts.push(`${missing} no longer exist in this workspace — refresh the list.`);
+      }
+      if (failed > 0) parts.push(`${failed} could not be revoked; try them again.`);
       setBanner({
-        tone: "ok",
-        text: `Bulk revoke: ${revokedCount}/${ids.length} grants revoked.`,
+        tone: missing > 0 || failed > 0 ? "warn" : "ok",
+        text: parts.join(" "),
       });
       setMultiSelected(new Set());
       await refresh();
@@ -469,6 +538,8 @@ function ExternalReviewManagementConsole() {
       {banner ? (
         <Card
           data-console-banner
+          data-console-banner-tone={banner.tone}
+          role="status"
           variant="status"
           tone={
             banner.tone === "ok"
@@ -487,11 +558,20 @@ function ExternalReviewManagementConsole() {
       {tab === "bulk" ? (
         <BulkInvitePanel
           caps={caps}
+          teamId={teamId}
           stepUp={stepUp}
-          onCompleted={(text) => {
-            setBanner({ tone: "ok", text });
-            void refresh();
-            setTab("active");
+          onCompleted={async (tally) => {
+            // Reread the invitation list first; the banner counts only the
+            // rows that were actually issued. Stay on this tab whenever a
+            // row was not issued, so its reason stays on screen.
+            const reloaded = await refresh();
+            const clean =
+              tally.issued > 0 && tally.issued === tally.total && reloaded;
+            setBanner({
+              tone: clean ? "ok" : "warn",
+              text: bulkIssueBannerText(tally, reloaded),
+            });
+            if (clean) setTab("active");
           }}
         />
       ) : (
@@ -522,6 +602,8 @@ function ExternalReviewManagementConsole() {
               onRefuse={(text) =>
                 setBanner({ tone: "warn", text: `Refused: ${text}` })
               }
+              onReread={refresh}
+              onNotice={(tone, text) => setBanner({ tone, text })}
             />
           ) : null}
         </div>
@@ -659,7 +741,7 @@ function InvitationsTable({
                 </td>
                 <td style={td}>{r.inviteEmail}</td>
                 <td style={td}>
-                  <code>{r.role}</code>
+                  {identifierLabel(r.role)}
                 </td>
                 <td style={td}>
                   <Chip
@@ -675,7 +757,7 @@ function InvitationsTable({
                     <Chip
                       data-delivery-chip={r.latestDelivery.status}
                       tone={deliveryTone(r.latestDelivery.status)}
-                      label={r.latestDelivery.status}
+                      label={identifierLabel(r.latestDelivery.status)}
                     />
                   ) : (
                     <span style={{ color: "var(--ink-muted, #94a3b8)" }}>—</span>
@@ -710,6 +792,8 @@ function InvitationDetailDrawer({
   onClose,
   onChanged,
   onRefuse,
+  onReread,
+  onNotice,
 }: {
   row: InvitationRow;
   caps: ExternalReviewCapabilities;
@@ -717,6 +801,8 @@ function InvitationDetailDrawer({
   onClose: () => void;
   onChanged: (msg: string) => void;
   onRefuse: (msg: string) => void;
+  onReread: () => Promise<boolean>;
+  onNotice: (tone: "ok" | "warn", text: string) => void;
 }) {
   const [activity, setActivity] = useState<ActivityRow[] | null>(null);
   const [deliveries, setDeliveries] = useState<DeliveryRow[] | null>(null);
@@ -725,18 +811,27 @@ function InvitationDetailDrawer({
     issuedFor: "operator-break-glass";
   } | null>(null);
   const [confirmReveal, setConfirmReveal] = useState(false);
+  const { confirm: confirmAction } = useConfirmAction();
+  const [endingSessions, setEndingSessions] = useState(false);
+
+  // Resolves true only when the activity trail was actually reread.
+  const loadActivity = useCallback(async (): Promise<boolean> => {
+    try {
+      const a = await apiFetch(
+        `/v1/external-review/invitations/${row.grantId}/activity`,
+        { method: "GET" },
+      );
+      setActivity((a?.activity ?? []) as ActivityRow[]);
+      return true;
+    } catch {
+      setActivity([]);
+      return false;
+    }
+  }, [row.grantId]);
 
   useEffect(() => {
     void (async () => {
-      try {
-        const a = await apiFetch(
-          `/v1/external-review/invitations/${row.grantId}/activity`,
-          { method: "GET" },
-        );
-        setActivity((a?.activity ?? []) as ActivityRow[]);
-      } catch {
-        setActivity([]);
-      }
+      await loadActivity();
       try {
         const d = await apiFetch(
           `/v1/external-review/invitations/${row.grantId}/delivery`,
@@ -747,7 +842,57 @@ function InvitationDetailDrawer({
         setDeliveries([]);
       }
     })();
-  }, [row.grantId]);
+  }, [row.grantId, loadActivity]);
+
+  // Ends every live portal session of this invitation. The invitation stays
+  // valid: the reviewer can sign in again with their link. Success is
+  // announced only after the activity trail and the list were reread.
+  const onEndSessions = useCallback(async () => {
+    if (!caps.canEndSessions) {
+      onRefuse("NOT_PERMITTED");
+      return;
+    }
+    const confirmed = await confirmAction({
+      title: `End ${row.inviteEmail}'s portal sessions?`,
+      description:
+        "Every signed-in portal session for this invitation stops working " +
+        "immediately. The invitation stays valid, so the reviewer can sign " +
+        "in again with their link. To withdraw access altogether, revoke " +
+        "the invitation instead.",
+      confirmLabel: "End sessions",
+      tone: "danger",
+    });
+    if (!confirmed) return;
+    setEndingSessions(true);
+    try {
+      let ended: number;
+      try {
+        const res = await endInvitationPortalSessions(row.grantId);
+        ended = typeof res?.sessionsEnded === "number" ? res.sessionsEnded : 0;
+      } catch (err) {
+        onNotice("warn", endSessionsFailureText(err));
+        return;
+      }
+      const activityReread = await loadActivity();
+      const listReread = await onReread();
+      if (!activityReread || !listReread) {
+        onNotice(
+          "warn",
+          "The request to end the sessions was accepted, but this invitation " +
+            "could not be reloaded to confirm it. Refresh the page to check.",
+        );
+        return;
+      }
+      onNotice(
+        "ok",
+        ended === 0
+          ? `${row.inviteEmail} had no signed-in portal sessions. Nothing else changed.`
+          : `Ended ${ended} portal ${ended === 1 ? "session" : "sessions"} for ${row.inviteEmail}. The invitation is still valid.`,
+      );
+    } finally {
+      setEndingSessions(false);
+    }
+  }, [caps.canEndSessions, confirmAction, row.grantId, row.inviteEmail, loadActivity, onReread, onRefuse, onNotice]);
 
   const onResend = useCallback(async () => {
     if (!caps.canResend) {
@@ -829,7 +974,7 @@ function InvitationDetailDrawer({
           tone={row.grantState === "REVOKED" ? "warn" : row.expired ? "warn" : "ok"}
           label={`State: ${row.grantState ?? "—"}`}
         />
-        <Chip tone="muted" label={`Role: ${row.role}`} />
+        <Chip tone="muted" label={`Role: ${identifierLabel(row.role)}`} />
         <Chip tone="info" label={`Auth: ${row.authMethod}`} />
         {row.mfaRequired ? <Chip tone="warn" label="MFA required" /> : null}
         <Chip tone="muted" label={`Watermark: ${row.watermarkPolicy}`} />
@@ -909,6 +1054,38 @@ function InvitationDetailDrawer({
         >
           Revoke
         </button>
+        <button
+          type="button"
+          data-invitation-end-sessions={row.grantId}
+          data-capability-allowed={caps.canEndSessions ? "true" : "false"}
+          onClick={onEndSessions}
+          disabled={!caps.canEndSessions || endingSessions}
+          aria-describedby={
+            caps.canEndSessions ? undefined : `end-sessions-reason-${row.grantId}`
+          }
+          style={{
+            ...dangerActionStyle,
+            ...(caps.canEndSessions && !endingSessions
+              ? {}
+              : {
+                  color: "var(--ink-muted, #94a3b8)",
+                  borderColor: "var(--border-default, #cbd5e1)",
+                  cursor: "not-allowed",
+                }),
+          }}
+        >
+          {endingSessions ? "Ending sessions…" : "End sessions"}
+        </button>
+        {!caps.canEndSessions ? (
+          <p
+            id={`end-sessions-reason-${row.grantId}`}
+            data-end-sessions-disabled-reason
+            style={{ ...mutedStyle, margin: 0, flexBasis: "100%" }}
+          >
+            Only workspace administrators and supervisors can end a
+            reviewer&apos;s portal sessions.
+          </p>
+        ) : null}
       </section>
 
       <section
@@ -1035,12 +1212,13 @@ function InvitationDetailDrawer({
                     <Chip
                       data-delivery-status={d.status}
                       tone={deliveryTone(d.status)}
-                      label={d.status}
+                      label={identifierLabel(d.status)}
                     />
                   </td>
                   <td style={td}>{d.attempt}</td>
                   <td style={td}>
-                    <code>{d.provider}</code>
+                    {invitationDeliveryProviderLabel(d.provider)}{" "}
+                    <code data-identifier>{d.provider}</code>
                   </td>
                   <td style={td}>
                     {formatUserDateTime(d.queuedAtUtc)}
@@ -1137,7 +1315,9 @@ function InvitationDetailDrawer({
                   gap: 8,
                 }}
               >
-                <code style={{ minWidth: 220 }}>{a.code}</code>
+                <span style={{ minWidth: 220 }}>
+                  {identifierLabel(a.code)} <code data-identifier>{a.code}</code>
+                </span>
                 <span style={{ color: "var(--ink-secondary, #475569)" }}>
                   {formatUserDateTime(a.occurredAtUtc)}
                 </span>
@@ -1269,14 +1449,22 @@ function BreakGlassReveal({
 
 function BulkInvitePanel({
   caps,
+  teamId,
   stepUp,
   onCompleted,
 }: {
   caps: ExternalReviewCapabilities;
+  teamId: string | null;
   stepUp: ReturnType<typeof useStepUpAction>;
-  onCompleted: (msg: string) => void;
+  onCompleted: (tally: BulkIssueTally) => Promise<void>;
 }) {
   const { addToast } = useToast();
+  // D16 — every grant needs ONE target in this workspace. Without it the
+  // API answers each row POLICY_DENIED and writes nothing.
+  const [scope, setScope] = useState<ReviewScopeState>({
+    target: null,
+    blockedReason: SCOPE_REQUIRED_REASON,
+  });
   const [pasted, setPasted] = useState("");
   const [hours, setHours] = useState(72);
   const [defaultRole, setDefaultRole] = useState<ExternalReviewerRole>(
@@ -1314,6 +1502,8 @@ function BulkInvitePanel({
     }
     if (parsed.length === 0) return;
     if (parsed.length > BULK_INVITATION_MAX_ROWS) return;
+    const target = scope.target;
+    if (!target || scope.blockedReason) return;
     setBusy(true);
     try {
       const allowedDomainList = allowedDomains
@@ -1338,7 +1528,7 @@ function BulkInvitePanel({
             defaultRole,
             defaultWatermarkPolicy: defaultWatermark,
             defaultMfaRequired: defaultMfa,
-            defaultScope: { kind: "PACKAGE" },
+            defaultScope: defaultScopeFor(target),
             rows: parsed.map((p) => ({
               inviteEmail: p.email,
               displayName: p.displayName,
@@ -1353,17 +1543,15 @@ function BulkInvitePanel({
           }),
         }),
       );
+      const resultRows = (
+        Array.isArray(res?.rows) ? res.rows : []
+      ) as BulkOutcomeRow[];
       setOutcomes({
-        bulkBatchId: res.bulkBatchId,
-        summary: res.summary as Record<string, number>,
-        rows: res.rows as BulkOutcomeRow[],
+        bulkBatchId: typeof res?.bulkBatchId === "string" ? res.bulkBatchId : "",
+        summary: (res?.summary ?? {}) as Record<string, number>,
+        rows: resultRows,
       });
-      const invited =
-        (res.rows as BulkOutcomeRow[]).filter((r) => r.outcome === "INVITED")
-          .length ?? 0;
-      onCompleted(
-        `Bulk invite: ${invited}/${parsed.length} invitations sent.`,
-      );
+      await onCompleted(tallyBulkOutcome(resultRows));
     } catch (err) {
       const code = (err as { code?: string })?.code;
       if (code === "STEP_UP_CANCEL") {
@@ -1411,6 +1599,7 @@ function BulkInvitePanel({
   }, [
     caps.canBulkInvite,
     parsed,
+    scope,
     hours,
     defaultRole,
     defaultWatermark,
@@ -1422,6 +1611,19 @@ function BulkInvitePanel({
     stepUp,
     addToast,
   ]);
+
+  // The first reason that applies, stated on the disabled control.
+  const submitBlockedReason: string | null = !caps.canBulkInvite
+    ? "You do not have permission to bulk issue invitations"
+    : scope.blockedReason
+      ? scope.blockedReason
+      : !scope.target
+        ? SCOPE_REQUIRED_REASON
+        : parsed.length === 0
+          ? "Paste at least one reviewer email to issue invitations."
+          : parsed.length > BULK_INVITATION_MAX_ROWS
+            ? `Issue at most ${BULK_INVITATION_MAX_ROWS} invitations at a time.`
+            : null;
 
   return (
     <section
@@ -1465,10 +1667,12 @@ function BulkInvitePanel({
         </p>
       </header>
 
+      <ReviewScopePicker teamId={teamId} onChange={setScope} />
+
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "2fr 1fr",
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))",
           gap: 12,
         }}
       >
@@ -1527,9 +1731,9 @@ function BulkInvitePanel({
                     <td style={td}>{p.organization ?? "—"}</td>
                     <td style={td}>
                       {p.valid ? (
-                        <Chip tone="ok" label="VALID" />
+                        <Chip tone="ok" label="Valid" />
                       ) : (
-                        <Chip tone="warn" label="INVALID_EMAIL" />
+                        <Chip tone="warn" label={bulkInvitationOutcomeLabel("INVALID_EMAIL")} />
                       )}
                     </td>
                   </tr>
@@ -1551,7 +1755,7 @@ function BulkInvitePanel({
             >
               {EXTERNAL_REVIEWER_ROLES.map((r) => (
                 <option key={r} value={r}>
-                  {r}
+                  {identifierLabel(r)}
                 </option>
               ))}
             </select>
@@ -1648,60 +1852,44 @@ function BulkInvitePanel({
       </div>
 
       <div>
-        <button
-          type="button"
+        <Button
+          variant="primary"
           data-bulk-issue-submit
           data-capability-allowed={caps.canBulkInvite ? "true" : "false"}
           onClick={onIssueBulk}
-          disabled={
-            !caps.canBulkInvite ||
-            busy ||
-            parsed.length === 0 ||
-            parsed.length > BULK_INVITATION_MAX_ROWS
-          }
-          title={
-            !caps.canBulkInvite
-              ? "You do not have permission to bulk issue invitations"
-              : undefined
-          }
-          style={{
-            ...primaryActionStyle,
-            background:
-              !caps.canBulkInvite ||
-              busy ||
-              parsed.length === 0 ||
-              parsed.length > BULK_INVITATION_MAX_ROWS
-                ? "var(--ink-muted, #94a3b8)"
-                : "var(--ink-primary, #0f172a)",
-            cursor:
-              !caps.canBulkInvite ||
-              busy ||
-              parsed.length === 0 ||
-              parsed.length > BULK_INVITATION_MAX_ROWS
-                ? "not-allowed"
-                : "pointer",
-          }}
+          loading={busy}
+          disabled={submitBlockedReason !== null}
+          disabledReason={submitBlockedReason ?? undefined}
         >
           {busy
             ? "Issuing…"
             : `Issue ${parsed.length} invitation${parsed.length === 1 ? "" : "s"}`}
-        </button>
+        </Button>
       </div>
 
       {outcomes ? (
         <section data-bulk-outcomes>
           <strong style={{ fontSize: 12 }}>
-            Batch <code>{outcomes.bulkBatchId.slice(0, 8) || "(no batch)"}…</code>
+            {outcomes.bulkBatchId ? (
+              <>
+                Batch{" "}
+                <code data-identifier>{outcomes.bulkBatchId.slice(0, 8)}…</code>
+              </>
+            ) : (
+              "Nothing was sent"
+            )}
           </strong>
-          <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
             {Object.entries(outcomes.summary).map(([k, v]) => (
               <Chip
                 key={k}
+                data-bulk-summary={k}
                 tone={k === "INVITED" ? "ok" : k === "FAILED" ? "warn" : "muted"}
-                label={`${k}: ${v}`}
+                label={`${bulkInvitationOutcomeLabel(k)}: ${v}`}
               />
             ))}
           </div>
+          <div style={{ overflowX: "auto" }}>
           <table
             data-bulk-outcome-table
             style={{
@@ -1715,8 +1903,8 @@ function BulkInvitePanel({
               <tr style={{ textAlign: "left", color: "var(--ink-muted, #94a3b8)" }}>
                 <th style={th}>Email</th>
                 <th style={th}>Outcome</th>
-                <th style={th}>Grant</th>
-                <th style={th}>Denial</th>
+                <th style={th}>Access</th>
+                <th style={th}>Reason</th>
               </tr>
             </thead>
             <tbody>
@@ -1736,19 +1924,33 @@ function BulkInvitePanel({
                           ? "info"
                           : "warn"
                       }
-                      label={r.outcome}
+                      label={bulkInvitationOutcomeLabel(r.outcome)}
                     />
                   </td>
                   <td style={td}>
-                    {r.grantId ? <code>{r.grantId.slice(0, 8)}…</code> : "—"}
+                    {r.grantId ? (
+                      <>
+                        Created{" "}
+                        <code data-identifier>{r.grantId.slice(0, 8)}…</code>
+                      </>
+                    ) : (
+                      "Not created"
+                    )}
                   </td>
-                  <td style={td}>
-                    {r.denial ? <code>{r.denial}</code> : "—"}
+                  <td style={td} data-bulk-outcome-reason>
+                    {bulkOutcomeReason(r) ?? "—"}
+                    {r.denial ? (
+                      <>
+                        {" "}
+                        <code data-identifier>{r.denial}</code>
+                      </>
+                    ) : null}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
         </section>
       ) : null}
     </section>

@@ -43,6 +43,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { enclosingSource, routeSource } from "../../../scripts/source-contract/index.mjs";
+
 function readApi(rel: string): string {
   return readFileSync(fileURLToPath(new URL(`../${rel}`, import.meta.url)), "utf8");
 }
@@ -53,13 +55,10 @@ function readApi(rel: string): string {
 
 describe("Phase 32.7.1 — public verify analytics writes are fire-and-forget", () => {
   const SRC = readApi("src/routes/evidence.routes.ts");
-  const routeIdx = SRC.indexOf('app.get("/public/verify/:id"');
-  expect(routeIdx).toBeGreaterThan(-1);
-  // The route body is large; widen the window to capture the
-  // entire handler. Post-A3 / G4.x growth pushed the analytics
-  // IIFE further down the handler, so the previous 30,000-byte
-  // window no longer reached it — widened to 60,000.
-  const routeBody = SRC.slice(routeIdx, routeIdx + 60000);
+  // The route body is large; read the whole registration rather than a
+  // character window, so handler growth can neither push the analytics IIFE
+  // out of view nor pull the next route into it.
+  const routeBody = routeSource(SRC, "GET", "/public/verify/:id");
 
   it("the load-bearing `await prisma.$transaction([evidence.update, verificationView.create])` is gone", () => {
     // Look specifically for the SHAPE that was failing: an awaited
@@ -79,9 +78,10 @@ describe("Phase 32.7.1 — public verify analytics writes are fire-and-forget", 
     expect(routeBody).toMatch(/void\s+\(async\s*\(\)\s*=>\s*\{/);
     // The IIFE must include both the evidence.update and the
     // verificationView.create writes.
-    const iifeIdx = routeBody.indexOf("void (async () => {");
-    expect(iifeIdx).toBeGreaterThan(-1);
-    const iife = routeBody.slice(iifeIdx, iifeIdx + 4000);
+    // The whole fire-and-forget statement: the IIFE and its trailing .catch.
+    const iife = enclosingSource(routeBody, "void (async () => {", "statement", {
+      fileName: "evidence.routes.ts",
+    });
     expect(iife).toMatch(/prisma\.evidence\.update/);
     expect(iife).toMatch(/prisma\.verificationView\.create/);
     expect(iife).toMatch(/Promise\.allSettled/);
@@ -91,8 +91,10 @@ describe("Phase 32.7.1 — public verify analytics writes are fire-and-forget", 
   });
 
   it("failures emit a bounded WARN log line (NOT captureException)", () => {
-    const iifeIdx = routeBody.indexOf("void (async () => {");
-    const iife = routeBody.slice(iifeIdx, iifeIdx + 4000);
+    // The whole fire-and-forget statement: the IIFE and its trailing .catch.
+    const iife = enclosingSource(routeBody, "void (async () => {", "statement", {
+      fileName: "evidence.routes.ts",
+    });
     expect(iife).toMatch(/req\.log\.warn\(/);
     expect(iife).toMatch(/public_verify\.access_log_failed/);
     // No captureException inside the fire-and-forget body (would
@@ -105,9 +107,9 @@ describe("Phase 32.7.1 — public verify analytics writes are fire-and-forget", 
     // independently observable, but the OUTER call site does NOT
     // await the IIFE. Verify that the `if (isFinalizedForVerify)`
     // block contains `void (async ...)` and not `await prisma.$transaction`.
-    const finalIdx = routeBody.indexOf("if (isFinalizedForVerify) {");
-    expect(finalIdx).toBeGreaterThan(-1);
-    const finalBlock = routeBody.slice(finalIdx, finalIdx + 5000);
+    const finalBlock = enclosingSource(routeBody, "if (isFinalizedForVerify) {", "statement", {
+      fileName: "evidence.routes.ts",
+    });
     expect(finalBlock).not.toMatch(/await\s+prisma\.\$transaction/);
     expect(finalBlock).toMatch(/void\s+\(async\s*\(\)\s*=>\s*\{/);
   });
@@ -127,9 +129,7 @@ describe("Phase 32.7.1 — public verify analytics writes are fire-and-forget", 
 
 describe("Phase 32.7.1 — original-presign analytics write is fire-and-forget", () => {
   const SRC = readApi("src/routes/evidence.routes.ts");
-  const routeIdx = SRC.indexOf('"/v1/evidence/:id/original"');
-  expect(routeIdx).toBeGreaterThan(-1);
-  const routeBody = SRC.slice(routeIdx, routeIdx + 12000);
+  const routeBody = routeSource(SRC, "GET", "/v1/evidence/:id/original");
 
   it("`lastAccessedAtUtc` update is no longer awaited", () => {
     // The literal `await prisma.evidence.update({` followed by the
@@ -149,11 +149,9 @@ describe("Phase 32.7.1 — original-presign analytics write is fire-and-forget",
     expect(routeBody).toMatch(/original_presign\.access_log_failed/);
     // No new captureException added in this region for the
     // analytics failure case.
-    const updateIdx = routeBody.indexOf(
-      "void prisma.evidence",
-    );
-    expect(updateIdx).toBeGreaterThan(-1);
-    const updateRegion = routeBody.slice(updateIdx, updateIdx + 1500);
+    const updateRegion = enclosingSource(routeBody, "void prisma.evidence", "statement", {
+      fileName: "evidence.routes.ts",
+    });
     expect(updateRegion).not.toMatch(/captureException\(/);
   });
 

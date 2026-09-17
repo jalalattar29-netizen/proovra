@@ -56,6 +56,10 @@ import {
   endPortalSession,
   establishPortalSession,
 } from "../services/external-review/portal-session.service.js";
+import {
+  endRegisteredPortalSession,
+  revokeAllPortalSessions,
+} from "../services/external-review/portal-session-registry.service.js";
 // PHASE 5 §8.5 (2026-07-22) — grant→workflow resource-scope binding.
 import { resolveWorkflowInGrantScope } from "../services/external-review/portal-scope.service.js";
 import {
@@ -398,7 +402,8 @@ async function resolvePortalSession(
     userAgent: (req.headers["user-agent"] as string | undefined) ?? null,
   });
   if (!sess.ok) {
-    reply.code(401).send({ denial: sess.denial });
+    // D2 — an unreachable session store is not the reviewer's fault.
+    reply.code(sess.denial === "SESSION_UNAVAILABLE" ? 503 : 401).send({ denial: sess.denial });
     return null;
   }
   const s = sess.session;
@@ -429,6 +434,28 @@ async function resolvePortalSession(
 // ---------------------------------------------------------------------------
 // Routes
 // ---------------------------------------------------------------------------
+
+/**
+ * K4 / D51 (2026-09-16) — body-less POST routes (opening a review, signing
+ * out) tolerate a client that declares `content-type: application/json` with
+ * no body. Fastify's JSON parser refuses such a request with a 400 before the
+ * handler runs, so neither action was ever recorded from the portal. An empty
+ * request declares nothing to parse, so the header is dropped for it.
+ */
+function acceptEmptyJsonBody(
+  req: FastifyRequest,
+  _reply: FastifyReply,
+  done: (err?: Error) => void,
+): void {
+  const h = req.raw.headers;
+  if (
+    h["transfer-encoding"] === undefined &&
+    (h["content-length"] === undefined || h["content-length"] === "0")
+  ) {
+    delete h["content-type"];
+  }
+  done();
+}
 
 export async function externalPortalRoutes(app: FastifyInstance) {
   // =========================================================================
@@ -807,8 +834,25 @@ export async function externalPortalRoutes(app: FastifyInstance) {
         existingSessionId: body.existingSessionId ?? null,
         ip: req.ip,
         userAgent: (req.headers["user-agent"] as string | undefined) ?? null,
+        // The token exchange is where an invitation is accepted (INVITED -> ACTIVE).
+        acceptInvited: true,
+        // D27 — the token exchange is the one place an emailed code is sent.
+        issueMfaCode: true,
+        // D2 — and the one place a new session is opened.
+        openSession: true,
       });
-      if (!sess.ok) return reply.code(401).send({ denial: sess.denial });
+      if (!sess.ok) {
+        // D27 — the code step learns whether a code is on its way, where to
+        // (masked), when another may be requested and how many tries remain.
+        // A refused issuance (RATE_LIMITED / MFA_UNAVAILABLE) carries none.
+        if (sess.denial === "RATE_LIMITED") {
+          return reply.code(429).send({ denial: sess.denial });
+        }
+        if (sess.denial === "MFA_UNAVAILABLE" || sess.denial === "SESSION_UNAVAILABLE") {
+          return reply.code(503).send({ denial: sess.denial });
+        }
+        return reply.code(401).send({ denial: sess.denial, ...(sess.mfa ?? {}) });
+      }
       // Best-effort flip INVITED → ACTIVE on first arrival.
       await acceptInvitation({
         teamId: sess.session.teamId,
@@ -830,16 +874,22 @@ export async function externalPortalRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/portal/logout",
+    { onRequest: acceptEmptyJsonBody },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const s = await resolvePortalSession(req, reply);
       if (!s) return reply;
-      await endPortalSession({
-        teamId: s.teamId,
-        grantId: s.grantId,
-        sessionId: s.sessionId,
-        ip: req.ip,
-        userAgent: (req.headers["user-agent"] as string | undefined) ?? null,
-      });
+      try {
+        await endPortalSession({
+          teamId: s.teamId,
+          grantId: s.grantId,
+          sessionId: s.sessionId,
+          ip: req.ip,
+          userAgent: (req.headers["user-agent"] as string | undefined) ?? null,
+        });
+      } catch {
+        // D31 — never report a sign-out that did not end the session.
+        return reply.code(503).send({ denial: "SESSION_UNAVAILABLE" });
+      }
       return reply.code(200).send({ ok: true });
     },
   );
@@ -983,16 +1033,29 @@ export async function externalPortalRoutes(app: FastifyInstance) {
         .object({ workflowId: z.string().uuid() })
         .parse(req.params);
       if (!(await requireWorkflowInScope(s, workflowId, reply))) return reply;
+      // Scoped to the session grant and projected to bounded fields: the
+      // unscoped list returned every external reviewer's row for the
+      // workflow, including their email addresses and rationale.
       const rows = await listExternalDecisionsForWorkflow({
         teamId: s.teamId,
         workflowId,
+        grantId: s.grantId,
       });
-      return reply.code(200).send({ decisions: rows });
+      return reply.code(200).send({
+        decisions: rows.map((row) => ({
+          id: row.id,
+          workflowId: row.workflowId,
+          verdict: row.verdict,
+          rationale: row.rationale,
+          submittedAtUtc: row.submittedAtUtc.toISOString(),
+        })),
+      });
     },
   );
 
   app.post(
     "/v1/portal/work/:workflowId/view",
+    { onRequest: acceptEmptyJsonBody },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const s = await resolvePortalSession(req, reply);
       if (!s) return reply;
@@ -1143,10 +1206,17 @@ export async function externalPortalRoutes(app: FastifyInstance) {
   // -------------------------------------------------------------------------
   // Phase 2B Closure — operator-initiated session revoke
   //
-  // Emits PORTAL_SESSION_REVOKED so the reviewer's next request will fail
-  // closed at the grant-state machine. This is a bounded operator action —
-  // the actual revoke flows through revokeInvitation; this endpoint
-  // additionally stamps the session lifecycle event.
+  // D2 (2026-09-17) — this used to write PORTAL_SESSION_REVOKED and end
+  // nothing: the reviewer's session kept working. It now ends the sessions in
+  // the session registry — every live session of the invitation, or only the
+  // one named in the body — and clears their MFA satisfaction, so the next
+  // request on an ended session answers 401 SESSION_ENDED. The invitation
+  // itself stays live: the token holder may sign in again (answering a fresh
+  // emailed code when the invitation requires MFA). Withdrawing access
+  // altogether is POST /v1/external-review/invitations/:id/revoke.
+  //
+  // An invitation of another workspace answers exactly like a missing one.
+  // A session store that cannot be reached answers 503 and records nothing.
   // -------------------------------------------------------------------------
 
   app.post(
@@ -1163,21 +1233,36 @@ export async function externalPortalRoutes(app: FastifyInstance) {
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const body = z
         .object({
-          sessionId: z.string().max(80).optional(),
+          sessionId: z.string().regex(/^[0-9a-f]{32}$/).optional(),
           reason: z
             .enum(["OPERATOR_REVOKE", "GRANT_REVOKED", "GRANT_EXPIRED"])
             .optional(),
         })
         .parse(req.body ?? {});
+      const invitation = await prisma.externalReviewerRoleAssignment.findFirst({
+        where: { id, teamId: ctx.workspaceId },
+        select: { id: true },
+      });
+      if (!invitation) return reply.code(404).send({ denial: "INVITE_NOT_FOUND" });
+      let sessionsEnded: number;
+      try {
+        if (body.sessionId) {
+          sessionsEnded = await endRegisteredPortalSession({ grantId: id, sessionId: body.sessionId });
+        } else {
+          ({ sessionsEnded } = await revokeAllPortalSessions({ grantId: id }));
+        }
+      } catch {
+        return reply.code(503).send({ denial: "SESSION_UNAVAILABLE" });
+      }
       await emitPortalSessionRevoked({
         teamId: ctx.workspaceId,
         grantId: id,
-        sessionId: body.sessionId ?? "unknown",
+        sessionId: body.sessionId ?? "ALL",
         reason: body.reason ?? "OPERATOR_REVOKE",
         ip: req.ip,
         userAgent: (req.headers["user-agent"] as string | undefined) ?? null,
       });
-      return reply.code(200).send({ ok: true });
+      return reply.code(200).send({ ok: true, sessionsEnded });
     },
   );
 

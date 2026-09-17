@@ -55,6 +55,8 @@ type OrgHeader = {
    * (fail closed), never the full set.
    */
   adminSurfaces?: ReadonlyArray<string>;
+  /** PV-OD-003 — SYSTEM: the organization provisioned for a workspace. */
+  organizationKind?: "SYSTEM" | "CUSTOMER";
   summary: {
     memberCount: number;
     workspaceCount: number;
@@ -300,9 +302,22 @@ export default function OrganizationAdminLayout({
     state.kind === "ready"
       ? visibleAdminTabsForSurfaces(state.data.adminSurfaces)
       : [];
+  /**
+   * PV-OD-003 — the Enterprise organization console is for customer
+   * organizations. A SYSTEM organization (every personal workspace has one)
+   * is not offered it in navigation; a direct URL gets this bounded answer
+   * rather than nineteen tabs of empty or upgrade-gated pages.
+   */
+  const isSystemOrganization =
+    state.kind === "ready" && state.data.organizationKind === "SYSTEM";
 
   return (
-    <main
+    /*
+     * PV-A11Y-001 — a <div>, not a <main>. The app shell already renders the
+     * one <main id="app-main-content">; this one nested a second main landmark
+     * inside it on all seventeen organization-admin routes.
+     */
+    <div
       className="cc-page"
       data-testid="organization-admin-shell"
       data-org-id={orgId}
@@ -393,6 +408,36 @@ export default function OrganizationAdminLayout({
         </div>
       </header>
 
+      {isSystemOrganization ? (
+        <section
+          data-testid="org-admin-not-available"
+          aria-labelledby="org-admin-not-available-title"
+          style={{
+            padding: "1.1rem 1.2rem",
+            border: "1px solid rgba(127,127,127,0.3)",
+            borderRadius: 8,
+          }}
+        >
+          <h2 id="org-admin-not-available-title" style={{ margin: 0, fontSize: 17 }}>
+            Organization administration isn&apos;t available for this organization
+          </h2>
+          <p style={{ marginTop: 8, marginBottom: 12, fontSize: 14, maxWidth: 640 }}>
+            This organization was set up for a personal workspace. Organization
+            administration — members and roles, departments, verified domains,
+            single sign-on and governance — is part of the Enterprise plan for
+            customer organizations.
+          </p>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <Link href="/settings" data-action="org-admin-back-to-settings">
+              Go to your workspace settings
+            </Link>
+            <Link href="/contact-sales" data-action="org-admin-contact-sales">
+              Talk to us about Enterprise
+            </Link>
+          </div>
+        </section>
+      ) : (
+      <>
       {/* Tab bar */}
       <nav
         aria-label="Organization administration sections"
@@ -439,7 +484,9 @@ export default function OrganizationAdminLayout({
 
       {/* Leaf page renders here */}
       <div>{children}</div>
-    </main>
+      </>
+      )}
+    </div>
   );
 }
 

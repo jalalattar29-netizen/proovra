@@ -14,7 +14,8 @@
  *      `apps/web/app/(app)/<href>/page.tsx` on disk (rule 11 — no
  *      visible route may lead to Page Not Found).
  *
- *   2. The 8 platform-OPS routes carry
+ *   2. The 5 platform-OPS routes carry (3 more moved to the workspace's
+ *      Operations under PV-PLACE-001 and are asserted ORGANIZATION_ONLY)
  *      `requiredActiveSpace: "PLATFORM_ADMIN"` +
  *      `fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY"` so non-platform
  *      admins see nothing for them (rule 9 — Operations is platform-
@@ -165,12 +166,27 @@ const REGISTRY = parseRegistry();
 const PLATFORM_OPS_ROUTE_IDS = [
   "platform.observability",
   "platform.runbooks",
-  "platform.automation",
-  "platform.analytics",
   "platform.media_graph",
-  "platform.reliability",
   "platform.queue_ops",
   "platform.admin",
+];
+
+/**
+ * PV-PLACE-001 / PV-OD-001 — three routes LEFT the platform-OPS list above.
+ *
+ * `platform.automation`, `platform.analytics` and `platform.reliability`
+ * administered ONE workspace (their handlers authorize on and narrow to the
+ * supplied teamId) while sitting behind the PLATFORM_ADMIN active space.
+ * `/admin` now means PROOVRA platform administration only, so they moved to
+ * the workspace's Operations under tenant route ids and an ORGANIZATION_ONLY
+ * active space. The pair of cases each id carried is kept, asserting the new
+ * gate — and that the platform id is gone, so the old placement cannot quietly
+ * come back beside the new one.
+ */
+const TENANT_OPS_ROUTES = [
+  { id: "operations.automation", href: "/operations/automation", was: "platform.automation" },
+  { id: "operations.analytics", href: "/operations/analytics", was: "platform.analytics" },
+  { id: "operations.reliability", href: "/operations/reliability", was: "platform.reliability" },
 ];
 
 describe("Phase R13 — Stage 7: Platform-OPS routes are PLATFORM_ADMIN-gated", () => {
@@ -187,6 +203,57 @@ describe("Phase R13 — Stage 7: Platform-OPS routes are PLATFORM_ADMIN-gated", 
 
     it(`${id} hides when capability is missing (HIDDEN_IF_NO_CAPABILITY)`, () => {
       const r = REGISTRY.find((x) => x.id === id);
+      expect(r?.fallbackBehavior).toBe("HIDDEN_IF_NO_CAPABILITY");
+    });
+  }
+});
+
+/**
+ * One registry entry, found by its id rather than through `parseRegistry`.
+ *
+ * `parseRegistry`'s block pattern requires `id:` to follow the opening brace
+ * directly, so an entry that opens with a comment — as these three do, citing
+ * PV-PLACE-001 — is silently skipped and `REGISTRY.find` returns undefined.
+ * Reading the entry by its id keeps the assertion about the entry, not about
+ * where its author put a comment.
+ */
+function registryEntry(id: string): RegistryRoute | undefined {
+  const body = read("apps/web/lib/navigation/routeRegistry.ts");
+  const at = body.indexOf(`id: "${id}",`);
+  if (at === -1) return undefined;
+  const end = body.indexOf("\n  },", at);
+  const block = body.slice(at, end === -1 ? undefined : end);
+  const get = (key: string): string =>
+    new RegExp(`${key}:\\s*"([^"]+)"`).exec(block)?.[1] ?? "";
+  const getBool = (key: string): boolean =>
+    new RegExp(`${key}:\\s*(true|false)`).exec(block)?.[1] === "true";
+  return {
+    id,
+    href: get("href"),
+    requiredActiveSpace: get("requiredActiveSpace"),
+    fallbackBehavior: get("fallbackBehavior"),
+    commandPaletteVisible: getBool("commandPaletteVisible"),
+    allToolsVisible: getBool("allToolsVisible"),
+    sidebarEligible: getBool("sidebarEligible"),
+  };
+}
+
+describe("Phase R13 — Stage 7: workspace Operations consoles are ORGANIZATION_ONLY (PV-PLACE-001)", () => {
+  for (const { id, href, was } of TENANT_OPS_ROUTES) {
+    it(`${id} requires ORGANIZATION_ONLY active space (moved from ${was})`, () => {
+      const r = registryEntry(id);
+      expect(r, `${id} not found in registry`).toBeDefined();
+      expect(r?.href).toBe(href);
+      expect(r?.requiredActiveSpace).toBe("ORGANIZATION_ONLY");
+      expect(
+        registryEntry(was),
+        `${was} must not survive beside ${id}`,
+      ).toBeUndefined();
+    });
+
+    it(`${id} hides when capability is missing (HIDDEN_IF_NO_CAPABILITY)`, () => {
+      const r = registryEntry(id);
+      expect(r, `${id} not found in registry`).toBeDefined();
       expect(r?.fallbackBehavior).toBe("HIDDEN_IF_NO_CAPABILITY");
     });
   }

@@ -67,7 +67,12 @@ export type CaseMutation =
   // identical destructive-attribute risk to DELETE (e.g., changing
   // title obscures audit). Reuses the same OWNER/ADMIN gate so the
   // matrix is the single source of truth.
-  | "MANAGE_SETTINGS";
+  | "MANAGE_SETTINGS"
+  // O1 (matter Access tab) — grant / revoke a direct CaseAccess row. Same
+  // tier as MANAGE_SETTINGS: workspace OWNER or ADMIN, or the case owner
+  // (the synthetic "OWNER" the route resolves for the case's owner). The
+  // route additionally requires ACTIVE membership of the case's workspace.
+  | "MANAGE_ACCESS";
 
 /**
  * The narrow role surface this helper accepts. `requireCaseAccess`
@@ -217,6 +222,13 @@ export function evaluateCaseMutationPermission(input: {
         reason: "Only workspace OWNER or ADMIN may delete or rename a case.",
       };
 
+    case "MANAGE_ACCESS":
+      if (isOwnerOrAdmin) return { allowed: true };
+      return {
+        allowed: false,
+        reason: "Only a workspace Owner or Admin, or the case owner, can change who has access to this case.",
+      };
+
     default:
       // Exhaustiveness — TypeScript catches missing cases at build.
       return {
@@ -249,6 +261,7 @@ export type CaseViewerCapabilities = {
   canUnlinkLegacyEvidence: boolean;
   canComment: boolean;
   canResolveComment: boolean;
+  canManageAccess: boolean;
   disabledReasons: Partial<{
     assign: string;
     changeStatus: string;
@@ -257,6 +270,7 @@ export type CaseViewerCapabilities = {
     unlinkLegacyEvidence: string;
     comment: string;
     resolveComment: string;
+    manageAccess: string;
   }>;
 };
 
@@ -417,6 +431,7 @@ export function resolveCaseViewerCapabilities(input: {
   const unlinkLegacy = evaluate("EVIDENCE_UNLINK_LEGACY");
   const comment = evaluate("COMMENT");
   const resolveComment = evaluate("COMMENT_RESOLVE");
+  const manageAccess = evaluate("MANAGE_ACCESS");
   const disabledReasons: CaseViewerCapabilities["disabledReasons"] = {};
   if (!assign.allowed) disabledReasons.assign = assign.reason;
   if (!changeStatus.allowed) disabledReasons.changeStatus = changeStatus.reason;
@@ -429,6 +444,7 @@ export function resolveCaseViewerCapabilities(input: {
   if (!comment.allowed) disabledReasons.comment = comment.reason;
   if (!resolveComment.allowed)
     disabledReasons.resolveComment = resolveComment.reason;
+  if (!manageAccess.allowed) disabledReasons.manageAccess = manageAccess.reason;
   // canMutate / canManage are coarse hints used by older callers.
   // `canManage` is "OWNER/ADMIN team role or assigned OWNER on case"
   // (same as `canAssign`); `canMutate` is "any allowed mutation".
@@ -448,6 +464,7 @@ export function resolveCaseViewerCapabilities(input: {
     canUnlinkLegacyEvidence: unlinkLegacy.allowed,
     canComment: comment.allowed,
     canResolveComment: resolveComment.allowed,
+    canManageAccess: manageAccess.allowed,
     disabledReasons,
   };
 }

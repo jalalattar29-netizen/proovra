@@ -514,14 +514,22 @@ describe("mfa-admin :teamId path param is AUTHORIZED, not trusted", () => {
     });
   }
 
-  it("an authorized but NON-ADMIN actor is concealed identically (no role enumeration)", async () => {
+  // D14 — this pinned a concealed 404. Concealment protects the existence of
+  // a workspace from an OUTSIDER; an ACTIVE member already knows it exists
+  // (and knows their own role from their own workspace context), so there is
+  // nothing to enumerate. The narrowing now answers the same 403 that
+  // authorizeOrFail gives a member without the capability.
+  it("an authorized but NON-ADMIN member is refused with the canonical 403 (an outsider stays concealed)", async () => {
     H.members = [
       { teamId: TEAM_A, userId: ACTOR, role: "MEMBER", status: "ACTIVE" },
       { teamId: TEAM_A, userId: TARGET, role: "MEMBER", status: "ACTIVE" },
     ];
     const res = await get(`/v1/identity/mfa-admin/posture/${TEAM_A}/${TARGET}`);
-    expect(res.statusCode).toBe(404);
-    expect(JSON.parse(res.body)).toEqual({ error: { code: "not_found" } });
+    expect(res.statusCode).toBe(403);
+    expect(JSON.parse(res.body)).toEqual({
+      error: { code: "permission_denied", reason: "permission_not_granted" },
+    });
+    expect(H.lifecycleCalls).toEqual([]);
   });
 
   it("a target who is NOT a member of the authorized workspace is concealed (no membership probe)", async () => {

@@ -49,6 +49,7 @@ import {
 } from "../../../../lib/admin/read-state";
 import { AdmReadFailure } from "../../../../components/admin/AdminSurfaces";
 import { formatUserDateTime } from "../../../../lib/date";
+import { identifierLabel } from "@proovra/shared";
 
 type TimelineSeverity = "critical" | "high" | "medium" | "low";
 
@@ -238,7 +239,9 @@ export default function AdminTimelinePage() {
       key: "eventType",
       header: "Event",
       render: (r) => (
-        <span style={{ fontWeight: 600, overflowWrap: "anywhere" }}>{r.eventType}</span>
+        <span style={{ fontWeight: 600, overflowWrap: "anywhere" }}>
+          {identifierLabel(r.eventType)}
+        </span>
       ),
     },
     {
@@ -254,7 +257,9 @@ export default function AdminTimelinePage() {
     {
       key: "severity",
       header: "Severity",
-      render: (r) => <Badge tone={severityTone(r.severity)}>{r.severity}</Badge>,
+      render: (r) => (
+        <Badge tone={severityTone(r.severity)}>{identifierLabel(r.severity)}</Badge>
+      ),
     },
     {
       key: "actor",
@@ -265,6 +270,8 @@ export default function AdminTimelinePage() {
       // detection look identical.
       render: (r) => {
         const actor = presentActor(r);
+        // PV-LANG-003 — `presentActor` already words the kind ("Person").
+        const actorKindLabel = actor.kind;
         return (
           <span style={{ display: "grid", gap: 1, fontSize: 12 }}>
             <span
@@ -282,9 +289,9 @@ export default function AdminTimelinePage() {
                 human row carried a second line reading "Person" that the
                 name above it had already implied. The kind earns its line
                 when it disambiguates the name and not otherwise. */}
-            {actor.kind && actor.kind !== actor.name ? (
+            {actorKindLabel && actorKindLabel !== actor.name ? (
               <span style={{ color: "var(--ink-muted)", fontSize: 11 }}>
-                {actor.kind}
+                {actorKindLabel}
               </span>
             ) : null}
           </span>
@@ -450,6 +457,21 @@ export default function AdminTimelinePage() {
                       <dd style={{ margin: "2px 0 0", overflowWrap: "anywhere" }}>{value}</dd>
                     </div>
                   ))}
+                  <div style={{ minWidth: 0 }}>
+                    <dt
+                      style={{
+                        fontSize: 11,
+                        color: "var(--ink-muted)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.06em",
+                      }}
+                    >
+                      Event code
+                    </dt>
+                    <dd style={{ margin: "2px 0 0", overflowWrap: "anywhere" }}>
+                      <code data-identifier>{r.eventType}</code>
+                    </dd>
+                  </div>
                   {r.href ? (
                     <div style={{ minWidth: 0 }}>
                       <dt
@@ -482,6 +504,9 @@ export default function AdminTimelinePage() {
             noun="event"
             filtered={filtered}
             loading={loading}
+            // ADM-P2-002 — a failed read is a not-connected state, not zero
+            // events.
+            failed={failure !== null}
             data-testid="admin-timeline-count"
             action={
               nextCursor ? (

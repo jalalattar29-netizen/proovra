@@ -92,6 +92,23 @@ import {
 const WORKSPACE_MEMBER_PAGE_SIZE = 50;
 const WORKSPACE_MEMBER_PAGE_MAX = 200;
 
+/** D45 — the bounded query of `GET /v1/teams/:id/members`. */
+const WorkspaceMembersQuery = z.object({
+  q: z.string().max(200).optional(),
+  // A string, clamped by the handler as it always was.
+  limit: z.string().max(12).optional(),
+  // Case-insensitive, as before; an empty value means "no filter".
+  status: z.preprocess(
+    (v) => (typeof v === "string" ? v.trim().toUpperCase() || undefined : v),
+    z.enum(["ALL", "ACTIVE", "SUSPENDED", "REVOKED"]).optional(),
+  ),
+  cursor: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().uuid().optional(),
+  ),
+  eligible: z.enum(["ownership_transfer"]).optional(),
+});
+
 const CreateTeamBody = z.object({
   name: z.string().min(1).max(120),
 });
@@ -841,8 +858,14 @@ export async function teamsRoutes(app: FastifyInstance) {
           hasMore: workspaceMemberTotal > team.members.length,
           endpoint: `/v1/teams/${teamId}/members`,
         },
+        // D45 — the embedded first page follows the SAME contact rule as
+        // `GET /v1/teams/:id/members` (WCR-16): addresses only for ADMIN+,
+        // and a label never falls back to one. Otherwise any VIEWER read the
+        // first fifty colleagues' addresses here while the paged route withheld
+        // them.
         members: team.members.map((member) => {
           const user = usersById.get(member.userId);
+          const canSeeContact = hasRole(actorMembership.role, prismaPkg.TeamRole.ADMIN);
           return {
             id: member.id,
             userId: member.userId,
@@ -851,11 +874,14 @@ export async function teamsRoutes(app: FastifyInstance) {
             user: user
               ? {
                   id: user.id,
-                  email: user.email ?? undefined,
+                  email: canSeeContact ? user.email ?? undefined : undefined,
                   displayName: user.displayName ?? undefined,
                 }
               : undefined,
-            label: user?.displayName || user?.email || member.userId,
+            label:
+              user?.displayName ||
+              (canSeeContact ? user?.email : null) ||
+              "Workspace member",
           };
         }),
       });
@@ -906,28 +932,82 @@ export async function teamsRoutes(app: FastifyInstance) {
        */
       const canSeeContact = hasRole(actor.role, prismaPkg.TeamRole.ADMIN);
 
-      const q = (req.query ?? {}) as Record<string, string | undefined>;
+      // D45 — the query is VALIDATED, not cast. `status` went straight into a
+      // Prisma enum filter and `cursor` straight into a uuid primary-key
+      // cursor, so `?status=bogus` or `?cursor=abc` reached the database and
+      // came back as a 500. Both are now a bounded 400. `limit` keeps its
+      // long-standing clamp (a bad limit was never an error).
+      const parsedQuery = WorkspaceMembersQuery.safeParse(req.query ?? {});
+      if (!parsedQuery.success) {
+        return reply.code(400).send({
+          error: {
+            code: "INVALID_QUERY",
+            message: "The member list filter is not valid.",
+          },
+        });
+      }
+      const q = parsedQuery.data;
       const search = (q.q ?? "").trim();
       const limit = Math.min(
         Math.max(Number.parseInt(q.limit ?? "", 10) || WORKSPACE_MEMBER_PAGE_SIZE, 1),
         WORKSPACE_MEMBER_PAGE_MAX,
       );
-      const status = q.status?.trim().toUpperCase();
+
+      // A cursor is a member id of THIS workspace. Anything else — a row that
+      // does not exist, or one in another workspace — is a malformed cursor,
+      // not an empty page.
+      if (q.cursor) {
+        const cursorRow = await prisma.teamMember.findFirst({
+          where: { id: q.cursor, teamId },
+          select: { id: true },
+        });
+        if (!cursorRow) {
+          return reply.code(400).send({
+            error: {
+              code: "INVALID_CURSOR",
+              message: "The member list cursor is not valid.",
+            },
+          });
+        }
+      }
+
+      // D46 — `eligible=ownership_transfer` is the transfer picker's filter,
+      // expressed by the server so the picker can search and page through
+      // EVERY eligible member instead of the first 50 the detail read embeds.
+      // It mirrors the transfer command's own rule
+      // (transferWorkspaceOwnerRoles: an ACTIVE member who is not the owner).
+      let excludeUserId: string | null = null;
+      let status: prismaPkg.TeamMemberStatus | null =
+        q.status && q.status !== "ALL" ? q.status : null;
+      if (q.eligible === "ownership_transfer") {
+        const team = await prisma.team.findUnique({
+          where: { id: teamId },
+          select: { ownerUserId: true },
+        });
+        excludeUserId = team?.ownerUserId ?? null;
+        status = prismaPkg.TeamMemberStatus.ACTIVE;
+      }
 
       // The search is over the USER, so it is expressed as a relation filter
       // and executed by PostgreSQL — not by loading people and filtering them
       // here, which is the same unbounded read wearing a different hat.
+      //
+      // D45 — the search honours the same contact rule as the projection. A
+      // caller who may not see addresses may not SEARCH by them either: an
+      // address match is an oracle ("is alice@x a member, and which row is
+      // she?") that releases exactly what `canSeeContact` withholds.
       const where: prismaPkg.Prisma.TeamMemberWhereInput = {
         teamId,
-        ...(status && status !== "ALL"
-          ? { status: status as prismaPkg.TeamMemberStatus }
-          : {}),
+        ...(status ? { status } : {}),
+        ...(excludeUserId ? { userId: { not: excludeUserId } } : {}),
         ...(search
           ? {
               user: {
                 OR: [
                   { displayName: { contains: search, mode: "insensitive" } },
-                  { email: { contains: search, mode: "insensitive" } },
+                  ...(canSeeContact
+                    ? [{ email: { contains: search, mode: "insensitive" } } as const]
+                    : []),
                 ],
               },
             }
@@ -2980,16 +3060,28 @@ export async function teamsRoutes(app: FastifyInstance) {
       // Verify the grant exists and points at a case that belongs to
       // this team (defense in depth: prevent a team admin from
       // revoking grants on cases outside their team).
-      const grant = await prisma.caseAccess.findUnique({
-        where: { id: grantId },
+      //
+      // D44 — "belongs to this team" is decided by the SAME canonical case
+      // population the access review lists from (`workspaceCaseWhere`). This
+      // compared `case.teamId === teamId`, which a personal workspace's legacy
+      // NULL-team cases never satisfy, so the review listed grants on those
+      // cases that this route then answered GRANT_NOT_FOUND for. Such a case
+      // IS the personal workspace's case (its owner is the workspace owner), so
+      // the truthful fix is for revoke to accept it, not for the review to
+      // hide it.
+      const grant = await prisma.caseAccess.findFirst({
+        where: {
+          id: grantId,
+          case: { AND: [await workspaceCaseWhere(teamId, prisma)] },
+        },
         select: {
           id: true,
           caseId: true,
           userId: true,
-          case: { select: { teamId: true, name: true } },
+          case: { select: { name: true } },
         },
       });
-      if (!grant || grant.case?.teamId !== teamId) {
+      if (!grant) {
         return reply.code(404).send({
           code: "GRANT_NOT_FOUND",
           message: "External access grant not found on this team.",

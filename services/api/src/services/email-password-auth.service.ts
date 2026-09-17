@@ -21,6 +21,19 @@ export class EmailAlreadyExistsError extends Error {
   }
 }
 
+/**
+ * D24 — a registration password below the account password policy. Carries
+ * the SAME bounded code a password change and a password reset answer with,
+ * so every surface that sets a password refuses a weak one identically.
+ */
+export class WeakPasswordError extends Error {
+  readonly code = "weak_new_password" as const;
+  constructor() {
+    super("Password does not meet the password policy");
+    this.name = "WeakPasswordError";
+  }
+}
+
 export async function isEmailAvailableForRegistration(
   emailRaw: string,
 ): Promise<boolean> {
@@ -105,6 +118,12 @@ export async function registerWithEmailPassword(params: {
   displayName?: string | null;
 }) {
   const email = normalizeEmail(params.email);
+
+  // D24 — the same floor as reset and change. The register form enforces
+  // it; the server accepted any eight characters from a direct call.
+  if (!isPasswordPolicyCompliant(params.password)) {
+    throw new WeakPasswordError();
+  }
 
   const provider = AuthProvider.EMAIL;
   const providerUserId = email;
@@ -372,6 +391,15 @@ export async function resetPasswordWithToken(params: {
     };
   }
 
+  // D24 — the same floor as a password change. The reset form enforces it;
+  // the server did not, so a direct call could set an eight-character password.
+  if (!isPasswordPolicyCompliant(params.newPassword)) {
+    return {
+      ok: false as const,
+      reason: "weak_new_password" as const
+    };
+  }
+
   const newHash = hashPassword(params.newPassword);
 
   await prisma.$transaction([
@@ -401,7 +429,8 @@ export async function resetPasswordWithToken(params: {
   ]);
 
   return {
-    ok: true as const
+    ok: true as const,
+    userId: rec.userId
   };
 }
 
@@ -473,16 +502,19 @@ export async function consumeEmailVerificationToken(
   // If the user was already verified out-of-band (e.g. via a separate
   // email-link click that landed first), keep the older timestamp so
   // audit-log queries show the actual moment ownership was proven.
-  const [, user] = await prisma.$transaction([
+  // D15 — the stamp is written only where none exists; it used to be
+  // overwritten unconditionally, contradicting the rule above.
+  const [, , user] = await prisma.$transaction([
     prisma.emailVerificationToken.update({
       where: { id: rec.id },
       data: { usedAt: now },
     }),
-    prisma.user.update({
+    prisma.user.updateMany({
+      where: { id: rec.userId, emailVerifiedAt: null },
+      data: { emailVerifiedAt: now },
+    }),
+    prisma.user.findUniqueOrThrow({
       where: { id: rec.userId },
-      data: {
-        emailVerifiedAt: { set: now },
-      },
       select: {
         id: true,
         email: true,

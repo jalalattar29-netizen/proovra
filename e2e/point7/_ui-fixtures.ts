@@ -204,17 +204,16 @@ async function provisionTenant(input: {
 /**
  * The whole tenant shape every journey borrows.
  *
- * `platformAdminOwner` exists for exactly one surface. The automation console
- * (`/operations/automation`) is registered with
- * `requiredActiveSpace: "PLATFORM_ADMIN"` (`routeRegistry.ts`, id
- * `platform.automation`), so `resolveRouteAccess` short-circuits to
- * `PLATFORM_ADMIN_ONLY` for everybody else — while the AUTOMATION_MANAGE
- * capability the page's controls read is granted only at TEAM scope to an
- * OWNER/ADMIN. The single actor who satisfies both is a platform admin who
- * also owns a non-personal workspace, and that is what this flag builds. It
- * is a faithful reproduction of the product's own gate, not a bypass: the
- * server-side permission (`integration.webhook.manage`) is still resolved from
- * the workspace role, and platform admins are explicitly denied a bypass there.
+ * `platformAdminOwner` existed for exactly one surface: the automation console
+ * while it was registered with `requiredActiveSpace: "PLATFORM_ADMIN"` (id
+ * `platform.automation`), when the only actor who could both open it and hold
+ * AUTOMATION_MANAGE was a platform admin who also owned a non-personal
+ * workspace. PV-PLACE-001 moved that console to its tenant home
+ * (`operations.automation`, ORGANIZATION_ONLY), so no journey needs the flag
+ * now — the automation journeys use the ordinary organization owner. It is
+ * kept for a surface that genuinely needs both a platform role and a
+ * workspace role; the server-side permission is always resolved from the
+ * workspace role, and platform admins are explicitly denied a bypass there.
  */
 export async function buildEnterpriseFixture(input: {
   label: string;

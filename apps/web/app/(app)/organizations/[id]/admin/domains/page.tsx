@@ -41,7 +41,6 @@ import { PageRouteGate } from "../../../../../../components/navigation/PageRoute
 import { apiFetch } from "../../../../../../lib/api";
 import { formatUserDate } from "../../../../../../lib/date";
 import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError";
-import { useTeamId } from "../../../../../../lib/platform-context";
 import {
   StepUpModal,
   useStepUpAction,
@@ -72,7 +71,22 @@ type OrgDomain = {
   challenge: DnsChallenge | null;
 };
 
-type ListResponse = { domains: OrgDomain[] };
+type ListResponse = {
+  domains: OrgDomain[];
+  /**
+   * PV-OD-012 — decided by the server from the viewer's organization role:
+   * owners, administrators and security administrators manage domains; an
+   * auditor reads them. The page renders controls from THIS, never from a
+   * role it guesses.
+   */
+  viewerCanManage?: boolean;
+  /**
+   * The workspace a domain write's step-up is bound to — the viewer's own
+   * workspace in this organization. Null: the viewer has none, and the server
+   * refuses domain writes rather than skipping the step-up.
+   */
+  stepUpWorkspaceId?: string | null;
+};
 
 type AddResponse = OrgDomain & { challenge: DnsChallenge };
 
@@ -91,12 +105,18 @@ export default function OrganizationAdminDomainsPage() {
 function DomainsTab() {
   const params = useParams<{ id: string }>();
   const orgId = params?.id ?? "";
-  // Step-up challenges are workspace-scoped; bind to the active workspace.
-  const teamId = useTeamId();
-  const stepUp = useStepUpAction({ teamId });
+  const [domains, setDomains] = useState<OrgDomain[] | null>(null);
+  const [canManage, setCanManage] = useState(false);
+  // PV-OD-012 — step-up challenges are workspace-scoped, and the server binds
+  // a domain write's step-up to the VIEWER's workspace in this organization.
+  // The challenge is minted against that same workspace — not whichever one
+  // happens to be active, which the server would not find.
+  const [stepUpWorkspaceId, setStepUpWorkspaceId] = useState<string | null>(
+    null,
+  );
+  const stepUp = useStepUpAction({ teamId: stepUpWorkspaceId });
   const { confirm } = useConfirmAction();
 
-  const [domains, setDomains] = useState<OrgDomain[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -114,6 +134,8 @@ function DomainsTab() {
         method: "GET",
       })) as ListResponse | null;
       setDomains(res?.domains ?? []);
+      setCanManage(res?.viewerCanManage === true);
+      setStepUpWorkspaceId(res?.stepUpWorkspaceId ?? null);
       setError(null);
     } catch (err) {
       setError(
@@ -254,6 +276,28 @@ function DomainsTab() {
           </>
         }
       >
+        {!canManage ? (
+          <p
+            data-testid="org-domains-read-only"
+            style={{ margin: "4px 0 0", fontSize: 13, color: "var(--ink-secondary, #475569)" }}
+          >
+            You can review this organization&apos;s domains. Adding, verifying
+            and removing them is for owners, administrators and security
+            administrators.
+          </p>
+        ) : null}
+        {canManage && !stepUpWorkspaceId ? (
+          <p
+            id="org-domains-step-up-unavailable"
+            data-testid="org-domains-step-up-unavailable"
+            style={{ margin: "4px 0 0", fontSize: 13, color: "var(--ink-secondary, #475569)" }}
+          >
+            Verifying or removing a domain needs a step-up confirmation, which
+            is made in a workspace. Join a workspace in this organization to
+            verify or remove domains.
+          </p>
+        ) : null}
+        {canManage ? (
         <div
           style={{
             display: "flex",
@@ -288,11 +332,13 @@ function DomainsTab() {
             size="sm"
             loading={busy === "add"}
             disabled={busy === "add" || !addDomain.trim()}
+            disabledReason={!addDomain.trim() ? "Enter the domain to add." : undefined}
             onClick={submitAdd}
           >
             {busy === "add" ? "Adding…" : "Add domain"}
           </Button>
         </div>
+        ) : null}
       </Card>
 
       {error ? (
@@ -376,6 +422,7 @@ function DomainsTab() {
                     </div>
                   ) : null}
                 </div>
+                {canManage ? (
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   {!d.verified ? (
                     <Button
@@ -384,7 +431,12 @@ function DomainsTab() {
                       variant="secondary"
                       size="sm"
                       loading={busy === d.id}
-                      disabled={busy === d.id}
+                      disabled={busy === d.id || !stepUpWorkspaceId}
+                      aria-describedby={
+                        stepUpWorkspaceId
+                          ? undefined
+                          : "org-domains-step-up-unavailable"
+                      }
                       onClick={() => verify(d)}
                     >
                       {busy === d.id ? "Verifying…" : "Verify"}
@@ -395,12 +447,18 @@ function DomainsTab() {
                     data-testid={`org-domain-remove-${d.id}`}
                     variant="destructive"
                     size="sm"
-                    disabled={busy === d.id}
+                    disabled={busy === d.id || !stepUpWorkspaceId}
+                    aria-describedby={
+                      stepUpWorkspaceId
+                        ? undefined
+                        : "org-domains-step-up-unavailable"
+                    }
                     onClick={() => remove(d)}
                   >
                     Remove
                   </Button>
                 </div>
+                ) : null}
               </li>
             ))}
           </ul>

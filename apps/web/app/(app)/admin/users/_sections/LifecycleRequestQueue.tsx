@@ -30,6 +30,7 @@ import { EmptyState } from "../../../../../components/ui/EmptyState";
 import { apiFetch } from "../../../../../lib/api";
 import { formatUserDateTime } from "../../../../../lib/date";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
+import { identifierLabel } from "@proovra/shared";
 
 type Row = {
   kind: "CLOSURE" | "DATA_EXPORT";
@@ -172,7 +173,7 @@ export function LifecycleRequestQueue() {
       render: (r) => (
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           <Badge tone={STATUS_TONE[r.status] ?? "neutral"} dot>
-            {r.status}
+            {identifierLabel(r.status)}
           </Badge>
           {r.failureCode ? (
             <Badge tone="risk" subtle>

@@ -1,3 +1,4 @@
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 /**
  * CAPTURE — one stepper, one ingestion point, one screenful of context.
  *
@@ -172,11 +173,11 @@ test("the hero and the closing surfaces live INSIDE the working column", () => {
   // below the grid. All four are bands of the working column now, which is
   // what makes the column read as one workflow from title to Review & Sign.
   const grid = PAGE.indexOf('<section className="capture-enterprise-grid">');
-  const mainOpen = PAGE.indexOf("capture-main-panel", grid);
-  const mainClose = PAGE.indexOf("</main>", mainOpen);
-  assert.ok(grid > -1 && mainOpen > -1 && mainClose > -1);
+  const column = enclosingSource(PAGE, 'className="capture-enterprise-card capture-main-panel"', "jsx");
+  const mainOpen = PAGE.indexOf(column, grid);
+  const mainClose = mainOpen + column.length;
+  assert.ok(grid > -1 && mainOpen > grid);
 
-  const column = PAGE.slice(mainOpen, mainClose);
   for (const inside of [
     '<section className="capture-hero">',
     "<CaptureTrustStrip />",

@@ -29,6 +29,7 @@ import {
   type CaseAccessRole,
   type CaseAssignmentRole,
 } from "../src/services/cases/case-permission.service.js";
+import { functionSource } from "../../../scripts/source-contract/index.mjs";
 
 function readApi(rel: string): string {
   return readFileSync(fileURLToPath(new URL(`../${rel}`, import.meta.url)), "utf8");
@@ -141,9 +142,7 @@ describe("Phase 32.8D-frontend-closure-2 — legacy Evidence.caseId unlink", () 
 
   it("legacy unlink emits no custody/download events / no signed URLs / no generation", () => {
     // Bound the inspection to the legacy unlink function body.
-    const start = LIFECYCLE.indexOf("removeLegacyEvidenceCaseId");
-    expect(start).toBeGreaterThan(-1);
-    const slice = LIFECYCLE.slice(start, start + 3000);
+    const slice = functionSource(LIFECYCLE, "removeLegacyEvidenceCaseId");
     expect(slice).not.toMatch(/custody[A-Z]\w*Event\(/);
     expect(slice).not.toMatch(/getSignedUrl\(/);
     expect(slice).not.toMatch(/generateReport\(/);

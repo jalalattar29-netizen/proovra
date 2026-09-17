@@ -36,6 +36,11 @@ import { Badge } from "../../../../../components/ui/Badge";
 import { Card } from "../../../../../components/ui/Card";
 import { Button } from "../../../../../components/ui/Button";
 import { EmptyState } from "../../../../../components/ui/EmptyState";
+import {
+  identityProviderLabel,
+  samlMappingWarningLabel,
+  workspaceRoleLabel,
+} from "../../../../../lib/labels/identityOrgLabels";
 
 type SamlMappingFieldDescriptor = {
   key: string;
@@ -307,7 +312,7 @@ function SamlMappingContent() {
         ) : (
           providers.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.provider} · {p.id.slice(0, 8)}…
+              {identityProviderLabel(p.provider)} · {p.id.slice(0, 8)}…
             </option>
           ))
         )}
@@ -653,9 +658,15 @@ function PreviewPanel({ preview }: { preview: SamlMappingPreview }) {
                     : "pending"
                 }
               >
-                {w.code}
+                {samlMappingWarningLabel(w.code)}
               </Badge>{" "}
-              <span style={{ fontSize: 13 }}>{w.message}</span>
+              <span style={{ fontSize: 13 }}>{w.message}</span>{" "}
+              <code
+                data-identifier
+                style={{ fontSize: 11, color: "var(--ink-muted)" }}
+              >
+                {w.code}
+              </code>
             </li>
           ))}
         </ul>
@@ -727,7 +738,9 @@ function PreviewPanel({ preview }: { preview: SamlMappingPreview }) {
               <tr>
                 <td >resolved role</td>
                 <td >
-                  <strong>{preview.sampleResolution.role}</strong>
+                  <strong>
+                    {workspaceRoleLabel(preview.sampleResolution.role)}
+                  </strong>
                   {preview.sampleResolution.matchedGroup ? (
                     <span className="app-field-help" style={{ marginLeft: 8 }}>
                       (via group {preview.sampleResolution.matchedGroup})

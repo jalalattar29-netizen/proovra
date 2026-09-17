@@ -19,6 +19,12 @@
  * global, a workspace capability must not be what opens it. Either way the
  * disagreement is the defect, and the fix is whichever direction the product
  * purpose actually points.
+ *
+ * PV-PLACE-001 / PV-OD-001 resolved it in the workspace direction: all three
+ * pages administer ONE workspace and moved to /operations/reliability,
+ * /operations/analytics and /operations/automation under ORGANIZATION_ONLY
+ * tenant gates (OPERATIONS_VIEW + OPERATIONS_SUPPRESS, ANALYTICS_VIEW,
+ * AUTOMATION_VIEW). The API authorities asserted below did not change.
  */
 
 import { randomUUID } from "node:crypto";

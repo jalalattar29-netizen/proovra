@@ -42,6 +42,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
+import { requireInternalServiceAuth } from "../middleware/internal-service-auth.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { bump } from "../services/ops/metrics.service.js";
@@ -491,29 +492,20 @@ export async function uploadSessionsRoutes(app: FastifyInstance) {
   //   — trusted caller (verification worker / S3 completion handler)
   //     reports the server-computed SHA-256
   //
-  // Authorized callers must hold `evidence.create`. The hash supplied
-  // is treated as the server-side truth; the service compares it
-  // against the client's claim and refuses to mark VERIFIED on
-  // mismatch.
+  // D3 (2026-09-16) — MACHINE-ONLY. The hash supplied is treated as the
+  // server-side truth, so the caller must BE the server side. This route used
+  // to accept any member holding `evidence.create` — the uploader — who could
+  // declare their own part verified with whatever hash they liked. It now
+  // requires the internal service credential and no user session; the
+  // product's own completion path (multipart/complete) verifies parts itself
+  // and never called this route.
   // ===========================================================================
   app.post(
     "/v1/uploads/sessions/:sessionId/parts/:partIndex/verified",
-    { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
+      if (!(await requireInternalServiceAuth(req, reply))) return;
       const { sessionId, partIndex } = PartParamsSchema.parse(req.params);
       const body = MarkPartVerifiedBodySchema.parse(req.body ?? {});
-      const actor = await authorizeOrFail(req, reply, {
-        teamId: body.teamId,
-        permission: "evidence.create",
-        antiEnumeration: true,
-      });
-      if (!actor) return;
-
-      const personalDenial = await assertPersonalUploadMutationAllowed(
-        body.teamId,
-        actor.actorUserId,
-      );
-      if (personalDenial) return sendPersonalDenial(reply, personalDenial);
 
       const result = await markPartVerified({
         teamId: body.teamId,

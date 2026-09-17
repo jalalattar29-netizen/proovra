@@ -325,6 +325,8 @@ export const SECURITY_EVENT_TYPES = [
   "queue_job_replay_forbidden",
   "queue_job_replay_succeeded",
   "queue_job_replay_failed",
+  // D26 — a cancel is its own operator decision, not a replay outcome.
+  "queue_job_cancelled",
   "queue_worker_stalled_detected",
   // Phase P2.5 — DR validation.
   "backup_validation_started",
@@ -661,6 +663,82 @@ export const SECURITY_EVENT_TYPES = [
   "ai_chat_abuse_signal",
 ] as const;
 export type SecurityEventType = (typeof SECURITY_EVENT_TYPES)[number];
+
+// -----------------------------------------------------------------------------
+// PV-LANG-001 — THE LABEL AN OPERATOR READS FOR AN EVENT TYPE.
+//
+// The consoles showed event types through a helper that title-cased every word,
+// so 104 of the 382 types above rendered their acronyms as words — "Sso
+// Health Checked", "Scim Token Rotated", "Mfa Enrolled" — and its own comment
+// promised "Snake case" while the code did something else.
+//
+// One label, one rule, in the shared package so the API and the consoles say
+// the same thing: sentence case; conventional acronyms kept in their
+// conventional form; `_` and `.` read as spaces. EVENT_LABEL_OVERRIDES holds
+// the types whose rule-derived label misreads, named explicitly. The stored
+// identifier stays available as secondary detail wherever it is shown.
+// -----------------------------------------------------------------------------
+
+/** Tokens rendered in their conventional form, never title-cased. */
+const EVENT_LABEL_ACRONYMS: Readonly<Record<string, string>> = {
+  sso: "SSO",
+  scim: "SCIM",
+  saml: "SAML",
+  mfa: "MFA",
+  totp: "TOTP",
+  otp: "OTP",
+  rbac: "RBAC",
+  sla: "SLA",
+  api: "API",
+  ai: "AI",
+  ip: "IP",
+  id: "ID",
+  url: "URL",
+  oidc: "OIDC",
+  oauth: "OAuth",
+  jwt: "JWT",
+  sms: "SMS",
+  tsa: "TSA",
+  kek: "KEK",
+  kms: "KMS",
+  pii: "PII",
+  mime: "MIME",
+  csv: "CSV",
+  pdf: "PDF",
+  dns: "DNS",
+  hmac: "HMAC",
+  ssrf: "SSRF",
+};
+
+/** Types whose rule-derived label misreads. Keep this list short and named. */
+const EVENT_LABEL_OVERRIDES: Readonly<Partial<Record<string, string>>> = {};
+
+/** The operator-facing label for an event type (known or not). */
+export function securityEventLabel(eventType: string): string {
+  const curated = EVENT_LABEL_OVERRIDES[eventType];
+  if (curated) return curated;
+  return identifierLabel(eventType);
+}
+
+/**
+ * PV-LANG-003 — the generic reading of ANY stored identifier (a status, a
+ * kind, a role, a provider key): sentence case, conventional acronyms kept,
+ * `_` / `.` / `-` read as spaces. "PENDING_DESTRUCTION" → "Pending
+ * destruction", "sso_health_checked" → "SSO health checked". A family whose
+ * members need different words keeps a curated map and falls back to this.
+ */
+export function identifierLabel(value: string): string {
+  const words = value.split(/[_.\s-]+/).filter(Boolean);
+  if (words.length === 0) return value;
+  return words
+    .map((word, index) => {
+      const lower = word.toLowerCase();
+      const acronym = EVENT_LABEL_ACRONYMS[lower];
+      if (acronym) return acronym;
+      return index === 0 ? lower.charAt(0).toUpperCase() + lower.slice(1) : lower;
+    })
+    .join(" ");
+}
 
 // -----------------------------------------------------------------------------
 // Archive limits — overridden by env at the API layer

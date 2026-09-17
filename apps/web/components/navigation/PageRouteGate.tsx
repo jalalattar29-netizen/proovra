@@ -187,7 +187,7 @@ export function PageRouteGate({
         : []),
     ];
     return (
-      <main
+      <div
         data-page-route-gate
         data-page-route-gate-state={access.accessState}
         data-page-route-gate-route-id={routeId}
@@ -203,7 +203,7 @@ export function PageRouteGate({
           actions={adminActions}
           testId={`route-gate-panel-${routeId}`}
         />
-      </main>
+      </div>
     );
   }
 
@@ -265,7 +265,7 @@ export function PageRouteGate({
       : []),
   ];
   return (
-    <main
+    <div
       data-page-route-gate
       data-page-route-gate-state={access.accessState}
       data-page-route-gate-route-id={routeId}
@@ -284,7 +284,7 @@ export function PageRouteGate({
         actions={deniedActions}
         testId={`route-gate-panel-${routeId}`}
       />
-    </main>
+    </div>
   );
 }
 

@@ -548,9 +548,15 @@ function RegisterPageContent() {
 
       router.push(currentReturnUrl);
     } catch (err) {
-      const msg = toSafeUserError(err, { message: "Registration failed" }).message;
       const requestId = err instanceof ApiError ? err.requestId : undefined;
       const errCode = err instanceof ApiError ? err.code : undefined;
+      // D24 — the server holds the same password policy the rules panel
+      // shows (weak_new_password, as on reset); name it instead of a
+      // generic "Registration failed".
+      const weakPassword = isEmailRegisterFlow && errCode === "weak_new_password";
+      const msg = weakPassword
+        ? "Your password does not meet the requirements listed below the password field."
+        : toSafeUserError(err, { message: "Registration failed" }).message;
 
       authLogger.log("AUTH_SESSION_FAILED", "error", { message: msg, requestId }, provider);
       // Race / rate-limit-skipped path: the availability poll may not

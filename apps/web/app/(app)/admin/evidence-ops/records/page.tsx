@@ -47,6 +47,7 @@ import {
   formatUserDateTime,
 } from "../../../../../lib/date";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
+import { identifierLabel } from "@proovra/shared";
 import { resolveRunbookSlug } from "../../../../../lib/runbooks/slugs.generated";
 import { useUrlFilterSync } from "../../../../../lib/use-url-filter-sync";
 
@@ -252,7 +253,7 @@ export default function AdminEvidenceRecordsPage() {
       {
         key: "status",
         header: "Pipeline status",
-        render: (r) => <Badge tone="info" subtle>{r.status}</Badge>,
+        render: (r) => <Badge tone="info" subtle>{identifierLabel(r.status)}</Badge>,
       },
       {
         key: "preservation",
@@ -602,6 +603,7 @@ export default function AdminEvidenceRecordsPage() {
                 size="sm"
                 onClick={() => void load(page - 1)}
                 disabled={loading || page <= 1}
+                disabledReason={page <= 1 ? "This is the first page." : undefined}
               >
                 Previous
               </Button>
@@ -613,6 +615,7 @@ export default function AdminEvidenceRecordsPage() {
                 size="sm"
                 onClick={() => void load(page + 1)}
                 disabled={loading || page >= (data?.totalPages ?? 0)}
+                disabledReason={page >= (data?.totalPages ?? 0) ? "This is the last page." : undefined}
               >
                 Next
               </Button>

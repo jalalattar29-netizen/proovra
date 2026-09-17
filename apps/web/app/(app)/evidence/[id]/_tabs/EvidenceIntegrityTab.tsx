@@ -34,7 +34,8 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Camera, History, MapPin, ShieldCheck, type LucideIcon } from "lucide-react";
+import { Camera, FileSignature, History, MapPin, ShieldCheck, type LucideIcon } from "lucide-react";
+import { EvidenceCertificationsPanel } from "../components/EvidenceCertificationsPanel";
 import CaptureLocationMapPanel from "../../../../../components/capture-location/CaptureLocationMapPanel";
 import type { AppTone } from "../../../../../components/app-primitives/AppStatusBadge";
 import {
@@ -626,6 +627,17 @@ export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
             },
           ]}
         />
+      </IntegritySection>
+
+      {/* Custodian / qualified-person declarations. Read and changed through
+          the certification routes; separate from the integrity state above. */}
+      <IntegritySection
+        icon={FileSignature}
+        title="Declarations"
+        description="Custodian and qualified-person declarations attached to this record. A declaration is a signed human statement recorded in custody history; it does not change the recorded integrity state."
+        data-evidence-section="declarations"
+      >
+        <EvidenceCertificationsPanel evidenceId={evidenceId} />
       </IntegritySection>
 
       {/* Phase 1 — kept on Integrity but pared to the user-readable

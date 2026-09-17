@@ -48,6 +48,7 @@ import {
   TEMPORARY_ELEVATION_MAX_SECONDS,
   TEMPORARY_ELEVATION_MIN_SECONDS,
   TemporaryElevationSchema,
+  securityEventLabel,
   type Permission,
   type ScimScope,
   type SsoConnectionStatus,
@@ -119,6 +120,7 @@ import {
 import { runtimeRiskRecomputeSweep } from "../services/access-control/runtime-risk.service.js";
 import { sweepTrustedDeviceDecay } from "../services/access-control/trusted-device-decay.service.js";
 import { sweepGeoCache } from "../services/access-control/geo-intelligence.service.js";
+import { resolveSecurityEventActor } from "../services/security/security-event.service.js";
 import {
   SESSION_QUARANTINE_REASONS,
   type SessionQuarantineReason,
@@ -327,7 +329,7 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const q = TeamIdQuery.parse(req.query ?? {});
-      const actor = await requireIdentityAdmin(req, reply, q.teamId);
+      const actor = await requireIdentityAdmin(req, reply, q.teamId, "identity.sso.read");
       if (!actor) return;
       const providers = await listSsoConnections({ teamId: q.teamId });
       // Phase 3 — surface the owning org's verified-domain count so the UI can
@@ -370,6 +372,14 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
         "identity.external_mapping.manage",
       );
       if (!actor) return;
+      /*
+       * D28 — SSO is an Enterprise capability, decided where a connection is
+       * created, exactly as SCIM token minting below decides it: after
+       * authorization (a non-member learns nothing about the plan) and before
+       * step-up (nobody is asked for a second factor for something their plan
+       * does not include).
+       */
+      if (await denyTeamIfNotEnterprise(reply, body.teamId, "ssoScim")) return;
       // Phase 26.75 — runtime adaptive gate (quarantine + age + risk).
       const runtimeGate = await runtimeAdaptiveGate({
         req,
@@ -974,7 +984,10 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
       const q = z
         .object({
           teamId: z.string().uuid(),
+          /** Events ABOUT this user — the event's stored subject column. */
           subjectUserId: z.string().uuid().optional(),
+          /** Events this user PERFORMED — the actor each event recorded. */
+          actorUserId: z.string().uuid().optional(),
           kinds: z.string().max(2000).optional(),
           limit: z.coerce.number().int().min(1).max(500).optional(),
           /**
@@ -989,7 +1002,7 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
           cursor: z.string().trim().min(1).max(512).optional(),
         })
         .parse(req.query ?? {});
-      const actor = await requireIdentityAdmin(req, reply, q.teamId);
+      const actor = await requireIdentityAdmin(req, reply, q.teamId, "identity.audit.read");
       if (!actor) return;
       const after = decodeKeysetCursor(q.cursor);
       if (after === null) {
@@ -1014,12 +1027,22 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
       // demotes this route's recorded scope from proof to candidate.)
       const kindsWhere = kinds ? { eventType: { in: kinds } } : {};
       const severityWhere = q.severity ? { severity: q.severity } : {};
+      // PV-AUD-001 — both user filters are PREDICATES and nothing else. This
+      // route used to copy `subjectUserId` into every row's actor, so filtering
+      // by a user made that user the author of events they never performed.
+      // A filter narrows the set; it never answers "who did this".
+      const subjectWhere = q.subjectUserId ? { userId: q.subjectUserId } : {};
+      const actorWhere = q.actorUserId
+        ? { details: { path: ["actorUserId"], equals: q.actorUserId } }
+        : {};
       const orderBy = [{ createdAt: "desc" as const }, { id: "desc" as const }];
       const events = await prisma.securityEvent.findMany({
         where: {
           teamId: q.teamId,
           ...kindsWhere,
           ...severityWhere,
+          ...subjectWhere,
+          ...actorWhere,
           ...(after ? keysetAfter("createdAt", after) : {}),
         },
         orderBy,
@@ -1040,6 +1063,8 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
                   teamId: q.teamId,
                   ...kindsWhere,
                   ...severityWhere,
+                  ...subjectWhere,
+                  ...actorWhere,
                   ...keysetAfter("createdAt", { at: last.createdAt, id: last.id }),
                 },
                 orderBy,
@@ -1048,16 +1073,40 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
               })
             ).length > 0
           : false;
-      const projected = events.map((e) => ({
-        id: e.id,
-        kind: e.eventType,
-        severity: e.severity,
-        occurredAtUtc: e.createdAt.toISOString(),
-        actorUserId: q.subjectUserId ?? null,
-        // SecurityEvent.details is sanitised by Phase 21; we surface
-        // the eventType + a short summary derived from it.
-        summary: humaniseEventType(e.eventType),
-      }));
+      // The actor comes from what each event RECORDED — the one resolver the
+      // security-events list uses too, so the two surfaces cannot disagree
+      // about who acted. Names are looked up for the acting users on this page
+      // only; an id with no account left keeps its reference and no name.
+      const actors = events.map((e) => resolveSecurityEventActor(e));
+      const actorIds = [
+        ...new Set(actors.map((a) => a.userId).filter((id): id is string => id !== null)),
+      ];
+      const displayNames = new Map<string, string | null>();
+      if (actorIds.length > 0) {
+        const users = await prisma.user.findMany({
+          where: { id: { in: actorIds } },
+          select: { id: true, displayName: true },
+        });
+        for (const u of users) displayNames.set(u.id, u.displayName?.trim() || null);
+      }
+      const projected = events.map((e, i) => {
+        const actor = actors[i];
+        return {
+          id: e.id,
+          kind: e.eventType,
+          severity: e.severity,
+          occurredAtUtc: e.createdAt.toISOString(),
+          actorUserId: actor.userId,
+          actor: {
+            ...actor,
+            displayName: actor.userId ? displayNames.get(actor.userId) ?? null : null,
+          },
+          // SecurityEvent.details is sanitised by Phase 21 and never projected;
+          // the row carries the eventType and the ONE operator label for it
+          // (PV-LANG-001 — the old per-route humaniser title-cased acronyms).
+          label: securityEventLabel(e.eventType),
+        };
+      });
       return reply.code(200).send({
         events: projected,
         nextCursor:
@@ -1185,13 +1234,6 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
       return reply.code(200).send({ result });
     },
   );
-}
-
-function humaniseEventType(eventType: string): string {
-  // Operator-safe transform: snake_case → "Snake case".
-  return eventType
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 // =============================================================================

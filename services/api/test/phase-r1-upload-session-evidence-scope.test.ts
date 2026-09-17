@@ -24,6 +24,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { enclosingSource, functionSource } from "../../../scripts/source-contract/index.mjs";
 
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -55,7 +56,13 @@ describe("Phase R1 — upload-session evidence ownership guard", () => {
     expect(guardIdx).toBeGreaterThan(-1);
     // Guard appears before the session INSERT (fail-closed, no row written).
     expect(guardIdx).toBeLessThan(insertIdx);
-    const guardRegion = serviceSrc.slice(guardIdx, guardIdx + 220);
+    // The guard's own lookup call, inside createUploadSession.
+    const guardRegion = enclosingSource(
+      functionSource(serviceSrc, "createUploadSession"),
+      "evidence.findFirst",
+      "call",
+      { fileName: "upload-session.service.ts" },
+    );
     expect(guardRegion).toMatch(/id:\s*input\.evidenceId/);
     expect(guardRegion).toMatch(/teamId:\s*input\.teamId/);
     expect(serviceSrc).toMatch(

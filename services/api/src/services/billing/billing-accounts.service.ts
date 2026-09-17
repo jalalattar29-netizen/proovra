@@ -49,7 +49,10 @@ import * as prismaPkg from "@prisma/client";
 
 import { prisma } from "../../db.js";
 import { DomainError } from "../../errors.js";
-import { checkOrgAccess } from "../organization/org-access.js";
+import {
+  checkOrgAccess,
+  ORG_BILLING_ROLES,
+} from "../organization/org-access.js";
 import { assertPersonalSpaceAllowed } from "../identity/identity-mode.service.js";
 
 /**
@@ -204,7 +207,10 @@ export async function listBillingAccountsForViewer(
   // billable on their own.
 
   // ---- ORGANIZATION -------------------------------------------------------
-  // CUSTOMER organizations where the viewer holds ORG_BILLING_ADMIN or higher.
+  // CUSTOMER organizations where the viewer is an owner, an administrator or
+  // the billing admin — by explicit role (WCC-NEW-006): the security admin
+  // shares ORG_BILLING_ADMIN's precedence rank and must not see amounts,
+  // history or the contract.
   // Membership alone is not enough: an Enterprise member sees no amounts, no
   // history and no contract.
   const orgMemberships = await prisma.organizationMembership.findMany({
@@ -219,7 +225,7 @@ export async function listBillingAccountsForViewer(
     const access = await checkOrgAccess(prisma, {
       orgId: m.organizationId,
       userId: viewerUserId,
-      minRole: "ORG_BILLING_ADMIN",
+      roles: ORG_BILLING_ROLES,
     });
     if (access.kind !== "ok") continue;
 

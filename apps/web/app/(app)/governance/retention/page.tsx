@@ -41,6 +41,15 @@ import { Badge } from "../../../../components/ui/Badge";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { FilterBar } from "../../../../components/ui/FilterBar";
 import { DataTable, type DataTableColumn } from "../../../../components/ui/DataTable";
+import {
+  retentionConflictLabel,
+  retentionDecisionReasonLabel,
+} from "../../../../lib/labels/governanceReviewLabels";
+import {
+  StepUpModal,
+  useStepUpAction,
+} from "../../../../components/identity-security/StepUpModal";
+import { EditRetentionPolicyDialog } from "./_EditRetentionPolicyDialog";
 
 type PolicyStatus = "ACTIVE" | "PAUSED" | "SUPERSEDED" | "ARCHIVED";
 type PolicyScope = "WORKSPACE" | "EVIDENCE_TYPE" | "CASE" | "REGULATORY";
@@ -103,8 +112,22 @@ type EffectiveRetentionDecision = {
     immutable: boolean;
     description: string | null;
   };
+  /**
+   * The retention that GOVERNS — the engine's answer after the organization's
+   * mandatory floor (null = indefinite). The inheritance panel shows the same
+   * number from the same decision.
+   */
+  effectiveRetentionDays?: number | null;
+  mandatoryFloorApplied?: boolean;
   conflicts: ReadonlyArray<{ code: string; detail: string }>;
 };
+
+/** The governing value, from the engine; older payloads fall back to the row. */
+function governingRetentionDays(d: EffectiveRetentionDecision): number | null {
+  if (d.effectiveRetentionDays !== undefined) return d.effectiveRetentionDays;
+  if (d.policy) return d.policy.retentionDays;
+  return d.inheritedTemplate ? d.inheritedTemplate.retentionDays : null;
+}
 
 /** `GET /v1/governance/retention-candidates` */
 type RetentionCandidate = {
@@ -174,6 +197,12 @@ function RetentionPoliciesPageInner() {
   );
   const [versions, setVersions] = useState<Version[] | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  // BATCH J — PATCH /v1/governance/retention-policies/:id (edit a policy).
+  // The route is step-up gated on RETENTION_POLICY_UPDATE; the canonical hook
+  // owns the challenge and the single retry.
+  const stepUp = useStepUpAction({ teamId: teamId ?? null });
+  const [editingPolicy, setEditingPolicy] = useState<Policy | null>(null);
+  const [policyNotice, setPolicyNotice] = useState<string | null>(null);
 
   // PHASE 12B CLUSTER 10 — tenant generation guard. Every async read below
   // captures the generation before awaiting and drops the response if the
@@ -470,7 +499,6 @@ function RetentionPoliciesPageInner() {
             <OperationalBreadcrumb
               routeId="governance.retention"
               items={[
-                { label: "Governance", href: "/governance" },
                 { label: "Retention policies" },
               ]}
             />
@@ -583,17 +611,17 @@ function RetentionPoliciesPageInner() {
               </div>
               <div>
                 <div style={fieldLabelTextStyle}>Retention</div>
-                <div style={{ fontWeight: 600 }}>
-                  {effective.policy
-                    ? effective.policy.retentionDays === null
-                      ? "Indefinite"
-                      : `${effective.policy.retentionDays.toLocaleString()} days`
-                    : effective.inheritedTemplate
-                      ? effective.inheritedTemplate.retentionDays === null
-                        ? "Indefinite"
-                        : `${effective.inheritedTemplate.retentionDays.toLocaleString()} days`
-                      : "Indefinite"}
+                <div style={{ fontWeight: 600 }} data-effective-retention-days>
+                  {(() => {
+                    const days = governingRetentionDays(effective);
+                    return days === null ? "Indefinite" : `${days.toLocaleString()} days`;
+                  })()}
                 </div>
+                {effective.mandatoryFloorApplied ? (
+                  <div style={{ ...mutedStyle, fontSize: 12 }} data-effective-retention-floor>
+                    Raised to the organization&apos;s required minimum
+                  </div>
+                ) : null}
               </div>
               <div>
                 <div style={fieldLabelTextStyle}>Governing policy</div>
@@ -628,7 +656,8 @@ function RetentionPoliciesPageInner() {
               </div>
             </div>
             <p style={{ ...mutedStyle, marginTop: 10, marginBottom: 0 }}>
-              Engine reason: <code>{effective.reason}</code>
+              {retentionDecisionReasonLabel(effective.reason)}{" "}
+              <code data-identifier>{effective.reason}</code>
             </p>
             {effective.conflicts.length > 0 ? (
               <ul style={{ ...listStyle, marginTop: 10 }}>
@@ -639,7 +668,7 @@ function RetentionPoliciesPageInner() {
                     data-effective-retention-conflict={c.code}
                   >
                     <Badge tone="risk" subtle>
-                      {c.code}
+                      {retentionConflictLabel(c.code)}
                     </Badge>{" "}
                     {c.detail}
                   </li>
@@ -731,7 +760,12 @@ function RetentionPoliciesPageInner() {
           </FilterBar>
         }
       >
-        {error ? <div style={errorBoxStyle}>{error}</div> : null}
+        {error ? <div style={errorBoxStyle} role="alert">{error}</div> : null}
+        {policyNotice ? (
+          <p role="status" data-retention-policy-notice style={{ ...mutedStyle, margin: "8px 0" }}>
+            {policyNotice}
+          </p>
+        ) : null}
 
         {!teamId ? (
           <EmptyState
@@ -755,6 +789,21 @@ function RetentionPoliciesPageInner() {
                 >
                   Versions
                 </Button>
+                {p.status === "ACTIVE" || p.status === "PAUSED" ? (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    aria-label={`Edit retention policy ${p.displayName}`}
+                    aria-haspopup="dialog"
+                    data-retention-policy-edit={p.id}
+                    onClick={() => {
+                      setPolicyNotice(null);
+                      setEditingPolicy(p);
+                    }}
+                  >
+                    Edit
+                  </Button>
+                ) : null}
                 {p.status === "ACTIVE" ? (
                   <Button
                     variant="secondary"
@@ -830,6 +879,27 @@ function RetentionPoliciesPageInner() {
           }}
         />
       ) : null}
+
+      {editingPolicy && teamId ? (
+        <EditRetentionPolicyDialog
+          key={editingPolicy.id}
+          teamId={teamId}
+          policy={editingPolicy}
+          runStepUpAction={stepUp.runStepUpAction}
+          onCancel={() => setEditingPolicy(null)}
+          onSaved={(message) => {
+            const savedId = editingPolicy.id;
+            setEditingPolicy(null);
+            setPolicyNotice(message);
+            void refresh().catch((err: unknown) => {
+              setError(toSafeUserError(err, { message: "Unable to load policies." }).message);
+            });
+            if (selectedVersionsFor === savedId) void loadVersions(savedId);
+          }}
+        />
+      ) : null}
+
+      <StepUpModal control={stepUp} />
 
       {showCreate && teamId ? (
         <CreatePolicyModal

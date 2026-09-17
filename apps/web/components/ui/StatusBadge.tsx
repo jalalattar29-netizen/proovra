@@ -20,6 +20,7 @@
  * rendered chip with humanized text.
  */
 import type { CSSProperties } from "react";
+import { identifierLabel } from "@proovra/shared";
 
 type Tone = "success" | "warning" | "danger" | "neutral" | "info";
 
@@ -226,22 +227,22 @@ export function statusBadgeStyle(status: string): CSSProperties {
   };
 }
 
-function humanize(status: string): string {
-  return status.replace(/_/g, " ");
-}
-
 export interface StatusBadgeProps {
   status: string;
 }
 
 /**
  * Drop-in chip element rendering the canonical status badge with
- * humanized text (`PENDING_DESTRUCTION` → `PENDING DESTRUCTION`).
+ * humanized text (`PENDING_DESTRUCTION` → `Pending destruction`).
+ *
+ * PV-LANG-003 — this used to swap underscores for spaces and nothing else,
+ * so every badge still shouted the stored enum ("PENDING DESTRUCTION"). It
+ * now reads the value through the shared identifier label.
  *
  * Use this when the rendered text should simply be the humanized
  * status. Call sites that need a custom label should use
  * `statusBadgeStyle` directly on their own `<span>`.
  */
 export function StatusBadge({ status }: StatusBadgeProps) {
-  return <span style={statusBadgeStyle(status)}>{humanize(status)}</span>;
+  return <span style={statusBadgeStyle(status)}>{identifierLabel(status)}</span>;
 }

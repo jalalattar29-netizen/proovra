@@ -121,11 +121,9 @@ const strip = (s) =>
  * worth reading.
  */
 const REVIEWED = {
-  "/admin/platform/analytics": {
-    NO_EMPTY_STATE:
-      "The only map is over allowedWindowOptions, a module constant of select " +
-      "options. A <select> with no options is not a state this page can reach.",
-  },
+  // PV-PLACE-001 — `/admin/platform/analytics` left the console for
+  // `/operations/analytics`, which this /admin-only audit does not scan, so its
+  // reviewed NO_EMPTY_STATE exemption left with it.
   "/admin/platform/media-graph": {
     NO_EMPTY_STATE:
       "Maps over MEDIA_INTELLIGENCE_TILES / GRAPH_TILES, module constants " +

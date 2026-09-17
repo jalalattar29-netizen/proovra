@@ -32,6 +32,7 @@ import {
 } from "../../../components/ui/DataTable";
 import { EmptyState } from "../../../components/ui/EmptyState";
 import { StatusBadge } from "../../../components/ui/StatusBadge";
+import { sessionRevocationScopeLabel } from "../../../lib/labels/identityOrgLabels";
 // Phase IA-collapse — `PersonalSecuritySections` (password, my sessions,
 // security events) moved to the new Account Security home at
 // `/settings/security` (route id `account.security`). This page is now
@@ -98,14 +99,6 @@ type RiskSnapshot = {
   score: number;
   signalCount: number;
 };
-
-const LEVELS: MfaPolicyLevel[] = [
-  "OFF",
-  "ADMINS_ONLY",
-  "REVIEWERS_AND_ABOVE",
-  "ALL_MEMBERS",
-  "HIGH_RISK_ONLY",
-];
 
 // Phase 38.10 — wrap in canonical PageRouteGate.
 export default function SecurityCenterPage() {
@@ -231,35 +224,6 @@ function SecurityCenterPageInner() {
     };
   }, [teamId]);
 
-  async function changeLevel(level: MfaPolicyLevel) {
-    if (!teamId) return;
-    setBusy(true);
-    try {
-      // MFA policy change is itself a sensitive action; without a
-      // step-up challenge the API returns 401 STEP_UP_REQUIRED. The
-      // UI surfaces that here.
-      const res: { policy?: Policy; error?: { code?: string } } = await apiFetch(
-        "/v1/identity-security/mfa-policy",
-        {
-          method: "PUT",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ teamId, level }),
-        },
-      );
-      if (res.error && res.error.code === "STEP_UP_REQUIRED") {
-        alert(
-          "Step-up verification required to change MFA policy. Start a step-up challenge from the operator menu and retry.",
-        );
-        return;
-      }
-      if (res.policy) setPolicy(res.policy);
-    } catch (err) {
-      alert(toSafeUserError(err, { message: "Policy change failed." }).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function revokeDevice(deviceId: string) {
     if (!teamId) return;
     const reason = window.prompt("Reason for revoking this device (internal only)");
@@ -346,7 +310,8 @@ function SecurityCenterPageInner() {
       render: (r) => (
         <div>
           <div style={{ fontWeight: 600 }}>
-            {r.userId.slice(0, 8)}… <span style={chipStyle}>{r.scope}</span>
+            {r.userId.slice(0, 8)}…{" "}
+            <span style={chipStyle}>{sessionRevocationScopeLabel(r.scope)}</span>
           </div>
           <div style={mutedStyle}>
             reason {r.reason} · at {formatUtcAuditDateTime(r.revokedAtUtc)}
@@ -409,6 +374,14 @@ function SecurityCenterPageInner() {
               row via the new `/v1/dashboard/org-health` route. */}
           <OrgHealthSnapshotCard teamId={teamId} />
 
+          {/*
+            WCC-NEW-011 — ONE MFA POLICY EDITOR. This section used to change the
+            level through PUT /v1/identity-security/mfa-policy: no Enterprise
+            entitlement check, no version predicate, no fail-mode control —
+            while Workspace security carried the versioned, entitled editor for
+            the same policy. It now states the current policy and hands off to
+            that one editor.
+          */}
           <PageSection title="MFA policy">
             <Card variant="admin">
               {policy ? (
@@ -418,19 +391,13 @@ function SecurityCenterPageInner() {
                     {policy.stepUpTtlSeconds}s · trusted-device TTL{" "}
                     {policy.trustedDeviceTtlDays}d
                   </p>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {LEVELS.map((l) => (
-                      <Button
-                        key={l}
-                        variant={policy.level === l ? "primary" : "secondary"}
-                        size="sm"
-                        disabled={busy || policy.level === l}
-                        onClick={() => void changeLevel(l)}
-                      >
-                        {l}
-                      </Button>
-                    ))}
-                  </div>
+                  <a
+                    href="/security-center/posture#mfa-policy"
+                    className="app-secondary-action"
+                    data-security-center-mfa-policy-link
+                  >
+                    Manage MFA policy
+                  </a>
                   {requirement?.required ? (
                     <p style={warnBoxStyle}>
                       Step-up verification is currently required for your role

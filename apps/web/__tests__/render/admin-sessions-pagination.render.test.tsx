@@ -1,5 +1,5 @@
 /**
- * /admin/identity/sessions — the paged inventory, driven for real.
+ * /security-center/identity/sessions — the paged inventory, driven for real.
  *
  * Source text can prove the section renders a <CursorPager>; it cannot prove
  * that page one asks for 25 rows and no cursor, that Next sends exactly the
@@ -95,7 +95,7 @@ vi.mock("../../lib/sentry", () => ({ captureException: () => {} }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: () => {}, replace: () => {}, back: () => {} }),
   useSearchParams: () => new URLSearchParams(""),
-  usePathname: () => "/admin/identity/sessions",
+  usePathname: () => "/security-center/identity/sessions",
   useParams: () => ({}),
   notFound: () => {
     throw new Error("NEXT_NOT_FOUND");
@@ -110,7 +110,7 @@ import {
 } from "../../lib/platform-context/types";
 import { ToastProvider } from "../../components/ui";
 import { ConfirmActionProvider } from "../../components/ui/ConfirmActionModal";
-import { ActiveSessionsSection } from "../../app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection";
+import { ActiveSessionsSection } from "../../app/(app)/security-center/identity/sessions/_sections/ActiveSessionsSection";
 
 // ---------------------------------------------------------------------------
 // Envelope + mount

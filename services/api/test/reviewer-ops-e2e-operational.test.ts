@@ -39,6 +39,7 @@ import {
   assertSeedingSecret,
   type SeedScenario,
 } from "../src/services/ops/operational-seed.service.js";
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
 
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -341,8 +342,7 @@ describe("Operational seed [route layer]", () => {
   });
 
   it("DELETE endpoint requires session auth + admin RBAC + seed secret", () => {
-    const deleteIdx = src.indexOf('"/v1/ops/seed/reviewer-ops/:seedRunId"');
-    const slice = src.slice(deleteIdx, deleteIdx + 1500);
+    const slice = routeSource(src, "DELETE", "/v1/ops/seed/reviewer-ops/:seedRunId");
     expect(slice).toMatch(/preHandler:\s*requireAuth/);
     expect(slice).toMatch(/assertSeedingSecret/);
   });

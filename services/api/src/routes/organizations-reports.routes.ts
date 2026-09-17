@@ -48,7 +48,10 @@ import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { getAuthUserId } from "../auth.js";
-import { checkOrgAccess } from "../services/organization/org-access.js";
+import {
+  checkOrgAccess,
+  orgAccessDenial,
+} from "../services/organization/org-access.js";
 import type { OrgRole } from "../services/organization/organization-resolver.service.js";
 import { emitOrgAuditEvent } from "../services/organization/org-audit.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
@@ -65,17 +68,21 @@ const UuidParam = z.string().uuid();
 const AUDIT_ROW_CAP = 5000;
 
 /**
- * Resolve org access at `minRole`, returning the caller role on success
- * or a bounded, anti-enumeration 404 payload on any non-OK outcome.
- * Mirrors `requireOrgAdmin` in organizations-governance.routes.ts.
+ * Resolve org access at `minRole`, returning the caller role on success or
+ * the one org-denial rendering (PV-ORG-001): 404 not_found for a missing org
+ * or a non-member, 403 forbidden for a member without the role. Mirrors
+ * `requireOrgAdmin` in organizations-governance.routes.ts.
  */
 async function requireOrgRole(
   orgId: string,
   userId: string,
   minRole: OrgRole,
-): Promise<{ ok: true; role: OrgRole } | { ok: false; code: number }> {
+): Promise<
+  | { ok: true; role: OrgRole }
+  | { ok: false; denial: ReturnType<typeof orgAccessDenial> }
+> {
   const result = await checkOrgAccess(prisma, { orgId, userId, minRole });
-  if (result.kind !== "ok") return { ok: false, code: 404 };
+  if (result.kind !== "ok") return { ok: false, denial: orgAccessDenial(result) };
   return { ok: true, role: result.role };
 }
 
@@ -127,8 +134,6 @@ function sendCsv(reply: FastifyReply, filename: string, body: string): FastifyRe
 }
 
 const RATE_LIMITED = { message: "Too many report exports. Try again shortly." };
-const NOT_FOUND = { message: "Organization not found", code: "org_not_found" };
-
 export async function organizationsReportsRoutes(app: FastifyInstance) {
   const preHandler = [requireAuth, requireLegalAcceptance];
 
@@ -144,7 +149,7 @@ export async function organizationsReportsRoutes(app: FastifyInstance) {
     const userId = getAuthUserId(req);
 
     const access = await requireOrgRole(orgId, userId, "ORG_AUDITOR");
-    if (!access.ok) return reply.code(access.code).send(NOT_FOUND);
+    if (!access.ok) return reply.code(access.denial.status).send(access.denial.body);
     if (!(await reportRateLimit(userId, "members"))) {
       return reply.code(429).send(RATE_LIMITED);
     }
@@ -210,7 +215,7 @@ export async function organizationsReportsRoutes(app: FastifyInstance) {
     const userId = getAuthUserId(req);
 
     const access = await requireOrgRole(orgId, userId, "ORG_BILLING_ADMIN");
-    if (!access.ok) return reply.code(access.code).send(NOT_FOUND);
+    if (!access.ok) return reply.code(access.denial.status).send(access.denial.body);
     if (!(await reportRateLimit(userId, "seats"))) {
       return reply.code(429).send(RATE_LIMITED);
     }
@@ -272,7 +277,7 @@ export async function organizationsReportsRoutes(app: FastifyInstance) {
       : null;
 
     const access = await requireOrgRole(orgId, userId, "ORG_AUDITOR");
-    if (!access.ok) return reply.code(access.code).send(NOT_FOUND);
+    if (!access.ok) return reply.code(access.denial.status).send(access.denial.body);
     if (!(await reportRateLimit(userId, "audit"))) {
       return reply.code(429).send(RATE_LIMITED);
     }
@@ -364,7 +369,7 @@ export async function organizationsReportsRoutes(app: FastifyInstance) {
     const userId = getAuthUserId(req);
 
     const access = await requireOrgRole(orgId, userId, "ORG_AUDITOR");
-    if (!access.ok) return reply.code(access.code).send(NOT_FOUND);
+    if (!access.ok) return reply.code(access.denial.status).send(access.denial.body);
     if (!(await reportRateLimit(userId, "governance"))) {
       return reply.code(429).send(RATE_LIMITED);
     }
@@ -440,7 +445,7 @@ export async function organizationsReportsRoutes(app: FastifyInstance) {
       const userId = getAuthUserId(req);
 
       const access = await requireOrgRole(orgId, userId, "ORG_AUDITOR");
-      if (!access.ok) return reply.code(access.code).send(NOT_FOUND);
+      if (!access.ok) return reply.code(access.denial.status).send(access.denial.body);
       if (!(await reportRateLimit(userId, "external-access"))) {
         return reply.code(429).send(RATE_LIMITED);
       }
@@ -581,7 +586,7 @@ export async function organizationsReportsRoutes(app: FastifyInstance) {
       const userId = getAuthUserId(req);
 
       const access = await requireOrgRole(orgId, userId, "ORG_AUDITOR");
-      if (!access.ok) return reply.code(access.code).send(NOT_FOUND);
+      if (!access.ok) return reply.code(access.denial.status).send(access.denial.body);
       if (!(await reportRateLimit(userId, "download-audit"))) {
         return reply.code(429).send(RATE_LIMITED);
       }

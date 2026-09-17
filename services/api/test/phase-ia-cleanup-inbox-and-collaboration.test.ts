@@ -30,6 +30,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
+
 function readSource(rel: string): string {
   const url = new URL(rel, import.meta.url);
   return readFileSync(fileURLToPath(url), "utf8");
@@ -51,9 +53,11 @@ describe("Phase IA-cleanup — dashboard quick action no longer points at /colla
   it("the org.collaboration quick action is retargeted to /notifications", () => {
     // The quick-action id is preserved (persona-priority + analytics
     // tests reference it by id), but the href + label move.
-    const idx = RULES.indexOf('id: "org.collaboration"');
-    expect(idx, "org.collaboration quick-action not found").toBeGreaterThan(-1);
-    const block = RULES.slice(idx, idx + 600);
+    expect(RULES, "org.collaboration quick-action not found").toContain('id: "org.collaboration"');
+    // The quick-action object literal itself.
+    const block = enclosingSource(RULES, 'id: "org.collaboration"', "object", {
+      fileName: "dashboardModeRules.ts",
+    });
     expect(block).toMatch(/href:\s*"\/notifications"/);
     expect(block).toMatch(/label:\s*"Check your inbox"/);
     // Defensive: do NOT silently revert to /collaboration.
@@ -407,10 +411,10 @@ describe("Phase IA-enterprise — report/package/OTS failure categories", () => 
     // Never surfaces PENDING / RETRY_SCHEDULED / WAITING_CONFIRMATIONS.
     // We pin this by asserting the FAILED-only filter — no `in:` list
     // sneaks normal lifecycle states past the contract.
-    const block = (() => {
-      const idx = ROUTES.indexOf("otsFailedEvidence");
-      return idx >= 0 ? ROUTES.slice(idx, idx + 1200) : "";
-    })();
+    // The otsFailedEvidence declaration (its query) — absent now fails loudly.
+    const block = enclosingSource(ROUTES, "otsFailedEvidence", "statement", {
+      fileName: "me-inbox.routes.ts",
+    });
     expect(block).not.toMatch(/otsStatus:\s*\{\s*in:\s*\[/);
     expect(block).not.toMatch(/"PENDING"|"RETRY_SCHEDULED"|"WAITING_CONFIRMATIONS"/);
   });
@@ -585,9 +589,11 @@ describe("Phase IA-enterprise — pagination + server-driven filters", () => {
     // The filter MUST map to admin-only categories so a non-admin
     // selecting "Admin" sees an honestly empty list rather than
     // accidentally bypassing the per-category admin gate.
-    const idx = ROUTES.indexOf("FILTER_CATEGORY_MEMBERS");
-    expect(idx).toBeGreaterThan(-1);
-    const block = ROUTES.slice(idx, idx + 1500);
+    // The map's declaration. (The first mention of the name is a lookup in
+    // an earlier function; the map is declared a few lines below it.)
+    const block = enclosingSource(ROUTES, "const FILTER_CATEGORY_MEMBERS", "statement", {
+      fileName: "me-inbox.routes.ts",
+    });
     expect(block).toMatch(/admin:\s*\[/);
     expect(block).toMatch(/"mfa_recovery_pending"/);
     expect(block).toMatch(/"communication_failure"/);

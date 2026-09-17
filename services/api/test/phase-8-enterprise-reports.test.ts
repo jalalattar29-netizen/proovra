@@ -174,11 +174,17 @@ describe("Phase 8 reports — role gates mirror the backing endpoints", () => {
     );
   });
 
-  it("every non-OK access returns the anti-enumeration 404 (never distinguishes forbidden)", () => {
-    // requireOrgRole returns { ok:false, code:404 } for both not_found +
-    // forbidden, and each endpoint replies with that code.
-    expect(ROUTES).toContain("if (!access.ok) return reply.code(access.code).send(NOT_FOUND);");
-    expect(ROUTES).toMatch(/code:\s*404/);
+  it("every non-OK access renders through the one org-denial convention (PV-ORG-001)", () => {
+    // requireOrgRole returns orgAccessDenial(result): a 404 byte-identical to
+    // a missing org for a NON-member, a 403 for an ACTIVE member without the
+    // role. Every endpoint sends that verbatim and nothing else.
+    expect(ROUTES).toContain(
+      "if (result.kind !== \"ok\") return { ok: false, denial: orgAccessDenial(result) };",
+    );
+    const sends = ROUTES.match(/if \(!access\.ok\) return reply\.code\(access\.denial\.status\)\.send\(access\.denial\.body\);/g) ?? [];
+    expect(sends.length).toBeGreaterThanOrEqual(6);
+    expect(ROUTES).not.toContain("access.code");
+    expect(ROUTES).not.toContain("org_not_found");
   });
 });
 

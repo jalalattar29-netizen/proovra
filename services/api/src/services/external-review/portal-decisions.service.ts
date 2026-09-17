@@ -117,10 +117,20 @@ export async function listExternalDecisionsForWorkflow(input: {
   prisma?: PrismaClient;
   teamId: string;
   workflowId: string;
+  /**
+   * Restrict to one grant. The portal passes the SESSION grant: an external
+   * reviewer may read the decision they recorded, never another reviewer's
+   * verdict, rationale or email address.
+   */
+  grantId?: string;
 }) {
   const prisma = input.prisma ?? defaultPrisma;
   return prisma.externalReviewDecision.findMany({
-    where: { teamId: input.teamId, workflowId: input.workflowId },
+    where: {
+      teamId: input.teamId,
+      workflowId: input.workflowId,
+      ...(input.grantId ? { grantId: input.grantId } : {}),
+    },
     orderBy: { submittedAtUtc: "desc" },
     take: 50,
   });

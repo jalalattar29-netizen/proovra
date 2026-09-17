@@ -19,11 +19,11 @@
  *     formatting) to the originals.
  *   * The new module is registered from `evidenceRoutes(app)` so
  *     route registration order is preserved.
- *   * Two tiny private helpers (`getTeamMembershipRole`, `toJsonSafe`)
- *     are duplicated here rather than exported from the parent — the
- *     duplication keeps module boundaries clean. Either copy is
- *     replaceable by the other and a future PR can promote them to a
- *     shared helper.
+ *   * One tiny private helper (`toJsonSafe`) is duplicated here rather
+ *     than exported from the parent — the duplication keeps module
+ *     boundaries clean. (D57 retired the local `getTeamMembershipRole`:
+ *     mutations are gated by the canonical workspace primitive in
+ *     `assertSavedViewAccess`.)
  */
 
 import type { FastifyInstance, FastifyRequest } from "fastify";
@@ -32,10 +32,11 @@ import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 
-import { teamMemberStatusGrantsAccess } from "@proovra/shared";
-
 import { prisma } from "../db.js";
-import { authorizeOrFail } from "../middleware/authorize.js";
+import {
+  authorizeOrFail,
+  evaluateAuthorizedWorkspace,
+} from "../middleware/authorize.js";
 import { requireAuth } from "../middleware/auth.js";
 import { getAuthUserId } from "../auth.js";
 
@@ -95,19 +96,6 @@ type ParamsId = { id: string };
 // extraction is byte-equivalent. See module-level docstring.
 // ---------------------------------------------------------------------------
 
-async function getTeamMembershipRole(teamId: string, userId: string) {
-  const membership = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
-    select: { role: true, status: true },
-  });
-  // PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — only an ACTIVE membership
-  // resolves to a role; a SUSPENDED/REVOKED member is treated as a non-member
-  // for team-scoped saved-view access (fail-closed).
-  return membership && teamMemberStatusGrantsAccess(membership.status)
-    ? membership.role
-    : null;
-}
-
 function toJsonSafe<T>(value: T): T {
   return JSON.parse(
     JSON.stringify(value, (_k, v) =>
@@ -116,33 +104,75 @@ function toJsonSafe<T>(value: T): T {
   );
 }
 
-async function assertSavedViewAccess(userId: string, savedViewId: string) {
+function savedViewError(statusCode: 403 | 404): Error & { statusCode: number } {
+  const err = new Error(
+    statusCode === 404 ? "Saved view not found" : "Forbidden",
+  ) as Error & { statusCode: number };
+  err.statusCode = statusCode;
+  return err;
+}
+
+/**
+ * The gate for every MUTATION of a saved view (PATCH, DELETE, set-default).
+ *
+ * D57 — the rule the reviewer-ops, search and SIU saved-view families apply:
+ *
+ *   - a PERSONAL view (no team) belongs to its creator alone; anyone else is
+ *     told exactly what a missing id is told (404) — they cannot list it, so
+ *     a 403 would confirm it exists;
+ *   - a TEAM view needs an ACTIVE membership of a live workspace, decided by
+ *     the canonical workspace primitive. An outsider, a suspended or revoked
+ *     member (the creator included) and a member of a suspended Organization
+ *     cannot list the view either, and get the same 404;
+ *   - among the members who CAN see it, only its creator or a workspace
+ *     OWNER/ADMIN may change it. Any other member is told 403 — they already
+ *     see the view in their list, so there is nothing to conceal.
+ *
+ * Before this, the creator short-circuit ran before any membership check and
+ * any member of the view's team could rename, re-filter, delete or re-default
+ * a colleague's team view.
+ */
+async function assertSavedViewAccess(
+  req: FastifyRequest,
+  userId: string,
+  savedViewId: string,
+) {
   const savedView = await prisma.evidenceSavedView.findUnique({
     where: { id: savedViewId },
   });
 
-  if (!savedView) {
-    const err: Error & { statusCode?: number } = new Error(
-      "Saved view not found",
-    );
-    err.statusCode = 404;
-    throw err;
-  }
+  if (!savedView) throw savedViewError(404);
 
-  if (savedView.ownerUserId === userId) {
+  if (!savedView.teamId) {
+    if (savedView.ownerUserId !== userId) throw savedViewError(404);
     return savedView;
   }
 
-  if (savedView.teamId) {
-    const role = await getTeamMembershipRole(savedView.teamId, userId);
-    if (role) {
-      return savedView;
+  const outcome = await evaluateAuthorizedWorkspace(req, {
+    workspaceId: savedView.teamId,
+    permission: "evidence.read",
+    resourceKind: "evidence_saved_view",
+    resourceId: savedView.id,
+    antiEnumeration: true,
+  });
+  if (!outcome.allowed) {
+    // Authorization that could not be evaluated fails closed as a fault, not
+    // as a statement about the view.
+    if (outcome.httpStatus === 503) {
+      throw new Error("Saved view authorization unavailable");
     }
+    // Everyone else who cannot see the view is told it does not exist.
+    throw savedViewError(404);
   }
-
-  const err: Error & { statusCode?: number } = new Error("Forbidden");
-  err.statusCode = 403;
-  throw err;
+  const role = outcome.context.workspaceRole;
+  if (
+    savedView.ownerUserId === outcome.context.userId ||
+    role === "OWNER" ||
+    role === "ADMIN"
+  ) {
+    return savedView;
+  }
+  throw savedViewError(403);
 }
 
 function mapEvidenceSavedView(savedView: {
@@ -267,7 +297,7 @@ export async function evidenceSavedViewsRoutes(app: FastifyInstance) {
       const userId = getAuthUserId(req);
       const id = z.string().uuid().parse((req.params as ParamsId).id);
       const body = UpdateSavedViewBody.parse(req.body);
-      const savedView = await assertSavedViewAccess(userId, id);
+      const savedView = await assertSavedViewAccess(req, userId, id);
 
       if (body.isDefault === true) {
         await prisma.evidenceSavedView.updateMany({
@@ -312,7 +342,7 @@ export async function evidenceSavedViewsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply) => {
       const userId = getAuthUserId(req);
       const id = z.string().uuid().parse((req.params as ParamsId).id);
-      await assertSavedViewAccess(userId, id);
+      await assertSavedViewAccess(req, userId, id);
       await prisma.evidenceSavedView.delete({ where: { id } });
       return reply.code(200).send({ deleted: true });
     },
@@ -324,7 +354,7 @@ export async function evidenceSavedViewsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply) => {
       const userId = getAuthUserId(req);
       const id = z.string().uuid().parse((req.params as ParamsId).id);
-      const savedView = await assertSavedViewAccess(userId, id);
+      const savedView = await assertSavedViewAccess(req, userId, id);
 
       await prisma.$transaction([
         prisma.evidenceSavedView.updateMany({

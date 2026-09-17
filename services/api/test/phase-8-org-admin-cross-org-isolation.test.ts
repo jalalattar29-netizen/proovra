@@ -149,13 +149,29 @@ describe("Phase 8 — every org-scoped server route enforces checkOrgAccess", ()
     expect((matches ?? []).length).toBeGreaterThanOrEqual(5);
   });
 
-  it("403 responses on cross-org access do NOT distinguish 'not found' from 'forbidden'", () => {
-    // Defense in depth — a non-member must not be able to enumerate
-    // orgs by probing 404 vs 403 patterns. The routes return 403 for
-    // both kinds.
-    expect(routesFile).toMatch(
-      /access\.kind\s*!==\s*"ok"[\s\S]{0,200}?\.code\(403\)/,
+  it("a non-member cannot tell an existing organization from a missing one (PV-ORG-001)", () => {
+    // Defense in depth — a non-member must not be able to enumerate orgs by
+    // probing status patterns. checkOrgAccess reports "no ACTIVE membership"
+    // as not_found, exactly like a missing org, and every denial renders
+    // through orgAccessDenial (404 not_found / 403 forbidden for a member
+    // without the role). No route hand-writes a status that would re-open
+    // the split this used to pin (403 here, 404 on the sibling families).
+    expect(routesFile).toMatch(/const denial = orgAccessDenial\(access\);/);
+    expect(routesFile).not.toMatch(/send\(\{ message: "Forbidden" \}\)/);
+    // A role-specific refusal (owner_required / admin_required) inside an
+    // access denial is only ever reached AFTER the not_found concealment.
+    // (A refusal decided later — e.g. the ownership-transfer transaction
+    // re-checking that the actor is STILL the owner — is a member-level 403
+    // after access succeeded, and is not an access denial.)
+    const accessRefusals = [...routesFile.matchAll(/code: "(owner|admin)_required"/g)].filter(
+      (m) => /if \(access\.kind !== "ok"\) \{/.test(routesFile.slice(Math.max(0, m.index! - 420), m.index)),
     );
+    expect(accessRefusals.length).toBeGreaterThanOrEqual(5);
+    for (const m of accessRefusals) {
+      expect(routesFile.slice(Math.max(0, m.index! - 420), m.index)).toMatch(
+        /if \(access\.kind === "not_found"\) \{\s*const denial = orgAccessDenial\(access\);/,
+      );
+    }
   });
 });
 

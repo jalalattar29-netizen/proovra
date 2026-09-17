@@ -35,6 +35,7 @@ import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 
 import {
   buildEvidenceProjection,
@@ -202,11 +203,13 @@ describe("Reconcile / backfill — orphan query includes trash", () => {
     expect(src).toMatch(
       /searchIndexableLifecycleSql\("e\.lifecycle_state"\)/,
     );
-    // The evidence orphan block must not still gate on
-    // deleted_at IS NULL. Grab a 40-line slice around the
-    // evidence orphan query to be specific.
-    const evIdx = src.indexOf("Search-inclusion-audit (trash decision)");
-    const slice = src.slice(evIdx, evIdx + 1500);
+    // The evidence orphan query (the statement the trash-decision
+    // comment introduces) must not still gate on deleted_at IS NULL.
+    expect(src).toContain("Search-inclusion-audit (trash decision)");
+    const slice = enclosingSource(src, "const staleOrMissing = await", "statement", {
+      unique: true,
+      fileName: "reindex.service.ts",
+    });
     expect(slice).not.toMatch(/WHERE e\.deleted_at IS NULL/);
   });
 

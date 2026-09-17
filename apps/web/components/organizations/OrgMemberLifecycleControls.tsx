@@ -60,6 +60,14 @@ export interface OrgMemberLifecycleControlsProps {
   isSelf: boolean;
   /** The membership's CURRENT lifecycle state, from the roster projection. */
   status: "ACTIVE" | "SUSPENDED" | "REVOKED";
+  /**
+   * PV-DIS-003 — the two roles that decide the route's owner rule: an
+   * ORG_OWNER membership may only be suspended or restored by an owner. Known
+   * here, the control is disabled with that reason instead of offered and then
+   * refused with a 403.
+   */
+  targetRole?: string | null;
+  callerRole?: string | null;
   suspendedAtUtc?: string | null;
   suspensionReason?: string | null;
   revokedAtUtc?: string | null;
@@ -106,6 +114,8 @@ export function OrgMemberLifecycleControls({
   canManage,
   isSelf,
   status,
+  targetRole = null,
+  callerRole = null,
   suspendedAtUtc = null,
   suspensionReason = null,
   revokedAtUtc = null,
@@ -180,7 +190,18 @@ export function OrgMemberLifecycleControls({
     [reason, orgId, membershipId, memberLabel, onChanged],
   );
 
-  const disabled = !canManage || isSelf || busy !== null;
+  const ownerTargetLocked =
+    canManage && !isSelf && targetRole === "ORG_OWNER" && callerRole !== "ORG_OWNER";
+  const disabled = !canManage || isSelf || ownerTargetLocked || busy !== null;
+  // The one reason in force, so each disabled button names it
+  // (aria-describedby) rather than sitting next to it.
+  const reasonId = !canManage
+    ? `member-lifecycle-forbidden-${membershipId}`
+    : isSelf
+      ? `member-lifecycle-self-${membershipId}`
+      : ownerTargetLocked
+        ? `member-lifecycle-owner-${membershipId}`
+        : undefined;
 
   /**
    * Which transition the CURRENT state admits.
@@ -227,6 +248,7 @@ export function OrgMemberLifecycleControls({
           data-action="suspend-org-member"
           data-testid={`member-suspend-${membershipId}`}
           aria-label={`Suspend ${memberLabel}`}
+          aria-describedby={reasonId}
         >
           Suspend…
         </Button>
@@ -242,6 +264,7 @@ export function OrgMemberLifecycleControls({
           data-action="restore-org-member"
           data-testid={`member-restore-${membershipId}`}
           aria-label={`Restore ${memberLabel}`}
+          aria-describedby={reasonId}
         >
           Restore
         </Button>
@@ -272,13 +295,18 @@ export function OrgMemberLifecycleControls({
       ) : null}
 
       {!canManage ? (
-        <p data-state="forbidden" style={{ margin: 0, fontSize: 12, color: "var(--ink-muted, #94a3b8)" }}>
+        <p id={`member-lifecycle-forbidden-${membershipId}`} data-state="forbidden" style={{ margin: 0, fontSize: 12, color: "var(--ink-muted, #94a3b8)" }}>
           You don&apos;t have permission to change member status.
         </p>
       ) : null}
       {canManage && isSelf ? (
-        <p data-state="self-action-blocked" style={{ margin: 0, fontSize: 12, color: "var(--ink-muted, #94a3b8)" }}>
+        <p id={`member-lifecycle-self-${membershipId}`} data-state="self-action-blocked" style={{ margin: 0, fontSize: 12, color: "var(--ink-muted, #94a3b8)" }}>
           You can&apos;t change your own membership status.
+        </p>
+      ) : null}
+      {ownerTargetLocked ? (
+        <p id={`member-lifecycle-owner-${membershipId}`} data-state="owner-target-blocked" style={{ margin: 0, fontSize: 12, color: "var(--ink-muted, #94a3b8)" }}>
+          Only an owner can suspend or restore another owner.
         </p>
       ) : null}
 

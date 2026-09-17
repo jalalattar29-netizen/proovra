@@ -52,6 +52,7 @@ import {
 import { Badge } from "../../../../../components/ui/Badge";
 import { Button } from "../../../../../components/ui/Button";
 import { formatCellDateTime } from "../../../../../lib/date";
+import { identifierLabel } from "@proovra/shared";
 
 type ValidationOutcome = "passed" | "warning" | "failed" | "unsupported";
 
@@ -68,6 +69,17 @@ type RecoveryReportKind =
   | "restore_validation_report"
   | "recovery_readiness_report"
   | "missing_coverage_report";
+
+const REPORT_KIND_LABEL: Record<string, string> = {
+  backup_validation_report: "Backup validation",
+  restore_validation_report: "Restore validation",
+  recovery_readiness_report: "Recovery readiness",
+  missing_coverage_report: "Missing coverage",
+};
+
+function reportKindLabel(kind: string): string {
+  return REPORT_KIND_LABEL[kind] ?? identifierLabel(kind);
+}
 
 type RecoveryValidationReport = {
   reportId: string;
@@ -389,7 +401,7 @@ function ReadinessSummary({
             {last.lastBackupReport ? (
               <>
                 <Badge tone={outcomeBadge(last.lastBackupReport.outcome)}>
-                  {last.lastBackupReport.outcome ?? "unknown"}
+                  {last.lastBackupReport.outcome ? identifierLabel(last.lastBackupReport.outcome) : "Unknown"}
                 </Badge>
                 <div className="adm-help" style={{ fontSize: 12, marginTop: 4 }}>
                   {formatCellDateTime(last.lastBackupReport.generatedAtUtc)}
@@ -406,7 +418,7 @@ function ReadinessSummary({
             {last.lastRestoreReport ? (
               <>
                 <Badge tone={outcomeBadge(last.lastRestoreReport.outcome)}>
-                  {last.lastRestoreReport.outcome ?? "unknown"}
+                  {last.lastRestoreReport.outcome ? identifierLabel(last.lastRestoreReport.outcome) : "Unknown"}
                 </Badge>
                 <div className="adm-help" style={{ fontSize: 12, marginTop: 4 }}>
                   {formatCellDateTime(last.lastRestoreReport.generatedAtUtc)}
@@ -517,7 +529,7 @@ function RecentReportsTable({
             <tbody>
               {reports.map((r) => (
                 <tr key={r.reportId}>
-                  <td>{r.kind}</td>
+                  <td>{reportKindLabel(r.kind)}</td>
                   <td>
                     <span className="apf-muted">
                       {formatCellDateTime(r.generatedAtUtc)}
@@ -525,7 +537,7 @@ function RecentReportsTable({
                   </td>
                   <td>
                     <Badge tone={outcomeBadge(r.outcome)}>
-                      {r.outcome ?? "unknown"}
+                      {r.outcome ? identifierLabel(r.outcome) : "Unknown"}
                     </Badge>
                   </td>
                   <td>
@@ -612,7 +624,7 @@ function ReportDrawer({
                     <div className="adm-help" style={{ fontSize: 11 }}>{c.id}</div>
                   </td>
                   <td>
-                    <Badge tone={outcomeBadge(c.outcome)}>{c.outcome}</Badge>
+                    <Badge tone={outcomeBadge(c.outcome)}>{identifierLabel(c.outcome)}</Badge>
                   </td>
                   <td>
                     <span style={{ fontSize: 12 }}>{c.detail}</span>

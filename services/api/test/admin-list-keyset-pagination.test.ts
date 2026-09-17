@@ -277,6 +277,8 @@ vi.mock("../src/db.js", () => ({
     teamMember: {
       findUnique: async () => ({ id: "tm-1", status: "ACTIVE" }),
     },
+    // The timeline names the acting users on a page (PV-AUD-001).
+    user: { findMany: async () => [] },
     securityEvent: {
       findMany: async (args: { where?: Record<string, unknown>; take?: number }) =>
         findMany("securityEvent", H.securityEvents, args),

@@ -21,6 +21,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { enclosingSource, routeSource } from "../../../scripts/source-contract/index.mjs";
 
 const REPO_ROOT = resolve(__dirname, "../../..");
 
@@ -64,9 +65,7 @@ describe("REAL FIX 2 — dashboard route never returns wholesale 403", () => {
   const ROUTES = readFile("services/api/src/routes/product-and-lifecycle.routes.ts");
 
   it("(5) the dashboard handler does NOT reply with 403 ENTITLEMENT_REQUIRED on the dashboard", () => {
-    const startIdx = ROUTES.indexOf('"/v1/lifecycle/dashboard"');
-    expect(startIdx).toBeGreaterThan(0);
-    const slice = ROUTES.slice(startIdx, startIdx + 5000);
+    const slice = routeSource(ROUTES, "GET", "/v1/lifecycle/dashboard");
     // The old "return reply.code(403).send({denial: ENTITLEMENT_REQUIRED, entitlement: FEATURE_LIFECYCLE_DASHBOARD})"
     // is gone. The entitlement state is now surfaced as a flag inside
     // the dashboard envelope so the page renders either way.
@@ -76,8 +75,7 @@ describe("REAL FIX 2 — dashboard route never returns wholesale 403", () => {
   });
 
   it("(6) the dashboard handler still inspects the entitlement and SETS entitlementMissing on the envelope", () => {
-    const startIdx = ROUTES.indexOf('"/v1/lifecycle/dashboard"');
-    const slice = ROUTES.slice(startIdx, startIdx + 5000);
+    const slice = routeSource(ROUTES, "GET", "/v1/lifecycle/dashboard");
     expect(slice).toMatch(/let\s+entitlementMissing\s*=\s*false/);
     expect(slice).toMatch(/entitlementMissing\s*=\s*!feOk\.ok/);
     expect(slice).toMatch(/entitlementMissing\?:\s*boolean/);
@@ -86,8 +84,7 @@ describe("REAL FIX 2 — dashboard route never returns wholesale 403", () => {
   });
 
   it("(7) the dashboard handler still returns 200 with `{dashboard}` on all data paths", () => {
-    const startIdx = ROUTES.indexOf('"/v1/lifecycle/dashboard"');
-    const slice = ROUTES.slice(startIdx, startIdx + 5000);
+    const slice = routeSource(ROUTES, "GET", "/v1/lifecycle/dashboard");
     expect(slice).toMatch(/return\s+reply\.code\(200\)\.send\(\{\s*dashboard\s*\}\)/);
   });
 });
@@ -201,10 +198,11 @@ describe("REAL FIX 5 — Governance Posture route is preserved", () => {
   });
 
   it("(21) governance.lifecycle is visible in sidebar AND command palette AND all tools", () => {
-    const idx = ROUTE_REGISTRY.indexOf('id: "governance.lifecycle"');
-    expect(idx).toBeGreaterThan(0);
-    // The entry runs from this id line down to the next `},`.
-    const entrySlice = ROUTE_REGISTRY.slice(idx, idx + 800);
+    // The registry entry's own object literal.
+    const entrySlice = enclosingSource(ROUTE_REGISTRY, 'id: "governance.lifecycle"', "object", {
+      unique: true,
+      fileName: "routeRegistry.ts",
+    });
     expect(entrySlice).toMatch(/sidebarEligible:\s*true/);
     expect(entrySlice).toMatch(/commandPaletteVisible:\s*true/);
     expect(entrySlice).toMatch(/allToolsVisible:\s*true/);

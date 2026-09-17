@@ -4,11 +4,18 @@
  * =============================================================================
  * WHY THE LIST IS SHORT, AND WHY THAT IS THE ANSWER
  * =============================================================================
- * A grep of the admin tree for `role="tab"` returns ONE page:
+ * A grep of the admin tree for `role="tab"` returned ONE page:
  * /admin/identity/scim, with four. Every other section switches view through
  * the console's secondary navigation row, which is real links with real URLs —
  * which is what §10 asks for ("unrelated destinations must be links, not
  * tabs"). Two pages carry a time-window segmented control.
+ *
+ * PV-PLACE-001 / PV-OD-001 moved SCIM to /security-center/identity/scim and
+ * the analytics window to /operations/analytics. They are the same pages on
+ * the same administrative visual system, reached by the same fixture admin in
+ * the same organization workspace, so this probe follows them there rather
+ * than dropping the only tablist it has ever had. The admin tree itself now
+ * carries no tablist.
  *
  * So the complete tab surface is: 4 tabs + 2 window controls of 3 options.
  * This opens each one and records what is behind it.
@@ -27,7 +34,7 @@
 import { writeFileSync, mkdirSync } from "node:fs";
 import { open, signIn, visit, WEB } from "./lib.mjs";
 
-const SCIM = "/admin/identity/scim";
+const SCIM = "/security-center/identity/scim";
 const TABS = ["tokens", "ownership", "drift", "replay"];
 
 const PANEL = () => {
@@ -143,7 +150,7 @@ for (const t of TABS) {
  *
  * They are two different SHAPES, which is the thing to record rather than to
  * flatten. /admin/dashboard offers three fixed ranges as a segmented button
- * group; /admin/platform/analytics offers a bounded 1..180-day window as a
+ * group; /operations/analytics offers a bounded 1..180-day window as a
  * `<select>`, because the API clamps to that contract and three buttons cannot
  * express it. An earlier version of this probe looked only for the three
  * button labels and reported analytics as having NO window control at all.
@@ -151,7 +158,7 @@ for (const t of TABS) {
  * Both are legitimate. What both must do is say which option is current in
  * more than a colour, which is what `pressed` records.
  */
-for (const route of ["/admin/dashboard", "/admin/platform/analytics"]) {
+for (const route of ["/admin/dashboard", "/operations/analytics"]) {
   await visit(page, route, 3500);
   const win = await page.evaluate(() => {
     const main = document.querySelector("main") || document.body;

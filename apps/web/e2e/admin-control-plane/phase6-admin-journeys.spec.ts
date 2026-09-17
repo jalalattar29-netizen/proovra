@@ -116,12 +116,21 @@ test.describe("PHASE 6 — Admin information architecture", () => {
   test("every section of the console is reachable and renders one H1", async ({ page }) => {
     const errors = collectConsole(page);
 
+    /*
+     * PV-PLACE-001 / PV-OD-001 — the Identity section left the console (its
+     * pages administer ONE workspace and live in the Security Center now), and
+     * Security & support opens on /admin/audit since /admin/security moved to
+     * /security-center/posture. The identity hub keeps its one-H1 check at its
+     * new home: the fixture admin's active workspace is the organization it
+     * administers, so it is the same page reading the same workspace. The old
+     * URLs are proven to land on the new ones below.
+     */
     const sections = [
       "/admin",
       "/admin/customers",
       "/admin/evidence-ops",
-      "/admin/identity",
-      "/admin/security",
+      "/security-center/identity",
+      "/admin/audit",
       "/admin/platform-health",
       "/admin/platform/runbooks",
       "/admin/dashboard",
@@ -134,6 +143,20 @@ test.describe("PHASE 6 — Admin information architecture", () => {
       // §14 — exactly one canonical page H1.
       const h1 = page.locator("main h1");
       expect(await h1.count(), `${href}: expected exactly one H1`).toBe(1);
+    }
+
+    // PV-PLACE-001 — an old console bookmark lands on the tenant home in one
+    // hop (a permanent redirect in next.config.js), not on a 404.
+    for (const [from, to] of [
+      ["/admin/identity", "/security-center/identity"],
+      ["/admin/security", "/security-center/posture"],
+    ] as const) {
+      const hop = await page.request.get(`${WEB}${from}`, { maxRedirects: 0 });
+      expect(hop.status(), `${from}: expected a permanent redirect`).toBe(308);
+      expect(
+        new URL(hop.headers()["location"] ?? "", WEB).pathname,
+        `${from}: must redirect to ${to}`,
+      ).toBe(to);
     }
 
     const hydration = errors.filter((e) =>

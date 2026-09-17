@@ -15,6 +15,7 @@
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { isDomainError } from "../errors.js";
 import { z } from "zod";
 
 import { getAuthUserId } from "../auth.js";
@@ -48,6 +49,7 @@ import {
   listPackageDeliveries,
   recordPackageDelivery,
   recordPackageDownload,
+  requestExchangePackageRebuild,
   revokePackage,
 } from "../services/exchange/evidence-exchange.service.js";
 import { listDeliveryActivity } from "../services/exchange/signed-delivery.service.js";
@@ -97,6 +99,10 @@ import {
 import { projectLifecycleDashboard } from "../services/lifecycle/lifecycle-dashboard.service.js";
 import { computeLifecycleCapabilityStatus } from "../services/lifecycle/capability-status.service.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
+// The canonical tenant-audit facade. Releasing evidence (signed link,
+// delivery, download authorisation) and withdrawing it (revoke, webhook
+// deactivation) are operator actions and are recorded through it.
+import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import {
   VERIFICATION_PACKAGE_LIFECYCLE_PREVIEW_KINDS,
   buildLifecyclePackagePreview,
@@ -139,6 +145,18 @@ async function resolveWorkspace(
 // ---------------------------------------------------------------------------
 // Route registration
 // ---------------------------------------------------------------------------
+
+/**
+ * D63 — destruction refusals the service classifies are answered in the
+ * lifecycle pages' `{ denial }` shape with their own status; anything else is
+ * rethrown for the central handler.
+ */
+function sendDestructionRefusal(reply: FastifyReply, err: unknown) {
+  if (isDomainError(err)) {
+    return reply.code(err.httpStatus).send({ denial: err.publicCode });
+  }
+  throw err;
+}
 
 export async function productAndLifecycleRoutes(app: FastifyInstance) {
   // =========================================================================
@@ -379,40 +397,118 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     },
   );
 
+  // D59 — "Build again". A failed build returns the package to DRAFT, and
+  // until this route nothing could hand it back to the builder. Same gates as
+  // creation (a build that succeeds meters the export allowance), a
+  // conditional DRAFT -> BUILDING, and a package in another workspace answers
+  // exactly like a missing one.
   app.post(
-    "/v1/exchange/packages/:id/ready",
-    { preHandler: [requireAuth, requireDelegatedTier("ORG_ADMIN")] },
+    "/v1/exchange/packages/:id/build",
+    { preHandler: requireAuth },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      if (
+        !(await authorizeOrFail(req, reply, {
+          teamId: ctx.teamId,
+          permission: "evidence.generate_package",
+          antiEnumeration: true,
+        }))
+      ) {
+        return reply;
+      }
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
-      const body = z
-        .object({
-          storageKey: z.string().min(1).max(400),
-          packageSha256: z.string().min(1).max(64),
-          packageSizeBytes: z.number().int().nonnegative(),
-        })
-        .parse(req.body);
-      await generateSignedUrl({
+
+      const featureOk = await assertFeatureEntitlement({
+        teamId: ctx.teamId,
+        key: "FEATURE_EVIDENCE_EXCHANGE",
+      });
+      if (!featureOk.ok) {
+        return reply.code(403).send({
+          denial: "ENTITLEMENT_REQUIRED",
+          key: "FEATURE_EVIDENCE_EXCHANGE",
+        });
+      }
+      const quotaOk = await assertQuotaEntitlement({
+        teamId: ctx.teamId,
+        key: "QUOTA_EXPORT_PACKAGES_PER_MONTH",
+        requested: 1,
+      });
+      if (!quotaOk.ok) {
+        return reply.code(429).send({
+          denial: "QUOTA_EXCEEDED",
+          key: "QUOTA_EXPORT_PACKAGES_PER_MONTH",
+        });
+      }
+
+      const res = await requestExchangePackageRebuild({
         teamId: ctx.teamId,
         packageId: id,
-        ttlSeconds: 3600,
       });
-      // markPackageReady is lower-level; for this route we use it by
-      // importing the function directly since the route needs explicit fields.
-      const { markPackageReady } = await import(
-        "../services/exchange/evidence-exchange.service.js"
-      );
-      const mr = await markPackageReady({
-        teamId: ctx.teamId,
-        packageId: id,
-        storageKey: body.storageKey,
-        packageSha256: body.packageSha256,
-        packageSizeBytes: body.packageSizeBytes,
+      if (!res.ok && res.reason === "NOT_FOUND") {
+        return reply.code(404).send({ denial: "NOT_FOUND" });
+      }
+      if (!res.ok) {
+        await emitTenantAudit({
+          action: "exchange.package.build_requested",
+          outcome: "denied",
+          sourceApp: "API",
+          actorUserId: ctx.userId,
+          workspaceId: ctx.teamId,
+          resourceType: "evidence_exchange_package",
+          resourceId: id,
+          capability: "evidence.generate_package",
+          previousState: res.state,
+          requestedState: "BUILDING",
+          resultingState: res.state,
+          reasonCode: "EXCHANGE_PACKAGE_NOT_DRAFT",
+        });
+        return reply.code(409).send({
+          code: "EXCHANGE_PACKAGE_NOT_DRAFT",
+          denial: "EXCHANGE_PACKAGE_NOT_DRAFT",
+          state: res.state,
+        });
+      }
+      await emitTenantAudit({
+        action: "exchange.package.build_requested",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: ctx.userId,
+        workspaceId: ctx.teamId,
+        resourceType: "evidence_exchange_package",
+        resourceId: id,
+        capability: "evidence.generate_package",
+        previousState: res.previousState,
+        requestedState: "BUILDING",
+        resultingState: "BUILDING",
       });
-      if (!mr.ok) return reply.code(404).send({ denial: "NOT_FOUND" });
-      return reply.code(200).send({ ok: true });
+      return reply.code(202).send({ packageId: id, state: "BUILDING" });
     },
+  );
+
+  // ---------------------------------------------------------------------------
+  // (RETIRED) POST /v1/exchange/packages/:id/ready — typed 410 (WCC 2026-09-17)
+  //
+  // It let a caller declare a package READY with a storage key, sha256 and
+  // size it typed itself, and minted a signed URL on the way, outside the
+  // worker's build. The worker is the only party that computes those facts:
+  // it moves BUILDING -> READY with the hash it produced and meters the
+  // export. A human asks for a build with POST /v1/exchange/packages/:id/build.
+  // No web, mobile, worker or e2e caller existed. The route keeps
+  // authentication and does nothing else: it reads and writes no package data.
+  // ---------------------------------------------------------------------------
+  app.post(
+    "/v1/exchange/packages/:id/ready",
+    { preHandler: requireAuth },
+    async (_req, reply) =>
+      reply.code(410).send({
+        error: {
+          code: "EXCHANGE_PACKAGE_MANUAL_READY_RETIRED",
+          message:
+            "Marking a package ready by hand is retired. The package builder marks it ready; request a build instead.",
+        },
+        canonical: "/v1/exchange/packages/:id/build",
+      }),
   );
 
   app.post(
@@ -457,6 +553,22 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         ttlSeconds: q.ttlSeconds ?? 3600,
       });
       if (!res.ok) return reply.code(404).send({ denial: res.denial });
+      // A signed link hands out access to the package's evidence. The URL
+      // itself is never recorded — only who minted it, for what, and until when.
+      await emitTenantAudit({
+        action: "exchange.package.signed_url_issued",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: ctx.userId,
+        workspaceId: ctx.teamId,
+        resourceType: "evidence_exchange_package",
+        resourceId: id,
+        capability: "evidence.generate_package",
+        metadata: {
+          expiresAtUtc: res.expiresAtUtc,
+          ttlSeconds: q.ttlSeconds ?? 3600,
+        },
+      });
       return reply.code(200).send({ signedUrl: res.signedUrl, expiresAtUtc: res.expiresAtUtc });
     },
   );
@@ -553,6 +665,25 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         channel: body.channel ?? "SIGNED_URL",
       });
       if (!res.ok) return reply.code(404).send({ denial: "NOT_FOUND" });
+      // Recording a delivery releases the package to an external recipient.
+      // The recipient's address stays on the delivery row (referenced by id);
+      // the append-only trail carries only whether one was named.
+      await emitTenantAudit({
+        action: "exchange.package.delivery_recorded",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: ctx.userId,
+        workspaceId: ctx.teamId,
+        resourceType: "evidence_exchange_package",
+        resourceId: id,
+        capability: "evidence.generate_package",
+        metadata: {
+          deliveryId: res.deliveryId ?? null,
+          channel: body.channel ?? "SIGNED_URL",
+          recipientOrgSlug: body.recipientOrgSlug ?? null,
+          recipientEmailProvided: Boolean(body.recipientEmail),
+        },
+      });
       return reply.code(201).send({ deliveryId: res.deliveryId });
     },
   );
@@ -580,6 +711,16 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         deliveryId: id,
       });
       if (!res.ok) return reply.code(404).send({ denial: "NOT_FOUND" });
+      await emitTenantAudit({
+        action: "exchange.delivery.download_authorized",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: ctx.userId,
+        workspaceId: ctx.teamId,
+        resourceType: "evidence_exchange_delivery",
+        resourceId: id,
+        capability: "evidence.download_package",
+      });
       return reply.code(200).send({ ok: true });
     },
   );
@@ -597,6 +738,20 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         actorUserId: ctx.userId,
       });
       if (!res.ok) return reply.code(404).send({ denial: "NOT_FOUND" });
+      // A replayed revoke changed nothing and is recorded as such.
+      await emitTenantAudit({
+        action: "exchange.package.revoke",
+        outcome: res.revoked ? "success" : "no_op",
+        sourceApp: "API",
+        actorUserId: ctx.userId,
+        workspaceId: ctx.teamId,
+        resourceType: "evidence_exchange_package",
+        resourceId: id,
+        actorAuthority: "ORG_ADMIN",
+        previousState: res.previousState ?? null,
+        requestedState: "REVOKED",
+        resultingState: "REVOKED",
+      });
       return reply.code(200).send({ ok: true });
     },
   );
@@ -849,6 +1004,19 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         actorUserId: ctx.userId,
       });
       if (!res.ok) return reply.code(404).send({ denial: "NOT_FOUND" });
+      await emitTenantAudit({
+        action: "integration.lifecycle_webhook.deactivate",
+        outcome: res.deactivated ? "success" : "no_op",
+        sourceApp: "API",
+        actorUserId: ctx.userId,
+        workspaceId: ctx.teamId,
+        resourceType: "lifecycle_webhook_endpoint",
+        resourceId: id,
+        actorAuthority: "ORG_ADMIN",
+        previousState: res.previousState ?? null,
+        requestedState: "DEACTIVATED",
+        resultingState: "DEACTIVATED",
+      });
       return reply.code(200).send({ ok: true });
     },
   );
@@ -1496,12 +1664,16 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
-      const res = await recordApproval({
-        teamId: ctx.teamId,
-        requestId: id,
-        approverUserId: ctx.userId,
-      });
-      return reply.code(200).send({ ok: res.ok, state: res.state, allApproved: res.allApproved });
+      try {
+        const res = await recordApproval({
+          teamId: ctx.teamId,
+          requestId: id,
+          approverUserId: ctx.userId,
+        });
+        return reply.code(200).send({ ok: res.ok, state: res.state, allApproved: res.allApproved });
+      } catch (err) {
+        return sendDestructionRefusal(reply, err);
+      }
     },
   );
 
@@ -1548,8 +1720,11 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         });
         return reply.code(200).send({ ok: true, certificateId: res.certificateId });
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "EXECUTE_ERROR";
-        return reply.code(409).send({ denial: msg });
+        // D63 — a bounded refusal keeps this page's `denial` shape; anything
+        // else is a real fault and reaches the central handler as one (the
+        // service has already marked the request FAILED). The raw internal
+        // message never crosses the wire.
+        return sendDestructionRefusal(reply, err);
       }
     },
   );

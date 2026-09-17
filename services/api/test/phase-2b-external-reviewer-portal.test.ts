@@ -44,6 +44,10 @@ const SCHEMA = readSource("../../../services/api/prisma/schema.prisma");
 const SVC_SESSION = readSource(
   "../../../services/api/src/services/external-review/portal-session.service.ts",
 );
+// D27 — the emailed one-time code the MFA gate checks lives here.
+const SVC_MFA_CODE = readSource(
+  "../../../services/api/src/services/external-review/portal-mfa-challenge.service.ts",
+);
 const SVC_INVITE = readSource(
   "../../../services/api/src/services/external-review/portal-invitation.service.ts",
 );
@@ -69,6 +73,9 @@ const SERVER = readSource("../../../services/api/src/server.ts");
 
 const UI_TOKEN_ENTRY = readSource(
   "../../../apps/web/app/portal/page.tsx",
+);
+const UI_MFA_CODE_STEP = readSource(
+  "../../../apps/web/components/external-portal/PortalMfaCodeStep.tsx",
 );
 const UI_DASHBOARD = readSource(
   "../../../apps/web/app/portal/[token]/page.tsx",
@@ -299,7 +306,12 @@ describe("Phase 2B — backend services", () => {
     expect(SVC_SESSION).toMatch(/establishPortalSession/);
     expect(SVC_SESSION).toMatch(/endPortalSession/);
     expect(SVC_SESSION).toMatch(/MFA_REQUIRED/);
-    expect(SVC_SESSION).toMatch(/MFA_INVALID/);
+    // D27 — the session service now delegates the code check; the bounded
+    // refusals are decided by the challenge service it calls.
+    expect(SVC_SESSION).toMatch(/verifyPortalMfaCode/);
+    expect(SVC_MFA_CODE).toMatch(/MFA_INVALID/);
+    expect(SVC_MFA_CODE).toMatch(/MFA_CODE_EXHAUSTED/);
+    expect(SVC_MFA_CODE).toMatch(/MFA_UNAVAILABLE/);
   });
   it("invitation service exposes issue / revoke / accept / list", () => {
     expect(SVC_INVITE).toMatch(/export\s+async\s+function\s+issueInvitation/);
@@ -375,7 +387,10 @@ describe("Phase 2B — routes", () => {
 describe("Phase 2B — portal UI", () => {
   it("token entry page authenticates + reveals an MFA challenge when required", () => {
     expect(UI_TOKEN_ENTRY).toMatch(/data-portal-token-input/);
-    expect(UI_TOKEN_ENTRY).toMatch(/data-portal-mfa-input/);
+    // D27 — the code input moved into the shared emailed-code step the
+    // token-entry page renders on MFA_REQUIRED.
+    expect(UI_TOKEN_ENTRY).toMatch(/PortalMfaCodeStep/);
+    expect(UI_MFA_CODE_STEP).toMatch(/data-portal-mfa-input/);
     expect(UI_TOKEN_ENTRY).toMatch(/MFA_REQUIRED/);
   });
   it("portal dashboard renders ribbon + assigned table + limitations", () => {

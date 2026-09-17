@@ -126,8 +126,23 @@ export async function verifyAccountStepUp(input: {
     where: { id: userId },
     select: { id: true, passwordHash: true },
   });
+  /*
+   * WCC-NEW-010 — ADVERTISE ONLY WHAT CAN PASS.
+   *
+   * The `mfa` proof is verified against an ACTIVE authenticator app
+   * (verifyActiveTotp). This lookup used to accept ANY active factor, so an
+   * account holding only a verified phone was told "mfa" would work and then
+   * failed with every code it received. It now counts exactly the factor the
+   * proof checks: a verified, unrevoked TOTP factor.
+   */
   const activeFactor = await prisma.mfaFactor.findFirst({
-    where: { userId, status: "ACTIVE" },
+    where: {
+      userId,
+      status: "ACTIVE",
+      kind: "TOTP",
+      revokedAt: null,
+      verifiedAtUtc: { not: null },
+    },
     select: { id: true },
   });
 

@@ -62,6 +62,8 @@ import {
 import { Badge } from "../../../../../components/ui/Badge";
 import { Button } from "../../../../../components/ui/Button";
 import { formatCellDateTime } from "../../../../../lib/date";
+import { identifierLabel } from "@proovra/shared";
+import { signerProviderLabel } from "../../../../../lib/labels/adminPlatformLabels";
 
 // ============================================================================
 // Types
@@ -543,7 +545,7 @@ function PurposeOverview({
             <strong style={{ fontSize: 14 }}>{PURPOSE_LABELS[p]}</strong>
             {active ? (
               <div style={{ marginTop: 8 }}>
-                <Badge tone={statusBadge(active.status)}>{active.status}</Badge>
+                <Badge tone={statusBadge(active.status)}>{identifierLabel(active.status)}</Badge>
                 <div
                   className="adm-help"
                   style={{
@@ -552,7 +554,7 @@ function PurposeOverview({
                     fontFamily: "monospace",
                   }}
                 >
-                  {active.provider} ·{" "}
+                  {signerProviderLabel(active.provider)} ·{" "}
                   {active.keyId ? active.keyId.slice(0, 18) : "—"}
                   {active.keyVersion ? `:v${active.keyVersion}` : ""}
                 </div>
@@ -839,12 +841,12 @@ function SignerDetailDrawer({
             <tr>
               <td>status</td>
               <td>
-                <Badge tone={statusBadge(signer.status)}>{signer.status}</Badge>
+                <Badge tone={statusBadge(signer.status)}>{identifierLabel(signer.status)}</Badge>
               </td>
             </tr>
             <tr>
               <td>provider</td>
-              <td>{signer.provider}</td>
+              <td>{signerProviderLabel(signer.provider)}</td>
             </tr>
             <tr>
               <td>algorithm</td>
@@ -971,7 +973,7 @@ function SignerDetailDrawer({
               type="button"
               className="apf-control"
               disabled={busy !== null || terminalState}
-              title={terminalState ? `A ${signer.status} signer cannot be retired.` : undefined}
+              title={terminalState ? `A ${identifierLabel(signer.status).toLowerCase()} signer cannot be retired.` : undefined}
               onClick={() => runStepUpAction("retire")}
               data-testid="signer-retire"
             >
@@ -1012,17 +1014,19 @@ function SignerDetailDrawer({
                     </td>
                     <td>
                       <div style={{ fontSize: 12 }}>{e.summary}</div>
-                      <div
+                      <code
+                        data-identifier
                         className="adm-help"
                         style={{
+                          display: "block",
                           fontFamily: "monospace",
                           fontSize: 11,
                         }}
                       >
                         {e.eventType}
-                      </div>
+                      </code>
                     </td>
-                    <td>{e.severity}</td>
+                    <td>{identifierLabel(e.severity)}</td>
                     <td>
                       <code style={{ fontFamily: "monospace", fontSize: 11 }}>
                         {e.actorUserId ? e.actorUserId.slice(0, 12) + "…" : "—"}
@@ -1195,8 +1199,11 @@ function CustodyAttestationsPanel({
                 : verifyResult.outcome === "missing_attestation"
                   ? "neutral"
                   : "risk"}>
+            {identifierLabel(verifyResult.outcome)}
+          </Badge>{" "}
+          <code data-identifier style={{ fontSize: 11 }}>
             {verifyResult.outcome}
-          </Badge>
+          </code>
           <p style={{ marginTop: 6, fontSize: 13 }}>{verifyResult.summary}</p>
           {verifyResult.attestation ? (
             <p className="adm-help" style={{ fontSize: 11 }}>

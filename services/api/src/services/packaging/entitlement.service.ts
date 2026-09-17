@@ -36,6 +36,11 @@ import {
   type ProductLine,
 } from "@proovra/shared";
 
+import {
+  classifyEntitlementPeriod,
+  entitlementPeriodStart,
+} from "@proovra/shared-runtime";
+
 import { prisma as defaultPrisma } from "../../db.js";
 import { emitLifecycleEvent } from "../intelligence/intelligence-activity.service.js";
 
@@ -213,22 +218,12 @@ export const PLAN_LINE_ENTITLEMENTS: Record<
 // Period helpers (QUOTA windowing)
 // ===========================================================================
 
-type Period = "DAY" | "MONTH";
-
-function classifyPeriod(key: EntitlementKey): Period {
-  if (key.endsWith("PER_DAY")) return "DAY";
-  if (key.endsWith("PER_MONTH")) return "MONTH";
-  return "MONTH";
-}
-
-function periodStart(period: Period, now: Date = new Date()): Date {
-  if (period === "DAY") {
-    return new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0),
-    );
-  }
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0));
-}
+// The period clock lives beside the ONE meter writer in
+// `@proovra/shared-runtime` (the Worker's package builder meters too, and may
+// not import this module). The reader below uses the same pair, so gate and
+// meter still read one clock.
+const classifyPeriod = (key: EntitlementKey) => classifyEntitlementPeriod(key);
+const periodStart = entitlementPeriodStart;
 
 // ===========================================================================
 // Internal projection helpers
@@ -572,76 +567,17 @@ export async function assertQuotaEntitlement(input: {
 // ===========================================================================
 
 /**
- * The ONE writer of the export-package monthly meter.
+ * The ONE writer of the export-package monthly meter now lives in
+ * `@proovra/shared-runtime` (`billing/export-package-meter.ts`).
  *
- * `QUOTA_EXPORT_PACKAGES_PER_MONTH` was a live READ authority with no writer:
- * `assertQuotaEntitlement` compared a limit against a counter nothing had ever
- * incremented, so the gate could not trip and the plan's monthly allowance was
- * advertised but never enforced.
- *
- * WHY IT IS KEY-SPECIFIC AND NOT A GENERIC HELPER. The generic
- * `recordEntitlementUsage` was retired on 2026-09-07 with zero consumers, and
- * bringing it back for a single meter would rebuild the thing that let the
- * writer and the gate drift apart in the first place. This function names its
- * key, so there is exactly one place a caller could disagree with the reader
- * about WHICH meter is being written — and it derives the period through the
- * same `classifyPeriod`/`periodStart` pair `assertQuotaEntitlement` uses, so it
- * cannot disagree about WHEN either. Gate and meter read one clock.
- *
- * IT THROWS. It used to swallow, on the reasoning that "by the time this runs
- * the package exists and the customer has it, so metering must never fail the
- * operation it measures". That reasoning described a sequence that no longer
- * exists — and while it did, it left the meter permanently wrong:
- *
- *   1. `markPackageReady` committed DRAFT/BUILDING → READY;
- *   2. this write failed and said nothing;
- *   3. the package was READY and unmetered, forever, because a retry finds no
- *      DRAFT/BUILDING row to transition and so never reaches step 2 again.
- *
- * The billable transition and this write are now ONE database transaction, so
- * a throw here rolls the READY transition back and the package stays exactly
- * as retryable as it was before the attempt. Swallowing inside that transaction
- * would reinstate the divergence with extra steps: the transaction would commit
- * a READY package whose meter was never written.
- *
- * `client` is typed structurally so a `$transaction` callback's client
- * satisfies it — that is the whole point, and a `PrismaClient` parameter would
- * have forced the caller to cast its way out of the transaction.
+ * It moved because a package becomes READY in the Worker's package builder,
+ * which may not import this module. While the writer lived here, that READY
+ * step recorded no usage, so `QUOTA_EXPORT_PACKAGES_PER_MONTH` could not trip.
+ * It still THROWS, and its caller invokes it inside the transaction that
+ * performs the conditional READY transition. (The API's `markPackageReady` was
+ * removed with its retired route, 2026-09-17.) This module keeps the READER (`assertQuotaEntitlement`) and
+ * shares the writer's period clock (imported above).
  */
-export async function recordExportPackageUsage(input: {
-  prisma?: Pick<PrismaClient, "entitlementUsage">;
-  teamId: string;
-  amount?: number;
-}): Promise<void> {
-  const prisma = input.prisma ?? defaultPrisma;
-  const key: EntitlementKey = "QUOTA_EXPORT_PACKAGES_PER_MONTH";
-  const start = periodStart(classifyPeriod(key));
-  const amount = BigInt(Math.max(0, Math.floor(input.amount ?? 1)));
-  if (amount === 0n) return;
-  /**
-   * The upsert is the idempotency mechanism for the PERIOD ROW, not for the
-   * package: `(teamId, key, periodStartUtc)` is unique, so concurrent first
-   * writes in the same month cannot both insert. What makes it exactly-once
-   * PER PACKAGE is the caller's conditional transition — only the transaction
-   * that actually moved the package out of DRAFT/BUILDING gets here.
-   */
-  await prisma.entitlementUsage.upsert({
-    where: {
-      teamId_key_periodStartUtc: {
-        teamId: input.teamId,
-        key,
-        periodStartUtc: start,
-      },
-    },
-    create: {
-      teamId: input.teamId,
-      key,
-      periodStartUtc: start,
-      consumed: amount,
-    },
-    update: { consumed: { increment: amount } },
-  });
-}
 
 // ===========================================================================
 // upsertEntitlementGrant

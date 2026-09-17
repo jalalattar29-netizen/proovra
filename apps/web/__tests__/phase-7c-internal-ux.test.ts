@@ -149,7 +149,7 @@ test("/settings renders through the shared PageShell (no bespoke silver-card her
 test("/search renders the canonical search shell, not a bespoke inline-styled header", () => {
   const src = read("app/(app)/search/page.tsx");
   assert.match(src, /import "\.\/search\.css";/, "search must load its canonical stylesheet");
-  assert.match(src, /<main className="search-page"/, "search must use the canonical page surface");
+  assert.match(src, /<div className="search-page"/, "search must use the canonical page surface");
   assert.match(src, /<header className="search-header">/, "search must use the canonical header");
   assert.doesNotMatch(
     src,

@@ -19,6 +19,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { functionSource } from "../../../scripts/source-contract/index.mjs";
 
 function readApi(rel: string): string {
   return readFileSync(
@@ -266,17 +267,14 @@ describe("PHASE 2 — page.tsx surfaces canonical list columns + modals", () => 
       "ApiKeyUsageDialog",
     ];
     for (const name of newComponents) {
-      const startIdx = PAGE.indexOf(`function ${name}(`);
-      expect(startIdx).toBeGreaterThan(-1);
-      const slice = PAGE.slice(startIdx, startIdx + 3000);
+      const slice = functionSource(PAGE, name, "page.tsx");
       expect(slice).not.toMatch(/JSON\.stringify/);
       expect(slice).not.toMatch(/<pre>/);
     }
   });
 
   it("surfaces rotation-required indicator + expiry status + IP allowlist count on rows", () => {
-    const startIdx = PAGE.indexOf("function ApiKeysTable(");
-    const slice = PAGE.slice(startIdx, startIdx + 5000);
+    const slice = functionSource(PAGE, "ApiKeysTable", "page.tsx");
     expect(slice).toMatch(/rotationRequired/);
     expect(slice).toMatch(/no expiry|expires/);
     expect(slice).toMatch(/IP allowlist/);

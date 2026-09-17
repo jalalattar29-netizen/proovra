@@ -33,7 +33,7 @@
  *   <Button variant="destructive" loading={busy}>Delete</Button>
  */
 
-import React, { forwardRef } from "react";
+import React, { forwardRef, useId } from "react";
 
 export type ButtonVariant =
   | "primary"
@@ -56,6 +56,18 @@ export interface ButtonProps
   leadingIcon?: React.ReactNode;
   /** Icon rendered after the label. */
   trailingIcon?: React.ReactNode;
+  /**
+   * PV-DIS-001 — WHY the control is disabled, stated where it is disabled.
+   *
+   * Forty-three controls across twenty-six routes rendered disabled with no
+   * reason, so an operator could not tell a missing permission from a
+   * missing plan from an empty required field. When `disabled` is set this
+   * reason is exposed three ways: as the accessible description
+   * (aria-describedby -> a visually hidden node), as a hover title, and as
+   * `data-disabled-reason` for the DOM sweep. Ignored while `loading`
+   * (a loading control is mid-action, not unavailable) and while enabled.
+   */
+  disabledReason?: string;
 }
 
 /**
@@ -223,6 +235,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     leadingIcon,
     trailingIcon,
     disabled,
+    disabledReason,
     children,
     className,
     style,
@@ -233,14 +246,27 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 ) {
   const isDisabled = disabled || loading;
   const spinnerSize = size === "sm" ? 13 : size === "lg" ? 17 : 15;
+  const reasonId = useId();
+  const reason =
+    disabled && !loading && typeof disabledReason === "string" && disabledReason.trim()
+      ? disabledReason.trim()
+      : null;
+  // A caller-supplied description is kept and the reason is appended to it.
+  const describedBy =
+    [rest["aria-describedby"], reason ? reasonId : null].filter(Boolean).join(" ") ||
+    undefined;
 
   return (
+    <>
     <button
       {...rest}
       ref={ref}
       type={type}
       disabled={isDisabled}
       aria-busy={loading || undefined}
+      aria-describedby={describedBy}
+      title={rest.title ?? reason ?? undefined}
+      data-disabled-reason={reason ?? undefined}
       data-ui-button
       data-variant={variant}
       data-size={size}
@@ -283,8 +309,27 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       ) : null}
       {!loading ? trailingIcon : null}
     </button>
+    {reason ? (
+      <span id={reasonId} style={VISUALLY_HIDDEN}>
+        {reason}
+      </span>
+    ) : null}
+    </>
   );
 });
+
+/** Present to assistive technology, absent from layout. */
+const VISUALLY_HIDDEN: React.CSSProperties = {
+  position: "absolute",
+  width: 1,
+  height: 1,
+  padding: 0,
+  margin: -1,
+  overflow: "hidden",
+  clip: "rect(0 0 0 0)",
+  whiteSpace: "nowrap",
+  border: 0,
+};
 
 Button.displayName = "Button";
 

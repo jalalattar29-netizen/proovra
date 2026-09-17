@@ -7,7 +7,8 @@
  * =============================================================================
  * 94 full-page PNGs in a flat directory is not a review — nobody opens 94
  * files, and a reviewer who opens twelve of them has reviewed twelve pages.
- * §24 asks for the captures to be grouped by the eight families so the result
+ * §24 asks for the captures to be grouped by the families (eight until
+ * PV-PLACE-001 moved Identity and Access out of the console) so the result
  * can be looked at efficiently, and looking at it is the whole point: "do not
  * claim world-class based on automated tests".
  *
@@ -44,7 +45,8 @@ const BEFORE = resolve(REVIEW, "before");
 const OUT = resolve(REVIEW, "contact-sheets");
 
 /**
- * THE EIGHT FAMILIES, in the order §14 names them.
+ * THE FAMILIES, in the order §14 names them. Seven since PV-PLACE-001 moved
+ * "D. Identity and Access" out of the console with its only route.
  *
  * Matched by route prefix, longest first, so `/admin/platform/runbooks` lands
  * in Runbooks rather than in Platform Operations. A route that matches nothing
@@ -83,18 +85,16 @@ const FAMILIES = [
       "/admin/platform/recovery",
     ],
   },
-  {
-    id: "d-identity",
-    name: "D. Identity and Access",
-    question: "Who has access, how did they get it, and what is failing?",
-    routes: ["/admin/identity"],
-  },
+  // PV-PLACE-001 / PV-OD-001 — "D. Identity and Access" had one route,
+  // /admin/identity, and it left the console with its whole family for
+  // /security-center/identity. A family with no route would render an empty
+  // sheet, so it is gone rather than kept hollow.
   {
     id: "e-security",
     name: "E. Security and Support",
     question: "Who did what to whom, with what authority, and what was the outcome?",
+    // PV-PLACE-001 — /admin/security moved to /security-center/posture.
     routes: [
-      "/admin/security",
       "/admin/audit",
       "/admin/timeline",
       "/admin/alerts",
@@ -110,9 +110,8 @@ const FAMILIES = [
       "/admin/operations",
       "/admin/platform/readiness",
       "/admin/platform/observability",
-      "/admin/platform/reliability",
+      // PV-PLACE-001 — reliability and automation moved to /operations/*.
       "/admin/platform/queues",
-      "/admin/platform/automation",
       "/admin/costs",
       "/admin/search",
     ],
@@ -127,7 +126,8 @@ const FAMILIES = [
     id: "h-insight",
     name: "H. Business Insight",
     question: "How is the business doing, on what timeframe, measured how?",
-    routes: ["/admin/dashboard", "/admin/executive", "/admin/adoption", "/admin/platform/analytics"],
+    // PV-PLACE-001 — /admin/platform/analytics moved to /operations/analytics.
+    routes: ["/admin/dashboard", "/admin/executive", "/admin/adoption"],
   },
 ];
 

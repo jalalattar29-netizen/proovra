@@ -1,7 +1,7 @@
 /**
  * Phase E3.1 — Automation action handlers (bounded executor).
  *
- * Implements the 7 allowlisted action types from E3:
+ * Implements the 8 allowlisted action types:
  *
  *   - NOTIFY_USER
  *   - NOTIFY_ROLE
@@ -10,9 +10,16 @@
  *   - ASSIGN_REVIEWER
  *   - APPLY_LABEL
  *   - ADD_OPERATIONAL_COMMENT
+ *   - WEBHOOK_DELIVERY_INTERNAL_ONLY (Phase E3.2 — actionWebhookDelivery)
  *
- * WEBHOOK_DELIVERY_INTERNAL_ONLY is intentionally NOT implemented —
- * DEF-022 remains open and the DB CHECK constraint blocks its persistence.
+ * PV-DOC-001 — this header used to say WEBHOOK_DELIVERY_INTERNAL_ONLY was
+ * "intentionally NOT implemented" and blocked by the CHECK constraint. Both
+ * stopped being true in E3.2: the dispatcher below routes it to
+ * actionWebhookDelivery, and migration 20260802000000_phase_e3_2_webhook_delivery
+ * added the value to the constraint. What IS still bounded: one signed attempt
+ * per run and destination (no retries — DEF-023), the destination URL is
+ * re-validated by DNS lookup right before the send (SSRF rebinding defence),
+ * and nothing of the response body, the secret or the payload is returned.
  *
  * Hard invariants (pinned by `phase-e3-1-automation-execution.test.ts`):
  *

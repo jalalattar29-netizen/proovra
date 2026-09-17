@@ -23,6 +23,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
+
 function readWeb(rel: string): string {
   return readFileSync(
     fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url)),
@@ -171,16 +173,18 @@ describe("Lifecycle consolidation — Surface A → Surface B link", () => {
 describe("Lifecycle consolidation — disambiguated labels", () => {
   it("workspace.evidence_lifecycle is labelled Lifecycle Operations", () => {
     // Slice around the workspace.evidence_lifecycle id and assert label contains "Lifecycle Operations".
-    const idx = ROUTE_REGISTRY.indexOf('id: "workspace.evidence_lifecycle"');
-    expect(idx).toBeGreaterThan(0);
-    const slice = ROUTE_REGISTRY.slice(idx, idx + 600);
+    // The registry entry's own object literal.
+    const slice = enclosingSource(ROUTE_REGISTRY, 'id: "workspace.evidence_lifecycle"', "object", {
+      fileName: "routeRegistry.ts",
+    });
     expect(slice).toMatch(/label:\s*["']Lifecycle Operations["']/);
   });
 
   it("governance.lifecycle is labelled Governance Posture", () => {
-    const idx = ROUTE_REGISTRY.indexOf('id: "governance.lifecycle"');
-    expect(idx).toBeGreaterThan(0);
-    const slice = ROUTE_REGISTRY.slice(idx, idx + 600);
+    // The registry entry's own object literal.
+    const slice = enclosingSource(ROUTE_REGISTRY, 'id: "governance.lifecycle"', "object", {
+      fileName: "routeRegistry.ts",
+    });
     expect(slice).toMatch(/label:\s*["']Governance Posture["']/);
   });
 });

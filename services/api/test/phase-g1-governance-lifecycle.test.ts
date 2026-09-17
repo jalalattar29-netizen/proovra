@@ -64,10 +64,26 @@ const RETENTION_PAGE = readSource(
 // ===========================================================================
 
 describe("Phase G1 (B0.4) — retention engine consumes inheritance resolver", () => {
-  it("retention engine imports resolveTeamRetentionPolicy from the B0 service", () => {
+  it("retention engine reads the organization template through the ONE template reader", () => {
+    // PV-DUP-002 — the engine used to ask the B0 inheritance resolver, which
+    // is itself a resolver; two resolvers answered the same question and the
+    // page rendered both. The engine now reads the template directly, and
+    // the inheritance resolver is a projection OF the engine (next case).
     expect(RETENTION_ENGINE).toMatch(
-      /import\s*\{\s*resolveTeamRetentionPolicy\s*\}\s*from\s+"\.\.\/organization\/retention-inheritance\.service\.js"/,
+      /readOrganizationRetentionTemplate[\s\S]*?from\s+"\.\.\/organization\/retention-template\.js"/,
     );
+    expect(RETENTION_ENGINE).not.toMatch(/retention-inheritance\.service\.js/);
+  });
+
+  it("the inheritance resolver is a projection of the engine and runs no retention query of its own", () => {
+    const inheritance = readSource(
+      "../src/services/organization/retention-inheritance.service.ts",
+    );
+    expect(inheritance).toMatch(
+      /import\s*\{\s*resolveEffectiveRetentionPolicy\s*\}\s*from\s+"\.\.\/governance-lifecycle\/retention-engine\.service\.js"/,
+    );
+    expect(inheritance).not.toMatch(/\.evidenceRetentionPolicy\./);
+    expect(inheritance).not.toMatch(/\.organizationPolicy\./);
   });
 
   it("EffectiveRetentionDecision declares the bounded source attribution", () => {
@@ -77,11 +93,11 @@ describe("Phase G1 (B0.4) — retention engine consumes inheritance resolver", (
   });
 
   it("falls back to org template when no explicit policy matches", () => {
+    // The live-PostgreSQL proof is retention-effective-policy-uuid-sentinel
+    // .integration.test.ts ("inherits the ORGANIZATION template…"); this pins
+    // that the fallback reads the shared template, not a second resolver.
     expect(RETENTION_ENGINE).toMatch(
-      /candidates\.length\s*===\s*0[\s\S]*?resolveTeamRetentionPolicy\(input\.teamId/,
-    );
-    expect(RETENTION_ENGINE).toMatch(
-      /inheritance\.source\s*===\s*"org_policy_inherited"[\s\S]*?source:\s*"org_policy_inherited"/,
+      /readOrganizationRetentionTemplate\(input\.teamId[\s\S]*?candidates\.length\s*===\s*0[\s\S]*?org\.template[\s\S]*?source:\s*"org_policy_inherited"/,
     );
   });
 

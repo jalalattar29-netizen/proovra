@@ -25,6 +25,8 @@ import {
 } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { useConfirmAction } from "../../../components/ui/ConfirmActionModal";
+import { Button } from "../../../components/ui/Button";
+import { identifierLabel } from "@proovra/shared";
 // PHASE 12 VERTICAL C — durable evidence delivery history, read from the
 // server projection rather than from what this browser session happened to
 // record.
@@ -266,6 +268,12 @@ function IntegrationsPageInner() {
     null,
   );
   const [sendingTestForId, setSendingTestForId] = useState<string | null>(null);
+  // BATCH J — cancel a scheduled redelivery. One in flight at a time; the
+  // outcome is reported inside the endpoint's own deliveries panel.
+  const [cancellingDeliveryId, setCancellingDeliveryId] = useState<string | null>(null);
+  const [deliveryActionByEndpoint, setDeliveryActionByEndpoint] = useState<
+    Record<string, { tone: "status" | "alert"; text: string } | undefined>
+  >({});
   const { confirm } = useConfirmAction();
 
 useEffect(() => {
@@ -686,6 +694,76 @@ useEffect(() => {
     }
   }
 
+  // BATCH J — POST /v1/integrations/webhook-deliveries/:id/cancel.
+  // Valid only for RETRY_SCHEDULED; it is the one way to stop a scheduled
+  // redelivery without disabling the whole endpoint. Confirmed first, then
+  // announced only after the delivery is reread from
+  // GET /v1/integrations/webhook-deliveries/:id and shows CANCELLED.
+  async function cancelWebhookDeliveryRetry(endpointId: string, delivery: WebhookDelivery) {
+    if (!teamId || cancellingDeliveryId) return;
+    setDeliveryActionByEndpoint((prev) => ({ ...prev, [endpointId]: undefined }));
+    const ok = await confirm({
+      title: "Cancel the scheduled retry?",
+      description: `The ${deliveryStatusLabel(delivery.eventType)} event will not be sent to this endpoint again. The delivery is recorded as cancelled; the endpoint stays active for new events. This cannot be undone.`,
+      confirmLabel: "Cancel retry",
+      cancelLabel: "Keep retry",
+      tone: "warning",
+      testId: "integrations-webhook-delivery-cancel",
+    });
+    if (!ok) return;
+    setCancellingDeliveryId(delivery.id);
+    const report = (tone: "status" | "alert", text: string) =>
+      setDeliveryActionByEndpoint((prev) => ({ ...prev, [endpointId]: { tone, text } }));
+    let written = false;
+    try {
+      await apiFetch(
+        `/v1/integrations/webhook-deliveries/${encodeURIComponent(delivery.id)}/cancel`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ teamId }),
+        },
+      );
+      written = true;
+      const reread: { delivery: WebhookDelivery } = await apiFetch(
+        `/v1/integrations/webhook-deliveries/${encodeURIComponent(delivery.id)}?teamId=${encodeURIComponent(teamId)}`,
+        { method: "GET" },
+      );
+      setDeliveriesByEndpoint((prev) => {
+        const list = prev[endpointId];
+        if (!list) return prev;
+        return {
+          ...prev,
+          [endpointId]: list.map((d) => (d.id === delivery.id ? { ...d, ...reread.delivery } : d)),
+        };
+      });
+      if (reread.delivery.status === "CANCELLED") {
+        report("status", "Scheduled retry cancelled and confirmed from the saved delivery record.");
+      } else {
+        report(
+          "alert",
+          `The cancel was sent, but the delivery now shows as ${deliveryStatusLabel(reread.delivery.status)}. Refresh the deliveries to check.`,
+        );
+      }
+    } catch (err) {
+      const e = err as { statusCode?: number; code?: string };
+      if (written) {
+        report("alert", "The cancel was sent, but the delivery could not be reloaded to confirm it. Refresh the deliveries.");
+      } else if (e?.statusCode === 409 || e?.code === "delivery_not_cancellable") {
+        report("alert", "This delivery was already sent or finished, so there was no scheduled retry to cancel. The list has been refreshed.");
+        void openDeliveriesPanel(endpointId);
+      } else if (e?.statusCode === 404) {
+        report("alert", "This delivery no longer exists in this workspace. Refresh the deliveries.");
+      } else if (e?.statusCode === 403) {
+        report("alert", "Your role cannot manage webhook deliveries in this workspace.");
+      } else {
+        report("alert", toSafeUserError(e, { message: "The scheduled retry could not be cancelled. Try again." }).message);
+      }
+    } finally {
+      setCancellingDeliveryId(null);
+    }
+  }
+
   // Phase 3 — Send a synthetic test event to the endpoint. The
   // request body is intentionally empty (`{}`) — the server fills in
   // the canonical kind="test" payload. We then refresh the
@@ -719,7 +797,7 @@ useEffect(() => {
   }
 
   return (
-    <main style={pageStyle}>
+    <div style={pageStyle}>
       <header>
         <h1 style={titleStyle}>Integrations</h1>
         <p style={mutedStyle}>
@@ -911,7 +989,7 @@ useEffect(() => {
                           ) : null}
                         </div>
                         <span style={statusBadgeStyle(w.status)}>
-                          {w.status}
+                          {deliveryStatusLabel(w.status)}
                         </span>
                         <button
                           type="button"
@@ -977,6 +1055,11 @@ useEffect(() => {
                           onRetry={(deliveryId) =>
                             void retryWebhookDelivery(w.id, deliveryId)
                           }
+                          cancellingDeliveryId={cancellingDeliveryId}
+                          onCancelRetry={(delivery) =>
+                            void cancelWebhookDeliveryRetry(w.id, delivery)
+                          }
+                          actionMessage={deliveryActionByEndpoint[w.id] ?? null}
                           onSendTest={
                             w.status === "ACTIVE"
                               ? () => void sendWebhookTestEvent(w.id)
@@ -1067,7 +1150,7 @@ useEffect(() => {
           }}
         />
       ) : null}
-    </main>
+    </div>
   );
 }
 
@@ -1500,7 +1583,7 @@ function SignatureDocsPanel() {
             <code>{`const entries = signature_header.split(",")`}</code>
             , compute the expected <code>v1=&lt;hex&gt;</code> for your
             stored raw secret, and accept the request if{" "}
-            <code>entries.some(...)</code> matches in constant time.
+            <code data-identifier>entries.some(...)</code> matches in constant time.
             Below is a minimal reference implementation using{" "}
             <code>crypto.timingSafeEqual</code> — it keeps working
             through a rotation grace window without any code changes
@@ -1553,7 +1636,7 @@ function SignatureDocsPanel() {
           <h3 style={subHeadingStyle}>Test events</h3>
           <p style={mutedStyle}>
             <strong>Send test</strong> dispatches a synthetic event
-            (<code>webhook.test</code>) through the same signing and
+            (<code data-identifier>webhook.test</code>) through the same signing and
             retry path as production traffic. The deliveries panel
             tags the row so it is easy to recognise. Subscription
             filters are bypassed — the test always goes to the targeted
@@ -1995,7 +2078,7 @@ function ApiKeysTable({
                 </div>
               ) : null}
             </div>
-            <span style={statusBadgeStyle(k.status)}>{k.status}</span>
+            <span style={statusBadgeStyle(k.status)}>{deliveryStatusLabel(k.status)}</span>
             {k.status === "ACTIVE" ? (
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 <button
@@ -2561,6 +2644,12 @@ function ApiKeyUsageDialog({
 // `responseBodyPreview` are bounded by the server projection.
 // -----------------------------------------------------------------------------
 
+/** A stored status or event identifier, as operator words. */
+function deliveryStatusLabel(value: string): string {
+  if (value === "RETRY_SCHEDULED") return "Retry scheduled";
+  return identifierLabel(value);
+}
+
 function WebhookDeliveriesPanel({
   endpointId,
   deliveries,
@@ -2571,6 +2660,9 @@ function WebhookDeliveriesPanel({
   onRetry,
   onSendTest,
   sendingTest,
+  cancellingDeliveryId = null,
+  onCancelRetry,
+  actionMessage = null,
 }: {
   endpointId: string;
   deliveries: WebhookDelivery[] | undefined;
@@ -2581,6 +2673,11 @@ function WebhookDeliveriesPanel({
   onRetry: (deliveryId: string) => void;
   onSendTest: (() => void) | null;
   sendingTest: boolean;
+  /** BATCH J — the delivery whose scheduled retry is being cancelled. */
+  cancellingDeliveryId?: string | null;
+  onCancelRetry?: (delivery: WebhookDelivery) => void;
+  /** BATCH J — the outcome of the last delivery action on this endpoint. */
+  actionMessage?: { tone: "status" | "alert"; text: string } | null;
 }) {
   return (
     <div
@@ -2627,8 +2724,18 @@ function WebhookDeliveriesPanel({
           </button>
         </div>
       </div>
+      {actionMessage ? (
+        <p
+          role={actionMessage.tone}
+          style={{ ...mutedStyle, margin: "0 0 8px" }}
+          data-testid={`integrations-webhook-delivery-action-${endpointId}`}
+        >
+          {actionMessage.text}
+        </p>
+      ) : null}
       {error ? (
         <div
+          role="alert"
           style={{
             ...mutedStyle,
             color: "#7f1d1d",
@@ -2688,7 +2795,7 @@ function WebhookDeliveriesPanel({
                           borderRadius: 4,
                         }}
                       >
-                        {d.eventType}
+                        {deliveryStatusLabel(d.eventType)}
                       </code>
                       {isTest ? (
                         <span
@@ -2707,7 +2814,7 @@ function WebhookDeliveriesPanel({
                               : chipWarn
                         }
                       >
-                        {d.status}
+                        {deliveryStatusLabel(d.status)}
                       </span>
                       <span style={mutedStyle}>
                         attempts: {d.attemptCount}
@@ -2748,6 +2855,7 @@ function WebhookDeliveriesPanel({
                       </div>
                     ) : null}
                   </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "flex-end" }}>
                   {isRetryable ? (
                     <button
                       type="button"
@@ -2759,6 +2867,26 @@ function WebhookDeliveriesPanel({
                       {isInflight ? "Retrying…" : "Retry"}
                     </button>
                   ) : null}
+                  {d.status === "RETRY_SCHEDULED" && onCancelRetry ? (
+                    <Button
+                      size="sm"
+                      loading={cancellingDeliveryId === d.id}
+                      disabled={cancellingDeliveryId !== null || isInflight}
+                      disabledReason={
+                        isInflight
+                          ? "A retry of this delivery is in progress."
+                          : cancellingDeliveryId !== null && cancellingDeliveryId !== d.id
+                            ? "Another scheduled retry is being cancelled."
+                            : undefined
+                      }
+                      aria-label={`Cancel scheduled retry of ${deliveryStatusLabel(d.eventType)} delivery`}
+                      onClick={() => onCancelRetry(d)}
+                      data-testid={`integrations-webhook-delivery-cancel-${d.id}`}
+                    >
+                      {cancellingDeliveryId === d.id ? "Cancelling…" : "Cancel retry"}
+                    </Button>
+                  ) : null}
+                  </div>
                 </div>
               </li>
             );
@@ -3053,6 +3181,7 @@ const WEBHOOK_EVENT_LABELS: Record<string, string> = {
   "integration.webhook.created": "Created",
   "integration.webhook.test_sent": "Test event sent",
   "integration.webhook.delivery_retried": "Delivery retried",
+  "integration.webhook.delivery_cancelled": "Scheduled retry cancelled",
   "integration.webhook.secret_rotated": "Secret rotated",
   "integration.webhook.disabled": "Disabled",
   "integration.webhook.enabled": "Enabled",
@@ -3622,9 +3751,22 @@ function IntegrationsDisabledPanel(props: {
     | null;
 }): JSX.Element {
   const { isAdmin, diagnostics } = props;
+  // PV-COPY-001 — the body names the reason the API reported, and only that
+  // reason. It used to state "the signing secret is not configured" for every
+  // cause, including a deployment that had simply switched integrations off.
+  // Without diagnostics (everyone but an administrator) the reason is not
+  // known here, and the copy does not guess one.
+  const reason = diagnostics?.reason ?? null;
+  const body =
+    reason === "secret_missing"
+      ? "Integrations are disabled because the API key signing secret is not configured in the running API environment."
+      : reason === "feature_flag_off"
+        ? "Integrations are switched off for this deployment. API keys, webhooks and connectors stay unavailable until a platform administrator turns them on."
+        : "Integrations are unavailable on this deployment right now, so API keys, webhooks and connectors cannot be created or used.";
   return (
     <section
       data-testid="integrations-disabled-panel"
+      data-integrations-disabled-reason={reason ?? "unknown"}
       style={{
         marginTop: 12,
         padding: 16,
@@ -3645,14 +3787,24 @@ function IntegrationsDisabledPanel(props: {
           marginBottom: 0,
         }}
       >
-        Integrations are disabled because the API key signing secret is not
-        configured in the running API environment.
+        {body}
       </p>
+      {/*
+        PV-COPY-001 — the configuration flags are support detail, not the
+        message. They sit behind a disclosure an administrator opens when
+        triaging, instead of leading the panel beside the explanation.
+      */}
       {isAdmin && diagnostics ? (
-        <div
+        <details
           data-testid="integrations-disabled-admin-detail"
+          style={{ marginTop: 12 }}
+        >
+          <summary style={{ fontSize: 13, cursor: "pointer" }}>
+            Technical details
+          </summary>
+        <div
           style={{
-            marginTop: 12,
+            marginTop: 8,
             display: "flex",
             flexWrap: "wrap",
             gap: 6,
@@ -3725,6 +3877,7 @@ function IntegrationsDisabledPanel(props: {
             envSource={diagnostics.envSourceHint}
           </span>
         </div>
+        </details>
       ) : null}
       <p
         style={{

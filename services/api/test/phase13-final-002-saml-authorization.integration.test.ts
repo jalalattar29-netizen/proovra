@@ -86,6 +86,8 @@ describe("FINAL-002 — SAML operator routes enforce authentication and authoriz
   let foreignOwnerToken: string;
 
   const savedAcsUrl = process.env["SAML_ACS_URL"];
+  let totp: typeof import("../src/services/security/mfa-totp.js");
+  const totpSecrets = new Map<string, Buffer>();
 
   beforeAll(async () => {
     // The ACS URL the signed fixture binds its Destination/Recipient to. Set
@@ -132,9 +134,38 @@ describe("FINAL-002 — SAML operator routes enforce authentication and authoriz
       select: { id: true },
     });
     connectionA = created.id;
+
+    // D10 — the certificate routes are stepped up. The owner and admin each
+    // hold a verified authenticator, so a positive control can present a
+    // challenge bound to this connection through the real start/check routes.
+    totp = await import("../src/services/security/mfa-totp.js");
+    const { sealSecret } = await import("../src/services/security/mfa-secret-storage.js");
+    for (const userId of [ownerUserId, adminUserId]) {
+      const secret = totp.generateTotpSecretBytes();
+      const sealed = sealSecret(secret);
+      const now = new Date();
+      await prisma.mfaFactor.create({
+        data: {
+          userId,
+          kind: "TOTP",
+          status: "ACTIVE",
+          label: "phase13-final-002",
+          secretCiphertext: Buffer.from(sealed.ciphertext),
+          secretIv: Buffer.from(sealed.iv),
+          secretAuthTag: Buffer.from(sealed.authTag),
+          secretKekId: sealed.kekId,
+          verifiedAtUtc: now,
+          enrolledAt: now,
+        },
+      });
+      totpSecrets.set(userId, secret);
+    }
   }, 900_000);
 
   afterAll(async () => {
+    await prisma?.mfaFactor
+      .deleteMany({ where: { label: "phase13-final-002" } })
+      .catch(() => undefined);
     await prisma?.ssoConnection
       .deleteMany({ where: { displayName: { startsWith: "phase13-final-002-" } } })
       .catch(() => undefined);
@@ -144,6 +175,25 @@ describe("FINAL-002 — SAML operator routes enforce authentication and authoriz
   }, 300_000);
 
   const auth = (token: string) => ({ authorization: `Bearer ${token}` });
+
+  /**
+   * A step-up challenge approved by the actor's authenticator, bound to the
+   * connection — what the security center sends for a certificate change.
+   * The factor's last-used step is cleared first: codes are single-use per
+   * 30s step, and these controls step up more than once inside one step.
+   */
+  const stepUpHeaders = async (token: string, userId: string): Promise<Record<string, string>> => {
+    const teamId = h.fixtures.teamA.teamId;
+    const purpose = { teamId, purpose: "EXTERNAL_IDENTITY_LINK", resourceKind: "sso_connection", resourceId: connectionA };
+    const started = await h.app.inject({ method: "POST", url: "/v1/identity-security/step-up/start", headers: auth(token), payload: purpose });
+    expect(started.statusCode, started.body).toBe(200);
+    const challengeId = (JSON.parse(started.body) as { challenge: { id: string } }).challenge.id;
+    await prisma.mfaFactor.updateMany({ where: { userId, kind: "TOTP" }, data: { lastUsedAt: null } });
+    const code = totp.computeTotpCode(totpSecrets.get(userId)!, totp.timeStep(Math.floor(Date.now() / 1000)));
+    const checked = await h.app.inject({ method: "POST", url: "/v1/identity-security/step-up/check", headers: auth(token), payload: { teamId, challengeId, code } });
+    expect(checked.statusCode, checked.body).toBe(200);
+    return { "x-proovra-step-up-challenge-id": challengeId };
+  };
 
   const setMembership = async (
     userId: string,
@@ -184,6 +234,7 @@ describe("FINAL-002 — SAML operator routes enforce authentication and authoriz
       {
         name: "POST ingest-metadata",
         method: "POST" as const,
+        steppedUp: false,
         url: `/v1/auth/saml/${id}/ingest-metadata`,
         payload: {
           metadataXml: `<?xml version="1.0"?><EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="${IDP_ISSUER}"><IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol"><KeyDescriptor use="signing"><KeyInfo xmlns="http://www.w3.org/2000/09/xmldsig#"><X509Data><X509Certificate>${IDP_CERT_B64}</X509Certificate></X509Data></KeyInfo></KeyDescriptor><SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://idp.example.com/sso"/></IDPSSODescriptor></EntityDescriptor>`,
@@ -192,18 +243,21 @@ describe("FINAL-002 — SAML operator routes enforce authentication and authoriz
       {
         name: "POST test-connection",
         method: "POST" as const,
+        steppedUp: false,
         url: `/v1/auth/saml/${id}/test-connection`,
         payload: {} as Record<string, unknown>,
       },
       {
         name: "PUT certificate-next",
         method: "PUT" as const,
+        steppedUp: true,
         url: `/v1/auth/saml/${id}/certificate-next`,
         payload: { certificate: ROTATION_CERT_B64 } as Record<string, unknown>,
       },
       {
         name: "DELETE certificate-next",
         method: "DELETE" as const,
+        steppedUp: true,
         url: `/v1/auth/saml/${id}/certificate-next`,
         payload: undefined as Record<string, unknown> | undefined,
       },
@@ -242,7 +296,10 @@ describe("FINAL-002 — SAML operator routes enforce authentication and authoriz
         const res = await h.app.inject({
           method: route.method,
           url: route.url.replace("PLACEHOLDER", connectionA),
-          headers: auth(ownerToken),
+          headers: {
+            ...auth(ownerToken),
+            ...(route.steppedUp ? await stepUpHeaders(ownerToken, ownerUserId) : {}),
+          },
           ...(route.payload !== undefined ? { payload: route.payload } : {}),
         });
         expect(
@@ -312,7 +369,10 @@ describe("FINAL-002 — SAML operator routes enforce authentication and authoriz
           const ok = await h.app.inject({
             method: route.method,
             url: route.url.replace("PLACEHOLDER", connectionA),
-            headers: auth(adminToken),
+            headers: {
+              ...auth(adminToken),
+              ...(route.steppedUp ? await stepUpHeaders(adminToken, adminUserId) : {}),
+            },
             ...(route.payload !== undefined ? { payload: route.payload } : {}),
           });
           expect(ok.statusCode, "ACTIVE ADMIN control must succeed").toBe(200);

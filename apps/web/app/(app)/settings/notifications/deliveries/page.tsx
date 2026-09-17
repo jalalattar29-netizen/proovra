@@ -28,6 +28,7 @@ import {
   AppStatusBadge,
   type AppTone,
 } from "../../../../../components/app-primitives";
+import { identifierLabel } from "@proovra/shared";
 type Delivery = {
   id: string;
   eventType: string;
@@ -71,6 +72,15 @@ const EVENT_FILTERS: Array<{ value: string; label: string }> = [
   { value: "REVIEW_REQUEST_ASSIGNED", label: "Review assignment" },
   { value: "EXTERNAL_INTAKE_LINK_CREATED", label: "Intake link created" },
 ];
+
+// PV-LANG-003 — the filter vocabulary is the label source for a row's event
+// and status; a value the filters do not list still reads as words.
+function optionLabel(
+  options: ReadonlyArray<{ value: string; label: string }>,
+  value: string,
+): string {
+  return options.find((o) => o.value === value)?.label ?? identifierLabel(value);
+}
 
 const RESEND_ELIGIBLE = new Set([
   "FAILED",
@@ -226,7 +236,9 @@ const queryString = useMemo(() => {
                   {it.subject ?? "(no subject)"}
                 </div>
                 <div className="ops-muted">
-                  {it.eventType} · {it.channel}/{it.provider} · {it.recipient}
+                  {optionLabel(EVENT_FILTERS, it.eventType)} ·{" "}
+                  {identifierLabel(it.channel)} via{" "}
+                  {identifierLabel(it.provider)} · {it.recipient}
                 </div>
                 <div className="ops-muted">
                   Created {formatUserDateTime(it.createdAt)}
@@ -253,7 +265,7 @@ const queryString = useMemo(() => {
                 ) : null}
               </div>
               <AppStatusBadge tone={deliveryTone(it.status)}>
-                {it.status}
+                {optionLabel(STATUS_FILTERS, it.status)}
               </AppStatusBadge>
               {RESEND_ELIGIBLE.has(it.status) ? (
                 <button

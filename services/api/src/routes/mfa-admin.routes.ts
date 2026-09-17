@@ -70,7 +70,6 @@ import {
   requireUserReenrollment,
   resetTrustedDevicesForUser,
   revokeUserFactor,
-  type MfaAdminScopeFailure,
 } from "../services/security/mfa-admin-lifecycle.service.js";
 import {
   approveRecoveryRequest,
@@ -151,20 +150,6 @@ function readOptionalSessionUserId(req: FastifyRequest): string | null {
   }
 }
 
-function mapScopeFailure(reason: MfaAdminScopeFailure): {
-  code: number;
-  message: string;
-} {
-  switch (reason) {
-    case "admin_not_in_team":
-      return { code: 403, message: "admin_not_in_team" };
-    case "admin_not_admin":
-      return { code: 403, message: "admin_not_admin" };
-    case "target_not_in_team":
-      return { code: 404, message: "target_not_in_team" };
-  }
-}
-
 /**
  * PHASE 12B (2026-07-30) — SERVER-AUTHORIZED workspace scope for the
  * `/v1/identity/mfa-admin/*` surface.
@@ -182,13 +167,20 @@ function mapScopeFailure(reason: MfaAdminScopeFailure): {
  *      Organization lifecycle, capability, audit emission, fail-closed.
  *      A teamId belonging to another Organization returns 404 not_found.
  *   2. OWNER/ADMIN-only narrowing (the identity.* capabilities are not
- *      admin-exclusive) — concealed as 404, never 403.
+ *      admin-exclusive) — 403 permission_denied, byte-identical to the
+ *      refusal `authorizeOrFail` sends a member who lacks the capability.
  *   3. The TARGET userId must hold an ACTIVE membership in the SAME
  *      workspace — otherwise concealed 404.
  *
- * Every denial from this helper is the SAME 404 body, so an outside caller
- * cannot tell "team does not exist" from "you are not an admin of it" from
- * "that user is not a member".
+ * D14 — WHO GETS 404 AND WHO GETS 403. Anti-enumeration protects the
+ * EXISTENCE of things the caller may not know about: a workspace in another
+ * Organization (step 1) and a person in this one (step 3). Both answer the
+ * same 404 as "does not exist". A caller who is already an ACTIVE member of
+ * the workspace knows it exists, so hiding it from them protects nothing;
+ * they are told the truth — 403 — exactly as `authorizeOrFail` already tells
+ * a member without the capability. The narrowing used to answer 404 here,
+ * so one member got 403 or 404 for the same "you are not an MFA
+ * administrator" depending on which layer happened to refuse.
  */
 async function authorizeMfaAdminScope(
   req: FastifyRequest,
@@ -220,11 +212,15 @@ async function authorizeMfaAdminScope(
     },
     select: { role: true },
   });
-  if (
-    !actorMembership ||
-    (actorMembership.role !== "OWNER" && actorMembership.role !== "ADMIN")
-  ) {
-    return conceal();
+  // No ACTIVE membership row is an outsider however authorization was
+  // satisfied, and stays concealed.
+  if (!actorMembership) return conceal();
+  if (actorMembership.role !== "OWNER" && actorMembership.role !== "ADMIN") {
+    // A member without authority, not an outsider (see D14 above).
+    reply.code(403).send({
+      error: { code: "permission_denied", reason: "permission_not_granted" },
+    });
+    return null;
   }
   if (opts.targetUserId) {
     const target = await prisma.teamMember.findFirst({
@@ -595,21 +591,22 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
     "/v1/identity/mfa-admin/recovery-requests/:teamId",
     { preHandler: requireAuth },
     async (req, reply) => {
-      const actorUserId = getAuthUserId(req);
-      if (!actorUserId) throw new AppError(ErrorCode.UNAUTHORIZED, "Sign in.");
       const params = TeamParams.parse(req.params);
-      // Re-use the admin scope check via posture (sets up the same
-      // OWNER/ADMIN check on the team).
-      const guard = await readUserMfaPosture({
+      /*
+       * PV-API-001 — THE FAMILY'S GATE, NOT A SIDE ROUTE THROUGH POSTURE.
+       *
+       * This list authorized through `readUserMfaPosture` + `mapScopeFailure`,
+       * the only route in the module that did: it answered a bare-string
+       * `403 {"error":"admin_not_in_team"}` outside the error envelope, with no
+       * request id, while every sibling answers the SAME concealed 404 through
+       * `authorizeMfaAdminScope` (anti-enumerated, org-lifecycle aware,
+       * permission-decision audited). One gate, one envelope, one convention.
+       */
+      const scope = await authorizeMfaAdminScope(req, reply, {
         teamId: params.teamId,
-        actorUserId,
-        targetUserId: actorUserId,
+        permission: "identity.org_policy.read",
       });
-      if (!guard.ok) {
-        const m = mapScopeFailure(guard.reason!);
-        reply.code(m.code);
-        return { error: m.message };
-      }
+      if (!scope) return;
       const requests = await listPendingRecoveryRequests({
         teamId: params.teamId,
       });
@@ -640,6 +637,11 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
           return {
             error: "already_pending",
             request: result.request,
+            // The web client surfaces an error body through `details`, not
+            // through arbitrary top-level keys. Without the id here the
+            // self-service panel cannot offer resend or cancel for the
+            // request that is blocking a new one.
+            details: { requestId: result.request?.id ?? null },
           };
         }
         if (result.reason === "not_member") {
@@ -794,13 +796,21 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
           req,
           skipSessionUpsert: true,
         }).catch(() => null);
-        if (result.reason === "request_not_found") {
+        // D11 — "someone else's request" and "no such request" are one
+        // answer. A distinguishable 403 confirmed that a guessed id names a
+        // real recovery in progress for another account.
+        // D55 — so is "a real request, but not this token": the caller is
+        // anonymous and the token is its only credential, so a 400
+        // token_invalid for a real id against a 404 for a made-up one let
+        // anyone test whether an id exists. The verify page renders both as
+        // its "link invalid" state.
+        if (
+          result.reason === "request_not_found" ||
+          result.reason === "wrong_user" ||
+          result.reason === "token_invalid"
+        ) {
           reply.code(404);
           return { error: "request_not_found" };
-        }
-        if (result.reason === "wrong_user") {
-          reply.code(403);
-          return { error: "wrong_user" };
         }
         reply.code(400);
         return { error: result.reason };
@@ -844,22 +854,28 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
         actorUserId,
       });
       if (!result.ok) {
-        if (result.reason === "request_not_found") {
+        // D11 — "someone else's request" and "no such request" are one
+        // answer. A distinguishable 403 confirmed that a guessed id names a
+        // real recovery in progress for another account.
+        if (
+          result.reason === "request_not_found" ||
+          result.reason === "wrong_user"
+        ) {
           reply.code(404);
           return { error: "request_not_found" };
-        }
-        if (result.reason === "wrong_user") {
-          reply.code(403);
-          return { error: "wrong_user" };
         }
         if (
           result.reason === "resend_throttled" ||
           result.reason === "resend_limit_reached"
         ) {
           reply.code(429);
+          const nextResendAfter = result.nextResendAfter?.toISOString() ?? null;
           return {
             error: result.reason,
-            nextResendAfter: result.nextResendAfter?.toISOString() ?? null,
+            nextResendAfter,
+            // Mirrored under `details` so the web client can tell a cooldown
+            // (with its end time) from the hard send limit.
+            details: { reason: result.reason, nextResendAfter },
           };
         }
         reply.code(400);
@@ -886,13 +902,15 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
         userAgent: readUserAgent(req),
       });
       if (!result.ok) {
-        if (result.reason === "request_not_found") {
+        // D11 — "someone else's request" and "no such request" are one
+        // answer. A distinguishable 403 confirmed that a guessed id names a
+        // real recovery in progress for another account.
+        if (
+          result.reason === "request_not_found" ||
+          result.reason === "wrong_user"
+        ) {
           reply.code(404);
           return { error: "request_not_found" };
-        }
-        if (result.reason === "wrong_user") {
-          reply.code(403);
-          return { error: "wrong_user" };
         }
         if (result.reason === "already_approved") {
           reply.code(409);

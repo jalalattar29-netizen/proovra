@@ -27,6 +27,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import {
   AUDIT_TRANSPARENCY_CATEGORIES,
+  identifierLabel,
   type AuditTransparencyCategory,
   type AuditTransparencyEntry,
 } from "@proovra/shared";
@@ -116,7 +117,7 @@ function AuditTransparencyShell() {
                 { value: "ALL", label: "All" },
                 ...AUDIT_TRANSPARENCY_CATEGORIES.map((c) => ({
                   value: c,
-                  label: c,
+                  label: identifierLabel(c),
                 })),
               ]}
             />
@@ -180,11 +181,11 @@ function AuditTransparencyShell() {
                         <td style={td}>
                           {formatUtcAuditDateTime(e.occurredAtUtc)}
                         </td>
+                        <td style={td}>{identifierLabel(e.category)}</td>
                         <td style={td}>
-                          <code style={codeStyle}>{e.category}</code>
-                        </td>
-                        <td style={td}>
-                          <code style={codeStyle}>{e.code}</code>
+                          <code data-identifier style={codeStyle}>
+                            {e.code}
+                          </code>
                         </td>
                         <td style={td}>{e.label}</td>
                         <td

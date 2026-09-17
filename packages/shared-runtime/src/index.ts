@@ -51,6 +51,10 @@ export * from "./notifications/index.js";
 export * from "./billing/seat-occupancy.js";
 // UC-0 (D5) — derived bytes in storage accounting, one query for both hosts.
 export * from "./billing/derived-storage.js";
+// The ONE export-package monthly meter writer. Both the API completion route
+// and the Worker package builder transition packages to READY, so both meter
+// through this one function (the Worker may not import the API).
+export * from "./billing/export-package-meter.js";
 // PHASE 12 CORRECTIVE PASS §4 (SEC-004, 2026-08-06) — the ONE secrets
 // authority. It lived in services/api, so the Worker could not use it and the
 // two processes of one deployment could resolve secrets from different

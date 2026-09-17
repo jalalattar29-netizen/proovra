@@ -14,8 +14,9 @@
  *      promoted-pages contract). The (app) layout MUST never 5xx
  *      these pages.
  *
- *   3. `/admin/identity` (the identity admin hub promoted to
- *      navigation in Phase 2.3) is reachable.
+ *   3. `/security-center/identity` (the identity admin hub promoted to
+ *      navigation in Phase 2.3; at `/admin/identity` until PV-PLACE-001)
+ *      is reachable, and the old URL redirects to it.
  *
  *   4. `GET /v1/identity/mfa/factors` returns 200 for an
  *      authenticated user. The new AccountSecurityCard's MFA
@@ -107,14 +108,27 @@ test.describe("Phase 2.3 — enterprise governance @critical", () => {
     ).toBe(true);
   });
 
-  test("/admin/identity reachable (Phase 2.3 nav promotion)", async ({
+  // PV-PLACE-001 / PV-OD-001 — the identity hub moved from /admin/identity to
+  // the workspace's Security Center. The new home must be reachable, and the
+  // old URL must hand over to it in one permanent hop rather than 404.
+  test("/security-center/identity reachable, and /admin/identity redirects to it (Phase 2.3 nav promotion)", async ({
     page,
   }) => {
-    const resp = await page.goto("/admin/identity", { waitUntil: "load" });
+    const resp = await page.goto("/security-center/identity", { waitUntil: "load" });
     expect(
       resp?.ok(),
-      `expected 2xx from /admin/identity, got ${resp?.status()}`,
+      `expected 2xx from /security-center/identity, got ${resp?.status()}`,
     ).toBe(true);
+
+    const hop = await page.request.get("/admin/identity", { maxRedirects: 0 });
+    expect(
+      hop.status(),
+      `expected a permanent redirect from /admin/identity, got ${hop.status()}`,
+    ).toBe(308);
+    expect(
+      new URL(hop.headers()["location"] ?? "", "http://placeholder.invalid").pathname,
+      "/admin/identity must redirect to /security-center/identity",
+    ).toBe("/security-center/identity");
   });
 
   test("GET /v1/identity/mfa/factors returns 200 for authenticated user", async () => {

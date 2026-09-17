@@ -8,10 +8,9 @@
  *   server-derived suggested actions).
  *
  * Phase 6 — Natural-Language Search route
- *   (POST /v1/ai/search/nl): authorization (non-member 403), cross-tenant
- *   denial, malformed body (400), EN/DE/AR state queries, unsupported
- *   filters (honest refusal), out-of-scope refusal, rate limiting (429),
- *   parser complexity guard, TEXT_SEARCH tenant binding, and audit proof.
+ *   (POST /v1/ai/search/nl): RETIRED 2026-09-16 — every request, member or
+ *   not, well-formed or not, answers 410 NL_SEARCH_RETIRED with no search,
+ *   no rate-limit consult and no audit.
  *
  * House style: real route modules + real classifier/parser/orchestrator/
  * schemas; ONLY the process edges (db, auth, provider, ledger, rate-limit,
@@ -449,8 +448,17 @@ describe("Phase 5 — Evidence Copilot route: canonical result contract (inject)
 
 // ===========================================================================
 // Phase 6 — Natural-Language Search route (inject).
+//
+// RETIRED 2026-09-16. The plain-language search card was withdrawn and its
+// only consumer deleted (e2f5cf2d); the route now answers a typed 410 and does
+// no work. These cases used to pin the parser's behaviour THROUGH the route
+// (EN/DE/AR presets, unsupported filters, default-deny, tenant-bound text
+// search, rate limit, complexity guard). The parser's own behaviour is still
+// pinned directly by phase-f1-nl-search.test.ts; what the route owes now is
+// that EVERY one of those requests is refused identically, before any
+// membership read, rate-limit consult, search, query or audit.
 // ===========================================================================
-describe("Phase 6 — NL Search route: authorization, languages, honesty, audit (inject)", () => {
+describe("Phase 6 — NL Search route is a typed 410 tombstone (inject)", () => {
   async function search(payload: unknown) {
     const app = await buildApp(aiSearchRoutes);
     const res = await app.inject({ method: "POST", url: "/v1/ai/search/nl", payload: payload as object });
@@ -458,84 +466,37 @@ describe("Phase 6 — NL Search route: authorization, languages, honesty, audit 
     return { status: res.statusCode, body: JSON.parse(res.body), headers: res.headers };
   }
 
-  it("non-member is rejected 404 (anti-enumeration) before any audit", async () => {
-    // PHASE 1 (2026-07-21): non-membership conceals as 404 not_found.
-    const { status, body } = await search({ teamId: TEAM_2, query: "show evidence with tsa pending" });
-    expect(status).toBe(404);
-    expect(body.error.code).toBe("not_found");
-    expect(H.audits.length).toBe(0);
-  });
+  const REQUESTS: Array<[string, unknown]> = [
+    ["member, English state query", { teamId: TEAM_1, query: "show evidence with tsa pending" }],
+    ["member, German state query", { teamId: TEAM_1, query: "zeige fehlgeschlagene Verifizierung" }],
+    ["member, Arabic state query", { teamId: TEAM_1, query: "فشل التحقق" }],
+    ["member, unsupported filter", { teamId: TEAM_1, query: "find evidence missing gps" }],
+    ["member, out-of-domain query", { teamId: TEAM_1, query: "what is the weather today" }],
+    ["member, text search", { teamId: TEAM_1, query: "find photo evidence warehouse" }],
+    ["member, >40 words", { teamId: TEAM_1, query: Array.from({ length: 41 }, () => "report").join(" ") }],
+    ["non-member", { teamId: TEAM_2, query: "show evidence with tsa pending" }],
+    ["malformed body (bad uuid)", { teamId: "not-a-uuid", query: "x" }],
+    ["malformed body (missing query)", { teamId: TEAM_1 }],
+    ["empty body", {}],
+  ];
 
-  it("malformed body (bad uuid / missing query / empty) → 400, never 500", async () => {
-    expect((await search({ teamId: "not-a-uuid", query: "x" })).status).toBe(400);
-    expect((await search({ teamId: TEAM_1 })).status).toBe(400);
-    expect((await search({})).status).toBe(400);
-  });
-
-  it("English state query → tenant-bound STATE_QUERY with rows + audit", async () => {
-    H.evidenceRows = [{ id: "ev-1", title: "Contract scan" }];
-    const { status, body } = await search({ teamId: TEAM_1, query: "show evidence with tsa pending" });
-    expect(status).toBe(200);
-    expect(body.kind).toBe("STATE_QUERY");
-    expect(body.query).toBe("TSA_PENDING");
-    expect(body.rows[0]).toEqual({ id: "ev-1", title: "Contract scan", route: "/evidence/ev-1", badge: "TSA pending" });
-    const audit = H.audits.find((e) => e.action === "ai.nl_search");
-    expect(audit).toBeTruthy();
-    expect((audit!.metadata as Record<string, unknown>).query).toBe("TSA_PENDING");
-  });
-
-  it("German state query → FAILED_VERIFICATION", async () => {
-    const { body } = await search({ teamId: TEAM_1, query: "zeige fehlgeschlagene Verifizierung" });
-    expect(body.kind).toBe("STATE_QUERY");
-    expect(body.query).toBe("FAILED_VERIFICATION");
-  });
-
-  it("Arabic state query → FAILED_VERIFICATION", async () => {
-    const { body } = await search({ teamId: TEAM_1, query: "فشل التحقق" });
-    expect(body.kind).toBe("STATE_QUERY");
-    expect(body.query).toBe("FAILED_VERIFICATION");
-  });
-
-  it("unsupported filter (GPS) → honest UNSUPPORTED_FILTER, no fake results", async () => {
-    const { body } = await search({ teamId: TEAM_1, query: "find evidence missing gps" });
-    expect(body.kind).toBe("UNSUPPORTED_FILTER");
-    expect(body.rows).toBeUndefined();
-    expect(body.message).toContain("isn't supported yet");
-  });
-
-  it("out-of-domain query → default-deny REFUSED (no search executed)", async () => {
-    const { body } = await search({ teamId: TEAM_1, query: "what is the weather today" });
-    expect(body.kind).toBe("REFUSED");
-    expect(typeof body.message).toBe("string");
-    expect(H.searchCalls.length).toBe(0);
-  });
-
-  it("TEXT_SEARCH goes through the EXISTING authorized search, tenant-bound", async () => {
-    const { body } = await search({ teamId: TEAM_1, query: "find photo evidence warehouse" });
-    expect(body.kind).toBe("TEXT_SEARCH");
-    expect(body.rows[0].route).toBe("/evidence/ev-9");
-    expect(H.searchCalls.length).toBe(1);
-    const call = H.searchCalls[0] as { surface: string; filter: { teamId: string; evidenceTypes?: string[] } };
-    expect(call.surface).toBe("api:ai-nl-search");
-    expect(call.filter.teamId).toBe(TEAM_1); // server binds tenant; query cannot cross it
-    expect(call.filter.evidenceTypes).toContain("PHOTO");
-  });
-
-  it("rate limited → 429 with Retry-After header", async () => {
-    H.guard = { allowed: false, code: "AI_RATE_LIMITED", retryAfterSec: 12 };
-    const { status, headers } = await search({ teamId: TEAM_1, query: "show evidence with tsa pending" });
-    expect(status).toBe(429);
-    expect(headers["retry-after"]).toBe("12");
-  });
-
-  it("complexity guard: >40 words → honest shorter-query response, nothing executed", async () => {
-    const query = Array.from({ length: 41 }, () => "report").join(" ");
-    const { status, body } = await search({ teamId: TEAM_1, query });
-    expect(status).toBe(200);
-    expect(body.kind).toBe("UNSUPPORTED_FILTER");
-    expect(body.message).toContain("shorter");
-    expect(H.searchCalls.length).toBe(0);
-  });
+  for (const [label, payload] of REQUESTS) {
+    it(`${label} → 410 NL_SEARCH_RETIRED naming Search, and nothing runs`, async () => {
+      // A rate-limit refusal would have answered 429 first; the tombstone
+      // never consults the guard, so it cannot.
+      H.guard = { allowed: false, code: "AI_RATE_LIMITED", retryAfterSec: 12 };
+      H.evidenceRows = [{ id: "ev-1", title: "Contract scan" }];
+      const { status, body, headers } = await search(payload);
+      expect(status).toBe(410);
+      expect(body.error.code).toBe("NL_SEARCH_RETIRED");
+      expect(typeof body.error.message).toBe("string");
+      expect(body.canonical).toBe("/v1/search");
+      expect(body.rows).toBeUndefined();
+      expect(headers["retry-after"]).toBeUndefined();
+      expect(H.searchCalls.length).toBe(0);
+      expect(H.audits.length).toBe(0);
+    });
+  }
 
   it("no response ever exposes provider/model names or internal decision JSON", async () => {
     for (const q of ["show evidence with tsa pending", "what is the weather today", "find evidence missing gps"]) {

@@ -16,6 +16,12 @@
  *     existing access policy via `evaluateMemberAccess`).
  *   * Bounded display name (≤120 chars) + bounded description.
  *   * Last-used timestamp is updated by the dedicated `use` endpoint.
+ *   * D52 (2026-09-17) — every create / rename / share / update / delete
+ *     leaves a tenant-audit row through the canonical facade (actor,
+ *     workspace, view id, outcome, visibility transition). A saved view
+ *     shared to the team or organization changes what colleagues see, and
+ *     none of these writes was recorded before. View names, descriptions and
+ *     filter contents are never copied into the row.
  */
 
 import { Prisma } from "@prisma/client";
@@ -23,6 +29,7 @@ import type { CaseSiuSavedView as CaseSiuSavedViewRecord } from "@prisma/client"
 import { z } from "zod";
 
 import { prisma } from "../../db.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import {
   SIU_INVESTIGATION_STATUSES,
   SIU_SAVED_VIEW_VISIBILITY,
@@ -139,6 +146,37 @@ function projectRow(
 }
 
 // ---------------------------------------------------------------------------
+// Audit (D52)
+// ---------------------------------------------------------------------------
+
+async function auditSavedView(input: {
+  action: string;
+  actorUserId: string;
+  teamId: string;
+  organizationId: string | null;
+  savedViewId: string;
+  previousState?: string | null;
+  resultingState?: string | null;
+  metadata?: Record<string, unknown>;
+}): Promise<void> {
+  // Awaited so the row exists when the route answers; a failed audit write is
+  // swallowed so it cannot turn a saved change into a 500.
+  await emitTenantAudit({
+    action: input.action,
+    outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    workspaceId: input.teamId,
+    organizationId: input.organizationId,
+    resourceType: "siu_saved_view",
+    resourceId: input.savedViewId,
+    previousState: input.previousState ?? null,
+    resultingState: input.resultingState ?? null,
+    metadata: { savedViewId: input.savedViewId, ...(input.metadata ?? {}) },
+  }).catch(() => {});
+}
+
+// ---------------------------------------------------------------------------
 // CRUD
 // ---------------------------------------------------------------------------
 
@@ -186,6 +224,14 @@ export async function createSavedView(input: {
       updatedByUserId: input.userId,
     },
   });
+  await auditSavedView({
+    action: "siu.saved_view.create",
+    actorUserId: input.userId,
+    teamId: row.teamId,
+    organizationId: row.organizationId,
+    savedViewId: row.id,
+    resultingState: row.visibility,
+  });
   return projectRow(row);
 }
 
@@ -194,18 +240,21 @@ export async function updateSavedView(input: {
   teamId: string;
   userId: string;
   payload: UpdateSavedViewInput;
+  /**
+   * K4 (2026-09-16) — true when the caller administers the workspace
+   * (OWNER / ADMIN). This check used to be "delegated to the route layer",
+   * which never made it: any member (a VIEWER included) could edit or delete
+   * a colleague's team/org view.
+   */
+  canManageShared?: boolean;
 }): Promise<SiuSavedViewRow | null> {
-  // Only the creator can edit a private view; team admins can edit
-  // team/org views (we delegate that check to the route layer; the
-  // service enforces only tenancy + ownership of private rows).
+  // Only the creator can edit a private view; the creator or a workspace
+  // administrator can edit a team/org view.
   const existing = await prisma.caseSiuSavedView.findFirst({
     where: { id: input.id, teamId: input.teamId },
   });
   if (!existing) return null;
-  if (
-    existing.visibility === "private" &&
-    existing.createdByUserId !== input.userId
-  ) {
+  if (!mayManageSavedView(existing, input.userId, input.canManageShared)) {
     return null;
   }
   const patch: Prisma.CaseSiuSavedViewUpdateInput = {
@@ -226,6 +275,41 @@ export async function updateSavedView(input: {
     where: { id: existing.id },
     data: patch,
   });
+  // One row per KIND of change, so "who shared this view" and "who renamed
+  // it" are each answerable on their own.
+  const base = {
+    actorUserId: input.userId,
+    teamId: row.teamId,
+    organizationId: row.organizationId,
+    savedViewId: row.id,
+  };
+  if (row.visibility !== existing.visibility) {
+    await auditSavedView({
+      ...base,
+      action: "siu.saved_view.share",
+      previousState: existing.visibility,
+      resultingState: row.visibility,
+    });
+  }
+  if (row.name !== existing.name) {
+    await auditSavedView({ ...base, action: "siu.saved_view.rename" });
+  }
+  const changedFields = [
+    row.description !== existing.description ? "description" : null,
+    JSON.stringify(row.filterJson) !== JSON.stringify(existing.filterJson)
+      ? "filter"
+      : null,
+    JSON.stringify(row.sortJson) !== JSON.stringify(existing.sortJson)
+      ? "sort"
+      : null,
+  ].filter((f): f is string => f !== null);
+  if (changedFields.length > 0) {
+    await auditSavedView({
+      ...base,
+      action: "siu.saved_view.update",
+      metadata: { changedFields },
+    });
+  }
   return projectRow(row);
 }
 
@@ -233,19 +317,35 @@ export async function deleteSavedView(input: {
   id: string;
   teamId: string;
   userId: string;
+  /** See updateSavedView. */
+  canManageShared?: boolean;
 }): Promise<boolean> {
   const existing = await prisma.caseSiuSavedView.findFirst({
     where: { id: input.id, teamId: input.teamId },
   });
   if (!existing) return false;
-  if (
-    existing.visibility === "private" &&
-    existing.createdByUserId !== input.userId
-  ) {
+  if (!mayManageSavedView(existing, input.userId, input.canManageShared)) {
     return false;
   }
   await prisma.caseSiuSavedView.delete({ where: { id: existing.id } });
+  await auditSavedView({
+    action: "siu.saved_view.delete",
+    actorUserId: input.userId,
+    teamId: existing.teamId,
+    organizationId: existing.organizationId,
+    savedViewId: existing.id,
+    previousState: existing.visibility,
+  });
   return true;
+}
+
+function mayManageSavedView(
+  row: { visibility: string; createdByUserId: string },
+  userId: string,
+  canManageShared: boolean | undefined,
+): boolean {
+  if (row.createdByUserId === userId) return true;
+  return row.visibility !== "private" && canManageShared === true;
 }
 
 export async function markSavedViewUsed(input: {

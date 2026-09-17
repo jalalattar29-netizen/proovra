@@ -48,6 +48,25 @@ import {
   getWorkEntryOrThrow,
 } from "@proovra/shared";
 
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
+
+/**
+ * The try statement that encloses the first `marker` (the nearest `try {`
+ * before it, proven to contain it), split at the marker. Replaces a pair of
+ * 1500-character windows that could read a neighbouring try or catch.
+ */
+function aroundCallInTry(src: string, marker: string): { before: string; after: string } {
+  let occurrence = -1;
+  const at = src.indexOf(marker);
+  for (let p = src.indexOf("try {"); p >= 0 && p < at; p = src.indexOf("try {", p + 1)) {
+    occurrence += 1;
+  }
+  const stmt = enclosingSource(src, "try {", "statement", { occurrence, fileName: "service.ts" });
+  const split = stmt.indexOf(marker);
+  expect(split, `the nearest try before ${marker} must enclose it`).toBeGreaterThan(-1);
+  return { before: stmt.slice(0, split), after: stmt.slice(split) };
+}
+
 const REPO_ROOT = resolve(__dirname, "../../..");
 
 function readFile(rel: string): string {
@@ -180,7 +199,11 @@ describe("Investigation P0+P1 — Group B: backend DTO stabilisation", () => {
       "investigation_reviewers.indexing_totals_failed",
     );
     expect(codeIdx).toBeGreaterThan(0);
-    const preamble = ROUTES.slice(Math.max(0, codeIdx - 200), codeIdx);
+    // The logging call that carries the code, up to the code itself.
+    const logCall = enclosingSource(ROUTES, "investigation_reviewers.indexing_totals_failed", "call", {
+      fileName: "media-intelligence.routes.ts",
+    });
+    const preamble = logCall.slice(0, logCall.indexOf("investigation_reviewers.indexing_totals_failed"));
     // Accept both `req.log.warn(` and `req.log?.warn?.(` — the source
     // currently uses the optional-chain form for defence against a
     // missing logger in test harnesses.
@@ -242,8 +265,7 @@ describe("Investigation P0+P1 — Group C: evidence-complete producer wiring", (
     // comment block. The await prefix uniquely targets the live call.
     const callIdx = FANOUT.indexOf("await enqueueMediaIntelligenceAnalysis(");
     expect(callIdx, "live enqueueMediaIntelligenceAnalysis call must exist").toBeGreaterThan(0);
-    const before = FANOUT.slice(Math.max(0, callIdx - 1500), callIdx);
-    const after = FANOUT.slice(callIdx, callIdx + 1500);
+    const { before, after } = aroundCallInTry(FANOUT, "await enqueueMediaIntelligenceAnalysis(");
     expect(before).toMatch(/try\s*\{/);
     expect(after).toMatch(/\}\s*catch/);
   });
@@ -251,8 +273,7 @@ describe("Investigation P0+P1 — Group C: evidence-complete producer wiring", (
   it("(C4.b) the enqueueGraphReconcileJob call site is inside a try/catch (in fan-out service)", () => {
     const callIdx = FANOUT.indexOf("await enqueueGraphReconcileJob(");
     expect(callIdx, "live enqueueGraphReconcileJob call must exist").toBeGreaterThan(0);
-    const before = FANOUT.slice(Math.max(0, callIdx - 1500), callIdx);
-    const after = FANOUT.slice(callIdx, callIdx + 1500);
+    const { before, after } = aroundCallInTry(FANOUT, "await enqueueGraphReconcileJob(");
     expect(before).toMatch(/try\s*\{/);
     expect(after).toMatch(/\}\s*catch/);
   });
@@ -260,8 +281,7 @@ describe("Investigation P0+P1 — Group C: evidence-complete producer wiring", (
   it("(C4.c) evidence-complete wraps the fan-out call itself in try/catch", () => {
     const callIdx = SVC.indexOf("runEvidenceFinalizationFanout(");
     expect(callIdx).toBeGreaterThan(0);
-    const before = SVC.slice(Math.max(0, callIdx - 1500), callIdx);
-    const after = SVC.slice(callIdx, callIdx + 1500);
+    const { before, after } = aroundCallInTry(SVC, "runEvidenceFinalizationFanout(");
     expect(before).toMatch(/try\s*\{/);
     expect(after).toMatch(/\}\s*catch/);
   });

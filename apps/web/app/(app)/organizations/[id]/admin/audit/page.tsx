@@ -34,6 +34,7 @@ import { Card } from "../../../../../../components/ui/Card";
 import { Button } from "../../../../../../components/ui/Button";
 import { FilterBar } from "../../../../../../components/ui/FilterBar";
 import { EmptyState } from "../../../../../../components/ui/EmptyState";
+import { orgAuditEventLabel } from "../../../../../../lib/labels/identityOrgLabels";
 
 interface AuditEvent {
   id: string;
@@ -66,8 +67,12 @@ type Loadable<T> =
 const KNOWN_EVENT_TYPES: ReadonlyArray<string> = [
   "ORG_CREATED",
   "ORG_UPDATED",
-  "ORG_INVITE_CREATED",
-  "ORG_INVITE_ACCEPTED",
+  // The org audit catalog records an invitation as ORG_MEMBER_INVITED and
+  // its acceptance as ORG_MEMBER_ACCEPTED; the ORG_INVITE_CREATED /
+  // ORG_INVITE_ACCEPTED options this list carried matched no event, so
+  // either filter showed an empty timeline (org-audit-filter-catalog.test).
+  "ORG_MEMBER_INVITED",
+  "ORG_MEMBER_ACCEPTED",
   "ORG_INVITE_REVOKED",
   "ORG_INVITE_RESENT",
   "ORG_MEMBER_ROLE_CHANGED",
@@ -198,7 +203,7 @@ function AuditTab() {
                   marginTop: 2,
                 }}
               >
-                Org governance events. Requires ORG_AUDITOR or higher.
+                Organization governance events. Visible to organization auditors and higher roles.
               </div>
             </div>
           </div>
@@ -214,6 +219,13 @@ function AuditTab() {
               size="sm"
               onClick={exportCsv}
               disabled={audit.kind !== "ready" || visibleEvents.length === 0}
+              disabledReason={
+                audit.kind !== "ready"
+                  ? "Events are still loading."
+                  : visibleEvents.length === 0
+                    ? "There are no events to export."
+                    : undefined
+              }
             >
               Export CSV
             </Button>
@@ -226,7 +238,10 @@ function AuditTab() {
             onChange={setFilter}
             options={[
               { value: "", label: "All event types" },
-              ...KNOWN_EVENT_TYPES.map((t) => ({ value: t, label: t })),
+              ...KNOWN_EVENT_TYPES.map((t) => ({
+                value: t,
+                label: orgAuditEventLabel(t),
+              })),
             ]}
           />
           <FilterBar.Search
@@ -321,7 +336,13 @@ function AuditTab() {
                   }}
                 >
                   <div>
-                    <strong>{e.eventType}</strong>{" "}
+                    <strong>{orgAuditEventLabel(e.eventType)}</strong>{" "}
+                    <code
+                      data-identifier
+                      style={{ fontSize: 11, color: "var(--ink-muted)" }}
+                    >
+                      {e.eventType}
+                    </code>{" "}
                     <span style={{ color: "var(--ink-muted, #94a3b8)" }}>
                       ({e.targetType}
                       {e.targetId ? ` ${e.targetId.slice(0, 8)}…` : ""})

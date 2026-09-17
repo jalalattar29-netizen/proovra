@@ -12,6 +12,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import {
   EXECUTIVE_METRICS_RANGES,
+  identifierLabel,
   type BudgetBreachProjection,
   type BudgetBreachRow,
   type BudgetSpendProjection,
@@ -22,6 +23,7 @@ import {
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../lib/api";
 import { formatUserDateTime } from "../../../lib/date";
+import { intelligenceProviderLabel } from "../../../lib/labels/workspaceOpsLabels";
 
 export default function BudgetCenterPage() {
   return (
@@ -173,12 +175,26 @@ function SpendTable({ rows }: { rows: ReadonlyArray<BudgetSpendRow> }) {
             data-budget-spend-row={r.budgetId}
             data-budget-threshold={r.thresholdStatus}
           >
-            <td style={td}>{r.scope}</td>
+            <td style={td}>{identifierLabel(r.scope)}</td>
             <td style={td}>
               {r.scopeTargetId ? <code>{r.scopeTargetId.slice(0, 8)}…</code> : "—"}
             </td>
-            <td style={td}>{r.provider ? <code>{r.provider}</code> : "—"}</td>
-            <td style={td}>{r.period}</td>
+            <td style={td}>
+              {r.provider ? (
+                <>
+                  {intelligenceProviderLabel(r.provider)}
+                  <code
+                    data-identifier
+                    style={{ display: "block", fontSize: 11, color: "var(--ink-muted)" }}
+                  >
+                    {r.provider}
+                  </code>
+                </>
+              ) : (
+                "—"
+              )}
+            </td>
+            <td style={td}>{identifierLabel(r.period)}</td>
             <td style={td}>${(r.softLimitUsdMicros / 1_000_000).toFixed(2)}</td>
             <td style={td}>${(r.hardLimitUsdMicros / 1_000_000).toFixed(2)}</td>
             <td style={td}>

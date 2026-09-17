@@ -49,6 +49,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { enclosingSource, functionSource, routeSource } from "../../../scripts/source-contract/index.mjs";
 
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -75,20 +76,15 @@ describe("Phase 32.6 — workers readiness startup grace period", () => {
   });
 
   it("within grace window returns HEALTHY with reasonCode `worker_warming`", () => {
-    const idx = SRC.indexOf("async function checkWorkers");
-    const slice = SRC.slice(idx, idx + 4000);
+    const slice = functionSource(SRC, "checkWorkers");
     expect(slice).toMatch(/if \(apiUptimeMs < startupGraceMs\)/);
     expect(slice).toMatch(/reasonCode: "worker_warming"/);
     expect(slice).toMatch(/status: "HEALTHY",[\s\S]{0,200}reasonCode: "worker_warming"/);
   });
 
   it("after grace window the original `no_recent_reconcile` DEGRADED path still fires", () => {
-    const idx = SRC.indexOf("async function checkWorkers");
-    // Phase 32.7 — the function body grew due to canonical-event
-    // commentary; the previous 4000-char window no longer reaches
-    // the DEGRADED branch. Widen to 6000 — the function ends well
-    // within that.
-    const slice = SRC.slice(idx, idx + 6000);
+    // The whole function, however much commentary it grows.
+    const slice = functionSource(SRC, "checkWorkers");
     expect(slice).toMatch(/reasonCode: "no_recent_reconcile"/);
     expect(slice).toMatch(/status: "DEGRADED"[\s\S]{0,400}no_recent_reconcile/);
   });
@@ -186,9 +182,13 @@ describe("Phase 32.6 — bounded observability counters", () => {
   it("package_generation_completed_total is bumped only after the package buffer is materialised", () => {
     const PROC_SRC = readSource("../../worker/src/processor.ts");
     // The completion bump sits AFTER `finalizedVerificationZip = ...buffer;`.
-    const idx = PROC_SRC.indexOf("finalizedVerificationZip = finalizedVerificationPackage.buffer");
-    expect(idx).toBeGreaterThan(0);
-    const slice = PROC_SRC.slice(idx, idx + 600);
+    // From the assignment to the end of the block that holds it.
+    const marker = "finalizedVerificationZip = finalizedVerificationPackage.buffer";
+    const block = enclosingSource(PROC_SRC, marker, "block", {
+      unique: true,
+      fileName: "processor.ts",
+    });
+    const slice = block.slice(block.indexOf(marker));
     expect(slice).toMatch(/bump\("package_generation_completed_total"\)/);
   });
 
@@ -198,9 +198,13 @@ describe("Phase 32.6 — bounded observability counters", () => {
     // The failed bump sits AFTER the canonical
     // `verification_package_prepare_finalized` Sentry capture in the
     // catch arm. Look forward from that anchor.
-    const catchIdx = PROC_SRC.indexOf("verification_package_prepare_finalized");
-    expect(catchIdx).toBeGreaterThan(0);
-    const sliceAfter = PROC_SRC.slice(catchIdx, catchIdx + 1000);
+    // From the anchor to the end of the catch-arm block that holds it.
+    const marker = "verification_package_prepare_finalized";
+    const block = enclosingSource(PROC_SRC, marker, "block", {
+      unique: true,
+      fileName: "processor.ts",
+    });
+    const sliceAfter = block.slice(block.indexOf(marker));
     expect(sliceAfter).toMatch(/bump\("package_generation_failed_total"\)/);
   });
 
@@ -229,9 +233,7 @@ describe("Phase 32.6 — bounded observability counters", () => {
   it("artifact_status_polled_total bumped from the artifact-status route (NOT report/latest)", () => {
     const ROUTES_SRC = readSource("../src/routes/evidence.routes.ts");
     // The bump lives in the /v1/evidence/:id/artifacts/status handler.
-    const idx = ROUTES_SRC.indexOf('"/v1/evidence/:id/artifacts/status"');
-    expect(idx).toBeGreaterThan(0);
-    const slice = ROUTES_SRC.slice(idx, idx + 5000);
+    const slice = routeSource(ROUTES_SRC, "GET", "/v1/evidence/:id/artifacts/status");
     expect(slice).toMatch(/bump\("artifact_status_polled_total"\)/);
 
     // It MUST NOT bump from the report/latest download route — that
@@ -241,8 +243,8 @@ describe("Phase 32.6 — bounded observability counters", () => {
       '"/v1/evidence/:id/report/latest"',
     );
     if (reportLatestIdx > 0) {
-      // Read until the next route handler boundary.
-      const reportSlice = ROUTES_SRC.slice(reportLatestIdx, reportLatestIdx + 8000);
+      // The report/latest registration only.
+      const reportSlice = routeSource(ROUTES_SRC, "GET", "/v1/evidence/:id/report/latest");
       expect(reportSlice).not.toMatch(/bump\("artifact_status_polled_total"\)/);
     }
   });

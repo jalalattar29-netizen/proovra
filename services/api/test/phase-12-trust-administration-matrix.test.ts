@@ -38,6 +38,12 @@ const H = vi.hoisted(() => ({
   //   403 → missing capability
   //   404 → cross-Organization probe / inactive membership (anti-enumeration)
   authAllowed: true,
+  // WCC-NEW-009 — the current-workspace pointer is revalidated (ACTIVE
+  // membership, lifecycle) before it is a tenant. SEPARATE from the per-action
+  // capability gate above: `memberActive=false` is a caller whose pointer
+  // still names a workspace they no longer belong to.
+  memberActive: true,
+  workspaceChecks: [] as string[],
   denyStatus: 403 as 403 | 404,
   seenPermissions: [] as string[],
   // Step-up seam.
@@ -97,6 +103,20 @@ vi.mock("../src/middleware/authorize.js", () => ({
     return { actorUserId: H.actorUserId, teamId: TEAM };
   },
   requireAuthorize: () => async () => {},
+  // Mirrors evaluateCurrentWorkspace: the pointer is only a CANDIDATE; a null
+  // pointer or a pointer at a workspace without an ACTIVE membership denies.
+  // It records into its own list — `seenPermissions` stays the per-action
+  // gate's, so "refused before any authorization" keeps its meaning.
+  evaluateCurrentWorkspace: async (_req: unknown, opts: { permission: string }) => {
+    H.workspaceChecks.push(opts.permission);
+    if (!H.currentWorkspaceId || !H.memberActive) {
+      return { allowed: false, reasonCode: "not_member", httpStatus: 404 };
+    }
+    return {
+      allowed: true,
+      context: { workspaceId: H.currentWorkspaceId, userId: H.actorUserId },
+    };
+  },
 }));
 
 vi.mock("../src/services/identity-security/step-up-middleware.js", () => ({
@@ -199,7 +219,6 @@ vi.mock("../src/services/trust/trust-drift.service.js", () => ({
       lastReferenceCheckAtUtc: "2026-07-01T00:00:00.000Z",
     },
   ],
-  markArticleNeedsReview: async () => ({ ok: true }),
   runTrustArticleDriftScan: async () => {
     H.writes.push("runTrustArticleDriftScan");
     return { scanned: 10, current: 9, stale: 1, missingReferenceCount: 2 };
@@ -302,6 +321,8 @@ beforeEach(async () => {
   H.authAllowed = true;
   H.denyStatus = 403;
   H.currentWorkspaceId = TEAM;
+  H.memberActive = true;
+  H.workspaceChecks.length = 0;
   H.stepUpSent = false;
   H.stepUpCalls.length = 0;
   H.seenPermissions.length = 0;
@@ -797,5 +818,44 @@ describe("Workspace derivation", () => {
     expect(res.statusCode).toBe(201);
     // Step-up bound to the SERVER-resolved workspace, not the declared one.
     expect(H.stepUpCalls[0]?.resourceId).toBe(TEAM);
+  });
+
+  it("every workspace is revalidated through the canonical primitive, at the members' baseline read", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/trust/status/incidents",
+      headers: stepUpJson,
+      payload: { title: "x", severity: "MINOR", componentKeys: ["API"] },
+    });
+    expect(res.statusCode).toBe(201);
+    expect(H.workspaceChecks).toEqual(["governance.policy.read"]);
+  });
+
+  it("WCC-NEW-009 — a pointer at a workspace the caller no longer belongs to authorizes NOTHING", async () => {
+    // The pointer still names TEAM; the membership behind it is gone.
+    H.memberActive = false;
+    for (const req of [
+      {
+        method: "POST" as const,
+        url: "/v1/trust/status/incidents",
+        payload: { title: "x", severity: "MINOR", componentKeys: ["API"] },
+      },
+      // A read with no tier guard of its own — the route that used to hand
+      // a removed member the workspace's campaigns.
+      { method: "GET" as const, url: "/v1/governance/access-reviews/campaigns" },
+    ]) {
+      const res = await app.inject({
+        method: req.method,
+        url: req.url,
+        ...(req.payload ? { headers: stepUpJson, payload: req.payload } : {}),
+      });
+      // The SAME answer as no pointer at all — a stale pointer is
+      // indistinguishable from none.
+      expect(res.statusCode, req.url).toBe(403);
+      expect(JSON.parse(res.body).denial, req.url).toBe("WORKSPACE_NOT_FOUND");
+    }
+    expect(H.writes).toEqual([]);
+    // The per-action capability gate was never reached.
+    expect(H.seenPermissions).toEqual([]);
   });
 });

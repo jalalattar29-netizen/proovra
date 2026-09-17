@@ -28,6 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it, vi } from "vitest";
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
 
 import {
   ACCESS_REVIEW_GRANT_KINDS,
@@ -239,11 +240,6 @@ describe("Phase 4A Closure — service module surface", () => {
     expect(typeof m.probeAll).toBe("function");
   });
 
-  it("trust-drift service exposes needs-review", async () => {
-    const m = await import("../src/services/trust/trust-drift.service.js");
-    expect(typeof m.markArticleNeedsReview).toBe("function");
-  });
-
   it("trust-and-governance-audit service exposes every subject emitter", async () => {
     const m = await import(
       "../src/services/trust/trust-and-governance-audit.service.js"
@@ -297,14 +293,7 @@ describe("Phase 4A Closure — delegated tier enforcement on routes", () => {
     // accepts any authenticated workspace member; AUTHORING remains
     // tier-gated (previous test). Pinned to fail-fast if a future
     // phase tries to re-add the gate.
-    const seedSubIdx = src.indexOf('"/v1/trust/subprocessors/seed"');
-    expect(seedSubIdx).toBeGreaterThan(-1);
-    const seedSubSlice = src.slice(seedSubIdx, seedSubIdx + 1500);
-    const nextSubIdx = seedSubSlice.search(
-      /\n\s{0,4}app\.(post|get|patch|delete)\(/,
-    );
-    const seedSubHandler =
-      nextSubIdx > 0 ? seedSubSlice.slice(0, nextSubIdx) : seedSubSlice;
+    const seedSubHandler = routeSource(src, "POST", "/v1/trust/subprocessors/seed");
     expect(seedSubHandler).toMatch(/preHandler:\s*requireAuth\b/);
     expect(seedSubHandler).not.toMatch(/requireDelegatedTier/);
   });
@@ -632,6 +621,13 @@ describe("Phase 4A Closure — cross-org accept calls portal", () => {
           state: "INVITED",
           invitedOrgSlug: "external-org",
           expiresAtUtc: null,
+          // D17 — the invitation is scoped to the review's own subject; a
+          // review without one is not accepted (see the live proof in
+          // defects-external-review.integration.test.ts).
+          scope: {
+            text: "Review the intake photo",
+            subject: { kind: "EVIDENCE", id: "0b9a4d0e-7a53-4d3c-9d1e-2f6c1c5a9e11" },
+          },
         }),
         update: async () => ({ id: "cog-1" }),
       },
@@ -649,7 +645,13 @@ describe("Phase 4A Closure — cross-org accept calls portal", () => {
       actorUserId: "user-1",
     });
     expect(res.ok).toBe(true);
-    expect(issueSpy).toHaveBeenCalled();
+    expect(issueSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        teamId: "team-1",
+        invitedByUserId: "user-1",
+        scope: { kind: "EVIDENCE", evidenceId: "0b9a4d0e-7a53-4d3c-9d1e-2f6c1c5a9e11" },
+      }),
+    );
     issueSpy.mockRestore();
   });
 });

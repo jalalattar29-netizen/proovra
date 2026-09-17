@@ -4,8 +4,9 @@ import crypto from "node:crypto";
 // env. Behaviour for non-migrated names is unchanged.
 import {
   MIGRATED_SECRETS,
-  requireSecret,
+  getSecret,
 } from "../config/runtime-secrets.js";
+import { paymentsUnavailable } from "./billing/payments-unavailable.js";
 
 type StripeEvent = {
   id: string;
@@ -16,11 +17,13 @@ type StripeEvent = {
 function must(name: string): string {
   // For migrated secrets, prefer the runtime-secrets resolver so AWS
   // Secrets Manager values take precedence over env.
-  if ((MIGRATED_SECRETS as readonly string[]).includes(name)) {
-    return requireSecret(name);
-  }
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is not set`);
+  const value = (MIGRATED_SECRETS as readonly string[]).includes(name)
+    ? getSecret(name)
+    : process.env[name];
+  // PV-DEFECT-003 — an unconfigured provider is the bounded 503
+  // PAYMENTS_UNAVAILABLE, not a bare Error that answered 500 and paged
+  // critical. The setting's name reaches the operator's log, never the wire.
+  if (!value) throw paymentsUnavailable("stripe", name);
   return value;
 }
 

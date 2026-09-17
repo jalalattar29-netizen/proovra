@@ -11,6 +11,7 @@
 import type { PrismaClient } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 import {
+  SEARCH_SAVED_VIEW_SCOPE,
   type SavedViewVisibility,
   type SearchFilterInput,
 } from "@proovra/shared";
@@ -65,6 +66,13 @@ export async function listSavedViewsForUser(
   const rows = await client.savedSearchView.findMany({
     where: {
       teamId: input.teamId,
+      // D22 — this table is shared by three families (SEARCH, REVIEWER_OPS,
+      // OPERATIONS). Every read and write here pins SEARCH, as the other two
+      // services already pin theirs; without it a search list carried the
+      // other families' shared views, and the search delete/rename routes
+      // could mutate a reviewer-ops or operations view by id — past that
+      // family's own authority (`operations.saved_views.manage`).
+      scope: SEARCH_SAVED_VIEW_SCOPE,
       OR: [
         // The user's own private + team views.
         { createdByUserId: input.userId },
@@ -105,6 +113,7 @@ export async function createSavedView(
         description: input.description?.slice(0, 400) ?? null,
         visibility: input.visibility,
         pinned: input.pinned ?? false,
+        scope: SEARCH_SAVED_VIEW_SCOPE,
         queryJson: input.query as unknown as prismaPkg.Prisma.InputJsonValue,
       },
     });
@@ -148,6 +157,13 @@ export type DeleteSavedViewInput = {
   teamId: string;
   actorUserId: string;
   id: string;
+  /**
+   * K4 (2026-09-16) — true when the caller administers the workspace
+   * (OWNER / ADMIN). The comment below always said the route layer enforced
+   * this for TEAM views; it did not, so any member (a VIEWER included) could
+   * delete a colleague's TEAM view.
+   */
+  canManageShared?: boolean;
 };
 
 export async function deleteSavedView(
@@ -155,13 +171,16 @@ export async function deleteSavedView(
   client: PrismaClient = defaultPrisma,
 ): Promise<boolean> {
   const row = await client.savedSearchView.findFirst({
-    where: { id: input.id, teamId: input.teamId },
+    where: { id: input.id, teamId: input.teamId, scope: SEARCH_SAVED_VIEW_SCOPE },
   });
   if (!row) return false;
   // Only the creator can delete a PRIVATE view; a TEAM view can be
   // deleted by the creator or by an admin (the route layer enforces
   // the admin check).
-  if (row.visibility === "PRIVATE" && row.createdByUserId !== input.actorUserId) {
+  if (
+    row.createdByUserId !== input.actorUserId &&
+    (row.visibility === "PRIVATE" || input.canManageShared !== true)
+  ) {
     return false;
   }
   await client.savedSearchView.delete({ where: { id: row.id } });
@@ -215,7 +234,7 @@ export async function renameSavedView(
   const trimmed = input.name.trim();
   if (trimmed.length === 0 || trimmed.length > 120) return null;
   const row = await client.savedSearchView.findFirst({
-    where: { id: input.id, teamId: input.teamId },
+    where: { id: input.id, teamId: input.teamId, scope: SEARCH_SAVED_VIEW_SCOPE },
   });
   if (!row) return null;
   if (row.createdByUserId !== input.actorUserId) {

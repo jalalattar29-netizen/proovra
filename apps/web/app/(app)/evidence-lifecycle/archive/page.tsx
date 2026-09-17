@@ -31,17 +31,23 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { identifierLabel } from "@proovra/shared";
+
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
 import { Card } from "../../../../components/ui/Card";
 import { Button } from "../../../../components/ui/Button";
 import { DataTable, type DataTableColumn } from "../../../../components/ui/DataTable";
 import { EmptyState } from "../../../../components/ui/EmptyState";
-import { apiFetch, ApiError } from "../../../../lib/api";
+import { apiFetch } from "../../../../lib/api";
+import {
+  DenialBanner,
+  resolveLifecycleError,
+  type LifecycleDenial,
+} from "../_shared";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { formatUserDate } from "../../../../lib/date";
 
-type PermissionDenialState = { denial: string; tier: string } | null;
 
 interface ArchiveTransition {
   id: string;
@@ -86,37 +92,14 @@ const TIER_DESCRIPTIONS: Record<string, string> = {
   DEEP_ARCHIVE: "Long-term retention — slowest access, cheapest storage.",
 };
 
-function applyDenial(err: unknown, setDenial: (v: PermissionDenialState) => void): void {
-  const e = err as { statusCode?: number; details?: Record<string, unknown> };
-  const denial =
-    e?.details && typeof e.details["denial"] === "string" ? e.details["denial"] : null;
-  const tier =
-    e?.details && typeof e.details["requiredTier"] === "string"
-      ? (e.details["requiredTier"] as string)
-      : "DELEGATED_ADMIN";
-  if (
-    e?.statusCode === 403 &&
-    (denial === "ENTITLEMENT_REQUIRED" || denial === "DELEGATED_ADMIN_REQUIRED")
-  ) {
-    setDenial({ denial: denial as string, tier });
-    return;
-  }
-  if (err instanceof ApiError) {
-    const d =
-      err.details && typeof err.details["denial"] === "string"
-        ? (err.details["denial"] as string)
-        : null;
-    const t =
-      err.details && typeof err.details["requiredTier"] === "string"
-        ? (err.details["requiredTier"] as string)
-        : "DELEGATED_ADMIN";
-    if (
-      err.statusCode === 403 &&
-      (d === "ENTITLEMENT_REQUIRED" || d === "DELEGATED_ADMIN_REQUIRED")
-    ) {
-      setDenial({ denial: d, tier: t });
-    }
-  }
+/**
+ * PV-STATE-001 — ONE resolver for every refusal on this page: the segment's
+ * shared `resolveLifecycleError` (product-language banner, every status),
+ * replacing a private copy that recognised two 403 shapes and silently
+ * dropped everything else — so any other failure left the page looking empty.
+ */
+function applyDenial(err: unknown, setDenial: (v: LifecycleDenial | null) => void): void {
+  setDenial(resolveLifecycleError(err));
 }
 
 export default function ArchivePage() {
@@ -157,7 +140,7 @@ function Shell() {
   const [transitionsError, setTransitionsError] = useState<string | null>(null);
   const [costsError, setCostsError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [denial, setDenial] = useState<PermissionDenialState>(null);
+  const [denial, setDenial] = useState<LifecycleDenial | null>(null);
 
   // Manual transition form
   const [evidenceId, setEvidenceId] = useState("");
@@ -281,22 +264,7 @@ function Shell() {
         />
       }
     >
-      {denial ? (
-        <div
-          data-permission-denied={denial.denial}
-          style={{
-            padding: 10,
-            background: "#fef3c7",
-            border: "1px solid #fcd34d",
-            color: "#78350f",
-            borderRadius: 8,
-            fontSize: 12,
-            marginBottom: 10,
-          }}
-        >
-          <strong>Permission required:</strong> {denial.tier}
-        </div>
-      ) : null}
+      {denial ? <DenialBanner denial={denial} /> : null}
 
       {/* Tier cards — ALWAYS render the 4 tier cards, even if cost data fails. */}
       <section
@@ -462,7 +430,7 @@ const TRANSITION_COLUMNS: DataTableColumn<ArchiveTransition>[] = [
   { key: "evidenceId", header: "Evidence ID", render: (t) => <code>{t.evidenceId}</code> },
   { key: "from", header: "From", render: (t) => TIER_LABELS[t.fromTier] ?? t.fromTier },
   { key: "to", header: "To", render: (t) => TIER_LABELS[t.toTier] ?? t.toTier },
-  { key: "state", header: "State", render: (t) => <strong>{t.state}</strong> },
+  { key: "state", header: "State", render: (t) => <strong>{identifierLabel(t.state)}</strong> },
   { key: "initiated", header: "Initiated", render: (t) => safeDate(t.initiatedAtUtc) },
 ];
 

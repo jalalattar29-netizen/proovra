@@ -39,7 +39,6 @@ import {
   TRUST_CENTER_SECTIONS,
 } from "@proovra/shared";
 
-import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 // PHASE 12B CLUSTER 10 / 14 — canonical authorization. `resolveWorkspace`
@@ -48,7 +47,10 @@ import { requireAuth } from "../middleware/auth.js";
 // Evidence-Operations department + effective-policy routes compose BOTH:
 // resolveWorkspace for the authoritative teamId, then `authorizeOrFail` for
 // ACTIVE membership + lifecycle + capability + audit + anti-enumeration.
-import { authorizeOrFail } from "../middleware/authorize.js";
+import {
+  authorizeOrFail,
+  evaluateCurrentWorkspace,
+} from "../middleware/authorize.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 import { emitTrustEvent } from "../services/trust/trust-and-governance-audit.service.js";
 import {
@@ -128,7 +130,6 @@ import { resolveUserDepartmentScope } from "../services/governance/department-sc
 import { listEscalatedItems } from "../services/governance/access-review-escalation.service.js";
 import {
   listStaleTrustArticles,
-  markArticleNeedsReview,
   runTrustArticleDriftScan,
 } from "../services/trust/trust-drift.service.js";
 import {
@@ -144,20 +145,45 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * WCC-NEW-009 — THE POINTER IS A HINT, NOT A GRANT.
+ *
+ * Every trust-center, status, department, delegated-admin, policy and
+ * access-review route in this file takes its tenant from here, and this used
+ * to return `User.currentWorkspaceId` as-is: the caller's own last-visited
+ * pointer, with no membership, status or lifecycle check. A member removed
+ * from a workspace — whose pointer still named it — went on reading its
+ * access-review campaigns, departments and policies through every route below
+ * that has no tier guard of its own.
+ *
+ * The pointer is now only a CANDIDATE, revalidated in full by the canonical
+ * primitive (evaluateCurrentWorkspace -> evaluateAuthorizedWorkspace):
+ * workspace existence, EXPLICIT ACTIVE membership, access expiry,
+ * Organization lifecycle and the support-access guard. The baseline
+ * permission is `governance.policy.read`, which every member role holds
+ * (OWNER, ADMIN, REVIEWER, CONTRIBUTOR, VIEWER) and EXTERNAL_CONTRIBUTOR does
+ * not — so no member loses a surface they had, and a non-member gains none.
+ * Routes that demand more still demand it (their tier guards are unchanged).
+ *
+ * Any refusal answers exactly as a missing pointer always did, so a stale
+ * pointer is indistinguishable from none and the response contract the
+ * consoles read is unchanged.
+ */
 async function resolveWorkspace(
   req: FastifyRequest,
   reply: FastifyReply,
 ): Promise<{ teamId: string; userId: string } | null> {
-  const userId = getAuthUserId(req);
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { currentWorkspaceId: true },
+  const outcome = await evaluateCurrentWorkspace(req, {
+    permission: "governance.policy.read",
   });
-  if (!user?.currentWorkspaceId) {
+  if (!outcome.allowed) {
     reply.code(403).send({ denial: "WORKSPACE_NOT_FOUND" });
     return null;
   }
-  return { teamId: user.currentWorkspaceId, userId };
+  return {
+    teamId: outcome.context.workspaceId,
+    userId: outcome.context.userId,
+  };
 }
 
 function trustDegradedReason(
@@ -855,6 +881,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
       const res = await archiveDepartment({
         teamId: ctx.teamId,
         departmentId: id,
+        actorUserId: ctx.userId,
       });
       if (!res.ok) return reply.code(404).send({ denial: "NOT_FOUND" });
       return reply.code(200).send({ ok: true });
@@ -1052,6 +1079,39 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
           isOverride: z.boolean().optional(),
         })
         .parse(req.body);
+      // TENANT BINDING. `assignPolicy` upserts on (policyId, scope,
+      // scopeTargetId) and never checked that the policy — or the target —
+      // belongs to the caller's workspace, so an ORG_ADMIN could attach a
+      // foreign policy id, or point an assignment at a target the effective
+      // resolver will never ask about (it resolves only this workspace's
+      // Organization, its departments, and the workspace itself). Both are
+      // refused with the same bounded 404 as any other missing row.
+      const policy = await prisma.governancePolicy.findFirst({
+        where: { id, teamId: ctx.teamId },
+        select: { id: true },
+      });
+      if (!policy) return reply.code(404).send({ denial: "NOT_FOUND" });
+      let targetOk = false;
+      if (body.scope === "WORKSPACE") {
+        targetOk = body.scopeTargetId === ctx.teamId;
+      } else if (body.scope === "ORGANIZATION") {
+        const workspace = await prisma.team.findFirst({
+          where: { id: ctx.teamId },
+          select: { organizationId: true },
+        });
+        targetOk =
+          !!workspace?.organizationId &&
+          workspace.organizationId === body.scopeTargetId;
+      } else {
+        const dept = await prisma.department.findFirst({
+          where: { id: body.scopeTargetId, teamId: ctx.teamId },
+          select: { id: true },
+        });
+        targetOk = !!dept;
+      }
+      if (!targetOk) {
+        return reply.code(404).send({ denial: "SCOPE_TARGET_NOT_FOUND" });
+      }
       const r = await assignPolicy({
         teamId: ctx.teamId,
         policyId: id,
@@ -1325,6 +1385,13 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
           invitingOrganizationId: z.string().uuid(),
           invitedOrgSlug: z.string().regex(/^[a-z0-9][a-z0-9-]{0,80}$/),
           scope: z.string().min(1).max(600),
+          // D17 — the record under review. Acceptance issues the portal
+          // invitation for exactly this record, so an invite without one
+          // could never be accepted.
+          subject: z.object({
+            kind: z.enum(["EVIDENCE", "CASE", "PACKAGE"]),
+            id: z.string().uuid(),
+          }),
           expiresAtUtc: z.string().datetime().nullable().optional(),
         })
         .parse(req.body);
@@ -1333,6 +1400,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
         invitingOrganizationId: body.invitingOrganizationId,
         invitedOrgSlug: body.invitedOrgSlug,
         scope: body.scope,
+        subject: body.subject,
         expiresAtUtc: body.expiresAtUtc ? new Date(body.expiresAtUtc) : null,
         createdByUserId: ctx.userId,
       });
@@ -1361,7 +1429,8 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
         externalReviewGrantId: body.externalReviewGrantId ?? null,
         actorUserId: ctx.userId,
       });
-      if (!r.ok) return reply.code(409).send({ denial: "POLICY_REJECTED" });
+      // D17 — the console explains which acceptance precondition failed.
+      if (!r.ok) return reply.code(409).send({ denial: r.denial ?? "POLICY_REJECTED" });
       return reply.code(200).send({ ok: true });
     },
   );
@@ -1797,44 +1866,39 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
     },
   );
 
+  // ===== (RETIRED) Trust Article — Mark Needs Review =====
+  //
+  // POST /v1/trust/articles/:id/review — Phase 4A Final Closure wired this to
+  // `markArticleNeedsReview`, which set driftState=NEEDS_REVIEW. OWNER
+  // DECISION (2026-09-16): a manual "needs review" flag is not offered. The
+  // flag was not durable — the next drift scan (POST /v1/trust/drift/scan)
+  // overwrote it with CURRENT/STALE, nothing listed NEEDS_REVIEW (the
+  // integrity list reads STALE only) and nothing cleared it — so pressing it
+  // recorded a state no one would ever see. No web or mobile caller existed.
+  // Article integrity is decided by the drift scan and read from
+  // GET /v1/trust/drift/stale. The route answers a typed 410 and keeps
+  // authentication only (the delegated-tier gate went with the work it
+  // guarded); stored articles are untouched.
+  app.post(
+    "/v1/trust/articles/:id/review",
+    { preHandler: requireAuth },
+    async (_req, reply) =>
+      reply.code(410).send({
+        error: {
+          code: "TRUST_ARTICLE_REVIEW_FLAG_RETIRED",
+          message:
+            "Flagging a trust article for review is not offered. Article integrity is decided by the drift scan; use the integrity list to see articles that need attention.",
+        },
+        canonical: "/v1/trust/drift/stale",
+      }),
+  );
+
   // ===== Verification package preview =====
   //
   // Returns the exact JSON shape that the worker emits inside the offline
   // verification ZIP for the requested manifest kind. Lets operators
   // inspect manifest contents without generating a full package.
   // Workspace-anchored; bodies are never included.
-  // ===== Trust Article — Mark Needs Review =====
-  //
-  // Phase 4A Final Closure — POST /v1/trust/articles/:id/review
-  // Invokes `markArticleNeedsReview` from trust-drift.service.ts.
-  // The closure introduced the function but no route consumed it.
-  // Restricted to SECURITY_OFFICER / COMPLIANCE_OFFICER delegated tiers.
-  app.post(
-    "/v1/trust/articles/:id/review",
-    {
-      preHandler: [
-        requireAuth,
-        requireDelegatedTierAny(["SECURITY_OFFICER", "COMPLIANCE_OFFICER"]),
-      ],
-    },
-    async (req, reply) => {
-      const ctx = await resolveWorkspace(req, reply);
-      if (!ctx) return reply;
-      const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
-      const body = z
-        .object({ reason: z.string().min(1).max(400).optional() })
-        .parse(req.body ?? {});
-      const result = await markArticleNeedsReview({
-        teamId: ctx.teamId,
-        articleId: id,
-        actorUserId: ctx.userId,
-        reason: body.reason ?? "manual_review_requested",
-      });
-      if (!result.ok) return reply.code(404).send({ denial: "ARTICLE_NOT_FOUND" });
-      return reply.code(200).send({ ok: true });
-    },
-  );
-
   app.get(
     "/v1/trust/verification-package/preview",
     {

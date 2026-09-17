@@ -25,6 +25,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { enclosingSource, routeSource } from "../../../scripts/source-contract/index.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -53,44 +54,34 @@ test("Backend route GET /v1/evidence/library-summary is registered with requireA
 });
 
 test("Backend reuses buildEvidenceListBaseWhere — same scope/access/permission envelope as the list endpoint", () => {
-  const start = ROUTES.indexOf('"/v1/evidence/library-summary"');
-  const body = ROUTES.slice(start, start + 10_000);
+  const body = routeSource(ROUTES, "GET", "/v1/evidence/library-summary");
   assert.match(body, /buildEvidenceListBaseWhere\(/);
 });
 
 test("Backend packages-ready uses verificationPackages.some — NOT latestReportVersion", () => {
-  const start = ROUTES.indexOf('"/v1/evidence/library-summary"');
-  const body = ROUTES.slice(start, start + 10_000);
+  const body = routeSource(ROUTES, "GET", "/v1/evidence/library-summary");
   assert.match(
     body,
     /PACKAGES_READY_PREDICATE[\s\S]{0,200}verificationPackages:\s*\{\s*some:\s*\{\s*\}\s*\}/,
   );
   // Anti-regression — the predicate must NOT contain
   // `latestReportVersion` (that would be the rejected proxy).
-  const packagesPredicateBlock = body.slice(
-    body.indexOf("PACKAGES_READY_PREDICATE"),
-    body.indexOf("PACKAGES_READY_PREDICATE") + 400,
-  );
+  const packagesPredicateBlock = enclosingSource(body, "PACKAGES_READY_PREDICATE", "statement");
   assert.doesNotMatch(packagesPredicateBlock, /latestReportVersion/);
 });
 
 test("Backend packages-missing predicate is REPORTED AND verificationPackages.none (real, not proxy)", () => {
-  const start = ROUTES.indexOf('"/v1/evidence/library-summary"');
-  const body = ROUTES.slice(start, start + 10_000);
+  const body = routeSource(ROUTES, "GET", "/v1/evidence/library-summary");
   assert.match(
     body,
     /PACKAGES_MISSING_PREDICATE[\s\S]{0,400}status:\s*prismaPkg\.EvidenceStatus\.REPORTED[\s\S]{0,400}verificationPackages:\s*\{\s*none:\s*\{\s*\}\s*\}/,
   );
-  const missingBlock = body.slice(
-    body.indexOf("PACKAGES_MISSING_PREDICATE"),
-    body.indexOf("PACKAGES_MISSING_PREDICATE") + 500,
-  );
+  const missingBlock = enclosingSource(body, "PACKAGES_MISSING_PREDICATE", "statement");
   assert.doesNotMatch(missingBlock, /latestReportVersion/);
 });
 
 test("Backend response shape carries every workspace-scoped count + source discriminator", () => {
-  const start = ROUTES.indexOf('"/v1/evidence/library-summary"');
-  const body = ROUTES.slice(start, start + 10_000);
+  const body = routeSource(ROUTES, "GET", "/v1/evidence/library-summary");
   assert.match(body, /source:\s*"workspace_total"/);
   for (const field of [
     "totalActiveRecords",
@@ -109,8 +100,7 @@ test("Backend response shape carries every workspace-scoped count + source discr
 });
 
 test("Backend needsActionCount is computed as ONE OR-union query (no double-counting)", () => {
-  const start = ROUTES.indexOf('"/v1/evidence/library-summary"');
-  const body = ROUTES.slice(start, start + 10_000);
+  const body = routeSource(ROUTES, "GET", "/v1/evidence/library-summary");
   assert.match(
     body,
     /const needsActionCount\s*=\s*await prisma\.evidence\.count\(\{\s*\n?\s*where:\s*compose\(\{\s*\n?\s*OR:\s*\[/,

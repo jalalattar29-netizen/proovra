@@ -263,6 +263,14 @@ test.describe("JOURNEY G — governance platform write surfaces", () => {
     const { probe } = await signInAsOwner(page, fixture);
 
     const invitedSlug = `p7-partner-${Date.now().toString(36)}`.slice(0, 60);
+    // D17 — an invitation names the record under review; acceptance issues the
+    // reviewer-portal invitation for exactly that record. The subject is a real
+    // record of the inviting workspace, created through the real route.
+    const subjectTitle = `P7 cross-org subject ${Date.now().toString(36)}`;
+    const subjectId = await seedEvidence(page, {
+      teamId: fixture.tenant.workspaceId,
+      title: subjectTitle,
+    });
 
     const open = async () => {
       await page.goto(`/governance-platform/cross-org`, {
@@ -271,10 +279,12 @@ test.describe("JOURNEY G — governance platform write surfaces", () => {
       await expectSurfaceRendered(page, GOVERNANCE_PLATFORM_ROUTE_ID);
       await waitForSurface(page, "[data-cross-org-invite-form]");
       // Blocked until BOTH the tier mirror and the server-derived organization
-      // have resolved — the form never asks an operator to type a tenancy id.
-      await expect(page.locator("[data-cross-org-invite-submit]")).toBeEnabled({
+      // have resolved — the form never asks an operator to type a tenancy id —
+      // and then, visibly, until the record under review is chosen (D17).
+      await expect(page.locator('[data-cross-org-invite-blocked="subject"]')).toBeVisible({
         timeout: 30_000,
       });
+      await expect(page.locator("[data-cross-org-invite-submit]")).toBeDisabled();
     };
 
     const arm = async () => {
@@ -282,6 +292,12 @@ test.describe("JOURNEY G — governance platform write surfaces", () => {
       await page
         .locator("[data-cross-org-invite-scope]")
         .fill("Read-only review of published verification records.");
+      const form = page.locator("[data-cross-org-invite-form]");
+      await form.getByRole("radio", { name: /^Evidence record/ }).check();
+      // The option names the record and carries its id (the title a draft
+      // record shows is the product default, so the id is what identifies it).
+      await form.getByRole("radio", { name: new RegExp(subjectId) }).check({ timeout: 30_000 });
+      await expect(page.locator("[data-cross-org-invite-submit]")).toBeEnabled();
     };
 
     await proveMutationCapability({
@@ -378,6 +394,7 @@ test.describe("JOURNEY G — governance platform write surfaces", () => {
         invitingOrganizationId: fixture.tenant.organizationId,
         invitedOrgSlug: secondSlug,
         scope: "Second INVITED subject for the accept error pass.",
+        subject: { kind: "EVIDENCE", id: subjectId },
         expiresAtUtc: null,
       },
     });

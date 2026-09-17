@@ -39,6 +39,14 @@ import { apiFetch } from "../../../../../lib/api";
 import { formatUserDateTime } from "../../../../../lib/date";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useAdminEntityCrumb } from "../../../../../components/admin/AdminEntityCrumb";
+import { identifierLabel } from "@proovra/shared";
+import {
+  billingProviderLabel,
+  orgRoleLabel,
+  planLabel,
+  signInProviderLabel,
+  workspaceKindLabel,
+} from "../../../../../lib/labels/adminPlatformLabels";
 import { EvidenceCreditGrant } from "./EvidenceCreditGrant";
 
 type Detail = {
@@ -241,7 +249,7 @@ export default function AdminPersonDetailPage() {
         <Link href={`/admin/workspaces/${encodeURIComponent(w.id)}`}>{w.name}</Link>
       ),
     },
-    { key: "kind", header: "Kind", render: (w) => <Badge tone="info" subtle>{w.kind}</Badge> },
+    { key: "kind", header: "Kind", render: (w) => <Badge tone="info" subtle>{workspaceKindLabel(w.kind)}</Badge> },
     {
       key: "lifecycle",
       header: "Lifecycle",
@@ -256,7 +264,7 @@ export default function AdminPersonDetailPage() {
       header: "Role",
       render: (w) => (
         <span>
-          {w.role ?? "—"}
+          {w.role ? identifierLabel(w.role) : "—"}
           {w.isOwner ? " (owner)" : ""}
         </span>
       ),
@@ -306,7 +314,7 @@ export default function AdminPersonDetailPage() {
             p.status === "SUCCEEDED" ? "verified" : p.status === "FAILED" ? "risk" : "neutral"
           }
         >
-          {p.status}
+          {identifierLabel(p.status)}
         </Badge>
       ),
     },
@@ -326,7 +334,7 @@ export default function AdminPersonDetailPage() {
           title={detail?.email ?? detail?.name ?? "Person"}
           subtitle={
             detail
-              ? `${detail.provider} · joined ${formatUserDateTime(detail.createdAt)}`
+              ? `${signInProviderLabel(detail.provider)} · joined ${formatUserDateTime(detail.createdAt)}`
               : undefined
           }
           secondaryActions={
@@ -373,7 +381,7 @@ export default function AdminPersonDetailPage() {
                 </Field>
                 <Field label="Email">{detail.email ?? "—"}</Field>
                 <Field label="Name">{detail.name ?? "—"}</Field>
-                <Field label="Sign-in provider">{detail.provider}</Field>
+                <Field label="Sign-in provider">{signInProviderLabel(detail.provider)}</Field>
                 <Field label="Platform role">
                   {detail.platformRole ? (
                     <Badge tone="governance">Platform admin</Badge>
@@ -423,7 +431,7 @@ export default function AdminPersonDetailPage() {
                 {detail.commercial ? (
                   <>
                     <Field label="Effective plan">
-                      <Badge tone="governance">{detail.commercial.plan}</Badge>
+                      <Badge tone="governance">{planLabel(detail.commercial.plan)}</Badge>
                     </Field>
                     <Field label="Commercial lifecycle">
                       <Badge
@@ -458,6 +466,7 @@ export default function AdminPersonDetailPage() {
                   {detail.personalWorkspaceId ? (
                     <Link
                       href={`/admin/workspaces/${encodeURIComponent(detail.personalWorkspaceId)}`}
+                      className="admin-hit-link"
                     >
                       Open personal space
                     </Link>
@@ -558,7 +567,8 @@ export default function AdminPersonDetailPage() {
                         style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}
                       >
                         <Badge tone={s.status === "ACTIVE" ? "verified" : "neutral"}>
-                          {s.provider} {s.plan} · {s.status}
+                          {billingProviderLabel(s.provider)} {planLabel(s.plan)} ·{" "}
+                          {identifierLabel(s.status)}
                         </Badge>
                         {s.cancelAtPeriodEnd ? (
                           <Badge tone="pending">Cancels at period end</Badge>
@@ -616,7 +626,7 @@ export default function AdminPersonDetailPage() {
                       {o.kind === "CUSTOMER" ? (
                         <Link href={`/admin/customers/${encodeURIComponent(o.id)}`}>
                           <Badge tone="governance" subtle>
-                            {o.name} · {o.role} · {o.status}
+                            {o.name} · {orgRoleLabel(o.role)} · {identifierLabel(o.status)}
                           </Badge>
                         </Link>
                       ) : (
@@ -682,7 +692,7 @@ export default function AdminPersonDetailPage() {
                       <Badge tone="risk" subtle>
                         Account closure
                       </Badge>
-                      <Badge tone="neutral">{c.status}</Badge>
+                      <Badge tone="neutral">{identifierLabel(c.status)}</Badge>
                       <span style={{ fontSize: 12, color: "var(--ink-secondary)" }}>
                         requested {formatUserDateTime(c.requestedAtUtc)}
                       </span>
@@ -693,7 +703,7 @@ export default function AdminPersonDetailPage() {
                       <Badge tone="info" subtle>
                         Data export
                       </Badge>
-                      <Badge tone="neutral">{e.status}</Badge>
+                      <Badge tone="neutral">{identifierLabel(e.status)}</Badge>
                       <span style={{ fontSize: 12, color: "var(--ink-secondary)" }}>
                         requested {formatUserDateTime(e.requestedAtUtc)}
                       </span>

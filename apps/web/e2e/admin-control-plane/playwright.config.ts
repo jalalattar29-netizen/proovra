@@ -49,6 +49,10 @@ const WEB_BASE =
   process.env.PROOVRA_FIXTURE_WEB_BASE ?? `http://localhost:${WEB_PORT}`;
 const API_BASE = process.env.PROOVRA_FIXTURE_API_BASE ?? "http://localhost:8291";
 
+// Workers and legacy spec helpers inherit exactly the origins this config serves.
+process.env.PROOVRA_FIXTURE_WEB_BASE = WEB_BASE;
+process.env.PROOVRA_FIXTURE_API_BASE = API_BASE;
+
 export default defineConfig({
   testDir: ".",
   // The matrix walks 47 routes inside a single test body, so the per-test

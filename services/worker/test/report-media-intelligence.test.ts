@@ -35,6 +35,30 @@ import { buildTimelineRows } from "../src/report-v2/custody-model";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+/**
+ * The whole rendered HTML element whose opening tag contains `marker`, from
+ * `<tag` to its balancing `</tag>` (same-name nesting counted). Rendered HTML,
+ * so the TypeScript-based source-contract helpers do not apply; this is the
+ * structural equivalent (WCC-NEW-027): the element, never a character budget
+ * that can stop short of it or run into the next section. Throws when the
+ * marker or the closing tag is missing.
+ */
+function renderedElement(html: string, marker: string): string {
+  const at = html.indexOf(marker);
+  if (at < 0) throw new Error(`rendered element: marker ${marker} not found`);
+  const start = html.lastIndexOf("<", at);
+  const tag = /^<([a-zA-Z][a-zA-Z0-9-]*)/.exec(html.slice(start))?.[1];
+  if (start < 0 || !tag) throw new Error(`rendered element: no opening tag before ${marker}`);
+  const re = new RegExp(`<(/?)${tag}\\b[^>]*>`, "gi");
+  re.lastIndex = start;
+  let depth = 0;
+  for (let m = re.exec(html); m; m = re.exec(html)) {
+    depth += m[1] ? -1 : 1;
+    if (depth === 0) return html.slice(start, m.index + m[0].length);
+  }
+  throw new Error(`rendered element: <${tag}> at ${marker} is never closed`);
+}
+
 const FULL_HASH_A =
   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const FULL_HASH_B =
@@ -492,9 +516,7 @@ describe("Evidence Acquisition table (Executive Summary only)", () => {
     expect(html).not.toContain("Secure Browser Capture");
     // Evidence Overview fields live in the SAME grid — merged, not a second
     // key/value table.
-    const gridStart = html.indexOf('class="executive-unified-grid"');
-    expect(gridStart).toBeGreaterThan(-1);
-    const gridSlice = html.slice(gridStart, gridStart + 4000);
+    const gridSlice = renderedElement(html, 'class="executive-unified-grid"');
     expect(gridSlice).toContain("Operating system"); // device field
     expect(gridSlice).toContain("Evidence Type"); // overview field
     // No wasteful standalone "Technical Summary" page section.
@@ -552,8 +574,7 @@ describe("Evidence Acquisition table (Executive Summary only)", () => {
     // Unified grid present; intake device rows suppressed (acquisition table
     // covers submission context) but Evidence Overview still merged in.
     expect(html).toContain("executive-unified-grid");
-    const gridStart = html.indexOf('class="executive-unified-grid"');
-    const gridSlice = html.slice(gridStart, gridStart + 4000);
+    const gridSlice = renderedElement(html, 'class="executive-unified-grid"');
     expect(gridSlice).toContain("Evidence Type");
   });
 
@@ -930,11 +951,13 @@ describe("UC-0 — How this record entered PROOVRA (report acquisition statement
       }),
     );
     const html = renderReportHtml(vm);
-    const t = text(html);
-    const at = t.indexOf("How this record entered PROOVRA");
-    expect(at).toBeGreaterThan(-1);
-    expect(t.slice(at, at + 200)).toContain("Not recorded");
-    expect(t.slice(at, at + 200)).not.toContain("PROOVRA Web Upload");
+    // The whole acquisition statement section, read by its own element.
+    const panel = html.match(/<section class="[^"]*acquisition-statement-panel[^"]*">[\s\S]*?<\/section>/);
+    expect(panel).not.toBeNull();
+    const t = text(panel![0]);
+    expect(t).toContain("How this record entered PROOVRA");
+    expect(t).toContain("Not recorded");
+    expect(t).not.toContain("PROOVRA Web Upload");
   });
 
   it("the statement never claims capture verification or retired class labels", async () => {

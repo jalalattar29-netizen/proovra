@@ -486,10 +486,18 @@ describe("Phase 12 Point 4 — lifecycle/exchange routes carry canonical capabil
     return out;
   }
 
+  // A retired route answers a typed 410 and does nothing else — no workspace
+  // resolution, no awaited work — so it has nothing to gate. (WCC 2026-09-17:
+  // POST /v1/exchange/packages/:id/ready, pinned by
+  // test/retired-routes-2026-09-16.test.ts.)
+  const tombstone = (b: string) =>
+    /reply\.code\(410\)/.test(b) && !/resolveWorkspace|prisma\.|\bawait\b/.test(b);
+
   const gated = (b: string) =>
     /permission:\s*"[a-z_.]+"/.test(b) ||
     /requireDelegatedTier/.test(b) ||
-    /requireIntegrationCronSecret/.test(b);
+    /requireIntegrationCronSecret/.test(b) ||
+    tombstone(b);
 
   it("every MUTATION carries a canonical capability or a delegated-tier gate", () => {
     const ungated = routes()

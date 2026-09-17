@@ -20,6 +20,7 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 import { ROUTE_REGISTRY } from "../lib/navigation/routeRegistry";
 import {
   canAccessSurface,
@@ -73,7 +74,20 @@ test("fixture mirrors the canonical PLAN_CAPABILITIES catalog", () => {
   for (const [plan, f] of Object.entries(PLAN_FEATURES)) {
     const at = catalog.indexOf(`${plan}: {`);
     assert.ok(at > -1, `${plan} present in catalog`);
-    const block = catalog.slice(at, at + 1200);
+    // The `{ plan: "<PLAN>", … }` object that is the value of `<PLAN>: {` at
+    // `at` — exactly that plan's entry (WCC-NEW-027). A 1200-char window
+    // stopped short of FREE's larger entry and ran into the next plan's for
+    // the others. `plan: "<PLAN>"` also appears later in the file, so pick
+    // the occurrence that belongs to this entry.
+    const marker = `plan: "${plan}"`;
+    let occurrence = 0;
+    for (let p = catalog.indexOf(marker); p >= 0 && p < at; p = catalog.indexOf(marker, p + 1)) {
+      occurrence += 1;
+    }
+    const block = enclosingSource(catalog, marker, "object", {
+      occurrence,
+      fileName: "plan-catalog.ts",
+    });
     assert.match(
       block,
       new RegExp(`intakeIncluded: ${f.intakeIncluded}`),

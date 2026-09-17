@@ -19,8 +19,10 @@
  *     the API accepted.
  */
 
-import { use, useCallback, useEffect, useMemo, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+
+import { identifierLabel } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import {
@@ -46,6 +48,10 @@ import {
   type RedactionRegionRow,
 } from "../../../../components/redaction/RegionListPanel";
 import { DetectionManifestPanel } from "../../../../components/redaction/DetectionManifestPanel";
+// Batch J — GET /v1/redaction/projects/:id/activity (the promised timeline).
+import { RedactionActivityPanel } from "../../../../components/redaction/RedactionActivityPanel";
+import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
+import type { QuarantineOutcome } from "../../../../components/redaction/ApprovalPanel";
 import {
   isDerivativeInFlight,
   useDerivativePolling,
@@ -119,6 +125,13 @@ function RedactionProjectShell({
     null,
   );
   const [banner, setBanner] = useState<string | null>(null);
+  // A failed FIRST load is a failure, not an endless "Loading…".
+  const [loadError, setLoadError] = useState<string | null>(null);
+  // Bumped after every mutation this page performs so the activity
+  // timeline is reread from the server, never patched locally.
+  const [activityRevision, setActivityRevision] = useState(0);
+  const hasProjectRef = useRef(false);
+  const { confirm } = useConfirmAction();
   // Active workspace id — the step-up challenge is minted against this
   // tenant. Publishing a redacted derivative is a sensitive, irreversible
   // disclosure action, so when the backend answers STEP_UP_REQUIRED the
@@ -140,14 +153,24 @@ function RedactionProjectShell({
       if (isStale(captured)) return; // workspace changed mid-flight — discard
       const p = res?.project as ProjectProjection | undefined;
       setProject(p ?? null);
+      hasProjectRef.current = Boolean(p);
+      setLoadError(
+        p
+          ? null
+          : "This redaction project could not be loaded. It may not exist in the current workspace, or you may not have access.",
+      );
       if (p && !selectedVersionId && p.versions.length > 0) {
         setSelectedVersionId(p.versions[0].id);
       }
     } catch {
       if (isStale(captured)) return;
       // Keep whatever we already showed on a transient poll failure; only
-      // the initial load renders the empty state.
-      setProject((prev) => prev ?? null);
+      // the initial load reports the failure.
+      if (!hasProjectRef.current) {
+        setLoadError(
+          "This redaction project could not be loaded. It may not exist in the current workspace, or you may not have access.",
+        );
+      }
     }
   }, [projectId, selectedVersionId, stamp, isStale]);
 
@@ -185,6 +208,7 @@ function RedactionProjectShell({
       );
       setSelectedVersionId(res?.versionId ?? null);
       await refresh();
+      setActivityRevision((v) => v + 1);
     } catch (err) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setBanner(`Refused: ${((err as any)?.denial ?? "POLICY_REJECTED")}`);
@@ -223,6 +247,7 @@ function RedactionProjectShell({
         }
         setBanner(`Version transitioned (${action}).`);
         await refresh();
+        setActivityRevision((v) => v + 1);
       } catch (err) {
         // Cancelling step-up must NOT publish and must NOT surface a scary
         // error — the operator deliberately backed out.
@@ -247,9 +272,94 @@ function RedactionProjectShell({
     [refresh, stepUp],
   );
 
+  /**
+   * Batch J — administrator quarantine of a redacted copy.
+   *
+   *   POST /v1/redaction/derivatives/:id/quarantine  { reason: 1..120 }
+   *   (redaction.administer; 403 not an administrator, 404 not found)
+   *
+   * Destructive and terminal (a quarantined copy cannot be re-rendered or
+   * downloaded), so it is confirmed first. Success is only announced after
+   * the project projection is reread and shows the copy as QUARANTINED.
+   */
+  const onQuarantine = useCallback(
+    async (
+      versionId: string,
+      derivativeId: string,
+      reason: string,
+    ): Promise<QuarantineOutcome> => {
+      const ok = await confirm({
+        title: "Quarantine this redacted copy?",
+        description:
+          "The copy can no longer be downloaded, published or re-rendered. This is an administrator decision and is recorded in the activity timeline. It cannot be undone from this page.",
+        confirmLabel: "Quarantine copy",
+        tone: "danger",
+      });
+      if (!ok) return { kind: "cancelled" };
+      const captured = stamp();
+      try {
+        await apiFetch(
+          `/v1/redaction/derivatives/${encodeURIComponent(derivativeId)}/quarantine`,
+          { method: "POST", body: JSON.stringify({ reason }) },
+        );
+      } catch (err) {
+        const status = (err as { statusCode?: number })?.statusCode;
+        if (status === 403) {
+          return {
+            kind: "error",
+            message: "Only redaction administrators can quarantine a redacted copy.",
+          };
+        }
+        if (status === 404) {
+          return {
+            kind: "error",
+            message: "This redacted copy no longer exists in the current workspace. Refresh the project.",
+          };
+        }
+        return {
+          kind: "error",
+          message: toSafeUserError(err, {
+            message: "The redacted copy could not be quarantined. Nothing was changed.",
+          }).message,
+        };
+      }
+      setActivityRevision((v) => v + 1);
+      try {
+        const res = await apiFetch(
+          `/v1/redaction/projects/${encodeURIComponent(projectId)}`,
+          { method: "GET" },
+        );
+        if (isStale(captured)) return { kind: "cancelled" };
+        const p = res?.project as ProjectProjection | undefined;
+        if (p) setProject(p);
+        const reread = p?.versions.find((v) => v.id === versionId)?.derivative;
+        if (reread?.id === derivativeId && reread.state === "QUARANTINED") {
+          return { kind: "done", message: "Redacted copy quarantined. The saved project shows it as quarantined." };
+        }
+        return {
+          kind: "error",
+          message: "The quarantine was sent, but the saved project does not show the copy as quarantined yet. Refresh before acting on it.",
+        };
+      } catch {
+        return {
+          kind: "error",
+          message: "The quarantine was sent, but the project could not be reloaded to confirm it. Refresh before acting on it.",
+        };
+      }
+    },
+    [confirm, isStale, projectId, stamp],
+  );
+
   if (!project) {
+    if (loadError) {
+      return (
+        <div role="alert" data-redaction-project-error style={{ padding: 40, textAlign: "center" }}>
+          {loadError}
+        </div>
+      );
+    }
     return (
-      <main style={{ padding: 40, textAlign: "center" }}>Loading…</main>
+      <div role="status" style={{ padding: 40, textAlign: "center" }}>Loading…</div>
     );
   }
 
@@ -284,7 +394,7 @@ function RedactionProjectShell({
           <p style={{ color: "#475569", fontSize: 12, margin: 0 }}>
             Evidence <code>{project.evidenceId}</code> ·{" "}
             <code>{project.artifactKind}</code> · state{" "}
-            <code data-redaction-project-state>{project.state}</code>
+            <strong data-redaction-project-state>{identifierLabel(project.state)}</strong>
           </p>
         </div>
         <button
@@ -331,14 +441,16 @@ function RedactionProjectShell({
           />
         </aside>
 
-        <main>
+        <div>
           {selectedVersion ? (
             <VersionWorkspace
               project={project}
               version={selectedVersion}
               onTransition={onTransition}
+              onQuarantine={onQuarantine}
               onChanged={() => {
                 void refresh();
+                setActivityRevision((v) => v + 1);
               }}
             />
           ) : (
@@ -356,8 +468,15 @@ function RedactionProjectShell({
               Create a new version to begin authoring redactions.
             </div>
           )}
-        </main>
+        </div>
       </div>
+
+      <RedactionActivityPanel
+        projectId={projectId}
+        versions={project.versions}
+        selectedVersionId={selectedVersionId}
+        revision={activityRevision}
+      />
 
       <footer
         data-redaction-limitations-footer
@@ -388,10 +507,16 @@ function VersionWorkspace({
   project,
   version,
   onTransition,
+  onQuarantine,
   onChanged,
 }: {
   project: ProjectProjection;
   version: VersionProjection;
+  onQuarantine: (
+    versionId: string,
+    derivativeId: string,
+    reason: string,
+  ) => Promise<QuarantineOutcome>;
   onTransition: (
     versionId: string,
     action: "submit" | "approve" | "publish" | "derivative",
@@ -423,9 +548,9 @@ function VersionWorkspace({
         <strong style={{ fontSize: 14 }}>
           Version v{version.versionOrdinal}
         </strong>
-        <code style={{ fontSize: 11, color: "#475569" }}>
-          state: {version.state}
-        </code>
+        <span style={{ fontSize: 11, color: "#475569" }}>
+          Status: {identifierLabel(version.state)}
+        </span>
         <span style={{ flex: 1 }} />
         <small style={{ color: "#475569", fontSize: 11 }}>
           {version.regionCount} regions ·{" "}
@@ -475,8 +600,9 @@ function VersionWorkspace({
             fontSize: 13,
           }}
         >
-          Audio redaction uses time-range regions only. Add regions
-          via the API <code>AUDIO_RANGE_MS</code> region kind.
+          Audio redaction uses time-range regions only. Add them through
+          the API as time-range regions (region kind{" "}
+          <code data-identifier>AUDIO_RANGE_MS</code>).
         </div>
       )}
 
@@ -503,6 +629,9 @@ function VersionWorkspace({
         version={version}
         artifactKind={project.artifactKind}
         onTransition={onTransition}
+        onQuarantine={(derivativeId, reason) =>
+          onQuarantine(version.id, derivativeId, reason)
+        }
       />
     </div>
   );

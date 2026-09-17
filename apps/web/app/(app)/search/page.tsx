@@ -100,6 +100,7 @@ import {
 import {
   searchReadinessHasUsableResults,
   type SearchReadinessProjection,
+  identifierLabel,
 } from "@proovra/shared";
 // The guidance column stands in for the Inspector while nothing is selected,
 // so the region is never an empty white gutter. Every list in it is real.
@@ -1599,18 +1600,18 @@ function SearchInner() {
     // Not an error and not an empty result: the workspace envelope has not
     // resolved yet, so there is nothing to search against.
     return (
-      <main className="search-page" data-search-page="pending">
+      <div className="search-page" data-search-page="pending">
         <div className="app-panel search-state" data-search-state="workspace-pending">
           <p className="search-state__body">
             Workspace setup pending — refresh shortly.
           </p>
         </div>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="search-page" data-search-page>
+    <div className="search-page" data-search-page>
       <header className="search-header">
         <div className="search-header__text">
           {/* THE CANONICAL TITLE TREATMENT, reused — the same
@@ -1786,7 +1787,7 @@ function SearchInner() {
                     index must not be reading two different stories, which is
                     how 'catching up' survived in support for so long. */}
                 {readiness
-                  ? `${readiness.state} · ${readiness.indexedCount}/${readiness.eligibleCount} indexed`
+                  ? `${identifierLabel(readiness.state)} · ${readiness.indexedCount}/${readiness.eligibleCount} indexed`
                   : `${searchHealth.index.evidenceIndexed}/${searchHealth.index.evidenceTotal} indexed`}
               </AppStatusBadge>
             );
@@ -2508,7 +2509,7 @@ function SearchInner() {
       </div>
       </>
       )}
-    </main>
+    </div>
   );
 }
 

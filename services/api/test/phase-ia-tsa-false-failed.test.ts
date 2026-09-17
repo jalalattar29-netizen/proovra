@@ -33,6 +33,7 @@ import {
   parseTsaReply,
   tsaFailureCodeToReason,
 } from "../src/services/timestamp/parse-tsa-reply.js";
+import { betweenMarkers } from "../../../scripts/source-contract/index.mjs";
 
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -209,9 +210,9 @@ describe("Phase IA-TSA-falseFailed — timestamp.service.ts refactor invariants"
       /const tokenBuffer\s*=\s*await fs\.readFile\(responseFile\);[\s\S]{0,200}const tokenBase64\s*=\s*tokenBuffer\.toString\("base64"\);/,
     );
     // The parser-side FAILED branch persists tokenBase64 (NOT "").
-    const idx = SERVICE.indexOf("Parser-side failure paths");
-    expect(idx).toBeGreaterThan(-1);
-    const block = SERVICE.slice(idx, idx + 1500);
+    // The parser-side FAILED return: from its comment to the end of the try
+    // block that holds it.
+    const block = betweenMarkers(SERVICE, "Parser-side failure paths", "} catch (error) {");
     expect(block).toMatch(/tokenBase64,/);
     expect(block).toMatch(/status:\s*"FAILED"/);
     expect(block).toMatch(/failureCode:\s*parsed\.failureCode/);
@@ -219,9 +220,8 @@ describe("Phase IA-TSA-falseFailed — timestamp.service.ts refactor invariants"
 
   it("subprocess-failure branch (network/timeout/HTTP) writes tokenBase64: \"\" + bounded provider code", () => {
     expect(SERVICE).toMatch(/classifyTsaSubprocessError/);
-    const idx = SERVICE.indexOf("Subprocess / network");
-    expect(idx).toBeGreaterThan(-1);
-    const block = SERVICE.slice(idx, idx + 800);
+    // The subprocess-failure catch clause: from its comment to its finally.
+    const block = betweenMarkers(SERVICE, "Subprocess / network", "} finally {");
     expect(block).toMatch(/tokenBase64:\s*""/);
     expect(block).toMatch(/failureCode:\s*classified\.code/);
   });

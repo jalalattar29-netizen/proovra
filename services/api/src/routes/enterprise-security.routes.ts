@@ -19,7 +19,10 @@ import { isPlatformAdmin } from "../services/platform-admin.service.js";
 // bound to the EXACT authenticated session minting it.
 import { getAuthSessionId, getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
-import { checkOrgAccess } from "../services/organization/org-access.js";
+import {
+  checkOrgAccess,
+  orgAccessDenial,
+} from "../services/organization/org-access.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 import {
   resolveOrgPolicyByOrgId,
@@ -40,7 +43,10 @@ import { emergencyOrgRevoke } from "../services/access-control/session-quarantin
 // PHASE 10 CLOSURE FIX 1 (2026-07-23) — server-authoritative support-context
 // entry. Reads-only: re-validates the caller's grant against the DB, then
 // mints the opaque signed token the canonical authorize path verifies.
-import { validateGrantForSupportContextEntry } from "../services/identity/support-runtime.service.js";
+import {
+  recordSupportContextEntry,
+  validateGrantForSupportContextEntry,
+} from "../services/identity/support-runtime.service.js";
 import {
   signSupportContextToken,
   SUPPORT_CONTEXT_TOKEN_TTL_SECONDS,
@@ -83,8 +89,9 @@ const PatchBody = z.object({
 
 /**
  * Org-admin authorization for the OrganizationSecurityPolicy surface. Uses the
- * canonical org-access check (ORG_ADMIN+). Anti-enumeration: a non-member /
- * unknown org both yield 404 (identical to not-found). Returns the actor id.
+ * canonical org-access check (ORG_ADMIN+). PV-ORG-001: a non-member and an
+ * unknown org both yield the same 404; an ACTIVE member without the role gets
+ * 403. Returns the actor id.
  */
 async function requireOrgPolicyAdmin(
   req: FastifyRequest,
@@ -94,7 +101,8 @@ async function requireOrgPolicyAdmin(
   const actorUserId = getAuthUserId(req);
   const access = await checkOrgAccess(prisma, { orgId: organizationId, userId: actorUserId, minRole: "ORG_ADMIN" });
   if (access.kind !== "ok") {
-    await reply.code(404).send({ error: { code: "NOT_FOUND" } });
+    const denial = orgAccessDenial(access);
+    await reply.code(denial.status).send(denial.body);
     return null;
   }
   return { actorUserId };
@@ -702,6 +710,17 @@ export async function enterpriseSecurityRoutes(app: FastifyInstance) {
       const validated = await validateGrantForSupportContextEntry({
         actorUserId: auth.actorUserId,
         grantId: body.grantId,
+      });
+      // D32 — entry is audited in its own right, on every outcome that
+      // reached the grant decision.
+      await recordSupportContextEntry({
+        actorUserId: auth.actorUserId,
+        grantId: body.grantId,
+        anchorTeamId: body.teamId,
+        outcome: validated.valid ? "success" : "denied",
+        reason: validated.valid ? null : validated.reason,
+        ipAddress: ip(req),
+        userAgent: (req.headers["user-agent"] as string) ?? null,
       });
       if (!validated.valid) {
         return reply.code(403).send({

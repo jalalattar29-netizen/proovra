@@ -86,7 +86,7 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 356,
+    "AuditFilesInventoried": 383,
     "AuditFilesUnclassified": 0,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
@@ -139,7 +139,7 @@
     "ProductionRuntimeFilesModifiedByPhase0": 0,
     "ProductBehaviorTestsRemoved": 0,
     "HistoricalMigrationsModifiedByPhase0": 0,
-    "ProductBehaviorTestsInventoried": 206
+    "ProductBehaviorTestsInventoried": 231
   },
   "reportRoles": {
     "counts": {
@@ -158,9 +158,9 @@
     }
   },
   "byRole": {
-    "PRODUCT_BEHAVIOR_TEST": 206,
+    "PRODUCT_BEHAVIOR_TEST": 231,
     "CONTINUATION_CHECKPOINT": 1,
-    "DOMAIN_AUTHORITY": 69,
+    "DOMAIN_AUTHORITY": 70,
     "GENERATED_CURRENT_ARTIFACT": 3,
     "LEDGER_VALIDATOR_OR_GENERATOR": 1,
     "GENERATED_LEDGER_RENDERING": 2,
@@ -174,7 +174,7 @@
     "CANONICAL_ENGINE_COMPONENT": 11,
     "CANONICAL_ORCHESTRATOR": 1,
     "DEPRECATED_DELEGATE": 1,
-    "AUDIT_ENGINE_TEST": 15
+    "AUDIT_ENGINE_TEST": 16
   },
   "problems": [],
   "duplicateClaims": [],
@@ -418,6 +418,21 @@
       "disposition": "RETAINED"
     },
     {
+      "path": "apps/web/__tests__/org-audit-filter-catalog.test.mjs",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
       "path": "apps/web/__tests__/personal-space-gate.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
@@ -527,6 +542,36 @@
       "disposition": "RETAINED"
     },
     {
+      "path": "apps/web/__tests__/render/governance-department-archive.render.test.tsx",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "apps/web/__tests__/render/governance-policy-assignments.render.test.tsx",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
       "path": "apps/web/__tests__/render/phase11-audit-surface.render.test.tsx",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
@@ -560,7 +605,9 @@
       "path": "apps/web/__tests__/search-filter-wire-audit.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [],
+      "imports": [
+        "scripts/source-contract/index.mjs"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -2222,6 +2269,7 @@
       "role": "CANONICAL_ENGINE_COMPONENT",
       "reason": "Registered component of the one canonical audit engine.",
       "imports": [
+        "services/api/scripts/audit/engine/tracked.mjs",
         "services/api/scripts/audit/engine/governance.mjs",
         "services/api/scripts/audit/engine/domain-proofs.mjs"
       ],
@@ -2245,7 +2293,9 @@
       "path": "services/api/scripts/audit/engine/governance.mjs",
       "role": "CANONICAL_ENGINE_COMPONENT",
       "reason": "Registered component of the one canonical audit engine.",
-      "imports": [],
+      "imports": [
+        "services/api/scripts/audit/engine/tracked.mjs"
+      ],
       "importedBy": [
         "services/api/scripts/audit/engine/facts.mjs",
         "services/api/scripts/audit/index.mjs",
@@ -2371,6 +2421,25 @@
       "disposition": "RETAINED"
     },
     {
+      "path": "services/api/scripts/audit/engine/tracked.mjs",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [],
+      "importedBy": [
+        "services/api/scripts/audit/engine/facts.mjs",
+        "services/api/scripts/audit/engine/governance.mjs",
+        "services/api/scripts/audit/index.mjs"
+      ],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
       "path": "services/api/scripts/audit/engine/worktree.mjs",
       "role": "CANONICAL_ENGINE_COMPONENT",
       "reason": "Registered component of the one canonical audit engine.",
@@ -2399,7 +2468,8 @@
         "services/api/scripts/audit/engine/worktree.mjs",
         "services/api/scripts/audit/engine/report.mjs",
         "services/api/scripts/audit/engine/test-caller-diagnostic.mjs",
-        "services/api/scripts/audit/engine/baseline.mjs"
+        "services/api/scripts/audit/engine/baseline.mjs",
+        "services/api/scripts/audit/engine/tracked.mjs"
       ],
       "importedBy": [],
       "spawns": [],
@@ -2465,13 +2535,13 @@
       "role": "CANONICAL_ENGINE_COMPONENT",
       "reason": "Registered component of the one canonical audit engine.",
       "imports": [],
-      "importedBy": [
-        "services/api/scripts/generate-runtime-capability-map.mjs"
-      ],
+      "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
       "writesArtifacts": [],
-      "declaresArtifacts": [],
+      "declaresArtifacts": [
+        "services/api/scripts/capability-authority/manifests/consumer-resolutions.json"
+      ],
       "packageScripts": [
         "services/api/package.json:verify:authorized-context",
         "services/api/package.json:verify:route-consumers"
@@ -2743,7 +2813,6 @@
       "reason": "Registered component of the one canonical audit engine.",
       "imports": [
         "services/api/scripts/capability-authority/analyzer.mjs",
-        "services/api/scripts/capability-authority/consumers.mjs",
         "services/api/scripts/capability-authority/call-graph.mjs"
       ],
       "importedBy": [
@@ -3146,7 +3215,9 @@
       "path": "services/api/test/attention-arch-closure-assignment.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [],
+      "imports": [
+        "scripts/source-contract/index.mjs"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -3226,6 +3297,21 @@
         "services/api/scripts/audit/engine/report.mjs",
         "services/api/scripts/audit/engine/registry.mjs"
       ],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/automation-webhook-destination-enable-audit.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -3357,7 +3443,39 @@
       "disposition": "RETAINED"
     },
     {
+      "path": "services/api/test/consumer-resolution-identity.test.ts",
+      "role": "AUDIT_ENGINE_TEST",
+      "reason": "Drives the canonical engine or validates a current artifact.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [
+        "services/api/scripts/capability-authority/manifests/consumer-resolutions.json"
+      ],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
       "path": "services/api/test/cross-system-governance-integration.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/defects-workflows-audits.integration.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],
@@ -3405,6 +3523,23 @@
       "path": "services/api/test/fail-closed-governance-enforcement.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [
+        "scripts/source-contract/index.mjs"
+      ],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/governance-department-archive-policy-assignment.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],
       "importedBy": [],
       "spawns": [],
@@ -3420,7 +3555,9 @@
       "path": "services/api/test/governance-platform.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [],
+      "imports": [
+        "scripts/source-contract/index.mjs"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -3709,7 +3846,9 @@
       "path": "services/api/test/phase-11-audit-integrity.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [],
+      "imports": [
+        "scripts/source-contract/index.mjs"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -4057,7 +4196,9 @@
       "path": "services/api/test/phase-12-point5-job-kind-reconciliation.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [],
+      "imports": [
+        "scripts/source-contract/index.mjs"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -4072,7 +4213,9 @@
       "path": "services/api/test/phase-12-point5-ocr-transcript-authority.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [],
+      "imports": [
+        "scripts/source-contract/index.mjs"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -4571,7 +4714,9 @@
       "path": "services/api/test/phase-31-21-enterprise-closure.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [],
+      "imports": [
+        "scripts/source-contract/index.mjs"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -4586,7 +4731,9 @@
       "path": "services/api/test/phase-32-7-3-readiness-governance-blockers.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [],
+      "imports": [
+        "scripts/source-contract/index.mjs"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -4601,7 +4748,9 @@
       "path": "services/api/test/phase-32-7-5-worker-reconcile-false-degraded.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [],
+      "imports": [
+        "scripts/source-contract/index.mjs"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -4676,7 +4825,9 @@
       "path": "services/api/test/phase-32-8-d-frontend-closure-2.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [],
+      "imports": [
+        "scripts/source-contract/index.mjs"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -4706,7 +4857,9 @@
       "path": "services/api/test/phase-32-8-e-teams-governance-reviewer.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [],
+      "imports": [
+        "scripts/source-contract/index.mjs"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -4722,6 +4875,7 @@
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [
+        "scripts/source-contract/index.mjs",
         "services/api/test/_helpers/file-walker.ts"
       ],
       "importedBy": [],
@@ -4801,7 +4955,9 @@
       "path": "services/api/test/phase-4a-enterprise-closure.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [],
+      "imports": [
+        "scripts/source-contract/index.mjs"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -4816,7 +4972,9 @@
       "path": "services/api/test/phase-4a-final-closure.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [],
+      "imports": [
+        "scripts/source-contract/index.mjs"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -4861,7 +5019,9 @@
       "path": "services/api/test/phase-5-evidence-download-audit.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [],
+      "imports": [
+        "scripts/source-contract/index.mjs"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -4876,7 +5036,9 @@
       "path": "services/api/test/phase-5-lifecycle-hold-gate-union.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [],
+      "imports": [
+        "scripts/source-contract/index.mjs"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -4891,7 +5053,9 @@
       "path": "services/api/test/phase-5-org-governance-control-center.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [],
+      "imports": [
+        "scripts/source-contract/index.mjs"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -4951,7 +5115,9 @@
       "path": "services/api/test/phase-a0-integrity-hard-gate.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [],
+      "imports": [
+        "scripts/source-contract/index.mjs"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -5011,7 +5177,9 @@
       "path": "services/api/test/phase-closure-integration-secret-cleanup.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [],
+      "imports": [
+        "scripts/source-contract/index.mjs"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -5103,7 +5271,9 @@
       "path": "services/api/test/phase-f-governance-ux.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [],
+      "imports": [
+        "scripts/source-contract/index.mjs"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -5315,7 +5485,9 @@
       "path": "services/api/test/phase-r5-reviewer-bulk-capability.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [],
+      "imports": [
+        "scripts/source-contract/index.mjs"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -5377,7 +5549,9 @@
       "path": "services/api/test/phase-x1-architecture-closure.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [],
+      "imports": [
+        "scripts/source-contract/index.mjs"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -5482,7 +5656,9 @@
       "path": "services/api/test/platform-commercial-authority-closure.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [],
+      "imports": [
+        "scripts/source-contract/index.mjs"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -5640,7 +5816,9 @@
       "path": "services/api/test/production-page-route-gate-platform-admin.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [],
+      "imports": [
+        "scripts/source-contract/index.mjs"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -5670,7 +5848,9 @@
       "path": "services/api/test/production-subscription-gate-stale-row.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [],
+      "imports": [
+        "scripts/source-contract/index.mjs"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -5712,7 +5892,277 @@
       "disposition": "RETAINED"
     },
     {
+      "path": "services/api/test/reviewer-qc-assign-bind-schema-audit.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/runtime-proof-billing-sales-admin-a.integration.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/runtime-proof-billing-sales-admin-b.integration.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/runtime-proof-billing-sales-admin-c.integration.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/runtime-proof-cases-review-a.integration.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/runtime-proof-cases-review-b.integration.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/runtime-proof-cases-review-c.integration.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/runtime-proof-collab-teams-inbox-a.integration.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/runtime-proof-collab-teams-inbox-b.integration.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/runtime-proof-evidence-capture-a.integration.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/runtime-proof-evidence-capture-b.integration.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/runtime-proof-governance-redaction-graph.integration.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/runtime-proof-identity-auth-a.integration.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/runtime-proof-identity-auth-b.integration.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/runtime-proof-operations.integration.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/runtime-proof-security-sessions-support-a.integration.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/runtime-proof-security-sessions-support-b.integration.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
       "path": "services/api/test/search-durable-reconciliation.integration.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/security-event-actor-authority.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],
@@ -5803,6 +6253,21 @@
     },
     {
       "path": "services/api/test/wcr-p0-closure.integration.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/webhook-delivery-cancel-audit.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],
@@ -5970,7 +6435,9 @@
       "path": "services/worker/test/phase-o1-3-otel-final-closure.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [],
+      "imports": [
+        "scripts/source-contract/index.mjs"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],

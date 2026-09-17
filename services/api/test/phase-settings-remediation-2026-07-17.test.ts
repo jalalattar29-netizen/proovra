@@ -10,6 +10,7 @@
  *     never revocable through it).
  */
 import { describe, expect, it } from "vitest";
+import { betweenMarkers } from "../../../scripts/source-contract/index.mjs";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
@@ -33,8 +34,8 @@ const STEP_UP = read(
 
 describe("notification timezone inheritance (§6)", () => {
   it("schema: schedule timezone is nullable with no implicit default", () => {
-    const at = SCHEMA.indexOf("model NotificationScheduleSetting");
-    const block = SCHEMA.slice(at, at + 1600);
+    // The model block, up to its closing brace.
+    const block = betweenMarkers(SCHEMA, "model NotificationScheduleSetting {", "\n}");
     expect(block).toMatch(/timezone String\? @db\.VarChar\(64\)/);
     expect(block).not.toMatch(/timezone String @default\("UTC"\)/);
   });

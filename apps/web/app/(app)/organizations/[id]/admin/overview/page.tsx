@@ -61,6 +61,7 @@ import { formatUserDate, formatUtcAuditDateTime } from "../../../../../../lib/da
 import { Card } from "../../../../../../components/ui/Card";
 import { Badge } from "../../../../../../components/ui/Badge";
 import { Button } from "../../../../../../components/ui/Button";
+import { orgAuditEventLabel } from "../../../../../../lib/labels/identityOrgLabels";
 
 // ---------------------------------------------------------------------------
 // Wire types — mirror the existing org REST surface.
@@ -386,7 +387,7 @@ function Overview() {
             label="SSO (SAML / OIDC)"
             state={{ tone: "warn", text: "Not configured" }}
             description="Federated identity. No org-scoped readiness signal is exposed yet."
-            href="/admin/identity"
+            href="/security-center/identity"
             linkTestId="overview-link-sso"
             linkLabel="Configure SSO"
           />
@@ -395,7 +396,7 @@ function Overview() {
             label="SCIM provisioning"
             state={{ tone: "warn", text: "Not configured" }}
             description="Automated provisioning / de-provisioning via SCIM 2.0."
-            href="/admin/identity/scim"
+            href="/security-center/identity/scim"
             linkTestId="overview-link-scim"
             linkLabel="Configure SCIM"
           />
@@ -431,7 +432,7 @@ function Overview() {
             label="API keys & webhooks"
             state={{ tone: "warn", text: "Not configured" }}
             description="Programmatic access + integration delivery. No org-scoped key inventory yet."
-            href="/admin/identity"
+            href="/security-center/identity"
             linkTestId="overview-link-api"
             linkLabel="Manage API keys / webhooks"
           />
@@ -495,7 +496,9 @@ function Overview() {
                   flexWrap: "wrap",
                 }}
               >
-                <span style={{ fontWeight: 600 }}>{e.eventType}</span>
+                <span style={{ fontWeight: 600 }}>
+                  {orgAuditEventLabel(e.eventType)}
+                </span>
                 <span style={subtleText}>
                   {formatUtcAuditDateTime(e.createdAt)}
                 </span>
@@ -543,12 +546,12 @@ function Overview() {
           <QuickAction
             testId="quick-action-configure-sso"
             label="Configure SSO"
-            href="/admin/identity"
+            href="/security-center/identity"
           />
           <QuickAction
             testId="quick-action-configure-scim"
             label="Configure SCIM"
-            href="/admin/identity/scim"
+            href="/security-center/identity/scim"
           />
           <QuickAction
             testId="quick-action-verify-domain"
@@ -573,7 +576,7 @@ function Overview() {
           <QuickAction
             testId="quick-action-manage-api"
             label="Manage API keys / webhooks"
-            href="/admin/identity"
+            href="/security-center/identity"
           />
           <QuickAction
             testId="quick-action-review-access"

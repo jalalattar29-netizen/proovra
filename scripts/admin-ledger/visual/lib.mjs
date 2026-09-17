@@ -128,7 +128,7 @@ export async function visit(page, route, wait = 2500) {
    * the same race in the same way — each reporting an empty page as a finding
    * about the page:
    *
-   *   responsive  /admin/identity at 1024   "h1=0 · NO MAIN LANDMARK"
+   *   responsive  /security-center/identity at 1024   "h1=0 · NO MAIN LANDMARK"
    *   responsive  /admin/billing at 320     "h1=0 · NO MAIN LANDMARK"
    *   keyboard    /admin/costs              "stops=0 · h1=0"
    *

@@ -75,12 +75,17 @@ const ADMIN = "platform-admin@fixture.local";
 const PAGES = [
   "/admin",
   "/admin/users",
-  "/admin/identity",
+  /* PV-PLACE-001 / PV-OD-001 — the identity hub and SCIM moved from
+     /admin/identity/* to the Security Center. They still render on the
+     administrative visual system (AdminVisualSystem sets the same
+     `is-admin-console` body class), so the one-value-per-role and flat-ground
+     assertions apply to them exactly as before. */
+  "/security-center/identity",
   "/admin/operations",
   "/admin/platform/queues",
   /* The one page with a tablist. §B10 owns its behaviour; this is here so the
      SELECTED-TAB colour is measured rather than assumed. */
-  "/admin/identity/scim",
+  "/security-center/identity/scim",
 ];
 
 async function seedConsent(context: BrowserContext) {

@@ -62,6 +62,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
 
 const REPO_ROOT = resolve(__dirname, "../../..");
 const LIFECYCLE_DIR = resolve(
@@ -222,9 +223,14 @@ describe("Evidence Lifecycle Final Fix — per-page wiring", () => {
     const src = readLifecycleFile("retention/page.tsx");
     expect(src).toMatch(/Promise\.allSettled/);
     expect(src).not.toMatch(/Promise\.all\s*\(/);
-    // Defensive date formatting.
-    expect(src).toMatch(/function\s+formatDate/);
-    expect(src).toMatch(/Number\.isNaN\(d\.getTime\(\)\)/);
+    // BATCH J — the page rendered `createdAtUtc` / `expiresAtUtc` through a
+    // defensive `formatDate`, but the policy projection carries no dates, so
+    // those columns were always "—". The columns (and the now-unused helper)
+    // are gone; the page must not read date fields the projection lacks.
+    expect(src).not.toMatch(/createdAtUtc|expiresAtUtc/);
+    // Each half renders its own failure instead of an empty list.
+    expect(src).toMatch(/data-retention-policies-unreadable/);
+    expect(src).toMatch(/data-retention-expirations-unreadable/);
   });
 
   it("(13) archive page uses safe Promise.allSettled", () => {
@@ -259,9 +265,7 @@ describe("Evidence Lifecycle Final Fix — backend hardening", () => {
   it("(16) GET /v1/lifecycle/dashboard wraps projectLifecycleDashboard in try/catch", () => {
     // Locate the dashboard handler and verify the try/catch that
     // turns a projector failure into a `degraded: true` shape.
-    const startIdx = ROUTES.indexOf('"/v1/lifecycle/dashboard"');
-    expect(startIdx).toBeGreaterThan(0);
-    const slice = ROUTES.slice(startIdx, startIdx + 4000);
+    const slice = routeSource(ROUTES, "GET", "/v1/lifecycle/dashboard");
     expect(slice).toMatch(/try\s*\{[\s\S]*?projectLifecycleDashboard[\s\S]*?\}\s*catch/);
     expect(slice).toMatch(/degraded:\s*true/);
     expect(slice).toMatch(/degradedReason/);

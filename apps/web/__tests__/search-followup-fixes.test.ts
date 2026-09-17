@@ -27,6 +27,8 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
+import { functionSource, routeSource } from "../../../scripts/source-contract/index.mjs";
+
 const __filename = fileURLToPath(import.meta.url);
 const REPO_ROOT = resolve(dirname(__filename), "..", "..", "..");
 const PAGE = resolve(REPO_ROOT, "apps/web/app/(app)/search/page.tsx");
@@ -184,12 +186,9 @@ test("Backend health classifier — empty_index now requires indexedTotal === 0,
   // handler. Pin both the source code AND the fact that the new
   // condition uses `indexedTotal`, not `indexedEvidence`, for the
   // empty_index branch.
-  const diagIdx = src.indexOf('"/v1/search/diagnostics"');
-  assert.ok(diagIdx > 0, "diagnostics route missing");
-  // The handler grew with the per-state breakdown
-  // (search-inclusion-audit). Widen the slice so we still see the
-  // health classifier.
-  const handler = src.slice(diagIdx, diagIdx + 14000);
+  // The whole GET /v1/search/diagnostics registration. (This was a slice
+  // widened to 14000 chars each time the handler grew; WCC-NEW-027.)
+  const handler = routeSource(src, "GET", "/v1/search/diagnostics");
   assert.match(handler, /const health/);
   // The empty_index gate must read indexedTotal === 0.
   // Pin by the ternary shape: ... : indexedTotal === 0 ? "empty_index" : ...
@@ -238,16 +237,13 @@ test("Saved Views backend fetch still runs unconditionally (so an upgrade does n
 test("Sort param is passed through runSearch to the API query string", () => {
   const src = read(PAGE);
   // Pin runSearch still threads filter.sort into the URL.
-  const runIdx = src.indexOf("async function runSearch(");
-  assert.ok(runIdx > 0);
-  const body = src.slice(runIdx, runIdx + 3000);
+  const body = functionSource(src, "runSearch", "page.tsx");
   assert.match(body, /qs\.set\("sort", filter\.sort\)/);
 });
 
 test("Date range filters are passed as updatedSinceUtc / updatedUntilUtc with bare ISO strings", () => {
   const src = read(PAGE);
-  const runIdx = src.indexOf("async function runSearch(");
-  const body = src.slice(runIdx, runIdx + 3000);
+  const body = functionSource(src, "runSearch", "page.tsx");
   assert.match(body, /qs\.set\("updatedSinceUtc", filter\.updatedSinceUtc\)/);
   assert.match(body, /qs\.set\("updatedUntilUtc", filter\.updatedUntilUtc\)/);
 });
@@ -280,8 +276,7 @@ test("documentTypes filter is serialized with the uppercase enum value (not lowe
 
 test("documentTypes is serialized to a comma-joined uppercase string in the URL", () => {
   const src = read(PAGE);
-  const runIdx = src.indexOf("async function runSearch(");
-  const body = src.slice(runIdx, runIdx + 3000);
+  const body = functionSource(src, "runSearch", "page.tsx");
   assert.match(
     body,
     /qs\.set\("documentTypes", filter\.documentTypes\.join\(",",?\s*\)\)/,

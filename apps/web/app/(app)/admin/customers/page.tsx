@@ -533,6 +533,7 @@ export default function AdminOrganizationsPage() {
             variant="secondary"
             size="sm"
             disabled={loading || page <= 1}
+            disabledReason={page <= 1 ? "This is the first page." : undefined}
             onClick={() => void load(page - 1)}
           >
             Previous
@@ -541,6 +542,7 @@ export default function AdminOrganizationsPage() {
             variant="secondary"
             size="sm"
             disabled={loading || page >= totalPages}
+            disabledReason={page >= totalPages ? "This is the last page." : undefined}
             onClick={() => void load(page + 1)}
           >
             Next

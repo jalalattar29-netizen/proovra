@@ -20,6 +20,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
 
 const H = vi.hoisted(() => ({
   workflow: null as { evidenceId: string } | null,
@@ -140,9 +141,9 @@ describe("Phase 5 §8.4/§8.5 — source contracts", () => {
     // call to `acceptWorkspaceInvitation`, THE workspace invitation lifecycle,
     // so the contract is read where the code actually lives.
     const routes = read("routes/teams.routes.ts");
-    const at = routes.indexOf('"/v1/teams/invites/:token/accept"');
-    expect(at).toBeGreaterThan(-1);
-    expect(routes.slice(at, at + 4000)).toMatch(/acceptWorkspaceInvitation\(/);
+    expect(routeSource(routes, "POST", "/v1/teams/invites/:token/accept")).toMatch(
+      /acceptWorkspaceInvitation\(/,
+    );
 
     const service = read("services/identity/workspace-invitation.service.ts");
     // The claim is guarded on the un-consumed invite …

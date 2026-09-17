@@ -65,6 +65,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   REVIEWER_OPS_QUEUE_TYPES,
   REVIEWER_VERDICTS,
+  identifierLabel,
   type ReviewerOpsQueueType,
 } from "@proovra/shared";
 
@@ -816,7 +817,7 @@ function QueuesShell() {
                   <td style={td}>
                     <code>{r.evidenceId.slice(0, 8)}…</code>
                   </td>
-                  <td style={td}>{r.status}</td>
+                  <td style={td}>{identifierLabel(r.status)}</td>
                   <td style={td}>{r.priority}</td>
                   <td style={td}>
                     <QueueSignalCell
@@ -1106,7 +1107,7 @@ function ReviewerPickerModal({
                       </div>
                       <div style={{ color: "var(--ink-secondary, #475569)" }}>
                         <code>{r.userId.slice(0, 8)}…</code>
-                        <span style={{ marginLeft: 6 }}>{r.role}</span>
+                        <span style={{ marginLeft: 6 }}>{identifierLabel(r.role)}</span>
                         {typeof r.currentWorkloadCount === "number" ? (
                           <span
                             data-reviewer-picker-workload={r.userId}

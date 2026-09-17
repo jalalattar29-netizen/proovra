@@ -65,6 +65,8 @@ import { putObjectBuffer } from "./storage.js";
 import { env } from "./config.js";
 import { buildLifecycleAndExchangeManifests } from "./verification-package-lifecycle.js";
 import { logger } from "./logger.js";
+// The ONE export-package meter writer, shared with the API's completion route.
+import { recordExportPackageUsage } from "@proovra/shared-runtime";
 
 /**
  * THE WORK THIS MODULE RECOVERS.
@@ -898,17 +900,33 @@ export async function buildExchangePackage(
 
     const durationMs = Date.now() - startedAt;
 
-    // Mark package READY.
-    await prisma.evidenceExchangePackage.update({
-      where: { id: pkg.id },
-      data: {
-        state: "READY",
-        storageKey: storageKey.slice(0, 400),
-        packageSha256: zipSha256.slice(0, 64),
-        packageSizeBytes: BigInt(zipSizeBytes),
-        readyAtUtc: new Date(),
-      },
+    // Mark package READY and meter it — ONE transaction. This is the
+    // completion every product-created package goes through, so it is where
+    // the monthly export-package allowance is consumed. The transition is
+    // conditional on BUILDING so a package revoked mid-build is not
+    // resurrected and one package is metered exactly once; the meter throws,
+    // rolling READY back, so a metering failure lands in the FAILED path
+    // below instead of committing an unmetered READY package.
+    const completed = await prisma.$transaction(async (tx) => {
+      const transition = await tx.evidenceExchangePackage.updateMany({
+        where: { id: pkg.id, teamId, state: "BUILDING" },
+        data: {
+          state: "READY",
+          storageKey: storageKey.slice(0, 400),
+          packageSha256: zipSha256.slice(0, 64),
+          packageSizeBytes: BigInt(zipSizeBytes),
+          readyAtUtc: new Date(),
+        },
+      });
+      if (transition.count !== 1) return false;
+      await recordExportPackageUsage({ prisma: tx, teamId });
+      return true;
     });
+    if (!completed) {
+      // The package left BUILDING while we built it (e.g. revoked). Nothing
+      // was metered; record the build as failed rather than uploaded.
+      throw new Error("package_left_building_state_during_build");
+    }
 
     // Mark build UPLOADED.
     await upsertBuildRow(prisma, pkg.id, teamId, "UPLOADED", {
@@ -943,8 +961,10 @@ export async function buildExchangePackage(
 
     // Revert package to DRAFT so operators can retry.
     try {
-      await prisma.evidenceExchangePackage.update({
-        where: { id: pkg.id },
+      // Conditional: only a package still BUILDING returns to DRAFT, so a
+      // package revoked during the build stays REVOKED.
+      await prisma.evidenceExchangePackage.updateMany({
+        where: { id: pkg.id, state: "BUILDING" },
         data: { state: "DRAFT" },
       });
     } catch {

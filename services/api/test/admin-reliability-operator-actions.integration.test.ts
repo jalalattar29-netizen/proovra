@@ -4,7 +4,8 @@
  *
  * WHAT THIS SUITE PROVES
  * ---------------------------------------------------------------------------
- * The admin page /admin/platform/reliability offers two operator mutations on
+ * The reliability page — /operations/reliability, moved from
+ * /admin/platform/reliability under PV-PLACE-001 — offers two operator mutations on
  * an upload session:
  *
  *   POST /v1/reliability/upload-sessions/:evidenceId/mark-abandoned   { teamId }
@@ -337,7 +338,7 @@ describe("ADMIN CONTROL PLANE — reliability operator actions (live PostgreSQL 
       expect(await readSession(evidenceId)).toEqual(before);
     });
 
-    it("3a. a VIEWER of the workspace (not OWNER/ADMIN) → 404, no state change", async () => {
+    it("3a. a VIEWER of the workspace (not OWNER/ADMIN) → 403 permission_denied, no state change", async () => {
       const { evidenceId } = await seedSession(orgA);
       const before = await readSession(evidenceId);
 
@@ -349,10 +350,14 @@ describe("ADMIN CONTROL PLANE — reliability operator actions (live PostgreSQL 
         });
         // MEASURED: VIEWER carries `identity.org_policy.read`, so the canonical
         // gate ADMITS the viewer and it is the route's own OWNER/ADMIN check
-        // (`requireAdminMember`) that refuses — with the same flat 404, so a
-        // viewer cannot distinguish "not admin" from "no such session".
-        expect(res.statusCode, `${url} viewer`).toBe(404);
-        expect(res.json()).toEqual({ error: { code: "not_found" } });
+        // (`requireAdminMember`) that refuses. D60 — a member already knows the
+        // workspace exists, so the refusal is the canonical 403, byte-identical
+        // to the primitive's (was a flat 404). It is decided before the session
+        // is looked up, so it still says nothing about the session.
+        expect(res.statusCode, `${url} viewer`).toBe(403);
+        expect(res.json()).toEqual({
+          error: { code: "permission_denied", reason: "permission_not_granted" },
+        });
       }
       expect(await readSession(evidenceId)).toEqual(before);
     });
@@ -367,13 +372,14 @@ describe("ADMIN CONTROL PLANE — reliability operator actions (live PostgreSQL 
           token: memberA.token,
           payload: { teamId: orgA.workspaceId },
         });
-        // MEASURED: 404. The legacy MEMBER role maps onto a canonical role
-        // that holds `identity.org_policy.read`, so — exactly as for the
-        // viewer — it is `requireAdminMember`'s OWNER/ADMIN check that
-        // refuses, not the permission gate. Pinned to the one code the route
-        // was written to give every non-admin.
-        expect(res.statusCode, `${url} member`).toBe(404);
-        expect(res.json()).toEqual({ error: { code: "not_found" } });
+        // The legacy MEMBER role maps onto a canonical role that holds
+        // `identity.org_policy.read`, so — exactly as for the viewer — it is
+        // `requireAdminMember`'s OWNER/ADMIN check that refuses, not the
+        // permission gate. D60 — the canonical 403 (was 404).
+        expect(res.statusCode, `${url} member`).toBe(403);
+        expect(res.json()).toEqual({
+          error: { code: "permission_denied", reason: "permission_not_granted" },
+        });
       }
       expect(await readSession(evidenceId)).toEqual(before);
     });

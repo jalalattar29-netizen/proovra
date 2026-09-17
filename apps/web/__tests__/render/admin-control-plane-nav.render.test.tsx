@@ -308,7 +308,9 @@ describe("ADM-013 Phase 11 — scope is on the control, not only in a banner", (
 
 describe("ADM-013 Phase 11 — accessibility", () => {
   it("marks the active section with aria-current", () => {
-    at("/admin/security");
+    // PV-PLACE-001 — /admin/security moved to /security-center/posture; the
+    // Security & support section's own page is now /admin/audit.
+    at("/admin/audit");
     render(<AdminConsoleNav />);
     const current = document.querySelectorAll('[aria-current="page"]');
     // The section AND its active child. Both are "the page you are on" from

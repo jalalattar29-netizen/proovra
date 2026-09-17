@@ -44,6 +44,7 @@ import { apiFetch } from "../../../../../lib/api";
 // thread id so reviewers can see when a peer is replying to the
 // same thread.
 import { PresenceIndicator } from "../../../../../components/presence/PresenceIndicator";
+import { DiscussionThreadLifecycle } from "./DiscussionThreadLifecycle";
 
 type ThreadStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
 type ThreadVisibility = "INTERNAL" | "CONTRIBUTOR_SCOPED";
@@ -202,6 +203,7 @@ export default function EvidenceDiscussionPanel({
   );
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [messagesFailed, setMessagesFailed] = useState(false);
   const [draft, setDraft] = useState("");
   const [posting, setPosting] = useState(false);
   // Phase G2 (C2.5) — operational discussion filters. The bounded
@@ -237,7 +239,8 @@ export default function EvidenceDiscussionPanel({
     } catch (err) {
       const e = err as { message?: string };
       setError(toSafeUserError(e, { message: "Could not load discussion threads." }).message);
-      setThreads([]);
+      // A failed read is not an empty workspace: the list stays unknown.
+      setThreads(null);
     } finally {
       setLoadingThreads(false);
     }
@@ -285,6 +288,7 @@ export default function EvidenceDiscussionPanel({
     async (threadId: string) => {
       if (!teamId) return;
       setLoadingMessages(true);
+      setMessagesFailed(false);
       try {
         // Phase O-blockers / D-1 — apiFetch already returns parsed JSON.
         const data = (await apiFetch(
@@ -297,6 +301,7 @@ export default function EvidenceDiscussionPanel({
         const e = err as { message?: string };
         setError(toSafeUserError(e, { message: "Could not load messages." }).message);
         setMessages([]);
+        setMessagesFailed(true);
       } finally {
         setLoadingMessages(false);
       }
@@ -517,7 +522,7 @@ export default function EvidenceDiscussionPanel({
                           className="app-status-badge"
                           data-tone={statusTone(t.status)}
                         >
-                          {STATUS_LABELS[t.status] ?? t.status}
+                          {STATUS_LABELS[t.status] ?? humaniseToken(t.status)}
                         </span>
                         {t.escalatedAtUtc ? (
                           <span className="app-status-badge" data-tone="red">
@@ -530,7 +535,15 @@ export default function EvidenceDiscussionPanel({
                 );
               })}
             </ul>
-          ) : threads && threads.length > 0 ? (
+          ) : threads === null ? (
+            <p
+              className="evidence-discussion__muted"
+              data-evidence-discussion-list-unavailable
+            >
+              Threads could not be loaded, so none are listed. Reload the tab
+              to try again.
+            </p>
+          ) : threads.length > 0 ? (
             <p
               className="evidence-discussion__muted"
               data-evidence-discussion-empty="no-matches"
@@ -564,7 +577,8 @@ export default function EvidenceDiscussionPanel({
                     className="app-status-badge"
                     data-tone={statusTone(selectedThread.status)}
                   >
-                    {STATUS_LABELS[selectedThread.status] ?? selectedThread.status}
+                    {STATUS_LABELS[selectedThread.status] ??
+                      humaniseToken(selectedThread.status)}
                   </span>
                   {selectedThread.escalatedAtUtc ? (
                     <span className="app-status-badge" data-tone="red">
@@ -575,10 +589,27 @@ export default function EvidenceDiscussionPanel({
                     Updated {formatDateTime(selectedThread.updatedAt)}
                   </span>
                 </div>
+                <DiscussionThreadLifecycle
+                  key={selectedThread.id}
+                  teamId={teamId}
+                  threadId={selectedThread.id}
+                  readOnly={readOnly}
+                  onChanged={() => {
+                    void loadThreads();
+                  }}
+                />
               </div>
 
               {loadingMessages ? (
                 <p className="evidence-discussion__muted">Loading messages…</p>
+              ) : messagesFailed ? (
+                <p
+                  className="evidence-discussion__muted"
+                  data-evidence-discussion-messages-unavailable
+                >
+                  Messages could not be loaded. Select the thread again to
+                  retry.
+                </p>
               ) : messages.length === 0 ? (
                 <p
                   className="evidence-discussion__muted"
@@ -646,8 +677,9 @@ export default function EvidenceDiscussionPanel({
                   className="evidence-discussion__muted"
                   data-evidence-discussion-locked
                 >
-                  This thread is {STATUS_LABELS[selectedThread.status]}. Reopen
-                  it from the classic reviewer surface to continue.
+                  {selectedThread.status === "RESOLVED"
+                    ? "This thread is resolved. Use Reopen above, with a reason, to continue the discussion."
+                    : "This thread is closed and is kept as a record. It cannot be continued here."}
                 </p>
               ) : (
                 <form

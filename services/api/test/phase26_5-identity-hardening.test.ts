@@ -450,7 +450,7 @@ describe("Phase 26.5 — wording sweep", () => {
     "../src/services/access-control/adaptive-auth.service.ts",
     "../src/services/access-control/scim-groups.service.ts",
     "../src/routes/sso-auth.routes.ts",
-    "../../../apps/web/app/(app)/admin/identity/timeline/page.tsx",
+    "../../../apps/web/app/(app)/security-center/identity/timeline/page.tsx",
   ];
   for (const path of sources) {
     it(`no overclaim phrase in ${path.split("/").slice(-2).join("/")}`, () => {

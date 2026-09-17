@@ -21,12 +21,18 @@ import type { ExternalPortalProjection } from "@proovra/shared";
 
 import {
   authenticate,
+  clearSessionId,
   fetchPortalDashboard,
   getSessionId,
+  isPortalMfaDenial,
   logout as portalLogout,
+  readPortalFailure,
   setBearer,
+  type PortalMfaDetail,
 } from "../../../lib/external-portal/portal-client";
 import { formatUserDate, formatUserDateTime } from "../../../lib/date";
+import { PortalMfaCodeStep } from "../../../components/external-portal/PortalMfaCodeStep";
+import { PortalDenialNotice } from "../../../components/external-portal/PortalDenialNotice";
 
 export default function PortalDashboardPage({
   params,
@@ -38,6 +44,10 @@ export default function PortalDashboardPage({
     null,
   );
   const [denial, setDenial] = useState<string | null>(null);
+  const [mfaStep, setMfaStep] = useState<{
+    denial: string;
+    detail: PortalMfaDetail | null;
+  } | null>(null);
 
   const reauth = useCallback(async () => {
     setBearer(decodeURIComponent(token));
@@ -47,8 +57,13 @@ export default function PortalDashboardPage({
         existingSessionId: getSessionId() ?? undefined,
       });
     } catch (err) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setDenial(((err as any)?.denial ?? "TOKEN_INVALID") as string);
+      // D27 — a lapsed MFA satisfaction is answered with the code step.
+      const failure = readPortalFailure(err);
+      if (failure.denial && isPortalMfaDenial(failure.denial)) {
+        setMfaStep({ denial: failure.denial, detail: failure.mfa });
+      } else {
+        setDenial(failure.denial ?? "TOKEN_INVALID");
+      }
       return false;
     }
     return true;
@@ -61,14 +76,54 @@ export default function PortalDashboardPage({
       const proj = await fetchPortalDashboard();
       setProjection(proj);
     } catch (err) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setDenial(((err as any)?.denial ?? "TOKEN_INVALID") as string);
+      // D27 — a lapsed MFA satisfaction is answered with the code step.
+      const failure = readPortalFailure(err);
+      if (failure.denial && isPortalMfaDenial(failure.denial)) {
+        setMfaStep({ denial: failure.denial, detail: failure.mfa });
+      } else {
+        setDenial(failure.denial ?? "TOKEN_INVALID");
+      }
     }
   }, [reauth]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  // D58 — an ended session is answered by exchanging the invitation token
+  // again WITHOUT the ended session id, which opens a fresh session (or, for
+  // an MFA grant, emails a fresh code and lands on the code step).
+  const signInAgain = useCallback(() => {
+    clearSessionId();
+    setDenial(null);
+    setProjection(null);
+    void load();
+  }, [load]);
+  const retry = useCallback(() => {
+    setDenial(null);
+    void load();
+  }, [load]);
+
+  if (mfaStep) {
+    return (
+      <main
+        data-portal-mfa-gate
+        style={{ maxWidth: 480, margin: "0 auto", padding: "40px 16px" }}
+      >
+        <h1 style={{ fontSize: 20, margin: 0 }}>Confirm it is you</h1>
+        <PortalMfaCodeStep
+          token={decodeURIComponent(token)}
+          denial={mfaStep.denial}
+          detail={mfaStep.detail}
+          existingSessionId={getSessionId()}
+          onVerified={() => {
+            setMfaStep(null);
+            void load();
+          }}
+        />
+      </main>
+    );
+  }
 
   if (denial) {
     return (
@@ -81,25 +136,12 @@ export default function PortalDashboardPage({
           textAlign: "center",
         }}
       >
-        <h1 style={{ fontSize: 20 }}>Portal access denied</h1>
-        <code
-          data-portal-denial-code
-          style={{
-            display: "inline-block",
-            marginTop: 8,
-            padding: "4px 10px",
-            background: "rgba(239, 68, 68, 0.08)",
-            border: "1px solid rgba(239, 68, 68, 0.4)",
-            borderRadius: 6,
-            color: "#7f1d1d",
-          }}
-        >
-          {denial}
-        </code>
-        <p style={{ marginTop: 12, fontSize: 12, color: "#475569" }}>
-          Ask the workspace operator who invited you to issue a new
-          invitation.
-        </p>
+        {/* D58 — product copy; the code rides only as a data attribute. */}
+        <PortalDenialNotice
+          denial={denial}
+          onReauthenticate={signInAgain}
+          onRetry={retry}
+        />
       </main>
     );
   }

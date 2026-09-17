@@ -265,6 +265,18 @@ export const EXTERNAL_PORTAL_DENIAL_REASONS = [
   "TOKEN_REVOKED",
   "MFA_REQUIRED",
   "MFA_INVALID",
+  // D27 — the emailed one-time code was answered wrongly too many times; the
+  // challenge is gone and a new code has to be requested.
+  "MFA_CODE_EXHAUSTED",
+  // D27 — a code could not be issued, stored or checked (challenge store or
+  // email transport unavailable). Sign-in fails closed; it never passes.
+  "MFA_UNAVAILABLE",
+  // D2 / D31 — the request named no session the token exchange issued, or one
+  // that was signed out, ended by an operator or has lapsed. Exchange the
+  // token again (POST /v1/portal/auth) to open a new session.
+  "SESSION_ENDED",
+  // D2 — the session store could not be reached. The request fails closed.
+  "SESSION_UNAVAILABLE",
   "INACTIVITY_TIMEOUT",
   "NOT_PERMITTED",
   "OUT_OF_SCOPE",

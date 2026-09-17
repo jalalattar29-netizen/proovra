@@ -31,6 +31,8 @@ import { Button } from "../../../components/ui/Button";
 import { Badge, type BadgeTone } from "../../../components/ui/Badge";
 import { DataTable } from "../../../components/ui/DataTable";
 import { EmptyState } from "../../../components/ui/EmptyState";
+import { identifierLabel } from "@proovra/shared";
+import { redactionProviderLabel } from "../../../lib/labels/governanceReviewLabels";
 
 type ProjectRow = {
   id: string;
@@ -240,7 +242,7 @@ function ProviderHealthRibbon({
               data-redaction-provider-health-state={p.state}
               title={p.reason ?? ""}
             >
-              {p.provider} · {p.state}
+              {redactionProviderLabel(p.provider)} · {identifierLabel(p.state)}
               {p.policyAllowed ? "" : " · disabled"}
             </Badge>
           );
@@ -254,9 +256,9 @@ function ProviderHealthRibbon({
           fontSize: 11.5,
         }}
       >
-        READY = provider credentials are bound for this workspace.
-        NOT_CONFIGURED is honest — the provider is wired but the
-        credentials are not yet present.
+        Ready means the provider&apos;s credentials are bound for this
+        workspace. Not configured is honest — the provider is wired but
+        its credentials are not yet present.
       </small>
     </Card>
   );
@@ -366,6 +368,7 @@ function RedactionOpenForm({
         data-redaction-open-submit
         onClick={onOpen}
         disabled={busy || !evidenceId}
+        disabledReason={!evidenceId ? "Enter the ID of the evidence record to redact." : undefined}
         loading={busy}
       >
         Open project
@@ -408,7 +411,7 @@ function ProjectsTable({ rows }: { rows: ReadonlyArray<ProjectRow> }) {
               header: "State",
               render: (p) => (
                 <Badge tone={stateTone(p.state)} subtle>
-                  {p.state}
+                  {identifierLabel(p.state)}
                 </Badge>
               ),
             },

@@ -45,6 +45,8 @@ import {
 import { Button } from "../../../../../components/ui/Button";
 import { IdentifierText } from "../../../../../components/ui/IdentifierText";
 import { ResultCount } from "../../../../../components/ui/ResultCount";
+import { identifierLabel } from "@proovra/shared";
+import { mediaJobKindLabel } from "../../../../../lib/labels/adminPlatformLabels";
 import "../admin-platform.css";
 type MetricsSnapshot = {
   uptimeSeconds: number;
@@ -776,8 +778,8 @@ useEffect(() => {
                 <tbody>
                   {runs.map((run) => (
                     <tr key={run.runId} data-media-run-row={run.runId}>
-                      <td>{run.status}</td>
-                      <td>{run.kind}</td>
+                      <td>{identifierLabel(run.status)}</td>
+                      <td>{mediaJobKindLabel(run.kind)}</td>
                       <td>
                         <IdentifierText value={run.runId} />
                       </td>

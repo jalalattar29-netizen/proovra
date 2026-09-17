@@ -207,10 +207,10 @@ export const ACTION_CONFIG_FIELDS: Readonly<
   WEBHOOK_DELIVERY_INTERNAL_ONLY: [
     {
       key: "destinationId",
-      label: "Webhook destination id",
+      label: "Webhook destination",
       kind: "uuid",
       required: true,
-      help: "An already-registered destination. No URL is entered here — the destination row owns the (SSRF-checked) URL and its signing secret.",
+      help: "A destination registered under Webhook destinations. No URL is entered here — the destination owns its checked URL and its signing secret.",
     },
     {
       key: "eventType",
@@ -498,7 +498,21 @@ export type AutomationRuleFormProps = {
   rule?: AutomationRule | null;
   triggerTypes: readonly string[];
   actionTypes: readonly string[];
+  /**
+   * PV-ALLOW-001 — the server's operator label for each allowlisted value.
+   * An option shows its label; a value the catalog does not name shows the
+   * identifier rather than nothing.
+   */
+  triggerLabels?: Readonly<Record<string, string>>;
+  actionLabels?: Readonly<Record<string, string>>;
   canManage: boolean;
+  /**
+   * BATCH J — the registered webhook destinations, from the destinations
+   * panel. When given, the webhook action picks a destination from this list
+   * instead of asking for a raw id. `null` means the list could not be read,
+   * so the id field stays a text input and says why.
+   */
+  destinationOptions?: ReadonlyArray<{ id: string; label: string }> | null;
   onSaved: () => void | Promise<void>;
   onCancel: () => void;
 };
@@ -509,7 +523,10 @@ export function AutomationRuleForm({
   rule = null,
   triggerTypes,
   actionTypes,
+  triggerLabels,
+  actionLabels,
   canManage,
+  destinationOptions,
   onSaved,
   onCancel,
 }: AutomationRuleFormProps): JSX.Element {
@@ -738,7 +755,8 @@ export function AutomationRuleForm({
           style={{ fontSize: 12, color: "#7f1d1d", margin: "0 0 8px" }}
         >
           You have view-only access to automation. Creating and editing rules
-          needs the AUTOMATION_MANAGE capability (workspace owner or admin).
+          needs permission to manage automation, which workspace owners and
+          admins hold.
         </p>
       ) : null}
 
@@ -799,7 +817,7 @@ export function AutomationRuleForm({
           >
             {triggerTypes.map((t) => (
               <option key={t} value={t}>
-                {t}
+                {triggerLabels?.[t] ?? t}
               </option>
             ))}
           </select>
@@ -809,6 +827,7 @@ export function AutomationRuleForm({
             </span>
           ) : null}
           {errors.triggerType ? (
+            // raw-identifier-ok: errors.triggerType is a validation sentence keyed by field name
             <span style={errorTextStyle}>{errors.triggerType}</span>
           ) : null}
         </div>
@@ -828,7 +847,7 @@ export function AutomationRuleForm({
           >
             {actionTypes.map((a) => (
               <option key={a} value={a}>
-                {a}
+                {actionLabels?.[a] ?? a}
               </option>
             ))}
           </select>
@@ -839,6 +858,7 @@ export function AutomationRuleForm({
             </span>
           ) : null}
           {errors.actionType ? (
+            // raw-identifier-ok: errors.actionType is a validation sentence keyed by field name
             <span style={errorTextStyle}>{errors.actionType}</span>
           ) : null}
         </div>
@@ -869,7 +889,28 @@ export function AutomationRuleForm({
                   <label htmlFor={fieldId} style={labelStyle}>
                     {spec.label}
                   </label>
-                  {spec.kind === "select" ? (
+                  {spec.key === "destinationId" && destinationOptions ? (
+                    <select
+                      id={fieldId}
+                      data-automation-config-field={spec.key}
+                      value={value}
+                      aria-invalid={err ? true : undefined}
+                      onChange={(e) => setConfigValue(spec.key, e.target.value)}
+                      style={inputStyle}
+                    >
+                      <option value="">
+                        {destinationOptions.length === 0 ? "No destinations registered" : "Select a destination…"}
+                      </option>
+                      {value && !destinationOptions.some((o) => o.id === value) ? (
+                        <option value={value}>Destination no longer registered</option>
+                      ) : null}
+                      {destinationOptions.map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  ) : spec.kind === "select" ? (
                     <select
                       id={fieldId}
                       data-automation-config-field={spec.key}
@@ -908,7 +949,15 @@ export function AutomationRuleForm({
                       style={inputStyle}
                     />
                   )}
-                  {spec.help ? (
+                  {spec.key === "destinationId" && destinationOptions === null ? (
+                    <span style={helpTextStyle}>
+                      The destination list could not be loaded, so enter the destination ID shown under Webhook destinations.
+                    </span>
+                  ) : spec.key === "destinationId" && destinationOptions?.length === 0 ? (
+                    <span style={helpTextStyle}>
+                      Register a destination under Webhook destinations first.
+                    </span>
+                  ) : spec.help ? (
                     <span style={helpTextStyle}>{spec.help}</span>
                   ) : null}
                   {err ? <span style={errorTextStyle}>{err}</span> : null}

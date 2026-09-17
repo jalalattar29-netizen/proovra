@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { resolveRunbookSlug } from "./lib/runbooks/slugs.generated";
 import { resolveRunbookAccessForRequest } from "./lib/runbooks/request-authorization";
+import { runbookDenialHtml } from "./lib/runbooks/denial-page";
 
 /** `/admin/platform/runbooks/<slug>` — the detail route, not the index. */
 const RUNBOOK_DETAIL_PATH = /^\/admin\/platform\/runbooks\/([^/]+)\/?$/;
@@ -290,18 +291,15 @@ export async function middleware(req: NextRequest) {
       if (access !== "AUTHORIZED") {
         // Deny with a status, and with a body that carries no runbook text —
         // not the runbook's title, not its summary, not its slug.
-        return new NextResponse(
-          access === "UNAUTHENTICATED"
-            ? "Authentication required."
-            : "Platform administrator access is required for this document.",
-          {
-            status: access === "UNAUTHENTICATED" ? 401 : 403,
-            headers: {
-              "content-type": "text/plain; charset=utf-8",
-              "cache-control": "private, no-store, max-age=0, must-revalidate",
-            },
+        // The body is a complete accessible page (one <main>, a heading, the
+        // way forward) because the app shell never renders for this response.
+        return new NextResponse(runbookDenialHtml(access, pathname), {
+          status: access === "UNAUTHENTICATED" ? 401 : 403,
+          headers: {
+            "content-type": "text/html; charset=utf-8",
+            "cache-control": "private, no-store, max-age=0, must-revalidate",
           },
-        );
+        });
       }
 
       if (canonical !== runbookSlug) {
@@ -408,7 +406,7 @@ export async function middleware(req: NextRequest) {
     //     `app/(app)/` and therefore on the app host.
     //
     // Phase Final-Closure-Remediation — `/identity` was removed from
-    // the live route tree (folded into `/admin/identity`). The legacy
+    // the live route tree (folded into what is now `/security-center/identity`). The legacy
     // URL is now an exact-match redirect in `next.config.js` and is
     // intentionally NOT in this list so any www-host hit to /identity
     // 404s cleanly instead of bouncing through the app host first.

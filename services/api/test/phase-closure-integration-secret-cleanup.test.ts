@@ -36,6 +36,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { sweepExpiredPreviousIntegrationSecrets } from "../src/services/integrations/secret-cleanup.service.js";
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
 
 // ---------------------------------------------------------------------------
 // Test helpers — read source files for grep pins.
@@ -484,25 +485,15 @@ describe("PHASE 5 closure — route wiring", () => {
   });
 
   it("the route never references requireAuth or requireMember", () => {
-    // The path string appears twice — in the header doc-block and in
-    // the `app.post(...)` declaration. We want the route body, so use
-    // lastIndexOf to skip past the header.
-    const idx = ROUTES_SRC.lastIndexOf(
-      "/v1/integrations/process-secret-cleanup",
-    );
-    expect(idx).toBeGreaterThan(0);
-    // The route body ends at the closing `},` of its async handler.
-    // Use a permissive 600-char slice — the route is short.
-    const slice = ROUTES_SRC.slice(idx, idx + 700);
+    // The path string also appears in the header doc-block; the route
+    // registration itself is what is read.
+    const slice = routeSource(ROUTES_SRC, "POST", "/v1/integrations/process-secret-cleanup");
     expect(slice).not.toMatch(/requireAuth/);
     expect(slice).not.toMatch(/requireMember/);
   });
 
   it("zod validates batchSize between 1 and 5000 inclusive", () => {
-    const idx = ROUTES_SRC.lastIndexOf(
-      "/v1/integrations/process-secret-cleanup",
-    );
-    const slice = ROUTES_SRC.slice(idx, idx + 800);
+    const slice = routeSource(ROUTES_SRC, "POST", "/v1/integrations/process-secret-cleanup");
     expect(slice).toMatch(/batchSize:\s*z\.number\(\)\.int\(\)\.min\(1\)\.max\(5_000\)/);
     expect(slice).toMatch(/dryRun:\s*z\.boolean\(\)\.optional\(\)/);
   });

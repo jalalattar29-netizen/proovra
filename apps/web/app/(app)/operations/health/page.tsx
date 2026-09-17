@@ -66,6 +66,8 @@ import {
   useActiveSpace,
   useActiveSpaceId,
 } from "../../../../lib/platform-context";
+import { identifierLabel } from "@proovra/shared";
+import { SEVERITY_VOCABULARY, categoryLabel } from "../_lib/vocabulary";
 
 const POLL_INTERVAL_MS = 30_000;
 
@@ -148,6 +150,14 @@ function severityTone(severity: string): AppTone {
     default:
       return "slate";
   }
+}
+
+/** The word the operations queue uses for the same severity value. */
+function severityLabel(severity: string): string {
+  const entry = (
+    SEVERITY_VOCABULARY as Readonly<Record<string, { label: string } | undefined>>
+  )[severity.toUpperCase()];
+  return entry?.label ?? identifierLabel(severity);
 }
 
 export default function WorkspaceHealthPage() {
@@ -244,18 +254,18 @@ function WorkspaceHealthPageInner() {
 
   if (!workspaceId) {
     return (
-      <main className="wsh">
+      <div className="wsh">
         {breadcrumb}
         <p className="wsh__note">
           No workspace is currently selected. Workspace health describes one
           workspace at a time.
         </p>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="wsh">
+    <div className="wsh">
       {breadcrumb}
 
       <header className="app-page-header wsh__header">
@@ -344,7 +354,7 @@ function WorkspaceHealthPageInner() {
                   {severityRows.map((r) => (
                     <li key={r.severity}>
                       <AppStatusBadge tone={severityTone(r.severity)}>
-                        {r.severity}
+                        {severityLabel(r.severity)}
                       </AppStatusBadge>
                       <span>{r.count} open</span>
                     </li>
@@ -403,7 +413,7 @@ function WorkspaceHealthPageInner() {
                     <tr key={row.id}>
                       <td>
                         <AppStatusBadge tone={severityTone(row.severity)}>
-                          {row.severity}
+                          {severityLabel(row.severity)}
                         </AppStatusBadge>
                       </td>
                       <td className="app-table__primary">
@@ -414,7 +424,7 @@ function WorkspaceHealthPageInner() {
                           </span>
                         ) : null}
                       </td>
-                      <td className="app-table__muted">{row.category}</td>
+                      <td className="app-table__muted">{categoryLabel(row.category)}</td>
                       <td className="app-table__muted">
                         {formatUserTime(row.firstSeenAtUtc)}
                       </td>
@@ -438,6 +448,6 @@ function WorkspaceHealthPageInner() {
         dependency probes — is not shown here. It is identical for every
         workspace on the instance and is administered by PROOVRA platform staff.
       </p>
-    </main>
+    </div>
   );
 }

@@ -8,6 +8,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
@@ -21,11 +22,11 @@ const IDSEC = readFileSync(
 
 describe("profile/preference mutation emitters", () => {
   const at = USERS.indexOf('app.patch("/v1/users/me"');
-  // The window follows the handler, which grew when the timezone gained its
-  // IANA validation. The contract being asserted — metadata carries changed
-  // FIELD NAMES and never submitted values — is unchanged; it simply sits
-  // further down the function now.
-  const H = USERS.slice(at, at + 5200);
+  // The whole PATCH /v1/users/me registration (WCC-NEW-027). It used to be a
+  // character window that had to grow when the timezone gained its IANA
+  // validation; the contract — metadata carries changed FIELD NAMES and never
+  // submitted values — is unchanged.
+  const H = routeSource(USERS, "PATCH", "/v1/users/me");
 
   it("PATCH /v1/users/me emits one identity.* audit event after a successful update", () => {
     expect(at).toBeGreaterThan(-1);

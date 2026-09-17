@@ -47,6 +47,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { enclosingSource, functionSource } from "../../../scripts/source-contract/index.mjs";
 
 function readApi(rel: string): string {
   return readFileSync(fileURLToPath(new URL(`../${rel}`, import.meta.url)), "utf8");
@@ -121,8 +122,11 @@ describe("Phase 32.7.3 — workers readiness detects missing cron secret env", (
   });
 
   it("remediation hint names BOTH env keys explicitly", () => {
-    const idx = fn.indexOf('reasonCode: "reconcile_cron_secret_missing"');
-    const slice = fn.slice(idx, idx + 1200);
+    // The `return { … }` that carries this reason code.
+    const slice = enclosingSource(SRC, 'reasonCode: "reconcile_cron_secret_missing"', "statement", {
+      unique: true,
+      fileName: "runtime-readiness.ts",
+    });
     expect(slice).toMatch(/REVIEWER_OPS_CRON_SECRET/);
     expect(slice).toMatch(/INTEGRATION_CRON_SECRET/);
   });
@@ -150,9 +154,9 @@ describe("Phase 32.7.3 — listLegalHoldsForTeam uses explicit `select`", () => 
   const SRC = readApi("src/services/governance.service.ts");
 
   it("declares LEGAL_HOLD_SELECT constant with the projection's exact columns", () => {
-    const constIdx = SRC.indexOf("const LEGAL_HOLD_SELECT");
-    expect(constIdx).toBeGreaterThan(-1);
-    const block = SRC.slice(constIdx, constIdx + 1500);
+    const block = enclosingSource(SRC, "const LEGAL_HOLD_SELECT", "statement", {
+      fileName: "governance.service.ts",
+    });
     expect(block).toMatch(/as const/);
     for (const field of [
       "id",
@@ -174,17 +178,14 @@ describe("Phase 32.7.3 — listLegalHoldsForTeam uses explicit `select`", () => 
   });
 
   it("findMany call passes the explicit select", () => {
-    const fnIdx = SRC.indexOf("export async function listLegalHoldsForTeam");
-    expect(fnIdx).toBeGreaterThan(-1);
-    const fnSlice = SRC.slice(fnIdx, fnIdx + 1200);
+    const fnSlice = functionSource(SRC, "listLegalHoldsForTeam");
     expect(fnSlice).toMatch(
       /client\.evidenceLegalHold\.findMany\(\{[\s\S]{0,800}select:\s*LEGAL_HOLD_SELECT/,
     );
   });
 
   it("does NOT use the legacy default-select shape (Prisma pulls every column)", () => {
-    const fnIdx = SRC.indexOf("export async function listLegalHoldsForTeam");
-    const fnSlice = SRC.slice(fnIdx, fnIdx + 800);
+    const fnSlice = functionSource(SRC, "listLegalHoldsForTeam");
     // The signature explicitly declares the bounded projection
     // type, NOT the full DbLegalHold[].
     // PHASE 12B CLUSTER 8 — the bounded projection is narrowed further to the
@@ -226,9 +227,7 @@ describe("Phase 32.7.3 — the case-hold projection stays bounded", () => {
   const SRC = readApi("src/services/governance/legal-hold.service.ts");
 
   it("the case-scoped reader is scope-filtered and canonical", () => {
-    const fnIdx = SRC.indexOf("export async function listCaseScopedLegalHoldsLegacyShape");
-    expect(fnIdx).toBeGreaterThan(-1);
-    const fn = SRC.slice(fnIdx, fnIdx + 2000);
+    const fn = functionSource(SRC, "listCaseScopedLegalHoldsLegacyShape");
     expect(fn).toMatch(/scope: "CASE"/);
     // No second store may reappear behind this reader.
     expect(fn).not.toMatch(/client\.caseLegalHold\./);

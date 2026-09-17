@@ -19,12 +19,13 @@
  *     code list — never as free-form text.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   POLICY_ASSIGNMENT_SCOPES,
   REDACTION_DETECTION_KINDS,
   REDACTION_DETECTION_PROVIDERS,
+  identifierLabel,
   type PolicyAssignmentScope,
   type RedactionDetectionKind,
   type RedactionDetectionProvider,
@@ -38,6 +39,9 @@ import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { PolicyScopePanel } from "../../../../components/redaction/PolicyScopePanel";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDate, formatUserDateTime } from "../../../../lib/date";
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
+import { Button } from "../../../../components/ui/Button";
+import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 
 type PolicyRow = {
   id: string;
@@ -102,17 +106,36 @@ function PolicyManagementConsole() {
   const [compareRightId, setCompareRightId] = useState<string | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
+  // A failed read is a failure, never "no policies" / "no activity".
+  const [policiesError, setPoliciesError] = useState<string | null>(null);
+  const [auditError, setAuditError] = useState<string | null>(null);
+  const [versionsError, setVersionsError] = useState<string | null>(null);
+  // Batch J — archive (DELETE /v1/redaction/policies/:id).
+  const { confirm } = useConfirmAction();
+  const [archiveBusy, setArchiveBusy] = useState(false);
+  const [archiveResult, setArchiveResult] = useState<
+    { tone: "status" | "alert"; text: string } | null
+  >(null);
+  const selectedRef = useRef<string | null>(null);
+  selectedRef.current = selectedPolicyId;
 
-  const refreshPolicies = useCallback(async () => {
+  const refreshPolicies = useCallback(async (): Promise<PolicyRow[] | null> => {
     try {
       const r = await apiFetch("/v1/redaction/policies", { method: "GET" });
       const rows = (r?.policies ?? []) as PolicyRow[];
       setPolicies(rows);
+      setPoliciesError(null);
       if (!selectedPolicyId && rows.length > 0) {
         setSelectedPolicyId(rows[0].id);
       }
-    } catch {
-      setPolicies([]);
+      return rows;
+    } catch (err) {
+      setPoliciesError(
+        toSafeUserError(err, {
+          message: "Redaction policies could not be loaded. Refresh to try again.",
+        }).message,
+      );
+      return null;
     }
   }, [selectedPolicyId]);
 
@@ -124,8 +147,14 @@ function PolicyManagementConsole() {
           { method: "GET" },
         );
         setVersions((v?.versions ?? []) as PolicyVersionRow[]);
-      } catch {
+        setVersionsError(null);
+      } catch (err) {
         setVersions([]);
+        setVersionsError(
+          toSafeUserError(err, {
+            message: "Policy versions could not be loaded. Refresh to try again.",
+          }).message,
+        );
       }
       try {
         const a = await apiFetch(
@@ -133,8 +162,14 @@ function PolicyManagementConsole() {
           { method: "GET" },
         );
         setAudit((a?.audit ?? []) as AuditRow[]);
-      } catch {
+        setAuditError(null);
+      } catch (err) {
         setAudit([]);
+        setAuditError(
+          toSafeUserError(err, {
+            message: "The policy audit timeline could not be loaded. Refresh to try again.",
+          }).message,
+        );
       }
     },
     [],
@@ -168,6 +203,7 @@ function PolicyManagementConsole() {
 
   const onCreateVersion = useCallback(async () => {
     if (!selectedPolicyId) return;
+    if (policies?.find((p) => p.id === selectedPolicyId)?.archivedAt) return;
     try {
       await apiFetch(`/v1/redaction/policies/${selectedPolicyId}/versions`, {
         method: "POST",
@@ -188,7 +224,7 @@ function PolicyManagementConsole() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setBanner(`Refused: ${((err as any)?.denial ?? "POLICY_REJECTED")}`);
     }
-  }, [selectedPolicyId, refreshVersionsAndAudit]);
+  }, [selectedPolicyId, policies, refreshVersionsAndAudit]);
 
   const onTransitionVersion = useCallback(
     async (
@@ -248,6 +284,71 @@ function PolicyManagementConsole() {
     },
     [selectedPolicyId, refreshVersionsAndAudit],
   );
+
+  const selectedPolicy = useMemo(
+    () => policies?.find((p) => p.id === selectedPolicyId) ?? null,
+    [policies, selectedPolicyId],
+  );
+  const selectedArchived = Boolean(selectedPolicy?.archivedAt);
+
+  /**
+   * Batch J — DELETE /v1/redaction/policies/:id (redaction.administer).
+   * Sets archivedAt and writes POLICY_ARCHIVED to the policy audit. The
+   * server answers 409 when the policy is already archived or gone, 403
+   * when the caller is not a redaction administrator. Success is announced
+   * only after the reread list shows the policy archived.
+   */
+  const onArchivePolicy = useCallback(async () => {
+    const policy = selectedPolicy;
+    if (!policy || policy.archivedAt || archiveBusy) return;
+    setArchiveResult(null);
+    setArchiveBusy(true);
+    try {
+      const ok = await confirm({
+        title: `Archive the policy "${policy.name}"?`,
+        description:
+          "No new versions can be drafted for an archived policy. Existing versions, assignments and the audit timeline are kept. Archiving cannot be undone from this console.",
+        confirmLabel: "Archive policy",
+        tone: "danger",
+      });
+      if (!ok) return;
+      try {
+        await apiFetch(`/v1/redaction/policies/${encodeURIComponent(policy.id)}`, {
+          method: "DELETE",
+        });
+      } catch (err) {
+        const status = (err as { statusCode?: number })?.statusCode;
+        setArchiveResult({
+          tone: "alert",
+          text:
+            status === 403
+              ? "Only redaction administrators can archive a policy."
+              : status === 409
+                ? "This policy is already archived or no longer exists. The list has been refreshed."
+                : toSafeUserError(err, {
+                    message: "The policy could not be archived. Nothing was changed.",
+                  }).message,
+        });
+        if (status === 409) await refreshPolicies();
+        return;
+      }
+      const rows = await refreshPolicies();
+      if (selectedRef.current === policy.id) await refreshVersionsAndAudit(policy.id);
+      const reread = rows?.find((p) => p.id === policy.id);
+      setArchiveResult(
+        reread?.archivedAt
+          ? { tone: "status", text: `Policy "${policy.name}" archived. The saved list shows it as archived.` }
+          : {
+              tone: "alert",
+              text: rows
+                ? "The archive request was sent, but the saved list does not show the policy as archived yet. Refresh before acting on it."
+                : "The archive request was sent, but the policy list could not be reloaded to confirm it. Refresh before acting on it.",
+            },
+      );
+    } finally {
+      setArchiveBusy(false);
+    }
+  }, [archiveBusy, confirm, refreshPolicies, refreshVersionsAndAudit, selectedPolicy]);
 
   return (
     <div
@@ -313,6 +414,7 @@ function PolicyManagementConsole() {
           data-redaction-policy-create-submit
           onClick={onCreatePolicy}
           disabled={!newName.trim()}
+          title={!newName.trim() ? "Enter a name for the policy." : undefined}
           style={primaryButton}
         >
           New policy
@@ -329,16 +431,74 @@ function PolicyManagementConsole() {
         <aside>
           <PolicyList
             policies={policies}
+            error={policiesError}
             selectedId={selectedPolicyId}
             onSelect={setSelectedPolicyId}
           />
         </aside>
 
-        <main style={{ display: "grid", gap: 12 }}>
+        <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
           {selectedPolicyId ? (
             <>
+              <section
+                data-redaction-policy-archive
+                aria-label="Selected policy"
+                style={{
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 10,
+                  padding: 10,
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 8,
+                  alignItems: "center",
+                  overflowWrap: "anywhere",
+                }}
+              >
+                <strong style={{ fontSize: 13 }}>
+                  {selectedPolicy?.name ?? "Selected policy"}
+                </strong>
+                {selectedArchived && selectedPolicy?.archivedAt ? (
+                  <span data-redaction-policy-archived-badge style={{ fontSize: 11 }}>
+                    Archived {formatUserDate(selectedPolicy.archivedAt)}
+                  </span>
+                ) : null}
+                <span style={{ flex: "1 1 auto" }} />
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  loading={archiveBusy}
+                  disabled={!selectedPolicy || selectedArchived}
+                  disabledReason={
+                    !selectedPolicy
+                      ? "Load the policy list before archiving."
+                      : selectedArchived
+                        ? "This policy is already archived."
+                        : undefined
+                  }
+                  onClick={() => void onArchivePolicy()}
+                  data-redaction-policy-archive-submit
+                >
+                  Archive policy
+                </Button>
+                <p style={{ fontSize: 11, margin: 0, flexBasis: "100%" }}>
+                  Only redaction administrators can archive a policy. An archived
+                  policy keeps its versions and audit timeline but accepts no new drafts.
+                </p>
+                {archiveResult ? (
+                  <p
+                    role={archiveResult.tone}
+                    data-redaction-policy-archive-result={archiveResult.tone}
+                    style={{ fontSize: 12, margin: 0, flexBasis: "100%" }}
+                  >
+                    {archiveResult.text}
+                  </p>
+                ) : null}
+              </section>
               <PolicyVersionsPanel
                 policyId={selectedPolicyId}
+                archived={selectedArchived}
+                error={versionsError}
                 versions={versions}
                 onCreateVersion={onCreateVersion}
                 onTransition={onTransitionVersion}
@@ -363,7 +523,7 @@ function PolicyManagementConsole() {
                   }
                 }}
               />
-              <PolicyAuditPanel audit={audit} />
+              <PolicyAuditPanel audit={audit} error={auditError} />
             </>
           ) : (
             <div
@@ -380,7 +540,7 @@ function PolicyManagementConsole() {
               Create a policy to begin.
             </div>
           )}
-        </main>
+        </div>
       </div>
     </div>
   );
@@ -388,10 +548,12 @@ function PolicyManagementConsole() {
 
 function PolicyList({
   policies,
+  error,
   selectedId,
   onSelect,
 }: {
   policies: PolicyRow[] | null;
+  error: string | null;
   selectedId: string | null;
   onSelect: (id: string) => void;
 }) {
@@ -406,8 +568,13 @@ function PolicyList({
       }}
     >
       <strong style={{ fontSize: 13 }}>Policies</strong>
+      {error ? (
+        <p role="alert" data-redaction-policy-list-error style={{ fontSize: 12 }}>
+          {error}
+        </p>
+      ) : null}
       {policies === null ? (
-        <p style={{ color: "#475569", fontSize: 12 }}>Loading…</p>
+        error ? null : <p style={{ color: "#475569", fontSize: 12 }}>Loading…</p>
       ) : policies.length === 0 ? (
         <p style={{ color: "#475569", fontSize: 12 }}>No policies yet.</p>
       ) : (
@@ -434,6 +601,7 @@ function PolicyList({
               <strong>{p.name}</strong>
               <div style={{ color: "#475569", fontSize: 11 }}>
                 {formatUserDate(p.createdAt)}
+                {p.archivedAt ? " · Archived" : ""}
               </div>
             </li>
           ))}
@@ -445,6 +613,8 @@ function PolicyList({
 
 function PolicyVersionsPanel({
   policyId,
+  archived,
+  error,
   versions,
   onCreateVersion,
   onTransition,
@@ -452,6 +622,8 @@ function PolicyVersionsPanel({
   onCompare,
 }: {
   policyId: string;
+  archived: boolean;
+  error: string | null;
   versions: PolicyVersionRow[];
   onCreateVersion: () => void;
   onTransition: (
@@ -486,16 +658,24 @@ function PolicyVersionsPanel({
       <header style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
         <strong style={{ fontSize: 13 }}>Versions</strong>
         <span style={{ flex: 1 }} />
-        <button
-          type="button"
+        <Button
+          size="sm"
+          variant="primary"
           data-redaction-policy-version-new
           onClick={onCreateVersion}
-          style={primaryButton}
+          disabled={archived}
+          disabledReason={
+            archived ? "This policy is archived, so no new versions can be drafted." : undefined
+          }
         >
           + Draft new version
-        </button>
+        </Button>
       </header>
-      {versions.length === 0 ? (
+      {error ? (
+        <p role="alert" data-redaction-policy-versions-error style={{ fontSize: 12 }}>
+          {error}
+        </p>
+      ) : versions.length === 0 ? (
         <p style={{ color: "#475569", fontSize: 12 }}>No versions yet.</p>
       ) : (
         <table
@@ -523,7 +703,7 @@ function PolicyVersionsPanel({
               >
                 <td style={td}>v{v.versionOrdinal}</td>
                 <td style={td}>
-                  <Chip label={v.state} tone={stateTone(v.state)} />
+                  <Chip label={identifierLabel(v.state)} tone={stateTone(v.state)} />
                 </td>
                 <td style={td}>
                   <code>{v.authoredByUserId.slice(0, 8)}…</code>
@@ -740,7 +920,7 @@ function CompareColumn({
       }}
     >
       <div>
-        <strong>v{version.versionOrdinal}</strong> · {version.state}
+        <strong>v{version.versionOrdinal}</strong> · {identifierLabel(version.state)}
       </div>
       <div style={{ color: "#475569" }}>
         Providers disabled: {providersDisabled.join(", ") || "—"}
@@ -758,7 +938,13 @@ function CompareColumn({
   );
 }
 
-function PolicyAuditPanel({ audit }: { audit: ReadonlyArray<AuditRow> }) {
+function PolicyAuditPanel({
+  audit,
+  error,
+}: {
+  audit: ReadonlyArray<AuditRow>;
+  error: string | null;
+}) {
   return (
     <section
       data-redaction-policy-audit
@@ -770,7 +956,11 @@ function PolicyAuditPanel({ audit }: { audit: ReadonlyArray<AuditRow> }) {
       }}
     >
       <strong style={{ fontSize: 13 }}>Audit timeline</strong>
-      {audit.length === 0 ? (
+      {error ? (
+        <p role="alert" data-redaction-policy-audit-error style={{ fontSize: 12 }}>
+          {error}
+        </p>
+      ) : audit.length === 0 ? (
         <p style={{ color: "#475569", fontSize: 12 }}>No activity yet.</p>
       ) : (
         <ul
@@ -789,7 +979,9 @@ function PolicyAuditPanel({ audit }: { audit: ReadonlyArray<AuditRow> }) {
                 gap: 8,
               }}
             >
-              <code style={{ minWidth: 220 }}>{a.code}</code>
+              <span style={{ minWidth: 220 }}>
+                {identifierLabel(a.code)} <code data-identifier>{a.code}</code>
+              </span>
               <span style={{ color: "#475569" }}>
                 {formatUserDateTime(a.occurredAtUtc)}
               </span>

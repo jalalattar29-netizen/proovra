@@ -69,6 +69,74 @@ const CODE_MAP: Record<
    * and there are exactly two things the operator can do instead. Saying them
    * is the difference between a refusal and a dead end.
    */
+  /**
+   * BATCH C — bounded domain refusals. Each was a bare `throw` answering 500
+   * and paging critical; each now has a code and a sentence that says what to
+   * do instead.
+   */
+  EVIDENCE_RELATIONSHIP_SELF_LINK: {
+    title: "Choose a different record",
+    message: "A record can't be linked to itself. Enter a different evidence record ID.",
+    severity: "warning",
+  },
+  STEP_UP_WORKSPACE_REQUIRED: {
+    title: "Join a workspace first",
+    message:
+      "Changing a verified domain needs a step-up confirmation, which is made in a workspace. Join a workspace in this organization, then try again.",
+    severity: "warning",
+  },
+  LEGAL_POLICY_VERSION_NOT_CURRENT: {
+    title: "Our policies were updated",
+    message:
+      "The policy versions on this page are no longer current. Reload the page and review the current versions before accepting.",
+    severity: "warning",
+  },
+  CERTIFICATION_ALREADY_ATTESTED: {
+    title: "Already signed",
+    message: "This declaration was signed in the meantime. Reload the declarations; request a new one to sign again.",
+    severity: "warning",
+  },
+  CERTIFICATION_STATEMENT_MISSING: {
+    title: "No statement to sign",
+    message: "A declaration needs the statement the signer will sign. Write the statement and try again.",
+    severity: "warning",
+  },
+  CERTIFICATION_STATEMENT_CHANGED: {
+    title: "The statement is not the one requested",
+    message: "The statement shown is not the one recorded on the request. Reload the declarations and read the statement again before signing.",
+    severity: "warning",
+  },
+  EXPORT_SNAPSHOT_CURSOR_INVALID: {
+    title: "The list has changed",
+    message: "This page of snapshots no longer matches your filters. Reload the list to start again from the first page.",
+    severity: "warning",
+  },
+  PAYMENTS_UNAVAILABLE: {
+    title: "Payments unavailable",
+    message:
+      "Payments are temporarily unavailable, and nothing was charged. Please try again later, or contact support if this continues.",
+    severity: "warning",
+  },
+  WEBHOOK_ENDPOINT_URL_INVALID: {
+    title: "Check the endpoint address",
+    message: "The endpoint address must be a public https:// URL.",
+    severity: "warning",
+  },
+  WEBHOOK_ENDPOINT_EVENTS_INVALID: {
+    title: "Check the selected events",
+    message: "Choose at least one event, and no more than the allowed number, for this endpoint.",
+    severity: "warning",
+  },
+  WEBHOOK_ENDPOINT_EVENT_UNKNOWN: {
+    title: "Unknown event",
+    message: "One of the selected events is not available for webhooks. Remove it and try again.",
+    severity: "warning",
+  },
+  SCIM_TOKEN_ROTATE_CONFLICT: {
+    title: "The token changed",
+    message: "This provisioning token was changed while it was being rotated. Refresh the list and try again.",
+    severity: "warning",
+  },
   CONDITION_STILL_ACTIVE: {
     title: "This condition is still active",
     message:
@@ -105,6 +173,18 @@ const CODE_MAP: Record<
     title: "This condition cannot be resolved here",
     message:
       "This condition is owned by the surface that reported it and closes when that surface recovers. You can still acknowledge it, assign it, or suppress it with a recorded reason.",
+    severity: "warning",
+  },
+  /**
+   * PV-OPS-001 — the fourth refusal the resolve path can give. An
+   * operator-decided condition whose source requires a written conclusion was
+   * posted without one. It used to fall through to the generic 409 sentence,
+   * which told the operator to "review your input" without saying what input.
+   */
+  RESOLUTION_NOTE_REQUIRED: {
+    title: "Add a conclusion to resolve this",
+    message:
+      "Resolving this condition is an operator decision and must record why. Write a short conclusion and resolve again. Nothing was changed.",
     severity: "warning",
   },
   /**
@@ -573,6 +653,12 @@ const CODE_MAP: Record<
     title: "You can't rename this case",
     message:
       "Renaming a case needs additional permissions in this workspace. Ask a workspace admin for access.",
+    severity: "warning",
+  },
+  CASE_ACCESS_TARGET_NOT_MEMBER: {
+    title: "That person isn't an active member of this workspace",
+    message:
+      "Only active members of the workspace that owns this case can be given access to it.",
     severity: "warning",
   },
   ILLEGAL_MEMBERSHIP_TRANSITION: {

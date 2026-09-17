@@ -15,25 +15,69 @@
  *   * REVIEW_OPENED activity is emitted on first mount.
  */
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
-import { EXTERNAL_DECISION_VERDICTS, type ExternalDecisionVerdict, type ExternalPortalProjection } from "@proovra/shared";
+import {
+  EXTERNAL_DECISION_VERDICTS,
+  identifierLabel,
+  type ExternalDecisionVerdict,
+  type ExternalPortalProjection,
+} from "@proovra/shared";
 
 import { WatermarkOverlay } from "../../../../../components/external-portal/WatermarkOverlay";
+import { PortalMfaCodeStep } from "../../../../../components/external-portal/PortalMfaCodeStep";
+import { PortalDenialNotice } from "../../../../../components/external-portal/PortalDenialNotice";
 
 import {
   authenticate,
+  clearSessionId,
   fetchComments,
+  fetchDecisions,
   fetchPortalDashboard,
   getSessionId,
+  isPortalMfaDenial,
   markReviewOpened,
   postComment,
+  readPortalFailure,
   setBearer,
   submitDecision,
   type PortalComment,
+  type PortalDecision,
+  type PortalMfaDetail,
 } from "../../../../../lib/external-portal/portal-client";
 import { formatUserDateTime } from "../../../../../lib/date";
+import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
+
+/**
+ * Batch J — the reviewer's recorded decision, read back from
+ * GET /v1/portal/work/:workflowId/decisions (scoped server-side to this
+ * reviewer's grant). A reviewer who reloads now sees what they recorded;
+ * a submission is announced only once this reread shows it.
+ */
+type DecisionState =
+  | { kind: "idle" }
+  | { kind: "loading" }
+  | { kind: "ready"; decision: PortalDecision | null }
+  | { kind: "denied" }
+  | { kind: "failed"; message: string };
+
+/**
+ * D58 — denials that mean the SESSION is gone (or cannot be checked), not
+ * that this one request was refused. Any request on the page can meet them
+ * once an operator ends the session, so they replace the page with the
+ * portal denial notice and its way back.
+ */
+const SESSION_LOSS_DENIALS = new Set([
+  "SESSION_ENDED",
+  "SESSION_UNAVAILABLE",
+  "INACTIVITY_TIMEOUT",
+]);
+
+function portalStatus(err: unknown): number {
+  const s = (err as { status?: unknown } | null)?.status;
+  return typeof s === "number" ? s : 0;
+}
 
 export default function PortalReviewPage({
   params,
@@ -47,9 +91,58 @@ export default function PortalReviewPage({
   const [comments, setComments] = useState<PortalComment[]>([]);
   const [replyDraft, setReplyDraft] = useState<Record<string, string>>({});
   const [rootDraft, setRootDraft] = useState("");
+  const [commentError, setCommentError] = useState<string | null>(null);
   const [denial, setDenial] = useState<string | null>(null);
+  const [mfaStep, setMfaStep] = useState<{
+    denial: string;
+    detail: PortalMfaDetail | null;
+  } | null>(null);
   const [verdictRationale, setVerdictRationale] = useState("");
   const [decisionStatus, setDecisionStatus] = useState<string | null>(null);
+  const [decisionState, setDecisionState] = useState<DecisionState>({ kind: "idle" });
+  const [deciding, setDeciding] = useState(false);
+  const decisionSeq = useRef(0);
+
+  // D58 — route a lost session (or a lapsed MFA satisfaction) met by ANY
+  // request to the page-level handling. Returns true when it took the error.
+  const takeSessionLoss = useCallback((err: unknown): boolean => {
+    const failure = readPortalFailure(err);
+    if (failure.denial && isPortalMfaDenial(failure.denial)) {
+      setMfaStep({ denial: failure.denial, detail: failure.mfa });
+      return true;
+    }
+    if (failure.denial && SESSION_LOSS_DENIALS.has(failure.denial)) {
+      setDenial(failure.denial);
+      return true;
+    }
+    return false;
+  }, []);
+
+  const loadDecision = useCallback(async (): Promise<PortalDecision | null | undefined> => {
+    const seq = ++decisionSeq.current;
+    setDecisionState((prev) => (prev.kind === "ready" ? prev : { kind: "loading" }));
+    try {
+      const rows = await fetchDecisions(workflowId);
+      const mine = rows.find((d) => d.workflowId === workflowId) ?? null;
+      if (seq === decisionSeq.current) setDecisionState({ kind: "ready", decision: mine });
+      return mine;
+    } catch (err) {
+      if (seq === decisionSeq.current && !takeSessionLoss(err)) {
+        const status = portalStatus(err);
+        setDecisionState(
+          status === 403 || status === 404
+            ? { kind: "denied" }
+            : {
+                kind: "failed",
+                message: toSafeUserError(err, {
+                  message: "Your recorded decision could not be loaded. Refresh to try again.",
+                }).message,
+              },
+        );
+      }
+      return undefined;
+    }
+  }, [workflowId, takeSessionLoss]);
 
   const reauth = useCallback(async () => {
     setBearer(decodeURIComponent(token));
@@ -60,8 +153,13 @@ export default function PortalReviewPage({
       });
       return true;
     } catch (err) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setDenial(((err as any)?.denial ?? "TOKEN_INVALID") as string);
+      // D27 — a lapsed MFA satisfaction is answered with the code step.
+      const failure = readPortalFailure(err);
+      if (failure.denial && isPortalMfaDenial(failure.denial)) {
+        setMfaStep({ denial: failure.denial, detail: failure.mfa });
+      } else {
+        setDenial(failure.denial ?? "TOKEN_INVALID");
+      }
       return false;
     }
   }, [token]);
@@ -74,11 +172,20 @@ export default function PortalReviewPage({
       setProjection(proj);
       const c = await fetchComments(workflowId);
       setComments(c);
+      const caps = proj.reviewer.capabilities as ReadonlyArray<string>;
+      if (caps.includes("portal.decide") || caps.includes("portal.history.read")) {
+        void loadDecision();
+      }
     } catch (err) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setDenial(((err as any)?.denial ?? "TOKEN_INVALID") as string);
+      // D27 — a lapsed MFA satisfaction is answered with the code step.
+      const failure = readPortalFailure(err);
+      if (failure.denial && isPortalMfaDenial(failure.denial)) {
+        setMfaStep({ denial: failure.denial, detail: failure.mfa });
+      } else {
+        setDenial(failure.denial ?? "TOKEN_INVALID");
+      }
     }
-  }, [reauth, workflowId]);
+  }, [reauth, workflowId, loadDecision]);
 
   useEffect(() => {
     let cancelled = false;
@@ -107,31 +214,94 @@ export default function PortalReviewPage({
         );
         return;
       }
+      if (deciding) return;
+      setDeciding(true);
+      setDecisionStatus(null);
       try {
-        const res = await submitDecision({
-          workflowId,
-          verdict,
-          rationale:
-            verdict === "APPROVE" ? undefined : verdictRationale.slice(0, 600),
-        });
-        setDecisionStatus(
-          `Decision ${verdict} recorded${res.replaced ? " (replaced)" : ""}.`,
-        );
-        setVerdictRationale("");
-        await refresh();
-      } catch (err) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        setDecisionStatus(`Refused: ${((err as any)?.denial ?? "RATE_LIMITED")}`);
+        let replaced = false;
+        try {
+          const res = await submitDecision({
+            workflowId,
+            verdict,
+            rationale:
+              verdict === "APPROVE" ? undefined : verdictRationale.slice(0, 600),
+          });
+          replaced = res.replaced;
+        } catch (err) {
+          if (takeSessionLoss(err)) return;
+          const status = portalStatus(err);
+          setDecisionStatus(
+            status === 403
+              ? "Your role cannot record a decision on this review."
+              : status === 409
+                ? "The decision was not accepted. Check the rationale and try again."
+                : toSafeUserError(err, {
+                    message: "Your decision could not be recorded. Nothing was changed.",
+                  }).message,
+          );
+          return;
+        }
+        const reread = await loadDecision();
+        if (reread && reread.verdict === verdict) {
+          setDecisionStatus(
+            `Decision recorded: ${identifierLabel(verdict)}${replaced ? ". It replaces your previous decision." : "."}`,
+          );
+          setVerdictRationale("");
+        } else {
+          setDecisionStatus(
+            reread === undefined
+              ? "Your decision was sent, but it could not be reloaded to confirm it. Refresh before deciding again."
+              : "Your decision was sent, but the saved record does not show it yet. Refresh before deciding again.",
+          );
+        }
+      } finally {
+        setDeciding(false);
       }
     },
-    [workflowId, verdictRationale, refresh],
+    [workflowId, verdictRationale, deciding, loadDecision, takeSessionLoss],
   );
+
+  // D58 — exchange the invitation token again WITHOUT the ended session id:
+  // that opens a fresh session (an MFA grant is sent a fresh code and lands
+  // on the code step). Drafts on this page are kept.
+  const signInAgain = () => {
+    clearSessionId();
+    setDenial(null);
+    void refresh();
+  };
+
+  if (mfaStep) {
+    return (
+      <main
+        data-portal-mfa-gate
+        style={{ maxWidth: 480, margin: "0 auto", padding: "40px 16px" }}
+      >
+        <h1 style={{ fontSize: 20, margin: 0 }}>Confirm it is you</h1>
+        <PortalMfaCodeStep
+          token={decodeURIComponent(token)}
+          denial={mfaStep.denial}
+          detail={mfaStep.detail}
+          existingSessionId={getSessionId()}
+          onVerified={() => {
+            setMfaStep(null);
+            void refresh();
+          }}
+        />
+      </main>
+    );
+  }
 
   if (denial) {
     return (
-      <main style={{ padding: 40, textAlign: "center" }}>
-        <h1 style={{ fontSize: 20 }}>Portal access denied</h1>
-        <code>{denial}</code>
+      <main data-portal-denied style={{ maxWidth: 480, margin: "0 auto", padding: 40, textAlign: "center" }}>
+        <PortalDenialNotice
+          denial={denial}
+          onReauthenticate={signInAgain}
+          onRetry={() => {
+            setDenial(null);
+            void refresh();
+          }}
+        />
       </main>
     );
   }
@@ -165,7 +335,7 @@ export default function PortalReviewPage({
         <span style={{ flex: 1 }} />
         <small style={{ color: "#475569" }}>
           Reviewer: {projection.reviewer.email} · Role:{" "}
-          {projection.reviewer.role}
+          {identifierLabel(projection.reviewer.role)}
         </small>
       </header>
 
@@ -210,6 +380,9 @@ export default function PortalReviewPage({
             onRationale={setVerdictRationale}
             onDecide={onSubmitDecision}
             status={decisionStatus}
+            busy={deciding}
+            decision={decisionState}
+            onRetry={() => void loadDecision()}
           />
           <CommentsPanel
             comments={comments}
@@ -219,21 +392,36 @@ export default function PortalReviewPage({
             onReplyDraft={(id, v) =>
               setReplyDraft((d) => ({ ...d, [id]: v }))
             }
+            postError={commentError}
             onPostRoot={async () => {
               const body = rootDraft.trim();
               if (!body) return;
-              await postComment({ workflowId, body });
+              try {
+                await postComment({ workflowId, body });
+              } catch (err) {
+                if (takeSessionLoss(err)) return;
+                setCommentError(commentFailure(err));
+                return;
+              }
+              setCommentError(null);
               setRootDraft("");
               await refresh();
             }}
             onPostReply={async (parentId) => {
               const body = (replyDraft[parentId] ?? "").trim();
               if (!body) return;
-              await postComment({
-                workflowId,
-                body,
-                parentCommentId: parentId,
-              });
+              try {
+                await postComment({
+                  workflowId,
+                  body,
+                  parentCommentId: parentId,
+                });
+              } catch (err) {
+                if (takeSessionLoss(err)) return;
+                setCommentError(commentFailure(err));
+                return;
+              }
+              setCommentError(null);
               setReplyDraft((d) => ({ ...d, [parentId]: "" }));
               await refresh();
             }}
@@ -250,14 +438,21 @@ function DecisionPanel({
   onRationale,
   onDecide,
   status,
+  busy,
+  decision,
+  onRetry,
 }: {
   capabilities: ReadonlyArray<string>;
   rationale: string;
   onRationale: (v: string) => void;
   onDecide: (v: ExternalDecisionVerdict) => Promise<void>;
   status: string | null;
+  busy: boolean;
+  decision: DecisionState;
+  onRetry: () => void;
 }) {
   const canDecide = capabilities.includes("portal.decide");
+  const canReadHistory = canDecide || capabilities.includes("portal.history.read");
   return (
     <section
       data-portal-decision-panel
@@ -269,6 +464,40 @@ function DecisionPanel({
       }}
     >
       <h3 style={{ fontSize: 13, marginTop: 0 }}>Decision</h3>
+      <div data-portal-recorded-decision style={{ fontSize: 12, marginBottom: 8, overflowWrap: "anywhere" }}>
+        {!canReadHistory ? (
+          <p style={{ margin: 0 }}>Your role cannot view recorded decisions for this review.</p>
+        ) : decision.kind === "idle" || decision.kind === "loading" ? (
+          <p role="status" style={{ margin: 0 }}>Loading your recorded decision…</p>
+        ) : decision.kind === "denied" ? (
+          <p role="alert" style={{ margin: 0 }}>Your recorded decision is not available for this review.</p>
+        ) : decision.kind === "failed" ? (
+          <p role="alert" style={{ margin: 0 }}>
+            {decision.message}{" "}
+            <button type="button" onClick={onRetry} style={btnPrimary}>
+              Retry
+            </button>
+          </p>
+        ) : decision.decision ? (
+          <dl style={{ margin: 0, display: "grid", gap: 2 }}>
+            <dt style={{ fontWeight: 600 }}>Your recorded decision</dt>
+            <dd style={{ margin: 0 }}>{identifierLabel(decision.decision.verdict)}</dd>
+            <dt style={{ fontWeight: 600 }}>Recorded</dt>
+            <dd style={{ margin: 0 }}>
+              <time dateTime={decision.decision.submittedAtUtc}>
+                {formatUserDateTime(decision.decision.submittedAtUtc)}
+              </time>
+            </dd>
+            <dt style={{ fontWeight: 600 }}>Rationale</dt>
+            <dd style={{ margin: 0 }}>{decision.decision.rationale ?? "No rationale recorded."}</dd>
+          </dl>
+        ) : (
+          <p style={{ margin: 0 }}>You have not recorded a decision for this review yet.</p>
+        )}
+        {canDecide && decision.kind === "ready" && decision.decision ? (
+          <p style={{ margin: "4px 0 0" }}>Submitting again replaces this decision.</p>
+        ) : null}
+      </div>
       {!canDecide ? (
         <p style={{ color: "#475569", fontSize: 12 }}>
           Your role is read-only for decisions. You may still annotate
@@ -297,6 +526,8 @@ function DecisionPanel({
                 key={v}
                 type="button"
                 data-portal-decision-btn={v}
+                disabled={busy}
+                aria-busy={busy || undefined}
                 onClick={() => onDecide(v as ExternalDecisionVerdict)}
                 style={{
                   padding: "4px 10px",
@@ -311,16 +542,17 @@ function DecisionPanel({
                   color: "#fafafa",
                   fontSize: 11,
                   fontWeight: 600,
-                  cursor: "pointer",
+                  cursor: busy ? "not-allowed" : "pointer",
                 }}
               >
-                {v}
+                {identifierLabel(v)}
               </button>
             ))}
           </div>
           {status ? (
             <small
               data-portal-decision-status
+              role="status"
               style={{ color: "#475569", display: "block", marginTop: 6 }}
             >
               {status}
@@ -332,6 +564,13 @@ function DecisionPanel({
   );
 }
 
+/** Comment posts that fail for any reason other than a lost session. */
+function commentFailure(err: unknown): string {
+  return toSafeUserError(err, {
+    message: "Your comment could not be posted. It is still in the box; try again.",
+  }).message;
+}
+
 function CommentsPanel({
   comments,
   rootDraft,
@@ -340,6 +579,7 @@ function CommentsPanel({
   onReplyDraft,
   onPostRoot,
   onPostReply,
+  postError,
 }: {
   comments: PortalComment[];
   rootDraft: string;
@@ -348,6 +588,8 @@ function CommentsPanel({
   onReplyDraft: (id: string, v: string) => void;
   onPostRoot: () => Promise<void>;
   onPostReply: (id: string) => Promise<void>;
+  /** A refused or failed post, in product language; the draft is kept. */
+  postError: string | null;
 }) {
   const roots = comments.filter((c) => c.parentCommentId === null);
   const repliesByRoot = comments.reduce<Record<string, PortalComment[]>>(
@@ -370,10 +612,16 @@ function CommentsPanel({
       }}
     >
       <h3 style={{ fontSize: 13, marginTop: 0 }}>Review communication</h3>
+      {postError ? (
+        <p role="alert" data-portal-comment-error style={{ color: "#b91c1c", fontSize: 12, margin: "0 0 8px" }}>
+          {postError}
+        </p>
+      ) : null}
       <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
         <input
           data-portal-root-comment-input
           type="text"
+          aria-label="Comment on this review"
           value={rootDraft}
           onChange={(e) => onRootDraft(e.target.value)}
           placeholder="Add a comment to the workflow…"
@@ -436,6 +684,7 @@ function CommentsPanel({
               <input
                 data-portal-comment-reply-input={r.id}
                 type="text"
+                aria-label="Reply to this comment"
                 value={replyDraft[r.id] ?? ""}
                 onChange={(e) => onReplyDraft(r.id, e.target.value)}
                 placeholder="Reply…"

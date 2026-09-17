@@ -31,6 +31,9 @@ import {
   ReviewerReasonModal,
   type ReviewerReasonKind,
 } from "../components/ReviewerReasonModal";
+// Batch J — POST /v1/reviewer/work/:workflowId/bind-schema (coding fields
+// only appear once a review is bound to a published schema).
+import { CodingSchemaBindingPanel } from "../components/CodingSchemaBindingPanel";
 import {
   ReviewerShortcutsHelp,
   isShortcutTarget,
@@ -46,6 +49,8 @@ import { Badge } from "../../../../components/ui/Badge";
 import { buttonSurfaceStyle } from "../../../../components/ui/Button";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { severityTone, statusTone } from "../../../../components/ui/StatusBadge";
+import { identifierLabel } from "@proovra/shared";
+import { escalationReasonLabel } from "../../../../lib/labels/governanceReviewLabels";
 
 type LifecycleState =
   | "DRAFT"
@@ -579,6 +584,7 @@ function ReviewWorkspacePageInner() {
           enterprise reviewer is never misled. */}
       <ReviewerDeferredFeaturesPanel />
 
+      <CodingSchemaBindingPanel teamId={teamId} workflowId={workflowId} />
 
       <div style={twoColStyle}>
         <Card padding="comfortable">
@@ -654,10 +660,10 @@ function ReviewWorkspacePageInner() {
                   }}
                 >
                   <Badge tone={severityTone(data.openEscalation.severity)} subtle>
-                    {data.openEscalation.severity}
+                    {identifierLabel(data.openEscalation.severity)}
                   </Badge>
                   <span className="app-field-help">
-                    {data.openEscalation.reason}
+                    {escalationReasonLabel(data.openEscalation.reason)}
                   </span>
                   <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--silver-ink)" }}>
                     {formatCellDateTime(data.openEscalation.createdAt)}
@@ -1209,9 +1215,8 @@ function ReviewerNotesPanel({
         }}
       >
         Structured notes attached to the evidence under this review.
-        Every note is audited via the workspace activity feed
-        (REVIEWER_NOTE_CREATED). Notes persist across reviewers and
-        survive workflow transitions.
+        Every note is recorded in the workspace activity feed. Notes
+        persist across reviewers and survive workflow transitions.
       </p>
 
       {/* ---- compose ---- */}
@@ -1361,6 +1366,7 @@ function ReviewerNotesPanel({
           data-reviewer-notes-state="error"
           style={{ fontSize: 13, opacity: 0.85 }}
         >
+          {/* raw-identifier-ok: state.status here is the HTTP status number of a failed read */}
           {state.status === 403
             ? "You don't have permission to view notes for this workflow."
             : state.status === 404
@@ -1843,6 +1849,7 @@ function ReviewerDecisionLineagePanel({
       >
         <h3 className="app-panel__title">Multi-stage review governance</h3>
         <div role="alert" style={{ fontSize: 13, opacity: 0.85 }}>
+          {/* raw-identifier-ok: state.status here is the HTTP status number of a failed read */}
           {state.status === 404
             ? "Workflow not found in this workspace."
             : state.status === 403
@@ -2266,9 +2273,9 @@ function ReviewerDeferredFeaturesPanel() {
           <ul style={deferredListStyle}>
             <li data-reviewer-deferred-item="structured-notes">
               <strong>Structured reviewer notes</strong> with 7 types
-              (observation, concern, request_info, escalation_context,
-              decision_rationale, legal_hold_context,
-              redaction_context). Audited via TeamActivity.
+              (observation, concern, request for information, escalation
+              context, decision rationale, legal hold context, redaction
+              context). Recorded in the workspace activity feed.
             </li>
             <li data-reviewer-deferred-item="decision-audit-chain">
               <strong>Decision audit chain.</strong> Every approve /
@@ -2277,8 +2284,9 @@ function ReviewerDeferredFeaturesPanel() {
               traceable via /v1/reviewer-ops/workspace/:workflowId.
             </li>
             <li data-reviewer-deferred-item="rationale-required">
-              <strong>Rationale enforcement.</strong> ESCALATE / PAUSE /
-              REQUEST_INFO require a note server-side (bulk + per-row).
+              <strong>Rationale enforcement.</strong> Escalate, pause and
+              request information each require a note, for single and bulk
+              actions alike.
             </li>
             <li data-reviewer-deferred-item="governance-signals">
               <strong>Governance signals on the review.</strong> Legal
@@ -2291,8 +2299,8 @@ function ReviewerDeferredFeaturesPanel() {
               enforced server-side. Same-reviewer guard fires 409.
               Conflict detection auto-derives from mismatched
               decisions. Adjudication requires team OWNER/ADMIN.
-              Audited via TeamActivity (REVIEWER_DECISION_FIRST /
-              _SECOND / _ADJUDICATION).
+              First, second and adjudication decisions are each recorded
+              in the workspace activity feed.
             </li>
             <li data-reviewer-deferred-item="decision-lineage">
               <strong>Decision lineage</strong> (Phase B.2). Every
@@ -2328,8 +2336,8 @@ function ReviewerDeferredFeaturesPanel() {
             <li data-reviewer-deferred-item="senior-reviewer-role">
               <strong>Dedicated senior-reviewer role.</strong>{" "}
               Adjudication uses the existing team OWNER / ADMIN role.
-              A separate REVIEW_LEAD role would require workspace-
-              capability model changes.
+              A separate review-lead role would require changes to the
+              workspace capability model.
             </li>
             <li data-reviewer-deferred-item="evidence-compare">
               <strong>Evidence side-by-side compare.</strong> Manual

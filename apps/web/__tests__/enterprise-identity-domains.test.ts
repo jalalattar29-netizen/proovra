@@ -59,9 +59,11 @@ function ctxFor(plan: WorkspacePlan): SurfaceUserContext {
 const IDENTITY_SURFACES = [
   "/security-center", // Security Center
   "/security-center/sso", // SSO / Identity providers
-  "/admin/identity", // Identity operations hub
-  "/admin/identity/scim", // SCIM provisioning
-  "/admin/identity/sessions", // Session policy
+  // PV-PLACE-001 / PV-OD-001 — the identity family moved out of the platform
+  // console (/admin/identity/*) into the workspace's Security Center.
+  "/security-center/identity", // Identity administration hub
+  "/security-center/identity/scim", // SCIM provisioning
+  "/security-center/identity/sessions", // Session policy
   "/organizations/abc/admin/domains", // Domains (this phase)
   "/organizations/abc/admin/security", // Org security (MFA/SSO/SCIM readiness)
   "/audit-transparency", // Identity / compliance audit
@@ -94,7 +96,8 @@ test("Phase 3 — ENTERPRISE can access every enterprise identity surface", () =
 test("Phase 3 — TEAM (locked-model regression) cannot reach SSO / SCIM / Domains", () => {
   const team = ctxFor("TEAM");
   assert.equal(canAccessSurface(team, "/security-center/sso"), false);
-  assert.equal(canAccessSurface(team, "/admin/identity/scim"), false);
+  // PV-PLACE-001 — SCIM's canonical home is the Security Center now.
+  assert.equal(canAccessSurface(team, "/security-center/identity/scim"), false);
   assert.equal(
     canAccessSurface(team, "/organizations/abc/admin/domains"),
     false,

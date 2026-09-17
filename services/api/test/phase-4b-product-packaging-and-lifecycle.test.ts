@@ -54,7 +54,6 @@ import {
 
 import {
   createExchangePackage,
-  markPackageReady,
   generateSignedUrl,
   listPackages,
   revokePackage,
@@ -501,7 +500,6 @@ describe("3. Service module surface — typeof checks", () => {
 
   it("evidence-exchange service exports all documented functions", () => {
     expect(typeof createExchangePackage).toBe("function");
-    expect(typeof markPackageReady).toBe("function");
     expect(typeof generateSignedUrl).toBe("function");
     expect(typeof listPackages).toBe("function");
     expect(typeof revokePackage).toBe("function");
@@ -1393,13 +1391,25 @@ describe("14. Chain transfer state machine", () => {
 // ===========================================================================
 
 describe("15. Evidence exchange package lifecycle", () => {
-  it("createExchangePackage → DRAFT state", async () => {
+  it("createExchangePackage → DRAFT state, then the build request (DRAFT → BUILDING)", async () => {
+    /*
+     * D8 (2026-09-17) — creation is the product's build request. The row is
+     * still written as DRAFT, and a CONDITIONAL `updateMany` then hands it to
+     * the worker's builder (which only picks up BUILDING packages). Before
+     * this, nothing ever moved a package out of DRAFT, so no package was
+     * ever built; the double gained `updateMany` to follow that call.
+     */
     let storedState: string | undefined;
+    const transitions: Array<{ where: Record<string, unknown>; data: Record<string, unknown> }> = [];
     const prisma = makePrismaStub({
       evidenceExchangePackage: {
         create: async (args: { data: Record<string, unknown>; select: unknown }) => {
           storedState = args.data.state as string;
           return { id: "pkg-1", ...args.data };
+        },
+        updateMany: async (args: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
+          transitions.push(args);
+          return { count: 1 };
         },
         findFirst: async () => null,
         findMany: async () => [],
@@ -1415,41 +1425,12 @@ describe("15. Evidence exchange package lifecycle", () => {
     });
     expect(result.ok).toBe(true);
     expect(storedState).toBe("DRAFT");
-  });
-
-  it("markPackageReady → state=READY", async () => {
-    /*
-     * EXPORT PACKAGE METER (2026-09-07) — the double gained `updateMany`.
-     *
-     * The transition moved from a read-then-`update` into a CONDITIONAL
-     * `updateMany` carrying the state predicate, so two callers cannot both
-     * complete one package and cannot both be metered for it. The behaviour
-     * under test is unchanged — DRAFT becomes READY — and the double now
-     * exercises the real path instead of a method the service no longer
-     * calls.
-     */
-    let updatedState: string | undefined;
-    const prisma = makePrismaStub({
-      evidenceExchangePackage: {
-        findFirst: async () => ({ id: "pkg-1", state: "DRAFT" }),
-        updateMany: async (args: { data: Record<string, unknown> }) => {
-          updatedState = args.data.state as string;
-          return { count: 1 };
-        },
-        create: async () => ({ id: "pkg-1" }),
-        findMany: async () => [],
+    expect(transitions).toEqual([
+      {
+        where: { id: "pkg-1", teamId: "team-1", state: "DRAFT" },
+        data: { state: "BUILDING" },
       },
-    });
-    const result = await markPackageReady({
-      prisma: prisma as never,
-      teamId: "team-1",
-      packageId: "pkg-1",
-      storageKey: "s3/key/pkg-1.zip",
-      packageSha256: "a".repeat(64),
-      packageSizeBytes: 1024,
-    });
-    expect(result.ok).toBe(true);
-    expect(updatedState).toBe("READY");
+    ]);
   });
 
   it("generateSignedUrl on READY package persists signedUrl + expiresAtUtc", async () => {

@@ -34,6 +34,7 @@ import { readFileSync } from "node:fs";
 import { describe, it, test } from "vitest";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const REPO_ROOT = resolve(dirname(__filename), "..", "..", "..");
@@ -102,12 +103,15 @@ describe("MAX_FILES_REACHED — only triggers when there's a real evidence row t
 describe("CommunicationMessage.bodyPreview — sanitizer wins over default truncation", () => {
   it("the QUEUED-row write uses bodyPreviewOverride ?? safeBodyPreview", () => {
     const src = read(COMM);
-    // Find the QUEUED block specifically.
-    const queuedIdx = src.indexOf(
-      "// Persist QUEUED, then dispatch.",
+    // Find the QUEUED block specifically: the create statement that follows
+    // "// Persist QUEUED, then dispatch." and writes status QUEUED.
+    const slice = enclosingSource(
+      src,
+      "const queued = await client.communicationMessage.create(",
+      "statement",
+      { unique: true, fileName: "communication.service.ts" },
     );
-    assert.ok(queuedIdx > 0, "QUEUED-row anchor missing");
-    const slice = src.slice(queuedIdx, queuedIdx + 1200);
+    assert.match(slice, /status: prismaPkg\.CommunicationStatus\.QUEUED,/);
     assert.match(
       slice,
       /bodyPreview:\s*\n?\s*input\.bodyPreviewOverride \?\? safeBodyPreview\(input\.body\)/,

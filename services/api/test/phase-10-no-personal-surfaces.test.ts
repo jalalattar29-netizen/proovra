@@ -104,7 +104,7 @@ describe("source-contract: resumable-upload mutating routes call the personal gu
   const mutatingRouteAnchors = [
     '"/v1/uploads/sessions",',
     '"/v1/uploads/sessions/:sessionId/parts/:partIndex/uploaded",',
-    '"/v1/uploads/sessions/:sessionId/parts/:partIndex/verified",',
+    // /verified is machine-only (D3): no user actor, so no personal guard.
     '"/v1/uploads/sessions/:sessionId/complete",',
     '"/v1/uploads/sessions/:sessionId/abort",',
     '"/v1/uploads/sessions/:sessionId/multipart/initiate",',

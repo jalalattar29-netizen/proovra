@@ -393,7 +393,11 @@ vi.mock("../src/db.js", () => ({
         return { id: "tm-1", status: H.memberStatus };
       },
     },
-    user: { findUnique: async () => ({ currentWorkspaceId: H.currentWorkspaceId }) },
+    user: {
+      findUnique: async () => ({ currentWorkspaceId: H.currentWorkspaceId }),
+      // The timeline names the acting users on a page (PV-AUD-001).
+      findMany: async () => [],
+    },
     team: {
       findUnique: async (a: { where: { id: string } }) =>
         a.where.id === "22222222-2222-4222-8222-222222222222"
@@ -507,7 +511,7 @@ const ELEVATION = { teamId: TEAM, userId: SUBJECT, permission: "identity.member.
 
 const OPS: Op[] = [
   // providers
-  { name: "GET providers", method: "GET", url: `/v1/admin/identity/providers?teamId=${TEAM}`, service: "listSsoConnections", perm: "identity.org_policy.read", gate: "member", ok: 200 },
+  { name: "GET providers", method: "GET", url: `/v1/admin/identity/providers?teamId=${TEAM}`, service: "listSsoConnections", perm: "identity.sso.read", gate: "member", ok: 200 },
   { name: "POST providers", method: "POST", url: "/v1/admin/identity/providers", payload: NEW_PROVIDER, service: "createSsoConnection", perm: "identity.external_mapping.manage", gate: "member", ok: 201 },
   { name: "POST providers/:id/transition", method: "POST", url: `/v1/admin/identity/providers/${CONN}/transition`, payload: { teamId: TEAM, nextStatus: "DISABLED" }, service: "transitionSsoConnection", perm: "identity.external_mapping.manage", gate: "member", ok: 200 },
   // permission + role matrix, elevations
@@ -522,7 +526,7 @@ const OPS: Op[] = [
   { name: "GET sessions", method: "GET", url: `/v1/admin/identity/sessions?teamId=${TEAM}`, service: "listActiveSessions", perm: "identity.org_policy.read", gate: "member", ok: 200 },
   { name: "POST sessions/:id/revoke", method: "POST", url: `/v1/admin/identity/sessions/${SESSION}/revoke`, payload: { teamId: TEAM, reason: "OPERATOR_REVOKED" }, service: "revokeActiveSession", perm: "identity.contributor_session.revoke", gate: "member", ok: 200 },
   { name: "POST sessions/user/:userId/revoke-all", method: "POST", url: `/v1/admin/identity/sessions/user/${SUBJECT}/revoke-all`, payload: { teamId: TEAM, reason: "MEMBER_SUSPENDED" }, service: "revokeAllSessionsForUserAdmin", perm: "identity.contributor_session.revoke", gate: "member", ok: 200 },
-  { name: "GET timeline", method: "GET", url: `/v1/admin/identity/timeline?teamId=${TEAM}`, service: "securityEvent.findMany", perm: "identity.org_policy.read", gate: "member", ok: 200 },
+  { name: "GET timeline", method: "GET", url: `/v1/admin/identity/timeline?teamId=${TEAM}`, service: "securityEvent.findMany", perm: "identity.audit.read", gate: "member", ok: 200 },
   // Phase 3: this route MUTATES — it re-evaluates and rewrites the session's
   // risk score — so it takes a write permission. It previously fell through to
   // the read default, `identity.org_policy.read`, which let a read-only member
@@ -587,7 +591,10 @@ describe("PROOF 1 — authorized happy path delegates to the canonical service",
     expect(res.statusCode).toBe(200);
     const events = json(res)["events"] as Array<Record<string, unknown>>;
     expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({ id: "se-2", kind: "session_revoked", summary: "Session Revoked" });
+    // PV-LANG-001 — the ONE shared label (sentence case, acronyms kept), not
+    // a per-route title-casing of the identifier.
+    expect(events[0]).toMatchObject({ id: "se-2", kind: "session_revoked", label: "Session revoked" });
+    expect(events[0]).not.toHaveProperty("summary");
     // Scoped to the authorized workspace; blank kinds tokens dropped rather
     // than turned into an empty-string filter.
     expect(hits("securityEvent.findMany")[0].args).toMatchObject({

@@ -84,7 +84,7 @@ for (const route of routes) {
     })
     .catch(() => false);
   /* WAIT FOR THE REFETCH, NOT FOR A GUESS.
-     A flat 1100ms lost the race on `/admin/security`, whose severity filter
+     A flat 1100ms lost the race on `/security-center/posture`, whose severity filter
      re-requests the security-event aggregate: the probe measured the section's
      LOADING state, so it saw zero table rows and zero counts and then reported
      the route clean because a page with no rows owes no count. Every
@@ -135,7 +135,7 @@ for (const route of routes) {
        /admin/support-access has TWO independent sections, each with one
        self-describing status select, and was reported as "4 filters with no
        reset" — a page-level reset there would be a control that clears two
-       unrelated lists at once. /admin/identity is four sections the same way.
+       unrelated lists at once. /security-center/identity is four sections the same way.
        The defect is a SINGLE filter row carrying three or more controls with
        no way to clear them, because that is where "show me everything again"
        becomes a hunt through the row. */

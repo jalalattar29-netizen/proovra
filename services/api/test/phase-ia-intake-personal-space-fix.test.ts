@@ -22,6 +22,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { functionSource, routeSource } from "../../../scripts/source-contract/index.mjs";
 
 function readWeb(rel: string): string {
   return readFileSync(
@@ -194,11 +195,9 @@ describe("Phase IA-intake-personal-space-fix — backend works for PERSONAL", ()
     return m![1];
   })();
 
-  /** The window of source that a route registration owns, from its path literal. */
-  function windowAfter(pathLiteral: string, span = 1500): string {
-    const at = ROUTE.indexOf(`"${pathLiteral}"`);
-    expect(at, `${pathLiteral} is not registered`).toBeGreaterThan(-1);
-    return ROUTE.slice(at, at + span);
+  /** The source a route registration owns: the whole registration (WCC-NEW-027). */
+  function routeBlock(method: string, pathLiteral: string): string {
+    return routeSource(ROUTE, method, pathLiteral);
   }
 
   it("authorization composes the canonical primitive keyed by the target teamId (works for personal workspaces)", () => {
@@ -211,8 +210,7 @@ describe("Phase IA-intake-personal-space-fix — backend works for PERSONAL", ()
     expect(ROUTE).toMatch(/authorizeOrFail\(/);
     // The guard passes the caller's target workspace id and the named
     // permission straight through — no second identity is invented.
-    const guardAt = ROUTE.indexOf(`async function ${GUARD}(`);
-    const guardBody = ROUTE.slice(guardAt, guardAt + 500);
+    const guardBody = functionSource(ROUTE, GUARD);
     expect(guardBody).toContain("authorizeOrFail(req, reply, {");
     expect(guardBody).toContain("teamId,");
     expect(guardBody).toContain("permission,");
@@ -224,19 +222,19 @@ describe("Phase IA-intake-personal-space-fix — backend works for PERSONAL", ()
   });
 
   it("POST /v1/workflow/intake-links gates the admin create path on workflow.intake_link.create", () => {
-    // The FIRST registration of the collection path is the create; the list
-    // read registers the same path on GET further down.
-    const create = windowAfter("/v1/workflow/intake-links");
+    // The POST registration of the collection path is the create; the list
+    // read registers the same path on GET.
+    const create = routeBlock("POST", "/v1/workflow/intake-links");
     expect(create).toContain(
       `${GUARD}(req, reply, body.teamId, "workflow.intake_link.create")`,
     );
   });
 
   it("Send / revoke endpoints reuse the same guard with the right capability", () => {
-    expect(windowAfter("/v1/workflow/intake-links/:id/revoke")).toContain(
+    expect(routeBlock("POST", "/v1/workflow/intake-links/:id/revoke")).toContain(
       `${GUARD}(req, reply, existing.teamId, "workflow.intake_link.revoke")`,
     );
-    expect(windowAfter("/v1/workflow/intake-links/:id/send")).toContain(
+    expect(routeBlock("POST", "/v1/workflow/intake-links/:id/send")).toContain(
       `${GUARD}(req, reply, existing.teamId, "workflow.intake_link.create")`,
     );
   });

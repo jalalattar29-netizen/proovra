@@ -190,7 +190,7 @@ const PARTIAL_TWO_CATCHES = `
 
 /**
  * `Promise.all` behind ONE catch. This must still fail — it is the exact
- * shape found on /admin/platform/exports and /admin/platform/automation,
+ * shape found on /admin/platform/exports and /operations/automation,
  * where one source failing discarded the other's answer.
  */
 const PARTIAL_SHARED_CATCH = `
@@ -322,7 +322,7 @@ const DENIAL_DISTINGUISHED = `
 
 /**
  * A failed read substituted with an empty list. This must still fail — it is
- * the exact shape found on /admin/identity/runtime, where a refused
+ * the exact shape found on /security-center/identity/runtime, where a refused
  * live-session read rendered as "No active sessions" during an incident.
  */
 const DENIAL_SWALLOWED_TO_EMPTY = `

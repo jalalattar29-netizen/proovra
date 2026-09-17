@@ -13,6 +13,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
@@ -29,9 +30,9 @@ describe("digest scheduler timezone precedence", () => {
   });
 
   it("queries the account timezone from User.timezone only when no override exists", () => {
-    const at = SRC.indexOf("const accountTz");
-    expect(at).toBeGreaterThan(-1);
-    const window = SRC.slice(at, at + 500);
+    const window = enclosingSource(SRC, "const accountTz", "statement", {
+      fileName: "digest-scheduler.ts",
+    });
     // Ternary short-circuit: explicit schedule timezone skips the user query.
     expect(window).toMatch(/sched\?\.timezone\s*\?\s*null/);
     expect(window).toMatch(/select:\s*\{\s*timezone:\s*true\s*\}/);

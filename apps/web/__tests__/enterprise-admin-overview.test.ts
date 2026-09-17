@@ -24,6 +24,8 @@ import { readFileSync, existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
+
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const OVERVIEW_PAGE = resolve(
@@ -125,13 +127,15 @@ test("Overview renders every required posture section", () => {
 
 const QUICK_ACTIONS: ReadonlyArray<[string, RegExp]> = [
   ["quick-action-invite-members", /\/organizations\/\$\{orgId\}\/admin\/members/],
-  ["quick-action-configure-sso", /\/admin\/identity/],
-  ["quick-action-configure-scim", /\/admin\/identity\/scim/],
+  // PV-PLACE-001 / PV-OD-001 — identity administration moved from
+  // /admin/identity to the workspace's Security Center.
+  ["quick-action-configure-sso", /"\/security-center\/identity"/],
+  ["quick-action-configure-scim", /"\/security-center\/identity\/scim"/],
   ["quick-action-verify-domain", /\/organizations\/\$\{orgId\}\/admin\/domains/],
   ["quick-action-review-audit", /\/organizations\/\$\{orgId\}\/admin\/audit/],
   ["quick-action-configure-mfa", /\/organizations\/\$\{orgId\}\/admin\/security/],
   ["quick-action-manage-retention", /\/organizations\/\$\{orgId\}\/admin\/retention/],
-  ["quick-action-manage-api", /\/admin\/identity/],
+  ["quick-action-manage-api", /"\/security-center\/identity"/],
   ["quick-action-review-access", /\/organizations\/\$\{orgId\}\/admin\/access-reviews/],
   // PHASE 11 URL convergence (2026-07-23) — the `?org=` query param was a
   // dead reference (the `/teams` → `/collaboration-teams` redirect never
@@ -151,12 +155,13 @@ test("Overview wires every required evidence-platform quick action", () => {
 
 test("Every quick action deep-links to an existing admin tab / canonical surface", () => {
   const s = src();
-  // Each quick-action testId prop must be near its expected href in source.
-  // In the QuickAction JSX, `href` immediately follows the `testId` prop.
+  // Each quick-action's href must be a prop of the SAME `<QuickAction … />`
+  // element as its testId — never the neighbouring action's href.
   for (const [testId, hrefPattern] of QUICK_ACTIONS) {
-    const idx = s.indexOf(`testId="${testId}"`);
-    assert.ok(idx >= 0, `${testId} present`);
-    const window = s.slice(idx, idx + 200);
+    const window = enclosingSource(s, `testId="${testId}"`, "jsx", {
+      unique: true,
+      fileName: "page.tsx",
+    });
     assert.match(
       window,
       hrefPattern,

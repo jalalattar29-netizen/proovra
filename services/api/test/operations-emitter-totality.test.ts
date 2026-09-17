@@ -35,6 +35,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
+
 import {
   activeOperationsSourceIds,
   lifecycleForSourceId,
@@ -79,17 +81,30 @@ const PRODUCTION_ROOTS = ["services/api/src", "services/worker/src"];
 const WRITER_CALL = /\b(recordIncident|recordWorkerIncident)\s*\(/;
 
 /**
+ * `code()` with every stripped comment character replaced by a space in
+ * place, so a match offset in the result is the same offset in the raw file
+ * (the raw file is what the parser reads).
+ */
+function blankComments(src: string): string {
+  const blank = (s: string) => s.replace(/[^\n]/g, " ");
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, blank)
+    .replace(/(^|[^:])\/\/[^\n]*/g, (m, lead: string) => lead + blank(m.slice(lead.length)));
+}
+
+/**
  * One production call of a canonical writer.
  *
- * The scan reads the ~1200 characters after the call opens, which comfortably
- * covers every literal in the tree and stops well before the next one.
+ * The scan reads the call expression itself — its own arguments, found by the
+ * parser — so the id it records cannot come from the code that follows it.
  */
 type EmitterCall = { module: string; sourceId: string | null };
 
 function collectEmitterCalls(): EmitterCall[] {
   const out: EmitterCall[] = [];
   for (const rel of tracked(...PRODUCTION_ROOTS)) {
-    const src = code(rel);
+    const raw = read(rel);
+    const src = blankComments(raw);
     if (!WRITER_CALL.test(src)) continue;
     // The writer's own definition and its re-exports are not calls.
     if (rel.endsWith("observability/incident.service.ts")) continue;
@@ -98,8 +113,15 @@ function collectEmitterCalls(): EmitterCall[] {
     const re = /\b(?:recordIncident|recordWorkerIncident)\s*\(/g;
     let m: RegExpExecArray | null;
     while ((m = re.exec(src)) !== null) {
-      const window = src.slice(m.index, m.index + 1200);
-      // THE FIRST `sourceId` IN THE WINDOW IS THE CALL'S OWN.
+      // Which raw occurrence of this text the match is (offsets are shared).
+      let occurrence = 0;
+      for (let p = raw.indexOf(m[0]); p >= 0 && p < m.index; p = raw.indexOf(m[0], p + 1)) {
+        occurrence += 1;
+      }
+      const window = blankComments(
+        enclosingSource(raw, m[0], "call", { occurrence, fileName: rel }),
+      );
+      // THE FIRST `sourceId` IN THE CALL IS THE CALL'S OWN.
       //
       // Deliberately not "does the window contain a `sourceId:` literal
       // anywhere": `security-event.service.ts` passes the shorthand

@@ -129,8 +129,8 @@ test("the two denial panels tell the reader what to DO, and the two cases apart"
   // distinguish an expired session from a missing grant sends half its readers
   // to the wrong remedy.
   for (const [rel, subject] of [
-    ["app/(app)/admin/platform/analytics/page.tsx", "operational analytics"],
-    ["app/(app)/admin/platform/automation/page.tsx", "automation rules"],
+    ["app/(app)/operations/analytics/page.tsx", "operational analytics"],
+    ["app/(app)/operations/automation/page.tsx", "automation rules"],
   ]) {
     const src = readFileSync(resolve(HERE, "..", rel), "utf8");
     assert.match(

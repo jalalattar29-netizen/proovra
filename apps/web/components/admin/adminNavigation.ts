@@ -2,7 +2,7 @@
  * THE Admin control-plane navigation registry.
  *
  * ===========================================================================
- * ONE REGISTRY, FIVE CONSUMERS
+ * ONE REGISTRY, FOUR CONSUMERS
  * ===========================================================================
  * The navigation, the breadcrumb trail, the active-state resolver and the
  * route-governance tests all read THIS file. The previous list was flat and
@@ -237,98 +237,11 @@ export const ADMIN_NAV_SECTIONS: ReadonlyArray<AdminNavSection> = [
     ],
   },
   {
-    id: "identity",
-    label: "Identity & access",
-    purpose:
-      "How do people authenticate into this workspace, and what may they do?",
-    href: "/admin/identity",
-    /*
-     * Every one of these is WORKSPACE-scoped and administers the operator's
-     * OWN workspace — which is why they are their own section rather than
-     * sitting under a platform heading that would imply otherwise.
-     */
-    children: [
-      {
-        routeId: "admin.identity",
-        href: "/admin/identity",
-        label: "Identity operations",
-        purpose:
-          "Providers, SCIM, sessions and the permission matrix — for ONE workspace.",
-        scope: "WORKSPACE",
-      },
-      // ---------------------------------------------------------------------
-      // The seven identity children.
-      //
-      // They rendered, they were gated, and they appeared in no navigation
-      // surface — reachable only by typing the URL, or by finding the one link
-      // on the hub. A page nobody can find is a page nobody maintains.
-      //
-      // Every one of them is WORKSPACE scope, and that is not a formality: the
-      // handler behind each is `requireIdentityAdmin`, which demands ACTIVE
-      // membership of the supplied workspace and narrows the query to it. A
-      // platform admin opening "Providers" sees their OWN workspace's SSO
-      // configuration. The scope field is what makes the console say so.
-      // ---------------------------------------------------------------------
-      {
-        routeId: "admin.identity_providers",
-        href: "/admin/identity/providers",
-        label: "Identity providers",
-        purpose: "SAML and OIDC configuration and health, for ONE workspace.",
-        scope: "WORKSPACE",
-      },
-      {
-        routeId: "admin.identity_scim",
-        href: "/admin/identity/scim",
-        label: "SCIM operations",
-        purpose:
-          "Provisioning drift and reconciliation runs, for ONE workspace.",
-        scope: "WORKSPACE",
-      },
-      {
-        routeId: "admin.identity_sessions",
-        href: "/admin/identity/sessions",
-        label: "Sessions & devices",
-        purpose: "Active sessions and devices for ONE workspace's members.",
-        scope: "WORKSPACE",
-      },
-      {
-        routeId: "admin.identity_permission_matrix",
-        href: "/admin/identity/permission-matrix",
-        label: "Permission matrix",
-        purpose:
-          "Role-to-permission resolution as the runtime computes it, for ONE workspace.",
-        scope: "WORKSPACE",
-      },
-      {
-        routeId: "admin.identity_access_reviews",
-        href: "/admin/identity/access-reviews",
-        label: "Access reviews",
-        purpose:
-          "Periodic access-review campaigns and outcomes, for ONE workspace.",
-        scope: "WORKSPACE",
-      },
-      {
-        routeId: "admin.identity_runtime",
-        href: "/admin/identity/runtime",
-        label: "Identity runtime",
-        purpose: "Live session, factor and risk signals for ONE workspace.",
-        scope: "WORKSPACE",
-      },
-      {
-        routeId: "admin.identity_timeline",
-        href: "/admin/identity/timeline",
-        label: "Identity audit",
-        purpose: "The bounded identity audit trail for ONE workspace.",
-        scope: "WORKSPACE",
-      },
-    ],
-  },
-  {
     id: "security",
     label: "Security & support",
     purpose:
       "Who did what, what was refused, and who is inside a customer right now?",
-    href: "/admin/security",
+    href: "/admin/audit",
     /*
      * The investigation surfaces, together. Audit and Search sat in their own
      * two-entry section, Support access sat under Accounts, and the Timeline
@@ -336,16 +249,6 @@ export const ADMIN_NAV_SECTIONS: ReadonlyArray<AdminNavSection> = [
      * one story.
      */
     children: [
-      {
-        routeId: "platform.security",
-        href: "/admin/security",
-        label: "Security",
-        // Corrected. The page's own header calls it "Workspace security
-        // posture" and it reads /v1/security/* and /v1/identity/mfa-admin/*
-        // for ONE teamId. "Across every tenant" was the claim, not the code.
-        purpose: "Security posture and MFA lifecycle, for ONE workspace.",
-        scope: "WORKSPACE",
-      },
       {
         routeId: "platform.audit",
         href: "/admin/audit",
@@ -432,32 +335,11 @@ export const ADMIN_NAV_SECTIONS: ReadonlyArray<AdminNavSection> = [
         scope: "PLATFORM",
       },
       {
-        routeId: "platform.reliability",
-        href: "/admin/platform/reliability",
-        label: "Reliability",
-        purpose: "Reliability posture and reconciliation.",
-        scope: "WORKSPACE",
-      },
-      {
         routeId: "platform.queue_ops",
         href: "/admin/platform/queues",
         label: "Queues",
         purpose: "Queue depth, failed jobs and replay.",
         scope: "PLATFORM_AUDIT",
-      },
-      {
-        routeId: "platform.automation",
-        href: "/admin/platform/automation",
-        label: "Automation",
-        purpose: "Automation rules and their runs.",
-        scope: "WORKSPACE",
-      },
-      {
-        routeId: "platform.analytics",
-        href: "/admin/platform/analytics",
-        label: "Analytics ops",
-        purpose: "Analytics pipeline state.",
-        scope: "WORKSPACE",
       },
       {
         routeId: "platform.operations",
@@ -584,7 +466,11 @@ export const ADMIN_CONTEXTUAL_ROUTES: ReadonlyArray<{
   },
   {
     prefix: "/admin/users/",
-    sectionId: "identity",
+    // People (`/admin/users`) lives in the customers section. This named the
+    // identity section, which held no /admin/users list at all; it passed only
+    // because an identity section existed. That section moved to the
+    // workspace's Security Center (PV-PLACE-001).
+    sectionId: "customers",
     parentHref: "/admin/users",
     parentLabel: "People",
     label: "Account",

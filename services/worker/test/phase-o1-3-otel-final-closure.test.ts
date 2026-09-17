@@ -28,6 +28,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { functionSource } from "../../../scripts/source-contract/index.mjs";
+
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
 function read(rel: string): string {
@@ -304,22 +306,16 @@ describe("O1.3 — enqueue paths inject OTEL context", () => {
    * the active trace context, and the enqueue authority puts it on the wire.
    */
   it("the report producer reaches the enqueue authority with a trace context", () => {
-    const start = queueSrc.indexOf(
-      "export async function enqueueReportGenerationRequest",
-    );
-    expect(start).toBeGreaterThan(-1);
     // The producer delegates; the traceparent is supplied by the one
     // `enqueueWork` helper every producer in this file routes through.
-    expect(queueSrc.slice(start, start + 1200)).toMatch(/enqueueWork\(/);
+    expect(functionSource(queueSrc, "enqueueReportGenerationRequest")).toMatch(
+      /enqueueWork\(/,
+    );
     expect(queueSrc).toMatch(/traceparent: currentTraceparent\(\)/);
   });
 
   it("the OTS producer reaches the enqueue authority with a trace context", () => {
-    const start = queueSrc.indexOf(
-      "export async function enqueueOtsUpgradeJob",
-    );
-    expect(start).toBeGreaterThan(-1);
-    const tail = queueSrc.slice(start, start + 1600);
+    const tail = functionSource(queueSrc, "enqueueOtsUpgradeJob");
     expect(tail).toMatch(/enqueueCanonicalJob\(/);
     expect(tail).toMatch(/traceparent: currentTraceparent\(\)/);
   });

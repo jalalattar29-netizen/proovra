@@ -34,6 +34,7 @@ import {
   type ServiceAccountFailureReason,
 } from "../services/integrations/api-key-usage.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
+import { markBoundedOutcome } from "../http/bounded-outcome.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import { isIpAddressAllowed, type Permission } from "@proovra/shared";
 
@@ -81,6 +82,11 @@ export async function requireApiKey(
 ): Promise<boolean> {
   const disabledReason = integrationsFeatureDisabledReason();
   if (disabledReason) {
+    markBoundedOutcome(req, {
+      code: "INTEGRATIONS_DISABLED",
+      reportability: disabledReason === "secret_missing" ? "OPERATIONAL_WARNING" : "EXPECTED_DENIAL",
+      severity: "warning",
+    });
     reply.code(503).send({
       error: { code: "INTEGRATIONS_DISABLED", reason: disabledReason },
     });

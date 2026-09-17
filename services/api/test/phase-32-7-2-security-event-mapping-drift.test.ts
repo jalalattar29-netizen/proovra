@@ -42,6 +42,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { enclosingSource, functionSource } from "../../../scripts/source-contract/index.mjs";
 
 function readSchema(): string {
   return readFileSync(
@@ -149,9 +150,10 @@ describe("Phase 32.7.2 — emitSecurityEvent folds removed FKs into metadataJson
   });
 
   it("the prisma `securityEvent.create({ data })` no longer references the removed columns", () => {
-    const createIdx = SRC.indexOf("client.securityEvent.create");
-    expect(createIdx).toBeGreaterThan(-1);
-    const createBlock = SRC.slice(createIdx, createIdx + 1500);
+    const createBlock = enclosingSource(SRC, "client.securityEvent.create", "call", {
+      unique: true,
+      fileName: "security-event.service.ts",
+    });
     expect(createBlock).not.toMatch(/evidenceId:\s*input\.evidenceId/);
     expect(createBlock).not.toMatch(/apiCredentialId:\s*input\.apiCredentialId/);
     expect(createBlock).not.toMatch(/webhookEndpointId:\s*input\.webhookEndpointId/);
@@ -185,11 +187,9 @@ describe("Phase 32.7.2 — emitSecurityEvent folds removed FKs into metadataJson
 describe("Phase 32.7.2 — projectSecurityEvent round-trips FK fields from JSON", () => {
   const SRC = readApi("src/services/security/security-event.service.ts");
   // Phase 5 hardening added a sibling `projectSecurityEventDetails`
-  // helper above this function. Anchor on `(row` so we slice the
-  // single-row projection, NOT the allow-list helper.
-  const fnIdx = SRC.indexOf("export function projectSecurityEvent(row");
-  expect(fnIdx).toBeGreaterThan(-1);
-  const fn = SRC.slice(fnIdx, fnIdx + 2000);
+  // helper above this function; the lookup is by exact name, so this is
+  // the single-row projection, NOT the allow-list helper.
+  const fn = functionSource(SRC, "projectSecurityEvent");
 
   it("public projection shape still exposes evidenceId / apiCredentialId / webhookEndpointId", () => {
     expect(fn).toMatch(/evidenceId:\s*string\s*\|\s*null/);

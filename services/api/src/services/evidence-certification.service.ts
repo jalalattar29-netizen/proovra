@@ -161,11 +161,37 @@ export async function listEvidenceCertifications(
   return items.map(serializeCertification);
 }
 
+/** The longest declaration statement a request may carry. */
+export const CERTIFICATION_STATEMENT_MAX_LENGTH = 10_000;
+
+function certificationRefusal({ statusCode, code, message }: { statusCode: number; code: string; message: string }) {
+  const error = new Error(message) as Error & { statusCode?: number; code?: string };
+  error.statusCode = statusCode;
+  error.code = code;
+  return error;
+}
+
+/**
+ * OWNER DECISION (2026-09-17, D38): the person requesting a declaration writes
+ * the statement. It is stored on the request, shown to the signer read-only,
+ * and is the only text a signature can attach to. Proovra authors no legal
+ * wording.
+ */
 export async function requestEvidenceCertification(params: {
   evidenceId: string;
   declarationType: PrismaCertificationType;
   requestedByUserId: string;
+  statementMarkdown: string;
 }): Promise<SerializedEvidenceCertification> {
+  const statementMarkdown = normalizeOptionalText(params.statementMarkdown);
+  if (!statementMarkdown) {
+    throw certificationRefusal({
+      statusCode: 400,
+      code: "CERTIFICATION_STATEMENT_MISSING",
+      message: "A declaration request needs the statement the signer will sign",
+    });
+  }
+
   const latest = await getLatestEvidenceCertification(
     params.evidenceId,
     params.declarationType
@@ -194,6 +220,7 @@ export async function requestEvidenceCertification(params: {
       version,
       requestedByUserId: params.requestedByUserId,
       requestedAtUtc,
+      statementMarkdown,
     },
   });
 
@@ -233,6 +260,35 @@ export async function attestEvidenceCertification(params: {
     throw error;
   }
 
+  // D35 — a signed declaration is final for its version. Attesting it again
+  // replaced the signer, statement and hash of a record already relied on
+  // (the report renders it). A new signature needs a new request.
+  if (latest.status === PrismaCertificationStatus.ATTESTED) {
+    throw certificationRefusal({
+      statusCode: 409,
+      code: "CERTIFICATION_ALREADY_ATTESTED",
+      message: "Certification is already signed; request a new version to sign again",
+    });
+  }
+
+  // D38 — the signature attaches to the statement the requester recorded.
+  // The signer's copy confirms what they read; it never replaces it.
+  const storedStatement = latest.statementMarkdown;
+  if (!storedStatement) {
+    throw certificationRefusal({
+      statusCode: 409,
+      code: "CERTIFICATION_STATEMENT_MISSING",
+      message: "This request carries no statement to sign",
+    });
+  }
+  if (normalizeOptionalText(params.statementMarkdown) !== storedStatement) {
+    throw certificationRefusal({
+      statusCode: 409,
+      code: "CERTIFICATION_STATEMENT_CHANGED",
+      message: "The statement shown to the signer is not the statement recorded on the request",
+    });
+  }
+
   const attestorName = normalizeOptionalText(params.attestorName, 160);
   const attestorTitle = normalizeOptionalText(params.attestorTitle, 160);
   const attestorEmail = normalizeOptionalText(params.attestorEmail, 320);
@@ -240,7 +296,7 @@ export async function attestEvidenceCertification(params: {
     params.attestorOrganization,
     180
   );
-  const statementMarkdown = normalizeOptionalText(params.statementMarkdown);
+  const statementMarkdown = storedStatement;
   const signatureText = normalizeOptionalText(params.signatureText, 512);
   const statementSnapshot =
     params.statementSnapshot === undefined
@@ -262,22 +318,40 @@ export async function attestEvidenceCertification(params: {
     signatureText,
   });
 
-  const updated = await prisma.evidenceCertification.update({
-    where: { id: latest.id },
-    data: {
-      status: PrismaCertificationStatus.ATTESTED,
-      attestedByUserId: params.attestedByUserId,
-      attestedAtUtc: new Date(),
-      attestorName,
-      attestorTitle,
-      attestorEmail,
-      attestorOrganization,
-      statementMarkdown,
-      statementSnapshot,
-      signatureText,
-      certificationHash,
-    },
-  });
+  // The status filter makes the transition atomic: of two concurrent
+  // signers, the second finds no signable row (P2025) and is refused.
+  const updated = await prisma.evidenceCertification
+    .update({
+      where: {
+        id: latest.id,
+        status: {
+          in: [PrismaCertificationStatus.DRAFT, PrismaCertificationStatus.REQUESTED],
+        },
+      },
+      data: {
+        status: PrismaCertificationStatus.ATTESTED,
+        attestedByUserId: params.attestedByUserId,
+        attestedAtUtc: new Date(),
+        attestorName,
+        attestorTitle,
+        attestorEmail,
+        attestorOrganization,
+        statementMarkdown,
+        statementSnapshot,
+        signatureText,
+        certificationHash,
+      },
+    })
+    .catch((err: unknown) => {
+      if ((err as { code?: string })?.code === "P2025") {
+        throw certificationRefusal({
+          statusCode: 409,
+          code: "CERTIFICATION_ALREADY_ATTESTED",
+          message: "Certification is no longer awaiting a signature",
+        });
+      }
+      throw err;
+    });
 
   return serializeCertification(updated);
 }

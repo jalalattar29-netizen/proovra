@@ -35,7 +35,9 @@ import type { Permission } from "@proovra/shared";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import {
+  AUTOMATION_ACTION_CATALOG,
   AUTOMATION_ACTION_TYPES,
+  AUTOMATION_TRIGGER_CATALOG,
   AUTOMATION_TRIGGER_TYPES,
   CreateAutomationRuleInput,
   UpdateAutomationRuleInput,
@@ -232,6 +234,18 @@ export async function automationRoutes(
         allowlist: {
           triggerTypes: AUTOMATION_TRIGGER_TYPES,
           actionTypes: AUTOMATION_ACTION_TYPES,
+        },
+        // PV-ALLOW-001 — what each allowlisted value means, so the console
+        // can name a trigger or action in words instead of its identifier.
+        catalog: {
+          triggers: AUTOMATION_TRIGGER_TYPES.map((value) => ({
+            value,
+            ...AUTOMATION_TRIGGER_CATALOG[value],
+          })),
+          actions: AUTOMATION_ACTION_TYPES.map((value) => ({
+            value,
+            ...AUTOMATION_ACTION_CATALOG[value],
+          })),
         },
       });
     },

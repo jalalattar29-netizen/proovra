@@ -36,6 +36,7 @@ import {
 import { ApiError } from "../../../lib/api";
 // PHASE 7 §10.7/§10.G — tenant-aware lifecycle fetch (re-scope on switch).
 import { usePlatformContext } from "../../../lib/platform-context";
+import { delegatedTierLabel } from "../../../lib/labels/governanceReviewLabels";
 
 // ---------------------------------------------------------------------------
 // 1. Denial / error → resolved UI state
@@ -49,6 +50,7 @@ export interface LifecycleDenial {
     | "FORBIDDEN"
     | "AUTHENTICATION_REQUIRED"
     | "VALIDATION_FAILED"
+    | "ACTION_REFUSED"
     | "UNKNOWN_ERROR";
   /** Human-readable title for the banner. */
   title: string;
@@ -83,6 +85,35 @@ function extractDenialDetails(
         ? (details.requiredEntitlement as string)
         : undefined;
   return { denial, tier, feature };
+}
+
+/**
+ * D63 — the destruction queue's bounded refusals. A 404/409 here is a decision
+ * about one request, not a broken section, so it gets its own words.
+ */
+const ACTION_REFUSAL_COPY: Readonly<Record<string, { title: string; detail: string }>> = {
+  DESTRUCTION_REQUEST_NOT_FOUND: {
+    title: "That destruction request no longer exists",
+    detail: "Reload the queue; the request may have been removed or belongs to another workspace.",
+  },
+  DESTRUCTION_REQUEST_NOT_APPROVED: {
+    title: "Not approved yet",
+    detail: "Every required approver must approve the request before it can be executed.",
+  },
+  DESTRUCTION_BLOCKED_BY_LEGAL_HOLD: {
+    title: "Blocked by a legal hold",
+    detail: "A legal hold now covers a record in this request, so nothing was destroyed. The request is marked failed.",
+  },
+  DESTRUCTION_REQUEST_NOT_EXECUTED: {
+    title: "Not executed yet",
+    detail: "A certificate is issued only after the request has been executed.",
+  },
+};
+
+function actionRefusal(status: number | undefined, denial: string | null): LifecycleDenial | null {
+  if ((status !== 404 && status !== 409) || !denial) return null;
+  const copy = ACTION_REFUSAL_COPY[denial];
+  return copy ? { denial: "ACTION_REFUSED", ...copy } : null;
 }
 
 /**
@@ -132,6 +163,8 @@ export function resolveLifecycleError(err: unknown): LifecycleDenial | null {
           "This lifecycle section is not enabled here, or your role doesn't have permission.",
       };
     }
+    const refusedApi = actionRefusal(err.statusCode, denial);
+    if (refusedApi) return refusedApi;
     if (err.statusCode === 422 || err.statusCode === 400) {
       return {
         denial: "VALIDATION_FAILED",
@@ -186,6 +219,8 @@ export function resolveLifecycleError(err: unknown): LifecycleDenial | null {
     if (e.statusCode === 403) {
       return { denial: "FORBIDDEN", title: "Not available for this workspace" };
     }
+    const refusedLoose = actionRefusal(e.statusCode, denial);
+    if (refusedLoose) return refusedLoose;
   }
 
   // String / undefined / arbitrary throws.
@@ -209,8 +244,30 @@ const DENIAL_PALETTE: Record<
   FORBIDDEN: { bg: "#fef3c7", border: "#fcd34d", text: "#78350f" },
   AUTHENTICATION_REQUIRED: { bg: "#eff6ff", border: "#bfdbfe", text: "#1e3a8a" },
   VALIDATION_FAILED: { bg: "#fef2f2", border: "#fecaca", text: "#7f1d1d" },
+  // A decision about one request (D63), toned like the other refusals.
+  ACTION_REFUSED: { bg: "#fef3c7", border: "#fcd34d", text: "#78350f" },
   UNKNOWN_ERROR: { bg: "#fef2f2", border: "#fecaca", text: "#7f1d1d" },
 };
+
+/**
+ * PV-STATE-001 — WHO can grant access, said in product language.
+ *
+ * The lifecycle pages printed the raw tier constant ("Permission required:
+ * DELEGATED_ADMIN"). A reader cannot act on a constant; they can act on "ask a
+ * compliance officer". The tier map lives in lib/labels/governanceReviewLabels
+ * so the exchange / packaging / policy pages outside this segment say the same
+ * words; it is re-exported here for the lifecycle pages.
+ */
+export { delegatedTierLabel };
+
+/** An entitlement key rendered as words ("FEATURE_LEGAL_HOLD" -> "legal hold"). */
+export function entitlementLabel(key: string): string {
+  return key
+    .replace(/^FEATURE_/i, "")
+    .replace(/[_.]+/g, " ")
+    .trim()
+    .toLowerCase();
+}
 
 export function DenialBanner({ denial }: { denial: LifecycleDenial }) {
   const palette = DENIAL_PALETTE[denial.denial];
@@ -232,13 +289,13 @@ export function DenialBanner({ denial }: { denial: LifecycleDenial }) {
       <strong style={{ display: "block", marginBottom: 2 }}>{denial.title}</strong>
       {denial.detail ? <div style={{ fontSize: 12 }}>{denial.detail}</div> : null}
       {denial.requiredTier ? (
-        <div style={{ fontSize: 11, marginTop: 4 }}>
-          Required tier: <code>{denial.requiredTier}</code>
+        <div style={{ fontSize: 12, marginTop: 4 }} data-required-tier={denial.requiredTier}>
+          Ask {delegatedTierLabel(denial.requiredTier)} to grant you access.
         </div>
       ) : null}
       {denial.missingFeature ? (
-        <div style={{ fontSize: 11, marginTop: 4 }}>
-          Missing entitlement: <code>{denial.missingFeature}</code>
+        <div style={{ fontSize: 12, marginTop: 4 }} data-missing-entitlement={denial.missingFeature}>
+          This workspace&apos;s plan does not include {entitlementLabel(denial.missingFeature)}.
         </div>
       ) : null}
     </div>

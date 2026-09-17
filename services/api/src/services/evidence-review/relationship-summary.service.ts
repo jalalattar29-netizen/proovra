@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../../db.js";
+import { inputRefusal } from "../../errors.js";
 
 const evidenceRelationshipSelect = {
   id: true,
@@ -135,7 +136,15 @@ export async function createEvidenceRelationship(params: {
   teamId?: string | null;
 }) {
   if (params.sourceEvidenceId === params.targetEvidenceId) {
-    throw new Error("Evidence relationship source and target must differ");
+    // PV-DEFECT-001 — a rejected INPUT, answered as one. This was a bare
+    // Error, which the central handler can only read as a crash: 500, a
+    // Sentry capture and a critical page for an operator's typo. Checked
+    // before any write, so nothing is created.
+    throw inputRefusal({
+      code: "EVIDENCE_RELATIONSHIP_SELF_LINK",
+      message: "A record can't be linked to itself. Enter a different evidence record ID.",
+      developerMessage: "Evidence relationship source and target must differ",
+    });
   }
 
   const relationship = await prisma.evidenceRelationship.create({

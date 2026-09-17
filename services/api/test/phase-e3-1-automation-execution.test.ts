@@ -16,6 +16,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { functionSource } from "../../../scripts/source-contract/index.mjs";
 
 import {
   evaluateCondition,
@@ -55,7 +56,7 @@ const PROCESSOR = readApi(
   "src/services/automation/automation-dispatch-runtime.service.ts",
 );
 const TRIGGERS = readApi("src/services/automation/automation-triggers.ts");
-const PAGE = readWeb("app/(app)/admin/platform/automation/page.tsx");
+const PAGE = readWeb("app/(app)/operations/automation/page.tsx");
 
 // ===========================================================================
 // PART 1 — Pure condition evaluator (no eval / vm / Function)
@@ -271,9 +272,7 @@ describe("E3.1 Test 2 — dispatcher source contains no scripting / no fetch", (
     // zero rows. The old in-request executor could not even express this — it
     // had no generation, and it called `automationRun.update({where:{id}})`
     // directly, which overwrites whatever is there.
-    const idx = PROCESSOR.indexOf("async function fencedUpdate");
-    expect(idx).toBeGreaterThan(-1);
-    const body = PROCESSOR.slice(idx, idx + 900);
+    const body = functionSource(PROCESSOR, "fencedUpdate");
     expect(body).toMatch(/status:\s*"RUNNING"/);
     expect(body).toMatch(/claimGeneration:\s*generation/);
     expect(body).toMatch(/res\.count === 1/);
@@ -489,8 +488,9 @@ describe("E3.1 Test 4 — UI execution-active notice replaces foundation-only no
     expect(PAGE).not.toMatch(/socket\.io/);
   });
 
-  it("page still gated by PageRouteGate routeId='platform.automation'", () => {
-    expect(PAGE).toMatch(/PageRouteGate\s+routeId="platform\.automation"/);
+  // PV-PLACE-001 — the page moved to /operations/automation under a tenant id.
+  it("page still gated by PageRouteGate routeId='operations.automation'", () => {
+    expect(PAGE).toMatch(/PageRouteGate\s+routeId="operations\.automation"/);
   });
 });
 

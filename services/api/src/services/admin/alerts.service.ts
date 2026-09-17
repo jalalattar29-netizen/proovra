@@ -219,7 +219,10 @@ export async function buildPlatformAlerts(): Promise<AlertsResult> {
         title: `Security event: ${s.eventType}`,
         organizationId: null,
         createdAt: s.createdAt.toISOString(),
-        href: "/admin/security",
+        // PV-PLACE-001 — /admin/security was ONE workspace's security page and
+        // has moved to that workspace's Security Center. A platform alert
+        // opens the platform's own security-event feed.
+        href: "/admin/operations",
         incidentId: null,
         incidentBacked: false,
       });
@@ -245,7 +248,8 @@ export async function buildPlatformAlerts(): Promise<AlertsResult> {
           title: `${q.label}: ${q.counts.failed} failed job${q.counts.failed === 1 ? "" : "s"}`,
           organizationId: null,
           createdAt: new Date(now).toISOString(),
-          href: "/admin/security",
+          // The queue triage surface, where failed jobs can be seen and replayed.
+          href: "/admin/platform/queues",
           incidentId: null,
           incidentBacked: false,
         });
@@ -256,7 +260,7 @@ export async function buildPlatformAlerts(): Promise<AlertsResult> {
           title: `${q.label}: queue unreachable`,
           organizationId: null,
           createdAt: new Date(now).toISOString(),
-          href: "/admin/security",
+          href: "/admin/platform/queues",
           incidentId: null,
           incidentBacked: false,
         });

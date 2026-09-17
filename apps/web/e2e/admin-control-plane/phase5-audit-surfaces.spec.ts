@@ -29,11 +29,19 @@ const WEB = process.env.PROOVRA_FIXTURE_WEB_BASE ?? "http://localhost:3325";
 const PASSWORD = "fixture-local-only-password";
 const PLATFORM_ADMIN = "platform-admin@fixture.local";
 
+/*
+ * PV-PLACE-001 / PV-OD-001 — two of the four moved out of /admin: the
+ * workspace security posture (was /admin/security) and the identity timeline
+ * (was /admin/identity/timeline). They still say who did what, so they are
+ * still checked here, at their tenant homes. The fixture Platform Admin's
+ * active workspace is the organization it administers, so these are the same
+ * pages reading the same workspace as before.
+ */
 const SURFACES = [
   { path: "/admin/audit", name: "Admin audit" },
-  { path: "/admin/security", name: "Security" },
+  { path: "/security-center/posture", name: "Security" },
   { path: "/admin/timeline", name: "Platform timeline" },
-  { path: "/admin/identity/timeline", name: "Identity timeline" },
+  { path: "/security-center/identity/timeline", name: "Identity timeline" },
 ] as const;
 
 /**

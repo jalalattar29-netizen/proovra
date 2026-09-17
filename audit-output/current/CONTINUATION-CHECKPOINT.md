@@ -37,8 +37,8 @@ tree nobody is still editing.
 
 ```
 ROUTES / TENANCY
-ProductionRegisteredRoutes                  1153
-RegisteredRoutes                            1154
+ProductionRegisteredRoutes                  1154
+RegisteredRoutes                            1155
 TenantBindingUnresolved                        0
 TenantUnboundInsertRoutes                      0
 OrganizationAuthorizationUnresolved            0
@@ -48,12 +48,12 @@ ClassificationConflicts                        0
 AuthorizationUnresolved                        0
 
 MUTATION CLOSURE (eleven disjoint buckets, identity asserted)
-TerminalWriters                             1277
-ROUTE_ATTRIBUTED_REACHABLE                  1147
+TerminalWriters                             1251
+ROUTE_ATTRIBUTED_REACHABLE                  1120
 JOB_ATTRIBUTED_REACHABLE                     113
 MODULE_SCOPED_REACHABLE                        0
 REGISTERED_CLI                                 3
-STARTUP_OR_SCHEDULED                          13
+STARTUP_OR_SCHEDULED                          14
 MIGRATION_ONLY                                 0
 TEST_OR_BUILD_ONLY                             0
 PRESERVED_PLANNED_WRITER                       0
@@ -74,8 +74,8 @@ UnprocessedQueueFamilies                       0
 MutationClosurePass                         true
 
 PRODUCT (route disposition, from the generated map)
-ProductConsumedRoutes                        900
-NonProductDispositionedRoutes                253
+ProductConsumedRoutes                        953
+NonProductDispositionedRoutes                201
 MissingProductUiReleaseRequired                0
 ConservationIdentityHolds                   true
 
@@ -132,6 +132,25 @@ token-in-URL path, so the safer door has no caller yet.
 
 Result: UndisposedRoutes 0, DEAD_UNREACHABLE 0, ClassificationConflicts 0,
 MutationClosurePass true, AuditEngineIntegrity PASS.
+
+### 2026-09-17 — TWENTY-THREE MORE DEAD WRITERS, DELETED
+
+The admin/enterprise closure retired routes to typed 410s by owner decision
+(`services/api/test/retired-routes-2026-09-16.test.ts`), and regenerating the
+facts showed 23 writers left with no entrypoint. None was re-declared as
+preserved; each was deleted with the service function that held it:
+`openAccessReview`, `decideAccessReviewItem`, `completeAccessReview` and
+`revokeGuest` (group access reviews and guests); `grantContributorAccess` and
+`revokeContributorAccess` (thread contributors); `markPackageReady`;
+`updateMfaPolicy` (superseded by `updateMfaPolicyVersioned`);
+`enqueueIntelligenceJob`; the similarity detectors behind
+`reconcileSimilaritiesForEvidence`; `markArticleNeedsReview`; the three
+workspace workflow-template writers; and `createWorkflowInstance`,
+`transitionInstance`, `assignReviewer` and `mapEvidenceToStep` in the
+workflow engine. The workspace-level `completeAccessReview` in
+`identity/access-review.service.ts` is a different, live function and stays.
+
+Result: DEAD_UNREACHABLE 0, UnwiredExecutableWriters 0, MutationClosurePass true.
 
 `ReleaseBlockingClosure` is DERIVED from two inputs — open actionable findings
 and undisposed routes. Both are zero, so it prints PASS. That is a statement

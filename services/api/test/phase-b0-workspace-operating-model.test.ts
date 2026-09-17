@@ -177,8 +177,11 @@ describe("Phase B0 — organization governance write surfaces", () => {
     expect(ORG_AUDIT_SERVICE).toContain('"ORG_POLICY_RETENTION_PUBLISHED"');
   });
 
-  it("billing rollup is gated at ORG_BILLING_ADMIN minimum", () => {
-    expect(GOV_ROUTES).toContain('minRole: "ORG_BILLING_ADMIN"');
+  it("billing rollup is gated on the explicit billing role set, not a precedence minimum (WCC-NEW-006)", () => {
+    // `minRole: "ORG_BILLING_ADMIN"` admitted ORG_SECURITY_ADMIN, which shares
+    // the billing admin's precedence rank.
+    expect(GOV_ROUTES).toContain("roles: ORG_BILLING_ROLES");
+    expect(GOV_ROUTES).not.toContain('minRole: "ORG_BILLING_ADMIN"');
   });
 
   it("billing rollup returns counts only — no card tokens, no Stripe ids", () => {
@@ -188,12 +191,19 @@ describe("Phase B0 — organization governance write surfaces", () => {
       'app.get(\n    "/v1/orgs/:id/billing/rollup"',
     );
     expect(registerIdx).toBeGreaterThan(0);
-    // PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — the window grew
-    // with the handler (it now resolves the org contract once before the
-    // rollup loop). Widening it makes the `not.toMatch` below scan MORE
-    // source, so the payment-instrument guard is strictly stronger, not
-    // weaker; only the `toContain` needed the extra room.
-    const handlerSlice = GOV_ROUTES.slice(registerIdx, registerIdx + 4_500);
+    // The slice is the WHOLE handler — from its registration to the next
+    // one — rather than a fixed character budget. A fixed window broke each
+    // time the handler grew (2026-09-07, then again when WCC-NEW-006
+    // documented its role gate): the `toContain` fell off the end while the
+    // `not.toMatch` payment-instrument guard silently scanned LESS than the
+    // handler. Bounded by the next registration, both are exact.
+    const nextReg = GOV_ROUTES.slice(registerIdx + 1).search(
+      /\n {2}app\.(get|post|put|patch|delete)\(/,
+    );
+    const handlerSlice = GOV_ROUTES.slice(
+      registerIdx,
+      nextReg >= 0 ? registerIdx + 1 + nextReg : undefined,
+    );
     expect(handlerSlice).not.toMatch(
       /stripeSubscriptionId|stripeCustomerId|cardLast4/,
     );
@@ -201,13 +211,17 @@ describe("Phase B0 — organization governance write surfaces", () => {
     expect(handlerSlice).toContain("planCounts");
   });
 
-  it("write endpoints emit anti-enumeration 404 — never 403 — on access denial", () => {
-    // `requireOrgAdmin` and `requireOrgMember` both return `code: 404`
-    // for any non-OK outcome (not_found / forbidden) so org existence
-    // is not enumerable.
-    expect(GOV_ROUTES).toMatch(
-      /if \(result\.kind !== "ok"\)[\s\S]*?return\s*\{\s*ok:\s*false,\s*code:\s*404/,
-    );
+  it("write endpoints render access denial through the one org-denial convention", () => {
+    // PV-ORG-001 — `requireOrgAdmin` and `requireOrgMember` both return
+    // orgAccessDenial(result): org existence is never disclosed to a
+    // NON-member (404, identical to a missing org), and an ACTIVE member
+    // without the role is told so (403).
+    const gates =
+      GOV_ROUTES.match(
+        /if \(result\.kind !== "ok"\) return \{ ok: false, denial: orgAccessDenial\(result\) \}/g,
+      ) ?? [];
+    expect(gates).toHaveLength(2);
+    expect(GOV_ROUTES).not.toMatch(/ok:\s*false,\s*code:\s*40[34]/);
   });
 });
 
@@ -218,16 +232,25 @@ describe("Phase B0 — retention inheritance resolver", () => {
     expect(RETENTION_RESOLVER).toContain('"none"');
   });
 
-  it("resolution order is team-first → org-inherited → none", () => {
-    // The function body checks team policy BEFORE the org policy.
-    const fn = RETENTION_RESOLVER.slice(
-      RETENTION_RESOLVER.indexOf("export async function resolveTeamRetentionPolicy"),
+  it("resolution order is team-first → org-inherited → none", async () => {
+    // Asserted on BEHAVIOUR, not on the order two calls appear in the source:
+    // the resolver is now a projection of the retention engine's decision
+    // (PV-DUP-002), and the order that matters is the answer it gives.
+    const { resolveTeamRetentionPolicy } = await import(
+      "../src/services/organization/retention-inheritance.service.js"
     );
-    const teamIdx = fn.indexOf("evidenceRetentionPolicy.findFirst");
-    const orgIdx = fn.indexOf("organizationPolicy.findUnique");
-    expect(teamIdx).toBeGreaterThan(0);
-    expect(orgIdx).toBeGreaterThan(0);
-    expect(teamIdx).toBeLessThan(orgIdx);
+    const both = retentionClient({ workspaceDays: 30, template: { retentionDays: 90, immutable: false } });
+    expect(await resolveTeamRetentionPolicy("t1", both)).toMatchObject({
+      source: "team_policy",
+      retentionDays: 30,
+    });
+    const orgOnly = retentionClient({ workspaceDays: undefined, template: { retentionDays: 90, immutable: false } });
+    expect(await resolveTeamRetentionPolicy("t1", orgOnly)).toMatchObject({
+      source: "org_policy_inherited",
+      template: { retentionDays: 90 },
+    });
+    const neither = retentionClient({ workspaceDays: undefined, template: null });
+    expect(await resolveTeamRetentionPolicy("t1", neither)).toEqual({ source: "none", teamId: "t1" });
   });
 
   it("resolver is read-only — never creates a team policy from an inherited template", () => {
@@ -239,12 +262,64 @@ describe("Phase B0 — retention inheritance resolver", () => {
     );
   });
 
-  it("DB errors fall through to `none` — never throws", () => {
-    // Two try/catch guards on the two reads.
-    const catchCount = (RETENTION_RESOLVER.match(/catch\s*\{/g) ?? []).length;
-    expect(catchCount).toBeGreaterThanOrEqual(2);
+  it("a database error is a FAILURE, never a false 'no policy applies'", async () => {
+    // WCC-NEW-001. This case used to pin the opposite: two try/catch guards
+    // that turned any read failure into `source: "none"`, which the retention
+    // page rendered as "No retention policy applies" — an all-clear for a read
+    // that had failed. The resolver now propagates, and the page renders its
+    // failure branch.
+    const { resolveTeamRetentionPolicy } = await import(
+      "../src/services/organization/retention-inheritance.service.js"
+    );
+    for (const failing of ["evidenceRetentionPolicy", "team", "organizationPolicy"] as const) {
+      const client = retentionClient({
+        workspaceDays: undefined,
+        template: { retentionDays: 90, immutable: false },
+        fail: failing,
+      });
+      await expect(resolveTeamRetentionPolicy("t1", client)).rejects.toThrow(/simulated/);
+    }
   });
 });
+
+/** A minimal injected client for the retention resolvers. */
+function retentionClient(input: {
+  workspaceDays: number | null | undefined;
+  template: { retentionDays: number | null; immutable: boolean } | null;
+  fail?: "evidenceRetentionPolicy" | "team" | "organizationPolicy";
+}) {
+  const boom = async () => {
+    throw new Error("simulated database failure");
+  };
+  const at = new Date("2026-07-22T00:00:00Z");
+  const row =
+    input.workspaceDays === undefined
+      ? []
+      : [
+          {
+            id: "p1", teamId: "t1", displayName: "workspace", description: null,
+            status: "ACTIVE", scope: "WORKSPACE", scopeQualifier: null, caseId: null,
+            retentionDays: input.workspaceDays, immutable: false,
+            autoExtensionEnabled: false, autoExtensionDays: null,
+            supersededByPolicyId: null, currentVersion: 1, createdByUserId: "u1",
+            createdAt: at, updatedAt: at, archivedAtUtc: null,
+          },
+        ];
+  return {
+    evidenceRetentionPolicy: {
+      findMany: input.fail === "evidenceRetentionPolicy" ? boom : async () => row,
+    },
+    team: {
+      findUnique: input.fail === "team" ? boom : async () => ({ organizationId: "org-1" }),
+    },
+    organizationPolicy: {
+      findUnique:
+        input.fail === "organizationPolicy"
+          ? boom
+          : async () => (input.template ? { value: { ...input.template, description: null } } : null),
+    },
+  } as never;
+}
 
 describe("Phase B0 — sidebar vocabulary", () => {
   it("server navigation registry surfaces 'Workspaces' label", () => {

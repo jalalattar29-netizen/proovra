@@ -22,6 +22,8 @@ import { fileURLToPath } from "node:url";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { functionSource } from "../../../scripts/source-contract/index.mjs";
+
 type CertRow = Record<string, unknown> & {
   id: string;
   evidenceId: string;
@@ -86,7 +88,8 @@ function baseRow(overrides: Partial<CertRow> = {}): CertRow {
     attestorTitle: null,
     attestorEmail: null,
     attestorOrganization: null,
-    statementMarkdown: null,
+    // D38 — a signable request carries the statement its requester wrote.
+    statementMarkdown: ATTEST_INPUT.statementMarkdown,
     statementSnapshot: null,
     signatureText: null,
     certificationHash: null,
@@ -119,6 +122,47 @@ describe("attestEvidenceCertification — service behaviour", () => {
       statusCode: 409,
     });
     expect(H.updates).toHaveLength(0);
+  });
+
+  it("refuses with 409 when the certification is already signed, and changes nothing (D35)", async () => {
+    H.latest = baseRow({ status: "ATTESTED", attestorName: "Original Signer" });
+    await expect(attestEvidenceCertification(ATTEST_INPUT)).rejects.toMatchObject({
+      statusCode: 409,
+      code: "CERTIFICATION_ALREADY_ATTESTED",
+    });
+    expect(H.updates).toHaveLength(0);
+  });
+
+  it("the signing write only matches a record still awaiting a signature (D35)", async () => {
+    H.latest = baseRow();
+    await attestEvidenceCertification(ATTEST_INPUT);
+    expect(H.updates[0]!.where).toMatchObject({
+      id: "cert-1",
+      status: { in: ["DRAFT", "REQUESTED"] },
+    });
+  });
+
+  it("refuses with 409 when the request carries no statement to sign (D38)", async () => {
+    H.latest = baseRow({ statementMarkdown: null });
+    await expect(attestEvidenceCertification(ATTEST_INPUT)).rejects.toMatchObject({
+      statusCode: 409,
+      code: "CERTIFICATION_STATEMENT_MISSING",
+    });
+    expect(H.updates).toHaveLength(0);
+  });
+
+  it("refuses with 409 when the signer's statement is not the recorded one, and changes nothing (D38)", async () => {
+    H.latest = baseRow();
+    await expect(
+      attestEvidenceCertification({ ...ATTEST_INPUT, statementMarkdown: "I attest something else entirely." }),
+    ).rejects.toMatchObject({ statusCode: 409, code: "CERTIFICATION_STATEMENT_CHANGED" });
+    expect(H.updates).toHaveLength(0);
+  });
+
+  it("signs the recorded statement; surrounding whitespace in the signer's copy is not a change (D38)", async () => {
+    H.latest = baseRow();
+    await attestEvidenceCertification({ ...ATTEST_INPUT, statementMarkdown: `  ${ATTEST_INPUT.statementMarkdown}\n` });
+    expect(H.updates[0]!.data.statementMarkdown).toBe(ATTEST_INPUT.statementMarkdown);
   });
 
   it("attests the requested certification and persists a certification hash", async () => {
@@ -182,8 +226,13 @@ describe("POST /v1/evidence/:id/certifications/attest — route wiring", () => {
   });
 
   it("projects service errors through the shared statusCode arm (no generic 500)", () => {
-    expect(attestHandler()).toMatch(
-      /statusCode\s*\?\?\s*500[\s\S]{0,200}reply\.code\(statusCode\)/,
-    );
+    // D38 — the four certification handlers share one projection, which also
+    // carries a classified refusal's code.
+    expect(attestHandler()).toMatch(/catch \(err\) \{\s*return sendCertificationFailure\(reply, err\);/);
+    const helper = functionSource(ROUTES, "sendCertificationFailure");
+    expect(helper).toMatch(/statusCode \?\? 500/);
+    expect(helper).toMatch(/reply\.code\(statusCode\)/);
+    expect(helper).toMatch(/statusCode < 500 &&/);
+    expect(helper).toMatch(/CERTIFICATION_REFUSAL_CODES\.has\(/);
   });
 });

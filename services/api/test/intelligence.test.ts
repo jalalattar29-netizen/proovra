@@ -17,6 +17,8 @@
 
 import { describe, expect, it } from "vitest";
 
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
+
 // Phase P2 — ai-assistance wrapper tests removed with the retired stub.
 import { projectExtractedTextSummary } from "../src/services/intelligence/extraction.service.js";
 
@@ -119,8 +121,19 @@ describe("intelligence routes — anti-enumeration + scope", () => {
     // why, so the assertion targets the code shapes, not the word.)
     expect(src).not.toMatch(/function requireReviewerMember\s*\(/);
     expect(src).not.toMatch(/await requireReviewerMember\(/);
-    const matches = src.match(/permission:\s*"intelligence\.run"/g) ?? [];
-    expect(matches.length).toBeGreaterThanOrEqual(2);
+    // RETIRED 2026-09-16/17 — reconcile-similarity and enqueue are typed 410
+    // tombstones that run no gate and no work (enqueue wrote jobs nothing
+    // processed, D7), and AI-assist went in Phase P2: no mutating
+    // intelligence route is left in this file to gate.
+    expect(src).not.toMatch(/permission:\s*"intelligence\.run"/);
+    const enqueue = routeSource(src, "POST", "/v1/intelligence/evidence/:id/enqueue");
+    expect(enqueue).toContain("reply.code(410)");
+    expect(enqueue).toContain('code: "INTELLIGENCE_ENQUEUE_RETIRED"');
+    expect(src).not.toMatch(/enqueueIntelligenceJob\(/);
+    const reconcile = routeSource(src, "POST", "/v1/intelligence/evidence/:id/reconcile-similarity");
+    expect(reconcile).toContain("reply.code(410)");
+    expect(reconcile).toContain('code: "SIMILARITY_RECONCILE_RETIRED"');
+    expect(src).not.toMatch(/reconcileSimilaritiesForEvidence\(/);
     // …and the read surfaces carry the canonical read permission.
     const reads = src.match(/permission:\s*"intelligence\.read"/g) ?? [];
     expect(reads.length).toBeGreaterThanOrEqual(3);
@@ -140,7 +153,7 @@ describe("intelligence routes — anti-enumeration + scope", () => {
 });
 
 describe("similarity service — wording contract", () => {
-  it("upsert path uses the canonical similaritySummaryFor (advisory wording)", async () => {
+  it("is read-only after the detector retirement, and never words a hint as confirmed", async () => {
     const { readFile } = await import("node:fs/promises");
     const { fileURLToPath } = await import("node:url");
     const src = await readFile(
@@ -152,7 +165,9 @@ describe("similarity service — wording contract", () => {
       ),
       "utf8",
     );
-    expect(src).toMatch(/similaritySummaryFor\(/);
+    // The detectors were removed with POST /v1/intelligence/evidence/:id/reconcile-similarity
+    // (retired 2026-09-16); nothing here may write a similarity row again.
+    expect(src).not.toMatch(/evidenceSimilarity\.(?:create|createMany|upsert|update|updateMany|delete|deleteMany)\(/);
     // No raw "duplicate confirmed" wording in the service.
     expect(src).not.toMatch(/duplicate\s+confirmed/i);
     expect(src).not.toMatch(/authentic/i);

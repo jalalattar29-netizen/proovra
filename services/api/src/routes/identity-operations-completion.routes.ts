@@ -350,7 +350,12 @@ export async function identityOperationsCompletionRoutes(app: FastifyInstance) {
           .code(400)
           .send({ error: { code: preview.code, message: preview.message } });
       }
-      return reply.code(200).send({ preview });
+      // K1 runtime proof — send the PREVIEW, not the service result that
+      // wraps it. The mapping console reads `r.preview.privilegeAffecting`,
+      // `.changes`, `.warnings`; the wrapped `{ ok, preview }` left all three
+      // undefined, so the console could not render a preview and saved
+      // `acknowledgePrivilegeImpact: undefined`.
+      return reply.code(200).send({ preview: preview.preview });
     },
   );
 

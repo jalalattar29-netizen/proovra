@@ -49,6 +49,11 @@ import { formatUtcAuditDateTime } from "../../../../../../lib/date";
 import { Card } from "../../../../../../components/ui/Card";
 import { Badge } from "../../../../../../components/ui/Badge";
 import { Button } from "../../../../../../components/ui/Button";
+import { identifierLabel } from "@proovra/shared";
+import {
+  destructionReasonLabel,
+  orgAuditEventLabel,
+} from "../../../../../../lib/labels/identityOrgLabels";
 
 // ---------------------------------------------------------------------------
 // Wire types — mirror GET /v1/orgs/:id/governance/control-center.
@@ -402,7 +407,7 @@ function GovernanceControlCenter() {
                 <div style={{ minWidth: 0, flex: "1 1 auto" }}>
                   <div style={{ fontWeight: 600 }}>{p.displayName}</div>
                   <div style={subtleText}>
-                    {p.scope} ·{" "}
+                    {identifierLabel(p.scope)} ·{" "}
                     {p.retentionDays === null
                       ? "indefinite retention"
                       : `${p.retentionDays} day${p.retentionDays === 1 ? "" : "s"}`}
@@ -440,7 +445,8 @@ function GovernanceControlCenter() {
                     Evidence {d.evidenceId.slice(0, 8)}…
                   </div>
                   <div style={subtleText}>
-                    {d.status} · {d.reason} · opened{" "}
+                    {identifierLabel(d.status)} ·{" "}
+                    {destructionReasonLabel(d.reason)} · opened{" "}
                     {formatUtcAuditDateTime(d.createdAt)}
                   </div>
                 </div>
@@ -479,7 +485,9 @@ function GovernanceControlCenter() {
             {sections.audit.data?.events.map((e) => (
               <li key={e.id} data-testid="audit-row" style={rowStyle}>
                 <div style={{ minWidth: 0, flex: "1 1 auto" }}>
-                  <div style={{ fontWeight: 600 }}>{e.eventType}</div>
+                  <div style={{ fontWeight: 600 }}>
+                    {orgAuditEventLabel(e.eventType)}
+                  </div>
                   {e.targetType ? (
                     <div style={subtleText}>{e.targetType}</div>
                   ) : null}

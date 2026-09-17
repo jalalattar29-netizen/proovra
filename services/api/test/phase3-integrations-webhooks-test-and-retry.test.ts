@@ -19,6 +19,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { functionSource } from "../../../scripts/source-contract/index.mjs";
 
 import {
   TEST_EVENT_TYPE,
@@ -286,16 +287,13 @@ describe("PHASE 3 — page surfaces deliveries panel + retry + send-test buttons
   });
 
   it("the deliveries panel never serialises raw JSON with JSON.stringify or <pre>", () => {
-    const startIdx = PAGE.indexOf("function WebhookDeliveriesPanel(");
-    expect(startIdx).toBeGreaterThan(-1);
-    const slice = PAGE.slice(startIdx, startIdx + 12000);
+    const slice = functionSource(PAGE, "WebhookDeliveriesPanel", "page.tsx");
     expect(slice).not.toMatch(/JSON\.stringify/);
     expect(slice).not.toMatch(/<pre>/);
   });
 
   it("the deliveries panel renders the test chip for webhook.test rows", () => {
-    const startIdx = PAGE.indexOf("function WebhookDeliveriesPanel(");
-    const slice = PAGE.slice(startIdx, startIdx + 12000);
+    const slice = functionSource(PAGE, "WebhookDeliveriesPanel", "page.tsx");
     expect(slice).toMatch(/WEBHOOK_TEST_EVENT_TYPE/);
     expect(slice).toMatch(/integrations-webhook-delivery-test-chip-/);
   });
@@ -306,10 +304,8 @@ describe("PHASE 3 — page surfaces deliveries panel + retry + send-test buttons
     // panel's `isInflight` boolean. Scan the entire
     // WebhookDeliveriesPanel block — the source file is wide enough
     // that the JSX exceeds the previously-narrow window.
-    const startIdx = PAGE.indexOf("function WebhookDeliveriesPanel(");
-    expect(startIdx).toBeGreaterThan(-1);
-    // Take enough to cover the whole component definition.
-    const slice = PAGE.slice(startIdx, startIdx + 12000);
+    // The whole component definition.
+    const slice = functionSource(PAGE, "WebhookDeliveriesPanel", "page.tsx");
     expect(slice).toMatch(/isInflight/);
     expect(slice).toMatch(/disabled=\{isInflight\}/);
   });

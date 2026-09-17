@@ -516,6 +516,7 @@ export function AiSection() {
               type="checkbox"
               checked={draft?.aiEnabled ?? false}
               disabled={!draft || status === "saving"}
+              title={!draft ? "Your AI settings are still loading." : undefined}
               onChange={(e) =>
                 draft && setDraft({ ...draft, aiEnabled: e.target.checked })
               }
@@ -553,6 +554,11 @@ export function AiSection() {
                   type="checkbox"
                   checked={Boolean(draft?.[f.key])}
                   disabled={!draft || !draft.aiEnabled || status === "saving"}
+                  title={
+                    draft && !draft.aiEnabled
+                      ? "Turn on AI assistance above to choose features."
+                      : undefined
+                  }
                   onChange={(e) =>
                     draft && setDraft({ ...draft, [f.key]: e.target.checked })
                   }
@@ -606,6 +612,7 @@ export function AiSection() {
             onClick={() => void save()}
             loading={status === "saving"}
             disabled={status === "saving" || !dirty}
+            disabledReason={!dirty ? "There are no changes to save." : undefined}
             data-cc-ai-save
           >
             Save changes
@@ -772,6 +779,7 @@ function OrgAiView({
                       <input
                         type="checkbox"
                         disabled={!draft.aiEnabled || status === "saving"}
+                        title={!draft.aiEnabled ? "Turn on AI assistance above to choose this." : undefined}
                         checked={Boolean(draft[key])}
                         onChange={(e) =>
                           setDraft({ ...draft, [key]: e.target.checked })
@@ -810,6 +818,7 @@ function OrgAiView({
                   onClick={() => void onSave()}
                   loading={status === "saving"}
                   disabled={status === "saving" || !dirty}
+                  disabledReason={!dirty ? "There are no changes to save." : undefined}
                   data-cc-ai-org-save
                 >
                   Save AI policy

@@ -3,7 +3,9 @@
  *
  * Live PostgreSQL 16, real routes, real authorization.
  *
- * `/admin/identity/*` is the surface where audience is easiest to get wrong,
+ * `/v1/admin/identity/*` (the API behind the Security Center identity pages,
+ * which moved from `/admin/identity/*` under PV-PLACE-001; the API did not
+ * move) is the surface where audience is easiest to get wrong,
  * because two different products live under one URL prefix: a workspace
  * administrator managing their OWN directory, and a platform operator
  * investigating across the estate. This decides each endpoint from what the

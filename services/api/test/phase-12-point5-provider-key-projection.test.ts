@@ -50,6 +50,7 @@ import {
 
 import { projectNotificationDelivery } from "../src/services/notifications/index.js";
 import { projectOrgInviteDelivery } from "../src/services/organization/org-invite-delivery.service.js";
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(__dirname, "../../..");
@@ -230,9 +231,10 @@ describe("POINT 5 — exposed provider idempotency keys = 0", () => {
       resolve(REPO, "services/api/src/routes/evidence-requests.routes.ts"),
       "utf8",
     );
-    const at = src.indexOf("notificationDelivery.findMany({");
-    expect(at).toBeGreaterThan(0);
-    const block = src.slice(at, at + 700);
+    // The findMany call itself: its own arguments are the projection.
+    const block = enclosingSource(src, "notificationDelivery.findMany({", "call", {
+      fileName: "evidence-requests.routes.ts",
+    });
     expect(block).toContain("select: {");
     expect(block).not.toContain("metadata");
   });

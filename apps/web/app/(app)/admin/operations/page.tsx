@@ -96,6 +96,20 @@ type IncidentRow = {
     workspaceLifecycle: "LIVE" | "CLOSED";
     customer: { id: string; name: string } | null;
   } | null;
+  /**
+   * PV-OPS-001 (owner decision) — the resolution decision, projected by the
+   * server from the condition's own source contract. The queue offered
+   * Resolve on every open row and let the server refuse; it now renders the
+   * decision instead. The runbook destination is derived below from
+   * `runbookSlug` through the generated runbook catalog — the only authority
+   * on which runbooks exist.
+   */
+  lifecycle?: {
+    resolutionAuthority: string;
+    resolvableByOperator?: boolean;
+    refusalCode?: string | null;
+    requiresResolutionNote?: boolean;
+  };
 };
 
 type IncidentsResponse = {
@@ -187,6 +201,11 @@ export default function AdminOperationsPage() {
 
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // The condition whose Resolve is waiting for a written conclusion, and the
+  // conclusion. Kept until the resolve SUCCEEDS, so a refused attempt does not
+  // throw the operator's text away.
+  const [noteFor, setNoteFor] = useState<IncidentRow | null>(null);
+  const [noteText, setNoteText] = useState("");
   const [data, setData] = useState<IncidentsResponse | null>(null);
   /**
    * ADM-P1-002 — the state that made the empty table lie.
@@ -269,20 +288,26 @@ export default function AdminOperationsPage() {
           "success",
         );
         await load();
+        return true;
       } catch (err) {
-        // A refused resolve is the lifecycle working: the condition's own source
-        // still reports it live. Say that rather than "something went wrong".
+        // PV-OPS-001 — a refused resolve carries its reason as a code, and each
+        // code has its own sentence (toSafeUserError's CODE_MAP: still active,
+        // activity unknown, not directly resolvable, conclusion required). The
+        // fallback below is only for a failure that carried NO code, so it
+        // claims nothing about the source — the old sentence ("its source
+        // still reports it as live") was false for every other refusal.
         addToast(
           toSafeUserError(err, {
             message:
               action === "resolve"
-                ? "This condition was not resolved. Its source still reports it as live, so the platform declined to close it."
+                ? "This condition was not resolved. Nothing was changed."
                 : action === "acknowledge"
                   ? "The incident could not be acknowledged."
                   : "The assignment could not be changed.",
           }).message,
           "error",
         );
+        return false;
       } finally {
         setBusyId(null);
       }
@@ -429,13 +454,31 @@ export default function AdminOperationsPage() {
               <Button
                 size="sm"
                 variant="secondary"
-                disabled={busyId === r.id}
+                data-incident-resolve={r.id}
+                disabled={busyId === r.id || r.lifecycle?.resolvableByOperator === false}
+                disabledReason={
+                  r.lifecycle?.resolvableByOperator === false
+                    ? "This condition closes when the surface that reported it recovers — it cannot be resolved by hand. Acknowledge, assign or suppress it instead."
+                    : undefined
+                }
                 onClick={async () => {
+                  if (r.lifecycle?.requiresResolutionNote) {
+                    // An operator decision that must say why: collect the
+                    // conclusion first rather than discovering the rule as a
+                    // refusal.
+                    setNoteText("");
+                    setNoteFor(r);
+                    return;
+                  }
                   const ok = await confirm({
                     title: "Resolve this condition?",
                     description: `"${r.title}" affects ${
                       r.affected?.workspaceName ?? "no specific workspace"
-                    }. The platform will refuse the resolve if the condition's own source still reports it as live.`,
+                    }. ${
+                      r.lifecycle?.resolutionAuthority === "SOURCE_TRUTH"
+                        ? "The platform re-checks the condition's source and refuses the resolve while it still reports the condition as live."
+                        : "Resolving records your decision that the condition is over."
+                    }`,
                     confirmLabel: "Resolve",
                     tone: "warning",
                   });
@@ -588,6 +631,60 @@ export default function AdminOperationsPage() {
       </FilterBar>
 
       <Card>
+        {noteFor ? (
+          <div
+            data-incident-resolution-note={noteFor.id}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+              padding: 12,
+              marginBottom: 12,
+              border: "1px solid var(--border-default)",
+              borderRadius: 10,
+            }}
+          >
+            <label htmlFor="incident-resolution-note" style={{ fontSize: 13, fontWeight: 600 }}>
+              Why is “{noteFor.title}” over? Resolving it records your decision and
+              this conclusion.
+            </label>
+            <textarea
+              id="incident-resolution-note"
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
+              maxLength={2000}
+              rows={3}
+              style={{ fontSize: 13, padding: 8, borderRadius: 8 }}
+            />
+            <div style={{ display: "flex", gap: 8 }}>
+              <Button
+                size="sm"
+                variant="primary"
+                disabled={busyId === noteFor.id || noteText.trim().length === 0}
+                disabledReason={
+                  noteText.trim().length === 0
+                    ? "Write the conclusion that justifies closing this condition."
+                    : undefined
+                }
+                onClick={async () => {
+                  const row = noteFor;
+                  const resolved = await runAction(row, "resolve", {
+                    note: noteText.trim(),
+                  });
+                  if (resolved) {
+                    setNoteFor(null);
+                    setNoteText("");
+                  }
+                }}
+              >
+                Resolve with this conclusion
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setNoteFor(null)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : null}
         {failure ? (
           /* THE FAILURE GOES WHERE THE TABLE GOES.
              Rendering it above the table and leaving the table's empty state

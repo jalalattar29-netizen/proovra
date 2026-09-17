@@ -30,6 +30,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../../db.js";
+import { inputRefusal } from "../../../errors.js";
 
 // -----------------------------------------------------------------------------
 // Bounded constants — keep all magic numbers here.
@@ -105,19 +106,34 @@ export type CreateWebhookEndpointResult = {
 export async function createWebhookEndpoint(
   input: CreateWebhookEndpointInput,
 ): Promise<CreateWebhookEndpointResult> {
+  // Batch C sweep — these were bare Errors, so an http:// URL, an empty or
+  // oversized event list, or an unknown event answered 500 and paged
+  // critical. They are rejected inputs; the developer message is unchanged.
   if (!isValidHttpsUrl(input.url)) {
-    throw new Error("webhook_endpoint_invalid_url");
+    throw inputRefusal({
+      code: "WEBHOOK_ENDPOINT_URL_INVALID",
+      message: "The endpoint address must be a public https:// URL.",
+      developerMessage: "webhook_endpoint_invalid_url",
+    });
   }
   if (
     !Array.isArray(input.subscribedEvents) ||
     input.subscribedEvents.length === 0 ||
     input.subscribedEvents.length > SUBSCRIBED_EVENTS_MAX
   ) {
-    throw new Error("webhook_endpoint_invalid_subscribed_events");
+    throw inputRefusal({
+      code: "WEBHOOK_ENDPOINT_EVENTS_INVALID",
+      message: `Choose between 1 and ${SUBSCRIBED_EVENTS_MAX} events for this endpoint.`,
+      developerMessage: "webhook_endpoint_invalid_subscribed_events",
+    });
   }
   for (const ev of input.subscribedEvents) {
     if (!isValidEventKind(ev)) {
-      throw new Error("webhook_endpoint_unknown_event_kind");
+      throw inputRefusal({
+        code: "WEBHOOK_ENDPOINT_EVENT_UNKNOWN",
+        message: "One of the selected events is not available for webhooks.",
+        developerMessage: "webhook_endpoint_unknown_event_kind",
+      });
     }
   }
 
@@ -152,20 +168,29 @@ export type DeactivateWebhookEndpointInput = {
 
 export async function deactivateWebhookEndpoint(
   input: DeactivateWebhookEndpointInput,
-): Promise<{ ok: boolean }> {
+): Promise<{ ok: boolean; deactivated?: boolean; previousState?: string }> {
   const prisma = input.prisma ?? defaultPrisma;
   const existing = await prisma.lifecycleWebhookEndpoint.findFirst({
     where: { id: input.endpointId, teamId: input.teamId },
     select: { id: true, state: true },
   });
   if (!existing) return { ok: false };
-  if (existing.state === "DEACTIVATED") return { ok: true };
+  if (existing.state === "DEACTIVATED") {
+    return { ok: true, deactivated: false, previousState: existing.state };
+  }
 
-  await prisma.lifecycleWebhookEndpoint.update({
-    where: { id: existing.id },
+  // Conditional on the state read above, so only the call that actually
+  // deactivated the endpoint reports `deactivated: true` (and is audited as
+  // a change); a concurrent or replayed call is a no-op.
+  const moved = await prisma.lifecycleWebhookEndpoint.updateMany({
+    where: { id: existing.id, teamId: input.teamId, state: existing.state },
     data: { state: "DEACTIVATED", deactivatedAtUtc: new Date() },
   });
-  return { ok: true };
+  return {
+    ok: true,
+    deactivated: moved.count === 1,
+    previousState: existing.state,
+  };
 }
 
 // -----------------------------------------------------------------------------

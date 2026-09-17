@@ -22,6 +22,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { enclosingSource, functionSource } from "../../../scripts/source-contract/index.mjs";
 
 import {
   classifyTransportOutcome,
@@ -403,8 +404,12 @@ describe("E3.3 Test 6 — runtime source-level safety", () => {
     // outside world, and only one of them is true here.
     expect(RUNTIME).toMatch(/lease_expired_after_max_attempts/);
     expect(RUNTIME).toMatch(/lease_expired_reclaimed/);
-    const idx = RUNTIME.indexOf("lease_expired_after_max_attempts");
-    expect(RUNTIME.slice(Math.max(0, idx - 400), idx)).toMatch(/RETRY_EXHAUSTED/);
+    // The data literal written together with that failure reason.
+    expect(
+      enclosingSource(RUNTIME, "lease_expired_after_max_attempts", "object", {
+        fileName: "automation-delivery-runtime.service.ts",
+      }),
+    ).toMatch(/RETRY_EXHAUSTED/);
   });
 });
 
@@ -429,9 +434,7 @@ describe("E3.3 Test 7 — action handler is async hand-off only", () => {
   });
 
   it("writes ONE durable, due delivery row — not insert-then-update", () => {
-    const fnIdx = ACTIONS.indexOf("function actionWebhookDelivery");
-    expect(fnIdx).toBeGreaterThan(-1);
-    const body = ACTIONS.slice(fnIdx, fnIdx + 6000);
+    const body = functionSource(ACTIONS, "actionWebhookDelivery");
     // The old code inserted DELIVERING, updated it back to PENDING so the
     // runtime's claim would accept it, then scheduled a timer — a row that
     // briefly claimed to be in flight when nothing was.
@@ -442,8 +445,7 @@ describe("E3.3 Test 7 — action handler is async hand-off only", () => {
   });
 
   it("a retry reuses the run's durable ACTION intent key", () => {
-    const fnIdx = ACTIONS.indexOf("function actionWebhookDelivery");
-    const body = ACTIONS.slice(fnIdx, fnIdx + 6000);
+    const body = functionSource(ACTIONS, "actionWebhookDelivery");
     expect(body).toMatch(/input\.actionIdempotencyKey/);
     // A second delivery for the same (run, destination) is the idempotency
     // working, not a failure.
@@ -451,9 +453,7 @@ describe("E3.3 Test 7 — action handler is async hand-off only", () => {
   });
 
   it("does NOT call deliverWebhookOnce inside the action handler (runtime owns I/O now)", () => {
-    const fnIdx = ACTIONS.indexOf("function actionWebhookDelivery");
-    expect(fnIdx).toBeGreaterThan(-1);
-    const body = ACTIONS.slice(fnIdx, fnIdx + 6000);
+    const body = functionSource(ACTIONS, "actionWebhookDelivery");
     expect(body).not.toMatch(/deliverWebhookOnce\(/);
   });
 

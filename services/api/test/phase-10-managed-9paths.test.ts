@@ -47,6 +47,7 @@ import {
   provisionManagedMembership,
   ManagedSeatLimitError,
 } from "../src/services/identity/membership-provisioning.service.js";
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 
 // A tx whose teamMember.findUnique is benign (drives the seat gate) and whose
 // every OTHER model op throws a unique sentinel — so reaching provisionMembership
@@ -176,6 +177,22 @@ const SAML = read("src/routes/saml-auth.routes.ts");
 const OIDC = read("src/routes/sso-auth.routes.ts");
 const INVITE = read("src/services/organization/org-invite-acceptance.service.ts");
 
+/**
+ * The whole `try { … } catch { … }` statement around the first `marker`: the
+ * nearest `try {` before it, proven to enclose it.
+ */
+function enclosingTry(src: string, marker: string): string {
+  const at = src.indexOf(marker);
+  expect(at, `${marker} must exist`).toBeGreaterThan(-1);
+  let occurrence = -1;
+  for (let p = src.indexOf("try {"); p >= 0 && p < at; p = src.indexOf("try {", p + 1)) {
+    occurrence += 1;
+  }
+  const stmt = enclosingSource(src, "try {", "statement", { occurrence, fileName: "routes.ts" });
+  expect(stmt, `the nearest try before ${marker} must enclose it`).toContain(marker);
+  return stmt;
+}
+
 describe("§1 — 9-path managed-identity matrix", () => {
   it("1. SCIM create → binds via the atomic intent (evidence = authenticated token)", () => {
     expect(SCIM).toMatch(/provisionManagedMembership\(tx, \{[\s\S]{0,400}scimTokenId: ctx\.tokenId/);
@@ -250,8 +267,7 @@ describe("§1 — 9-path managed-identity matrix", () => {
     // just-created session row and bounce on a managed conflict; the cookie is
     // only set AFTER establishment succeeds (paths 6/7 share this catch).
     for (const src of [SAML, OIDC]) {
-      const bindIdx = src.indexOf("provisionManagedMembership(tx");
-      const block = src.slice(bindIdx, bindIdx + 1600);
+      const block = enclosingTry(src, "provisionManagedMembership(tx");
       expect(block).toMatch(/authenticatedSession\.delete/);
       expect(block).toMatch(/managed_identity_conflict/);
     }

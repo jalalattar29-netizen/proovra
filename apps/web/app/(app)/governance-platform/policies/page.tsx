@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import {
   GOVERNANCE_POLICY_KINDS,
+  identifierLabel,
   type DepartmentProjection,
   type GovernancePolicyKind,
   type GovernancePolicyProjection,
@@ -22,6 +23,8 @@ import { apiFetch, ApiError } from "../../../../lib/api";
 import { formatUserDate } from "../../../../lib/date";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useTenantGuard } from "../../../../lib/platform-context";
+import { permissionDenialCopy } from "../../../../lib/labels/governanceReviewLabels";
+import { PolicyDetailsPanel } from "./_policy-details";
 
 /**
  * PHASE 12B CLUSTER 10 — `GET /v1/governance/policies/effective`.
@@ -94,17 +97,31 @@ function Shell() {
   const [departments, setDepartments] = useState<
     ReadonlyArray<DepartmentProjection>
   >([]);
+  const [departmentsFailed, setDepartmentsFailed] = useState(false);
+  // The registry read and the lifecycle actions report their own failures:
+  // a failed read is never rendered as "No governance policies defined".
+  const [listLoaded, setListLoaded] = useState(false);
+  const [listFailure, setListFailure] = useState<string | null>(null);
+  const [actionFailure, setActionFailure] = useState<string | null>(null);
+  const [selectedPolicyId, setSelectedPolicyId] = useState<string | null>(null);
+  const [auditRevision, setAuditRevision] = useState(0);
 
   const refresh = useCallback(async () => {
     setBusy(true);
     setDenial(null);
+    setListFailure(null);
     try {
       const res = await apiFetch("/v1/governance/policies", { method: "GET" });
       setRows((res?.policies ?? []) as ReadonlyArray<GovernancePolicyProjection>);
     } catch (err) {
       setRows([]);
-      applyDenial(err, setDenial);
+      if (!applyDenial(err, setDenial)) {
+        setListFailure(
+          toSafeUserError(err, { message: "Unable to load governance policies." }).message,
+        );
+      }
     } finally {
+      setListLoaded(true);
       setBusy(false);
     }
   }, []);
@@ -112,11 +129,17 @@ function Shell() {
   const activate = useCallback(async (id: string) => {
     setBusy(true);
     setDenial(null);
+    setActionFailure(null);
     try {
       await apiFetch(`/v1/governance/policies/${id}/activate`, { method: "POST" });
       await refresh();
+      setAuditRevision((v) => v + 1);
     } catch (err) {
-      applyDenial(err, setDenial);
+      if (!applyDenial(err, setDenial)) {
+        setActionFailure(
+          toSafeUserError(err, { message: "The policy could not be activated." }).message,
+        );
+      }
     } finally {
       setBusy(false);
     }
@@ -125,11 +148,17 @@ function Shell() {
   const deprecate = useCallback(async (id: string) => {
     setBusy(true);
     setDenial(null);
+    setActionFailure(null);
     try {
       await apiFetch(`/v1/governance/policies/${id}/deprecate`, { method: "POST" });
       await refresh();
+      setAuditRevision((v) => v + 1);
     } catch (err) {
-      applyDenial(err, setDenial);
+      if (!applyDenial(err, setDenial)) {
+        setActionFailure(
+          toSafeUserError(err, { message: "The policy could not be deprecated." }).message,
+        );
+      }
     } finally {
       setBusy(false);
     }
@@ -166,9 +195,11 @@ function Shell() {
       setDepartments(
         (res?.departments ?? []) as ReadonlyArray<DepartmentProjection>,
       );
+      setDepartmentsFailed(false);
     } catch {
       if (isStale(captured)) return;
       setDepartments([]);
+      setDepartmentsFailed(true);
     }
   }, [stamp, isStale]);
 
@@ -184,6 +215,8 @@ function Shell() {
     void loadEffective();
   }, [loadEffective]);
 
+  const selectedPolicy = rows.find((p) => p.id === selectedPolicyId) ?? null;
+
   const effectiveColumns: DataTableColumn<GovernancePolicyProjection>[] = [
     {
       key: "name",
@@ -194,7 +227,7 @@ function Shell() {
         </span>
       ),
     },
-    { key: "kind", header: "Kind", render: (p) => <code>{p.kind}</code> },
+    { key: "kind", header: "Kind", render: (p) => identifierLabel(p.kind) },
     { key: "slug", header: "Slug", render: (p) => <code>{p.slug}</code> },
     {
       key: "enforcementMode",
@@ -228,12 +261,12 @@ function Shell() {
         </span>
       ),
     },
-    { key: "kind", header: "Kind", render: (p) => <code>{p.kind}</code> },
+    { key: "kind", header: "Kind", render: (p) => identifierLabel(p.kind) },
     { key: "slug", header: "Slug", render: (p) => <code>{p.slug}</code> },
     {
       key: "state",
       header: "State",
-      render: (p) => <Badge tone="governance">{p.state}</Badge>,
+      render: (p) => <Badge tone="governance">{identifierLabel(p.state)}</Badge>,
     },
     { key: "enforcementMode", header: "Enforcement", render: (p) => p.enforcementMode },
     { key: "version", header: "Version", render: (p) => `v${p.version}` },
@@ -272,7 +305,18 @@ function Shell() {
           padding="compact"
           data-permission-denied={denial.denial}
         >
-          <strong>Permission required:</strong> {denial.tier}
+          <strong>{permissionDenialCopy(denial.denial, denial.tier).title}</strong>{" "}
+          {permissionDenialCopy(denial.denial, denial.tier).detail}
+        </Card>
+      ) : null}
+      {listFailure ? (
+        <Card variant="status" tone="risk" padding="compact" data-governance-policies-failure>
+          <span role="alert">{listFailure}</span>
+        </Card>
+      ) : null}
+      {actionFailure ? (
+        <Card variant="status" tone="risk" padding="compact" data-governance-policy-action-failure>
+          <span role="alert">{actionFailure}</span>
         </Card>
       ) : null}
 
@@ -286,21 +330,34 @@ function Shell() {
         }}
       />
 
+      {listFailure !== null || denial !== null ? null : (
       <div data-governance-policies-table>
         <DataTable<GovernancePolicyProjection>
           ariaLabel="Governance policies"
           columns={columns}
           rows={rows as GovernancePolicyProjection[]}
           getRowId={(p) => p.id}
-          loading={busy && rows.length === 0}
+          loading={!listLoaded || (busy && rows.length === 0)}
           emptyState={
             <EmptyState
               title="No governance policies defined"
               purpose="Retention, access and compliance policies for this organization appear here once they are created."
             />
           }
-          rowActions={(p) =>
-            p.state === "DRAFT" ? (
+          rowActions={(p) => (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            <Button
+              variant={selectedPolicyId === p.id ? "enterprise" : "secondary"}
+              size="sm"
+              data-governance-policy-details-toggle={p.id}
+              aria-expanded={selectedPolicyId === p.id}
+              aria-controls="governance-policy-details"
+              aria-label={`Details for ${p.name}`}
+              onClick={() => setSelectedPolicyId(selectedPolicyId === p.id ? null : p.id)}
+            >
+              Details
+            </Button>
+            {p.state === "DRAFT" ? (
               <Button
                 variant="secondary"
                 size="sm"
@@ -318,11 +375,40 @@ function Shell() {
               >
                 Deprecate
               </Button>
-            ) : (
-              <span>—</span>
-            )
-          }
+            ) : null}
+            </div>
+          )}
         />
+      </div>
+      )}
+
+      {/* Policy details: where it applies, assign it, and its audit trail. */}
+      <div id="governance-policy-details">
+        {selectedPolicy ? (
+          <PolicyDetailsPanel
+            key={selectedPolicy.id}
+            policy={selectedPolicy}
+            departments={departments}
+            departmentsFailed={departmentsFailed}
+            scope={
+              effective
+                ? {
+                    organizationId: effective.scope.organizationId,
+                    workspaceId: effective.scope.workspaceId,
+                  }
+                : null
+            }
+            auditRevision={auditRevision}
+            onAssigned={loadEffective}
+            onClose={() => {
+              const id = selectedPolicy.id;
+              setSelectedPolicyId(null);
+              document
+                .querySelector<HTMLButtonElement>(`[data-governance-policy-details-toggle="${id}"]`)
+                ?.focus();
+            }}
+          />
+        ) : null}
       </div>
 
       {/* PHASE 12B CLUSTER 10 — effective policy chain. What actually applies
@@ -340,7 +426,7 @@ function Shell() {
               onChange={(v) => setKindFilter(v as GovernancePolicyKind | "ALL")}
               options={[
                 { value: "ALL", label: "All kinds" },
-                ...GOVERNANCE_POLICY_KINDS.map((k) => ({ value: k, label: k })),
+                ...GOVERNANCE_POLICY_KINDS.map((k) => ({ value: k, label: identifierLabel(k) })),
               ]}
             />
             <FilterBar.Select
@@ -381,12 +467,12 @@ function Shell() {
                 }
               >
                 Resolved for organization{" "}
-                <code>{effective.scope.organizationId.slice(0, 8)}…</code>,
-                workspace <code>{effective.scope.workspaceId.slice(0, 8)}…</code>
+                <code data-identifier>{effective.scope.organizationId.slice(0, 8)}…</code>,
+                workspace <code data-identifier>{effective.scope.workspaceId.slice(0, 8)}…</code>
                 {effective.scope.departmentId ? (
                   <>
                     , department{" "}
-                    <code>{effective.scope.departmentId.slice(0, 8)}…</code>
+                    <code data-identifier>{effective.scope.departmentId.slice(0, 8)}…</code>
                   </>
                 ) : null}
                 . Organization and workspace are derived server-side from your
@@ -420,7 +506,7 @@ const mutedStyle: React.CSSProperties = { fontSize: 12, color: "#64748b" };
 function applyDenial(
   err: unknown,
   setDenial: (v: PermissionDenialState) => void,
-): void {
+): boolean {
   if (err instanceof ApiError) {
     const detailsDenial =
       err.details && typeof err.details["denial"] === "string"
@@ -432,7 +518,7 @@ function applyDenial(
         : "DELEGATED_ADMIN";
     if (err.statusCode === 403 && detailsDenial === "DELEGATED_ADMIN_REQUIRED") {
       setDenial({ denial: detailsDenial, tier });
-      return;
+      return true;
     }
   }
   const generic = err as {
@@ -454,5 +540,7 @@ function applyDenial(
     detailsDenial === "DELEGATED_ADMIN_REQUIRED"
   ) {
     setDenial({ denial: detailsDenial, tier });
+    return true;
   }
+  return false;
 }

@@ -38,15 +38,17 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import type {
-  TrustArticleKind,
-  TrustArticleProjection,
+import {
+  identifierLabel,
+  type TrustArticleKind,
+  type TrustArticleProjection,
 } from "@proovra/shared";
 
 import { apiFetch } from "../../../lib/api";
 import { LegalDocumentShell } from "../../../components/legal/LegalDocumentShell";
 import { LEGAL_META_CLASSES } from "../../../components/legal/legalArticleStyles";
 import { DriftBadge } from "./_drift-badge";
+import { ArticleVersionHistory } from "./_version-history";
 
 type LoadState =
   | { phase: "loading" }
@@ -246,13 +248,14 @@ export function TrustCenterSectionList({
                     is still the heading's anchor id and the data attribute, so
                     deep links and tests are unaffected.
                   */}
-                  Version {a.version} · {a.state}
+                  Version {a.version} · {identifierLabel(a.state)}
                   {a.driftState ? <DriftBadge state={a.driftState} /> : null}
                 </div>
                 <p>
                   <strong>{a.summary}</strong>
                 </p>
                 <BodyParagraphs body={a.body} />
+                <ArticleVersionHistory articleId={a.id} title={a.title} />
                 {/*
                   The repository paths that used to be listed here are still
                   declared on the article and still checked; see this file's

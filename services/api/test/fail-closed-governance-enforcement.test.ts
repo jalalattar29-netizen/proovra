@@ -20,6 +20,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { functionSource } from "../../../scripts/source-contract/index.mjs";
+
 import {
   DISCOVERY_FORBIDDEN_FIELDS,
   EXTERNAL_REVIEW_ACCESS_STATES,
@@ -119,13 +121,10 @@ describe("Phase 28-E [worker gate] — wiring into createVerificationPackage", (
   );
 
   it("createVerificationPackage calls assertPackageEligibleOrDeny BEFORE building artifacts", () => {
-    const fnIdx = pkgSrc.indexOf("export async function createVerificationPackage");
-    expect(fnIdx).toBeGreaterThan(0);
-    // Phase 2: widened from 8000 → 12000 because the function input type
-    // gained `isPersonalTeam` and `workspaceLabelAtPackageTime` (canonical
-    // workspace-scope inputs), pushing the archiver() call past the prior
-    // window. The gate-before-archiver invariant still holds.
-    const fnBody = pkgSrc.slice(fnIdx, fnIdx + 12000);
+    // The whole function, not a character window: the gate-before-archiver
+    // invariant is about createVerificationPackage and nothing after it.
+    const fnBody = functionSource(pkgSrc, "createVerificationPackage");
+    expect(fnBody.startsWith("export async function createVerificationPackage")).toBe(true);
     const gateIdx = fnBody.indexOf("assertPackageEligibleOrDeny");
     const archiverIdx = fnBody.indexOf('archiver("zip"');
     expect(gateIdx).toBeGreaterThan(0);
@@ -144,12 +143,7 @@ describe("Phase 28-E [worker gate] — wiring into createVerificationPackage", (
     // package. Only `evidenceId` is required to anchor the package to
     // a real record. The team eligibility gate still runs for team
     // evidence (no governance weakening — see the subsequent test).
-    const fnIdx = pkgSrc.indexOf("export async function createVerificationPackage");
-    // Phase 2: widened from 8000 → 12000 because the function input type
-    // gained `isPersonalTeam` and `workspaceLabelAtPackageTime` (canonical
-    // workspace-scope inputs), pushing the archiver() call past the prior
-    // window. The gate-before-archiver invariant still holds.
-    const fnBody = pkgSrc.slice(fnIdx, fnIdx + 12000);
+    const fnBody = functionSource(pkgSrc, "createVerificationPackage");
     expect(fnBody).toMatch(/if\s*\(\s*!data\.evidenceId\s*\)/);
     expect(fnBody).toContain("GOVERNANCE_STATE_UNAVAILABLE");
     // The legacy compound guard (teamId missing OR evidenceId missing)
@@ -160,12 +154,7 @@ describe("Phase 28-E [worker gate] — wiring into createVerificationPackage", (
   it("Phase 32.6.6 — team-governed mode still runs the eligibility gate", () => {
     // The eligibility gate (assertPackageEligibleOrDeny) must run for
     // any package with a teamId. Personal-basic skips it.
-    const fnIdx = pkgSrc.indexOf("export async function createVerificationPackage");
-    // Phase 2: widened from 8000 → 12000 because the function input type
-    // gained `isPersonalTeam` and `workspaceLabelAtPackageTime` (canonical
-    // workspace-scope inputs), pushing the archiver() call past the prior
-    // window. The gate-before-archiver invariant still holds.
-    const fnBody = pkgSrc.slice(fnIdx, fnIdx + 12000);
+    const fnBody = functionSource(pkgSrc, "createVerificationPackage");
     expect(fnBody).toMatch(/if\s*\(\s*packageMode\s*===\s*"team_governed"\s*\)/);
     expect(fnBody).toMatch(/assertPackageEligibleOrDeny/);
   });

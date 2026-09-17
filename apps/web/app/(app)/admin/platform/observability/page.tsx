@@ -64,6 +64,7 @@ import {
 import { PageShell, PageHeader } from "../../../../../components/ui";
 import { Badge } from "../../../../../components/ui/Badge";
 import { severityTone } from "../../../../../components/ui/StatusBadge";
+import { identifierLabel } from "@proovra/shared";
 import {
   AdmInline,
 } from "../../../../../components/admin/AdminSurfaces";
@@ -464,7 +465,7 @@ function PlatformPostureBlock({
       style={postureBlockStyle(overall.state)}
     >
       <div style={postureHeadStyle}>
-        <span style={postureStateStyle(overall.state)}>{overall.state}</span>
+        <span style={postureStateStyle(overall.state)}>{identifierLabel(overall.state)}</span>
         <span style={postureReasonStyle}>{overall.reason}</span>
       </div>
 
@@ -505,7 +506,7 @@ function PlatformPostureBlock({
           snapshot.evidencePipeline,
         ].map((sub) => (
           <li key={sub.id} style={postureSubsystemRowStyle}>
-            <span style={postureStateStyle(sub.state)}>{sub.state}</span>
+            <span style={postureStateStyle(sub.state)}>{identifierLabel(sub.state)}</span>
             <strong style={postureSubsystemLabelStyle}>{sub.label}</strong>
             <span style={postureSubsystemReasonStyle}>{sub.reason}</span>
             {sub.operatorAction ? (
@@ -966,7 +967,7 @@ function ObservabilityDashboardPageInner() {
             {alerts.firing.map((a) => (
               <li key={a.id} style={alertRowStyle}>
                 <Badge tone={severityTone(a.severity)} subtle>
-                  {a.severity}
+                  {identifierLabel(a.severity)}
                 </Badge>
                 <strong style={alertIdStyle}>{a.id}</strong>
                 <span className="adm-help">
@@ -1384,7 +1385,7 @@ function ObservabilityDashboardPageInner() {
         <ul style={{ ...listStyle, marginTop: 12 }}>
           <li>
             <code style={codeStyle}>GET /metrics</code> — Prometheus exposition
-            format. Public; optionally gated by <code style={codeStyle}>METRICS_SCRAPE_TOKEN</code>.
+            format. Public; optionally gated by the <code style={codeStyle} data-identifier>METRICS_SCRAPE_TOKEN</code> setting.
           </li>
           <li>
             <code style={codeStyle}>GET /v1/admin/platform/metrics</code> —

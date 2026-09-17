@@ -27,7 +27,7 @@
 
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 
-import type { Prisma } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { prisma } from "../../db.js";
 import { safeEmitSecurityEvent } from "./security-event.service.js";
@@ -37,6 +37,7 @@ import {
   TOTP_ALGORITHM,
   TOTP_DIGITS,
   TOTP_PERIOD_SECONDS,
+  matchTotpStep,
   verifyTotpCode,
 } from "./mfa-totp.js";
 import {
@@ -78,7 +79,42 @@ function sanitizeLabel(raw: string | null | undefined): string {
  * would report "wrong code" for a corrupted row and send the user round a
  * loop they cannot exit.
  */
-function requireTotpSecret(factor: {
+/**
+ * WCC-NEW-008 — SINGLE-USE TOTP, CLAIMED ATOMICALLY.
+ *
+ * A TOTP code stays valid across the whole ±1-step window (up to ~90 s), so
+ * "the code matched" is not "the code may be accepted". With nothing recording
+ * what was already accepted, an observed code replayed for its whole window —
+ * at sign-in, and at every step-up-gated action once step-up accepts
+ * authenticator apps (PV-OD-011). RFC 6238 §5.2: the verifier MUST NOT accept
+ * the second attempt of an OTP after a successful validation.
+ *
+ * `lastUsedAt` now records the START of the time step last accepted, and a
+ * claim succeeds only for a STRICTLY LATER step, as one conditional UPDATE:
+ * two concurrent submissions of one code cannot both win, and a code older
+ * than the last accepted one is refused as well. A row last used before this
+ * rule carries a wall-clock time, which refuses a replay of that step unless
+ * the code had been accepted early under clock skew — a one-time residual
+ * that ends at the first claim made under this rule.
+ */
+export async function claimTotpStep(
+  client: Pick<PrismaClient, "mfaFactor">,
+  factorId: string,
+  step: number,
+  periodSeconds: number = TOTP_PERIOD_SECONDS,
+): Promise<boolean> {
+  const stepStartsAt = new Date(step * periodSeconds * 1000);
+  const claimed = await client.mfaFactor.updateMany({
+    where: {
+      id: factorId,
+      OR: [{ lastUsedAt: null }, { lastUsedAt: { lt: stepStartsAt } }],
+    },
+    data: { lastUsedAt: stepStartsAt },
+  });
+  return claimed.count === 1;
+}
+
+export function requireTotpSecret(factor: {
   id: string;
   secretCiphertext: Uint8Array | null;
   secretIv: Uint8Array | null;
@@ -343,12 +379,10 @@ export async function verifyActiveTotp(input: {
     return { ok: false, factorId: null };
   }
   const secret = openSecret(requireTotpSecret(factor));
-  const ok = verifyTotpCode(secret, input.code);
+  const step = matchTotpStep(secret, input.code);
+  // WCC-NEW-008 — a matching code is accepted ONCE (see claimTotpStep).
+  const ok = step !== null && (await claimTotpStep(prisma, factor.id, step));
   if (ok) {
-    await prisma.mfaFactor.update({
-      where: { id: factor.id },
-      data: { lastUsedAt: new Date() },
-    });
     safeEmitSecurityEvent({
       teamId: null,
       eventType: "mfa_verification_succeeded",

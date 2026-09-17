@@ -69,7 +69,11 @@ function loadScriptOnce(src: string): Promise<void> {
 
 export function loadGoogleIdentity(): Promise<void> {
   if (!googleScriptPromise) {
-    googleScriptPromise = loadScriptOnce("https://accounts.google.com/gsi/client");
+    // PV-I18N-001 — the button's language follows the SCRIPT's `hl`, not only
+    // the `locale` passed to renderButton: without it Google fell back to the
+    // browser language and an English sign-in page showed "Weiter mit Google".
+    // The app renders English, so the provider button does too.
+    googleScriptPromise = loadScriptOnce("https://accounts.google.com/gsi/client?hl=en");
   }
   return googleScriptPromise;
 }

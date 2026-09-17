@@ -12,26 +12,35 @@ shortening retention when a more-specific CASE policy should have won.
 
 ## First action (under 60s)
 
-Get the effective policy and the full match set for the evidence:
+Ask the platform which policy wins, with the same inputs the evidence
+carries. The decision is computed when it is asked for, from the
+workspace's ACTIVE policies — there is no stored "binding" to compare
+against:
 
-```sql
-SELECT erp.id, erp.scope, erp.status, erp."displayName"
-FROM "EvidenceRetentionPolicy" erp
-WHERE erp."teamId" = '<team>'
-  AND erp.status = 'ACTIVE'
-ORDER BY array_position(ARRAY['CASE','EVIDENCE_TYPE','REGULATORY','WORKSPACE']::text[], erp.scope::text);
-
-SELECT er."policyId", erv."retentionDays", erv.immutable
-FROM "EvidenceRetentionPolicyBinding" er
-JOIN "EvidenceRetentionPolicyVersion" erv
-  ON erv."policyId" = er."retentionPolicyId"
- AND erv."version" = er."retentionPolicyVersion"
-WHERE er."evidenceId" = '<evidence id>';
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  "$API_BASE/v1/governance/retention-policies/effective?teamId=<team>&caseId=<case>&evidenceType=<type>"
 ```
 
-Compare the binding's policy id against `pickHighestPrecedencePolicy`
-applied to the team's ACTIVE policies. If they disagree, the binding
-was made before the higher-precedence policy was created.
+The response names the winning `policy`, its `source` (`team_policy`,
+`org_policy_inherited` or `none`), the `effectiveRetentionDays` after any
+organization floor, and any `conflicts`. The same answer is on the
+Governance → Retention page.
+
+Then read what the evidence itself was stamped with, and the workspace's
+ACTIVE policies in precedence order:
+
+```sql
+SELECT id, retention_until_utc
+FROM evidence
+WHERE id = '<evidence id>';
+
+SELECT id, scope, scope_qualifier, case_id, status, display_name, retention_days, immutable
+FROM evidence_retention_policies
+WHERE team_id = '<team>'
+  AND status = 'ACTIVE'
+ORDER BY array_position(ARRAY['CASE','EVIDENCE_TYPE','REGULATORY','WORKSPACE']::text[], scope::text);
+```
 
 ## Triage
 
@@ -40,46 +49,54 @@ The `pickHighestPrecedencePolicy` formula (also exposed as
 policies. Verify the suspect policy is actually ACTIVE — a PAUSED or
 SUPERSEDED policy is invisible to the picker.
 
+If the effective answer is right but the evidence's `retention_until_utc`
+reflects the losing policy, the date was stamped before the winning
+policy existed. The effective decision changes as soon as a policy
+changes; a date already stamped on evidence does not.
+
 ## Containment
 
-If a CASE-scope policy was created AFTER an evidence binding, no
-automatic recomputation happens. Trigger a retention reconciliation
-sweep with the operator's case filter:
+The retention sweep acts on the stamped date, not on the effective
+decision: it opens a destruction review for evidence whose
+`retention_until_utc` has passed. It refuses when a legal hold is active
+or when the effective policy version is immutable, and a review is only a
+proposal — nothing is destroyed until a reviewer approves it.
 
-```bash
-curl -X POST -H "X-Internal-Api-Key: $INTERNAL_API_KEY" \
-  "$API_BASE/v1/internal/governance/retention-reconciliation/run?teamId=<team>"
-```
-
-The sweep re-runs `pickHighestPrecedencePolicy` for every binding and
-upserts the binding to the new winner (with a lifecycle event for
-audit).
+So if a review was opened under the wrong policy, deny it rather than
+approve it: open it under Governance → Destruction and move it to
+`DENIED` (the page calls `POST /v1/governance/destruction-reviews/:id/transition`).
+If the evidence must not be touched while the policy is corrected, place
+a legal hold on it first.
 
 ## Root cause
 
-Bindings are immutable point-in-time decisions. The platform creates
-them at evidence-ingest time and on policy attach. The recompute path
-is the retention-reconciliation worker; it runs on a cron schedule but
-also accepts a manual trigger.
+Retention reconciliation runs in the worker, not behind an HTTP
+endpoint. It runs once when the worker starts (after the API reports
+ready) and then every `RETENTION_RECONCILIATION_INTERVAL_MS` (default 15
+minutes), under a cross-instance cron lock; `RETENTION_RECONCILIATION_ENABLED=false`
+turns it off. There is no manual trigger and no per-team filter:
+restarting the worker is the only way to make it run sooner.
 
-If the sweep doesn't pick up the change, look for:
-- A `RetentionPolicy` row whose `status` is not ACTIVE (PAUSED counts
-  as inactive).
-- A `RetentionPolicyVersion` row whose effective dates don't include
-  the evidence's `capturedAt`.
+If the effective answer is still wrong, look for:
+- An `evidence_retention_policies` row whose `status` is not ACTIVE
+  (PAUSED counts as inactive).
+- A CASE policy whose `case_id` is not the case the evidence belongs to,
+  or an EVIDENCE_TYPE / REGULATORY policy whose `scope_qualifier` does
+  not match.
 
 ## Recovery
 
-Re-run reconciliation with the team filter and audit the resulting
-`policy_attached` lifecycle events. The audit chain captures the
-before/after; no data is lost.
+Correct the policy set (activate, supersede or re-scope the policies),
+then re-read the effective decision above until it names the expected
+policy. Deny any destruction review opened under the wrong policy. The
+policy change is versioned in `evidence_retention_policy_versions`, and
+each review transition is recorded on the evidence's lifecycle events.
 
 ## Postmortem checklist
 
 - [ ] Confirm `canonicalPickHighestPrecedencePolicy` returns the
       expected policy for the input set.
-- [ ] Verify the reconciliation run produced a `GovernanceReconciliationRun`
-      row showing the binding upserts.
+- [ ] Record which destruction reviews were denied and why.
 - [ ] Add a fixture-driven test in `phase-z-hardening.test.ts`
       reproducing the precedence pattern if it represents a new
       scenario.

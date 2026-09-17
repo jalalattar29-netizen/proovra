@@ -477,11 +477,18 @@ vi.mock("../src/services/organization/org-access.js", async (orig) => {
     ...((await orig()) as Record<string, unknown>),
     checkOrgAccess: async (
       _c: unknown,
-      i: { orgId: string; userId: string; minRole?: string },
+      i: { orgId: string; userId: string; minRole?: string; roles?: string[] },
     ) => {
       rec("checkOrgAccess", i);
-      if (i.orgId === OTHER_ORG) return { kind: "forbidden" };
+      // PV-ORG-001 — the actor holds no membership in the foreign org: the
+      // real gate reports that as not_found, identical to a missing org.
+      if (i.orgId === OTHER_ORG) return { kind: "not_found" };
       if (H.orgAccess.kind !== "ok") return H.orgAccess;
+      if (i.roles) {
+        return i.roles.includes(H.orgAccess.role)
+          ? H.orgAccess
+          : { kind: "forbidden" };
+      }
       const need = i.minRole ? RANK[i.minRole] ?? 1 : 1;
       if ((RANK[H.orgAccess.role] ?? 0) < need) return { kind: "forbidden" };
       return H.orgAccess;
@@ -748,6 +755,14 @@ function matches(row: Row, where: unknown): boolean {
     }
     if (k === "NOT") {
       if (matches(row, v)) return false;
+      continue;
+    }
+    // Relation filter: team.members.some — resolved against the teamMember rows.
+    if (k === "members" && v !== null && typeof v === "object" && "some" in (v as Row)) {
+      const cond = (v as Row).some;
+      if (!rows("teamMember").some((m) => m.teamId === row.id && matches(m, cond))) {
+        return false;
+      }
       continue;
     }
     const rv = row[k];
@@ -1268,23 +1283,25 @@ describe("SYSTEM 1 — MFA recovery-request lifecycle", () => {
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body) as { requests: Array<{ id: string }> };
     expect(body.requests.map((r) => r.id)).toEqual([REQ_MINE]);
-    // The scope guard ran with the SERVER-derived actor, not a client value.
-    expect(callsTo("readUserMfaPosture")[0]!.args).toMatchObject({
-      teamId: TEAM,
-      actorUserId: ACTOR,
-      targetUserId: ACTOR,
-    });
+    // PV-API-001 — the list authorizes through the family's gate
+    // (authorizeMfaAdminScope), not the side route through a self-posture
+    // read it used to take.
+    expect(callsTo("readUserMfaPosture")).toHaveLength(0);
   });
 
-  it("admin queue denial: a scope failure is a bounded denial that reads nothing", async () => {
+  it("admin queue denial: a scope failure is the family's concealed 404, in the envelope", async () => {
     pushRequest();
     const ok = await app.inject({ method: "GET", url: ADMIN_BASE + "/" + TEAM });
     expect(ok.statusCode).toBe(200);
-    H.postureOk = false;
-    H.postureReason = "admin_not_admin";
+    // PV-API-001 — this used to answer a bare-string `403 {"error":
+    // "admin_not_admin"}` outside the error envelope, and told an outsider
+    // which of "not a member" / "not an admin" applied. It now answers what
+    // every sibling answers: the same concealed 404 envelope.
+    H.authorizeAllowed = false;
     const res = await app.inject({ method: "GET", url: ADMIN_BASE + "/" + TEAM });
-    expect(res.statusCode).toBe(403);
-    expect(JSON.parse(res.body)).toEqual({ error: "admin_not_admin" });
+    expect(res.statusCode).toBe(404);
+    expect(JSON.parse(res.body)).toEqual({ error: { code: "not_found" } });
+    expect(res.body).not.toContain("admin_not");
     expect(res.body).not.toContain("authenticator");
   });
 
@@ -1360,8 +1377,10 @@ describe("SYSTEM 1 — MFA recovery-request lifecycle", () => {
       headers: JSON_HEADERS,
       payload: { token: "f".repeat(64) },
     });
-    expect(forged.statusCode).toBe(400);
-    expect(JSON.parse(forged.body)).toEqual({ error: "token_invalid" });
+    // D55 — a wrong token on a real id is answered exactly as a missing id
+    // (was 400 token_invalid, which confirmed the id to an anonymous caller).
+    expect(forged.statusCode).toBe(404);
+    expect(JSON.parse(forged.body)).toEqual({ error: "request_not_found" });
     expect(requestRow(id).status).toBe("EMAIL_VERIFICATION_PENDING");
 
     const ok = await app.inject({
@@ -1380,10 +1399,12 @@ describe("SYSTEM 1 — MFA recovery-request lifecycle", () => {
       headers: JSON_HEADERS,
       payload: { token: raw },
     });
-    expect(replay.statusCode).toBe(400);
-    expect(JSON.parse(replay.body)).toEqual({
-      error: "request_not_in_email_pending",
-    });
+    // D55 — the used token's hash is cleared, so a replay can no longer be
+    // told apart from a guess; describing the request's state ("not pending")
+    // to an unproven caller was the leak. Was 400 request_not_in_email_pending.
+    expect(replay.statusCode).toBe(404);
+    expect(JSON.parse(replay.body)).toEqual({ error: "request_not_found" });
+    expect(requestRow(id).status).toBe("PENDING_ADMIN_REVIEW");
   });
 
   it("resend-email leg rotates the token, throttles the next attempt, refuses a foreign owner", async () => {
@@ -1407,13 +1428,15 @@ describe("SYSTEM 1 — MFA recovery-request lifecycle", () => {
     expect(throttled.statusCode).toBe(429);
     expect(JSON.parse(throttled.body).error).toBe("resend_throttled");
     // A different signed-in user cannot drive someone else's recovery.
+    // D11 — and is told exactly what a missing id is told: a distinct 403
+    // "wrong_user" confirmed that the guessed id was a real recovery.
     H.actorUserId = ACTOR;
     const wrong = await app.inject({
       method: "POST",
       url: SELF_BASE + "/" + id + "/resend-email",
     });
-    expect(wrong.statusCode).toBe(403);
-    expect(JSON.parse(wrong.body)).toEqual({ error: "wrong_user" });
+    expect(wrong.statusCode).toBe(404);
+    expect(JSON.parse(wrong.body)).toEqual({ error: "request_not_found" });
   });
 
   it("cancel leg is owner-only and refuses to cancel an already-approved request", async () => {
@@ -1423,7 +1446,9 @@ describe("SYSTEM 1 — MFA recovery-request lifecycle", () => {
       method: "POST",
       url: SELF_BASE + "/" + id + "/cancel",
     });
-    expect(notOwner.statusCode).toBe(403);
+    // D11 — concealed as a missing request, not a distinguishable 403.
+    expect(notOwner.statusCode).toBe(404);
+    expect(JSON.parse(notOwner.body)).toEqual({ error: "request_not_found" });
     expect(requestRow(id).status).toBe("PENDING_ADMIN_REVIEW");
 
     H.actorUserId = SUBJECT;
@@ -1441,6 +1466,34 @@ describe("SYSTEM 1 — MFA recovery-request lifecycle", () => {
     });
     expect(conflict.statusCode).toBe(409);
     expect(JSON.parse(conflict.body)).toEqual({ error: "already_approved" });
+  });
+
+  it("the self-service panel can act on the blocking request: 409 and resend 429 carry their facts under details", async () => {
+    H.actorUserId = SUBJECT;
+    const id = pushRequest({
+      status: "EMAIL_VERIFICATION_PENDING",
+      emailResendBlockedUntil: new Date(Date.now() + 120_000),
+    });
+    const pending = await app.inject({
+      method: "POST",
+      url: ADMIN_BASE,
+      headers: JSON_HEADERS,
+      payload: { teamId: TEAM, reason: "Lost my authenticator device today." },
+    });
+    expect(pending.statusCode).toBe(409);
+    expect(JSON.parse(pending.body).details).toEqual({ requestId: id });
+
+    const throttled = await app.inject({
+      method: "POST",
+      url: SELF_BASE + "/" + id + "/resend-email",
+    });
+    expect(throttled.statusCode).toBe(429);
+    const body = JSON.parse(throttled.body);
+    expect(body.details.reason).toBe("resend_throttled");
+    expect(typeof body.details.nextResendAfter).toBe("string");
+    expect(body.details.nextResendAfter).toBe(body.nextResendAfter);
+    // No token or verification link is ever part of the answer.
+    expect(throttled.body).not.toMatch(/token/i);
   });
 
   it("page-viewed analytics ingest is anonymous-safe and asserts nothing about the caller", async () => {
@@ -2340,11 +2393,14 @@ describe("SYSTEM 6 — organization domain identity boundary", () => {
     expect(body.challenge.recordName).toBe("_proovra-verify.new-claim.example.com");
     expect(body.challenge.recordValue).toMatch(/^proovra-domain-verify=/);
     // The org boundary came from the PATH but was authorized on the server.
+    // PV-OD-012 — an explicit write-role set, not precedence: rank would also
+    // admit ORG_BILLING_ADMIN, which shares the security admin's rank.
     expect(callsTo("checkOrgAccess")[0]!.args).toMatchObject({
       orgId: ORG,
       userId: ACTOR,
-      minRole: "ORG_SECURITY_ADMIN",
+      roles: ["ORG_OWNER", "ORG_ADMIN", "ORG_SECURITY_ADMIN"],
     });
+    expect(callsTo("checkOrgAccess")[0]!.args).not.toHaveProperty("minRole");
     const added = H.audits.find((a) => a.eventType === "DOMAIN_ADDED")!;
     expect(added).toBeTruthy();
     const token = body.challenge.recordValue.split("=")[1]!;
@@ -2425,7 +2481,9 @@ describe("SYSTEM 6 — organization domain identity boundary", () => {
     expect(H.audits.some((a) => a.eventType === "DOMAIN_REMOVED")).toBe(true);
   });
 
-  it("denial: a caller without org security-admin access is a bounded 403 across every leg", async () => {
+  it("denial: a caller with no membership in the other Organization is told what a missing org's caller is told — 404 on every leg", async () => {
+    // PV-ORG-001 — the actor holds no membership in OTHER_ORG, so every leg
+    // answers exactly as for an organization that does not exist.
     const legs: Array<{ name: string; method: "GET" | "POST" | "DELETE"; url: string; payload?: Row }> = [
       { name: "add", method: "POST", url: DOMAINS(OTHER_ORG), payload: { domain: "x.test" } },
       { name: "verify", method: "POST", url: DOMAINS(OTHER_ORG) + "/" + DOMAIN_FOREIGN + "/verify", payload: {} },
@@ -2438,15 +2496,81 @@ describe("SYSTEM 6 — organization domain identity boundary", () => {
         url: leg.url,
         ...(leg.payload ? { headers: JSON_HEADERS, payload: leg.payload } : {}),
       });
-      expect(res.statusCode, leg.name).toBe(403);
+      expect(res.statusCode, leg.name).toBe(404);
       expect(JSON.parse(res.body), leg.name).toEqual({
-        error: { code: "forbidden" },
+        error: { code: "not_found" },
       });
     }
     // Nothing about the other Organization's domain was touched or revealed.
     expect(domainRow(DOMAIN_FOREIGN)!.verifiedAt).toBeNull();
     expect(callsTo("checkDomainDnsTxt")).toHaveLength(0);
     expect(H.audits).toEqual([]);
+  });
+
+  /*
+   * PV-OD-012 — WHO MAY TOUCH THE IDENTITY BOUNDARY, BY EXPLICIT ROLE.
+   *
+   * The security admin reads and writes; the auditor reads and writes nothing;
+   * the billing admin — who shares the security admin's precedence rank, which
+   * is exactly why rank is not consulted here — does neither. Every refusal
+   * is a 403 (these are ACTIVE members of the organization) and writes nothing.
+   */
+  it("OD-012: an ORG_AUDITOR lists domains read-only and is refused every write", async () => {
+    H.orgAccess = { kind: "ok", role: "ORG_AUDITOR" };
+    const list = await app.inject({ method: "GET", url: DOMAINS(ORG) });
+    expect(list.statusCode).toBe(200);
+    const body = JSON.parse(list.body) as { viewerCanManage: boolean; stepUpWorkspaceId: string | null };
+    expect(body.viewerCanManage).toBe(false);
+    expect(body.stepUpWorkspaceId).toBeNull();
+    const before = rows("organizationDomain").length;
+    for (const leg of [
+      { method: "POST" as const, url: DOMAINS(ORG), payload: { domain: "auditor.test" } },
+      { method: "DELETE" as const, url: DOMAINS(ORG) + "/" + DOMAIN_ROW },
+    ]) {
+      const res = await app.inject({
+        method: leg.method,
+        url: leg.url,
+        ...(leg.payload ? { headers: JSON_HEADERS, payload: leg.payload } : {}),
+      });
+      expect(res.statusCode, leg.method).toBe(403);
+      expect(JSON.parse(res.body)).toEqual({ error: { code: "forbidden" } });
+    }
+    expect(rows("organizationDomain")).toHaveLength(before);
+    expect(callsTo("stepUp")).toHaveLength(0);
+    expect(H.audits).toEqual([]);
+  });
+
+  it("OD-012: an ORG_BILLING_ADMIN — same rank as the security admin — can neither read nor write domains", async () => {
+    H.orgAccess = { kind: "ok", role: "ORG_BILLING_ADMIN" };
+    const before = rows("organizationDomain").length;
+    for (const leg of [
+      { method: "GET" as const, url: DOMAINS(ORG) },
+      { method: "POST" as const, url: DOMAINS(ORG), payload: { domain: "billing.test" } },
+      { method: "DELETE" as const, url: DOMAINS(ORG) + "/" + DOMAIN_ROW },
+    ]) {
+      const res = await app.inject({
+        method: leg.method,
+        url: leg.url,
+        ...(leg.payload ? { headers: JSON_HEADERS, payload: leg.payload } : {}),
+      });
+      expect(res.statusCode, leg.method).toBe(403);
+    }
+    expect(rows("organizationDomain")).toHaveLength(before);
+    expect(H.audits).toEqual([]);
+  });
+
+  it("OD-012: an ORG_SECURITY_ADMIN manages domains", async () => {
+    H.orgAccess = { kind: "ok", role: "ORG_SECURITY_ADMIN" };
+    const list = await app.inject({ method: "GET", url: DOMAINS(ORG) });
+    expect(list.statusCode).toBe(200);
+    expect((JSON.parse(list.body) as { viewerCanManage: boolean }).viewerCanManage).toBe(true);
+    const add = await app.inject({
+      method: "POST",
+      url: DOMAINS(ORG),
+      headers: JSON_HEADERS,
+      payload: { domain: "security-admin.test" },
+    });
+    expect(add.statusCode).toBe(201);
   });
 
   it("denial: a non-Enterprise Organization is refused with the upgrade path, mutating nothing", async () => {
@@ -2789,8 +2913,10 @@ describe("SYSTEM 7 — bulk organization invitation", () => {
     );
   });
 
-  it("denial: a caller who is not an ORG_ADMIN gets the anti-enumeration 404 on EVERY leg, writing nothing", async () => {
+  it("denial: a member who is not an ORG_ADMIN gets ONE 403 on EVERY leg, writing nothing", async () => {
     const before = rows("organizationInvite").length;
+    // PV-ORG-001 — an ACTIVE member without the role is told the truth (403);
+    // concealment is for NON-members (the next case).
     H.orgAccess = { kind: "forbidden" };
     const legs: Array<{ name: string; method: "GET" | "POST"; url: string; payload?: unknown }> = [
       { name: "validate", method: "POST", url: BULK(ORG) + "/bulk/validate", payload: { rows: BATCH_ROWS } },
@@ -2806,17 +2932,44 @@ describe("SYSTEM 7 — bulk organization invitation", () => {
         url: leg.url,
         ...(leg.payload ? { headers: JSON_HEADERS, payload: leg.payload } : {}),
       });
-      expect(res.statusCode, leg.name).toBe(404);
+      expect(res.statusCode, leg.name).toBe(403);
       bodies.add(res.body);
     }
-    // ONE bounded denial body across the whole surface — nothing distinguishes
-    // "org exists but you are not an admin" from "org does not exist".
-    expect([...bodies]).toEqual([
-      '{"message":"Organization not found","code":"org_not_found"}',
-    ]);
+    // ONE bounded denial body across the whole surface.
+    expect([...bodies]).toEqual(['{"error":{"code":"forbidden"}}']);
     expect(rows("organizationInvite")).toHaveLength(before);
     expect(H.audits).toEqual([]);
     expect(callsTo("attemptInitialOrgInviteDelivery")).toHaveLength(0);
+  });
+
+  it("denial: a NON-member gets the not-found 404 on EVERY leg — identical to a missing org — writing nothing", async () => {
+    const before = rows("organizationInvite").length;
+    H.orgAccess = { kind: "not_found" };
+    const legs: Array<{ method: "GET" | "POST"; url: string; payload?: unknown }> = [
+      { method: "POST", url: BULK(ORG) + "/bulk/validate", payload: { rows: BATCH_ROWS } },
+      { method: "POST", url: BULK(ORG) + "/bulk", payload: { rows: BATCH_ROWS } },
+      { method: "POST", url: BULK(ORG) + "/bulk/resend", payload: { inviteIds: [INVITE_ROW] } },
+      { method: "GET", url: BULK(ORG) + "/csv-template" },
+      { method: "POST", url: BULK(ORG) + "/csv", payload: { csv: "email\nx@acme.test" } },
+    ];
+    const bodies = new Set<string>();
+    for (const leg of legs) {
+      const res = await app.inject({
+        method: leg.method,
+        url: leg.url,
+        ...(leg.payload ? { headers: JSON_HEADERS, payload: leg.payload } : {}),
+      });
+      expect(res.statusCode).toBe(404);
+      bodies.add(res.body);
+    }
+    // Nothing distinguishes "org exists but you are not in it" from "org does
+    // not exist": the body a malformed organization id receives is the same.
+    const malformed = await app.inject({ method: "GET", url: BULK("not-a-uuid") + "/csv-template" });
+    expect(malformed.statusCode).toBe(404);
+    bodies.add(malformed.body);
+    expect([...bodies]).toEqual(['{"error":{"code":"not_found"}}']);
+    expect(rows("organizationInvite")).toHaveLength(before);
+    expect(H.audits).toEqual([]);
   });
 
   it("a verified-domain restriction policy denies non-verified domains only when domains exist", async () => {
@@ -2900,9 +3053,12 @@ describe("SYSTEM 8 — organization identity", () => {
       ORGS(OTHER_ORG) + "/audit-events",
       ORGS(OTHER_ORG) + "/invites",
     ]) {
+      // PV-ORG-001 — a non-member is told exactly what a caller asking about a
+      // missing organization is told: one 404 body, never a 403 that confirms
+      // the organization exists.
       const res = await app.inject({ method: "GET", url });
-      expect(res.statusCode, url).toBe(403);
-      expect(res.body, url).toBe('{"message":"Forbidden"}');
+      expect(res.statusCode, url).toBe(404);
+      expect(res.body, url).toBe('{"error":{"code":"not_found"}}');
     }
     // /v1/me/orgs is actor-scoped, so an outsider simply sees nothing.
     H.actorUserId = OUTSIDER;

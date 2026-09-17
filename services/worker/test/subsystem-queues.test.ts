@@ -41,6 +41,11 @@ import {
   getWorkEntryOrThrow,
 } from "@proovra/shared";
 
+import {
+  enclosingSource,
+  functionSource,
+} from "../../../scripts/source-contract/index.mjs";
+
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 }
@@ -114,9 +119,7 @@ describe("Phase 31.19 — queue declarations", () => {
     // `mi-exif` is now the only part-addressed extraction chain: the OCR and
     // transcript helpers this case also covered were deleted with their
     // queues, having never had a caller in any commit.
-    const exifIdx = QUEUE_SRC.indexOf("export async function enqueueExifJob");
-    expect(exifIdx).toBeGreaterThan(0);
-    expect(QUEUE_SRC.slice(exifIdx, exifIdx + 800)).toMatch(
+    expect(functionSource(QUEUE_SRC, "enqueueExifJob")).toMatch(
       /evidence_part_id_required/,
     );
   });
@@ -141,9 +144,10 @@ describe("Phase 31.19 — worker registrations", () => {
   });
 
   it("WorkerKind union includes the subsystem kinds", () => {
-    const idx = INDEX_SRC.indexOf("type WorkerKind");
-    expect(idx).toBeGreaterThan(0);
-    const slice = INDEX_SRC.slice(idx, idx + 600);
+    const slice = enclosingSource(INDEX_SRC, "type WorkerKind", "statement", {
+      unique: true,
+      fileName: "index.ts",
+    });
     expect(slice).toMatch(/"mi-search-index"/);
     expect(slice).toMatch(/"graph-reconcile"/);
   });
@@ -157,11 +161,16 @@ describe("Phase 31.19 — worker registrations", () => {
 
   it("each worker is bounded — concurrency 1 or 2", () => {
     // mi-search-index: 2 (lightweight delegate).
-    const siIdx = INDEX_SRC.indexOf('safeRegisterWorker("mi-search-index"');
-    expect(INDEX_SRC.slice(siIdx, siIdx + 400)).toMatch(/concurrency: 2/);
+    // Each read is that worker's whole `safeRegisterWorker(…)` call, so the
+    // neighbouring registration's concurrency can never satisfy it.
+    const registration = (kind: string) =>
+      enclosingSource(INDEX_SRC, `safeRegisterWorker("${kind}"`, "call", {
+        unique: true,
+        fileName: "index.ts",
+      });
+    expect(registration("mi-search-index")).toMatch(/concurrency: 2/);
     // graph-reconcile: 1 (Postgres-heavy).
-    const grIdx = INDEX_SRC.indexOf('safeRegisterWorker("graph-reconcile"');
-    expect(INDEX_SRC.slice(grIdx, grIdx + 400)).toMatch(/concurrency: 1/);
+    expect(registration("graph-reconcile")).toMatch(/concurrency: 1/);
   });
 });
 

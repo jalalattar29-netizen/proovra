@@ -430,7 +430,7 @@ describe("Phase 26.75 — wording sweep", () => {
     "../src/services/access-control/geo-intelligence.service.ts",
     "../src/services/access-control/runtime-risk.service.ts",
     "../src/services/access-control/trusted-device-decay.service.ts",
-    "../../../apps/web/app/(app)/admin/identity/runtime/page.tsx",
+    "../../../apps/web/app/(app)/security-center/identity/runtime/page.tsx",
   ];
   for (const path of sources) {
     it(`no overclaim phrase in ${path.split("/").slice(-2).join("/")}`, () => {

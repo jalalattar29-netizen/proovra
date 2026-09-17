@@ -764,9 +764,15 @@ describe("UC-0 acquisition + direct capture — live PostgreSQL 16", () => {
     const ingest = await call("POST", "/v1/capture/mobile/ingest", owner().ownerToken, {});
     expect(ingest.statusCode).toBe(410);
     expect(ingest.json().denial).toBe("INGEST_RETIRED");
+    // The citizen limiter runs before the 410 and its per-IP bucket is shared
+    // with every other suite in the run (phase13-public-write-bounds drives it
+    // to the limit on purpose), so each request comes from its own IPv6
+    // documentation address (RFC 3849). Nothing is dialled.
+    const freshClient = () => `2001:db8:${randomBytes(2).toString("hex")}:${randomBytes(2).toString("hex")}::1`;
     const citizenOpen = await harness.app.inject({
       method: "POST",
       url: "/v1/intake/citizen/sessions",
+      remoteAddress: freshClient(),
       headers: { "content-type": "application/json" },
       payload: JSON.stringify({ intakeTokenId: "x", publicKeyHex: "a".repeat(64) }),
     });
@@ -774,6 +780,7 @@ describe("UC-0 acquisition + direct capture — live PostgreSQL 16", () => {
     const citizenCapture = await harness.app.inject({
       method: "POST",
       url: `/v1/intake/citizen/sessions/${owner().evidenceId}/capture`,
+      remoteAddress: freshClient(),
       headers: { "content-type": "application/json" },
       payload: JSON.stringify({}),
     });

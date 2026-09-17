@@ -71,6 +71,7 @@ import {
   INVITE_DOMAIN_RESTRICTION_KEY,
 } from "../src/routes/organizations-bulk-invite.routes.js";
 import { ORG_AUDIT_EVENT_TYPES } from "../src/services/organization/org-audit.service.js";
+import { functionSource } from "../../../scripts/source-contract/index.mjs";
 import {
   ORG_INVITE_DELIVERY_EVENT_TYPE,
   ORG_INVITE_DELIVERY_MAX_ATTEMPTS,
@@ -231,8 +232,13 @@ describe("Phase 8 Group 3 — bulk-invite route plugin contract", () => {
   it("gates every endpoint with the ORG_ADMIN requireOrgAdmin + requireAuth chain", () => {
     expect(ROUTE_SRC).toMatch(/checkOrgAccess\(prisma, \{[\s\S]*?minRole: "ORG_ADMIN"/);
     expect(ROUTE_SRC).toContain("const preHandler = [requireAuth, requireLegalAcceptance]");
-    // Anti-enumeration: not_found AND forbidden both return 404.
-    expect(ROUTE_SRC).toMatch(/if \(result\.kind !== "ok"\) return \{ ok: false, code: 404 \}/);
+    // PV-ORG-001 — the one org-denial convention: 404 identical to a missing
+    // org for a non-member, 403 for an ACTIVE member without the role.
+    expect(ROUTE_SRC).toMatch(
+      /if \(result\.kind !== "ok"\) return \{ ok: false, denial: orgAccessDenial\(result\) \}/,
+    );
+    expect(ROUTE_SRC).toContain("reply.code(access.denial.status).send(access.denial.body)");
+    expect(ROUTE_SRC).not.toContain("org_not_found");
   });
 
   it("enforces the 200-row cap WITHOUT silently dropping (truthful truncation note)", () => {
@@ -870,9 +876,8 @@ describe("Macro-Wave A2 — delivery wiring source contracts", () => {
     // protecting is unchanged, and is asserted where it now lives: the
     // builder may write ids, a version, a bounded fingerprint and the provider
     // key, and nothing token-shaped.
-    const at = DELIVERY_SRC.indexOf("function buildIntentMetadata(");
-    expect(at).toBeGreaterThan(0);
-    const builder = DELIVERY_SRC.slice(at, at + 900);
+    const builder = functionSource(DELIVERY_SRC, "buildIntentMetadata");
+    expect(builder).toContain("function buildIntentMetadata(");
     expect(builder).not.toMatch(/rawToken|acceptUrl|tokenHash/);
     // Rotation stores ONLY the hash; the legacy plaintext column stays NULL.
     expect(DELIVERY_SRC).toMatch(/token: null,\s*\r?\n\s*tokenHash: newTokenHash/);

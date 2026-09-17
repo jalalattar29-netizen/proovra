@@ -43,8 +43,11 @@
  */
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+
+const ts = createRequire(import.meta.url)("typescript");
 
 const WEB_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const REPO_ROOT = resolve(WEB_ROOT, "..", "..");
@@ -55,11 +58,112 @@ const API_ROUTES_DIR = join(REPO_ROOT, "services", "api", "src", "routes");
 // Source helpers
 // ============================================================================
 
-/** Comments stripped. Every scan in this file is about CODE, not prose. */
+/**
+ * Comments blanked. Every scan in this file is about CODE, not prose.
+ *
+ * WCC-NEW-023 / PV-INV-001 — this was two regexes over raw text: strip
+ * `/* … *\/` first, then whole-line `//` comments. The first regex cannot
+ * tell a comment from comment-like text, so a line comment that happened to
+ * contain the two characters that open a block comment (a note about
+ * `/v1/orgs/<star>`) — or a string holding them — opened a phantom block that
+ * ran to the next close and deleted the code in between. Six route
+ * registrations vanished from the inventory that way and one handler's guard
+ * read as NONE, with nothing failing.
+ *
+ * The comments are now the ones the TypeScript parser finds: trivia between
+ * real tokens, so text inside strings, templates, regex literals and JSX is
+ * never touched. They are replaced by spaces (newlines kept), so every offset
+ * and line number in the result is the same as in the file.
+ */
+export function blankComments(text, fileName = "source.ts") {
+  const kind = fileName.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+  const sf = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, false, kind);
+  const ranges = new Map();
+  const collect = (pos) => {
+    for (const r of ts.getLeadingCommentRanges(text, pos) ?? []) ranges.set(r.pos, r.end);
+    for (const r of ts.getTrailingCommentRanges(text, pos) ?? []) ranges.set(r.pos, r.end);
+  };
+  // Every token, not just every node: a comment before a closing brace or
+  // parenthesis is trivia of that punctuation token, which no node owns.
+  const visit = (node) => {
+    collect(node.pos);
+    if (node.kind < ts.SyntaxKind.FirstNode) {
+      collect(node.end);
+      return;
+    }
+    for (const child of node.getChildren(sf)) visit(child);
+  };
+  visit(sf);
+  let out = "";
+  let at = 0;
+  for (const [pos, end] of [...ranges].sort((a, b) => a[0] - b[0])) {
+    if (pos < at) continue;
+    out += text.slice(at, pos) + text.slice(pos, end).replace(/[^\n]/g, " ");
+    at = end;
+  }
+  return out + text.slice(at);
+}
+
 function codeOf(file) {
-  return readFileSync(file, "utf8")
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/^\s*\/\/.*$/gm, "");
+  return blankComments(readFileSync(file, "utf8"), file);
+}
+
+const ROUTE_METHODS = new Set(["get", "post", "put", "patch", "delete"]);
+
+/**
+ * Every `app.<method>(path, …)` in one routes file, in source order, read
+ * from the syntax tree.
+ *
+ * PV-INV-001 — the reader was a regex that required a STRING literal starting
+ * `/v1/` as the first argument. A path hoisted into a constant
+ * (`const AI_POLICY_PATH = "/v1/teams/ai-policy"`) was invisible, and so was
+ * every registration outside /v1 (the /v2/scim protocol surface, the payment
+ * webhooks, the health probes). A path is now a string, a template, or a
+ * file-level `const` holding one; a first argument that is none of those is
+ * reported as `path: null` rather than skipped silently.
+ */
+export function readRegistrations(text, fileName = "routes.ts") {
+  const sf = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const constants = new Map();
+  for (const stmt of sf.statements) {
+    if (!ts.isVariableStatement(stmt)) continue;
+    for (const d of stmt.declarationList.declarations) {
+      if (!ts.isIdentifier(d.name) || !d.initializer) continue;
+      const init = d.initializer;
+      if (ts.isStringLiteral(init) || ts.isNoSubstitutionTemplateLiteral(init)) {
+        constants.set(d.name.text, init.text);
+      }
+    }
+  }
+  const pathOf = (arg) => {
+    if (!arg) return null;
+    if (ts.isStringLiteral(arg) || ts.isNoSubstitutionTemplateLiteral(arg)) return arg.text;
+    // A template keeps its `${name}` holes; expandLoopPath resolves them.
+    if (ts.isTemplateExpression(arg)) return arg.getText(sf).slice(1, -1);
+    if (ts.isIdentifier(arg)) return constants.get(arg.text) ?? null;
+    return null;
+  };
+  const out = [];
+  const visit = (node) => {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      ts.isIdentifier(node.expression.expression) &&
+      node.expression.expression.text === "app" &&
+      ROUTE_METHODS.has(node.expression.name.text)
+    ) {
+      const path = pathOf(node.arguments[0]);
+      out.push({
+        index: node.getStart(sf),
+        method: node.expression.name.text,
+        path: path && path.startsWith("/") ? path : null,
+        firstArgument: node.arguments[0]?.getText(sf) ?? "",
+      });
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return out.sort((a, b) => a.index - b.index);
 }
 
 function walk(dir, match, out = []) {
@@ -89,17 +193,18 @@ function walk(dir, match, out = []) {
  * registration. That is coarse, but it is bounded by real syntax and it is the
  * span in which the guard and the query both live.
  */
-function readApiRoutes() {
+export function readApiRoutes() {
   const routes = new Map();
   for (const file of walk(API_ROUTES_DIR, (n) => n.endsWith(".ts"))) {
     const code = codeOf(file);
     const rel = relative(REPO_ROOT, file).split(sep).join("/");
 
-    const regs = [
-      ...code.matchAll(
-        /app\.(get|post|put|patch|delete)\s*(?:<[^>]*>)?\s*\(\s*["'`](\/v1\/[^"'`]+)["'`]/g,
-      ),
-    ];
+    // Read from the ORIGINAL text so paths inside the call keep their
+    // characters; `code` has the same offsets, so the handler slices below
+    // are taken from it unchanged.
+    const regs = readRegistrations(readFileSync(file, "utf8"), file)
+      .filter((r) => r.path !== null)
+      .map((r) => Object.assign([r.method, r.method, r.path], { index: r.index }));
 
     /**
      * Guards hoisted into a named constant.
@@ -219,7 +324,8 @@ function readApiRoutes() {
         // Does the handler NARROW its result by teamId?
         //
         // Three shapes, and missing the third produced a wrong answer that
-        // reached the UI: `/admin/platform/reliability` calls
+        // reached the UI: `/admin/platform/reliability` (now
+        // `/operations/reliability`, PV-PLACE-001) calls
         // `countUploadSessionsByTeam({ teamId: query.teamId })`. There is no
         // Prisma `where` in the handler at all — the narrowing happens inside
         // a service — so the first two patterns reported AUDIT, the page was
@@ -601,7 +707,8 @@ function inspectPage(file, apiRoutes) {
    *   → no teamRole to refine with → WORKSPACE_UNCLASSIFIED
    *
    * which is how `/admin/identity`, `/admin/identity/sessions` and
-   * `/admin/security` were reported as unclassified while every one of them
+   * `/admin/security` (all three have since left the console under
+   * PV-PLACE-001 for `/security-center/*`) were reported as unclassified while every one of them
    * declares `scope: "WORKSPACE"` and calls workspace-filtered endpoints —
    * `/v1/identity/mfa-admin/policy/:teamId` and its siblings — from sections.
    *
@@ -686,7 +793,7 @@ function inspectPage(file, apiRoutes) {
      *
      * This read `page.tsx` alone, which was true of the console when it was
      * written and stopped being true as pages were decomposed. `/admin/security`
-     * is an ORCHESTRATOR — six `_sections/*` components, every one of them
+     * (now `/security-center/posture`, PV-PLACE-001) was an ORCHESTRATOR — six `_sections/*` components, every one of them
      * calling `useTeamId()` — and its page file held a `teamId` of its own only
      * for one clause of a note card. Removing that dead variable (it had become
      * a lint error) flipped the route's classification from
@@ -716,119 +823,123 @@ function inspectPage(file, apiRoutes) {
 // Build
 // ============================================================================
 
-const apiRoutes = readApiRoutes();
-const registry = readRouteRegistry();
-const registryByHref = new Map(registry.map((r) => [r.href, r]));
-const { sectionByHref, scopeByHref } = readAdminNav();
+function main() {
+  const apiRoutes = readApiRoutes();
+  const registry = readRouteRegistry();
+  const registryByHref = new Map(registry.map((r) => [r.href, r]));
+  const { sectionByHref, scopeByHref } = readAdminNav();
 
-const rows = walk(ADMIN_DIR, (n) => n === "page.tsx")
-  .map((file) => {
-    const route = routeOf(file);
-    const p = inspectPage(file, apiRoutes);
-    const entry = registryByHref.get(route) ?? null;
-    const gateEntry = p.gateRouteId
-      ? registry.find((r) => r.id === p.gateRouteId) ?? null
-      : null;
+  const rows = walk(ADMIN_DIR, (n) => n === "page.tsx")
+    .map((file) => {
+      const route = routeOf(file);
+      const p = inspectPage(file, apiRoutes);
+      const entry = registryByHref.get(route) ?? null;
+      const gateEntry = p.gateRouteId
+        ? registry.find((r) => r.id === p.gateRouteId) ?? null
+        : null;
 
-    const isDetail = route.includes("/:");
-    const parent = isDetail
-      ? route.replace(/\/:[^/]+$/, "")
-      : route.split("/").length > 2
-        ? route.split("/").slice(0, -1).join("/")
-        : "/admin";
+      const isDetail = route.includes("/:");
+      const parent = isDetail
+        ? route.replace(/\/:[^/]+$/, "")
+        : route.split("/").length > 2
+          ? route.split("/").slice(0, -1).join("/")
+          : "/admin";
 
-    // The scope the CODE implies, from what the API handlers actually do.
-    const roles = new Set(p.api.map((a) => a.teamRole));
-    const actualScope = roles.has("FILTER")
-      ? "WORKSPACE_FILTERED"
-      : roles.has("FILTER_CANDIDATE") && p.readsActiveWorkspace.length > 0
-      ? "WORKSPACE_CANDIDATE"
-      : p.readsActiveWorkspace.length > 0 && roles.has("AUTHZ")
-        ? "WORKSPACE_AUTHZ"
-        : p.readsActiveWorkspace.length > 0 && roles.has("AUDIT")
-          ? "PLATFORM_AUDIT_SCOPED"
-          : p.readsActiveWorkspace.length > 0
-            ? "WORKSPACE_UNCLASSIFIED"
-            : "PLATFORM";
+      // The scope the CODE implies, from what the API handlers actually do.
+      const roles = new Set(p.api.map((a) => a.teamRole));
+      const actualScope = roles.has("FILTER")
+        ? "WORKSPACE_FILTERED"
+        : roles.has("FILTER_CANDIDATE") && p.readsActiveWorkspace.length > 0
+        ? "WORKSPACE_CANDIDATE"
+        : p.readsActiveWorkspace.length > 0 && roles.has("AUTHZ")
+          ? "WORKSPACE_AUTHZ"
+          : p.readsActiveWorkspace.length > 0 && roles.has("AUDIT")
+            ? "PLATFORM_AUDIT_SCOPED"
+            : p.readsActiveWorkspace.length > 0
+              ? "WORKSPACE_UNCLASSIFIED"
+              : "PLATFORM";
 
-    return {
-      route,
-      title: p.title,
-      purpose: p.purpose,
-      registryId: entry?.id ?? null,
-      gateRouteId: p.gateRouteId,
-      declaredSpace: (gateEntry ?? entry)?.requiredActiveSpace ?? null,
-      capabilities: (gateEntry ?? entry)?.requiredCapabilities ?? [],
-      navSection: sectionByHref.get(route) ?? null,
-      navScope: scopeByHref.get(route) ?? null,
-      inNavigation: sectionByHref.has(route),
-      isContextualDetail: isDetail,
-      parent,
-      actualScope,
-      workspaceHooks: p.readsActiveWorkspace,
-      api: p.api,
-      visual: p.usesPageShell
-        ? p.usesLegacyOpsTokens
-          ? "MIXED"
-          : "SHARED_SHELL"
-        : p.usesLegacyOpsTokens
-          ? "LEGACY_OPS_TOKENS"
-          : "BESPOKE",
-      inlineHex: p.hasInlineHexColors,
-      lines: p.lines,
-      file: p.file,
-    };
-  })
-  .sort((a, b) => a.route.localeCompare(b.route));
+      return {
+        route,
+        title: p.title,
+        purpose: p.purpose,
+        registryId: entry?.id ?? null,
+        gateRouteId: p.gateRouteId,
+        declaredSpace: (gateEntry ?? entry)?.requiredActiveSpace ?? null,
+        capabilities: (gateEntry ?? entry)?.requiredCapabilities ?? [],
+        navSection: sectionByHref.get(route) ?? null,
+        navScope: scopeByHref.get(route) ?? null,
+        inNavigation: sectionByHref.has(route),
+        isContextualDetail: isDetail,
+        parent,
+        actualScope,
+        workspaceHooks: p.readsActiveWorkspace,
+        api: p.api,
+        visual: p.usesPageShell
+          ? p.usesLegacyOpsTokens
+            ? "MIXED"
+            : "SHARED_SHELL"
+          : p.usesLegacyOpsTokens
+            ? "LEGACY_OPS_TOKENS"
+            : "BESPOKE",
+        inlineHex: p.hasInlineHexColors,
+        lines: p.lines,
+        file: p.file,
+      };
+    })
+    .sort((a, b) => a.route.localeCompare(b.route));
 
-// ============================================================================
-// Report
-// ============================================================================
+  // ============================================================================
+  // Report
+  // ============================================================================
 
-if (process.argv.includes("--json")) {
-  console.log(JSON.stringify({ total: rows.length, apiRoutesKnown: apiRoutes.size, rows }, null, 2));
-} else if (process.argv.includes("--markdown")) {
-  const e = (s) => String(s ?? "—").replace(/\|/g, "\\|");
-  console.log(
-    "| Route | Purpose | Nav section | In nav | Detail | Declared | Actual | teamId role | Authority | Visual | Parent |",
-  );
-  console.log("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |");
-  for (const r of rows) {
-    const roles = [...new Set(r.api.map((a) => a.teamRole))].filter((x) => x !== "NONE");
-    const auth = [...new Set(r.api.flatMap((a) => a.authority))];
+  if (process.argv.includes("--json")) {
+    console.log(JSON.stringify({ total: rows.length, apiRoutesKnown: apiRoutes.size, rows }, null, 2));
+  } else if (process.argv.includes("--markdown")) {
+    const e = (s) => String(s ?? "—").replace(/\|/g, "\\|");
     console.log(
-      `| \`${e(r.route)}\` | ${e((r.purpose ?? r.title ?? "").slice(0, 70))} | ${e(r.navSection)} | ${r.inNavigation ? "yes" : "**no**"} | ${r.isContextualDetail ? "yes" : "—"} | ${e(r.declaredSpace)} | ${e(r.actualScope)} | ${e(roles.join("/") || "—")} | ${e(auth.join(", ").slice(0, 46) || "—")} | ${e(r.visual)} | \`${e(r.parent)}\` |`,
+      "| Route | Purpose | Nav section | In nav | Detail | Declared | Actual | teamId role | Authority | Visual | Parent |",
+    );
+    console.log("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |");
+    for (const r of rows) {
+      const roles = [...new Set(r.api.map((a) => a.teamRole))].filter((x) => x !== "NONE");
+      const auth = [...new Set(r.api.flatMap((a) => a.authority))];
+      console.log(
+        `| \`${e(r.route)}\` | ${e((r.purpose ?? r.title ?? "").slice(0, 70))} | ${e(r.navSection)} | ${r.inNavigation ? "yes" : "**no**"} | ${r.isContextualDetail ? "yes" : "—"} | ${e(r.declaredSpace)} | ${e(r.actualScope)} | ${e(roles.join("/") || "—")} | ${e(auth.join(", ").slice(0, 46) || "—")} | ${e(r.visual)} | \`${e(r.parent)}\` |`,
+      );
+    }
+    console.log(`\n${rows.length} admin pages · ${apiRoutes.size} API routes traced`);
+  } else {
+    const pad = (s, n) => String(s ?? "—").padEnd(n).slice(0, n);
+    console.log(
+      pad("ROUTE", 40) + pad("NAV", 12) + pad("DECLARED", 16) + pad("ACTUAL", 22) + pad("VISUAL", 18),
+    );
+    console.log("-".repeat(112));
+    for (const r of rows) {
+      console.log(
+        pad(r.route, 40) +
+          pad(r.inNavigation ? r.navSection : "NOT IN NAV", 12) +
+          pad(r.declaredSpace, 16) +
+          pad(r.actualScope, 22) +
+          pad(r.visual, 18),
+      );
+    }
+    const c = (f) => rows.filter(f).length;
+    console.log(
+      [
+        "",
+        `${rows.length} admin pages · ${apiRoutes.size} API routes traced`,
+        `  not in navigation      ${c((r) => !r.inNavigation)}  (of which contextual detail: ${c((r) => !r.inNavigation && r.isContextualDetail)})`,
+        `  workspace-filtered     ${c((r) => r.actualScope === "WORKSPACE_FILTERED")}`,
+        `  workspace-authz        ${c((r) => r.actualScope === "WORKSPACE_AUTHZ")}`,
+        `  platform (audit teamId)${c((r) => r.actualScope === "PLATFORM_AUDIT_SCOPED")}`,
+        `  unclassified workspace ${c((r) => r.actualScope === "WORKSPACE_UNCLASSIFIED")}`,
+        `  visual: shared shell   ${c((r) => r.visual === "SHARED_SHELL")}`,
+        `  visual: legacy/bespoke ${c((r) => r.visual !== "SHARED_SHELL")}`,
+        "",
+      ].join("\n"),
     );
   }
-  console.log(`\n${rows.length} admin pages · ${apiRoutes.size} API routes traced`);
-} else {
-  const pad = (s, n) => String(s ?? "—").padEnd(n).slice(0, n);
-  console.log(
-    pad("ROUTE", 40) + pad("NAV", 12) + pad("DECLARED", 16) + pad("ACTUAL", 22) + pad("VISUAL", 18),
-  );
-  console.log("-".repeat(112));
-  for (const r of rows) {
-    console.log(
-      pad(r.route, 40) +
-        pad(r.inNavigation ? r.navSection : "NOT IN NAV", 12) +
-        pad(r.declaredSpace, 16) +
-        pad(r.actualScope, 22) +
-        pad(r.visual, 18),
-    );
-  }
-  const c = (f) => rows.filter(f).length;
-  console.log(
-    [
-      "",
-      `${rows.length} admin pages · ${apiRoutes.size} API routes traced`,
-      `  not in navigation      ${c((r) => !r.inNavigation)}  (of which contextual detail: ${c((r) => !r.inNavigation && r.isContextualDetail)})`,
-      `  workspace-filtered     ${c((r) => r.actualScope === "WORKSPACE_FILTERED")}`,
-      `  workspace-authz        ${c((r) => r.actualScope === "WORKSPACE_AUTHZ")}`,
-      `  platform (audit teamId)${c((r) => r.actualScope === "PLATFORM_AUDIT_SCOPED")}`,
-      `  unclassified workspace ${c((r) => r.actualScope === "WORKSPACE_UNCLASSIFIED")}`,
-      `  visual: shared shell   ${c((r) => r.visual === "SHARED_SHELL")}`,
-      `  visual: legacy/bespoke ${c((r) => r.visual !== "SHARED_SHELL")}`,
-      "",
-    ].join("\n"),
-  );
 }
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();

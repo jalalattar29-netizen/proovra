@@ -152,7 +152,9 @@ test("the SCIM tabs are addressable, restorable, and driven by the keyboard", as
   const page = await context.newPage();
   await signIn(page);
 
-  const SCIM = `${WEB}/admin/identity/scim`;
+  // PV-PLACE-001 — SCIM moved from /admin/identity/scim to the Security Center;
+  // the fixture admin's active workspace is the organization it administers.
+  const SCIM = `${WEB}/security-center/identity/scim`;
   await page.goto(SCIM, { waitUntil: "networkidle", timeout: 90_000 });
 
   const tabs = page.locator('[role="tablist"] [role="tab"]');
@@ -281,7 +283,9 @@ test("the analytics window is selected, addressable and restored", async ({
   const page = await context.newPage();
   await signIn(page);
 
-  await page.goto(`${WEB}/admin/platform/analytics`, {
+  // PV-PLACE-001 — analytics moved from /admin/platform/analytics to the
+  // workspace's Operations.
+  await page.goto(`${WEB}/operations/analytics`, {
     waitUntil: "networkidle",
     timeout: 90_000,
   });
@@ -310,7 +314,7 @@ test("the analytics window is selected, addressable and restored", async ({
   ).toBe(other);
 
   // Restored from the URL on a cold load — the reading and the link agree.
-  await page.goto(`${WEB}/admin/platform/analytics?window=${other}`, {
+  await page.goto(`${WEB}/operations/analytics?window=${other}`, {
     waitUntil: "networkidle",
   });
   await page.waitForTimeout(600);

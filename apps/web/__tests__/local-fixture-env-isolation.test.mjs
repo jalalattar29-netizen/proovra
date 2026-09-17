@@ -321,3 +321,233 @@ test("dotenv cannot fill a gap the allowlist leaves", () => {
     "the path must NOT exist — that is the entire mechanism",
   );
 });
+
+// ===========================================================================
+// PV-SEC-002 — THE GAP THE DOTENV GUARD DOES NOT COVER.
+// ===========================================================================
+// The test above pins DOTENV_CONFIG_PATH, which neutralises
+// `import "dotenv/config"`. But `services/api/src` no longer imports dotenv
+// anywhere: the loader the API actually runs is its OWN, in
+// `services/api/src/env.ts`, which reads <cwd>/.env, <cwd>/services/api/.env
+// and <cwd>/../../.env with readFileSync and fills every variable still
+// undefined. It never consults DOTENV_CONFIG_PATH.
+//
+// So the guard protects a mechanism that is gone, while the mechanism that
+// exists is ungoverned. These tests spawn a REAL child through the loader and
+// assert on what that child can see.
+//
+// The switch the loader already honours is PROOVRA_ENV_BOOTSTRAPPED=1, which
+// means "configuration has ALREADY been established deliberately; do not
+// second-guess it". The fixture environment is exactly that situation.
+
+const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import("node:fs");
+const { tmpdir } = await import("node:os");
+const { join, sep } = await import("node:path");
+
+/**
+ * Start a child through a service's own env loader, with `cwd` pointing at a
+ * throwaway tree that contains `<envDir>/.env` holding one marker. Returns what
+ * the child could see. Defaults to the API loader and services/api/.env.
+ */
+function readMarkerThroughApiEnvLoader({
+  env,
+  loader = "services/api/src/env.ts",
+  envDir = ["services", "api"],
+}) {
+  const root = mkdtempSync(join(tmpdir(), "pv-envleak-"));
+  try {
+    mkdirSync(join(root, ...envDir), { recursive: true });
+    writeFileSync(
+      join(root, ...envDir, ".env"),
+      "PROOVRA_LEAK_CANARY=this-value-exists-only-in-a-dot-env-file\n",
+      "utf8",
+    );
+    const envTs = resolve(process.cwd(), loader).split(sep).join("/");
+    // The probe is a FILE, and tsx is invoked through its CLI entry with the
+    // current node binary. `-e` plus `shell: true` cannot survive Windows
+    // quoting here — the semicolon terminates the command line.
+    const probe = join(root, "probe.mjs");
+    writeFileSync(
+      probe,
+      `await import(${JSON.stringify("file://" + envTs)});\n` +
+        `process.stdout.write(process.env.PROOVRA_LEAK_CANARY ?? "__absent__");\n`,
+      "utf8",
+    );
+    const tsxCli = resolve(process.cwd(), "services/api/node_modules/tsx/dist/cli.mjs");
+    const out = execFileSync(process.execPath, [tsxCli, probe], {
+      cwd: root, env, encoding: "utf8",
+    });
+    return out.trim().split("\n").pop();
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+test("a value that exists only in services/api/.env is NOT visible to a fixture process", () => {
+  const seen = readMarkerThroughApiEnvLoader({ env: buildLocalFixtureEnv() });
+  assert.equal(
+    seen,
+    "__absent__",
+    "the API env loader back-filled a variable the fixture allowlist deliberately left unset — " +
+      "the allowlist is only as good as the loaders that respect it",
+  );
+});
+
+test("the fixture environment declares the bootstrap mode the API env loader honours", () => {
+  const env = buildLocalFixtureEnv();
+  assert.equal(
+    env.PROOVRA_ENV_BOOTSTRAPPED,
+    "1",
+    "services/api/src/env.ts skips every .env file when this is '1'. Setting it is what makes " +
+      "allowlist completeness unnecessary for the loader that is actually in use.",
+  );
+});
+
+test("ordinary local development still loads .env when NOT in fixture mode", () => {
+  // The fix must not change how a developer or Production boots. Without the
+  // bootstrap flag the loader behaves exactly as before.
+  const ordinary = { ...process.env };
+  delete ordinary.PROOVRA_ENV_BOOTSTRAPPED;
+  const seen = readMarkerThroughApiEnvLoader({ env: ordinary });
+  assert.equal(
+    seen,
+    "this-value-exists-only-in-a-dot-env-file",
+    "a normal process must still read services/api/.env — this fix is scoped to fixture mode",
+  );
+});
+
+// ===========================================================================
+// PV-SEC-002 — THE OTHER TWO LOADERS: THE WORKER'S, AND THE WEB APP'S.
+// ===========================================================================
+// The API is one of three processes a fixture runs, and each has its own .env
+// loader. A leak closed in one of them is not closed in the others.
+
+test("the worker's env loader does not back-fill a fixture process either", () => {
+  const leaked = readMarkerThroughApiEnvLoader({
+    env: buildLocalFixtureEnv(),
+    loader: "services/worker/src/env-loader.ts",
+    envDir: ["services", "worker"],
+  });
+  assert.equal(leaked, "__absent__", "services/worker/.env reached a fixture worker");
+
+  // ...and the probe is live: an ordinary process does read the file.
+  const ordinary = { ...process.env };
+  delete ordinary.PROOVRA_ENV_BOOTSTRAPPED;
+  assert.equal(
+    readMarkerThroughApiEnvLoader({
+      env: ordinary,
+      loader: "services/worker/src/env-loader.ts",
+      envDir: ["services", "worker"],
+    }),
+    "this-value-exists-only-in-a-dot-env-file",
+  );
+});
+
+const { createRequire } = await import("node:module");
+
+/**
+ * Run Next's own `.env` loader (`@next/env` — what `next dev`, `next build`
+ * and `next start` call) over a throwaway directory holding a `.env.local`
+ * with one marker, and report what the process could see afterwards.
+ */
+function readMarkerThroughNextEnvLoader({ env }) {
+  const root = mkdtempSync(join(tmpdir(), "pv-nextenv-"));
+  try {
+    writeFileSync(
+      join(root, ".env.local"),
+      "PROOVRA_LEAK_CANARY=this-value-exists-only-in-a-dot-env-file\n",
+      "utf8",
+    );
+    const fromWeb = createRequire(resolve(process.cwd(), "apps/web/package.json"));
+    const fromNext = createRequire(fromWeb.resolve("next/package.json"));
+    const nextEnv = fromNext.resolve("@next/env");
+    const probe = join(root, "probe.cjs");
+    writeFileSync(
+      probe,
+      `const { loadEnvConfig } = require(${JSON.stringify(nextEnv)});\n` +
+        `loadEnvConfig(${JSON.stringify(root)}, true, { info() {}, error() {} });\n` +
+        `process.stdout.write(process.env.PROOVRA_LEAK_CANARY ?? "__absent__");\n`,
+      "utf8",
+    );
+    const out = execFileSync(process.execPath, [probe], { cwd: root, env, encoding: "utf8" });
+    return out.trim().split("\n").pop();
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+test("a value that exists only in apps/web/.env.local is NOT visible to a fixture web process", () => {
+  assert.equal(
+    readMarkerThroughNextEnvLoader({ env: buildLocalFixtureEnv() }),
+    "__absent__",
+    "@next/env applied a .env file to a fixture web process; the allowlist is only as good " +
+      "as the loaders that respect it",
+  );
+});
+
+test("ordinary web development still loads .env.local when NOT in fixture mode", () => {
+  const ordinary = { ...process.env };
+  delete ordinary.__NEXT_PROCESSED_ENV;
+  assert.equal(
+    readMarkerThroughNextEnvLoader({ env: ordinary }),
+    "this-value-exists-only-in-a-dot-env-file",
+    "a normal `next dev` must still read .env.local — the switch is scoped to fixture mode",
+  );
+});
+
+// ===========================================================================
+// PV-SEC-002 — A LIVE CREDENTIAL WITH NO DISTINCTIVE SHAPE IS STILL REFUSED.
+// ===========================================================================
+
+test("a provider credential is refused by its NAME when its value has no known shape", () => {
+  const cases = {
+    PAYPAL_CLIENT_SECRET: "EJx9kP2mQ7vT4wZ8nB3cD6fG1hJ5kL0pR2sU4vW7yZ9aC3eF6hK8",
+    PAYPAL_CLIENT_ID: "AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz0123456789",
+    AWS_SECRET_ACCESS_KEY: "wJalrXUtnFEMIK7MDENGbPxRfiCYEXAMPLEKEYxyz",
+    R2_SECRET_ACCESS_KEY: "0f3c9d7e5b1a2c4d6e8f0a1b3c5d7e9f",
+    SENTRY_AUTH_TOKEN: "sntrys_eyJpYXQiOjE3MDAwMDAwMDB9_abcdefghijklmnop",
+    TWILIO_AUTH_TOKEN: "9f8e7d6c5b4a39281706f5e4d3c2b1a0",
+    NEXT_PUBLIC_SENTRY_DSN: "not-a-url-but-still-a-dsn-slot",
+  };
+  for (const [name, value] of Object.entries(cases)) {
+    assert.throws(
+      () => buildLocalFixtureEnv({ extra: { [name]: value } }),
+      (err) => err instanceof UnsafeFixtureEnvironmentError && err.leaks.some((l) => l.startsWith(name)),
+      `${name} holding a real-looking value must stop the fixture before anything starts`,
+    );
+  }
+});
+
+test("the new value shapes are caught whatever the variable is called", () => {
+  for (const value of [
+    "whsec_" + "a1B2c3D4e5F6g7H8i9J0",
+    "pk_live_" + "a1B2c3D4e5F6g7H8",
+    "SK" + "0123456789abcdef0123456789abcdef",
+  ]) {
+    assert.throws(() => buildLocalFixtureEnv({ extra: { SOME_INNOCENT_NAME: value } }), UnsafeFixtureEnvironmentError);
+  }
+});
+
+test("the name rule does not mistake a flag or a fixture placeholder for a secret", () => {
+  const env = buildLocalFixtureEnv({
+    extra: {
+      AWS_SECRETS_ENABLED: "false",
+      STRIPE_SECRET_KEY: "fixture-local-only-stripe",
+    },
+  });
+  assert.equal(env.AWS_SECRETS_ENABLED, "false");
+});
+
+test("every outbound transport a fixture has is recording or off", () => {
+  const env = buildLocalFixtureEnv();
+  assert.equal(env.EMAIL_TRANSPORT, "recording");
+  assert.equal(env.MESSAGING_TRANSPORT, "recording");
+  for (const flag of ["COMMUNICATIONS_ENABLED", "INTEGRATIONS_ENABLED", "SENTRY_ENABLED", "OTEL_ENABLED", "OPENAI_AI_ENABLED"]) {
+    assert.equal(env[flag], "false", `${flag} must be off in a fixture`);
+  }
+  // No payment provider is configured at all, so checkout answers the bounded
+  // "payments unavailable" refusal rather than reaching Stripe or PayPal.
+  const payment = Object.keys(env).filter((k) => /^(STRIPE|PAYPAL)_/.test(k));
+  assert.deepEqual(payment, [], "a fixture must carry no payment-provider configuration");
+  assert.equal(env.__NEXT_PROCESSED_ENV, "true");
+});

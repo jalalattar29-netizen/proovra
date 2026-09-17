@@ -36,6 +36,12 @@ import { describe, expect, it } from "vitest";
 const SRC = resolve(dirname(fileURLToPath(import.meta.url)), "../src");
 
 /**
+ * PV-PLACE-001 — three `countedBy` pages (automation, the identity hub, the
+ * permission matrix) moved out of /admin to their tenant homes. They still
+ * count these lists by length, so the declarations and their proofs are kept
+ * and retargeted rather than dropped; the /admin-only audits simply no longer
+ * scan those routes.
+ *
  * Mirrors `COMPLETE_LISTS` in the web audit. The two lists are kept in step by
  * `completeListDeclarationsMatch`, below — a declaration added on one side
  * without the other fails rather than quietly losing its proof.
@@ -47,14 +53,14 @@ const COMPLETE_LISTS = [
     kind: "query",
     /** The exact query the handler runs to build the list. */
     at: "prisma.automationRule.findMany({",
-    countedBy: "/admin/platform/automation",
+    countedBy: "/operations/automation",
   },
   {
     endpoint: "GET /v1/identity/members",
     file: "services/identity/rbac.service.ts",
     kind: "query",
     at: "client.teamMember.findMany({",
-    countedBy: "/admin/identity",
+    countedBy: "/security-center/identity",
   },
   {
     endpoint: "GET /v1/admin/adoption",
@@ -73,7 +79,7 @@ const COMPLETE_LISTS = [
     file: "services/access-control/rbac-engine.service.ts",
     kind: "literal",
     at: "export function computeEffectiveRoleMatrix(): ReadonlyArray<EffectiveRoleMatrixRow> {",
-    countedBy: "/admin/identity/permission-matrix",
+    countedBy: "/security-center/identity/permission-matrix",
   },
 ] as const;
 

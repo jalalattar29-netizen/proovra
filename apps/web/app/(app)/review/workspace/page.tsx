@@ -32,11 +32,16 @@ import {
   REVIEWER_DEFAULT_HOTKEYS,
   type ReviewerCapability,
   type ReviewerWorkspaceProjection,
+  identifierLabel,
 } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OperationalEmptyState } from "../../../../components/operational";
 import { formatUserDateTime } from "../../../../lib/date";
+import {
+  reviewerHotkeyLabel,
+  reviewerRoleLabel,
+} from "../../../../lib/labels/governanceReviewLabels";
 
 import { PageShell, PageHeader, PageSection } from "../../../../components/ui";
 import { Card } from "../../../../components/ui/Card";
@@ -783,7 +788,7 @@ function ReviewerWorkspaceShell() {
           eyebrow="Review workspace"
           title="Review Workspace"
           subtitle="Receive, review, annotate, code and decide evidence workflows — without leaving the page."
-          contextStrip={<Badge tone="governance">Role: {workspace.role}</Badge>}
+          contextStrip={<Badge tone="governance">Role: {reviewerRoleLabel(workspace.role)}</Badge>}
         />
       }
     >
@@ -1118,7 +1123,7 @@ function HelpOverlay({
                     {b.key}
                   </kbd>
                 </td>
-                <td style={{ padding: "3px 6px", color: "#475569" }}>{b.code}</td>
+                <td style={{ padding: "3px 6px", color: "#475569" }}>{reviewerHotkeyLabel(b.code)}</td>
               </tr>
             ))}
             <tr>
@@ -1134,7 +1139,7 @@ function HelpOverlay({
                 </kbd>
               </td>
               <td style={{ padding: "3px 6px", color: "#475569" }}>
-                CYCLE_SIDE_PANE
+                {reviewerHotkeyLabel("CYCLE_SIDE_PANE")}
               </td>
             </tr>
           </tbody>
@@ -1170,7 +1175,7 @@ function WorkspaceRibbon({
       }}
     >
       <strong style={{ fontSize: 13 }}>Reviewer Workspace</strong>
-      <Pill label={`Role: ${workspace.role}`} />
+      <Pill label={`Role: ${reviewerRoleLabel(workspace.role)}`} />
       <Pill label={`Assigned ${workspace.queues.assigned}`} />
       <Pill label={`Unassigned ${workspace.queues.unassigned}`} />
       <Pill label={`In progress ${workspace.queues.in_progress}`} />
@@ -1441,7 +1446,7 @@ function WorkflowSummaryCard({
           ? `Next SLA checkpoint: ${nextDue.dimension.toLowerCase().replace(/_/g, " ")} due ${formatRelativeTime(nextDue.dueAtUtc)}.`
           : "No due checkpoint is currently projected on this workflow."}{" "}
         {summary.openEscalation
-          ? `Open escalation: ${summary.openEscalation.reason.toLowerCase().replace(/_/g, " ")} (${summary.openEscalation.severity}).`
+          ? `Open escalation: ${identifierLabel(summary.openEscalation.reason)} (${identifierLabel(summary.openEscalation.severity).toLowerCase()} severity).`
           : "No escalation is currently open."}
       </div>
     </Card>
@@ -1896,7 +1901,7 @@ function DecisionBar({
               >
                 {b.key}
               </code>
-              <span style={{ color: "var(--ink-secondary, #475569)" }}>{b.code}</span>
+              <span style={{ color: "var(--ink-secondary, #475569)" }}>{reviewerHotkeyLabel(b.code)}</span>
             </li>
           ))}
         </ul>

@@ -101,8 +101,21 @@ test("5. controls gate on viewer.canAssign (no display/enforcement drift)", () =
   assert.match(ASSIGN_TAB, /canAssign\s*\?/);
 });
 
-test("6. PERSONAL-scope cases never enable the assign control", () => {
-  assert.match(MATTER, /envelope\.case\.scope\s*===\s*"TEAM"/);
+test("6. cases without a workspace never enable the assign control", () => {
+  // D37 — the gate was `envelope.case.scope === "TEAM"`, but the envelope's
+  // scope vocabulary is SHARED / SINGLE_OCCUPANT, so it was never true and
+  // the control was disabled for everyone. The assignment service refuses a
+  // case with no teamId, so that is the gate.
+  assert.match(ASSIGN_TAB, /const hasWorkspace = envelope\.case\.teamId !== null;/);
+  assert.match(ASSIGN_TAB, /envelope\.viewer\.canAssign === true && hasWorkspace/);
+  assert.doesNotMatch(ASSIGN_TAB, /envelope\.case\.scope\s*===/);
+});
+
+test("6b. the disabled assign control shows the server's reason under its real key", () => {
+  // The server keys disabled reasons by camel-cased action ("assign").
+  assert.match(ASSIGN_TAB, /disabledReasons\?\.\["assign"\]/);
+  assert.doesNotMatch(ASSIGN_TAB, /disabledReasons\?\.\["ASSIGN"\]/);
+  assert.match(ASSIGN_TAB, /<ReasonedActionButton[\s\S]{0,200}?disabledReason=\{assignDisabledReason\}/);
 });
 
 test("7. errors flow only through toSafeUserError (no raw passthrough)", () => {

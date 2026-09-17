@@ -17,8 +17,11 @@
  *   * The gate compares evidence age (ms since createdAt) against
  *     effective years; under-age requests are denied with a bounded
  *     reason. Denials emit a bounded `POLICY_BLOCK` event.
- *   * Audit emission is best-effort — it must never block the
- *     operational write path.
+ *   * Policy create / release audit rows are written through the canonical
+ *     tenant-audit facade in the SAME transaction as the change, so a
+ *     policy change can never exist without its audit row (nor the reverse).
+ *     The runtime-gate POLICY_BLOCK row is best-effort: a failed audit write
+ *     must not turn a correct denial into a 500.
  */
 
 import type { PrismaClient } from "@prisma/client";
@@ -32,6 +35,7 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { resolveEntitlement } from "../packaging/entitlement.service.js";
 import { emitLifecycleEvent } from "../intelligence/intelligence-activity.service.js";
 import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 
 // ===========================================================================
 // Template defaults
@@ -79,40 +83,54 @@ export type RetentionDenial =
   | "EVIDENCE_NOT_FOUND";
 
 // ===========================================================================
-// Best-effort audit emit (audit MUST never block the call site)
+// Retention audit — a persisted row through the canonical tenant-audit facade
 // ===========================================================================
+//
+// This used to be a `console.info` line described as "forthcoming" persisted
+// audit, so releasing a retention policy — which lifts a retention floor off
+// evidence — left no audit record at all.
 
 type RetentionAuditCode =
   | "RETENTION_POLICY_CREATED"
   | "RETENTION_POLICY_RELEASED"
   | "POLICY_BLOCK";
 
-function emitRetentionAudit(input: {
-  teamId: string;
-  policyId: string | null;
-  code: RetentionAuditCode;
-  actorUserId?: string | null;
-  reason?: string | null;
-}): void {
-  try {
-    // Phase 4B foundation: bounded structured-log emit. Phase 4B
-    // wire-up swaps this for a persisted audit row in
-    // retention_policy_audit (forthcoming) without changing the call
-    // shape here.
-    const payload = {
-      kind: "retention_policy_audit",
-      teamId: input.teamId,
-      policyId: input.policyId,
-      code: input.code,
-      actorUserId: input.actorUserId ?? null,
-      reason: input.reason?.slice(0, 200) ?? null,
-      occurredAtUtc: new Date().toISOString(),
-    };
-    // eslint-disable-next-line no-console
-    console.info(JSON.stringify(payload));
-  } catch {
-    /* swallow — audit must never block ops */
-  }
+const RETENTION_AUDIT_ACTION: Record<RetentionAuditCode, string> = {
+  RETENTION_POLICY_CREATED: "lifecycle.retention_policy.create",
+  RETENTION_POLICY_RELEASED: "lifecycle.retention_policy.release",
+  POLICY_BLOCK: "lifecycle.retention_policy.block",
+};
+
+async function emitRetentionAudit(
+  input: {
+    teamId: string;
+    policyId: string | null;
+    code: RetentionAuditCode;
+    actorUserId?: string | null;
+    reason?: string | null;
+    previousState?: string | null;
+    resultingState?: string | null;
+  },
+  db?: PrismaClient,
+): Promise<void> {
+  const actorUserId = input.actorUserId ?? null;
+  await emitTenantAudit(
+    {
+      action: RETENTION_AUDIT_ACTION[input.code],
+      outcome: input.code === "POLICY_BLOCK" ? "denied" : "success",
+      denialReason: input.code === "POLICY_BLOCK" ? (input.reason ?? null) : null,
+      sourceApp: actorUserId ? "API" : "SYSTEM",
+      actorUserId,
+      workspaceId: input.teamId,
+      resourceType: "retention_policy_config",
+      resourceId: input.policyId,
+      previousState: input.previousState ?? null,
+      resultingState: input.resultingState ?? null,
+      reasonCode: input.code,
+      metadata: { reason: input.reason?.slice(0, 200) ?? null },
+    },
+    db,
+  );
 }
 
 // ===========================================================================
@@ -266,28 +284,35 @@ export async function createRetentionPolicy(
     /* entitlement engine error — do not block policy creation */
   }
 
-  const row = await prisma.retentionPolicyConfig.create({
-    data: {
-      teamId: input.teamId,
-      name: input.name.slice(0, 200),
-      template: input.template,
-      years: Math.round(years),
-      scopeKind: input.scopeKind,
-      scopeTargetId: input.scopeTargetId ?? null,
-      inheritsFromId: input.inheritsFromId ?? null,
-      isOverride: input.isOverride ?? false,
-      exceptions: clampExceptions(input.exceptions) as never,
-      state: "ACTIVE",
-      createdByUserId: input.createdByUserId,
-    },
-    select: { id: true },
-  });
-  emitRetentionAudit({
-    teamId: input.teamId,
-    policyId: row.id,
-    code: "RETENTION_POLICY_CREATED",
-    actorUserId: input.createdByUserId,
-    reason: `template=${input.template}; years=${Math.round(years)}; scope=${input.scopeKind}`,
+  const row = await prisma.$transaction(async (tx) => {
+    const created = await tx.retentionPolicyConfig.create({
+      data: {
+        teamId: input.teamId,
+        name: input.name.slice(0, 200),
+        template: input.template,
+        years: Math.round(years),
+        scopeKind: input.scopeKind,
+        scopeTargetId: input.scopeTargetId ?? null,
+        inheritsFromId: input.inheritsFromId ?? null,
+        isOverride: input.isOverride ?? false,
+        exceptions: clampExceptions(input.exceptions) as never,
+        state: "ACTIVE",
+        createdByUserId: input.createdByUserId,
+      },
+      select: { id: true },
+    });
+    await emitRetentionAudit(
+      {
+        teamId: input.teamId,
+        policyId: created.id,
+        code: "RETENTION_POLICY_CREATED",
+        actorUserId: input.createdByUserId,
+        reason: `template=${input.template}; years=${Math.round(years)}; scope=${input.scopeKind}`,
+        resultingState: "ACTIVE",
+      },
+      tx as unknown as PrismaClient,
+    );
+    return created;
   });
   return { ok: true, policyId: row.id };
 }
@@ -305,19 +330,27 @@ export async function releaseRetentionPolicy(input: {
   const prisma = input.prisma ?? defaultPrisma;
   const row = await prisma.retentionPolicyConfig.findFirst({
     where: { id: input.policyId, teamId: input.teamId },
-    select: { id: true },
+    select: { id: true, state: true },
   });
   if (!row) return { ok: false };
-  await prisma.retentionPolicyConfig.update({
-    where: { id: row.id },
-    data: { state: "ARCHIVED" },
-  });
-  emitRetentionAudit({
-    teamId: input.teamId,
-    policyId: row.id,
-    code: "RETENTION_POLICY_RELEASED",
-    actorUserId: input.actorUserId,
-    reason: null,
+  // The release and its audit row commit together.
+  await prisma.$transaction(async (tx) => {
+    await tx.retentionPolicyConfig.update({
+      where: { id: row.id },
+      data: { state: "ARCHIVED" },
+    });
+    await emitRetentionAudit(
+      {
+        teamId: input.teamId,
+        policyId: row.id,
+        code: "RETENTION_POLICY_RELEASED",
+        actorUserId: input.actorUserId,
+        reason: null,
+        previousState: row.state,
+        resultingState: "ARCHIVED",
+      },
+      tx as unknown as PrismaClient,
+    );
   });
   return { ok: true };
 }
@@ -489,12 +522,22 @@ export async function gateRetention(input: {
   const requiredMs = yearsInMs(effective.effectiveYears);
   if (ageMs < requiredMs) {
     const reason = `retention_floor_${effective.effectiveYears}y_not_met_action_${input.action.toLowerCase()}`;
-    emitRetentionAudit({
-      teamId: input.teamId,
-      policyId: effective.appliedPolicyId,
-      code: "POLICY_BLOCK",
-      actorUserId: null,
-      reason,
+    await emitRetentionAudit(
+      {
+        teamId: input.teamId,
+        policyId: effective.appliedPolicyId,
+        code: "POLICY_BLOCK",
+        actorUserId: null,
+        reason,
+      },
+      prisma,
+    ).catch((err: unknown) => {
+      // The denial stands either way; the failed audit write is surfaced.
+      // eslint-disable-next-line no-console
+      console.error("retention_policy_block_audit_failed", {
+        teamId: input.teamId,
+        error: err instanceof Error ? err.message : String(err),
+      });
     });
     return {
       ok: false,

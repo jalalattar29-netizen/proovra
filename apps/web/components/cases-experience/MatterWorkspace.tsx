@@ -38,6 +38,8 @@ import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
+import { identifierLabel } from "@proovra/shared";
+import { useConfirmAction } from "../ui/ConfirmActionModal";
 // P2-4 — the canonical output state travels with each board row.
 import type { EvidenceOutputState } from "@proovra/shared";
 // Phase 7B (visual-only) — canonical shared design-system primitives.
@@ -58,7 +60,9 @@ import { CaseDetailHeader } from "./simple-case-detail/SimpleCaseDetail";
 // it into the Assignments tab is the only missing piece.
 import {
   AssignmentPickerModal,
+  EvidenceLinkModal,
   type AssignmentRole,
+  type EvidenceLinkRole,
 } from "./matter-modals";
 import { GovernanceSummary } from "../governance/GovernanceSummary";
 // The READ of the one group-responsibility authority. Shared with
@@ -74,6 +78,12 @@ import { CaseRiskPanel } from "../hidden-feature-panels/HiddenFeaturePanels";
 // the file existed and was tested but no host page imported it.
 import { SiuPanel } from "../../app/(app)/cases/components/SiuPanel";
 import { SiuWorklistPanel } from "../../app/(app)/cases/components/SiuWorklistPanel";
+// O1 — who can open the case, and the grant / revoke controls.
+import { MatterAccessTab } from "./MatterAccessTab";
+import type { CaseScope } from "./types";
+import { usePlatformContext } from "../../lib/platform-context";
+import type { PlatformContextEnvelope } from "../../lib/platform-context/types";
+import { ReasonedActionButton } from "../../app/(app)/evidence/[id]/components/ReasonedActionButton";
 
 // =============================================================================
 // Envelope shape (mirror of services/api/src/services/cases/matter-workspace.service.ts)
@@ -90,7 +100,7 @@ type MatterEnvelope = {
     description: string | null;
     status: string;
     priority: string;
-    scope: "PERSONAL" | "TEAM";
+    scope: CaseScope;
     ownerUserId: string;
     teamId: string | null;
     closedAtUtc: string | null;
@@ -108,6 +118,12 @@ type MatterEnvelope = {
     // guard, so the Assignments tab renders the assign/unassign
     // controls exactly when the backend would accept the mutation.
     canAssign?: boolean;
+    // Who may link / unlink evidence on this case — the same evaluator the
+    // POST/DELETE evidence-links routes use (EVIDENCE_LINK).
+    canLinkEvidence?: boolean;
+    canUnlinkEvidence?: boolean;
+    // Who may give / remove individual case access (MANAGE_ACCESS).
+    canManageAccess?: boolean;
     disabledReasons?: Readonly<Record<string, string>>;
     activeAssignmentRoles?: ReadonlyArray<string>;
   };
@@ -152,6 +168,9 @@ type MatterEnvelope = {
           verificationPackage: { state: EvidenceOutputState };
         };
         linkRole: string | null;
+        /** The case-evidence link row, when the record is linked through one. */
+        linkId?: string | null;
+        linkSource?: string | null;
       }>;
     };
     relationships: {
@@ -336,6 +355,7 @@ type TabId =
   | "risk"
   | "communications"
   | "assignments"
+  | "access"
   | "siu"
   | "audit"
   | "export";
@@ -374,6 +394,7 @@ const TABS: ReadonlyArray<{
     label: "Assignments",
     description: "Ownership + escalation routing",
   },
+  { id: "access", label: "Access", description: "Who can open this case" },
   // Phase Final-Closure-Verification — SIU tab. Hosts the canonical
   // `SiuPanel` (profile, checklist, indicators, follow-ups, saved
   // views, export preflight). The component was orphaned prior to
@@ -393,6 +414,45 @@ const TABS: ReadonlyArray<{
 ];
 
 // =============================================================================
+// D56 — breadcrumb scope crumb
+// =============================================================================
+
+/**
+ * The leading breadcrumb crumb names the workspace that OWNS the case.
+ *
+ * It used to test `case.scope === "TEAM"`, a value the server never sends
+ * (its vocabulary is SHARED / SINGLE_OCCUPANT), so every case read
+ * "Personal Space". The scope is also the wrong field: a Personal Space case
+ * carries its personal Team id and is therefore SHARED too. The owner is
+ * `case.teamId`, resolved against the server-authorized context options.
+ */
+export function resolveCaseScopeLabel(
+  teamId: string | null,
+  context: PlatformContextEnvelope | null,
+): string {
+  if (!teamId) return "Personal Space";
+  if (!context) return "Workspace";
+  const options = context.contextOptions;
+  if (
+    options?.personalSpace?.workspaceId === teamId ||
+    context.personalSpace?.id === teamId
+  ) {
+    return "Personal Space";
+  }
+  const owned = options?.ownedWorkspaces.find((w) => w.workspaceId === teamId);
+  if (owned) return owned.name ?? "Workspace";
+  for (const org of options?.organizations ?? []) {
+    const ws = org.workspaces.find((w) => w.workspaceId === teamId);
+    if (ws) return ws.workspaceName ?? org.organizationName ?? "Organization";
+  }
+  if (context.workspace?.id === teamId) {
+    if (context.workspace.workspaceKind === "PERSONAL") return "Personal Space";
+    return context.workspace.name ?? "Workspace";
+  }
+  return "Workspace";
+}
+
+// =============================================================================
 // Component
 // =============================================================================
 
@@ -405,6 +465,7 @@ export function MatterWorkspace({
   onOpenEvidence?: (evidenceId: string) => void;
 }) {
   const [envelope, setEnvelope] = useState<MatterEnvelope | null>(null);
+  const platformEnvelope = usePlatformContext().envelope;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>("overview");
@@ -443,6 +504,137 @@ export function MatterWorkspace({
   useEffect(() => {
     void load();
   }, [load]);
+
+  // ---------------------------------------------------------------------------
+  // Evidence links — POST / DELETE /v1/cases/:id/evidence-links. Every change
+  // is confirmed by rereading the matter envelope (without dropping the page
+  // into its loading state) before success is announced.
+  // ---------------------------------------------------------------------------
+  const { confirm } = useConfirmAction();
+  const [linkModalOpen, setLinkModalOpen] = useState(false);
+  const [linkBusyId, setLinkBusyId] = useState<string | null>(null);
+  const [linkNotice, setLinkNotice] = useState("");
+  const [linkError, setLinkError] = useState("");
+  const [linkUnconfirmed, setLinkUnconfirmed] = useState(false);
+  const linkFeedbackRef = useRef<HTMLDivElement | null>(null);
+
+  const rereadEnvelope = useCallback(async (): Promise<MatterEnvelope> => {
+    const fresh = (await apiFetch(
+      `/v1/cases/${encodeURIComponent(caseId)}/matter-workspace`,
+      { method: "GET" },
+    )) as MatterEnvelope;
+    setEnvelope(fresh);
+    setLinkUnconfirmed(false);
+    return fresh;
+  }, [caseId]);
+
+  const linkEvidence = useCallback(
+    async (input: {
+      evidenceId: string;
+      role: EvidenceLinkRole;
+      reason: string | null;
+    }): Promise<{ ok: boolean }> => {
+      setLinkNotice("");
+      setLinkError("");
+      let written = false;
+      try {
+        await apiFetch(
+          `/v1/cases/${encodeURIComponent(caseId)}/evidence-links`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              evidenceId: input.evidenceId,
+              role: input.role,
+              // The route accepts a non-empty reason or none at all.
+              ...(input.reason ? { reason: input.reason } : {}),
+            }),
+          },
+        );
+        written = true;
+        const fresh = await rereadEnvelope();
+        const row = fresh.sections.evidence.items.find(
+          (item) => item.id === input.evidenceId,
+        );
+        if (row) {
+          setLinkNotice(
+            `Evidence linked as ${identifierLabel(row.linkRole ?? input.role).toLowerCase()}. The matter was reloaded.`,
+          );
+        } else {
+          setLinkError(
+            "The link was accepted, but the reloaded matter does not list the evidence. Reload the page before linking again.",
+          );
+        }
+        setActiveTab("evidence");
+        return { ok: true };
+      } catch (err) {
+        if (written) {
+          setLinkUnconfirmed(true);
+          setLinkError(
+            "The link was sent, but the matter could not be reloaded to confirm it. Reload the page before making another change.",
+          );
+          return { ok: true };
+        }
+        const code = (err as { code?: unknown } | null)?.code;
+        setLinkError(
+          code === "evidence_link_exists"
+            ? "This evidence is already linked to the matter."
+            : toSafeUserError(err, { message: "The evidence could not be linked." }).message,
+        );
+        return { ok: false };
+      } finally {
+        linkFeedbackRef.current?.focus();
+      }
+    },
+    [caseId, rereadEnvelope],
+  );
+
+  const unlinkEvidence = useCallback(
+    async (row: { linkId: string; title: string }) => {
+      if (linkBusyId) return;
+      setLinkNotice("");
+      setLinkError("");
+      const ok = await confirm({
+        title: "Unlink this evidence from the matter?",
+        description: `"${row.title}" is removed from this matter only. The evidence record itself, its custody history and its outputs are kept.`,
+        confirmLabel: "Unlink evidence",
+        tone: "danger",
+      });
+      if (!ok) return;
+      setLinkBusyId(row.linkId);
+      let written = false;
+      try {
+        await apiFetch(
+          `/v1/cases/${encodeURIComponent(caseId)}/evidence-links/${encodeURIComponent(row.linkId)}`,
+          { method: "DELETE" },
+        );
+        written = true;
+        const fresh = await rereadEnvelope();
+        if (fresh.sections.evidence.items.some((item) => item.linkId === row.linkId)) {
+          setLinkError(
+            "The unlink was accepted, but the reloaded matter still lists the evidence. Reload the page before trying again.",
+          );
+        } else {
+          setLinkNotice("Evidence unlinked from the matter. The matter was reloaded.");
+        }
+      } catch (err) {
+        if (written) {
+          setLinkUnconfirmed(true);
+          setLinkError(
+            "The unlink was sent, but the matter could not be reloaded to confirm it. Reload the page before making another change.",
+          );
+        } else {
+          setLinkError(
+            toSafeUserError(err, { message: "The evidence could not be unlinked." }).message,
+          );
+        }
+      } finally {
+        setLinkBusyId(null);
+        linkFeedbackRef.current?.focus();
+      }
+    },
+    [caseId, confirm, linkBusyId, rereadEnvelope],
+  );
 
   // Phase G2 (C1.5) — Matter Workspace keyboard shortcuts. Handler
   // mounts on the document but ignores events whose target is an
@@ -546,6 +738,7 @@ export function MatterWorkspace({
         risk: "ok",
         communications: "ok",
         assignments: "ok",
+        access: "ok",
         // Final Closure Remediation Part J — SIU tab status defaults
         // to "ok"; the SiuPanel manages its own load/empty/error
         // states independently of the matter envelope.
@@ -564,6 +757,8 @@ export function MatterWorkspace({
       risk: envelope.risk.status,
       communications: envelope.sections.notes.status,
       assignments: envelope.assignments.length > 0 ? "ok" : "not_applicable",
+      // The Access tab reads its own list and states its own load failure.
+      access: "ok",
       // Final Closure Remediation Part J — SIU section is not part of
       // the canonical matter envelope; the SiuPanel manages its own
       // state. Default to "ok" so it doesn't render a degradation chip
@@ -608,6 +803,27 @@ export function MatterWorkspace({
     );
   }
 
+  const scopeLabel = resolveCaseScopeLabel(envelope.case.teamId, platformEnvelope);
+
+  // The server keys its disabled reasons by camel-cased action name
+  // (matter-workspace.service.ts `viewer.disabledReasons`).
+  const canLinkEvidence =
+    envelope.viewer.canLinkEvidence === true && !linkUnconfirmed;
+  const linkDisabledReason = linkUnconfirmed
+    ? "Reload the page to confirm the last evidence change before making another."
+    : envelope.viewer.canLinkEvidence === true
+      ? undefined
+      : envelope.viewer.disabledReasons?.["linkEvidence"] ??
+        "Your role on this case does not allow linking evidence.";
+  const canUnlinkEvidence =
+    envelope.viewer.canUnlinkEvidence === true && !linkUnconfirmed;
+  const unlinkDisabledReason = linkUnconfirmed
+    ? linkDisabledReason
+    : envelope.viewer.canUnlinkEvidence === true
+      ? undefined
+      : envelope.viewer.disabledReasons?.["unlinkEvidence"] ??
+        "Your role on this case does not allow unlinking evidence.";
+
   return (
     <PageShell
       width="full"
@@ -625,12 +841,13 @@ export function MatterWorkspace({
         caseDetail={envelope.case}
         evidenceCount={envelope.sections.evidence.items.length}
         isReloading={false}
-        canLinkEvidence={envelope.viewer.canManage === true}
-        linkEvidenceDisabledReason={
-          envelope.viewer.disabledReasons?.["LINK_EVIDENCE"] ?? null
-        }
-        onAddEvidence={() => setActiveTab("evidence")}
-        scopeLabel={envelope.case.scope === "TEAM" ? "Organization" : "Personal Space"}
+        canLinkEvidence={canLinkEvidence}
+        linkEvidenceDisabledReason={linkDisabledReason ?? null}
+        onAddEvidence={() => {
+          setActiveTab("evidence");
+          setLinkModalOpen(true);
+        }}
+        scopeLabel={scopeLabel}
         primaryActionLabel="Add evidence"
         extraMeta={
           <>
@@ -711,7 +928,8 @@ export function MatterWorkspace({
           Graph / Risk tabs where it does not apply. */}
       {activeTab !== "overview" &&
       activeTab !== "graph" &&
-      activeTab !== "risk" ? (
+      activeTab !== "risk" &&
+      activeTab !== "access" ? (
         <div
           className="app-search-field app-search-field--block"
           data-matter-filter-row
@@ -771,8 +989,40 @@ export function MatterWorkspace({
             envelope={envelope}
             onOpenEvidence={onOpenEvidence}
             filterText={filterText}
+            links={{
+              canLink: canLinkEvidence,
+              linkDisabledReason,
+              canUnlink: canUnlinkEvidence,
+              unlinkDisabledReason,
+              busyLinkId: linkBusyId,
+              onLink: () => setLinkModalOpen(true),
+              onUnlink: (row) => void unlinkEvidence(row),
+            }}
           />
         ) : null}
+        <div
+          ref={linkFeedbackRef}
+          tabIndex={-1}
+          className="case-detail-stack"
+          data-matter-evidence-link-feedback
+        >
+          {linkNotice ? (
+            <p className="app-alert app-alert--ok" role="status">
+              {linkNotice}
+            </p>
+          ) : null}
+          {linkError ? (
+            <p className="app-alert app-alert--danger" role="alert">
+              {linkError}
+            </p>
+          ) : null}
+        </div>
+        <EvidenceLinkModal
+          open={linkModalOpen && canLinkEvidence}
+          caseId={caseId}
+          onClose={() => setLinkModalOpen(false)}
+          onSubmit={linkEvidence}
+        />
         {activeTab === "timeline" ? (
           <TimelineTab envelope={envelope} filterText={filterText} />
         ) : null}
@@ -793,6 +1043,14 @@ export function MatterWorkspace({
             filterText={filterText}
             caseId={caseId}
             onChanged={() => void load()}
+          />
+        ) : null}
+        {activeTab === "access" ? (
+          <MatterAccessTab
+            caseId={caseId}
+            teamId={envelope.case.teamId}
+            caseOwnerUserId={envelope.case.ownerUserId}
+            viewer={envelope.viewer}
           />
         ) : null}
         {activeTab === "siu" ? (
@@ -939,14 +1197,41 @@ function matchesFilter<T>(
   return items.filter((item) => text(item).toLowerCase().includes(q));
 }
 
+type EvidenceLinkControls = {
+  canLink: boolean;
+  linkDisabledReason: string | undefined;
+  canUnlink: boolean;
+  unlinkDisabledReason: string | undefined;
+  busyLinkId: string | null;
+  onLink: () => void;
+  onUnlink: (row: { linkId: string; title: string }) => void;
+};
+
+function LinkEvidenceButton({ links }: { links: EvidenceLinkControls }) {
+  return (
+    <Button
+      variant="secondary"
+      size="sm"
+      onClick={links.onLink}
+      disabled={!links.canLink}
+      disabledReason={links.linkDisabledReason}
+      data-matter-evidence-link-open
+    >
+      Link evidence
+    </Button>
+  );
+}
+
 function EvidenceTab({
   envelope,
   onOpenEvidence,
   filterText = "",
+  links,
 }: {
   envelope: MatterEnvelope;
   onOpenEvidence?: (evidenceId: string) => void;
   filterText?: string;
+  links: EvidenceLinkControls;
 }) {
   const ev = envelope.sections.evidence;
 
@@ -982,10 +1267,13 @@ function EvidenceTab({
 
   if (ev.items.length === 0 && requestRows.length === 0) {
     return (
-      <EmptyState
-        title="No evidence linked yet"
-        body="Link evidence from the Evidence Library or issue an Evidence Request via the intake operations surface. Evidence linked here forms the operational basis for review, hold, and export decisions."
-      />
+      <div className="case-detail-stack">
+        <EmptyState
+          title="No evidence linked yet"
+          body="Link workspace evidence to this matter, or issue an Evidence Request via the intake operations surface. Evidence linked here forms the operational basis for review, hold, and export decisions."
+        />
+        <LinkEvidenceButton links={links} />
+      </div>
     );
   }
   return (
@@ -1023,7 +1311,7 @@ function EvidenceTab({
               </a>
               <span>
                 {" · "}
-                {r.status}
+                {identifierLabel(r.status)}
                 {" · "}
                 {r.completion.requiredFulfilled}/{r.completion.requiredTotal}{" "}
                 required
@@ -1039,10 +1327,11 @@ function EvidenceTab({
 
       {/* Existing C1 linked-evidence table. */}
       <h3>Linked evidence ({ev.items.length})</h3>
+      <LinkEvidenceButton links={links} />
       {ev.items.length === 0 ? (
         <p className="app-hint">
-          No evidence linked yet. Link evidence from the workspace library
-          via the Evidence detail surface.
+          No evidence linked yet. Use Link evidence to choose workspace
+          evidence for this matter.
         </p>
       ) : (
         <div className="app-table-surface">
@@ -1056,6 +1345,9 @@ function EvidenceTab({
               <th>Lifecycle</th>
               <th>Link role</th>
               <th>Artifacts</th>
+              <th>
+                <span className="app-visually-hidden">Actions</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -1067,14 +1359,37 @@ function EvidenceTab({
             ).map((it) => (
               <tr key={it.id} onClick={() => onOpenEvidence?.(it.id)}>
                 <td>{it.title || it.id}</td>
-                <td>{it.type}</td>
-                <td>{it.status}</td>
-                <td>{it.verificationStatus ?? "—"}</td>
-                <td>{it.lifecycleState ?? "—"}</td>
-                <td>{it.linkRole ?? "—"}</td>
+                <td>{identifierLabel(it.type)}</td>
+                <td>{identifierLabel(it.status)}</td>
+                <td>{it.verificationStatus ? identifierLabel(it.verificationStatus) : "—"}</td>
+                <td>{it.lifecycleState ? identifierLabel(it.lifecycleState) : "—"}</td>
+                <td>{it.linkRole ? identifierLabel(it.linkRole) : "—"}</td>
                 <td>
                   {it.reportReady ? "Report PDF" : "—"}
                   {it.packageReady ? " · Verification Package ZIP" : ""}
+                </td>
+                <td onClick={(event) => event.stopPropagation()}>
+                  {it.linkId ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      loading={links.busyLinkId === it.linkId}
+                      disabled={!links.canUnlink || links.busyLinkId !== null}
+                      disabledReason={links.unlinkDisabledReason}
+                      aria-label={`Unlink ${it.title || "evidence"}`}
+                      onClick={() =>
+                        links.onUnlink({
+                          linkId: it.linkId as string,
+                          title: it.title || "Untitled evidence",
+                        })
+                      }
+                      data-matter-evidence-unlink={it.linkId}
+                    >
+                      Unlink
+                    </Button>
+                  ) : (
+                    <span className="app-hint">Attached directly</span>
+                  )}
                 </td>
               </tr>
             ))}
@@ -1120,7 +1435,7 @@ function TimelineTab({
                 {formatRelative(ev.occurredAtUtc)}
               </time>
               <span className="app-chip">{ev.family}</span>
-              <span className="app-chip">{ev.eventType}</span>
+              <span className="app-chip">{identifierLabel(ev.eventType)}</span>
             </div>
             <p className="app-hint">{ev.summary}</p>
           </div>
@@ -1223,7 +1538,7 @@ function HoldsTab({
               <strong>{h.title}</strong>
               <span>
                 {" · "}
-                {h.status}
+                {identifierLabel(h.status)}
                 {" · placed "}
                 {formatRelative(h.placedAtUtc)}
                 {h.releasedAtUtc
@@ -1246,7 +1561,7 @@ function HoldsTab({
               <code>{h.evidenceId}</code>
               <span>
                 {" · "}
-                {h.status}
+                {identifierLabel(h.status)}
                 {" · "}
                 {formatRelative(h.createdAt)}
               </span>
@@ -1311,7 +1626,7 @@ function DecisionsTab({
                 {" · "}
                 {w.workflowType}
                 {" · "}
-                {w.status}
+                {identifierLabel(w.status)}
                 {" · priority "}
                 {w.priority}
                 {w.dueAtUtc ? ` · due ${formatRelative(w.dueAtUtc)}` : ""}
@@ -1330,9 +1645,9 @@ function DecisionsTab({
               <code>{e.evidenceId}</code>
               <span>
                 {" · "}
-                {e.severity}
+                {identifierLabel(e.severity)}
                 {" · "}
-                {e.status}
+                {identifierLabel(e.status)}
                 {" · "}
                 {formatRelative(e.createdAt)}
               </span>
@@ -1522,9 +1837,9 @@ function CommunicationsTab({
               </a>
               <span>
                 {" · "}
-                {t.kind}
+                {identifierLabel(t.kind)}
                 {" · "}
-                {t.status}
+                {identifierLabel(t.status)}
                 {t.escalatedAtUtc ? " · escalated" : ""}
                 {" · updated "}
                 {formatRelative(t.updatedAt)}
@@ -1591,11 +1906,19 @@ function AssignmentsTab({
   // from the SAME canonical guard the write routes enforce
   // (evaluateCaseMutationPermission("ASSIGN")). We render the manage
   // controls only when the mutation would actually be accepted, and
-  // never on PERSONAL-scope cases (which reject assignment server-side).
-  const canAssign =
-    envelope.viewer.canAssign === true && envelope.case.scope === "TEAM";
-  const assignDisabledReason =
-    envelope.viewer.disabledReasons?.["ASSIGN"] ?? null;
+  // never on a case without a workspace (the assignment service rejects it).
+  //
+  // D37 — this used to test the case scope for "TEAM", but the
+  // envelope's scope vocabulary is SHARED / SINGLE_OCCUPANT, so the control
+  // was disabled for everyone. And the server keys disabled reasons by
+  // camel-cased action name ("assign"), not "ASSIGN", so the reason was
+  // never found.
+  const hasWorkspace = envelope.case.teamId !== null;
+  const canAssign = envelope.viewer.canAssign === true && hasWorkspace;
+  const assignDisabledReason = !hasWorkspace
+    ? "Cases outside a team workspace do not support assignments."
+    : envelope.viewer.disabledReasons?.["assign"] ??
+      "You need a manage-level role to change assignments.";
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [banner, setBanner] = useState<string | null>(null);
@@ -1684,21 +2007,17 @@ function AssignmentsTab({
       Assign teammate
     </Button>
   ) : (
-    <Button
-      variant="secondary"
-      size="sm"
-      data-matter-assignments-add
-      data-disabled="true"
-      disabled
-      title={
-        assignDisabledReason ??
-        (envelope.case.scope === "PERSONAL"
-          ? "Personal cases do not support assignments. Switch to a team workspace."
-          : "You need a manage-level role to change assignments.")
-      }
-    >
-      Assign teammate
-    </Button>
+    <div>
+      <ReasonedActionButton
+        className="app-secondary-action"
+        data-matter-assignments-add
+        data-disabled="true"
+        disabled
+        disabledReason={assignDisabledReason}
+      >
+        Assign teammate
+      </ReasonedActionButton>
+    </div>
   );
 
   return (
@@ -1735,7 +2054,7 @@ function AssignmentsTab({
               className="app-inner-surface case-detail-row"
               data-matter-assignment-row={a.id}
             >
-              <strong>{a.role}</strong>
+              <strong>{identifierLabel(a.role)}</strong>
               <span> · {a.assignedToUserId}</span>
               <small> · assigned {formatRelative(a.assignedAtUtc)}</small>
               {a.note ? <p>{a.note}</p> : null}
@@ -1761,7 +2080,7 @@ function AssignmentsTab({
           <ul className="case-detail-rows">
             {removed.slice(0, 25).map((a) => (
               <li key={a.id}>
-                <span>{a.role}</span>
+                <span>{identifierLabel(a.role)}</span>
                 <span> · {a.assignedToUserId}</span>
                 {a.removedAtUtc ? (
                   <small> · removed {formatRelative(a.removedAtUtc)}</small>

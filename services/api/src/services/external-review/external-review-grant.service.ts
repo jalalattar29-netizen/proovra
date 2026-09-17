@@ -227,6 +227,53 @@ export async function issueExternalReviewGrant(
   );
 }
 
+/**
+ * Whether an evidence record, matter or verification package belongs to the
+ * workspace — the same rule a grant is issued under. The cross-org review
+ * invitation (D17) checks its subject with it before recording it.
+ */
+export function externalReviewTargetBelongsToTeam(
+  client: PrismaClient,
+  teamId: string,
+  target: { kind: IssueGrantInput["scopeKind"]; id: string },
+): Promise<boolean> {
+  return scopeTargetBelongsToTeam(client, teamId, target.kind, {
+    evidenceId: target.kind === "EVIDENCE" ? target.id : null,
+    caseId: target.kind === "CASE" ? target.id : null,
+    packageId: target.kind === "PACKAGE" ? target.id : null,
+  });
+}
+
+async function scopeTargetBelongsToTeam(
+  client: PrismaClient,
+  teamId: string,
+  scopeKind: IssueGrantInput["scopeKind"],
+  ids: { evidenceId: string | null; caseId: string | null; packageId: string | null },
+): Promise<boolean> {
+  if (scopeKind === "EVIDENCE" && ids.evidenceId) {
+    const row = await client.evidence.findFirst({
+      where: { id: ids.evidenceId, teamId, deletedAt: null },
+      select: { id: true },
+    });
+    return row !== null;
+  }
+  if (scopeKind === "CASE" && ids.caseId) {
+    const row = await client.case.findFirst({
+      where: { id: ids.caseId, teamId },
+      select: { id: true },
+    });
+    return row !== null;
+  }
+  if (scopeKind === "PACKAGE" && ids.packageId) {
+    const row = await client.verificationPackage.findFirst({
+      where: { id: ids.packageId, evidence: { teamId, deletedAt: null } },
+      select: { id: true },
+    });
+    return row !== null;
+  }
+  return false;
+}
+
 async function issueExternalReviewGrantInner(
   input: IssueGrantInput,
   client: PrismaClient,
@@ -242,6 +289,19 @@ async function issueExternalReviewGrantInner(
     return { ok: false, reason: "invalid_scope" };
   }
   if (input.scopeKind === "PACKAGE" && !packageId) {
+    return { ok: false, reason: "invalid_scope" };
+  }
+
+  // K5 (2026-09-16) — the scope target must belong to the ISSUING workspace.
+  // Cardinality alone let a workspace mint a grant naming another tenant's
+  // evidence / case / package id; the row was written INVITED and the raw
+  // token returned. A foreign or missing target is the same `invalid_scope`
+  // as a missing one, so the refusal reveals nothing about other tenants.
+  if (!(await scopeTargetBelongsToTeam(client, input.teamId, input.scopeKind, {
+    evidenceId,
+    caseId,
+    packageId,
+  }))) {
     return { ok: false, reason: "invalid_scope" };
   }
 
@@ -401,6 +461,26 @@ async function grantScopeHasActiveLegalHold(
 export async function lookupExternalReviewGrantByToken(
   rawToken: string,
   client: PrismaClient = defaultPrisma,
+  /**
+   * K2 (2026-09-16) — `acceptInvited` is passed ONLY by the portal token
+   * exchange (POST /v1/portal/auth), which is where an invitation is accepted.
+   * Without it an INVITED grant was refused here as `not_active`, so the
+   * acceptance that route performs AFTER this lookup could never run and an
+   * invited reviewer could never open the portal. The INVITED grant is judged
+   * by the same engine as an ACTIVE one (revocation, expiry, legal hold all
+   * still refuse) and only then transitioned. Every other caller is unchanged.
+   */
+  options: {
+    acceptInvited?: boolean;
+    /**
+     * D27 (2026-09-16) — judge an INVITED grant as the token exchange would,
+     * but do NOT accept it yet. The portal sign-in uses this when the grant
+     * still owes a second factor: the invitation is accepted only after the
+     * emailed code is verified, never by a token holder who cannot answer it.
+     * The returned grant keeps its INVITED state so the caller can tell.
+     */
+    deferAcceptance?: boolean;
+  } = {},
 ): Promise<LookupGrantResult> {
   if (!rawToken || rawToken.length === 0) {
     return { ok: false, reason: "token_unknown" };
@@ -438,8 +518,9 @@ export async function lookupExternalReviewGrantByToken(
     );
     // Evaluate against the canonical shared engine. Treat expired /
     // revoked / blocked as bounded denial reasons.
+    const accepting = options.acceptInvited === true && grant.state === "INVITED";
     const decision = evaluateExternalReviewAccess({
-      state: grant.state,
+      state: accepting ? "ACTIVE" : grant.state,
       expiresAtUtc: grant.expiresAtUtc,
       hasActiveLegalHold,
       nowIsoUtc: new Date().toISOString(),
@@ -459,6 +540,15 @@ export async function lookupExternalReviewGrantByToken(
                 : "grant_not_active";
       return { ok: false, reason };
     }
+    if (accepting && options.deferAcceptance !== true) {
+      // The invited reviewer accepts; the inviting operator is recorded as the
+      // approving actor, as the legacy accept route does.
+      const accepted = await transitionExternalReviewGrant(
+        { grantId: grant.id, teamId: grant.teamId, toState: "ACTIVE", actorUserId: grant.invitedByUserId },
+        client,
+      );
+      return accepted.ok ? { ok: true, grant: accepted.grant } : { ok: false, reason: "grant_not_active" };
+    }
     return { ok: true, grant };
   } catch (err) {
     safeEmitSecurityEvent({
@@ -470,6 +560,27 @@ export async function lookupExternalReviewGrantByToken(
       },
     });
     return { ok: false, reason: "service_unavailable" };
+  }
+}
+
+/**
+ * D33 (2026-09-17) — true when the grant is a portal invitation that requires
+ * the emailed one-time code (`external_reviewer_role_assignments.mfa_required`).
+ * Callers that cannot run that step refuse the grant. A read failure answers
+ * true, so they fail closed.
+ */
+export async function externalReviewGrantRequiresPortalMfa(
+  grantId: string,
+  client: PrismaClient = defaultPrisma,
+): Promise<boolean> {
+  try {
+    const role = await client.externalReviewerRoleAssignment.findUnique({
+      where: { id: grantId },
+      select: { mfaRequired: true },
+    });
+    return role?.mfaRequired === true;
+  } catch {
+    return true;
   }
 }
 

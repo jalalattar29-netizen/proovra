@@ -69,7 +69,10 @@ vi.mock("../src/db.js", () => {
 import { assertTeamSeatAvailable } from "../src/services/workspace-usage.service.js";
 import { assertBillingCapability } from "../src/services/billing/billing-accounts.service.js";
 
-vi.mock("../src/services/organization/org-access.js", () => ({
+// The REAL module (its role sets included — the billing-account service reads
+// ORG_BILLING_ROLES from it), with only the gate's decision replaced.
+vi.mock("../src/services/organization/org-access.js", async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   checkOrgAccess: async () => ({ kind: "ok" }),
 }));
 

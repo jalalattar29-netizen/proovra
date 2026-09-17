@@ -28,6 +28,8 @@ import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { functionSource } from "../../../scripts/source-contract/index.mjs";
+
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const read = (rel: string) => readFileSync(resolve(REPO, rel), "utf8");
 
@@ -182,10 +184,10 @@ describe("the Details lifecycle panel decides nothing itself", () => {
     // projection, which is the other way to show a state that is not true.
     const body = DETAILS_PAGE;
     for (const fn of ["moveToTrash", "restoreTrash", "runRecordAction"]) {
-      const at = body.indexOf(`const ${fn} = async`);
-      expect(at, `${fn} must exist`).toBeGreaterThan(-1);
+      const source = functionSource(body, fn, "page.tsx");
+      expect(source.startsWith(`const ${fn} = async`), `${fn} must exist`).toBe(true);
       expect(
-        body.slice(at, at + 1200),
+        source,
         `${fn} must reload the workspace so the lifecycle verdict is re-read`,
       ).toContain("await loadWorkspace()");
     }

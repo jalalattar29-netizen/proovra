@@ -42,7 +42,11 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
-import { resolveTeamRetentionPolicy } from "../organization/retention-inheritance.service.js";
+import {
+  applyOrganizationRetentionFloor,
+  isWeakerRetention,
+  readOrganizationRetentionTemplate,
+} from "../organization/retention-template.js";
 
 // -----------------------------------------------------------------------------
 // Error
@@ -135,7 +139,14 @@ export async function createRetentionPolicy(
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<RetentionPolicyProjection> {
-  const parsed = RetentionPolicyCreateInputSchema.safeParse(input);
+  // The shared schema is `.strict()` and describes the POLICY fields only.
+  // `actorUserId` and `changeNote` are service inputs, not policy content;
+  // passing them through made every create fail with RETENTION_POLICY_INVALID
+  // ("Unrecognized key: actorUserId").
+  const policyInput: Record<string, unknown> = { ...input };
+  delete policyInput.actorUserId;
+  delete policyInput.changeNote;
+  const parsed = RetentionPolicyCreateInputSchema.safeParse(policyInput);
   if (!parsed.success) {
     throw new RetentionEngineError("RETENTION_POLICY_INVALID", {
       detail: parsed.error.flatten(),
@@ -233,7 +244,11 @@ export async function updateRetentionPolicy(
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<RetentionPolicyProjection> {
-  const parsed = RetentionPolicyUpdateInputSchema.safeParse(input);
+  // Same as create: `actorUserId` is not part of the strict policy schema
+  // (`changeNote` is). Passing it through failed every update.
+  const policyInput: Record<string, unknown> = { ...input };
+  delete policyInput.actorUserId;
+  const parsed = RetentionPolicyUpdateInputSchema.safeParse(policyInput);
   if (!parsed.success) {
     throw new RetentionEngineError("RETENTION_POLICY_INVALID", {
       detail: parsed.error.flatten(),
@@ -291,6 +306,20 @@ export async function updateRetentionPolicy(
   ) {
     diff.displayName = { from: existing.displayName, to: input.displayName };
   }
+  // Description is versioned policy content exactly like displayName: both
+  // are operator-authored text with no column on the version row, recorded in
+  // `diffJson`. It used to be missing here, so a description-only edit hit the
+  // no-op branch below and was silently discarded (200, nothing saved).
+  const nextDescription =
+    input.description === undefined
+      ? undefined
+      : input.description?.slice(0, 2000) ?? null;
+  if (
+    nextDescription !== undefined &&
+    nextDescription !== existing.description
+  ) {
+    diff.description = { from: existing.description, to: nextDescription };
+  }
   if (Object.keys(diff).length === 0) {
     return projectPolicy(existing); // no-op
   }
@@ -300,9 +329,7 @@ export async function updateRetentionPolicy(
     data: {
       displayName: input.displayName?.slice(0, 180) ?? existing.displayName,
       description:
-        input.description === undefined
-          ? existing.description
-          : input.description?.slice(0, 2000) ?? null,
+        nextDescription === undefined ? existing.description : nextDescription,
       retentionDays:
         input.retentionDays === undefined
           ? existing.retentionDays
@@ -552,6 +579,15 @@ export type EffectiveRetentionDecision = {
     description: string | null;
   };
   /**
+   * PV-DUP-002 — the retention that actually GOVERNS, after the organization's
+   * mandatory floor. `null` is indefinite. Equal to the winning policy's own
+   * value unless an immutable organization template raised it, in which case
+   * `mandatoryFloorApplied` is true. Every surface shows this number, so the
+   * effective panel and the inheritance panel cannot disagree about it.
+   */
+  effectiveRetentionDays: number | null;
+  mandatoryFloorApplied?: boolean;
+  /**
    * Phase G1 — bounded conflict surface. The engine emits structured
    * conflict codes whenever an operational rule fires (same-scope
    * duplicate, weaker-than-inherited workspace override, etc.). UI
@@ -570,31 +606,42 @@ export async function resolveEffectiveRetentionPolicy(
   input: ResolveEffectivePolicyInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<EffectiveRetentionDecision> {
+  /*
+   * ONE ARM PER FILTER THE CALLER ACTUALLY SUPPLIED.
+   *
+   * This used to emit `{ id: "__never__" }` for each absent optional filter,
+   * intending an arm that matches nothing. `EvidenceRetentionPolicy.id` is
+   * `@db.Uuid`, so PostgreSQL rejected the WHOLE statement with
+   * `invalid input syntax for type uuid: "__never__"` — the sentinel did not
+   * match nothing, it invalidated the query.
+   *
+   * It fired on the ORDINARY call. A workspace-level resolution supplies no
+   * evidence type, no jurisdiction and no case, so all three no-op arms were
+   * present and the resolver failed at exactly the question it exists to
+   * answer. Every such call also raised a critical operational alert.
+   *
+   * An absent filter is the ABSENCE of a predicate, so it is expressed by not
+   * pushing one. The WORKSPACE arm is unconditional and keeps the array
+   * non-empty, so `OR` is always well-formed.
+   */
+  const scopeArms: prismaPkg.Prisma.EvidenceRetentionPolicyWhereInput[] = [
+    { scope: "WORKSPACE" },
+  ];
+  if (input.evidenceType) {
+    scopeArms.push({ scope: "EVIDENCE_TYPE", scopeQualifier: input.evidenceType });
+  }
+  if (input.jurisdiction) {
+    scopeArms.push({ scope: "REGULATORY", scopeQualifier: input.jurisdiction });
+  }
+  if (input.caseId) {
+    scopeArms.push({ scope: "CASE", caseId: input.caseId });
+  }
+
   const candidates = await client.evidenceRetentionPolicy.findMany({
     where: {
       teamId: input.teamId,
       status: "ACTIVE",
-      OR: [
-        { scope: "WORKSPACE" },
-        input.evidenceType
-          ? {
-              scope: "EVIDENCE_TYPE",
-              scopeQualifier: input.evidenceType,
-            }
-          : { id: "__never__" }, // no-op
-        input.jurisdiction
-          ? {
-              scope: "REGULATORY",
-              scopeQualifier: input.jurisdiction,
-            }
-          : { id: "__never__" },
-        input.caseId
-          ? {
-              scope: "CASE",
-              caseId: input.caseId,
-            }
-          : { id: "__never__" },
-      ],
+      OR: scopeArms,
     },
   });
 
@@ -607,25 +654,35 @@ export async function resolveEffectiveRetentionPolicy(
   }> = [];
 
   // -------------------------------------------------------------------
-  // Phase G1 (B0.4) — no explicit policy → consult the Phase B0
-  // inheritance resolver before declaring "no_active_policy". This is
-  // the operational enforcement of the inheritance contract that B0
-  // shipped as a UI-only display.
+  // PV-DUP-002 — ONE read of the organization template, shared by the
+  // inheritance fallback, the mandatory floor and the conflict checks.
+  //
+  // This used to ask the Phase B0 inheritance resolver twice. That resolver
+  // answers "team_policy" whenever the workspace has a policy of its own, so
+  // the conflict branch below — which only ran when it said
+  // "org_policy_inherited" — could never fire beside a winner: both conflict
+  // codes were dead, and the immutable floor that resolver applied never
+  // reached this decision. The retention page showed one number here and a
+  // different one in its inheritance panel.
+  //
+  // A database failure propagates. It is not "no policy applies".
   // -------------------------------------------------------------------
+  const org = await readOrganizationRetentionTemplate(input.teamId, client);
+
   if (candidates.length === 0) {
-    const inheritance = await resolveTeamRetentionPolicy(input.teamId, client);
-    if (inheritance.source === "org_policy_inherited") {
+    if (org.organizationId && org.template) {
       bump("retention_policy_inherited_total");
       return {
         policy: null,
         reason: "inherited_from_org",
         source: "org_policy_inherited",
         inheritedTemplate: {
-          organizationId: inheritance.organizationId,
-          retentionDays: inheritance.template.retentionDays,
-          immutable: inheritance.template.immutable,
-          description: inheritance.template.description,
+          organizationId: org.organizationId,
+          retentionDays: org.template.retentionDays,
+          immutable: org.template.immutable,
+          description: org.template.description,
         },
+        effectiveRetentionDays: org.template.retentionDays,
         conflicts,
       };
     }
@@ -633,6 +690,7 @@ export async function resolveEffectiveRetentionPolicy(
       policy: null,
       reason: "no_active_policy",
       source: "none",
+      effectiveRetentionDays: null,
       conflicts,
     };
   }
@@ -644,6 +702,7 @@ export async function resolveEffectiveRetentionPolicy(
       policy: null,
       reason: "no_winner",
       source: "none",
+      effectiveRetentionDays: null,
       conflicts,
     };
   }
@@ -669,48 +728,41 @@ export async function resolveEffectiveRetentionPolicy(
   }
 
   // -------------------------------------------------------------------
-  // Phase G1 (B0.4) — when a workspace-scoped policy exists, compare
-  // it against the org template (if any). Operationally relevant
-  // conflicts:
+  // The organization template against the winning policy (§9.4: a child
+  // may strengthen the organization's rule, never weaken it).
   //
-  //   * workspace_overrides_immutable — the parent organization
-  //     published an immutable template, and the workspace's local
-  //     policy effectively bypasses it. The local policy is still
-  //     served (the engine cannot retroactively delete operator
-  //     intent), but the conflict is surfaced so governance admins
-  //     can resolve it.
+  //   * workspace_overrides_immutable — the template is IMMUTABLE and the
+  //     winning policy is weaker. The template is a mandatory floor, so
+  //     the effective retention is RAISED to it; the local row is left
+  //     untouched and the conflict is surfaced for the governance admin.
+  //   * workspace_weaker_than_inherited — the template is advisory and
+  //     the winning policy is weaker. The local policy applies.
   //
-  //   * workspace_weaker_than_inherited — the local policy's
-  //     retention horizon is shorter than the inherited template.
+  // A policy at least as strong as the template is compliant and raises
+  // nothing.
   // -------------------------------------------------------------------
-  if (winner.scope === "WORKSPACE") {
-    const inheritance = await resolveTeamRetentionPolicy(input.teamId, client);
-    if (inheritance.source === "org_policy_inherited") {
-      const tmpl = inheritance.template;
-      if (tmpl.immutable) {
-        conflicts.push({
-          code: "workspace_overrides_immutable",
-          detail:
-            "The parent organization template is marked immutable; the local workspace policy is currently active alongside it. Resolve at the organization level.",
-        });
-      }
-      if (
-        typeof tmpl.retentionDays === "number" &&
-        typeof winner.retentionDays === "number" &&
-        winner.retentionDays < tmpl.retentionDays
-      ) {
-        conflicts.push({
-          code: "workspace_weaker_than_inherited",
-          detail: `Local workspace retention (${winner.retentionDays} days) is shorter than the inherited organization template (${tmpl.retentionDays} days).`,
-        });
-      }
-    }
+  const floor = applyOrganizationRetentionFloor(winner.retentionDays, org.template);
+  if (org.template && isWeakerRetention(winner.retentionDays, org.template.retentionDays)) {
+    const days = (d: number | null) => (d === null ? "indefinite retention" : `${d} days`);
+    conflicts.push(
+      org.template.immutable
+        ? {
+            code: "workspace_overrides_immutable",
+            detail: `The organization's retention template is immutable (${days(org.template.retentionDays)}). This workspace's policy (${days(winner.retentionDays)}) is weaker, so the organization floor is enforced.`,
+          }
+        : {
+            code: "workspace_weaker_than_inherited",
+            detail: `Local workspace retention (${days(winner.retentionDays)}) is shorter than the organization template (${days(org.template.retentionDays)}). The template is advisory, so the workspace policy applies.`,
+          },
+    );
   }
 
   return {
     policy: winner,
     reason: `picked_${winner.scope.toLowerCase()}`,
     source: "team_policy",
+    effectiveRetentionDays: floor.retentionDays,
+    ...(floor.mandatoryFloorApplied ? { mandatoryFloorApplied: true } : {}),
     conflicts,
   };
 }

@@ -26,6 +26,7 @@
 
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
+import { trackedFileSet } from "./tracked.mjs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -206,6 +207,9 @@ async function checkpointFacts(factsDoc) {
 function hashTree(rootRel) {
   const abs = path.join(REPO, rootRel);
   if (!existsSync(abs)) return [];
+  // Only tracked files feed the freshness hash, so a working tree and a CI
+  // checkout of the same commit hash identically (see tracked.mjs).
+  const tracked = trackedFileSet();
   const out = [];
   const walk = (dir) => {
     for (const e of readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
@@ -215,6 +219,7 @@ function hashTree(rootRel) {
         walk(p);
       } else if (e.isFile() && /\.(ts|tsx|mjs|json)$/.test(e.name)) {
         const r = path.relative(REPO, p).split(path.sep).join("/");
+        if (!tracked.has(r)) continue;
         out.push(`${r}:${sha256(readFileSync(p, "utf8").replace(/\r\n/g, "\n"))}`);
       }
     }

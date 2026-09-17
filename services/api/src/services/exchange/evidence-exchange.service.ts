@@ -4,7 +4,15 @@
  * Workspace-anchored, append-mostly lifecycle for signed, time-limited
  * evidence exchange packages. State machine:
  *
- *   DRAFT → READY → DELIVERED → (EXPIRED | REVOKED)
+ *   DRAFT → BUILDING → READY → DELIVERED → (EXPIRED | REVOKED)
+ *
+ *   DRAFT → BUILDING is the build REQUEST (`requestExchangePackageBuild`),
+ *   made by `createExchangePackage` and — D59 — by an operator's
+ *   "Build again" on a DRAFT package (`requestExchangePackageRebuild`,
+ *   POST /v1/exchange/packages/:id/build). The worker's package builder only
+ *   picks up BUILDING packages, and a failed build returns the package to
+ *   DRAFT (its build tracker row says FAILED; the list projects that as the
+ *   bounded `lastBuild`).
  *
  * Hard rules:
  *   * Every entry point is workspace-anchored (teamId).
@@ -25,9 +33,6 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
-// The ONE writer of the export-package monthly meter, kept beside the reader
-// (`assertQuotaEntitlement`) that has to agree with it about key and period.
-import { recordExportPackageUsage } from "../packaging/entitlement.service.js";
 import { signPackageManifest } from "./signed-delivery.service.js";
 
 // ---------------------------------------------------------------------------
@@ -120,6 +125,14 @@ export async function createExchangePackage(
     .catch(() => {
       // Non-fatal — the worker will upsert the row when it picks up the job.
     });
+  // Creating a package IS the product's build request: the Exchange page has
+  // no separate "build" action, and the worker only builds BUILDING packages.
+  // Without this transition every package stayed DRAFT forever.
+  await requestExchangePackageBuild({
+    prisma,
+    teamId: input.teamId,
+    packageId: row.id,
+  });
   void tryEmitWebhookEvent(
     "PACKAGE_CREATED",
     {
@@ -136,96 +149,69 @@ export async function createExchangePackage(
 }
 
 // ---------------------------------------------------------------------------
-// markPackageReady
+// requestExchangePackageBuild — DRAFT → BUILDING
 // ---------------------------------------------------------------------------
 
-export type MarkPackageReadyInput = {
+/**
+ * Hand a DRAFT package to the worker's package builder.
+ *
+ * Conditional on the current state, so a package that is already BUILDING,
+ * READY or later is never pulled back, and two concurrent requests move it
+ * once. Returns `requested: false` when nothing moved.
+ */
+export async function requestExchangePackageBuild(input: {
   prisma?: PrismaClient;
   teamId: string;
   packageId: string;
-  storageKey: string;
-  packageSha256: string;
-  packageSizeBytes: number | bigint;
-};
-
-export async function markPackageReady(
-  input: MarkPackageReadyInput,
-): Promise<{ ok: boolean }> {
+}): Promise<{ requested: boolean }> {
   const prisma = input.prisma ?? defaultPrisma;
-  const row = await prisma.evidenceExchangePackage.findFirst({
+  const moved = await prisma.evidenceExchangePackage.updateMany({
+    where: { id: input.packageId, teamId: input.teamId, state: "DRAFT" },
+    data: { state: "BUILDING" },
+  });
+  return { requested: moved.count === 1 };
+}
+
+// ---------------------------------------------------------------------------
+// requestExchangePackageRebuild — operator "Build again" (D59)
+// ---------------------------------------------------------------------------
+
+export type RequestExchangePackageRebuildResult =
+  | { ok: true; previousState: "DRAFT" }
+  | { ok: false; reason: "NOT_FOUND" }
+  | { ok: false; reason: "NOT_DRAFT"; state: ExchangePackageState };
+
+/**
+ * Ask the builder to build a DRAFT package again (a failed build returns the
+ * package to DRAFT, and until this existed nothing could move it on).
+ *
+ * Workspace-anchored: a package in another workspace is NOT_FOUND, exactly
+ * like a missing one. The transition is the same conditional DRAFT → BUILDING
+ * write the creation path uses, so a concurrent request or a package that
+ * moved on meanwhile is reported as NOT_DRAFT with the state it is in now.
+ */
+export async function requestExchangePackageRebuild(input: {
+  prisma?: PrismaClient;
+  teamId: string;
+  packageId: string;
+}): Promise<RequestExchangePackageRebuildResult> {
+  const prisma = input.prisma ?? defaultPrisma;
+  const current = await prisma.evidenceExchangePackage.findFirst({
     where: { id: input.packageId, teamId: input.teamId },
-    select: { id: true, state: true },
+    select: { state: true },
   });
-  if (!row) return { ok: false };
-  if (row.state !== "DRAFT" && row.state !== "BUILDING") return { ok: false };
-
-  /*
-   * ===========================================================================
-   * THE COMMERCIAL COMPLETION BOUNDARY — ONE TRANSACTION.
-   * ===========================================================================
-   * The billable transition and the meter that records it now commit together
-   * or not at all. Both models live on the same datasource, so this is an
-   * ordinary `$transaction` and not a distributed-commit problem.
-   *
-   * WHAT THIS CLOSES. The two writes used to be sequential and the meter
-   * swallowed its own failures, which produced a state nothing could repair:
-   *
-   *   1. the package committed DRAFT/BUILDING → READY;
-   *   2. the usage write failed, silently;
-   *   3. every retry found no DRAFT/BUILDING row to transition, returned
-   *      `{ ok: false }`, and never attempted the meter again.
-   *
-   * The package was READY, the customer had it, and the month's count was
-   * permanently one short — under-billing that no reconciliation pass could
-   * detect, because nothing recorded that the attempt had ever happened.
-   *
-   * Inside the transaction a metering failure rolls the READY transition back,
-   * so the package is exactly as it was before the call and the next attempt is
-   * a normal first attempt. Nothing is swallowed here, deliberately: a
-   * swallowed failure inside this transaction would commit READY with no meter
-   * and rebuild the divergence with extra steps.
-   *
-   * WHY THE PREDICATE IS IN THE WRITE. `state: { in: [...] }` inside the
-   * `updateMany` — not the read above it — is what makes the transition
-   * single-winner. The read is a fast path that distinguishes "no such package
-   * in this workspace" from "already ready"; two concurrent callers can both
-   * pass it, and exactly one can have `count === 1`. That one caller is the one
-   * that meters.
-   *
-   * WHAT IS METERED, AND WHOSE. ONE produced package, ONE monthly unit, here
-   * and nowhere else. Deliberately NOT at creation: `createExchangePackage`
-   * writes a DRAFT whose build can still fail, so metering there would charge
-   * for packages that never existed. Deliberately NOT at signed-URL generation
-   * or delivery: those are reads and re-sends of an artifact already paid for,
-   * and a customer who downloads twice has not bought twice.
-   *
-   * The subject is the workspace that OWNS the package. `teamId` is NOT NULL on
-   * the model and is re-named in the `updateMany` predicate, so a call carrying
-   * another workspace's id matches zero rows, meters nothing, and returns
-   * `{ ok: false }` — never the actor's personal workspace, never the recipient
-   * of the download.
-   */
-  return prisma.$transaction(async (tx) => {
-    const transition = await tx.evidenceExchangePackage.updateMany({
-      where: {
-        id: row.id,
-        teamId: input.teamId,
-        state: { in: ["DRAFT", "BUILDING"] },
-      },
-      data: {
-        state: "READY",
-        storageKey: input.storageKey.slice(0, 400),
-        packageSha256: input.packageSha256.slice(0, 64),
-        packageSizeBytes: BigInt(input.packageSizeBytes),
-        readyAtUtc: new Date(),
-      },
-    });
-    if (transition.count !== 1) return { ok: false };
-
-    await recordExportPackageUsage({ prisma: tx, teamId: input.teamId });
-
-    return { ok: true };
+  if (!current) return { ok: false, reason: "NOT_FOUND" };
+  if (current.state !== "DRAFT") {
+    return { ok: false, reason: "NOT_DRAFT", state: current.state as ExchangePackageState };
+  }
+  const { requested } = await requestExchangePackageBuild(input);
+  if (requested) return { ok: true, previousState: "DRAFT" };
+  const now = await prisma.evidenceExchangePackage.findFirst({
+    where: { id: input.packageId, teamId: input.teamId },
+    select: { state: true },
   });
+  if (!now) return { ok: false, reason: "NOT_FOUND" };
+  return { ok: false, reason: "NOT_DRAFT", state: now.state as ExchangePackageState };
 }
 
 // ---------------------------------------------------------------------------
@@ -484,18 +470,25 @@ export type RevokePackageInput = {
   actorUserId: string;
 };
 
+/**
+ * `revoked` is true only for the call that actually moved the package to
+ * REVOKED (conditional on the state it read), so the caller audits a real
+ * change once and a replay as a no-op.
+ */
 export async function revokePackage(
   input: RevokePackageInput,
-): Promise<{ ok: boolean }> {
+): Promise<{ ok: boolean; revoked?: boolean; previousState?: string }> {
   const prisma = input.prisma ?? defaultPrisma;
   const row = await prisma.evidenceExchangePackage.findFirst({
     where: { id: input.packageId, teamId: input.teamId },
     select: { id: true, state: true },
   });
   if (!row) return { ok: false };
-  if (row.state === "REVOKED") return { ok: true };
-  await prisma.evidenceExchangePackage.update({
-    where: { id: row.id },
+  if (row.state === "REVOKED") {
+    return { ok: true, revoked: false, previousState: row.state };
+  }
+  const moved = await prisma.evidenceExchangePackage.updateMany({
+    where: { id: row.id, teamId: input.teamId, state: row.state },
     data: {
       state: "REVOKED",
       revokedAtUtc: new Date(),
@@ -503,7 +496,7 @@ export async function revokePackage(
       signedUrlExpiresAtUtc: null,
     },
   });
-  return { ok: true };
+  return { ok: true, revoked: moved.count === 1, previousState: row.state };
 }
 
 // ---------------------------------------------------------------------------
@@ -518,9 +511,24 @@ export type ListPackagesInput = {
   limit?: number;
 };
 
+/**
+ * D59 — the bounded outcome of a package's most recent build, when it failed.
+ * Read from the build tracker's state + completion time only: the tracker's
+ * free-text `failure_reason` is an internal error message and never leaves
+ * the API.
+ */
+export type ExchangePackageLastBuild = {
+  state: "FAILED";
+  failedAtUtc: string | null;
+};
+
+export type ExchangePackageListItem = ExchangePackageProjection & {
+  lastBuild: ExchangePackageLastBuild | null;
+};
+
 export async function listPackages(
   input: ListPackagesInput,
-): Promise<ReadonlyArray<ExchangePackageProjection>> {
+): Promise<ReadonlyArray<ExchangePackageListItem>> {
   const prisma = input.prisma ?? defaultPrisma;
   const limit = Math.min(input.limit ?? 100, 500);
   const rows = await prisma.evidenceExchangePackage.findMany({
@@ -533,6 +541,20 @@ export async function listPackages(
     take: limit,
     include: { _count: { select: { deliveries: true } } },
   });
+  const failedBuilds =
+    rows.length === 0
+      ? []
+      : await prisma.evidenceExchangePackageBuild.findMany({
+          where: {
+            teamId: input.teamId,
+            packageId: { in: rows.map((r) => r.id) },
+            state: "FAILED",
+          },
+          select: { packageId: true, completedAtUtc: true },
+        });
+  const failedAt = new Map(
+    failedBuilds.map((b) => [b.packageId, b.completedAtUtc?.toISOString() ?? null]),
+  );
   return rows.map((r) => ({
     id: r.id,
     teamId: r.teamId,
@@ -555,6 +577,9 @@ export async function listPackages(
     expiredAtUtc: r.expiredAtUtc?.toISOString() ?? null,
     revokedAtUtc: r.revokedAtUtc?.toISOString() ?? null,
     deliveryCount: r._count?.deliveries ?? 0,
+    lastBuild: failedAt.has(r.id)
+      ? { state: "FAILED" as const, failedAtUtc: failedAt.get(r.id) ?? null }
+      : null,
   }));
 }
 

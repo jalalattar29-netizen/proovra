@@ -213,6 +213,8 @@ test("POST /v1/governance/cross-org-review — invite is wired, validated, gated
     "invitingOrganizationId: organizationId",
     "invitedOrgSlug: invitedOrgSlug.trim()",
     "scope: scope.trim()",
+    // D17 — the record under review is required by the route.
+    "subject: { kind: target.kind, id: target.id }",
     "expiresAtUtc: toIsoInstant(expiresAt)",
   ]) {
     assert.ok(src.includes(field), `invite body is missing ${field}`);
@@ -230,6 +232,9 @@ test("POST /v1/governance/cross-org-review — invite is wired, validated, gated
     "the invite control does not mirror its required tiers",
   );
   assert.ok(src.includes('data-cross-org-invite-blocked="tier"'), "no permission-denied state on the control");
+  assert.ok(src.includes("<ReviewScopePicker"), "the invite does not ask which record is under review");
+  assert.ok(src.includes('data-cross-org-invite-blocked="subject"'), "no visible reason while no record is chosen");
+  assert.ok(src.includes("subject.target !== null"), "submit is not blocked until a record is chosen");
   assert.ok(
     src.includes('data-cross-org-invite-blocked="organization"'),
     "no state for a workspace with no governance organization",

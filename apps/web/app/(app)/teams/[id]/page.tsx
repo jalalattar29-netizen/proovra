@@ -21,10 +21,11 @@
  */
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useToast } from "../../../../components/ui";
+import { Button } from "../../../../components/ui/Button";
 import { apiFetch } from "../../../../lib/api";
 import { captureException } from "../../../../lib/sentry";
 import { formatUserDate, formatUserDateTime } from "../../../../lib/date";
@@ -49,6 +50,11 @@ import { DangerConfirmModal } from "./components/DangerConfirmModal";
 import { WorkspaceClosureCard } from "./components/WorkspaceClosureCard";
 import { WorkspaceOwnershipTransferCard } from "./components/WorkspaceOwnershipTransferCard";
 import { TeamAccessReviewCard } from "./components/TeamAccessReviewCard";
+import {
+  WorkspaceMembersPanel,
+  workspaceRoleLabel,
+  type WorkspaceMembersPanelHandle,
+} from "./components/WorkspaceMembersPanel";
 // Closure verification Part C — the per-team detail page (workspace
 // admin: members, invites, danger actions) must use the canonical
 // PageRouteGate, matching the gated list page at /teams (routeId
@@ -87,6 +93,24 @@ type TeamInvite = {
   createdAt?: string;
   expiresAt?: string;
   acceptedAt?: string | null;
+  lastResentAt?: string | null;
+  resendCount?: number;
+};
+
+/**
+ * The pending-invitations read has three outcomes and only one of them is a
+ * list. A non-admin is refused by the route (the panel is not shown to them),
+ * and any other failure is reported rather than rendered as "No invitations
+ * outstanding".
+ */
+type InvitesReadState = "ready" | "refused" | "failed";
+
+/** Bounded copy for the resend route's WorkspaceInvitationError codes. */
+const RESEND_ERROR_COPY: Record<string, string> = {
+  INVITE_NOT_FOUND:
+    "That invitation no longer exists. The list has been reloaded.",
+  INVITE_NOT_PENDING:
+    "That invitation was already accepted or revoked, so it cannot be resent. The list has been reloaded.",
 };
 
 type TeamCase = {
@@ -180,60 +204,10 @@ type CasesListResponse = {
   items?: AvailableCaseItem[];
 };
 
-const MANAGEABLE_ROLE_OPTIONS = ["ADMIN", "MEMBER", "VIEWER"] as const;
 const INVITE_ROLE_OPTIONS = ["ADMIN", "MEMBER", "VIEWER"] as const;
-/**
- * The roles a manager may SET on somebody else.
- *
- * OWNER is absent by construction, not by omission: ownership moves through
- * `POST /v1/teams/:id/transfer-ownership`, which is gated on `Team.ownerUserId`
- * and requires step-up. A dropdown is not an authorization boundary — the
- * server refuses an OWNER grant regardless — but offering it would advertise a
- * transition this control cannot perform.
- */
-const ROLE_OPTIONS = MANAGEABLE_ROLE_OPTIONS;
 
-/**
- * WORKSPACE role labels — DISPLAY ONLY (§15.12, §15.33).
- *
- * The selector offered raw enum values: ADMIN, MEMBER, VIEWER. Those are the
- * wire vocabulary, not product language, and shouting them at an operator in a
- * control that decides someone's access is the kind of detail that makes a
- * governance surface read like a database console.
- *
- * The VALUE stays the enum — the API contract is untouched, and other surfaces
- * compare against the raw string — so this changes what a person reads and
- * nothing about what is sent.
- *
- * The help line names the SCOPE, which is the distinction §15.12 exists for: a
- * WORKSPACE role governs access across the whole workspace, while a
- * Collaboration Team role governs responsibility inside one group. Two
- * different questions, and the same four words could otherwise answer either.
- */
-const WORKSPACE_ROLE_LABEL: Record<string, string> = {
-  OWNER: "Owner",
-  ADMIN: "Admin",
-  MEMBER: "Member",
-  VIEWER: "Viewer",
-};
-
-function workspaceRoleLabel(role: string): string {
-  return WORKSPACE_ROLE_LABEL[role] ?? role;
-}
-
-/** A person's display name, never falling back to a raw id in the primary slot. */
-function memberLabel(member: {
-  user?: { displayName?: string | null; email?: string | null } | null;
-  label?: string | null;
-  userId: string;
-}): string {
-  return (
-    member.user?.displayName?.trim() ||
-    member.user?.email ||
-    member.label ||
-    "Workspace member"
-  );
-}
+// The member-role options, the workspace role labels and `memberLabel` live
+// in ./components/WorkspaceMembersPanel with the roster that uses them.
 
 /**
  * Activity rows in plain language.
@@ -467,6 +441,9 @@ function TeamDetailPageBody() {
 
   const [team, setTeam] = useState<Team | null>(null);
   const [invites, setInvites] = useState<TeamInvite[]>([]);
+  const [invitesRead, setInvitesRead] = useState<InvitesReadState>("ready");
+  const [resendingInviteId, setResendingInviteId] = useState<string | null>(null);
+  const membersPanel = useRef<WorkspaceMembersPanelHandle | null>(null);
   const [teamCases, setTeamCases] = useState<TeamCase[]>([]);
   const [activities, setActivities] = useState<TeamActivity[]>([]);
 
@@ -482,9 +459,7 @@ function TeamDetailPageBody() {
     useState<(typeof INVITE_ROLE_OPTIONS)[number]>("MEMBER");
   const [inviting, setInviting] = useState(false);
 
-  const [roleSavingKey, setRoleSavingKey] = useState<string | null>(null);
   const [deletingInviteId, setDeletingInviteId] = useState<string | null>(null);
-  const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
   // Phase 2.2 — Offboarding dialog. Holds the member the operator is
   // about to remove; `null` means "dialog closed". We keep a separate
   // state for the membership because the dialog needs the label/role
@@ -535,9 +510,13 @@ function TeamDetailPageBody() {
       const [teamRes, invitesRes, casesRes, activitiesRes] =
         await Promise.all([
           apiFetch(`/v1/teams/${teamId}`) as Promise<Team>,
-          (apiFetch(`/v1/teams/${teamId}/invites`).catch(() => ({
-            invites: [],
-          })) as Promise<TeamInvitesResponse>),
+          (apiFetch(`/v1/teams/${teamId}/invites`).then(
+            (res: TeamInvitesResponse) => ({ res, read: "ready" as InvitesReadState }),
+            (err: { statusCode?: number }) => ({
+              res: { invites: [] } as TeamInvitesResponse,
+              read: (err?.statusCode === 403 ? "refused" : "failed") as InvitesReadState,
+            }),
+          ) as Promise<{ res: TeamInvitesResponse; read: InvitesReadState }>),
           (apiFetch(`/v1/teams/${teamId}/cases`).catch(() => ({
             items: [],
           })) as Promise<TeamCasesResponse>),
@@ -547,7 +526,8 @@ function TeamDetailPageBody() {
         ]);
 
       setTeam(teamRes ?? null);
-      setInvites(invitesRes?.invites ?? []);
+      setInvites(invitesRes.res?.invites ?? []);
+      setInvitesRead(invitesRes.read);
       setTeamCases(casesRes?.items ?? []);
       setActivities(activitiesRes?.activities ?? []);
       setTeamName(teamRes?.name ?? "");
@@ -634,31 +614,11 @@ function TeamDetailPageBody() {
     [invites],
   );
 
-  const [memberSearch, setMemberSearch] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
   const [permissionsOpen, setPermissionsOpen] = useState(false);
 
-  /**
-   * Client-side search over the roster.
-   *
-   * Honest about its scope: `/v1/teams/:id/members` pages, and this filters
-   * what the detail payload returned. It is labelled "Search people" rather
-   * than implying a workspace-wide query, and the count beside it is the
-   * SERVER's `memberCount`, so the two numbers never pretend to describe the
-   * same set.
-   */
-  const visibleMembers = useMemo(() => {
-    const q = memberSearch.trim().toLowerCase();
-    const rows = team?.members ?? [];
-    if (!q) return rows;
-    return rows.filter((m) =>
-      [m.user?.displayName, m.user?.email, m.label, m.role]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase()
-        .includes(q),
-    );
-  }, [team?.members, memberSearch]);
+  // The roster itself is server-paged and server-searched; see
+  // ./components/WorkspaceMembersPanel.
 
   /**
    * THE SERVER'S RESOLVED PLAN, OR NOTHING. UNKNOWN IS NOT FREE.
@@ -725,26 +685,13 @@ function TeamDetailPageBody() {
    */
 
   // PHASE 13 — POST /v1/teams/:id/transfer-ownership can only target an
-  // ACTIVE member who is not already the owner; the roster the page already
-  // read is the source, so the control never offers an ineligible target.
-  const ownershipTransferCandidates = useMemo(
-    () =>
-      (team?.members ?? [])
-        .filter(
-          (member) =>
-            member.userId !== team?.ownerUserId &&
-            member.userId !== currentUserId,
-        )
-        .map((member) => ({
-          userId: member.userId,
-          label:
-            member.user?.displayName ||
-            member.label ||
-            member.user?.email ||
-            member.userId,
-        })),
-    [team?.members, team?.ownerUserId, currentUserId],
-  );
+  // ACTIVE member who is not already the owner.
+  //
+  // D46 — the candidates are NOT built from `team.members` any more: that is
+  // the detail read's bounded first page (50), so every eligible member after
+  // it could never be offered. The card reads
+  // `GET /v1/teams/:id/members?eligible=ownership_transfer`, where the server
+  // applies eligibility, search and paging.
 
   const handleStartEditName = () => {
     setTeamName(team?.name ?? "");
@@ -835,67 +782,6 @@ function TeamDetailPageBody() {
     }
   };
 
-  const handleRoleChange = async (
-    member: TeamMember,
-    nextRole: (typeof MANAGEABLE_ROLE_OPTIONS)[number]
-  ) => {
-    /**
-     * WCR-02 (2026-09-07) — THE ROUTE WANTS THE MEMBERSHIP ID.
-     *
-     * This sent `member.userId` to `/v1/teams/:id/members/:memberId`, and the
-     * route resolves `:memberId` against `TeamMember.id`. Both are uuids, so
-     * zod accepted it, the lookup matched nothing, and EVERY role change
-     * returned 404 "Member not found".
-     *
-     * Workspace role administration was therefore non-functional in the
-     * product, and `changeWorkspaceMemberRole` — the canonical authority wired
-     * in specifically to close the ADMIN→OWNER escalation — had no working
-     * caller. `MemberRemovalDialog` documents this exact trap in a comment
-     * ("Passing `userId` here would return 404") and uses the right field;
-     * this handler did not.
-     *
-     * `member.id` is optional on the type because the projection predates the
-     * field, so a row without one is refused here rather than being sent to a
-     * URL that would 404 anyway.
-     */
-    if (!teamId || !canManageTeam || !member.id) return;
-
-    setRoleSavingKey(member.userId);
-
-    try {
-      const data = await apiFetch(`/v1/teams/${teamId}/members/${member.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ role: nextRole }),
-      });
-
-      setTeam((prev) => {
-        if (!prev) return prev;
-
-        return {
-          ...prev,
-          members:
-            prev.members?.map((m) =>
-              m.userId === member.userId
-                ? { ...m, role: data?.member?.role ?? nextRole }
-                : m
-            ) ?? [],
-        };
-      });
-
-      addToast("Member role updated", "success");
-    } catch (err) {
-      const message = toSafeUserError(err, { message: "Failed to update role" }).message;
-      captureException(err, {
-        feature: "team_member_role_update",
-        teamId,
-        memberId: member.userId,
-      });
-      addToast(message, "error");
-    } finally {
-      setRoleSavingKey(null);
-    }
-  };
-
   // Phase 2.2 — replaces the bare `window.confirm` flow. The actual
   // DELETE now happens inside <MemberRemovalDialog>, which fetches
   // `/removal-impact`, requires a transfer target if the member owns
@@ -903,6 +789,11 @@ function TeamDetailPageBody() {
   // We keep the `removingMemberId` UI state so the row-level button
   // can show "Removing..." once the dialog reports success and we
   // start applying the optimistic local removal.
+  const notifyRoster = useCallback(
+    (message: string, tone: "success" | "error") => addToast(message, tone),
+    [addToast],
+  );
+
   const handleRemoveMember = (member: TeamMember) => {
     if (!teamId || !canManageTeam || !member.userId) return;
     setRemovalDialogMember(member);
@@ -910,11 +801,11 @@ function TeamDetailPageBody() {
 
   const handleRemovalConfirmed = (member: TeamMember) => {
     if (!member.userId) return;
-    // The DELETE already succeeded inside the dialog — just apply the
-    // optimistic local update + toast here. We do NOT issue another
-    // DELETE.
-    setRemovingMemberId(member.userId);
+    // The DELETE already succeeded inside the dialog; we do NOT issue another.
+    // The roster is REREAD and the removal is announced only once the reread
+    // no longer lists the person (the panel owns that toast).
     try {
+      void membersPanel.current?.rereadAfterRemoval(member);
       setTeam((prev) => {
         if (!prev) return prev;
         return {
@@ -929,10 +820,73 @@ function TeamDetailPageBody() {
             : prev.stats,
         };
       });
-      addToast("Member removed", "success");
     } finally {
-      setRemovingMemberId(null);
       setRemovalDialogMember(null);
+    }
+  };
+
+  /**
+   * POST /v1/teams/:id/invites/:inviteId/resend — ADMIN+, audited.
+   *
+   * Rotates the invitation token and redelivers it, so the link the person
+   * already holds stops working. The pending list is REREAD before anything
+   * is announced, and the announcement says whether the email actually went.
+   */
+  const reloadInvites = async (): Promise<TeamInvite[] | null> => {
+    if (!teamId) return null;
+    try {
+      const res = (await apiFetch(`/v1/teams/${teamId}/invites`)) as TeamInvitesResponse;
+      const rows = res?.invites ?? [];
+      setInvites(rows);
+      setInvitesRead("ready");
+      return rows;
+    } catch (err) {
+      setInvitesRead((err as { statusCode?: number })?.statusCode === 403 ? "refused" : "failed");
+      return null;
+    }
+  };
+
+  const handleResendInvite = async (invite: TeamInvite) => {
+    if (!teamId || !canManageTeam || resendingInviteId) return;
+    setResendingInviteId(invite.id);
+    let emailSent: boolean | null = null;
+    try {
+      const data = (await apiFetch(
+        `/v1/teams/${teamId}/invites/${encodeURIComponent(invite.id)}/resend`,
+        { method: "POST" },
+      )) as { emailSent?: boolean };
+      emailSent = data?.emailSent === true;
+    } catch (err) {
+      const code = String((err as { code?: string })?.code ?? "").toUpperCase();
+      const known = RESEND_ERROR_COPY[code];
+      captureException(err, { feature: "team_invite_resend", teamId, inviteId: invite.id });
+      addToast(
+        known ?? toSafeUserError(err, { message: "The invitation could not be resent." }).message,
+        "error",
+      );
+      if (known) await reloadInvites();
+      setResendingInviteId(null);
+      return;
+    }
+    const rows = await reloadInvites();
+    setResendingInviteId(null);
+    if (!rows) {
+      addToast(
+        "The invitation was resent, but the invitation list could not be reloaded to confirm it. Reload the page.",
+        "error",
+      );
+    } else if (!rows.some((row) => row.id === invite.id)) {
+      addToast(
+        "The resend was accepted, but the reloaded list no longer shows this invitation. Reload before trying again.",
+        "error",
+      );
+    } else if (emailSent) {
+      addToast(`Invitation resent to ${invite.email}. The previous link no longer works.`, "success");
+    } else {
+      addToast(
+        `A new invitation link was issued for ${invite.email}, but the email could not be delivered. The previous link no longer works; try resending later.`,
+        "warning",
+      );
     }
   };
 
@@ -1561,230 +1515,19 @@ function TeamDetailPageBody() {
         */}
         <div className="app-grid-primary">
         <div className="app-main-column">
-        {/* MEMBERS — the primary object on the page. */}
-        <div className="app-panel" data-testid="people-roster">
-          <div className="app-panel__head app-panel__head-row">
-            <h2 className="app-panel__title">Members</h2>
-            <div className="app-search-field">
-              <span className="app-search-icon" aria-hidden="true">
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <circle cx="11" cy="11" r="7" />
-                  <path d="m21 21-4.3-4.3" />
-                </svg>
-              </span>
-              <input
-                type="search"
-                className="app-search-input"
-                placeholder="Search members"
-                aria-label="Search members"
-                value={memberSearch}
-                onChange={(e) => setMemberSearch(e.target.value)}
-                data-testid="people-search"
-              />
-            </div>
-          </div>
-          <div className="app-table-surface">
-            {visibleMembers.length === 0 ? (
-              <div className="app-empty" data-testid="people-empty">
-                <span className="app-empty__icon" aria-hidden>
-                  <svg
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                    <circle cx="9" cy="7" r="4" />
-                  </svg>
-                </span>
-                <strong>
-                  {memberSearch.trim()
-                    ? "Nobody here matches that"
-                    : "You are the only person in this workspace"}
-                </strong>
-                <p>
-                  {memberSearch.trim()
-                    ? "Try a different name or address."
-                    : "Invite a colleague to give them access to this workspace's evidence, cases and reports."}
-                </p>
-                {!memberSearch.trim() && canManageTeam ? (
-                  <div className="app-empty__actions">
-                    <button
-                      type="button"
-                      className="app-primary-action"
-                      onClick={() => setInviteOpen(true)}
-                      data-testid="people-empty-invite"
-                    >
-                      Invite person
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            ) : (
-              <table className="app-table" data-responsive>
-                {/*
-                  PROPORTION, DECLARED (§11).
-
-                  Without a colgroup the browser sizes these columns from their
-                  CONTENT, so a four-letter role and a date each claimed as much
-                  room as the person — the identity, the only column anyone
-                  scans, got whatever was left. `auto` on Person means it takes
-                  the remainder; every other column is pinned to what its
-                  content actually needs. `data-responsive` drops the whole
-                  table to stacked rows on a narrow viewport, where a colgroup
-                  no longer applies.
-                */}
-                <colgroup>
-                  <col style={{ width: "auto" }} />
-                  <col style={{ width: 168 }} />
-                  <col style={{ width: 110 }} />
-                  <col style={{ width: 120 }} />
-                  <col style={{ width: 108 }} />
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th scope="col">Person</th>
-                    <th scope="col">Role</th>
-                    <th scope="col">Status</th>
-                    <th scope="col">Joined</th>
-                    <th scope="col" style={{ textAlign: "right" }}>
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visibleMembers.map((member) => {
-                    const label = memberLabel(member);
-                    const isSelf = member.userId === currentUserId;
-                    const isTeamOwner = member.role === "OWNER";
-                    /**
-                     * The row offers a role control only where the server would
-                     * accept the change: OWNER moves by transfer, and nobody
-                     * edits their own role. The server re-checks both — this
-                     * only avoids showing a control whose use is refused.
-                     */
-                    const roleEditable =
-                      canManageTeam && !isSelf && !isTeamOwner;
-                    return (
-                      <tr key={member.id ?? member.userId}>
-                        <td data-label="Person">
-                          <span
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: 10,
-                              minWidth: 0,
-                            }}
-                          >
-                            <span className="app-avatar" aria-hidden>
-                              {(label.trim()[0] ?? "?").toUpperCase()}
-                            </span>
-                            <span
-                              className="app-table__identity"
-                              title={
-                                member.user?.email
-                                  ? `${label} · ${member.user.email}`
-                                  : label
-                              }
-                            >
-                              <span className="app-table__primary">
-                                {label}
-                                {isSelf ? " (you)" : ""}
-                              </span>
-                              {member.user?.email ? (
-                                <span className="app-table__muted app-identity">
-                                  {member.user.email}
-                                </span>
-                              ) : null}
-                            </span>
-                          </span>
-                        </td>
-                        <td data-label="Role">
-                          {roleEditable ? (
-                            <div style={{ maxWidth: 150 }}>
-                              <AppListbox
-                                value={member.role}
-                                options={ROLE_OPTIONS.map((r) => ({
-                                  value: r,
-                                  label: workspaceRoleLabel(r),
-                                }))}
-                                onChange={(next) =>
-                                  void handleRoleChange(
-                                    member,
-                                    next as (typeof MANAGEABLE_ROLE_OPTIONS)[number],
-                                  )
-                                }
-                                ariaLabel={`Workspace role for ${label}`}
-                                id={`member-role-${member.id ?? member.userId}`}
-                                disabled={
-                                  roleSavingKey === (member.id ?? member.userId)
-                                }
-                              />
-                            </div>
-                          ) : (
-                            <AppStatusText
-                              tone={isTeamOwner ? "indigo" : "slate"}
-                            >
-                              {workspaceRoleLabel(member.role)}
-                            </AppStatusText>
-                          )}
-                        </td>
-                        <td data-label="Status">
-                          <AppStatusText
-                            tone={
-                              member.status === "SUSPENDED" ? "amber" : "green"
-                            }
-                          >
-                            {member.status === "SUSPENDED"
-                              ? "Suspended"
-                              : "Active"}
-                          </AppStatusText>
-                        </td>
-                        <td data-label="Joined" className="app-table__muted">
-                          {member.createdAt
-                            ? formatUserDate(member.createdAt)
-                            : "—"}
-                        </td>
-                        <td data-label="" style={{ textAlign: "right" }}>
-                          {canManageTeam && !isSelf && !isTeamOwner ? (
-                            <button
-                              type="button"
-                              className="app-secondary-action app-secondary-action--danger"
-                              onClick={() => handleRemoveMember(member)}
-                              disabled={
-                                removingMemberId === (member.id ?? member.userId)
-                              }
-                              data-testid={`member-remove-${member.id ?? member.userId}`}
-                            >
-                              Remove
-                            </button>
-                          ) : (
-                            <span className="app-table__muted" aria-hidden>
-                              —
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
+        {/* MEMBERS — the primary object on the page. Server-paged and
+            server-searched; see ./components/WorkspaceMembersPanel. */}
+        {teamId ? (
+          <WorkspaceMembersPanel
+            ref={membersPanel}
+            teamId={teamId}
+            currentUserId={currentUserId}
+            canManageTeam={canManageTeam}
+            onInvite={() => setInviteOpen(true)}
+            onRemove={(member) => handleRemoveMember(member)}
+            notify={notifyRoster}
+          />
+        ) : null}
 
         {/* THE RAIL. */}
 
@@ -1812,7 +1555,22 @@ function TeamDetailPageBody() {
               the thing an operator needs to know and cannot see — invitations
               go out by EMAIL, and there is no other channel.
             */}
-            {pendingInvites.length === 0 ? (
+            {canManageTeam && invitesRead !== "ready" ? (
+              <div className="app-panel__body" data-testid="people-invites-error">
+                <p className="app-alert app-alert--danger" role="alert" style={{ margin: 0 }}>
+                  {invitesRead === "refused"
+                    ? "Your role cannot list this workspace's invitations."
+                    : "Pending invitations could not be loaded."}{" "}
+                  <button
+                    type="button"
+                    className="app-secondary-action"
+                    onClick={() => void reloadInvites()}
+                  >
+                    Try again
+                  </button>
+                </p>
+              </div>
+            ) : pendingInvites.length === 0 ? (
               <div className="app-panel__body" data-testid="people-invites-empty">
                 <p className="app-table__muted" style={{ margin: 0 }}>
                   No invitations outstanding — everyone invited has either
@@ -1849,9 +1607,11 @@ function TeamDetailPageBody() {
                           </AppStatusText>
                         </td>
                         <td data-label="Sent" className="app-table__muted">
-                          {invite.createdAt
-                            ? formatUserDate(invite.createdAt)
-                            : "—"}
+                          {invite.lastResentAt
+                            ? `Resent ${formatUserDate(invite.lastResentAt)}`
+                            : invite.createdAt
+                              ? formatUserDate(invite.createdAt)
+                              : "—"}
                         </td>
                         <td data-label="Expires" className="app-table__muted">
                           {invite.expiresAt
@@ -1860,15 +1620,36 @@ function TeamDetailPageBody() {
                         </td>
                         <td data-label="" style={{ textAlign: "right" }}>
                           {canManageTeam ? (
-                            <button
-                              type="button"
-                              className="app-secondary-action app-secondary-action--danger"
-                              onClick={() => handleDeleteInvite(invite.id)}
-                              disabled={deletingInviteId === invite.id}
-                              data-testid={`invite-revoke-${invite.id}`}
-                            >
-                              Revoke
-                            </button>
+                            <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 6, justifyContent: "flex-end" }}>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => void handleResendInvite(invite)}
+                                loading={resendingInviteId === invite.id}
+                                disabled={resendingInviteId !== null || deletingInviteId === invite.id}
+                                disabledReason={
+                                  resendingInviteId !== null && resendingInviteId !== invite.id
+                                    ? "Another invitation is being resent. Wait for it to finish."
+                                    : deletingInviteId === invite.id
+                                      ? "This invitation is being revoked."
+                                      : undefined
+                                }
+                                aria-label={`Resend invitation to ${invite.email}`}
+                                title="Sends a new link by email. The link sent earlier stops working."
+                                data-testid={`invite-resend-${invite.id}`}
+                              >
+                                Resend
+                              </Button>
+                              <button
+                                type="button"
+                                className="app-secondary-action app-secondary-action--danger"
+                                onClick={() => handleDeleteInvite(invite.id)}
+                                disabled={deletingInviteId === invite.id || resendingInviteId === invite.id}
+                                data-testid={`invite-revoke-${invite.id}`}
+                              >
+                                Revoke
+                              </button>
+                            </span>
                           ) : (
                             <span className="app-table__muted" aria-hidden>
                               —
@@ -2013,7 +1794,7 @@ function TeamDetailPageBody() {
               <WorkspaceOwnershipTransferCard
                 teamId={teamId}
                 teamName={team?.name ?? "this workspace"}
-                candidates={ownershipTransferCandidates}
+                currentUserId={currentUserId}
                 onTransferred={async (notice) => {
                   setOwnershipNotice(notice);
                   await loadData();

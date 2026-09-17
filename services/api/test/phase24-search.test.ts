@@ -22,6 +22,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
+
 import {
   SEARCH_RESULT_ALLOWED_BADGES,
   SEARCH_FORBIDDEN_OVERCLAIM_PHRASES,
@@ -194,6 +196,17 @@ describe("Phase 24 — search routes auth posture", () => {
       ).not.toBeNull();
       expect(before).not.toMatch(/app\.(get|put|delete|patch)\(\s*$/);
     }
+  });
+
+  // RETIRED 2026-09-16 — the workflow reindex served only the deprecated
+  // Phase 22 workflow-instance family and had no caller. It stays registered
+  // (above) but is a typed 410 that runs no gate and indexes nothing.
+  it("the workflow reindex route is a typed 410 tombstone", () => {
+    const handler = routeSource(src, "POST", "/v1/search/reindex/workflow/:id");
+    expect(handler).toContain("reply.code(410)");
+    expect(handler).toContain('code: "WORKFLOW_INSTANCE_REINDEX_RETIRED"');
+    expect(handler).not.toContain("requireSearchOperator");
+    expect(src).not.toMatch(/indexWorkflowInstance\(/);
   });
 
   it("delete route is restricted to /v1/search/saved-views/:id", () => {

@@ -366,6 +366,11 @@ function BulkInviteTab() {
                 setResult(null);
               }}
               disabled={busy !== null || csvText !== null}
+              title={
+                busy === null && csvText !== null
+                  ? "A CSV file is loaded — clear it to paste addresses instead."
+                  : undefined
+              }
               placeholder={"alice@example.com\nbob@example.com,ORG_AUDITOR"}
               data-testid="bulk-invite-paste"
               rows={6}
@@ -428,6 +433,7 @@ function BulkInviteTab() {
               variant="secondary"
               onClick={() => void runPreview()}
               disabled={busy !== null || !hasInput}
+              disabledReason={!hasInput ? "Paste addresses or load a CSV file first." : undefined}
               loading={busy === "preview"}
               data-testid="bulk-invite-preview"
             >
@@ -438,6 +444,7 @@ function BulkInviteTab() {
               variant="primary"
               onClick={() => void runSend()}
               disabled={busy !== null || !hasInput}
+              disabledReason={!hasInput ? "Paste addresses or load a CSV file first." : undefined}
               loading={busy === "send"}
               data-testid="bulk-invite-send"
             >

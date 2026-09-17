@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { identifierLabel } from "@proovra/shared";
+
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
 import { Card } from "../../../../components/ui/Card";
@@ -9,11 +11,14 @@ import { Button } from "../../../../components/ui/Button";
 import { DataTable, type DataTableColumn } from "../../../../components/ui/DataTable";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { statusBadgeStyle } from "../../../../components/ui/StatusBadge";
-import { apiFetch, ApiError } from "../../../../lib/api";
+import { apiFetch } from "../../../../lib/api";
 import { formatUserDate } from "../../../../lib/date";
-import { LifecycleSectionBoundary } from "../_shared";
-
-type PermissionDenialState = { denial: string; tier: string } | null;
+import {
+  DenialBanner,
+  LifecycleSectionBoundary,
+  resolveLifecycleError,
+  type LifecycleDenial,
+} from "../_shared";
 
 interface DestructionRequest {
   id: string;
@@ -25,37 +30,14 @@ interface DestructionRequest {
   updatedAtUtc: string;
 }
 
-function applyDenial(err: unknown, setDenial: (v: PermissionDenialState) => void): void {
-  const e = err as { statusCode?: number; details?: Record<string, unknown> };
-  const denial =
-    e?.details && typeof e.details["denial"] === "string" ? e.details["denial"] : null;
-  const tier =
-    e?.details && typeof e.details["requiredTier"] === "string"
-      ? (e.details["requiredTier"] as string)
-      : "DELEGATED_ADMIN";
-  if (
-    e?.statusCode === 403 &&
-    (denial === "ENTITLEMENT_REQUIRED" || denial === "DELEGATED_ADMIN_REQUIRED")
-  ) {
-    setDenial({ denial: denial as string, tier });
-    return;
-  }
-  if (err instanceof ApiError) {
-    const d =
-      err.details && typeof err.details["denial"] === "string"
-        ? (err.details["denial"] as string)
-        : null;
-    const t =
-      err.details && typeof err.details["requiredTier"] === "string"
-        ? (err.details["requiredTier"] as string)
-        : "DELEGATED_ADMIN";
-    if (
-      err.statusCode === 403 &&
-      (d === "ENTITLEMENT_REQUIRED" || d === "DELEGATED_ADMIN_REQUIRED")
-    ) {
-      setDenial({ denial: d, tier: t });
-    }
-  }
+/**
+ * PV-STATE-001 — ONE resolver for every refusal on this page: the segment's
+ * shared `resolveLifecycleError` (product-language banner, every status),
+ * replacing a private copy that recognised two 403 shapes and silently
+ * dropped everything else — so any other failure left the page looking empty.
+ */
+function applyDenial(err: unknown, setDenial: (v: LifecycleDenial | null) => void): void {
+  setDenial(resolveLifecycleError(err));
 }
 
 export default function DestructionPage() {
@@ -77,7 +59,11 @@ function safeDate(input: string | null | undefined): string {
 function Shell() {
   const [requests, setRequests] = useState<DestructionRequest[]>([]);
   const [busy, setBusy] = useState(false);
-  const [denial, setDenial] = useState<PermissionDenialState>(null);
+  const [denial, setDenial] = useState<LifecycleDenial | null>(null);
+  // PV-STATE-001 — the queue could not be read. Distinct from "no requests":
+  // while set, the table (and its "No destruction requests pending" claim) is
+  // not rendered at all.
+  const [readFailed, setReadFailed] = useState(false);
 
   // Create form state
   const [evidenceId, setEvidenceId] = useState("");
@@ -87,6 +73,7 @@ function Shell() {
   const refresh = useCallback(async () => {
     setBusy(true);
     setDenial(null);
+    setReadFailed(false);
     try {
       const res = (await apiFetch("/v1/lifecycle/destruction/requests", {
         method: "GET",
@@ -94,6 +81,7 @@ function Shell() {
       setRequests((res?.requests ?? []) as DestructionRequest[]);
     } catch (err) {
       setRequests([]);
+      setReadFailed(true);
       applyDenial(err, setDenial);
     } finally {
       setBusy(false);
@@ -148,7 +136,7 @@ function Shell() {
       header: "State",
       render: (r) => (
         <span data-destruction-state={r.state} style={statusBadgeStyle(r.state)}>
-          {r.state}
+          {identifierLabel(r.state)}
         </span>
       ),
     },
@@ -184,22 +172,7 @@ function Shell() {
         />
       }
     >
-      {denial ? (
-        <div
-          data-permission-denied={denial.denial}
-          style={{
-            padding: 10,
-            background: "#fef2f2",
-            border: "1px solid #fecaca",
-            color: "#991b1b",
-            borderRadius: 8,
-            fontSize: 12,
-            marginBottom: 10,
-          }}
-        >
-          <strong>Permission required:</strong> {denial.tier}
-        </div>
-      ) : null}
+      {denial ? <DenialBanner denial={denial} /> : null}
 
       {/* Create form */}
       <Card variant="admin" title="Create Destruction Request">
@@ -227,6 +200,7 @@ function Shell() {
             variant="primary"
             loading={creating}
             disabled={creating || !evidenceId}
+            disabledReason={!evidenceId ? "Enter the ID of the evidence record to destroy." : undefined}
             onClick={() => void create()}
           >
             {creating ? "Creating…" : "Create Request"}
@@ -235,6 +209,12 @@ function Shell() {
       </Card>
 
       <PageSection title="Destruction requests">
+        {readFailed ? (
+          <p data-destruction-queue-unreadable style={{ margin: 0, fontSize: 13, color: "#475569" }}>
+            The destruction queue could not be read. This is not an empty queue —
+            requests may be waiting that this page cannot show.
+          </p>
+        ) : (
         <DataTable<DestructionRequest>
           ariaLabel="Destruction requests"
           columns={columns}
@@ -291,6 +271,7 @@ function Shell() {
             />
           }
         />
+        )}
       </PageSection>
     </PageShell>
   );

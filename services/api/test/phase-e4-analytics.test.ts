@@ -63,7 +63,7 @@ const SERVICE = readApi("src/services/analytics/analytics.service.ts");
 const ROUTES = readApi("src/routes/analytics-operations.routes.ts");
 const SERVER = readApi("src/server.ts");
 const ROUTE_REGISTRY = readWeb("lib/navigation/routeRegistry.ts");
-const PAGE = readWeb("app/(app)/admin/platform/analytics/page.tsx");
+const PAGE = readWeb("app/(app)/operations/analytics/page.tsx");
 const API_TYPES = readApi("src/services/platform-context/types.ts");
 const WEB_TYPES = readWeb("lib/platform-context/types.ts");
 const CAP_REG = readApi("src/services/platform-context/capability-registry.ts");
@@ -351,22 +351,25 @@ describe("E4 Test 4 — REST endpoints contract", () => {
 // ===========================================================================
 
 describe("E4 Test 5 — route registry entry", () => {
-  it("registers platform.analytics under /admin/platform/analytics", () => {
-    expect(ROUTE_REGISTRY).toMatch(/id:\s*["']platform\.analytics["']/);
-    expect(ROUTE_REGISTRY).toMatch(/href:\s*["']\/admin\/platform\/analytics["']/);
+  // PV-PLACE-001 / PV-OD-001 — moved from /admin/platform/analytics
+  // (platform.analytics) to the workspace's Operations under a tenant id.
+  it("registers operations.analytics under /operations/analytics", () => {
+    expect(ROUTE_REGISTRY).toMatch(/id:\s*["']operations\.analytics["']/);
+    expect(ROUTE_REGISTRY).toMatch(/href:\s*["']\/operations\/analytics["']/);
+    expect(ROUTE_REGISTRY).not.toMatch(/id:\s*["']platform\.analytics["']/);
   });
 
   it("route requires ANALYTICS_VIEW capability", () => {
     const block = ROUTE_REGISTRY.match(
-      /id:\s*["']platform\.analytics["'][\s\S]*?sidebarEligible:[^\n]+/,
+      /id:\s*["']operations\.analytics["'][\s\S]*?sidebarEligible:[^\n]+/,
     );
-    expect(block, "platform.analytics block missing").toBeTruthy();
+    expect(block, "operations.analytics block missing").toBeTruthy();
     expect(block![0]).toMatch(/requiredCapabilities:\s*\[\s*["']ANALYTICS_VIEW["']\s*\]/);
   });
 
   it("route is NOT sidebar-eligible (32.8 root nav stays at 6 primaries)", () => {
     const block = ROUTE_REGISTRY.match(
-      /id:\s*["']platform\.analytics["'][\s\S]*?sidebarEligible:[^\n]+/,
+      /id:\s*["']operations\.analytics["'][\s\S]*?sidebarEligible:[^\n]+/,
     );
     expect(block![0]).toMatch(/sidebarEligible:\s*false/);
   });
@@ -390,11 +393,11 @@ describe("E4 Test 5 — route registry entry", () => {
 
 describe("E4 Test 6 — frontend page contract", () => {
   it("page exists at /ops/analytics", () => {
-    expect(existsSync(webPath("app/(app)/admin/platform/analytics/page.tsx"))).toBe(true);
+    expect(existsSync(webPath("app/(app)/operations/analytics/page.tsx"))).toBe(true);
   });
 
-  it("default export wraps in PageRouteGate with platform.analytics", () => {
-    expect(PAGE).toMatch(/PageRouteGate routeId=["']platform\.analytics["']/);
+  it("default export wraps in PageRouteGate with operations.analytics", () => {
+    expect(PAGE).toMatch(/PageRouteGate routeId=["']operations\.analytics["']/);
   });
 
   it("calls all 5 analytics endpoints", () => {

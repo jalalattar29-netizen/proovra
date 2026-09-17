@@ -100,6 +100,14 @@ jobs:
       - name: Audit engine integrity
         run: pnpm audit:architecture --engine-check
 
+      # ADM-P2-001 — every endpoint a runbook tells an operator to call must
+      # be a registered route with the stated method and its required query
+      # parameters. The gate existed and ran nowhere, so a runbook kept
+      # telling operators to curl an endpoint that does not exist. Static:
+      # it reads docs/runbooks and the committed capability map, nothing else.
+      - name: Runbook endpoint integrity
+        run: pnpm --filter proovra-api run verify:runbook-endpoints
+
       - name: Lint
         run: pnpm -r lint
 
@@ -207,8 +215,14 @@ jobs:
             # repository has hit before). Without the counts, a run with no
             # FAIL lines says only 'exit code 1' and cannot be told apart
             # from a runner flake.
-            grep -aE "^[[:space:]]*(FAIL|AssertionError|not ok|Test Files|Tests |Errors|Unhandled|✗)" /tmp/test-out.log \
-              | tail -40 \
+            # Colors are stripped first: GitHub Actions makes vitest print
+            # coloured output, so " FAIL " never matched and a red step
+            # annotated nothing. `✖` is node:test's spec-reporter marker.
+            # GitHub keeps only ten error annotations per step, so the last
+            # ten matches are sent — the summary lines are at the end.
+            sed -E 's/\x1b\[[0-9;]*[A-Za-z]//g' /tmp/test-out.log \
+              | grep -aE "^[[:space:]]*(FAIL|AssertionError|not ok|Test Files|Tests |Errors|Unhandled|✗|✖|ℹ (tests|pass|fail) )" \
+              | tail -10 \
               | while IFS= read -r line; do echo "::error::@proovra/shared: $line"; done
           fi
           exit $rc
@@ -231,8 +245,14 @@ jobs:
             # repository has hit before). Without the counts, a run with no
             # FAIL lines says only 'exit code 1' and cannot be told apart
             # from a runner flake.
-            grep -aE "^[[:space:]]*(FAIL|AssertionError|not ok|Test Files|Tests |Errors|Unhandled|✗)" /tmp/test-out.log \
-              | tail -40 \
+            # Colors are stripped first: GitHub Actions makes vitest print
+            # coloured output, so " FAIL " never matched and a red step
+            # annotated nothing. `✖` is node:test's spec-reporter marker.
+            # GitHub keeps only ten error annotations per step, so the last
+            # ten matches are sent — the summary lines are at the end.
+            sed -E 's/\x1b\[[0-9;]*[A-Za-z]//g' /tmp/test-out.log \
+              | grep -aE "^[[:space:]]*(FAIL|AssertionError|not ok|Test Files|Tests |Errors|Unhandled|✗|✖|ℹ (tests|pass|fail) )" \
+              | tail -10 \
               | while IFS= read -r line; do echo "::error::@proovra/ui: $line"; done
           fi
           exit $rc
@@ -255,8 +275,14 @@ jobs:
             # repository has hit before). Without the counts, a run with no
             # FAIL lines says only 'exit code 1' and cannot be told apart
             # from a runner flake.
-            grep -aE "^[[:space:]]*(FAIL|AssertionError|not ok|Test Files|Tests |Errors|Unhandled|✗)" /tmp/test-out.log \
-              | tail -40 \
+            # Colors are stripped first: GitHub Actions makes vitest print
+            # coloured output, so " FAIL " never matched and a red step
+            # annotated nothing. `✖` is node:test's spec-reporter marker.
+            # GitHub keeps only ten error annotations per step, so the last
+            # ten matches are sent — the summary lines are at the end.
+            sed -E 's/\x1b\[[0-9;]*[A-Za-z]//g' /tmp/test-out.log \
+              | grep -aE "^[[:space:]]*(FAIL|AssertionError|not ok|Test Files|Tests |Errors|Unhandled|✗|✖|ℹ (tests|pass|fail) )" \
+              | tail -10 \
               | while IFS= read -r line; do echo "::error::proovra-mobile: $line"; done
           fi
           exit $rc
@@ -279,8 +305,14 @@ jobs:
             # repository has hit before). Without the counts, a run with no
             # FAIL lines says only 'exit code 1' and cannot be told apart
             # from a runner flake.
-            grep -aE "^[[:space:]]*(FAIL|AssertionError|not ok|Test Files|Tests |Errors|Unhandled|✗)" /tmp/test-out.log \
-              | tail -40 \
+            # Colors are stripped first: GitHub Actions makes vitest print
+            # coloured output, so " FAIL " never matched and a red step
+            # annotated nothing. `✖` is node:test's spec-reporter marker.
+            # GitHub keeps only ten error annotations per step, so the last
+            # ten matches are sent — the summary lines are at the end.
+            sed -E 's/\x1b\[[0-9;]*[A-Za-z]//g' /tmp/test-out.log \
+              | grep -aE "^[[:space:]]*(FAIL|AssertionError|not ok|Test Files|Tests |Errors|Unhandled|✗|✖|ℹ (tests|pass|fail) )" \
+              | tail -10 \
               | while IFS= read -r line; do echo "::error::proovra-web: $line"; done
           fi
           exit $rc
@@ -303,8 +335,14 @@ jobs:
             # repository has hit before). Without the counts, a run with no
             # FAIL lines says only 'exit code 1' and cannot be told apart
             # from a runner flake.
-            grep -aE "^[[:space:]]*(FAIL|AssertionError|not ok|Test Files|Tests |Errors|Unhandled|✗)" /tmp/test-out.log \
-              | tail -40 \
+            # Colors are stripped first: GitHub Actions makes vitest print
+            # coloured output, so " FAIL " never matched and a red step
+            # annotated nothing. `✖` is node:test's spec-reporter marker.
+            # GitHub keeps only ten error annotations per step, so the last
+            # ten matches are sent — the summary lines are at the end.
+            sed -E 's/\x1b\[[0-9;]*[A-Za-z]//g' /tmp/test-out.log \
+              | grep -aE "^[[:space:]]*(FAIL|AssertionError|not ok|Test Files|Tests |Errors|Unhandled|✗|✖|ℹ (tests|pass|fail) )" \
+              | tail -10 \
               | while IFS= read -r line; do echo "::error::proovra-worker: $line"; done
           fi
           exit $rc

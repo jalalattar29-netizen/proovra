@@ -37,6 +37,7 @@ import {
   hashDeviceCookieValue,
   hashIpAddress,
 } from "../src/services/identity-security/risk.service.js";
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
 
 // -----------------------------------------------------------------------------
 // Step-up error surface
@@ -251,10 +252,19 @@ describe("Privacy contract — step-up service never persists the OTP code", () 
       "utf8",
     );
     // The code field must NEVER appear in a Prisma create/update or
-    // in a log line. The only allowed reference is the destructuring
-    // of input and the pass-through to checkVerification.
-    const dangerousCreate = src.match(/code:\s*input\.code/g);
-    expect((dangerousCreate ?? []).length).toBeLessThanOrEqual(1);
+    // in a log line. The only allowed references are the pass-throughs to
+    // the two VERIFIERS: checkVerification (a code sent to a phone) and,
+    // since PV-STEPUP-001, verifyStepUpTotp (an authenticator-app code).
+    // Each occurrence must sit inside one of those calls — the nearest
+    // call opener before it is a verifier, never a create/update/log.
+    const occurrences = [...src.matchAll(/code:\s*input\.code/g)];
+    expect(occurrences.length).toBeGreaterThanOrEqual(1);
+    expect(occurrences.length).toBeLessThanOrEqual(2);
+    for (const m of occurrences) {
+      const before = src.slice(0, m.index);
+      const opener = /(\w+(?:\.\w+)*)\(\s*(?:\{[^()]*)?$/.exec(before)?.[1];
+      expect(["checkVerification", "verifyStepUpTotp"]).toContain(opener);
+    }
     expect(src).not.toMatch(/log\.[a-z]+\([^)]*code:/);
   });
 });
@@ -381,9 +391,7 @@ describe("Public verify isolation — Phase 19 tables NOT exposed", () => {
       ),
       "utf8",
     );
-    const start = src.indexOf('app.get("/public/verify/:id"');
-    expect(start).toBeGreaterThan(-1);
-    const verifyBlock = src.slice(start, start + 8000);
+    const verifyBlock = routeSource(src, "GET", "/public/verify/:id");
     expect(verifyBlock).not.toMatch(/stepUpChallenge/);
     expect(verifyBlock).not.toMatch(/trustedDevice/);
     expect(verifyBlock).not.toMatch(/revokedSession/);

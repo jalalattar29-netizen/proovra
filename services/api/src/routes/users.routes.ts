@@ -5,6 +5,7 @@ import { isValidIanaTimezone } from "@proovra/shared";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { getAuthUserId } from "../auth.js";
+import { getRequiredLegalVersions } from "../legal/legal-versioning.js";
 import { getUserLegalAcceptanceStatus, recordLegalAcceptances } from "../services/legal-acceptance.service.js";
 // Final-D5-PT2 — legacy session/password helpers retired (see bottom of
 // file). The canonical surface lives in `identity-security.routes.ts`,
@@ -207,9 +208,27 @@ export async function usersRoutes(app: FastifyInstance) {
     return { items };
   });
 
-  app.post("/v1/users/legal-acceptance", { preHandler: requireAuth }, async (req: FastifyRequest) => {
+  app.post("/v1/users/legal-acceptance", { preHandler: requireAuth }, async (req: FastifyRequest, reply: FastifyReply) => {
     const userId = getAuthUserId(req);
     const body = LegalAcceptanceBody.parse(req.body);
+
+    // D12 — an acceptance row is the record that this person agreed to THIS
+    // text. Only the policies the platform requires, at the version it
+    // currently requires, can be accepted; anything else would store a claim
+    // about a document that does not exist (or no longer applies).
+    const required = getRequiredLegalVersions() as Record<string, string>;
+    const invalid = body.acceptances.filter(
+      (a) => required[a.policyKey] === undefined || required[a.policyKey] !== a.policyVersion,
+    );
+    if (invalid.length > 0) {
+      return reply.code(400).send({
+        error: {
+          code: "LEGAL_POLICY_VERSION_NOT_CURRENT",
+          message: "Only the current version of a required policy can be accepted. Reload and try again.",
+          details: { requiredVersions: required },
+        },
+      });
+    }
 
     await recordLegalAcceptances({
       userId,

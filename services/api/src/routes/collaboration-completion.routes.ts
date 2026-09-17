@@ -21,18 +21,11 @@ import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { BillingLimitError } from "../services/collaboration-team/billing-guards.js";
 import { CollaborationTeamError } from "../services/collaboration-team/collaboration-team.service.js";
 import {
-  completeAccessReview,
   createComment,
-  decideAccessReviewItem,
   deleteComment,
   editComment,
-  inviteGuest,
-  listAccessReviews,
   listComments,
-  listGuests,
   listTeamActivityFiltered,
-  openAccessReview,
-  revokeGuest,
 } from "../services/collaboration-team/collaboration-completion.service.js";
 
 function handleError(
@@ -122,25 +115,8 @@ const CreateCommentBody = z.object({
 });
 const EditCommentBody = z.object({ body: z.string().min(1).max(4000) });
 
-const GuestInviteBody = z.object({
-  email: z.string().email().max(320),
-  expiresInDays: z.number().int().min(1).max(90).optional(),
-  scopeNote: z.string().max(400).optional().nullable(),
-});
-
-const OpenReviewBody = z.object({
-  dueAtUtc: z
-    .string()
-    .datetime()
-    .optional()
-    .nullable()
-    .transform((s) => (s ? new Date(s) : null)),
-});
-
-const DecideItemBody = z.object({
-  decision: z.enum(["PENDING", "KEEP", "REMOVE", "CHANGE_ROLE"]),
-  notes: z.string().max(600).optional().nullable(),
-});
+// The guest and access-review body schemas went with their handlers
+// (retired to a typed 410 on 2026-09-16 — see the route section below).
 
 // =============================================================================
 // Routes
@@ -422,33 +398,38 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
 
 
   // ---------------------------------------------------------------------------
-  // Guests
+  // (RETIRED) Guests
+  //
+  // WORKSPACE AND COLLABORATION ARCHITECTURE CLOSURE (2026-09-06, 27984456)
+  // withdrew group guests: a guest invitation wrote a `CollaborationTeamGuest`
+  // row and stopped — no email was sent, no read path consulted the table, the
+  // status never left PENDING. The web client for all three routes was deleted
+  // (apps/web/lib/api/collaboration-completion.ts, the closure note), and that
+  // note records that these routes answer a typed 410. Until 2026-09-16 only
+  // the invite did (from its service); list and revoke still answered 200 over
+  // rows that granted nothing, with no product caller.
+  //
+  // RETIRED TO A TYPED 410 (2026-09-16). External reviewers are granted access
+  // by External Review, where the grant is real, time-bounded and audited.
+  // The stored guest rows are left untouched; nothing here reads or writes
+  // them any more, and no other read path ever consulted them for access.
   // ---------------------------------------------------------------------------
+
+  const guestsRetired = (reply: FastifyReply) =>
+    reply.code(410).send({
+      error: {
+        code: "COLLABORATION_TEAM_GUESTS_RETIRED",
+        message:
+          "External reviewers are granted access in External Review, where the grant is real, time-bounded and audited. Team guests never sent an invitation or granted access and have been retired.",
+      },
+      canonical: "/v1/external-review/invitations",
+    });
 
   app.get<{ Params: { teamId: string } }>(
     "/v1/collaboration-teams/:teamId/guests",
     {
       preHandler: requireAuth,
-      handler: async (req, reply) => {
-        const binding = await authorizeCollaborationTeam(req, reply, {
-          collaborationTeamId: req.params.teamId,
-          permission: "collaboration.thread.read",
-        });
-        if (!binding) return;
-        const ctx = {
-          workspaceId: binding.workspace.workspaceId,
-          userId: binding.workspace.userId,
-        };
-        try {
-          const items = await listGuests({
-            teamId: req.params.teamId,
-            actorUserId: ctx.userId,
-          });
-          return reply.send({ guests: items });
-        } catch (err) {
-          return handleError(reply, err, req.id ?? null);
-        }
-      },
+      handler: async (_req, reply) => guestsRetired(reply),
     },
   );
 
@@ -456,50 +437,7 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
     "/v1/collaboration-teams/:teamId/guests/invite",
     {
       preHandler: requireAuth,
-      handler: async (req, reply) => {
-        const binding = await authorizeCollaborationTeam(req, reply, {
-          collaborationTeamId: req.params.teamId,
-          permission: "collaboration.contributor.access.manage",
-          groupPermission: "team.member.invite",
-          requireActiveTeam: true,
-        });
-        if (!binding) return;
-        const ctx = {
-          workspaceId: binding.workspace.workspaceId,
-          userId: binding.workspace.userId,
-        };
-        const parsed = GuestInviteBody.safeParse(req.body);
-        if (!parsed.success)
-          return reply
-            .code(400)
-            .send({
-              error: {
-                code: "invalid_body",
-                message: parsed.error.message,
-                requestId: req.id ?? null,
-              },
-            });
-        try {
-          const result = await inviteGuest({
-            teamId: req.params.teamId,
-            actorUserId: ctx.userId,
-            email: parsed.data.email,
-            expiresInDays: parsed.data.expiresInDays,
-            scopeNote: parsed.data.scopeNote,
-          });
-          await audit({
-            userId: ctx.userId,
-            action: "collaboration_team.guest.invited",
-            resourceType: "collaboration_team_guest",
-            resourceId: result.id,
-            requestId: req.id ?? null,
-            workspaceId: ctx.workspaceId,
-          });
-          return reply.code(201).send({ guest: { id: result.id } });
-        } catch (err) {
-          return handleError(reply, err, req.id ?? null);
-        }
-      },
+      handler: async (_req, reply) => guestsRetired(reply),
     },
   );
 
@@ -507,68 +445,41 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
     "/v1/collaboration-teams/:teamId/guests/:guestId/revoke",
     {
       preHandler: requireAuth,
-      handler: async (req, reply) => {
-        const binding = await authorizeCollaborationTeam(req, reply, {
-          collaborationTeamId: req.params.teamId,
-          permission: "collaboration.contributor.access.manage",
-          groupPermission: "team.member.invite",
-          requireActiveTeam: true,
-        });
-        if (!binding) return;
-        const ctx = {
-          workspaceId: binding.workspace.workspaceId,
-          userId: binding.workspace.userId,
-        };
-        try {
-          await revokeGuest({
-            teamId: req.params.teamId,
-            actorUserId: ctx.userId,
-            guestId: req.params.guestId,
-          });
-          await audit({
-            userId: ctx.userId,
-            action: "collaboration_team.guest.revoked",
-            resourceType: "collaboration_team_guest",
-            resourceId: req.params.guestId,
-            requestId: req.id ?? null,
-            workspaceId: ctx.workspaceId,
-          });
-          return reply.send({ ok: true });
-        } catch (err) {
-          return handleError(reply, err, req.id ?? null);
-        }
-      },
+      handler: async (_req, reply) => guestsRetired(reply),
     },
   );
 
   // ---------------------------------------------------------------------------
-  // Access reviews
+  // (RETIRED) Group access reviews
+  //
+  // The same closure (2026-09-06, 27984456) removed the access-review panel
+  // because it recorded decisions and enforced none of them: a REVOKE decision
+  // changed no membership, and completing a review only flipped its status.
+  // Its web client (listAccessReviews / openAccessReview /
+  // decideAccessReviewItem / completeAccessReview) was deleted with it, yet the
+  // four routes still answered normally — a compliance control that does
+  // nothing, reachable by direct call.
+  //
+  // RETIRED TO A TYPED 410 (2026-09-16). Enforced access review lives on the
+  // workspace (GET /v1/teams/:id/access-review) and in the governance
+  // platform's access-review campaigns. Stored review rows are untouched.
   // ---------------------------------------------------------------------------
+
+  const accessReviewRetired = (reply: FastifyReply) =>
+    reply.code(410).send({
+      error: {
+        code: "COLLABORATION_TEAM_ACCESS_REVIEW_RETIRED",
+        message:
+          "Access reviews are run on the workspace and in Governance, where a decision is enforced. Team access reviews recorded decisions without enforcing them and have been retired.",
+      },
+      canonical: "/v1/teams/{workspaceId}/access-review",
+    });
 
   app.get<{ Params: { teamId: string } }>(
     "/v1/collaboration-teams/:teamId/access-review",
     {
       preHandler: requireAuth,
-      handler: async (req, reply) => {
-        const binding = await authorizeCollaborationTeam(req, reply, {
-          collaborationTeamId: req.params.teamId,
-          permission: "identity.access_review.read",
-        });
-        if (!binding) return;
-        const ctx = {
-          workspaceId: binding.workspace.workspaceId,
-          userId: binding.workspace.userId,
-        };
-        try {
-          const reviews = await listAccessReviews({
-            teamId: req.params.teamId,
-            actorUserId: ctx.userId,
-          });
-          return reply.send({ reviews });
-        } catch (err) {
-          return handleError(reply, err, req.id ?? null);
-        }
-      },
+      handler: async (_req, reply) => accessReviewRetired(reply),
     },
   );
 
@@ -576,48 +487,7 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
     "/v1/collaboration-teams/:teamId/access-review",
     {
       preHandler: requireAuth,
-      handler: async (req, reply) => {
-        const binding = await authorizeCollaborationTeam(req, reply, {
-          collaborationTeamId: req.params.teamId,
-          permission: "identity.access_review.action",
-          requireActiveTeam: true,
-        });
-        if (!binding) return;
-        const ctx = {
-          workspaceId: binding.workspace.workspaceId,
-          userId: binding.workspace.userId,
-        };
-        const parsed = OpenReviewBody.safeParse(req.body ?? {});
-        if (!parsed.success)
-          return reply
-            .code(400)
-            .send({
-              error: {
-                code: "invalid_body",
-                message: parsed.error.message,
-                requestId: req.id ?? null,
-              },
-            });
-        try {
-          const result = await openAccessReview({
-            teamId: req.params.teamId,
-            actorUserId: ctx.userId,
-            dueAtUtc: parsed.data.dueAtUtc ?? null,
-          });
-          await audit({
-            userId: ctx.userId,
-            action: "collaboration_team.access_review.opened",
-            resourceType: "collaboration_team_access_review",
-            resourceId: result.id,
-            requestId: req.id ?? null,
-            workspaceId: ctx.workspaceId,
-            metadata: { itemCount: result.itemCount },
-          });
-          return reply.code(201).send({ review: result });
-        } catch (err) {
-          return handleError(reply, err, req.id ?? null);
-        }
-      },
+      handler: async (_req, reply) => accessReviewRetired(reply),
     },
   );
 
@@ -625,50 +495,7 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
     "/v1/collaboration-teams/:teamId/access-review/items/:itemId",
     {
       preHandler: requireAuth,
-      handler: async (req, reply) => {
-        const binding = await authorizeCollaborationTeam(req, reply, {
-          collaborationTeamId: req.params.teamId,
-          permission: "identity.access_review.action",
-          requireActiveTeam: true,
-        });
-        if (!binding) return;
-        const ctx = {
-          workspaceId: binding.workspace.workspaceId,
-          userId: binding.workspace.userId,
-        };
-        const parsed = DecideItemBody.safeParse(req.body);
-        if (!parsed.success)
-          return reply
-            .code(400)
-            .send({
-              error: {
-                code: "invalid_body",
-                message: parsed.error.message,
-                requestId: req.id ?? null,
-              },
-            });
-        try {
-          await decideAccessReviewItem({
-            teamId: req.params.teamId,
-            actorUserId: ctx.userId,
-            itemId: req.params.itemId,
-            decision: parsed.data.decision,
-            notes: parsed.data.notes,
-          });
-          await audit({
-            userId: ctx.userId,
-            action: "collaboration_team.access_review.item_decided",
-            resourceType: "collaboration_team_access_review_item",
-            resourceId: req.params.itemId,
-            requestId: req.id ?? null,
-            workspaceId: ctx.workspaceId,
-            metadata: { decision: parsed.data.decision },
-          });
-          return reply.send({ ok: true });
-        } catch (err) {
-          return handleError(reply, err, req.id ?? null);
-        }
-      },
+      handler: async (_req, reply) => accessReviewRetired(reply),
     },
   );
 
@@ -676,36 +503,7 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
     "/v1/collaboration-teams/:teamId/access-review/:reviewId/complete",
     {
       preHandler: requireAuth,
-      handler: async (req, reply) => {
-        const binding = await authorizeCollaborationTeam(req, reply, {
-          collaborationTeamId: req.params.teamId,
-          permission: "identity.access_review.action",
-          requireActiveTeam: true,
-        });
-        if (!binding) return;
-        const ctx = {
-          workspaceId: binding.workspace.workspaceId,
-          userId: binding.workspace.userId,
-        };
-        try {
-          await completeAccessReview({
-            teamId: req.params.teamId,
-            actorUserId: ctx.userId,
-            reviewId: req.params.reviewId,
-          });
-          await audit({
-            userId: ctx.userId,
-            action: "collaboration_team.access_review.completed",
-            resourceType: "collaboration_team_access_review",
-            resourceId: req.params.reviewId,
-            requestId: req.id ?? null,
-            workspaceId: ctx.workspaceId,
-          });
-          return reply.send({ ok: true });
-        } catch (err) {
-          return handleError(reply, err, req.id ?? null);
-        }
-      },
+      handler: async (_req, reply) => accessReviewRetired(reply),
     },
   );
 

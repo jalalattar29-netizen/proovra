@@ -35,7 +35,10 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { getObjectLockStatus } from "./object-lock-status.service.js";
 import { headObject } from "../../storage.js";
 import { listExports } from "./export-manifest.service.js";
-import { safeEmitSecurityEvent } from "../security/security-event.service.js";
+import {
+  emitSecurityEvent,
+  safeEmitSecurityEvent,
+} from "../security/security-event.service.js";
 import { bump } from "../ops/metrics.service.js";
 import {
   PROOVRA_SPAN_NAMES,
@@ -502,14 +505,25 @@ async function validateRestoreInner(
       details: { actorUserId: input.actorUserId, report },
     });
   }
-  safeEmitSecurityEvent({
+  /*
+   * K8 (2026-09-16) — THE REPORT IS PERSISTED BEFORE IT IS RETURNED.
+   *
+   * These two rows ARE the restore report: `getRecoveryReport` reads the body
+   * from `restore_validation_completed` and `listRecoveryReports` reads
+   * `recovery_report_generated`. Both were written fire-and-forget, so the 200
+   * (and the page's immediate history reload) could precede them, and a failed
+   * write still answered 200 with a report nobody could open again. They are
+   * awaited. A failed run keeps its incident bridge through the
+   * `restore_validation_failed` WARNING event above, which is unchanged.
+   */
+  const completedRow = await emitSecurityEvent({
     teamId: input.teamId,
     eventType: "restore_validation_completed",
     severity: overallOutcome === "failed" ? "WARNING" : "INFO",
     details: { actorUserId: input.actorUserId, report },
-  });
+  }, client);
   bump("recovery_report_generation_total");
-  safeEmitSecurityEvent({
+  const generatedRow = await emitSecurityEvent({
     teamId: input.teamId,
     eventType: "recovery_report_generated",
     severity: "INFO",
@@ -519,7 +533,10 @@ async function validateRestoreInner(
       reportId: report.reportId,
       outcome: report.overallOutcome,
     },
-  });
+  }, client);
+  if (!completedRow || !generatedRow) {
+    throw new Error("restore validation report could not be recorded");
+  }
 
   return report;
 }

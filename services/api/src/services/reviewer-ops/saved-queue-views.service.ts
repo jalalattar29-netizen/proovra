@@ -26,6 +26,43 @@ import {
 import { prisma as defaultPrisma } from "../../db.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+
+/**
+ * D52 (2026-09-17) — a saved queue view is recorded in the tenant audit
+ * trail, not only as an operational security event. Before this, creating or
+ * deleting one (a TEAM view changes every reviewer's queue toolbar) left no
+ * adminAuditLog row at all. Awaited so the row exists when the route answers;
+ * a failed audit write is swallowed so it cannot fail the saved change. The
+ * view's name, description and filter are never copied into the row.
+ */
+async function auditSavedQueueView(
+  input: {
+    action: string;
+    teamId: string;
+    actorUserId: string;
+    savedViewId: string;
+    previousState?: string | null;
+    resultingState?: string | null;
+  },
+  client: PrismaClient,
+): Promise<void> {
+  await emitTenantAudit(
+    {
+      action: input.action,
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      workspaceId: input.teamId,
+      resourceType: "reviewer_ops_saved_view",
+      resourceId: input.savedViewId,
+      previousState: input.previousState ?? null,
+      resultingState: input.resultingState ?? null,
+      metadata: { savedViewId: input.savedViewId },
+    },
+    client,
+  ).catch(() => {});
+}
 
 // -----------------------------------------------------------------------------
 // Projection
@@ -135,6 +172,16 @@ export async function createReviewerOpsSavedView(
         visibility: input.visibility,
       },
     });
+    await auditSavedQueueView(
+      {
+        action: "reviewer.saved_view.create",
+        teamId: input.teamId,
+        actorUserId: input.actorUserId,
+        savedViewId: row.id,
+        resultingState: input.visibility,
+      },
+      client,
+    );
     return projectView(row);
   } catch {
     // Likely a duplicate (uk on team+user+name). Surface null so the
@@ -148,7 +195,18 @@ export async function createReviewerOpsSavedView(
 // -----------------------------------------------------------------------------
 
 export async function deleteReviewerOpsSavedView(
-  input: { teamId: string; actorUserId: string; id: string },
+  input: {
+    teamId: string;
+    actorUserId: string;
+    id: string;
+    /**
+     * K4 (2026-09-16) — true when the caller administers the workspace
+     * (OWNER / ADMIN). A shared view belongs to the workspace, so only its
+     * creator or an administrator may remove it; before this, ANY member —
+     * a VIEWER included — could delete a colleague's shared view.
+     */
+    canManageShared?: boolean;
+  },
   client: PrismaClient = defaultPrisma,
 ): Promise<boolean> {
   const row = await client.savedSearchView.findFirst({
@@ -159,9 +217,10 @@ export async function deleteReviewerOpsSavedView(
     },
   });
   if (!row) return false;
-  // PRIVATE views are deletable only by the creator.
+  // PRIVATE views are deletable only by the creator; shared views by the
+  // creator or a workspace administrator. Anything else reads as not-found.
   if (
-    row.visibility === "PRIVATE" &&
+    (row.visibility === "PRIVATE" || input.canManageShared !== true) &&
     row.createdByUserId !== input.actorUserId
   ) {
     return false;
@@ -177,5 +236,15 @@ export async function deleteReviewerOpsSavedView(
       actorUserId: input.actorUserId,
     },
   });
+  await auditSavedQueueView(
+    {
+      action: "reviewer.saved_view.delete",
+      teamId: input.teamId,
+      actorUserId: input.actorUserId,
+      savedViewId: row.id,
+      previousState: row.visibility,
+    },
+    client,
+  );
   return true;
 }

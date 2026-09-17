@@ -22,6 +22,11 @@ import { useCallback, useId, useState } from "react";
 import type { CrossOrgReviewGrantProjection } from "@proovra/shared";
 
 import { apiFetch } from "../../lib/api";
+import { useActiveSpaceId } from "../../lib/platform-context/useTenantModel";
+import {
+  ReviewScopePicker,
+  type ReviewScopeState,
+} from "../external-review/ReviewScopePicker";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import {
@@ -62,12 +67,17 @@ export function CrossOrgInviteForm({
   const [scope, setScope] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
+  // D17 — the record the invited organization will review. Acceptance issues
+  // the portal invitation for exactly this record.
+  const teamId = useActiveSpaceId();
+  const [subject, setSubject] = useState<ReviewScopeState>({ target: null, blockedReason: null });
+  const [pickerKey, setPickerKey] = useState(0);
 
   const permitted = tiers.hasAnyTier(["ORG_ADMIN", "REVIEWER_LEAD"], {
     organizationId: org.organizationId,
   });
   const contextReady = !org.loading && org.organizationId !== null;
-  const canSubmit = permitted && contextReady && !busy;
+  const canSubmit = permitted && contextReady && !busy && subject.target !== null;
 
   const validate = useCallback((): FieldErrors | null => {
     const next: FieldErrors = {};
@@ -98,7 +108,8 @@ export function CrossOrgInviteForm({
       setErrors(invalid ?? {});
       if (invalid) return;
       const organizationId = org.organizationId;
-      if (!organizationId) return;
+      const target = subject.target;
+      if (!organizationId || !target) return;
       await run(
         async () => {
           await apiFetch("/v1/governance/cross-org-review", {
@@ -107,12 +118,14 @@ export function CrossOrgInviteForm({
               invitingOrganizationId: organizationId,
               invitedOrgSlug: invitedOrgSlug.trim(),
               scope: scope.trim(),
+              subject: { kind: target.kind, id: target.id },
               expiresAtUtc: toIsoInstant(expiresAt),
             }),
           });
           setInvitedOrgSlug("");
           setScope("");
           setExpiresAt("");
+          setPickerKey((k) => k + 1);
           await onCreated();
         },
         {
@@ -129,6 +142,7 @@ export function CrossOrgInviteForm({
       run,
       invitedOrgSlug,
       scope,
+      subject.target,
       expiresAt,
       onCreated,
     ],
@@ -188,6 +202,15 @@ export function CrossOrgInviteForm({
           />
         </div>
 
+        <ReviewScopePicker
+          key={pickerKey}
+          teamId={teamId}
+          onChange={setSubject}
+          legend="What will the invited organization review?"
+          requiredReason="Choose the record the invited organization will review."
+          summaryLead="The invited organization will review:"
+        />
+
         <div style={governanceFieldRowStyle}>
           <Button
             type="submit"
@@ -211,6 +234,10 @@ export function CrossOrgInviteForm({
             <span style={noteStyle} data-cross-org-invite-blocked="organization">
               This workspace is not bound to a governance organization, so there
               is no inviting organization to send from.
+            </span>
+          ) : subject.target === null ? (
+            <span style={noteStyle} data-cross-org-invite-blocked="subject">
+              {subject.blockedReason ?? "Choose the record the invited organization will review."}
             </span>
           ) : null}
         </div>

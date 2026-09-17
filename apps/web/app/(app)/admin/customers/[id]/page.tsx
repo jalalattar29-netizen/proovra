@@ -30,6 +30,13 @@ import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { ResultCount } from "../../../../../components/ui/ResultCount";
 import { formatUserDateTime } from "../../../../../lib/date";
 import { useAdminEntityCrumb } from "../../../../../components/admin/AdminEntityCrumb";
+import { identifierLabel } from "@proovra/shared";
+import {
+  orgAuditEventLabel,
+  orgRoleLabel,
+  planLabel,
+  ssoProviderLabel,
+} from "../../../../../lib/labels/adminPlatformLabels";
 
 type OnboardingHealth = "HEALTHY" | "ATTENTION" | "BLOCKED" | "UNKNOWN";
 
@@ -595,7 +602,7 @@ export default function AdminOrganizationDetailPage({
                     }
                     dot
                   >
-                    {detail.enterpriseContract.status}
+                    {identifierLabel(detail.enterpriseContract.status)}
                   </Badge>
                   {detail.enterpriseContract.activationState ? (
                     <Badge tone="neutral" subtle>
@@ -679,10 +686,10 @@ export default function AdminOrganizationDetailPage({
               <Badge tone={HEALTH_TONE[detail.overview.onboardingStatus]} dot>
                 {detail.overview.onboardingStatus}
               </Badge>
-              <Badge tone="neutral">{detail.overview.status}</Badge>
+              <Badge tone="neutral">{identifierLabel(detail.overview.status)}</Badge>
               {detail.overview.plan ? (
                 <Badge tone={detail.overview.enterprise ? "governance" : "info"}>
-                  {detail.overview.plan}
+                  {planLabel(detail.overview.plan)}
                 </Badge>
               ) : (
                 <Badge tone="neutral">No plan</Badge>
@@ -741,7 +748,7 @@ export default function AdminOrganizationDetailPage({
                     <div key={a.userId} style={{ fontSize: 13.5 }}>
                       {a.email ?? a.userId}{" "}
                       <Badge tone="neutral" subtle>
-                        {a.role}
+                        {orgRoleLabel(a.role)}
                       </Badge>
                     </div>
                   ))}
@@ -954,9 +961,9 @@ export default function AdminOrganizationDetailPage({
                       }}
                     >
                       <span style={{ fontWeight: 600 }}>
-                        {c.provider}{" "}
+                        {ssoProviderLabel(c.provider)}{" "}
                         <span style={{ color: "var(--ink-muted)", fontWeight: 400 }}>
-                          ({c.status})
+                          ({identifierLabel(c.status)})
                         </span>
                       </span>
                       <span style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -1140,7 +1147,7 @@ export default function AdminOrganizationDetailPage({
                         {p.action}
                       </Badge>{" "}
                       <span style={{ color: "var(--ink-secondary)" }}>
-                        by {p.userId ?? "—"} · {p.outcome ?? "—"}
+                        by {p.userId ?? "—"} · {p.outcome ? identifierLabel(p.outcome) : "—"}
                       </span>
                     </span>
                     <span style={{ color: "var(--ink-muted)" }}>
@@ -1191,8 +1198,11 @@ export default function AdminOrganizationDetailPage({
                   >
                     <span>
                       <Badge tone="neutral" subtle>
-                        {e.eventType}
+                        {orgAuditEventLabel(e.eventType)}
                       </Badge>{" "}
+                      <code data-identifier style={{ fontSize: 11, color: "var(--ink-muted)" }}>
+                        {e.eventType}
+                      </code>{" "}
                       <span style={{ color: "var(--ink-secondary)" }}>
                         {e.targetType} · actor {e.actorUserId ?? "—"}
                       </span>

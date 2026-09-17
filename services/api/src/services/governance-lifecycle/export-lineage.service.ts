@@ -375,32 +375,61 @@ export async function getExportSnapshot(
   return row ? projectSnapshot(row) : null;
 }
 
-export async function listExportSnapshots(
-  input: {
-    teamId: string;
-    snapshotKind?: GovernanceExportSnapshotKind;
-    evidenceId?: string | null;
-    limit?: number;
-  },
-  client: PrismaClient = defaultPrisma,
+type SnapshotListInput = {
+  teamId: string;
+  snapshotKind?: GovernanceExportSnapshotKind;
+  evidenceId?: string | null;
+  limit?: number;
+  before?: { createdAt: string; id: string };
+};
+
+async function queryExportSnapshots(
+  input: SnapshotListInput,
+  take: number,
+  client: PrismaClient,
 ): Promise<ReadonlyArray<GovernanceExportSnapshotProjection>> {
-  const limit = Math.min(Math.max(input.limit ?? 100, 1), 500);
   const where: prismaPkg.Prisma.GovernanceExportSnapshotWhereInput = {
     teamId: input.teamId,
-    ...(input.snapshotKind
-      ? {
-          snapshotKind:
-            input.snapshotKind as prismaPkg.GovernanceExportSnapshotKind,
-        }
-      : {}),
+    ...(input.snapshotKind ? { snapshotKind: input.snapshotKind as prismaPkg.GovernanceExportSnapshotKind } : {}),
     ...(input.evidenceId !== undefined ? { evidenceId: input.evidenceId } : {}),
+    ...(input.before ? { OR: [
+      { createdAt: { lt: new Date(input.before.createdAt) } },
+      { createdAt: new Date(input.before.createdAt), id: { lt: input.before.id } },
+    ] } : {}),
   };
   const rows = await client.governanceExportSnapshot.findMany({
     where,
-    orderBy: { createdAt: "desc" },
-    take: limit,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take,
   });
   return rows.map(projectSnapshot);
+}
+
+export async function listExportSnapshots(
+  input: SnapshotListInput,
+  client: PrismaClient = defaultPrisma,
+): Promise<ReadonlyArray<GovernanceExportSnapshotProjection>> {
+  return queryExportSnapshots(input, Math.min(Math.max(input.limit ?? 100, 1), 500), client);
+}
+
+export async function listExportSnapshotsPage(
+  input: SnapshotListInput,
+  client: PrismaClient = defaultPrisma,
+) {
+  const limit = Math.min(Math.max(input.limit ?? 100, 1), 500);
+  const rows = await queryExportSnapshots(input, limit + 1, client);
+  const snapshots = rows.slice(0, limit);
+  const last = snapshots.at(-1);
+  const nextCursor = rows.length > limit && last
+    ? Buffer.from(JSON.stringify({
+        teamId: input.teamId,
+        snapshotKind: input.snapshotKind ?? null,
+        evidenceId: input.evidenceId ?? null,
+        createdAt: last.createdAt,
+        id: last.id,
+      })).toString("base64url")
+    : null;
+  return { snapshots, nextCursor };
 }
 
 // -----------------------------------------------------------------------------

@@ -27,7 +27,7 @@
  *     "POST /v1/ops/media-intelligence/runs/:runId/retry"     (confirm; toSafeUserError failures)
  *     "POST /v1/ops/media-intelligence/dlq/replay"            (confirm; toSafeUserError failures)
  *
- *   app/(app)/admin/platform/reliability/page.tsx
+ *   app/(app)/operations/reliability/page.tsx
  *     "POST /v1/reliability/upload-sessions/:evidenceId/mark-abandoned"
  *     "POST /v1/reliability/upload-sessions/:evidenceId/request-review"
  *       (both confirm; the response row is committed to state, no re-read)
@@ -137,14 +137,19 @@ vi.mock("../../components/navigation/PageRouteGate", () => ({
 }));
 
 // Step-up is PASSTHROUGH: the ceremony has its own suite; this file proves the
-// wrapped action fires exactly once with the right payload.
+// wrapped action fires exactly once with the right payload. The counter lets
+// a case prove an action went THROUGH the wrapper (D25).
+const stepUpCalls = vi.hoisted(() => ({ count: 0 }));
 vi.mock("../../components/identity-security/StepUpModal", () => {
   // One stable control object, for the same dep-array reason as above.
   const control = {
     state: { kind: "idle" },
     runStepUpAction: async (
       fn: (headers?: Record<string, string>) => Promise<unknown>,
-    ) => fn({}),
+    ) => {
+      stepUpCalls.count += 1;
+      return fn({});
+    },
     cancel: () => {},
     closeIdle: () => {},
     startChallenge: async () => {},
@@ -164,7 +169,7 @@ import { ConfirmActionProvider } from "../../components/ui/ConfirmActionModal";
 import OperationsSignersPage from "../../app/(app)/admin/platform/signers/page";
 import OperationsRecoveryPage from "../../app/(app)/admin/platform/recovery/page";
 import MediaGraphOpsPage from "../../app/(app)/admin/platform/media-graph/page";
-import ReliabilityPage from "../../app/(app)/admin/platform/reliability/page";
+import ReliabilityPage from "../../app/(app)/operations/reliability/page";
 import OperationsQueuesPage from "../../app/(app)/admin/platform/queues/page";
 import OperationsExportsPage from "../../app/(app)/admin/platform/exports/page";
 
@@ -369,7 +374,12 @@ describe("Signers — POST /v1/operations/custody-attestations/:id/verify (no co
     });
     await click(screen.getByTestId("verify-att-1"));
     const panel = screen.getByTestId("verify-result");
-    expect(panel.textContent).toContain("verified");
+    // PV-LANG-003 — the label reads "Verified"; the stored outcome stays as
+    // the declared identifier beside it.
+    expect(panel.textContent).toContain("Verified");
+    expect(
+      panel.querySelector("code[data-identifier]")?.textContent?.trim(),
+    ).toBe("verified");
     expect(panel.textContent).toContain(
       "Signature matches the recorded custody event.",
     );
@@ -911,7 +921,7 @@ describe("Media graph — POST /v1/ops/media-intelligence/dlq/replay", () => {
 });
 
 // ===========================================================================
-// 4. /admin/platform/reliability
+// 4. /operations/reliability
 // ===========================================================================
 
 function reliabilitySession(over: Record<string, unknown> = {}) {
@@ -1219,8 +1229,12 @@ describe("Queues — the replay dialog IS the confirmation", () => {
     const failedReadsBefore = gets(
       `/v1/operations/queues/${QUEUE}/failed`,
     ).length;
+    const stepUpsBefore = stepUpCalls.count;
     await click(within(dialog).getByRole("button", { name: "Retry attempt" }));
     await settle();
+    // D25 — the API gates retry like replay, so the page sends it through the
+    // step-up wrapper (a 401 STEP_UP_REQUIRED would open the challenge).
+    expect(stepUpCalls.count).toBe(stepUpsBefore + 1);
 
     const retries = posts(
       `/v1/operations/queues/${QUEUE}/jobs/job-safe-1/retry`,
@@ -1402,8 +1416,13 @@ describe("Exports — POST /v1/operations/exports/:id/verify (no confirm)", () =
     expect(verifies).toHaveLength(1);
     expect(JSON.parse(verifies[0].body as string)).toEqual({ teamId: WS });
     const result = screen.getByTestId("verify-result");
+    // PV-LANG-003 — the badge carries the label; the stored outcome is the
+    // declared secondary identifier beside it.
     expect(
       within(result).getByTestId("verify-outcome").textContent,
+    ).toBe("Matches");
+    expect(
+      result.querySelector("code[data-identifier]")?.textContent?.trim(),
     ).toBe("match");
     expect(result.textContent).toContain(
       "The manifest re-derives byte-for-byte.",

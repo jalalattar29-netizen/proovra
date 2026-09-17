@@ -83,7 +83,7 @@ const CAP_REGISTRY = readApi(
   "src/services/platform-context/capability-registry.ts",
 );
 const ROUTE_REGISTRY = readWeb("lib/navigation/routeRegistry.ts");
-const PAGE = readWeb("app/(app)/admin/platform/automation/page.tsx");
+const PAGE = readWeb("app/(app)/operations/automation/page.tsx");
 
 // ===========================================================================
 // PART 1 — Bounded trigger + action allowlists
@@ -435,14 +435,17 @@ describe("E3 Test 8 — automation security events registered", () => {
 // ===========================================================================
 
 describe("E3 Test 9 — automation route is in registry but NOT root nav", () => {
-  it("route registry contains platform.automation entry under /admin/platform/automation", () => {
-    expect(ROUTE_REGISTRY).toMatch(/id:\s*["']platform\.automation["']/);
-    expect(ROUTE_REGISTRY).toMatch(/href:\s*["']\/admin\/platform\/automation["']/);
+  // PV-PLACE-001 / PV-OD-001 — the console moved from /admin/platform/automation
+  // (platform.automation) to the workspace's Operations under a tenant route id.
+  it("route registry contains operations.automation entry under /operations/automation", () => {
+    expect(ROUTE_REGISTRY).toMatch(/id:\s*["']operations\.automation["']/);
+    expect(ROUTE_REGISTRY).toMatch(/href:\s*["']\/operations\/automation["']/);
+    expect(ROUTE_REGISTRY).not.toMatch(/id:\s*["']platform\.automation["']/);
   });
 
-  it("platform.automation requires AUTOMATION_VIEW", () => {
+  it("operations.automation requires AUTOMATION_VIEW", () => {
     const m = ROUTE_REGISTRY.match(
-      /id:\s*["']platform\.automation["'][\s\S]*?requiredCapabilities:\s*\[([\s\S]*?)\]/,
+      /id:\s*["']operations\.automation["'][\s\S]*?requiredCapabilities:\s*\[([\s\S]*?)\]/,
     );
     expect(m).toBeTruthy();
     expect(m![1]).toContain("AUTOMATION_VIEW");
@@ -457,7 +460,7 @@ describe("E3 Test 9 — automation route is in registry but NOT root nav", () =>
       (mm) => mm[1]!,
     );
     expect(ids).toHaveLength(9); // baseline grew with G0+ IA — was 6 pre-G0, now 9 canonical primaries
-    expect(ids).not.toContain("platform.automation");
+    expect(ids).not.toContain("operations.automation");
   });
 });
 
@@ -468,12 +471,12 @@ describe("E3 Test 9 — automation route is in registry but NOT root nav", () =>
 describe("E3 Test 10 — frontend page exists + UI guardrails", () => {
   it("page file exists under /ops/automation", () => {
     expect(
-      existsSync(webPath("app/(app)/admin/platform/automation/page.tsx")),
+      existsSync(webPath("app/(app)/operations/automation/page.tsx")),
     ).toBe(true);
   });
 
-  it("page wraps in PageRouteGate routeId=platform.automation", () => {
-    expect(PAGE).toMatch(/PageRouteGate\s+routeId="platform\.automation"/);
+  it("page wraps in PageRouteGate routeId=operations.automation", () => {
+    expect(PAGE).toMatch(/PageRouteGate\s+routeId="operations\.automation"/);
   });
 
   it("page has NO drag-and-drop builder / canvas / scripting editor / AI generator", () => {

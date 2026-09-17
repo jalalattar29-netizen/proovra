@@ -136,7 +136,7 @@ const MEASURE = () => {
      * because an identifier is read left to right whatever the prose around it
      * does — this sweep's own header says a mirrored UUID is a wrong UUID.
      * Without this exemption the sweep reported 5 findings on
-     * /admin/identity/permission-matrix and 33 on /admin/platform/runbooks, and
+     * /security-center/identity/permission-matrix and 33 on /admin/platform/runbooks, and
      * every one of them was a `paddingInlineStart` written correctly in the
      * source. An instrument that condemns the behaviour the phase implemented
      * deliberately does not find defects, it manufactures them.
@@ -243,7 +243,7 @@ for (const route of routes) {
    * post-hydration attribute, and a page slow to hydrate reads as an RTL
    * failure rather than as a slow page.
    *
-   * `/admin/identity` — the heaviest page in the console, 2,900px and seven
+   * `/security-center/identity` — then `/admin/identity`, the heaviest page in the console, 2,900px and seven
    * selects — was reported `dir=ltr` on one pass. Re-run with this sweep's
    * exact seeding it reports `dir=rtl lang=ar` every time.
    *

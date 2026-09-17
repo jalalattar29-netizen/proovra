@@ -24,6 +24,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
 
 import { NoopMessagingProvider } from "../src/services/communications/noop-provider.js";
 import type { MessagingProvider } from "../src/services/communications/provider.js";
@@ -574,9 +575,7 @@ describe("Public verify isolation — communications NOT exposed", () => {
       ),
       "utf8",
     );
-    const start = src.indexOf('app.get("/public/verify/:id"');
-    expect(start).toBeGreaterThan(-1);
-    const verifyBlock = src.slice(start, start + 8000);
+    const verifyBlock = routeSource(src, "GET", "/public/verify/:id");
     expect(verifyBlock).not.toMatch(/communicationMessage/);
     expect(verifyBlock).not.toMatch(/communicationPreference/);
     expect(verifyBlock).not.toMatch(/verificationAttempt/);

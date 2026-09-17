@@ -31,10 +31,10 @@ The complete set of step-up-flagged actions (per `enforceStepUpIfFlagged` middle
 | Evidence destruction approve | governance routes | Governance UX |
 | Evidence destruction execute | governance routes | Governance UX |
 | **SAML certificate promotion** | `DELETE /v1/auth/saml/:connectionId/certificate-next` | `/security-center/sso` (P1.4 wiring) |
-| **SCIM token create** | `POST /v1/admin/identity/scim/tokens` | `/admin/identity/scim` (P1.4 wiring) |
-| **SCIM token revoke** | `POST /v1/admin/identity/scim/tokens/:id/revoke` | `/admin/identity/scim` (P1.4 wiring) |
-| Org-wide session emergency revoke | `POST /v1/admin/identity/emergency-revoke` | `/admin/identity/runtime` |
-| All-sessions revoke for user | `POST /v1/admin/identity/sessions/user/:userId/revoke-all` | `/admin/identity/sessions` |
+| **SCIM token create** | `POST /v1/admin/identity/scim/tokens` | `/security-center/identity/scim` (P1.4 wiring) |
+| **SCIM token revoke** | `POST /v1/admin/identity/scim/tokens/:id/revoke` | `/security-center/identity/scim` (P1.4 wiring) |
+| Org-wide session emergency revoke | `POST /v1/admin/identity/emergency-revoke` | `/security-center/identity/runtime` |
+| All-sessions revoke for user | `POST /v1/admin/identity/sessions/user/:userId/revoke-all` | `/security-center/identity/sessions` |
 | MFA policy update | `PUT /v1/identity-security/mfa-policy` | `/security-center` |
 
 ## 3. Workspace policy

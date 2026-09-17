@@ -41,6 +41,7 @@ import {
 } from "../src/services/alerts/alert.service.js";
 import { NoopAlertProvider } from "../src/services/alerts/noop-provider.js";
 import { WebhookAlertProvider } from "../src/services/alerts/webhook-provider.js";
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
 
 // -----------------------------------------------------------------------------
 // Metadata redactor
@@ -427,9 +428,7 @@ describe("Phase 21 — public verify isolation", () => {
       ),
       "utf8",
     );
-    const start = src.indexOf('app.get("/public/verify/:id"');
-    expect(start).toBeGreaterThan(-1);
-    const verifyBlock = src.slice(start, start + 8000);
+    const verifyBlock = routeSource(src, "GET", "/public/verify/:id");
     expect(verifyBlock).not.toMatch(/operationalIncident/);
     expect(verifyBlock).not.toMatch(/operationalIncidentEvent/);
   });

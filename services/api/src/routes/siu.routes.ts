@@ -926,7 +926,7 @@ export async function siuRoutes(app: FastifyInstance) {
       const userId = getAuthUserId(req);
       const member = await prisma.teamMember.findUnique({
         where: { teamId_userId: { teamId: q.teamId, userId } },
-        select: { id: true, status: true },
+        select: { id: true, status: true, role: true },
       });
       if (!member || member.status !== "ACTIVE") {
         return reply.code(403).send({ error: { code: "member_inactive" } });
@@ -936,6 +936,7 @@ export async function siuRoutes(app: FastifyInstance) {
         teamId: q.teamId,
         userId,
         payload: body,
+        canManageShared: member.role === "OWNER" || member.role === "ADMIN",
       });
       if (!view) {
         return reply.code(404).send({ error: { code: "not_found" } });
@@ -955,7 +956,7 @@ export async function siuRoutes(app: FastifyInstance) {
       const userId = getAuthUserId(req);
       const member = await prisma.teamMember.findUnique({
         where: { teamId_userId: { teamId: q.teamId, userId } },
-        select: { id: true, status: true },
+        select: { id: true, status: true, role: true },
       });
       if (!member || member.status !== "ACTIVE") {
         return reply.code(403).send({ error: { code: "member_inactive" } });
@@ -964,6 +965,7 @@ export async function siuRoutes(app: FastifyInstance) {
         id: params.id,
         teamId: q.teamId,
         userId,
+        canManageShared: member.role === "OWNER" || member.role === "ADMIN",
       });
       if (!ok) {
         return reply.code(404).send({ error: { code: "not_found" } });

@@ -77,6 +77,11 @@ import { organizationsGovernanceRoutes } from "./routes/organizations-governance
 import { organizationsBulkInviteRoutes } from "./routes/organizations-bulk-invite.routes.js";
 import { organizationsReportsRoutes } from "./routes/organizations-reports.routes.js";
 import { operationsReadinessRoutes } from "./routes/operations-readiness.routes.js";
+import {
+  classifyCompletedResponse,
+  markBoundedOutcome,
+  readBoundedOutcome,
+} from "./http/bounded-outcome.js";
 // Platform Admin Control Center — read-only admin aggregation APIs.
 import { adminOverviewRoutes } from "./routes/admin-overview.routes.js";
 import { adminPlatformHealthRoutes } from "./routes/admin-platform-health.routes.js";
@@ -369,6 +374,33 @@ function emitOperationalAlert(
   );
 }
 
+/**
+ * A warning-level operational signal: something an operator should see and
+ * fix — a provider missing from this environment — that is NOT a crash. The
+ * critical `operational.alert` above stays reserved for faults.
+ */
+function emitOperationalSignal(
+  logger: FastifyBaseLogger,
+  params: {
+    requestId: string;
+    reason: string;
+    code: string;
+    context?: Record<string, unknown>;
+  }
+) {
+  logger.warn(
+    {
+      signal: true,
+      severity: "warning",
+      requestId: params.requestId,
+      reason: params.reason,
+      errorCode: params.code,
+      ...(params.context ?? {}),
+    },
+    "operational.signal"
+  );
+}
+
 function normalizeUnknownError(err: unknown): AppError | null {
   if (isAppError(err)) {
     return err;
@@ -615,6 +647,11 @@ allowedHeaders: [
   // Accepted as an alias for older clients and integrations that already send
   // it. Same revalidation, same refusal.
   "x-team-id",
+  // D53 (2026-09-16) — the external reviewer portal carries its session id in
+  // this header after sign-in (`resolvePortalSession` reads it and validates it
+  // against the grant). It was never allow-listed, so the browser blocked every
+  // portal call after sign-in. Allowing the browser to send it trusts nothing.
+  "x-portal-session",
 ],
     origin: (origin, cb) => {
       if (!origin) return cb(null, true);
@@ -781,13 +818,39 @@ allowedHeaders: [
       logContext.geo = requestWithMeta.geo;
     }
 
-    if (reply.statusCode >= 500) {
+    // WCC-NEW-002 — a declared bounded outcome is not paged as a crash. See
+    // http/bounded-outcome.ts for the whole decision; unmarked >= 500 stays
+    // critical.
+    const bounded = readBoundedOutcome(req);
+    const treatment = classifyCompletedResponse(reply.statusCode, bounded);
+
+    if (treatment === "INFRASTRUCTURE_ERROR") {
       req.log.error(logContext, "request.completed.infrastructure_error");
       emitOperationalAlert(req.log, {
         requestId: req.id,
         reason: "api_5xx_response",
         context: logContext,
       });
+      return;
+    }
+
+    if (
+      bounded &&
+      (treatment === "BOUNDED_UNAVAILABLE" ||
+        treatment === "BOUNDED_UNAVAILABLE_SIGNAL")
+    ) {
+      req.log.warn(
+        { ...logContext, errorCode: bounded.code, reportability: bounded.reportability },
+        "request.completed.bounded_unavailable",
+      );
+      if (treatment === "BOUNDED_UNAVAILABLE_SIGNAL") {
+        emitOperationalSignal(req.log, {
+          requestId: req.id,
+          reason: "bounded_unavailable",
+          code: bounded.code,
+          context: logContext,
+        });
+      }
       return;
     }
 
@@ -971,6 +1034,15 @@ allowedHeaders: [
         reportability: err.reportability,
         ...err.metadata,
       };
+      if (err.reportability !== "UNEXPECTED") {
+        // The response hook reads this: a declared outcome is not paged as
+        // an infrastructure failure, whatever its status.
+        markBoundedOutcome(req, {
+          code: err.publicCode,
+          reportability: err.reportability,
+          severity: err.severity,
+        });
+      }
       if (err.reportability === "UNEXPECTED") {
         req.log.error(logPayload, "request.failed.domain_unexpected");
         captureException(err, requestContext);

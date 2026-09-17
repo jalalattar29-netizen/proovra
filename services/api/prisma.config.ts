@@ -80,6 +80,7 @@ function shouldAllowMigration(args: {
 }
 
 function loadEnvFile(path: string) {
+  if (process.env.PROOVRA_ENV_BOOTSTRAPPED?.trim() === "1") return;
   if (!existsSync(path)) return;
 
   const content = readFileSync(path, "utf8");

@@ -25,7 +25,7 @@
  *      historical session replay).
  *
  *   5. The existing identity admin surfaces survive — no
- *     `/admin/identity/*` page was deleted or hollowed.
+ *     `/security-center/identity/*` page was deleted or hollowed.
  *
  * Style: source-contract. Reads source files, asserts regex/string
  * contracts. Same pattern as every phase contract from A0 onward.
@@ -35,6 +35,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 
 function readSource(rel: string): string {
   const url = new URL(rel, import.meta.url);
@@ -52,12 +53,12 @@ function exists(rel: string): boolean {
 
 describe("Phase P1 — Identity operations canonical hub", () => {
   // Phase IA-collapse — the identity-operations canonical hub moved
-  // from `/settings/security` to `/admin/identity`. `/settings/security`
+  // from `/settings/security` to `/security-center/identity`. `/settings/security`
   // is now the personal Account Security home (route id
   // `account.security`). Every assertion below reads the hub at its
   // new canonical location.
   const HUB = readSource(
-    "../../../apps/web/app/(app)/admin/identity/page.tsx",
+    "../../../apps/web/app/(app)/security-center/identity/page.tsx",
   );
 
   it("renders an Identity operations title + procurement-grade subtitle", () => {
@@ -71,17 +72,22 @@ describe("Phase P1 — Identity operations canonical hub", () => {
   it("surfaces SAML / SCIM / Audit as the three primary cards", () => {
     expect(HUB).toContain('"/settings/security/saml"');
     expect(HUB).toContain("SAML configuration");
-    expect(HUB).toContain('"/settings/security/scim"');
+    // PV-PLACE-001 / PV-OD-001 — the SCIM and Audit cards' canonical paths were
+    // the legacy /settings/security/{scim,audit} URLs, which redirect. The
+    // cards now name their canonical Security Center homes directly.
+    expect(HUB).toContain('"/security-center/identity/scim"');
     expect(HUB).toContain("SCIM operations");
-    expect(HUB).toContain('"/settings/security/audit"');
+    expect(HUB).toContain('"/security-center/identity/timeline"');
     expect(HUB).toContain("Identity audit center");
+    expect(HUB).not.toContain('"/admin/identity/scim"');
+    expect(HUB).not.toContain('"/admin/identity/timeline"');
   });
 
   it("surfaces the operational secondary surfaces (sessions / runtime / access reviews / RBAC / MFA / recovery)", () => {
-    expect(HUB).toContain('"/admin/identity/sessions"');
-    expect(HUB).toContain('"/admin/identity/runtime"');
-    expect(HUB).toContain('"/admin/identity/access-reviews"');
-    expect(HUB).toContain('"/admin/identity/permission-matrix"');
+    expect(HUB).toContain('"/security-center/identity/sessions"');
+    expect(HUB).toContain('"/security-center/identity/runtime"');
+    expect(HUB).toContain('"/security-center/identity/access-reviews"');
+    expect(HUB).toContain('"/security-center/identity/permission-matrix"');
     expect(HUB).toContain('"/security-center"');
     expect(HUB).toContain('"/security-center/mfa-recovery"');
   });
@@ -107,9 +113,12 @@ describe("Phase P1 — Identity operations canonical hub", () => {
     expect(HUB).not.toMatch(/<strong>Historical session replay<\/strong>/);
   });
 
-  it("is gated behind PageRouteGate(admin.identity)", () => {
+  // PV-PLACE-001 / PV-OD-001 — the hub left the platform console; its gate is
+  // the tenant route id (SECURITY_CENTER_VIEW in an organization workspace).
+  it("is gated behind PageRouteGate(security_center.identity)", () => {
     expect(HUB).toContain("PageRouteGate");
-    expect(HUB).toContain('routeId="admin.identity"');
+    expect(HUB).toContain('routeId="security_center.identity"');
+    expect(HUB).not.toContain('routeId="admin.identity"');
   });
 
   it("carries a stable mount marker for E2E", () => {
@@ -204,11 +213,12 @@ describe("Phase IA-collapse — Communications + Security Center demoted from si
   const registry = readSource(
     "../../../apps/web/lib/navigation/routeRegistry.ts",
   );
+  /** The RouteDefinition object literal carrying `idLine` (WCC-NEW-027). */
+  const registryEntry = (idLine: string) =>
+    enclosingSource(registry, idLine, "object", { unique: true, fileName: "routeRegistry.ts" });
 
   it("workspace.communications is renamed Messaging operations and not sidebar-eligible", () => {
-    const idx = registry.indexOf('id: "workspace.communications"');
-    expect(idx, "workspace.communications not found").toBeGreaterThan(-1);
-    const block = registry.slice(idx, idx + 3000);
+    const block = registryEntry('id: "workspace.communications"');
     expect(block).toMatch(/label:\s*"Messaging operations"/);
     expect(block).toMatch(/sidebarEligible:\s*false/);
     // Still discoverable via cmd-K + All Tools (it's a real operator
@@ -218,9 +228,7 @@ describe("Phase IA-collapse — Communications + Security Center demoted from si
   });
 
   it('workspace.security_center is renamed "Identity & Security" and not sidebar-eligible', () => {
-    const idx = registry.indexOf('id: "workspace.security_center"');
-    expect(idx, "workspace.security_center not found").toBeGreaterThan(-1);
-    const block = registry.slice(idx, idx + 3000);
+    const block = registryEntry('id: "workspace.security_center"');
     expect(block).toMatch(/label:\s*"Identity & Security"/);
     expect(block).toMatch(/sidebarEligible:\s*false/);
     expect(block).toMatch(/commandPaletteVisible:\s*true/);
@@ -229,8 +237,7 @@ describe("Phase IA-collapse — Communications + Security Center demoted from si
 
   it("account.security entry exists and is ACCOUNT-tier", () => {
     expect(registry).toMatch(/id:\s*"account\.security"/);
-    const idx = registry.indexOf('id: "account.security"');
-    const block = registry.slice(idx, idx + 3000);
+    const block = registryEntry('id: "account.security"');
     // Settings IA refactor (2026-07-17): the entry deep-links to the
     // Security section of the unified /settings workspace.
     expect(block).toMatch(/href:\s*"\/settings#security"/);
@@ -238,11 +245,18 @@ describe("Phase IA-collapse — Communications + Security Center demoted from si
     expect(block).toMatch(/requiredActiveSpace:\s*"NONE"/);
   });
 
-  it("admin.identity now lives at /admin/identity (moved from /settings/security)", () => {
-    const idx = registry.indexOf('id: "admin.identity"');
-    expect(idx).toBeGreaterThan(-1);
-    const block = registry.slice(idx, idx + 3000);
-    expect(block).toMatch(/href:\s*"\/admin\/identity"/);
+  // PV-PLACE-001 / PV-OD-001 — the hub moved again, from /admin/identity to the
+  // workspace's Security Center, under a tenant route id. The old id is gone
+  // and the old URL redirects in one hop.
+  it("security_center.identity now lives at /security-center/identity (moved from /admin/identity, originally /settings/security)", () => {
+    const block = registryEntry('id: "security_center.identity"');
+    expect(block).toMatch(/href:\s*"\/security-center\/identity"/);
+    expect(block).toMatch(/requiredActiveSpace:\s*"ORGANIZATION_ONLY"/);
+    expect(registry).not.toContain('id: "admin.identity"');
+    const cfg = readSource("../../../apps/web/next.config.js");
+    expect(cfg).toMatch(
+      /source:\s*["']\/admin\/identity["'][\s\S]{0,200}destination:\s*["']\/security-center\/identity["']/,
+    );
   });
 });
 
@@ -266,12 +280,12 @@ describe("Phase P1 — canonical sub-paths resolve to procurement-grade surfaces
   // and `/settings/security/audit` redirect-only page files were
   // deleted and their behaviour was moved into `next.config.js`
   // `redirects()` as permanent 308s. The destination surfaces
-  // (`/admin/identity/scim` and `/admin/identity/timeline`) are
+  // (`/security-center/identity/scim` and `/security-center/identity/timeline`) are
   // unchanged and still backed by the same audited endpoints.
-  it("/settings/security/scim redirects to /admin/identity/scim via next.config.js (the SCIM token console)", () => {
+  it("/settings/security/scim redirects to /security-center/identity/scim via next.config.js (the SCIM token console)", () => {
     const cfg = readSource("../../../apps/web/next.config.js");
     expect(cfg).toMatch(
-      /source:\s*["']\/settings\/security\/scim["'][\s\S]{0,200}destination:\s*["']\/admin\/identity\/scim["']/,
+      /source:\s*["']\/settings\/security\/scim["'][\s\S]{0,200}destination:\s*["']\/security-center\/identity\/scim["']/,
     );
     // The redirect page file is intentionally absent — routing layer
     // is the single source of truth.
@@ -280,10 +294,10 @@ describe("Phase P1 — canonical sub-paths resolve to procurement-grade surfaces
     ).toBe(false);
   });
 
-  it("/settings/security/audit redirects to /admin/identity/timeline via next.config.js (the unified event feed)", () => {
+  it("/settings/security/audit redirects to /security-center/identity/timeline via next.config.js (the unified event feed)", () => {
     const cfg = readSource("../../../apps/web/next.config.js");
     expect(cfg).toMatch(
-      /source:\s*["']\/settings\/security\/audit["'][\s\S]{0,200}destination:\s*["']\/admin\/identity\/timeline["']/,
+      /source:\s*["']\/settings\/security\/audit["'][\s\S]{0,200}destination:\s*["']\/security-center\/identity\/timeline["']/,
     );
     expect(
       exists("../../../apps/web/app/(app)/settings/security/audit/page.tsx"),
@@ -307,14 +321,14 @@ describe("Phase P1 — canonical sub-paths resolve to procurement-grade surfaces
     // deleted). The destination surfaces own their own runbook /
     // observability narrative. We assert the canonical destinations
     // resolve to the SCIM + Audit backend services via the existing
-    // /admin/identity/* pages.
+    // /security-center/identity/* pages.
     const scimDest = readSource(
-      "../../../apps/web/app/(app)/admin/identity/scim/page.tsx",
+      "../../../apps/web/app/(app)/security-center/identity/scim/page.tsx",
     );
     expect(scimDest).toContain("/v1/admin/identity/scim/tokens");
 
     const timelineDest = readSource(
-      "../../../apps/web/app/(app)/admin/identity/timeline/page.tsx",
+      "../../../apps/web/app/(app)/security-center/identity/timeline/page.tsx",
     );
     expect(timelineDest).toContain("/v1/admin/identity/timeline");
   });
@@ -326,7 +340,7 @@ describe("Phase P1 — canonical sub-paths resolve to procurement-grade surfaces
 
 describe("Phase P1 — step-up gating on dangerous identity admin mutations", () => {
   const SCIM_PAGE = readSource(
-    "../../../apps/web/app/(app)/admin/identity/scim/page.tsx",
+    "../../../apps/web/app/(app)/security-center/identity/scim/page.tsx",
   );
   const SSO_PAGE = readSource(
     "../../../apps/web/app/(app)/security-center/sso/page.tsx",
@@ -407,14 +421,13 @@ describe("Phase P1 — backend authority preserved (no frontend-only authorizati
 
 describe("Phase P1 — existing identity admin surfaces preserved", () => {
   const EXISTING_PAGES = [
-    "../../../apps/web/app/(app)/admin/identity/page.tsx",
-    "../../../apps/web/app/(app)/admin/identity/providers/page.tsx",
-    "../../../apps/web/app/(app)/admin/identity/scim/page.tsx",
-    "../../../apps/web/app/(app)/admin/identity/sessions/page.tsx",
-    "../../../apps/web/app/(app)/admin/identity/timeline/page.tsx",
-    "../../../apps/web/app/(app)/admin/identity/access-reviews/page.tsx",
-    "../../../apps/web/app/(app)/admin/identity/permission-matrix/page.tsx",
-    "../../../apps/web/app/(app)/admin/identity/runtime/page.tsx",
+    "../../../apps/web/app/(app)/security-center/identity/page.tsx",
+    "../../../apps/web/app/(app)/security-center/identity/scim/page.tsx",
+    "../../../apps/web/app/(app)/security-center/identity/sessions/page.tsx",
+    "../../../apps/web/app/(app)/security-center/identity/timeline/page.tsx",
+    "../../../apps/web/app/(app)/security-center/identity/access-reviews/page.tsx",
+    "../../../apps/web/app/(app)/security-center/identity/permission-matrix/page.tsx",
+    "../../../apps/web/app/(app)/security-center/identity/runtime/page.tsx",
     "../../../apps/web/app/(app)/security-center/page.tsx",
     "../../../apps/web/app/(app)/security-center/sso/page.tsx",
     "../../../apps/web/app/(app)/security-center/mfa-recovery/page.tsx",
@@ -431,6 +444,22 @@ describe("Phase P1 — existing identity admin surfaces preserved", () => {
       expect(src.length).toBeGreaterThan(500);
     });
   }
+
+  // PV-PLACE-001 / PV-DUP-001 — the providers console was not moved; it merged
+  // into the canonical SSO console, which is listed above. What must survive of
+  // it is its address: the old URL lands on /security-center/sso in one hop,
+  // and is listed before the /admin/identity wildcard so it cannot be captured
+  // by it.
+  it("identity providers (merged into security-center/sso) — the old URL redirects there", () => {
+    const cfg = readSource("../../../apps/web/next.config.js");
+    expect(cfg).toMatch(
+      /source:\s*["']\/admin\/identity\/providers["'][\s\S]{0,200}destination:\s*["']\/security-center\/sso["']/,
+    );
+    const providers = cfg.indexOf('"/admin/identity/providers"');
+    const wildcard = cfg.indexOf('"/admin/identity/:path*"');
+    expect(providers).toBeGreaterThan(-1);
+    expect(wildcard).toBeGreaterThan(providers);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -438,9 +467,9 @@ describe("Phase P1 — existing identity admin surfaces preserved", () => {
 // ---------------------------------------------------------------------------
 
 describe("Phase P1 — no fake identity claims", () => {
-  // Phase IA-collapse — hub moved to /admin/identity.
+  // Phase IA-collapse — hub moved to /security-center/identity.
   const HUB = readSource(
-    "../../../apps/web/app/(app)/admin/identity/page.tsx",
+    "../../../apps/web/app/(app)/security-center/identity/page.tsx",
   );
 
   it("does not claim BYO-KMS, FedRAMP, SOC2, ISO 27001 readiness", () => {

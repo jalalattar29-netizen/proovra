@@ -13,59 +13,47 @@
   artefact that backs it.
 -->
 
-**47 routes** · 47 completed · 0 pending · 1114 API routes traced
+**35 routes** · 35 completed · 0 pending · 1152 API routes traced
 
 ## Status
 
 | Route | Kind | Family | Status | Reason / blocker |
 | --- | --- | --- | --- | --- |
-| `/admin` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 3.3 screens at 1440, 7.5 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/adoption` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.9 screens at 1440, 3.5 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/alerts` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 2.3 screens at 1440, 4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/audit` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 3.3 screens at 1440, 6.3 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/billing` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 4.3 screens at 1440, 6.9 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/contact-sales` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1 screens at 1440, 1.3 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/contact-sales/:id` | dynamic | Commercial | CONTEXTUAL_DETAIL_REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.4 screens at 1440, 3.5 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/costs` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 2.7 screens at 1440, 4.7 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/customers` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1 screens at 1440, 1.3 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/customers/:id` | dynamic | Customers | CONTEXTUAL_DETAIL_REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 3 screens at 1440, 5.9 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/dashboard` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 4 screens at 1440, 8.5 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/demo-requests` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.2 screens at 1440, 3.1 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/demo-requests/:id` | dynamic | Commercial | CONTEXTUAL_DETAIL_REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 2.1 screens at 1440, 3.9 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/evidence-ops` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 3.7 screens at 1440, 8.7 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/evidence-ops/records` | static | (unassigned) | NO_INTERNAL_RECOMPOSITION_REQUIRED | Composition met the contract as it stood; the browser matrix ran it clean at every required viewport, in RTL, and refused every non-admin role, with populated fixture data on screen. |
-| `/admin/executive` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.9 screens at 1440, 4.2 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/identity` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 3.5 screens at 1440, 6.5 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/identity/access-reviews` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.3 screens at 1440, 1.7 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/identity/permission-matrix` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.6 screens at 1440, 3.4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/identity/providers` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.6 screens at 1440, 2.4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/identity/runtime` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 3.1 screens at 1440, 4.2 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/identity/scim` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.1 screens at 1440, 1.4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/identity/sessions` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 4.6 screens at 1440, 5.8 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/identity/timeline` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.9 screens at 1440, 2.9 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/operations` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 4 screens at 1440, 6.5 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 3.7 screens at 1440, 7.1 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/adoption` | static | (unassigned) | NO_INTERNAL_RECOMPOSITION_REQUIRED | Composition met the contract as it stood; the browser matrix ran it clean at every required viewport, in RTL, and refused every non-admin role, with populated fixture data on screen. |
+| `/admin/alerts` | static | (unassigned) | NO_INTERNAL_RECOMPOSITION_REQUIRED | Composition met the contract as it stood; the browser matrix ran it clean at every required viewport, in RTL, and refused every non-admin role, with populated fixture data on screen. |
+| `/admin/audit` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 3.8 screens at 1440, 7.9 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/billing` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 3.2 screens at 1440, 4.7 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/contact-sales` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1 screens at 1440, 1.1 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/contact-sales/:id` | dynamic | Commercial | CONTEXTUAL_DETAIL_REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.5 screens at 1440, 3.4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/costs` | static | (unassigned) | NO_INTERNAL_RECOMPOSITION_REQUIRED | Composition met the contract as it stood; the browser matrix ran it clean at every required viewport, in RTL, and refused every non-admin role, with populated fixture data on screen. |
+| `/admin/customers` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1 screens at 1440, 1.2 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/customers/:id` | dynamic | Customers | CONTEXTUAL_DETAIL_REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 3.3 screens at 1440, 6.6 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/dashboard` | static | (unassigned) | NO_INTERNAL_RECOMPOSITION_REQUIRED | Composition met the contract as it stood; the browser matrix ran it clean at every required viewport, in RTL, and refused every non-admin role, with populated fixture data on screen. |
+| `/admin/demo-requests` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.3 screens at 1440, 2.8 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/demo-requests/:id` | dynamic | Commercial | CONTEXTUAL_DETAIL_REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 2.1 screens at 1440, 3.8 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/evidence-ops` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 3.2 screens at 1440, 8.2 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/evidence-ops/records` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.2 screens at 1440, 1.5 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/executive` | static | (unassigned) | NO_INTERNAL_RECOMPOSITION_REQUIRED | Composition met the contract as it stood; the browser matrix ran it clean at every required viewport, in RTL, and refused every non-admin role, with populated fixture data on screen. |
+| `/admin/operations` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 3.8 screens at 1440, 6.6 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
 | `/admin/platform-health` | static | (unassigned) | NO_INTERNAL_RECOMPOSITION_REQUIRED | Composition met the contract as it stood; the browser matrix ran it clean at every required viewport, in RTL, and refused every non-admin role, with populated fixture data on screen. |
-| `/admin/platform/analytics` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 2.8 screens at 1440, 7.4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/platform/automation` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.7 screens at 1440, 2.1 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/platform/exports` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1 screens at 1440, 1.3 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/platform/media-graph` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 2.1 screens at 1440, 5.9 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/platform/observability` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 3.2 screens at 1440, 5.4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/platform/queues` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.2 screens at 1440, 2.8 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/platform/exports` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1 screens at 1440, 1.2 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/platform/media-graph` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 2.4 screens at 1440, 5.6 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/platform/observability` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 3.6 screens at 1440, 5.4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/platform/queues` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 2.3 screens at 1440, 5.4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
 | `/admin/platform/readiness` | static | (unassigned) | NO_INTERNAL_RECOMPOSITION_REQUIRED | Composition met the contract as it stood; the browser matrix ran it clean at every required viewport, in RTL, and refused every non-admin role, with populated fixture data on screen. |
-| `/admin/platform/recovery` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.3 screens at 1440, 1.9 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/platform/reliability` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.5 screens at 1440, 2.7 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/platform/runbooks` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 4.2 screens at 1440, 10.3 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/platform/runbooks/:slug` | dynamic | Runbooks | CONTEXTUAL_DETAIL_REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 3.5 screens at 1440, 8.4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/platform/recovery` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.4 screens at 1440, 1.9 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/platform/runbooks` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 4.2 screens at 1440, 10.1 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/platform/runbooks/:slug` | dynamic | Runbooks | CONTEXTUAL_DETAIL_REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 3.9 screens at 1440, 7.7 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
 | `/admin/platform/signers` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.2 screens at 1440, 2.1 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/provisioning` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 2.2 screens at 1440, 3.3 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/search` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1 screens at 1440, 1.1 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/security` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 5.3 screens at 1440, 8.4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/support-access` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 2.2 screens at 1440, 3 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/timeline` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 2.5 screens at 1440, 4.9 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/users` | static | (unassigned) | NO_INTERNAL_RECOMPOSITION_REQUIRED | Composition met the contract as it stood; the browser matrix ran it clean at every required viewport, in RTL, and refused every non-admin role, with populated fixture data on screen. |
-| `/admin/users/:id` | dynamic | People | CONTEXTUAL_DETAIL_REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 2.2 screens at 1440, 3.4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/workspaces` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.4 screens at 1440, 2 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
-| `/admin/workspaces/:id` | dynamic | Workspaces | CONTEXTUAL_DETAIL_REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.9 screens at 1440, 3.4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/provisioning` | static | (unassigned) | NO_INTERNAL_RECOMPOSITION_REQUIRED | Composition met the contract as it stood; the browser matrix ran it clean at every required viewport, in RTL, and refused every non-admin role, with populated fixture data on screen. |
+| `/admin/search` | static | (unassigned) | NO_INTERNAL_RECOMPOSITION_REQUIRED | Composition met the contract as it stood; the browser matrix ran it clean at every required viewport, in RTL, and refused every non-admin role, with populated fixture data on screen. |
+| `/admin/support-access` | static | (unassigned) | NO_INTERNAL_RECOMPOSITION_REQUIRED | Composition met the contract as it stood; the browser matrix ran it clean at every required viewport, in RTL, and refused every non-admin role, with populated fixture data on screen. |
+| `/admin/timeline` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 2.2 screens at 1440, 4.4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/users` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.6 screens at 1440, 2.3 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/users/:id` | dynamic | People | CONTEXTUAL_DETAIL_REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 2.7 screens at 1440, 4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/workspaces` | static | (unassigned) | REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 1.4 screens at 1440, 1.9 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
+| `/admin/workspaces/:id` | dynamic | Workspaces | CONTEXTUAL_DETAIL_REDESIGNED_AND_E2E_VERIFIED | Recomposed on this branch and verified in the browser: 2 screens at 1440, 4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles. |
 
 ## Scope and authorization
 
@@ -87,31 +75,19 @@
 | `/admin/evidence-ops` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | evidence | /admin |
 | `/admin/evidence-ops/records` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | evidence | /admin/evidence-ops |
 | `/admin/executive` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | insight | /admin |
-| `/admin/identity` | WORKSPACE_CANDIDATE | adminNavigation registry | PLATFORM_ADMIN | resolveAuthorizedWorkspaceSubject, requireIdentityActor, requireStepUpForSensitiveAction, +STEP_UP, UNRESOLVED, resolveAdminWorkspace | identity | /admin |
-| `/admin/identity/access-reviews` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | resolveAuthorizedWorkspaceSubject, requireStepUpForSensitiveAction, +STEP_UP | identity | /admin/identity |
-| `/admin/identity/permission-matrix` | WORKSPACE_CANDIDATE | adminNavigation registry | PLATFORM_ADMIN | resolveAdminWorkspace, requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP | identity | /admin/identity |
-| `/admin/identity/providers` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP, authorizeOrFail, AUTHORIZE(?) | identity | /admin/identity |
-| `/admin/identity/runtime` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP, requireIntegrationCronSecret, authorizeOrFail, AUTHORIZE(?) | identity | /admin/identity |
-| `/admin/identity/scim` | WORKSPACE_CANDIDATE | adminNavigation registry | PLATFORM_ADMIN | requireIdentityAdmin, requireScimAdmin, requireStepUpForSensitiveAction, +STEP_UP | identity | /admin/identity |
-| `/admin/identity/sessions` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP, authorizeOrFail, AUTHORIZE(?), requireSecurityActor, resolveAuthorizedWorkspaceSubject | identity | /admin/identity |
-| `/admin/identity/timeline` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | requireIdentityAdmin | identity | /admin/identity |
 | `/admin/operations` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | platform | /admin |
 | `/admin/platform-health` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | platform | /admin |
-| `/admin/platform/analytics` | WORKSPACE_FILTERED | adminNavigation registry | ANALYTICS_VIEW | AUTH_ONLY, gateAnalyticsRead, requireTeamCapability | platform | /admin/platform |
-| `/admin/platform/automation` | WORKSPACE_FILTERED | adminNavigation registry | AUTOMATION_VIEW | requireTeamCapability | platform | /admin/platform |
 | `/admin/platform/exports` | WORKSPACE_CANDIDATE | adminNavigation registry | OPS_CENTER_VIEW | requirePlatformOpsActor | evidence | /admin/platform |
 | `/admin/platform/media-graph` | WORKSPACE_CANDIDATE | handler trace | PLATFORM_TELEMETRY_VIEW | requirePlatformAdmin, requirePlatformOpsActor, requireDomainActionOnOpsSurface | evidence | /admin/platform |
 | `/admin/platform/observability` | PLATFORM | adminNavigation registry | PLATFORM_TELEMETRY_VIEW | requirePlatformAdmin | platform | /admin/platform |
 | `/admin/platform/queues` | WORKSPACE_CANDIDATE | handler trace | OPS_CENTER_VIEW | requirePlatformOpsActor, requireStepUpForSensitiveAction, +STEP_UP | platform | /admin/platform |
 | `/admin/platform/readiness` | PLATFORM | adminNavigation registry | PLATFORM_TELEMETRY_VIEW | requirePlatformAdmin | platform | /admin/platform |
 | `/admin/platform/recovery` | WORKSPACE_CANDIDATE | adminNavigation registry | OPS_CENTER_VIEW | requirePlatformOpsActor, requireStepUpForSensitiveAction, +STEP_UP | evidence | /admin/platform |
-| `/admin/platform/reliability` | WORKSPACE_CANDIDATE | adminNavigation registry | OPS_CENTER_VIEW | requireAdminMember | platform | /admin/platform |
 | `/admin/platform/runbooks` | PLATFORM | adminNavigation registry | RUNBOOKS_VIEW |  | runbooks | /admin/platform |
 | `/admin/platform/runbooks/:slug` | PLATFORM | handler trace | RUNBOOKS_VIEW |  | contextual | /admin/platform/runbooks |
 | `/admin/platform/signers` | WORKSPACE_CANDIDATE | handler trace | OPS_CENTER_VIEW | requirePlatformOpsActor, requireStepUpForSensitiveAction, +STEP_UP | evidence | /admin/platform |
 | `/admin/provisioning` | PLATFORM_AUDIT_SCOPED | handler trace | PLATFORM_ADMIN | requirePlatformAdmin, requireStepUpForSensitiveAction, +STEP_UP, requireAuthAndLegal | customers | /admin |
 | `/admin/search` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | security | /admin |
-| `/admin/security` | WORKSPACE_CANDIDATE | adminNavigation registry | PLATFORM_ADMIN | AUTH_ONLY, authorizeMfaAdminScope, resolveAuthorizedWorkspaceSubject, requireStepUpForSensitiveAction, requireUserReenrollment, +STEP_UP, requireAdminMember | security | /admin |
 | `/admin/support-access` | WORKSPACE_FILTERED | handler trace | PLATFORM_ADMIN | requirePlatformStaff, authorizeOrFail, requireStepUpForSensitiveAction, AUTHORIZE(?), +STEP_UP | security | /admin |
 | `/admin/timeline` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | security | /admin |
 | `/admin/users` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | customers | /admin |
@@ -150,80 +126,12 @@
 | `/admin/evidence-ops` | GET | `/v1/admin/evidence-health` | requirePlatformAdmin | AUDIT |
 | `/admin/evidence-ops/records` | GET | `/v1/admin/evidence-health/records` | requirePlatformAdmin | AUDIT |
 | `/admin/executive` | GET | `/v1/admin/executive` | requirePlatformAdmin | NONE |
-| `/admin/identity` | GET+POST | `/v1/identity/external-mappings` | resolveAuthorizedWorkspaceSubject | FILTER_CANDIDATE |
-| `/admin/identity` | DELETE | `/v1/identity/external-mappings/:id` | requireIdentityActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
-| `/admin/identity` | GET | `/v1/identity/members` | resolveAuthorizedWorkspaceSubject | AUDIT |
-| `/admin/identity` | POST | `/v1/identity/members/:id/role` | requireIdentityActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
-| `/admin/identity` | POST | `/v1/identity/members/:id/suspend` | requireIdentityActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
-| `/admin/identity` | POST | `/v1/identity/members/:id/restore` | requireIdentityActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
-| `/admin/identity` | POST | `/v1/identity/members/:id/revoke` | requireIdentityActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
-| `/admin/identity` | POST | `/v1/identity/members/:id/capabilities` | requireIdentityActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
-| `/admin/identity` | DELETE | `/v1/identity/capabilities/:id` | requireIdentityActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
-| `/admin/identity` | POST | `/v1/identity/members/:id/delegated-admin` | requireIdentityActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
-| `/admin/identity` | DELETE | `/v1/identity/delegated-admin/:id` | requireIdentityActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
-| `/admin/identity` | GET | `/v1/identity/service-accounts` | resolveAuthorizedWorkspaceSubject | FILTER_CANDIDATE |
-| `/admin/identity` | POST | `/v1/identity/service-accounts/:x` | UNRESOLVED | ? |
-| `/admin/identity` | PATCH | `/v1/identity/service-accounts/:id/hardening` | requireIdentityActor, requireStepUpForSensitiveAction, +STEP_UP | AUDIT |
-| `/admin/identity` | POST | `/v1/identity/contributor-sessions/:id/revoke` | requireIdentityActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
-| `/admin/identity` | POST | `/v1/admin/identity/sessions/reconcile-stale` | resolveAdminWorkspace, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
-| `/admin/identity` | POST | `/v1/admin/identity/runtime/reconcile` | resolveAdminWorkspace, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
-| `/admin/identity/access-reviews` | GET | `/v1/identity/access-reviews` | resolveAuthorizedWorkspaceSubject | FILTER_CANDIDATE |
-| `/admin/identity/access-reviews` | POST | `/v1/identity/access-reviews/regenerate` | resolveAuthorizedWorkspaceSubject | FILTER_CANDIDATE |
-| `/admin/identity/access-reviews` | POST | `/v1/identity/access-reviews/:id/decision` | resolveAuthorizedWorkspaceSubject, requireStepUpForSensitiveAction, +STEP_UP | FILTER |
-| `/admin/identity/permission-matrix` | GET | `/v1/admin/identity/role-matrix` | resolveAdminWorkspace | FILTER_CANDIDATE |
-| `/admin/identity/permission-matrix` | GET | `/v1/admin/identity/permission-matrix` | requireIdentityAdmin | FILTER_CANDIDATE |
-| `/admin/identity/permission-matrix` | POST | `/v1/admin/identity/elevations` | resolveAdminWorkspace, requireStepUpForSensitiveAction, +STEP_UP | AUDIT |
-| `/admin/identity/providers` | GET+POST | `/v1/admin/identity/providers` | requireIdentityAdmin | FILTER |
-| `/admin/identity/providers` | GET+POST | `/v1/admin/identity/providers` | requireIdentityAdmin | FILTER |
-| `/admin/identity/providers` | POST | `/v1/admin/identity/providers/:id/transition` | requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
-| `/admin/identity/providers` | POST | `/v1/admin/identity/providers/:id/policy` | requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
-| `/admin/identity/providers` | GET | `/v1/auth/sso/readiness` | authorizeOrFail, AUTHORIZE(?) | FILTER |
-| `/admin/identity/runtime` | GET | `/v1/admin/identity/sessions` | requireIdentityAdmin | FILTER_CANDIDATE |
-| `/admin/identity/runtime` | GET | `/v1/admin/identity/quarantined-sessions` | requireIdentityAdmin | FILTER_CANDIDATE |
-| `/admin/identity/runtime` | POST | `/v1/admin/identity/sessions/:id/quarantine` | requireIdentityAdmin | FILTER_CANDIDATE |
-| `/admin/identity/runtime` | POST | `/v1/admin/identity/sessions/:id/release` | requireIdentityAdmin | FILTER_CANDIDATE |
-| `/admin/identity/runtime` | POST | `/v1/admin/identity/sessions/:id/score` | requireIdentityAdmin | FILTER_CANDIDATE |
-| `/admin/identity/runtime` | POST | `/v1/admin/identity/emergency-revoke` | requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
-| `/admin/identity/runtime` | POST | `/v1/identity-security/reconcile` | requireIntegrationCronSecret, authorizeOrFail, requireStepUpForSensitiveAction, AUTHORIZE(?), +STEP_UP | FILTER |
-| `/admin/identity/scim` | GET+POST | `/v1/admin/identity/scim/tokens` | requireIdentityAdmin | FILTER_CANDIDATE |
-| `/admin/identity/scim` | GET+POST | `/v1/admin/identity/scim/tokens` | requireIdentityAdmin | FILTER_CANDIDATE |
-| `/admin/identity/scim` | POST | `/v1/admin/identity/scim/tokens/:id/rotate` | requireScimAdmin | FILTER_CANDIDATE |
-| `/admin/identity/scim` | POST | `/v1/admin/identity/scim/tokens/:id/revoke` | requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
-| `/admin/identity/scim` | GET | `/v1/scim/reconciliation/preview` | requireIdentityAdmin | FILTER_CANDIDATE |
-| `/admin/identity/scim` | POST | `/v1/scim/reconciliation/execute` | requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
-| `/admin/identity/scim` | GET | `/v1/scim/sync-failures` | requireIdentityAdmin | FILTER_CANDIDATE |
-| `/admin/identity/scim` | POST | `/v1/scim/sync-failures/:id/replay` | requireIdentityAdmin | FILTER_CANDIDATE |
-| `/admin/identity/scim` | GET | `/v1/admin/identity/scim/managed-membership` | requireScimAdmin | FILTER_CANDIDATE |
-| `/admin/identity/sessions` | GET | `/v1/admin/identity/sessions` | requireIdentityAdmin | FILTER_CANDIDATE |
-| `/admin/identity/sessions` | GET | `/v1/admin/identity/quarantined-sessions` | requireIdentityAdmin | FILTER_CANDIDATE |
-| `/admin/identity/sessions` | POST | `/v1/admin/identity/sessions/:id/quarantine` | requireIdentityAdmin | FILTER_CANDIDATE |
-| `/admin/identity/sessions` | POST | `/v1/admin/identity/sessions/:id/revoke` | requireIdentityAdmin | FILTER_CANDIDATE |
-| `/admin/identity/sessions` | POST | `/v1/admin/identity/sessions/user/:userId/revoke-all` | requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
-| `/admin/identity/sessions` | POST | `/v1/admin/identity/sessions/:id/release` | requireIdentityAdmin | FILTER_CANDIDATE |
-| `/admin/identity/sessions` | GET | `/v1/identity-security/session-policy-impact` | authorizeOrFail, AUTHORIZE(?) | FILTER |
-| `/admin/identity/sessions` | GET | `/v1/identity/sessions/:sessionId/timeline` | requireIdentityAdmin | FILTER_CANDIDATE |
-| `/admin/identity/sessions` | GET | `/v1/identity-security/devices` | requireSecurityActor | FILTER_CANDIDATE |
-| `/admin/identity/sessions` | POST | `/v1/identity-security/devices/trust` | authorizeOrFail, requireStepUpForSensitiveAction, AUTHORIZE(?), +STEP_UP | FILTER_CANDIDATE |
-| `/admin/identity/sessions` | POST | `/v1/identity-security/devices/:id/revoke` | requireSecurityActor | FILTER_CANDIDATE |
-| `/admin/identity/sessions` | GET | `/v1/identity/members` | resolveAuthorizedWorkspaceSubject | AUDIT |
-| `/admin/identity/sessions` | GET | `/v1/identity-security/risk/user/:id` | authorizeOrFail, AUTHORIZE(?) | FILTER |
-| `/admin/identity/timeline` | GET | `/v1/admin/identity/timeline` | requireIdentityAdmin | FILTER |
 | `/admin/operations` | GET | `/v1/admin/incidents` | requirePlatformAdmin | FILTER |
 | `/admin/operations` | POST | `/v1/admin/incidents/:id/acknowledge` | requirePlatformAdmin | NONE |
 | `/admin/operations` | POST | `/v1/admin/incidents/:id/resolve` | requirePlatformAdmin | NONE |
 | `/admin/operations` | POST | `/v1/admin/incidents/:id/assign` | requirePlatformAdmin | NONE |
 | `/admin/operations` | GET | `/v1/admin/security-events` | requirePlatformAdmin | FILTER |
 | `/admin/platform-health` | GET | `/v1/admin/platform-health` | requirePlatformAdmin | NONE |
-| `/admin/platform/analytics` | GET | `/v1/analytics/_window` | AUTH_ONLY | NONE |
-| `/admin/platform/analytics` | GET | `/v1/analytics/operations` | gateAnalyticsRead | AUDIT |
-| `/admin/platform/analytics` | GET | `/v1/analytics/reviewer` | gateAnalyticsRead | AUDIT |
-| `/admin/platform/analytics` | GET | `/v1/analytics/governance` | gateAnalyticsRead | AUDIT |
-| `/admin/platform/analytics` | GET | `/v1/analytics/automation` | gateAnalyticsRead | AUDIT |
-| `/admin/platform/analytics` | GET | `/v1/analytics/artifacts` | gateAnalyticsRead | AUDIT |
-| `/admin/platform/analytics` | GET | `/v1/automation/webhooks` | requireTeamCapability | FILTER |
-| `/admin/platform/analytics` | GET | `/v1/automation/webhook-deliveries` | requireTeamCapability | FILTER |
-| `/admin/platform/automation` | GET | `/v1/automation/rules` | requireTeamCapability | FILTER |
-| `/admin/platform/automation` | GET | `/v1/automation/runs` | requireTeamCapability | AUDIT |
 | `/admin/platform/exports` | GET | `/v1/operations/exports` | requirePlatformOpsActor | FILTER_CANDIDATE |
 | `/admin/platform/exports` | GET | `/v1/operations/exports/object-lock` | requirePlatformOpsActor | FILTER_CANDIDATE |
 | `/admin/platform/exports` | GET | `/v1/operations/exports/:id` | requirePlatformOpsActor | FILTER_CANDIDATE |
@@ -241,7 +149,6 @@
 | `/admin/platform/queues` | GET | `/v1/operations/queues/workers` | requirePlatformOpsActor | FILTER_CANDIDATE |
 | `/admin/platform/queues` | GET | `/v1/operations/queues/replay-safety` | requirePlatformOpsActor | FILTER_CANDIDATE |
 | `/admin/platform/queues` | GET | `/v1/operations/queues/:queueName/failed` | requirePlatformOpsActor | FILTER_CANDIDATE |
-| `/admin/platform/queues` | POST | `/v1/operations/queues/:queueName/jobs/:jobId/replay` | requirePlatformOpsActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
 | `/admin/platform/queues` | POST | `/v1/operations/queues/:queueName/jobs/:jobId/retry` | requirePlatformOpsActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
 | `/admin/platform/queues` | POST | `/v1/operations/queues/:queueName/jobs/:jobId/replay` | requirePlatformOpsActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
 | `/admin/platform/readiness` | GET | `/v1/operations/readiness` | requirePlatformAdmin | NONE |
@@ -249,10 +156,6 @@
 | `/admin/platform/recovery` | POST | `/v1/operations/recovery/validate-backup` | requirePlatformOpsActor | FILTER_CANDIDATE |
 | `/admin/platform/recovery` | POST | `/v1/operations/recovery/validate-restore` | requirePlatformOpsActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
 | `/admin/platform/recovery` | GET | `/v1/operations/recovery/reports/:id` | requirePlatformOpsActor | FILTER_CANDIDATE |
-| `/admin/platform/reliability` | GET | `/v1/reliability/summary` | requireAdminMember | FILTER_CANDIDATE |
-| `/admin/platform/reliability` | GET | `/v1/reliability/upload-sessions` | requireAdminMember | FILTER_CANDIDATE |
-| `/admin/platform/reliability` | POST | `/v1/reliability/upload-sessions/:evidenceId/mark-abandoned` | requireAdminMember | FILTER_CANDIDATE |
-| `/admin/platform/reliability` | POST | `/v1/reliability/upload-sessions/:evidenceId/request-review` | requireAdminMember | FILTER_CANDIDATE |
 | `/admin/platform/runbooks` | — | (no API call) | — | — |
 | `/admin/platform/runbooks/:slug` | — | (no API call) | — | — |
 | `/admin/platform/signers` | GET | `/v1/operations/signers` | requirePlatformOpsActor | FILTER_CANDIDATE |
@@ -272,22 +175,7 @@
 | `/admin/provisioning` | POST | `/v1/orgs/:id/invites/:inviteId/resend` | requireAuthAndLegal | NONE |
 | `/admin/provisioning` | DELETE | `/v1/orgs/:id/invites/:inviteId` | requireAuthAndLegal | NONE |
 | `/admin/search` | GET | `/v1/admin/search` | requirePlatformAdmin | NONE |
-| `/admin/security` | GET+PATCH | `/v1/identity/mfa-admin/digest-preferences` | AUTH_ONLY | NONE |
-| `/admin/security` | GET | `/v1/identity/mfa-admin/digest-preferences/preview` | AUTH_ONLY | NONE |
-| `/admin/security` | POST | `/v1/identity/mfa-admin/digest-preferences/preview/send-test` | AUTH_ONLY | FILTER_CANDIDATE |
-| `/admin/security` | GET | `/v1/identity/mfa-admin/events/:teamId` | authorizeMfaAdminScope | FILTER_CANDIDATE |
-| `/admin/security` | GET | `/v1/identity/mfa-admin/recovery-events` | AUTH_ONLY | AUDIT |
-| `/admin/security` | GET | `/v1/identity/members` | resolveAuthorizedWorkspaceSubject | AUDIT |
-| `/admin/security` | GET | `/v1/identity/mfa-admin/posture/:teamId/:userId` | authorizeMfaAdminScope | FILTER_CANDIDATE |
-| `/admin/security` | POST | `/v1/identity/mfa-admin/factors/:teamId/:userId/require-reenrollment` | authorizeMfaAdminScope, requireStepUpForSensitiveAction, requireUserReenrollment, +STEP_UP | FILTER_CANDIDATE |
-| `/admin/security` | POST | `/v1/identity/mfa-admin/trusted-devices/:teamId/:userId/reset` | authorizeMfaAdminScope, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
-| `/admin/security` | POST | `/v1/identity/mfa-admin/factors/:teamId/:userId/:factorId/revoke` | authorizeMfaAdminScope, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
-| `/admin/security` | GET+PATCH | `/v1/identity/mfa-admin/policy/:teamId` | authorizeMfaAdminScope | AUDIT |
-| `/admin/security` | POST | `/v1/identity/mfa/challenge/verify` | AUTH_ONLY | FILTER_CANDIDATE |
-| `/admin/security` | GET | `/v1/security/summary` | requireAdminMember | FILTER_CANDIDATE |
-| `/admin/security` | GET | `/v1/security/scans` | requireAdminMember | FILTER_CANDIDATE |
-| `/admin/security` | GET | `/v1/security/events` | requireAdminMember | FILTER_CANDIDATE |
-| `/admin/support-access` | GET | `/v1/support-access/grants` | requirePlatformStaff | FILTER |
+| `/admin/support-access` | GET | `/v1/support-access/grants` | requirePlatformStaff | FILTER_CANDIDATE |
 | `/admin/support-access` | GET | `/v1/break-glass/grants` | requirePlatformStaff | FILTER |
 | `/admin/support-access` | POST | `/v1/support-access/enter` | requirePlatformStaff, authorizeOrFail, requireStepUpForSensitiveAction, AUTHORIZE(?), +STEP_UP | AUDIT |
 | `/admin/support-access` | POST | `/v1/support-access/revoke` | requirePlatformStaff | FILTER_CANDIDATE |
@@ -321,31 +209,19 @@
 | `/admin/evidence-ops` | `services/api/scripts/seed-admin-fixture.ts` | `artifacts/admin-visual-review/screenshots/admin-evidence-ops--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-evidence-ops--mobile.png` | `artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320` | `docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx` | `artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts` | `apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json` | — | — |
 | `/admin/evidence-ops/records` | `services/api/scripts/seed-admin-fixture.ts` | `artifacts/admin-visual-review/screenshots/admin-evidence-ops-records--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-evidence-ops-records--mobile.png` | `artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320` | `docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx` | `artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts` | `apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json` | — | — |
 | `/admin/executive` | `services/api/scripts/seed-admin-fixture.ts` | `artifacts/admin-visual-review/screenshots/admin-executive--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-executive--mobile.png` | `artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320` | `docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx` | `artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts` | `apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json` | — | — |
-| `/admin/identity` | `services/api/scripts/seed-admin-fixture.ts` | `artifacts/admin-visual-review/screenshots/admin-identity--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-identity--mobile.png` | `artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320` | `docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx` | `artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts` | `apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json` | — | — |
-| `/admin/identity/access-reviews` | `services/api/scripts/seed-admin-fixture.ts` | `artifacts/admin-visual-review/screenshots/admin-identity-access-reviews--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-identity-access-reviews--mobile.png` | `artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320` | `docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx` | `artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts` | `apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json` | — | — |
-| `/admin/identity/permission-matrix` | `services/api/scripts/seed-admin-fixture.ts` | `artifacts/admin-visual-review/screenshots/admin-identity-permission-matrix--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-identity-permission-matrix--mobile.png` | `artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320` | `docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx` | `artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts` | `apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json` | — | — |
-| `/admin/identity/providers` | `services/api/scripts/seed-admin-fixture.ts` | `artifacts/admin-visual-review/screenshots/admin-identity-providers--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-identity-providers--mobile.png` | `artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320` | `docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx` | `artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts` | `apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json` | — | — |
-| `/admin/identity/runtime` | `services/api/scripts/seed-admin-fixture.ts` | `artifacts/admin-visual-review/screenshots/admin-identity-runtime--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-identity-runtime--mobile.png` | `artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320` | `docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx` | `artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts` | `apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json` | — | — |
-| `/admin/identity/scim` | `services/api/scripts/seed-admin-fixture.ts` | `artifacts/admin-visual-review/screenshots/admin-identity-scim--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-identity-scim--mobile.png` | `artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320` | `docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx` | `artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts` | `apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json` | — | — |
-| `/admin/identity/sessions` | `services/api/scripts/seed-admin-fixture.ts` | `artifacts/admin-visual-review/screenshots/admin-identity-sessions--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-identity-sessions--mobile.png` | `artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320` | `docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx` | `artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts` | `apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json` | — | — |
-| `/admin/identity/timeline` | `services/api/scripts/seed-admin-fixture.ts` | `artifacts/admin-visual-review/screenshots/admin-identity-timeline--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-identity-timeline--mobile.png` | `artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320` | `docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx` | `artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts` | `apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json` | — | — |
 | `/admin/operations` | `services/api/scripts/seed-admin-fixture.ts` | `artifacts/admin-visual-review/screenshots/admin-operations--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-operations--mobile.png` | `artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320` | `docs/admin/evidence/screenshot-manifest.json#state-captures` | `artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts` | `apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json` | — | — |
 | `/admin/platform-health` | `services/api/scripts/seed-admin-fixture.ts` | `artifacts/admin-visual-review/screenshots/admin-platform-health--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-platform-health--mobile.png` | `artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320` | `docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx` | `artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts` | `apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json` | — | — |
-| `/admin/platform/analytics` | `services/api/scripts/seed-admin-fixture.ts` | `artifacts/admin-visual-review/screenshots/admin-platform-analytics--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-platform-analytics--mobile.png` | `artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320` | `docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx` | `artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts` | `apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json` | — | — |
-| `/admin/platform/automation` | `services/api/scripts/seed-admin-fixture.ts` | `artifacts/admin-visual-review/screenshots/admin-platform-automation--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-platform-automation--mobile.png` | `artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320` | `docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx` | `artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts` | `apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json` | — | — |
 | `/admin/platform/exports` | `services/api/scripts/seed-admin-fixture.ts` | `artifacts/admin-visual-review/screenshots/admin-platform-exports--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-platform-exports--mobile.png` | `artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320` | `docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx` | `artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts` | `apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json` | — | — |
 | `/admin/platform/media-graph` | `services/api/scripts/seed-admin-fixture.ts` | `artifacts/admin-visual-review/screenshots/admin-platform-media-graph--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-platform-media-graph--mobile.png` | `artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320` | `docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx` | `artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts` | `apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json` | — | — |
 | `/admin/platform/observability` | `services/api/scripts/seed-admin-fixture.ts` | `artifacts/admin-visual-review/screenshots/admin-platform-observability--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-platform-observability--mobile.png` | `artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320` | `docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx` | `artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts` | `apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json` | — | — |
 | `/admin/platform/queues` | `services/api/scripts/seed-admin-fixture.ts` | `artifacts/admin-visual-review/screenshots/admin-platform-queues--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-platform-queues--mobile.png` | `artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320` | `docs/admin/evidence/screenshot-manifest.json#state-captures` | `artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts` | `apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json` | — | — |
 | `/admin/platform/readiness` | `services/api/scripts/seed-admin-fixture.ts` | `artifacts/admin-visual-review/screenshots/admin-platform-readiness--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-platform-readiness--mobile.png` | `artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320` | `docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx` | `artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts` | `apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json` | — | — |
 | `/admin/platform/recovery` | `services/api/scripts/seed-admin-fixture.ts` | `artifacts/admin-visual-review/screenshots/admin-platform-recovery--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-platform-recovery--mobile.png` | `artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320` | `docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx` | `artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts` | `apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json` | — | — |
-| `/admin/platform/reliability` | `services/api/scripts/seed-admin-fixture.ts` | `artifacts/admin-visual-review/screenshots/admin-platform-reliability--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-platform-reliability--mobile.png` | `artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320` | `docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx` | `artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts` | `apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json` | — | — |
 | `/admin/platform/runbooks` | `services/api/scripts/seed-admin-fixture.ts` | `artifacts/admin-visual-review/screenshots/admin-platform-runbooks--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-platform-runbooks--mobile.png` | `artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320` | `docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx` | `artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts` | `apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json` | — | — |
 | `/admin/platform/runbooks/:slug` | `services/api/scripts/seed-admin-fixture.ts` | `artifacts/admin-visual-review/screenshots/admin-platform-runbooks-slug--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-platform-runbooks-slug--mobile.png` | `artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320` | `docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx` | `artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts` | `apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json` | `Platform admin / Platform operations / Runbooks` | `← All runbooks → /admin/platform/runbooks` |
 | `/admin/platform/signers` | `services/api/scripts/seed-admin-fixture.ts` | `artifacts/admin-visual-review/screenshots/admin-platform-signers--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-platform-signers--mobile.png` | `artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320` | `docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx` | `artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts` | `apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json` | — | — |
 | `/admin/provisioning` | `services/api/scripts/seed-admin-fixture.ts` | `artifacts/admin-visual-review/screenshots/admin-provisioning--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-provisioning--mobile.png` | `artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320` | `docs/admin/evidence/screenshot-manifest.json#state-captures` | `artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts` | `apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json` | — | — |
 | `/admin/search` | `services/api/scripts/seed-admin-fixture.ts` | `artifacts/admin-visual-review/screenshots/admin-search--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-search--mobile.png` | `artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320` | `docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx` | `artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts` | `apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json` | — | — |
-| `/admin/security` | `services/api/scripts/seed-admin-fixture.ts` | `artifacts/admin-visual-review/screenshots/admin-security--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-security--mobile.png` | `artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320` | `docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx` | `artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts` | `apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json` | — | — |
 | `/admin/support-access` | `services/api/scripts/seed-admin-fixture.ts` | `artifacts/admin-visual-review/screenshots/admin-support-access--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-support-access--mobile.png` | `artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320` | `docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx` | `artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts` | `apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json` | — | — |
 | `/admin/timeline` | `services/api/scripts/seed-admin-fixture.ts` | `artifacts/admin-visual-review/screenshots/admin-timeline--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-timeline--mobile.png` | `artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320` | `docs/admin/evidence/screenshot-manifest.json#state-captures` | `artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts` | `apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json` | — | — |
 | `/admin/users` | `services/api/scripts/seed-admin-fixture.ts` | `artifacts/admin-visual-review/screenshots/admin-users--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-users--mobile.png` | `artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320` | `docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx` | `artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts` | `apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json` | — | — |
@@ -357,50 +233,38 @@
 
 | Route | Lines | cards/tables/sections | Open findings |
 | --- | --- | --- | --- |
-| `/admin` | 999 | 0c/0t/10s |  |
+| `/admin` | 1005 | 0c/0t/10s |  |
 | `/admin/adoption` | 283 | 0c/1t/1s |  |
 | `/admin/alerts` | 318 | 1c/0t/1s |  |
-| `/admin/audit` | 1104 | 3c/1t/2s |  |
-| `/admin/billing` | 764 | 7c/5t/9s |  |
-| `/admin/contact-sales` | 838 | 3c/1t/0s |  |
+| `/admin/audit` | 1106 | 3c/1t/2s |  |
+| `/admin/billing` | 766 | 7c/5t/9s |  |
+| `/admin/contact-sales` | 840 | 3c/1t/0s |  |
 | `/admin/contact-sales/:id` | 676 | 5c/0t/0s |  |
 | `/admin/costs` | 670 | 8c/3t/10s |  |
-| `/admin/customers` | 553 | 0c/1t/0s |  |
-| `/admin/customers/:id` | 1214 | 12c/1t/0s |  |
+| `/admin/customers` | 555 | 0c/1t/0s |  |
+| `/admin/customers/:id` | 1224 | 12c/1t/0s |  |
 | `/admin/dashboard` | 946 | 9c/3t/9s |  |
 | `/admin/demo-requests` | 1340 | 3c/0t/2s |  |
 | `/admin/demo-requests/:id` | 536 | 5c/0t/0s |  |
 | `/admin/evidence-ops` | 790 | 4c/0t/7s |  |
-| `/admin/evidence-ops/records` | 626 | 2c/1t/0s |  |
+| `/admin/evidence-ops/records` | 629 | 2c/1t/0s |  |
 | `/admin/executive` | 731 | 4c/2t/8s |  |
-| `/admin/identity` | 296 | 13c/3t/7s |  |
-| `/admin/identity/access-reviews` | 583 | 4c/1t/1s |  |
-| `/admin/identity/permission-matrix` | 785 | 6c/1t/5s |  |
-| `/admin/identity/providers` | 963 | 10c/1t/3s |  |
-| `/admin/identity/runtime` | 1042 | 2c/2t/3s |  |
-| `/admin/identity/scim` | 1432 | 9c/4t/0s |  |
-| `/admin/identity/sessions` | 56 | 6c/5t/24s |  |
-| `/admin/identity/timeline` | 373 | 0c/1t/1s |  |
-| `/admin/operations` | 634 | 2c/2t/2s |  |
+| `/admin/operations` | 731 | 2c/2t/2s |  |
 | `/admin/platform-health` | 568 | 3c/0t/4s |  |
-| `/admin/platform/analytics` | 854 | 0c/0t/9s |  |
-| `/admin/platform/automation` | 719 | 0c/2t/5s |  |
-| `/admin/platform/exports` | 844 | 0c/4t/0s |  |
-| `/admin/platform/media-graph` | 1133 | 0c/1t/6s |  |
-| `/admin/platform/observability` | 1663 | 0c/2t/0s |  |
-| `/admin/platform/queues` | 880 | 0c/2t/0s |  |
+| `/admin/platform/exports` | 860 | 0c/4t/0s |  |
+| `/admin/platform/media-graph` | 1135 | 0c/1t/6s |  |
+| `/admin/platform/observability` | 1664 | 0c/2t/0s |  |
+| `/admin/platform/queues` | 869 | 0c/2t/0s |  |
 | `/admin/platform/readiness` | 624 | 8c/0t/6s |  |
-| `/admin/platform/recovery` | 641 | 0c/2t/0s |  |
-| `/admin/platform/reliability` | 574 | 0c/0t/3s |  |
-| `/admin/platform/runbooks` | 197 | 1c/0t/0s |  |
+| `/admin/platform/recovery` | 653 | 0c/2t/0s |  |
+| `/admin/platform/runbooks` | 199 | 1c/0t/0s |  |
 | `/admin/platform/runbooks/:slug` | 233 | 0c/0t/0s |  |
-| `/admin/platform/signers` | 1216 | 0c/3t/0s |  |
+| `/admin/platform/signers` | 1223 | 0c/3t/0s |  |
 | `/admin/provisioning` | 775 | 13c/1t/4s |  |
 | `/admin/search` | 410 | 1c/0t/0s |  |
-| `/admin/security` | 108 | 14c/6t/30s |  |
 | `/admin/support-access` | 1150 | 6c/2t/4s |  |
-| `/admin/timeline` | 504 | 0c/1t/1s |  |
-| `/admin/users` | 505 | 2c/2t/1s |  |
-| `/admin/users/:id` | 711 | 7c/2t/6s |  |
-| `/admin/workspaces` | 463 | 1c/1t/0s |  |
-| `/admin/workspaces/:id` | 664 | 6c/1t/6s |  |
+| `/admin/timeline` | 529 | 0c/1t/1s |  |
+| `/admin/users` | 510 | 2c/2t/1s |  |
+| `/admin/users/:id` | 721 | 7c/2t/6s |  |
+| `/admin/workspaces` | 465 | 1c/1t/0s |  |
+| `/admin/workspaces/:id` | 678 | 6c/1t/6s |  |

@@ -178,50 +178,6 @@ export async function listStaleTrustArticles(
   }));
 }
 
-export type MarkArticleNeedsReviewInput = {
-  prisma?: PrismaClient;
-  teamId: string;
-  articleId: string;
-  actorUserId: string;
-  reason: string;
-};
-
-/**
- * Operator-driven transition: flag a trust article as needing a
- * human re-validation pass. Emits TRUST_ARTICLE_REVIEWED so the
- * audit federator records the decision.
- */
-export async function markArticleNeedsReview(
-  input: MarkArticleNeedsReviewInput,
-): Promise<{ ok: boolean }> {
-  const prisma = input.prisma ?? defaultPrisma;
-  const row = await prisma.trustCenterArticle.findFirst({
-    where: { id: input.articleId, teamId: input.teamId },
-    select: { id: true },
-  });
-  if (!row) return { ok: false };
-
-  await prisma.trustCenterArticle.update({
-    where: { id: row.id },
-    data: { driftState: "NEEDS_REVIEW" },
-  });
-
-  await emitTrustArticleEvent({
-    prisma,
-    teamId: input.teamId,
-    articleId: row.id,
-    code: "TRUST_ARTICLE_REVIEWED",
-    actorUserId: input.actorUserId,
-    reason: input.reason.slice(0, 200),
-    payload: {
-      articleId: row.id,
-      transition: "NEEDS_REVIEW",
-    },
-  });
-
-  return { ok: true };
-}
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------

@@ -10,8 +10,8 @@
  *   2  a workspace ADMIN cannot invite anyone as OWNER
  *   3  a collaboration-team ADMIN cannot grant LEAD
  *   4  last-administrator protection is transactional
- *   5  a FOREIGN access review cannot be completed
- *   6  the foreign review row is byte-for-byte unchanged afterwards
+ *   5  (removed 2026-09-17 — the group access-review writers were deleted
+ *   6   with their retired routes; the writes these proved no longer exist)
  *   7  collaboration reads/writes use the CONTAINING workspace
  *   8  missing workspace context never falls back to Personal
  *   9  a legacy group-invite acceptance never produces a generic 500
@@ -294,79 +294,6 @@ describe("WCR closure — the four P0 closures (live PostgreSQL 16)", () => {
           })
         ).role,
       ).toBe("MEMBER");
-    });
-  });
-
-  // =========================================================================
-  // 5 + 6 — cross-tenant access review
-  // =========================================================================
-
-  describe("cross-tenant access review", () => {
-    it("5+6. a FOREIGN review cannot be completed, and its row is byte-for-byte unchanged", async () => {
-      const a = h.fixtures.teamA;
-      const b = h.fixtures.teamB;
-      const service = await import(
-        "../src/services/collaboration-team/collaboration-team.service.js"
-      );
-      const completion = await import(
-        "../src/services/collaboration-team/collaboration-completion.service.js"
-      );
-
-      // Workspace B opens a review on its own group.
-      const groupB = await service.createCollaborationTeam({
-        workspaceId: b.teamId,
-        actorUserId: b.ownerUserId,
-        name: `p0 foreign ${randomUUID().slice(0, 6)}`,
-      });
-      const reviewB = await completion.openAccessReview({
-        teamId: groupB.id,
-        actorUserId: b.ownerUserId,
-      });
-
-      const before = await prisma.collaborationTeamAccessReview.findUniqueOrThrow(
-        { where: { id: reviewB.id } },
-      );
-
-      // Workspace A's owner holds a group of their own and the uuid of B's
-      // review. Two shapes of the same attack: through their OWN team id, and
-      // through B's.
-      const groupA = await service.createCollaborationTeam({
-        workspaceId: a.teamId,
-        actorUserId: a.ownerUserId,
-        name: `p0 attacker ${randomUUID().slice(0, 6)}`,
-      });
-
-      for (const teamId of [groupA.id, groupB.id]) {
-        let outcome = "ALLOWED";
-        try {
-          await completion.completeAccessReview({
-            teamId,
-            actorUserId: a.ownerUserId,
-            reviewId: reviewB.id,
-          });
-        } catch (err) {
-          outcome = (err as { code?: string }).code ?? "UNTYPED";
-        }
-        expect(outcome, `completing B's review via ${teamId}`).not.toBe("ALLOWED");
-      }
-
-      const after = await prisma.collaborationTeamAccessReview.findUniqueOrThrow(
-        { where: { id: reviewB.id } },
-      );
-      expect(after).toEqual(before);
-
-      // Non-vacuous: B's own LEAD completes it, so the refusals above were
-      // about tenancy and not about the operation being impossible.
-      await completion.completeAccessReview({
-        teamId: groupB.id,
-        actorUserId: b.ownerUserId,
-        reviewId: reviewB.id,
-      });
-      const completed =
-        await prisma.collaborationTeamAccessReview.findUniqueOrThrow({
-          where: { id: reviewB.id },
-        });
-      expect(completed.status).not.toBe(before.status);
     });
   });
 

@@ -14,6 +14,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 
 function readWeb(rel: string): string {
   return readFileSync(
@@ -24,15 +25,21 @@ function readWeb(rel: string): string {
 
 const GATE = readWeb("components/navigation/PageRouteGate.tsx");
 
+/** The whole `if (access.accessState === "PLATFORM_ADMIN_ONLY") { … }` branch (WCC-NEW-027). */
+function platformAdminBranch(): string {
+  return enclosingSource(GATE, `access.accessState === "PLATFORM_ADMIN_ONLY"`, "statement", {
+    unique: true,
+    fileName: "PageRouteGate.tsx",
+  });
+}
+
 describe("Production fix — PageRouteGate PLATFORM_ADMIN_ONLY is no longer blank", () => {
   it("does NOT return null on PLATFORM_ADMIN_ONLY (was the production blank-page bug)", () => {
     // The legacy code was `if (access.accessState === "PLATFORM_ADMIN_ONLY") return null;`.
     // After the fix, the PLATFORM_ADMIN_ONLY branch must render a panel,
-    // not return null. We scan the surrounding 800 chars for `return null`
+    // not return null. We scan the whole branch for `return null`
     // — none should appear in the PLATFORM_ADMIN_ONLY block.
-    const branchIdx = GATE.indexOf(`access.accessState === "PLATFORM_ADMIN_ONLY"`);
-    expect(branchIdx).toBeGreaterThan(-1);
-    const branchBlock = GATE.slice(branchIdx, branchIdx + 800);
+    const branchBlock = platformAdminBranch();
     expect(branchBlock).not.toMatch(/\breturn\s+null\s*;/);
   });
 
@@ -42,9 +49,7 @@ describe("Production fix — PageRouteGate PLATFORM_ADMIN_ONLY is no longer blan
     // inline <Link href="…">. The structural markers are preserved: the
     // gate <main> keeps its data attributes + route-stable testid, and the
     // recovery actions still target /home (primary) + /tools (admin-only).
-    const branchIdx = GATE.indexOf(`access.accessState === "PLATFORM_ADMIN_ONLY"`);
-    expect(branchIdx).toBeGreaterThan(-1);
-    const branchBlock = GATE.slice(branchIdx, branchIdx + 3000);
+    const branchBlock = platformAdminBranch();
     expect(branchBlock).toMatch(/data-page-route-gate-state=\{access\.accessState\}/);
     expect(branchBlock).toMatch(/href:\s*"\/home"/);
     expect(branchBlock).toMatch(/href:\s*"\/tools"/);
@@ -56,9 +61,7 @@ describe("Production fix — PageRouteGate PLATFORM_ADMIN_ONLY is no longer blan
   it("uses the canonical denial vocabulary (accessStateToDenialReason)", () => {
     // Reuses the existing canonical denial-vocabulary helpers so copy
     // stays consistent across gates.
-    const branchIdx = GATE.indexOf(`access.accessState === "PLATFORM_ADMIN_ONLY"`);
-    expect(branchIdx).toBeGreaterThan(-1);
-    const branchBlock = GATE.slice(branchIdx, branchIdx + 3000);
+    const branchBlock = platformAdminBranch();
     expect(branchBlock).toMatch(/accessStateToDenialReason/);
   });
 });

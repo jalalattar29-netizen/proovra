@@ -263,7 +263,7 @@ describe("CR1 Part 2 — 8 backward-compat redirect pages folded into next.confi
       existsSync(webPath("app/(app)/operations/batch-analysis/page.tsx")),
     ).toBe(true);
     expect(
-      existsSync(webPath("app/(app)/admin/platform/reliability/page.tsx")),
+      existsSync(webPath("app/(app)/operations/reliability/page.tsx")),
     ).toBe(true);
     expect(existsSync(webPath("app/(app)/review/operations/page.tsx"))).toBe(
       true,
@@ -283,19 +283,20 @@ describe("CR1 — documented deferrals: legacy operator pages NOT folded by CR1"
   // Phase Final-Closure-Remediation CLOSED the CR1 `/identity` page
   // deferral. The Phase 17 workspace-internal identity console was
   // deleted; the legacy URL now redirects to the canonical
-  // `/admin/identity` enterprise operator control plane via
+  // `/security-center/identity` enterprise operator control plane via
   // `apps/web/next.config.js` `redirects()` (permanent 308). The pin
   // below was previously: `expect(existsSync(...identity/page.tsx)).toBe(true)`
   // — that pin is now inverted to prevent a regression that would
   // bring the legacy console back.
-  it("identity/page.tsx is REMOVED (closure: legacy console folded into /admin/identity)", () => {
+  it("identity/page.tsx is REMOVED (closure: legacy console folded into /security-center/identity)", () => {
     expect(existsSync(webPath("app/(app)/identity/page.tsx"))).toBe(false);
   });
 
-  it("next.config.js redirects /identity → /admin/identity (preserves deep links)", () => {
+  it("next.config.js redirects /identity → /security-center/identity (preserves deep links)", () => {
     const cfg = readWeb("next.config.js");
     expect(cfg).toMatch(
-      /source:\s*["']\/identity["'][\s\S]{0,200}destination:\s*["']\/admin\/identity["']/,
+      // PV-PLACE-001 — the canonical identity console is the Security Center's.
+      /source:\s*["']\/identity["'][\s\S]{0,200}destination:\s*["']\/security-center\/identity["']/,
     );
   });
 

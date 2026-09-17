@@ -44,6 +44,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
 
 import {
   EXPECTED_SCHEMA,
@@ -131,9 +132,7 @@ describe("Reviewer Ops activation [schema-status route]", () => {
      * Deployment schema state is not tenant data at any role.
      */
     const src = readSource("../src/routes/ops.routes.ts");
-    const routeIdx = src.indexOf('"/v1/admin/runtime/schema-status"');
-    expect(routeIdx).toBeGreaterThan(0);
-    const slice = src.slice(routeIdx, routeIdx + 600);
+    const slice = routeSource(src, "GET", "/v1/admin/runtime/schema-status");
     expect(slice).toContain("preHandler: requirePlatformAdmin");
     expect(
       slice,
@@ -177,9 +176,7 @@ describe("Reviewer Ops activation [startup-wiring]", () => {
 describe("Reviewer Ops activation [reconcile route]", () => {
   it("POST /v1/reviewer-ops/reconcile accepts both single-team and allTeams body shapes", () => {
     const src = readSource("../src/routes/reviewer-ops.routes.ts");
-    const routeIdx = src.indexOf('"/v1/reviewer-ops/reconcile"');
-    expect(routeIdx).toBeGreaterThan(0);
-    const slice = src.slice(routeIdx, routeIdx + 6000);
+    const slice = routeSource(src, "POST", "/v1/reviewer-ops/reconcile");
     // Must accept either { teamId } or { allTeams: true }.
     expect(slice).toMatch(/\.union\(\[/);
     expect(slice).toMatch(/allTeams:\s*z\.literal\(true\)/);
@@ -190,8 +187,7 @@ describe("Reviewer Ops activation [reconcile route]", () => {
 
   it("all-teams response aggregates per-team results", () => {
     const src = readSource("../src/routes/reviewer-ops.routes.ts");
-    const routeIdx = src.indexOf('"/v1/reviewer-ops/reconcile"');
-    const slice = src.slice(routeIdx, routeIdx + 6000);
+    const slice = routeSource(src, "POST", "/v1/reviewer-ops/reconcile");
     expect(slice).toContain("totalEscalationsCreated");
     expect(slice).toContain("totalFlippedBreached");
     expect(slice).toContain("failedTeams");

@@ -42,6 +42,8 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { enclosingSource } from "../../../../scripts/source-contract/index.mjs";
+
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 const API_TEST_DIR = resolve(REPO_ROOT, "services/api/test");
 const WORKER_TEST_DIR = resolve(REPO_ROOT, "services/worker/test");
@@ -124,11 +126,13 @@ function suitesDoublingStorage(): Array<{ file: string; factory: string }> {
     const marker = /vi\.mock\(\s*"([^"]*storage\.js)"/g;
     let hit: RegExpExecArray | null;
     while ((hit = marker.exec(source)) !== null) {
-      // The factory body runs to the end of the `vi.mock(...)` call. Taking a
-      // generous window rather than balancing braces keeps this gate simple;
-      // over-reading can only make it more permissive about WHERE the
-      // operation is defined, never about whether it is defined at all.
-      const factory = source.slice(hit.index, hit.index + 4000);
+      // The factory is the `vi.mock(...)` call itself, found by the parser:
+      // an operation defined after the call is not part of the double.
+      let occurrence = 0;
+      for (let p = source.indexOf(hit[0]); p >= 0 && p < hit.index; p = source.indexOf(hit[0], p + 1)) {
+        occurrence += 1;
+      }
+      const factory = enclosingSource(source, hit[0], "call", { occurrence, fileName: file });
       out.push({ file: file.slice(REPO_ROOT.length + 1).replace(/\\/g, "/"), factory });
     }
   }

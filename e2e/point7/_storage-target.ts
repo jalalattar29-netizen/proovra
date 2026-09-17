@@ -20,8 +20,19 @@
  *
  * Mirrored verbatim from `test-bootstrap.mjs`.
  */
+/** Mirrors `localS3Endpoint()` in test-bootstrap.mjs: loopback host, selectable port. */
+function localS3Endpoint(): string {
+  const raw = process.env.P7_HOST_S3_PORT;
+  if (raw === undefined || raw.trim() === "") return "http://127.0.0.1:59000";
+  const port = Number(raw);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error(`P7_HOST_S3_PORT must be a whole TCP port between 1 and 65535; received ${JSON.stringify(raw)}`);
+  }
+  return `http://127.0.0.1:${port}`;
+}
+
 export const P7_STORAGE = {
-  endpoint: "http://127.0.0.1:59000",
+  endpoint: localS3Endpoint(),
   region: "auto",
   accessKeyId: "point7-local-minio",
   secretAccessKey: "point7-local-minio-secret",

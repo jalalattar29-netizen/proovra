@@ -705,6 +705,28 @@ function OrganizationSetupInner() {
           </div>
         )}
 
+        {/* PV-DIS-001 — why the fields below are locked, stated once and
+            referenced by every locked field (aria-describedby). */}
+        {!canManage ? (
+          <p
+            id="setup-read-only-reason"
+            data-setup-read-only
+            style={{ margin: "0 0 12px", fontSize: 13, color: "var(--ink-secondary, #475569)" }}
+          >
+            {SETUP_READ_ONLY_REASON} You can review every step.
+          </p>
+        ) : null}
+        {canManage && !primaryWorkspaceId ? (
+          <p
+            id="setup-no-workspace-reason"
+            data-setup-no-workspace
+            style={{ margin: "0 0 12px", fontSize: 13, color: "var(--ink-secondary, #475569)" }}
+          >
+            Create the organization&apos;s primary workspace first — the workspace
+            and security steps apply to it.
+          </p>
+        ) : null}
+
         {/* ---- STEP: Company ---- */}
         {step.id === "company" && (
           <form
@@ -721,6 +743,7 @@ function OrganizationSetupInner() {
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
                 disabled={!canManage || busy}
+                aria-describedby={!canManage ? "setup-read-only-reason" : undefined}
                 data-input="company-name"
                 style={input}
               />
@@ -731,6 +754,7 @@ function OrganizationSetupInner() {
                 value={legalName}
                 onChange={(e) => setLegalName(e.target.value)}
                 disabled={!canManage || busy}
+                aria-describedby={!canManage ? "setup-read-only-reason" : undefined}
                 data-input="legal-name"
                 style={input}
               />
@@ -741,6 +765,7 @@ function OrganizationSetupInner() {
                 value={legalEmail}
                 onChange={(e) => setLegalEmail(e.target.value)}
                 disabled={!canManage || busy}
+                aria-describedby={!canManage ? "setup-read-only-reason" : undefined}
                 data-input="legal-email"
                 style={input}
               />
@@ -751,12 +776,17 @@ function OrganizationSetupInner() {
                 value={timezone}
                 onChange={(e) => setTimezone(e.target.value)}
                 disabled={!canManage || busy}
+                aria-describedby={!canManage ? "setup-read-only-reason" : undefined}
                 data-input="timezone"
                 spellCheck={false}
                 style={input}
               />
             </Field>
-            <SaveRow saved={stepSaved.company} disabled={!canManage || busy}>
+            <SaveRow
+              saved={stepSaved.company}
+              disabled={!canManage || busy}
+              disabledReason={!canManage ? SETUP_READ_ONLY_REASON : undefined}
+            >
               {busy ? "Saving…" : "Save company information"}
             </SaveRow>
           </form>
@@ -778,6 +808,13 @@ function OrganizationSetupInner() {
                 value={workspaceName}
                 onChange={(e) => setWorkspaceName(e.target.value)}
                 disabled={!canManage || busy || !primaryWorkspaceId}
+                aria-describedby={
+                  !canManage
+                    ? "setup-read-only-reason"
+                    : !primaryWorkspaceId
+                      ? "setup-no-workspace-reason"
+                      : undefined
+                }
                 data-input="workspace-name"
                 style={input}
               />
@@ -793,6 +830,13 @@ function OrganizationSetupInner() {
             <SaveRow
               saved={stepSaved.workspace}
               disabled={!canManage || busy || !primaryWorkspaceId}
+              disabledReason={
+                !canManage
+                  ? SETUP_READ_ONLY_REASON
+                  : !primaryWorkspaceId
+                    ? "Create the organization's primary workspace first."
+                    : undefined
+              }
             >
               {busy ? "Saving…" : "Save workspace name"}
             </SaveRow>
@@ -815,13 +859,18 @@ function OrganizationSetupInner() {
                 value={logoUrl}
                 onChange={(e) => setLogoUrl(e.target.value)}
                 disabled={!canManage || busy}
+                aria-describedby={!canManage ? "setup-read-only-reason" : undefined}
                 placeholder="https://"
                 spellCheck={false}
                 data-input="logo-url"
                 style={input}
               />
             </Field>
-            <SaveRow saved={stepSaved.branding} disabled={!canManage || busy}>
+            <SaveRow
+              saved={stepSaved.branding}
+              disabled={!canManage || busy}
+              disabledReason={!canManage ? SETUP_READ_ONLY_REASON : undefined}
+            >
               {busy ? "Saving…" : "Save branding"}
             </SaveRow>
           </form>
@@ -867,6 +916,7 @@ function OrganizationSetupInner() {
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
                   disabled={!canManage || busy}
+                  aria-describedby={!canManage ? "setup-read-only-reason" : undefined}
                   data-input="invite-email"
                   style={input}
                 />
@@ -876,6 +926,7 @@ function OrganizationSetupInner() {
                   value={inviteRole}
                   onChange={(e) => setInviteRole(e.target.value as OrgRole)}
                   disabled={!canManage || busy}
+                  aria-describedby={!canManage ? "setup-read-only-reason" : undefined}
                   data-input="invite-role"
                   style={input}
                 >
@@ -892,6 +943,13 @@ function OrganizationSetupInner() {
                   variant="primary"
                   loading={busy}
                   disabled={!canManage || busy || !inviteEmail.trim()}
+                  disabledReason={
+                    !canManage
+                      ? SETUP_READ_ONLY_REASON
+                      : !inviteEmail.trim()
+                        ? "Enter the invitee's email address."
+                        : undefined
+                  }
                   data-action="send-invite"
                 >
                   {busy ? "Sending…" : "Send invite"}
@@ -988,6 +1046,13 @@ function OrganizationSetupInner() {
                   value={mfaLevel}
                   onChange={(e) => setMfaLevel(e.target.value as MfaPolicyLevel)}
                   disabled={!canManage || busy || !primaryWorkspaceId}
+                  aria-describedby={
+                    !canManage
+                      ? "setup-read-only-reason"
+                      : !primaryWorkspaceId
+                        ? "setup-no-workspace-reason"
+                        : undefined
+                  }
                   data-input="mfa-level"
                   style={input}
                 >
@@ -1001,6 +1066,13 @@ function OrganizationSetupInner() {
               <SaveRow
                 saved={stepSaved.security}
                 disabled={!canManage || busy || !primaryWorkspaceId}
+                disabledReason={
+                  !canManage
+                    ? SETUP_READ_ONLY_REASON
+                    : !primaryWorkspaceId
+                      ? "Create the organization's primary workspace first."
+                      : undefined
+                }
               >
                 {busy ? "Saving…" : "Save MFA policy"}
               </SaveRow>
@@ -1011,13 +1083,13 @@ function OrganizationSetupInner() {
               <ReadinessRow
                 label="Single sign-on (SAML / OIDC)"
                 ready={mfa.kind === "ready" ? mfa.data.policy.ssoReadyFlag : null}
-                href="/admin/identity"
+                href="/security-center/identity"
                 cta="Configure SSO"
               />
               <ReadinessRow
                 label="SCIM user provisioning"
                 ready={mfa.kind === "ready" ? mfa.data.policy.scimReadyFlag : null}
-                href="/admin/identity/scim"
+                href="/security-center/identity/scim"
                 cta="Configure SCIM"
               />
               <div style={{ fontSize: 12, opacity: 0.75 }}>
@@ -1046,6 +1118,7 @@ function OrganizationSetupInner() {
                 value={retentionTemplate}
                 onChange={(e) => setRetentionTemplate(e.target.value as RetentionTemplate)}
                 disabled={!canManage || busy}
+                aria-describedby={!canManage ? "setup-read-only-reason" : undefined}
                 data-input="retention-template"
                 style={input}
               >
@@ -1065,6 +1138,7 @@ function OrganizationSetupInner() {
                   value={retentionYears}
                   onChange={(e) => setRetentionYears(e.target.value)}
                   disabled={!canManage || busy}
+                  aria-describedby={!canManage ? "setup-read-only-reason" : undefined}
                   data-input="retention-years"
                   style={input}
                 />
@@ -1076,6 +1150,13 @@ function OrganizationSetupInner() {
                 !canManage ||
                 busy ||
                 (retentionTemplate === "CUSTOM" && !retentionYears)
+              }
+              disabledReason={
+                !canManage
+                  ? SETUP_READ_ONLY_REASON
+                  : retentionTemplate === "CUSTOM" && !retentionYears
+                    ? "Enter how many years records are kept."
+                    : undefined
               }
             >
               {busy ? "Creating…" : "Set retention default"}
@@ -1110,6 +1191,7 @@ function OrganizationSetupInner() {
                 value={holdKind}
                 onChange={(e) => setHoldKind(e.target.value as HoldKind)}
                 disabled={!canManage || busy}
+                aria-describedby={!canManage ? "setup-read-only-reason" : undefined}
                 data-input="hold-kind"
                 style={input}
               >
@@ -1126,6 +1208,7 @@ function OrganizationSetupInner() {
                 value={holdName}
                 onChange={(e) => setHoldName(e.target.value)}
                 disabled={!canManage || busy}
+                aria-describedby={!canManage ? "setup-read-only-reason" : undefined}
                 data-input="hold-name"
                 style={input}
               />
@@ -1136,6 +1219,7 @@ function OrganizationSetupInner() {
                 value={holdReason}
                 onChange={(e) => setHoldReason(e.target.value)}
                 disabled={!canManage || busy}
+                aria-describedby={!canManage ? "setup-read-only-reason" : undefined}
                 data-input="hold-reason"
                 style={input}
               />
@@ -1143,6 +1227,13 @@ function OrganizationSetupInner() {
             <SaveRow
               saved={stepSaved.legalHolds}
               disabled={!canManage || busy || !holdName.trim() || !holdReason.trim()}
+              disabledReason={
+                !canManage
+                  ? SETUP_READ_ONLY_REASON
+                  : !holdName.trim() || !holdReason.trim()
+                    ? "Enter a name and a reason for the hold."
+                    : undefined
+              }
             >
               {busy ? "Creating…" : "Create legal hold"}
             </SaveRow>
@@ -1216,6 +1307,9 @@ function OrganizationSetupInner() {
           variant="secondary"
           onClick={onBack}
           disabled={!canGoBack(machine)}
+          disabledReason={
+            !canGoBack(machine) ? "There is no earlier step to go back to." : undefined
+          }
           data-action="wizard-back"
         >
           ← Back
@@ -1524,13 +1618,20 @@ function Field({
   );
 }
 
+/** PV-DIS-001 — who may change the setup, said where a step is locked. */
+const SETUP_READ_ONLY_REASON =
+  "Only organization owners and administrators can change the organization's setup.";
+
 function SaveRow({
   children,
   disabled,
+  disabledReason,
   saved,
 }: {
   children: React.ReactNode;
   disabled?: boolean;
+  /** Why the step cannot be saved yet; forwarded to the shared Button. */
+  disabledReason?: string;
   saved?: boolean;
 }) {
   return (
@@ -1540,6 +1641,7 @@ function SaveRow({
         variant="primary"
         size="sm"
         disabled={disabled}
+        disabledReason={disabledReason}
         data-action="step-save"
       >
         {children}

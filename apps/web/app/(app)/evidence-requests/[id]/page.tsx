@@ -37,6 +37,8 @@ import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OperationalBreadcrumb } from "../../../../components/navigation/OperationalBreadcrumb";
 import { EvidenceRequestEventsTab } from "../../../../components/hidden-feature-panels/HiddenFeaturePanels";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
+import { identifierLabel } from "@proovra/shared";
+import { EvidenceRequestAssignment } from "./_components/EvidenceRequestAssignment";
 
 type AuthRequestView = {
   id: string;
@@ -125,6 +127,8 @@ function Inner() {
   const [error, setError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [reviewerNote, setReviewerNote] = useState("");
+  // Bumped after an assignment change so the activity timeline rereads.
+  const [eventsRevision, setEventsRevision] = useState(0);
   const { confirm } = useConfirmAction();
 
   const load = useCallback(async () => {
@@ -318,14 +322,14 @@ function Inner() {
 
   if (loading) {
     return (
-      <main style={mainStyle} data-evidence-request-loading>
+      <div style={mainStyle} data-evidence-request-loading>
         <p>Loading evidence request…</p>
-      </main>
+      </div>
     );
   }
   if (error || !data) {
     return (
-      <main style={mainStyle} data-evidence-request-error role="alert">
+      <div style={mainStyle} data-evidence-request-error role="alert">
         <h1 style={titleStyle}>Evidence request unavailable</h1>
         <p>{error ?? "Not found."}</p>
         {data?.caseId ? (
@@ -333,7 +337,7 @@ function Inner() {
             Return to matter
           </Link>
         ) : null}
-      </main>
+      </div>
     );
   }
 
@@ -359,7 +363,7 @@ function Inner() {
   const reviewReady = required.length === 0 || requiredFulfilled === required.length;
 
   return (
-    <main style={mainStyle} data-evidence-request={data.id}>
+    <div style={mainStyle} data-evidence-request={data.id}>
       {/* Phase B — operational breadcrumb keeps the workspace + Phase B
           group context visible while operators move between
           intake/matter surfaces. */}
@@ -392,8 +396,8 @@ function Inner() {
             fontSize: 13,
           }}
         >
-          <Chip label={`Status: ${data.status}`} tone="info" />
-          <Chip label={`Priority: ${data.priority}`} tone="info" />
+          <Chip label={`Status: ${identifierLabel(data.status)}`} tone="info" />
+          <Chip label={`Priority: ${identifierLabel(data.priority)}`} tone="info" />
           {data.dueAtUtc ? (
             <Chip label={`Due ${formatDateTime(data.dueAtUtc)}`} tone="warning" />
           ) : null}
@@ -411,6 +415,14 @@ function Inner() {
       {data.instructions ? (
         <p style={paragraphStyle}>{data.instructions}</p>
       ) : null}
+
+      <EvidenceRequestAssignment
+        request={data}
+        onSaved={(fresh) => {
+          setData(fresh);
+          setEventsRevision((value) => value + 1);
+        }}
+      />
 
       {/* Reviewer action — mark as needs-more-info */}
       {data.status !== "CLOSED" &&
@@ -557,7 +569,7 @@ function Inner() {
                     label={d.required ? "Required" : "Optional"}
                     tone={d.required ? "danger" : "neutral"}
                   />
-                  <Chip label={d.status} tone="info" />
+                  <Chip label={identifierLabel(d.status)} tone="info" />
                 </div>
                 {d.description ? (
                   <p style={paragraphStyle}>{d.description}</p>
@@ -633,7 +645,7 @@ function Inner() {
                       r.submittedByExternalLabel ??
                       "External contributor"}
                   </strong>
-                  <Chip label={r.status} tone="info" />
+                  <Chip label={identifierLabel(r.status)} tone="info" />
                   <span style={mutedStyle}>
                     {formatDateTime(r.submittedAtUtc)}
                   </span>
@@ -703,7 +715,7 @@ function Inner() {
           `/v1/evidence-requests/:id/events` endpoint; real backend
           data, no mock. */}
       <section style={{ marginTop: 24 }}>
-        <EvidenceRequestEventsTab requestId={data.id} />
+        <EvidenceRequestEventsTab requestId={data.id} key={eventsRevision} />
       </section>
 
       <footer style={{ marginTop: 24 }}>
@@ -791,7 +803,7 @@ function Inner() {
         </div>
       ) : null}
       {requestId ? <ContextualDeliveryStatus requestId={requestId} /> : null}
-    </main>
+    </div>
   );
 }
 

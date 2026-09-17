@@ -26,6 +26,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { enclosingSource, functionSource, routeSource } from "../../../scripts/source-contract/index.mjs";
 
 import {
   applyEnforcementMode,
@@ -464,29 +465,8 @@ describe("5. Trust article SUPERSEDED emission", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Section 6: Trust drift legacy casts removed
-// ---------------------------------------------------------------------------
-
-describe("6. Trust drift legacy casts removed", () => {
-  it("trust-drift.service.ts does NOT contain 'as never' casts paired with TRUST_ARTICLE_REVIEWED code", () => {
-    const src = fs.readFileSync(
-      path.resolve("src/services/trust/trust-drift.service.ts"),
-      "utf8",
-    );
-    // The service still calls emitTrustArticleEvent with this code
-    expect(src).toContain("TRUST_ARTICLE_REVIEWED");
-    // The event-code line should not be accompanied by 'as never' on the same line
-    const lines = src.split("\n");
-    for (const line of lines) {
-      if (line.includes("TRUST_ARTICLE_REVIEWED") && line.includes("as never")) {
-        throw new Error(
-          `Found 'as never' on line with event code: ${line.trim()}`,
-        );
-      }
-    }
-  });
-});
+// Section 6 (trust-drift TRUST_ARTICLE_REVIEWED cast check) was removed with
+// markArticleNeedsReview, the only emitter it inspected (2026-09-17).
 
 // ---------------------------------------------------------------------------
 // Section 7: Security Center seed paths corrected
@@ -507,11 +487,11 @@ describe("7. Security Center seed paths corrected", () => {
       path.resolve("src/services/trust/trust-center.service.ts"),
       "utf8",
     );
-    // Find the AUTHORIZATION seed block: section: "AUTHORIZATION"
-    const authIdx = src2.indexOf('"AUTHORIZATION"');
-    expect(authIdx).toBeGreaterThan(-1);
-    // Get the next ~500 chars to inspect that seed entry
-    const authBlock = src2.slice(authIdx, authIdx + 600);
+    // The AUTHORIZATION seed entry (section: "AUTHORIZATION") — the whole
+    // seed object literal, never a character window (WCC-NEW-027).
+    const authBlock = enclosingSource(src2, '"AUTHORIZATION"', "object", {
+      fileName: "trust-center.service.ts",
+    });
     expect(authBlock).not.toContain("access-grants.service.ts");
   });
 
@@ -520,12 +500,13 @@ describe("7. Security Center seed paths corrected", () => {
       path.resolve("src/services/trust/trust-center.service.ts"),
       "utf8",
     );
-    const mfaIdx = src2.indexOf('"MFA"');
-    expect(mfaIdx).toBeGreaterThan(-1);
-    // Rebaselined from 600 → 2000 after trust-center-enterprise-completion
-    // (Stream A) thickened the MFA summary + body. The portal-session path
-    // reference now sits at delta=1491 from the "MFA" marker.
-    const mfaBlock = src2.slice(mfaIdx, mfaIdx + 2000);
+    // The whole MFA seed object literal (WCC-NEW-027). It used to be a
+    // character window, rebaselined 600 → 2000 when
+    // trust-center-enterprise-completion (Stream A) thickened the MFA
+    // summary + body.
+    const mfaBlock = enclosingSource(src2, '"MFA"', "object", {
+      fileName: "trust-center.service.ts",
+    });
     expect(mfaBlock).toContain("external-review/portal-session");
   });
 
@@ -534,9 +515,9 @@ describe("7. Security Center seed paths corrected", () => {
       path.resolve("src/services/trust/trust-center.service.ts"),
       "utf8",
     );
-    const samlIdx = src2.indexOf('"SAML"');
-    expect(samlIdx).toBeGreaterThan(-1);
-    const samlBlock = src2.slice(samlIdx, samlIdx + 800);
+    const samlBlock = enclosingSource(src2, '"SAML"', "object", {
+      fileName: "trust-center.service.ts",
+    });
     expect(samlBlock).toMatch(/security\/saml-/);
   });
 
@@ -546,10 +527,10 @@ describe("7. Security Center seed paths corrected", () => {
       "utf8",
     );
     // The SECURITY OBJECT_LOCK seed slug is "object-lock" — find it by slug
-    const slugIdx = src2.indexOf('"object-lock"');
-    expect(slugIdx).toBeGreaterThan(-1);
-    // Get a block around the slug — search up to 1000 chars after for the implementationReferences
-    const olBlock = src2.slice(slugIdx, slugIdx + 1000);
+    // The seed object literal that carries the slug (and its implementationReferences)
+    const olBlock = enclosingSource(src2, '"object-lock"', "object", {
+      fileName: "trust-center.service.ts",
+    });
     expect(olBlock).toContain("bootstrap/object-lock-verification");
   });
 });
@@ -641,9 +622,7 @@ describe("11. Cross-org revoke ACTOR_REQUIRED denial", () => {
     // Must not silently substitute a zero-UUID
     const zeroUuid = "00000000-0000-0000-0000-000000000000";
     // Find revoke function context
-    const revokeIdx = src.indexOf("revokeCrossOrgReview");
-    expect(revokeIdx).toBeGreaterThan(-1);
-    const revokeBody = src.slice(revokeIdx, revokeIdx + 1200);
+    const revokeBody = functionSource(src, "revokeCrossOrgReview");
     expect(revokeBody).toContain("ACTOR_REQUIRED");
     // The zero-UUID should NOT appear in the revoke function as a fallback
     expect(revokeBody).not.toContain(zeroUuid);
@@ -837,5 +816,20 @@ describe("19. New POST /v1/trust/articles/:id/review route", () => {
       "utf8",
     );
     expect(src).toContain("/v1/trust/articles/:id/review");
+  });
+
+  // RETIRED 2026-09-16 (owner decision). The NEEDS_REVIEW flag it set was
+  // overwritten by the next drift scan, listed nowhere and cleared by nothing.
+  // The route stays registered as a typed 410 and no longer calls
+  // markArticleNeedsReview (removed from trust-drift.service, 2026-09-17).
+  it("the route is a typed 410 tombstone that no longer marks articles", () => {
+    const src = fs.readFileSync(
+      path.resolve("src/routes/trust-and-governance.routes.ts"),
+      "utf8",
+    );
+    const handler = routeSource(src, "POST", "/v1/trust/articles/:id/review");
+    expect(handler).toContain("reply.code(410)");
+    expect(handler).toContain('code: "TRUST_ARTICLE_REVIEW_FLAG_RETIRED"');
+    expect(src).not.toMatch(/markArticleNeedsReview\(/);
   });
 });

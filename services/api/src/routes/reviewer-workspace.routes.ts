@@ -7,7 +7,7 @@
  *   GET   /v1/coding/schemas                           — list workspace schemas
  *   POST  /v1/coding/schemas                           — author DRAFT schema
  *   GET   /v1/coding/schemas/:id                       — read schema + fields
- *   POST  /v1/coding/schemas/:id/publish               — DRAFT → PUBLISHED
+ *   POST  /v1/coding/schemas/:id/publish               — RETIRED (typed 410)
  *   POST  /v1/coding/schemas/:id/archive               — → ARCHIVED
  *   POST  /v1/coding/schemas/seed-defaults             — install 6 pre-built schemas
  *
@@ -52,14 +52,15 @@ import {
   evaluateCurrentWorkspace,
 } from "../middleware/authorize.js";
 import { workspaceIncludesReviewerOperations } from "../services/billing-enforcement.service.js";
+import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 
 import {
   archiveSchema,
   bindSchemaToWorkflow,
   createSchema,
   getSchema,
+  getWorkflowSchemaBinding,
   listSchemas,
-  publishSchema,
   seedDefaultSchemas,
 } from "../services/reviewer-workspace/coding-schema.service.js";
 import {
@@ -225,6 +226,66 @@ function requireCap(
     isPlatformAdmin: ctx.isPlatformAdmin,
   });
   return callerHasCapability(r, cap);
+}
+
+/**
+ * D52 (2026-09-17) — the audit row for a coding-value write.
+ *
+ * A coded value is a reviewer's finding on a piece of evidence, and the
+ * write routes recorded nothing about who set it. Each write now leaves one
+ * tenant-audit row through the canonical facade: actor, workspace, the
+ * resource written (the coding value on success, the workflow otherwise),
+ * and the outcome. The VALUE itself and any rationale are never included —
+ * only identifiers and the bounded denial code.
+ *
+ * Awaited so the row exists when the response is sent; a failed audit write
+ * is swallowed so it cannot turn a saved value into a 500.
+ */
+async function auditCodingWrite(input: {
+  action: string;
+  actorUserId: string;
+  teamId: string;
+  workflowId: string;
+  codingValueId: string | null;
+  denial: string | null;
+  metadata: Record<string, unknown>;
+}): Promise<void> {
+  const ok = input.denial === null;
+  await emitTenantAudit({
+    action: input.action,
+    outcome: ok ? "success" : "denied",
+    denialReason: input.denial,
+    reasonCode: input.denial,
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    workspaceId: input.teamId,
+    resourceType:
+      ok && input.codingValueId ? "coding_value" : "evidence_review_workflow",
+    resourceId:
+      ok && input.codingValueId ? input.codingValueId : input.workflowId,
+    metadata: { workflowId: input.workflowId, ...input.metadata },
+  }).catch(() => {});
+}
+
+/** One row per workflow a bulk coding write touched (see auditCodingWrite). */
+async function auditBulkCodingWrites(input: {
+  action: string;
+  actorUserId: string;
+  teamId: string;
+  outcomes: ReadonlyArray<{ workflowId: string; ok: boolean; denial?: string }>;
+  metadata: Record<string, unknown>;
+}): Promise<void> {
+  for (const o of input.outcomes) {
+    await auditCodingWrite({
+      action: input.action,
+      actorUserId: input.actorUserId,
+      teamId: input.teamId,
+      workflowId: o.workflowId,
+      codingValueId: null,
+      denial: o.ok ? null : (o.denial ?? "POLICY_REJECTED"),
+      metadata: { ...input.metadata, bulk: true },
+    });
+  }
 }
 
 // =============================================================================
@@ -401,18 +462,26 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
     },
   );
 
+  // (RETIRED) POST /v1/coding/schemas/:id/publish — typed 410 (2026-09-16)
+  //
+  // OWNER DECISION (2026-09-16): workspace-level coding-schema authoring is
+  // not in scope. The shipped schemas page lists schemas and installs the
+  // pre-built set (seed-defaults, which publishes what it installs through
+  // the service directly); no surface ever published a custom draft. The
+  // route keeps authentication and does nothing else; stored schemas are
+  // untouched.
   app.post(
     "/v1/coding/schemas/:id/publish",
     { preHandler: requireAuth },
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = await resolveTeam(req, reply);
-      if (!ctx) return reply;
-      if (!requireCap(ctx, "review.schema.author")) return denyNoPermission(reply);
-      const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
-      const res = await publishSchema({ teamId: ctx.teamId, schemaId: id });
-      if (!res.ok) return denyWith(reply, 409, res.denial);
-      return reply.code(200).send({ publishedVersion: res.publishedVersion });
-    },
+    async (_req: FastifyRequest, reply: FastifyReply) =>
+      reply.code(410).send({
+        error: {
+          code: "CODING_SCHEMA_PUBLISH_RETIRED",
+          message:
+            "Publishing custom coding schemas is not offered. Install the pre-built schemas instead; they are published when installed.",
+        },
+        canonical: "/v1/coding/schemas/seed-defaults",
+      }),
   );
 
   app.post(
@@ -423,7 +492,11 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
       if (!ctx) return reply;
       if (!requireCap(ctx, "review.schema.author")) return denyNoPermission(reply);
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
-      const res = await archiveSchema({ teamId: ctx.teamId, schemaId: id });
+      const res = await archiveSchema({
+        teamId: ctx.teamId,
+        schemaId: id,
+        actorUserId: ctx.userId,
+      });
       if (!res.ok) return denyWith(reply, 409, res.denial);
       return reply.code(200).send({ ok: true });
     },
@@ -487,6 +560,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
         teamId: ctx.teamId,
         workflowId,
         schemaId,
+        actorUserId: ctx.userId,
       });
       if (!res.ok) return denyWith(reply, 409, res.denial);
       return reply.code(200).send({ ok: true });
@@ -505,11 +579,19 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
       const { workflowId } = z
         .object({ workflowId: z.string().uuid() })
         .parse(req.params);
-      const [values, coverage] = await Promise.all([
+      const [values, coverage, binding] = await Promise.all([
         readCodingValuesForWorkflow({ teamId: ctx.teamId, workflowId }),
         evaluateRequiredFieldsCoverage({ teamId: ctx.teamId, workflowId }),
+        getWorkflowSchemaBinding({ teamId: ctx.teamId, workflowId }),
       ]);
-      return reply.code(200).send({ values, coverage });
+      // `schemaBinding` is the authoritative reread for bind-schema: which
+      // schema this workflow collects coded fields for (null = unbound).
+      // Additive; existing readers ignore it.
+      return reply.code(200).send({
+        values,
+        coverage,
+        schemaBinding: binding?.schema ?? null,
+      });
     },
   );
 
@@ -531,6 +613,15 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
         value: body.value,
         authorUserId: ctx.userId,
         rationale: body.rationale,
+      });
+      await auditCodingWrite({
+        action: "reviewer.code.write",
+        actorUserId: ctx.userId,
+        teamId: ctx.teamId,
+        workflowId,
+        codingValueId: res.ok ? res.codingValueId : null,
+        denial: res.ok ? null : res.denial,
+        metadata: { fieldId: body.fieldId },
       });
       if (!res.ok) return denyWith(reply, 409, res.denial);
       return reply.code(200).send({ codingValueId: res.codingValueId });
@@ -647,6 +738,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
         teamId: ctx.teamId,
         sampleId: id,
         qcReviewerUserId: body.qcReviewerUserId,
+        actorUserId: ctx.userId,
       });
       if (!res.ok) return denyWith(reply, 409, res.denial);
       return reply.code(200).send({ ok: true });
@@ -809,6 +901,14 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
         workflowIds: body.workflowIds,
       });
       if (!res.ok) return denyWith(reply, 409, res.denial);
+      // D52 — the verdict is a coded value; it is not copied into the row.
+      await auditBulkCodingWrites({
+        action: "reviewer.code.bulk_decide",
+        actorUserId: ctx.userId,
+        teamId: ctx.teamId,
+        outcomes: res.outcomes,
+        metadata: {},
+      });
       return reply.code(200).send(res);
     },
   );
@@ -837,6 +937,13 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
         workflowIds: body.workflowIds,
       });
       if (!res.ok) return denyWith(reply, 409, res.denial);
+      await auditBulkCodingWrites({
+        action: "reviewer.code.bulk_write",
+        actorUserId: ctx.userId,
+        teamId: ctx.teamId,
+        outcomes: res.outcomes,
+        metadata: { fieldSlug: body.fieldSlug },
+      });
       return reply.code(200).send(res);
     },
   );

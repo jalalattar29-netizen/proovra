@@ -17,7 +17,7 @@ const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (rel: string): string => readFileSync(resolve(APP_ROOT, rel), "utf8");
 const exists = (rel: string): boolean => existsSync(resolve(APP_ROOT, rel));
 
-const SECURITY = "app/(app)/admin/security/page.tsx";
+const SECURITY = "app/(app)/security-center/posture/page.tsx";
 const BILLING = "app/(app)/admin/billing/page.tsx";
 
 /**
@@ -28,13 +28,13 @@ const BILLING = "app/(app)/admin/billing/page.tsx";
  * sections. The billing console is untouched and still read as a single file.
  */
 const SECURITY_SECTIONS = [
-  "app/(app)/admin/security/_sections/section-state.tsx",
-  "app/(app)/admin/security/_sections/WorkspaceSecurityPostureSection.tsx",
-  "app/(app)/admin/security/_sections/MfaPolicySection.tsx",
-  "app/(app)/admin/security/_sections/MfaMemberPostureSection.tsx",
-  "app/(app)/admin/security/_sections/MfaEventsSection.tsx",
-  "app/(app)/admin/security/_sections/MfaDigestPreferencesSection.tsx",
-  "app/(app)/admin/security/_sections/MfaSelfCheckSection.tsx",
+  "app/(app)/security-center/posture/_sections/section-state.tsx",
+  "app/(app)/security-center/posture/_sections/WorkspaceSecurityPostureSection.tsx",
+  "app/(app)/security-center/posture/_sections/MfaPolicySection.tsx",
+  "app/(app)/security-center/posture/_sections/MfaMemberPostureSection.tsx",
+  "app/(app)/security-center/posture/_sections/MfaEventsSection.tsx",
+  "app/(app)/security-center/posture/_sections/MfaDigestPreferencesSection.tsx",
+  "app/(app)/security-center/posture/_sections/MfaSelfCheckSection.tsx",
   // ADM-034 — PlatformIncidentFeedSection is GONE from this page. It carried
   // the PLATFORM incident feed and the PLATFORM security-event feed on a page
   // whose other six sections administer ONE workspace, so a single surface

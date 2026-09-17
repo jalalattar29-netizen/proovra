@@ -13,6 +13,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
 
 function readSource(rel: string): string {
   const url = new URL(rel, import.meta.url);
@@ -26,16 +27,17 @@ const GOV_ROUTES = readSource(
 // Anchor every assertion inside the registered handler so the route
 // file's top-comment cannot satisfy a check on its own.
 function rollupHandler(): string {
-  const idx = GOV_ROUTES.indexOf(
-    'app.get(\n    "/v1/orgs/:id/billing/rollup"',
-  );
-  expect(idx).toBeGreaterThan(0);
-  return GOV_ROUTES.slice(idx, idx + 6_000);
+  return routeSource(GOV_ROUTES, "GET", "/v1/orgs/:id/billing/rollup");
 }
 
 describe("Phase 4 — org billing rollup", () => {
-  it("is gated at ORG_BILLING_ADMIN minimum", () => {
-    expect(rollupHandler()).toContain('minRole: "ORG_BILLING_ADMIN"');
+  it("is gated on the explicit billing role set, not a precedence minimum (WCC-NEW-006)", async () => {
+    // `minRole: "ORG_BILLING_ADMIN"` admitted ORG_SECURITY_ADMIN, which shares
+    // the billing admin's rank. The set names who may see billing.
+    expect(rollupHandler()).toContain("roles: ORG_BILLING_ROLES");
+    expect(rollupHandler()).not.toContain('minRole: "ORG_BILLING_ADMIN"');
+    const { ORG_BILLING_ROLES } = await import("../src/services/organization/org-access.js");
+    expect([...ORG_BILLING_ROLES].sort()).toEqual(["ORG_ADMIN", "ORG_BILLING_ADMIN", "ORG_OWNER"]);
   });
 
   it("is read-only — the handler issues no write verbs", () => {
@@ -72,9 +74,12 @@ describe("Phase 4 — org billing rollup", () => {
     );
   });
 
-  it("emits anti-enumeration 404 (never 403) on access denial", () => {
+  it("renders access denial through the one org-denial convention (PV-ORG-001)", () => {
+    // 404 identical to a missing org for a non-member; 403 for an ACTIVE
+    // member without the role — decided by orgAccessDenial, sent verbatim.
     const h = rollupHandler();
     expect(h).toMatch(/if \(!access\.ok\)/);
-    expect(h).toContain("access.code");
+    expect(h).toContain("reply.code(access.denial.status).send(access.denial.body)");
+    expect(h).not.toMatch(/reply\.code\(40[34]\)/);
   });
 });

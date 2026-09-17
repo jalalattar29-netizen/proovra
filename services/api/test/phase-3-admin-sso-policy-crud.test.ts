@@ -17,7 +17,8 @@
  *     rejected (SSO_NO_VERIFIED_DOMAINS); with a verified domain it succeeds.
  */
 
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { generateKeyPairSync } from "node:crypto";
 
@@ -322,15 +323,25 @@ function readApi(rel: string): string {
 }
 const ADMIN_ROUTES = readApi("src/routes/admin-identity.routes.ts");
 const SSO_SERVICE = readApi("src/services/access-control/sso.service.ts");
-const PROVIDERS_PAGE = readFileSync(
-  fileURLToPath(
-    new URL(
-      "../../../apps/web/app/(app)/admin/identity/providers/page.tsx",
-      import.meta.url,
-    ),
-  ),
-  "utf8",
+/*
+ * PV-PLACE-001 / PV-DUP-001 — the providers console (/admin/identity/providers)
+ * merged into the canonical SSO console at /security-center/sso. The controls
+ * asserted below are read from THAT console: its page plus its `_sections/*`,
+ * the repo's decomposition pattern, so the contract follows the merge rather
+ * than one file's name.
+ */
+const SSO_CONSOLE_DIR = fileURLToPath(
+  new URL("../../../apps/web/app/(app)/security-center/sso/", import.meta.url),
 );
+const PROVIDERS_PAGE = [
+  join(SSO_CONSOLE_DIR, "page.tsx"),
+  ...readdirSync(join(SSO_CONSOLE_DIR, "_sections"))
+    .filter((f) => /\.tsx?$/.test(f))
+    .sort()
+    .map((f) => join(SSO_CONSOLE_DIR, "_sections", f)),
+]
+  .map((f) => readFileSync(f, "utf8"))
+  .join("\n");
 
 describe("Phase 3 CRUD — route + UI wiring", () => {
   it("exposes the policy endpoint on the existing provider surface", () => {

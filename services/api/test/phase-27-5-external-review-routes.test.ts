@@ -14,6 +14,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { functionSource, routeSource } from "../../../scripts/source-contract/index.mjs";
 
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -127,9 +128,7 @@ describe("Phase 27.5/28.5 — external-review.routes.ts source contract", () => 
     // The `projectGrantForReviewer` function defines the narrow
     // reviewer-facing shape. The returned object literal MUST NOT
     // include any of the forbidden fields.
-    const projFnIdx = src.indexOf("function projectGrantForReviewer");
-    expect(projFnIdx).toBeGreaterThan(0);
-    const projFn = src.slice(projFnIdx, projFnIdx + 1000);
+    const projFn = functionSource(src, "projectGrantForReviewer");
     for (const forbidden of [
       "grant.id",
       "grant.teamId",
@@ -150,8 +149,7 @@ describe("Phase 27.5/28.5 — external-review.routes.ts source contract", () => 
   });
 
   it("reviewer projection only exposes the bounded narrow shape", () => {
-    const projFnIdx = src.indexOf("function projectGrantForReviewer");
-    const projFn = src.slice(projFnIdx, projFnIdx + 1000);
+    const projFn = functionSource(src, "projectGrantForReviewer");
     // The bounded reviewer fields the operator chose to share.
     for (const allowed of [
       "scopeKind",
@@ -170,10 +168,7 @@ describe("Phase 27.5/28.5 — external-review.routes.ts source contract", () => 
   });
 
   it("the reviewer accept route returns the projection, NEVER the raw grant", () => {
-    const acceptRouteIdx = src.indexOf(
-      '"/v1/external-review/access/:token"',
-    );
-    const acceptRoute = src.slice(acceptRouteIdx, acceptRouteIdx + 2000);
+    const acceptRoute = routeSource(src, "POST", "/v1/external-review/access/:token");
     // The 200 response must use `projectGrantForReviewer(grant)`,
     // never return `grant` directly.
     expect(acceptRoute).toMatch(
@@ -185,32 +180,27 @@ describe("Phase 27.5/28.5 — external-review.routes.ts source contract", () => 
   });
 
   it("the context route returns the projection, NEVER the raw grant", () => {
-    const contextRouteIdx = src.indexOf(
-      '"/v1/external-review/access/:token/context"',
-    );
-    const contextRoute = src.slice(contextRouteIdx, contextRouteIdx + 1500);
+    const contextRoute = routeSource(src, "GET", "/v1/external-review/access/:token/context");
     expect(contextRoute).toMatch(
       /reply\.code\(200\)\.send\(\{\s*context:\s*projectGrantForReviewer\(lookup\.grant\)/,
     );
   });
 
   it("activity feed strips the reviewer email (operators see counters only)", () => {
-    const activityIdx = src.indexOf('"/v1/external-review/activity"');
-    const activityRoute = src.slice(activityIdx, activityIdx + 1500);
+    const activityRoute = routeSource(src, "GET", "/v1/external-review/activity");
     // The map projection in the activity feed must not include
     // reviewerEmail — operators have the per-row list for that.
     expect(activityRoute).not.toMatch(/reviewerEmail/);
   });
 
   it("issue route returns rawToken EXACTLY ONCE in the 201 response", () => {
-    const issueIdx = src.indexOf('app.post(\n    "/v1/external-review/grants"');
-    // Window widened again (3200 → 4600) for the WORKSPACE AND COLLABORATION
-    // ARCHITECTURE CLOSURE commercial gate inserted between `authorizeOrFail`
-    // and the step-up gate: issuing an external-review grant lets someone
-    // OUTSIDE the workspace read its evidence, and it was permission-gated,
-    // step-up-gated and commercially open. The rawToken response shape is
-    // unchanged, just further down the handler body.
-    const issueRoute = src.slice(issueIdx, issueIdx + 4600);
+    // The whole POST registration (WCC-NEW-027) — it used to be a character
+    // window widened twice (3200 → 4600), most recently for the WORKSPACE AND
+    // COLLABORATION ARCHITECTURE CLOSURE commercial gate inserted between
+    // `authorizeOrFail` and the step-up gate: issuing an external-review grant
+    // lets someone OUTSIDE the workspace read its evidence, and it was
+    // permission-gated, step-up-gated and commercially open.
+    const issueRoute = routeSource(src, "POST", "/v1/external-review/grants");
     expect(issueRoute).toMatch(/rawToken:\s*result\.rawToken/);
     // The route's 201 response shape includes both `grant` + `rawToken`
     // — the operator captures the raw token now (it's never derivable
@@ -218,7 +208,7 @@ describe("Phase 27.5/28.5 — external-review.routes.ts source contract", () => 
     expect(issueRoute).toMatch(
       /reply\.code\(201\)\.send\(\{\s*grant:\s*result\.grant,\s*rawToken:\s*result\.rawToken/,
     );
-    // The gate that widened this window: the canonical COMMERCIAL authority
+    // The gate that once widened the window: the canonical COMMERCIAL authority
     // (the workspace's purchased plan), not a plan-name check written here,
     // and BEFORE the mutation.
     //
@@ -234,8 +224,7 @@ describe("Phase 27.5/28.5 — external-review.routes.ts source contract", () => 
   });
 
   it("revoke route maps service denial codes to the right HTTP status (404 / 409 / 400)", () => {
-    const revokeIdx = src.indexOf('grants/:id/revoke"');
-    const revokeRoute = src.slice(revokeIdx, revokeIdx + 1500);
+    const revokeRoute = routeSource(src, "POST", "/v1/external-review/grants/:id/revoke");
     expect(revokeRoute).toMatch(/result\.reason === "token_unknown"[\s\S]*?404/);
     expect(revokeRoute).toMatch(
       /result\.reason === "invalid_transition"[\s\S]*?409/,

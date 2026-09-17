@@ -32,7 +32,7 @@ const CASES = [
     panel: '[data-testid="replay-dialog"]',
   },
   {
-    route: "/admin/identity/sessions",
+    route: "/security-center/identity/sessions",
     trigger: '[data-testid="session-timeline-open"], table tbody tr button',
     panel: '[data-testid="session-timeline-drawer"]',
   },

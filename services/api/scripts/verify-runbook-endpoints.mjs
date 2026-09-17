@@ -76,15 +76,15 @@ const MAP = path.join(
  * Each needs a REASON, and the reason has to say why an operator reading it
  * will not try to call it. "It is only an example" is not one of those.
  */
-const NON_HTTP_CITATIONS = new Map([
-  [
-    "/v1/internal/governance/retention-reconciliation/run",
-    "RETIRED CITATION — kept here only so the gate explains itself if it " +
-      "reappears. Retention reconciliation has no HTTP trigger: it is a worker " +
-      "cron (services/worker/src/index.ts, withCronLock). retention-precedence.md " +
-      "now says so and names the real operator path.",
-  ],
-]);
+//
+// ADM-P2-001 — this map held a "RETIRED CITATION" for
+// /v1/internal/governance/retention-reconciliation/run whose reason said the
+// runbook "now says so and names the real operator path". The runbook still
+// told an operator to curl that endpoint, and the exemption made the gate
+// pass over it. An exemption is now also checked against the corpus: one that
+// no runbook cites is reported as STALE_EXEMPTION, so a reason cannot outlive
+// the text it was written about.
+const NON_HTTP_CITATIONS = new Map([]);
 
 /**
  * Query parameters a route REQUIRES, for the citations that show a curl.
@@ -95,6 +95,7 @@ const NON_HTTP_CITATIONS = new Map([
  */
 const REQUIRED_QUERY = new Map([
   ["GET /v1/governance/export-eligibility", ["teamId", "evidenceId"]],
+  ["GET /v1/governance/retention-policies/effective", ["teamId"]],
 ]);
 
 function loadRoutes() {
@@ -171,6 +172,7 @@ function citationsIn(markdown, file) {
 const routes = loadRoutes();
 const problems = [];
 const checked = [];
+const exemptionsUsed = new Set();
 
 for (const name of readdirSync(RUNBOOKS).filter((n) => n.endsWith(".md"))) {
   const md = readFileSync(path.join(RUNBOOKS, name), "utf8");
@@ -185,6 +187,7 @@ for (const name of readdirSync(RUNBOOKS).filter((n) => n.endsWith(".md"))) {
 
     const exempt = NON_HTTP_CITATIONS.get(normalised);
     if (exempt) {
+      exemptionsUsed.add(normalised);
       checked.push({ ...c, verdict: "EXEMPT", reason: exempt });
       continue;
     }
@@ -224,6 +227,18 @@ for (const name of readdirSync(RUNBOOKS).filter((n) => n.endsWith(".md"))) {
     }
     checked.push({ ...c, verdict: "OK", route: matched.path });
   }
+}
+
+for (const [cited, reason] of NON_HTTP_CITATIONS) {
+  if (exemptionsUsed.has(cited)) continue;
+  problems.push({
+    file: "(gate)",
+    line: 0,
+    method: "-",
+    raw: cited,
+    kind: "STALE_EXEMPTION",
+    detail: `no runbook cites this path any more; remove its exemption (${reason.slice(0, 80)}…)`,
+  });
 }
 
 if (process.argv.includes("--json")) {

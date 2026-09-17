@@ -199,13 +199,19 @@ export default function EvidenceRequestPanel({
   async function executeNoteAction(note: string) {
     if (!noteDialog) return;
     try {
+      // D20 — cancel and close require a justification; the note the dialog
+      // collected was never sent, so both were refused every time.
       if (noteDialog.action === "cancel") {
         await apiFetch(`/v1/evidence-requests/${noteDialog.requestId}/cancel`, {
           method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ reviewerNote: note }),
         });
       } else if (noteDialog.action === "close") {
         await apiFetch(`/v1/evidence-requests/${noteDialog.requestId}/close`, {
           method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ reviewerNote: note }),
         });
       } else if (noteDialog.action === "needs-more-info") {
         await apiFetch(

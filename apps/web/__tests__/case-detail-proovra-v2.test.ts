@@ -406,9 +406,11 @@ test("Add evidence stays gated on viewer.canLinkEvidence with the server's reaso
     SIMPLE_DETAIL,
     /disabled=\{!canLinkEvidence\}[\s\S]{0,200}?data-simple-case-action="add-evidence"/,
   );
+  // D37 — the reason was only a hover `title`; it is now visible text through
+  // ReasonedActionButton (which also keeps it as the title and description).
   assert.match(
     SIMPLE_DETAIL,
-    /title=\{linkEvidenceDisabledReason \?\? undefined\}/,
+    /<ReasonedActionButton\s+className="app-header-primary-action"[\s\S]{0,200}?disabledReason=\{linkEvidenceDisabledReason\}/,
   );
   // The rail + attention-panel duplicates read the same projection.
   assert.match(SIMPLE_DETAIL, /disabled=\{!viewer\.canLinkEvidence\}/);

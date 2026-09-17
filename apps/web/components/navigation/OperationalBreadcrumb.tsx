@@ -30,6 +30,7 @@ import {
   operationalGroupDescriptor,
   type PhaseBOperationalGroup,
 } from "../../lib/navigation/phaseBOperationalGroups";
+import { breadcrumbTrail } from "../../lib/navigation/breadcrumbTrail";
 
 export type BreadcrumbItem = {
   /** Operator-readable label rendered for the crumb. */
@@ -56,6 +57,9 @@ export function OperationalBreadcrumb({
 }) {
   const ctx = usePlatformContext();
   const groupDescriptor = routeId ? operationalGroupDescriptor(routeId) : null;
+
+  // PV-NAV-001 — the group is rendered above; a crumb repeating it is dropped.
+  const trail = breadcrumbTrail(groupDescriptor?.title ?? null, items);
 
   const workspaceLabel =
     ctx.state.name === "READY"
@@ -105,8 +109,8 @@ export function OperationalBreadcrumb({
           </Link>
         </>
       ) : null}
-      {items.map((item, idx) => {
-        const isLast = idx === items.length - 1;
+      {trail.map((item, idx) => {
+        const isLast = idx === trail.length - 1;
         return (
           <span
             key={`${idx}:${item.label}`}
@@ -126,6 +130,7 @@ export function OperationalBreadcrumb({
             ) : (
               <span
                 data-breadcrumb-current={isLast ? "true" : "false"}
+                aria-current={isLast ? "page" : undefined}
                 style={{
                   color: isLast ? "#0f172a" : "inherit",
                   fontWeight: isLast ? 600 : 400,

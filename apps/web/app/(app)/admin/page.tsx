@@ -32,6 +32,8 @@ import "./admin-overview.css";
 import { apiFetch } from "../../../lib/api";
 import { formatUserDateTime } from "../../../lib/date";
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
+import { identifierLabel } from "@proovra/shared";
+import { planLabel } from "../../../lib/labels/adminPlatformLabels";
 
 /**
  * PLATFORM CONTROL CENTER — Overview.
@@ -723,7 +725,7 @@ export default function AdminOverviewPage() {
                       style={{ textDecoration: "none" }}
                     >
                       <Badge tone="governance" subtle>
-                        {t.tier}: {t.count} →
+                        {planLabel(t.tier)}: {t.count} →
                       </Badge>
                     </Link>
                   ))}
@@ -867,7 +869,7 @@ export default function AdminOverviewPage() {
                       style={{ textDecoration: "none" }}
                     >
                       <Badge tone={SUBSCRIPTION_STATUS_TONE[s.status] ?? "neutral"} subtle>
-                        {s.status}: {s.count} →
+                        {identifierLabel(s.status)}: {s.count} →
                       </Badge>
                     </Link>
                   ))}
@@ -983,7 +985,11 @@ export default function AdminOverviewPage() {
                     },
                   ]}
                 />
-                <Link href="/admin/dashboard" style={{ fontSize: 13, fontWeight: 600 }}>
+                <Link
+                  href="/admin/dashboard"
+                  className="admin-hit-link"
+                  style={{ fontSize: 13, fontWeight: 600 }}
+                >
                   Platform Analytics →
                 </Link>
               </AdmCard>

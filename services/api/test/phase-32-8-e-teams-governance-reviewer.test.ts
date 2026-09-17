@@ -30,6 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 
 function readApi(rel: string): string {
   return readFileSync(fileURLToPath(new URL(`../${rel}`, import.meta.url)), "utf8");
@@ -486,9 +487,10 @@ describe("Phase 32.8E — /teams workspace administration", () => {
     // Phase 32.8 Foundation cleanup — role-string equality
     // replaced with ctx.can("TEAM_MANAGE"). VIEWER/MEMBER exclusion
     // enforced server-side in the capability resolver.
-    const idx = WORKSPACE_PANEL.indexOf("canManage =");
-    expect(idx).toBeGreaterThan(-1);
-    const block = WORKSPACE_PANEL.slice(idx, idx + 200);
+    const block = enclosingSource(WORKSPACE_PANEL, "canManage =", "statement", {
+      unique: true,
+      fileName: "WorkspaceAdminPanel.tsx",
+    });
     expect(block).toMatch(/ctx\.can\(\s*['"]TEAM_MANAGE['"]\s*\)/);
   });
 

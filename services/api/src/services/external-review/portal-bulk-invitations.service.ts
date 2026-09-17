@@ -52,6 +52,7 @@ import {
   deliverInvitationEmail,
 } from "./portal-invitation-email.service.js";
 import { emitPortalActivity } from "./portal-activity.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 
 // ---------------------------------------------------------------------------
 // Issue
@@ -137,8 +138,6 @@ export async function bulkIssueInvitations(
   const summary = EMPTY_SUMMARY();
   const rows: BulkInvitationResultRow[] = [];
   const seenEmails = new Set<string>();
-
-  await emitBulkStarted(prisma, input.teamId, bulkBatchId, "ISSUE", input.rows.length);
 
   for (const rawRow of input.rows) {
     const inviteEmail = (rawRow.inviteEmail ?? "").trim().toLowerCase();
@@ -286,14 +285,14 @@ export async function bulkIssueInvitations(
     });
   }
 
-  await emitBulkCompleted(
+  await recordBulkBatchAudit({
     prisma,
-    input.teamId,
+    teamId: input.teamId,
+    actorUserId: input.invitedByUserId,
     bulkBatchId,
-    "ISSUE",
-    rows.length,
-    summary,
-  );
+    kind: "ISSUE",
+    counts: { totalRows: rows.length, ...summary },
+  });
 
   return { ok: true, bulkBatchId, rows, summary };
 }
@@ -337,15 +336,41 @@ export async function bulkRevokeInvitations(
   const bulkBatchId = randomUUID();
   const rows: BulkRevokeRowResult[] = [];
 
-  await emitPortalActivity({
-    prisma,
-    teamId: input.teamId,
-    grantId: bulkBatchId, // bounded surrogate so the timeline groups rows
-    code: "BULK_REVOKE_STARTED",
-    payload: { bulkBatchId, attemptedCount: input.grantIds.length },
+  /*
+   * PV-DEFECT-002 — RESOLVE EVERY ID BEFORE ANY WRITE.
+   *
+   * This used to write a BULK_REVOKE_STARTED activity row first, keyed by a
+   * freshly generated batch id. `external_review_activities.grant_id` is a
+   * foreign key to the invitation table, so that id could never resolve: the
+   * very first write of EVERY bulk revoke failed with P2003 and the request
+   * answered 500 DATABASE_ERROR. An unknown id never even reached its own
+   * refusal.
+   *
+   * Now each id is resolved inside this workspace first. One that does not
+   * resolve — nonexistent, or another workspace's; the two are
+   * indistinguishable by design — is NOT_FOUND, and one already revoked is
+   * ALREADY_REVOKED, both decided before anything is written. The batch
+   * itself is recorded once, in the tenant audit, with its true counts.
+   * Per-row outcomes are this endpoint's contract, so the batch is not
+   * atomic: every row reports what happened to it.
+   */
+  const uniqueIds = [...new Set(input.grantIds)];
+  const known = await prisma.externalReviewGrant.findMany({
+    where: { teamId: input.teamId, id: { in: uniqueIds } },
+    select: { id: true, state: true },
   });
+  const stateOf = new Map(known.map((g) => [g.id, g.state]));
 
-  for (const grantId of input.grantIds) {
+  for (const grantId of uniqueIds) {
+    const state = stateOf.get(grantId);
+    if (state === undefined) {
+      rows.push({ grantId, outcome: "NOT_FOUND", denial: "INVITE_NOT_FOUND" });
+      continue;
+    }
+    if (state === "REVOKED") {
+      rows.push({ grantId, outcome: "ALREADY_REVOKED", denial: "INVITE_ALREADY_REVOKED" });
+      continue;
+    }
     const res = await revokeInvitation({
       prisma,
       teamId: input.teamId,
@@ -374,24 +399,61 @@ export async function bulkRevokeInvitations(
     rows.push({ grantId, outcome: "FAILED", denial: res.denial });
   }
 
-  await emitPortalActivity({
+  await recordBulkBatchAudit({
     prisma,
     teamId: input.teamId,
-    grantId: bulkBatchId,
-    code: "BULK_REVOKE_COMPLETED",
-    payload: {
-      bulkBatchId,
-      attemptedCount: input.grantIds.length,
+    actorUserId: input.revokedByUserId,
+    bulkBatchId,
+    kind: "REVOKE",
+    counts: {
+      attemptedCount: uniqueIds.length,
       revokedCount: rows.filter((r) => r.outcome === "REVOKED").length,
-      alreadyRevokedCount: rows.filter(
-        (r) => r.outcome === "ALREADY_REVOKED",
-      ).length,
+      alreadyRevokedCount: rows.filter((r) => r.outcome === "ALREADY_REVOKED").length,
       notFoundCount: rows.filter((r) => r.outcome === "NOT_FOUND").length,
       failedCount: rows.filter((r) => r.outcome === "FAILED").length,
     },
   });
 
   return { ok: true, bulkBatchId, rows };
+}
+
+/**
+ * The batch, recorded once and truthfully, in the tenant audit — the record a
+ * batch belongs in. The portal activity log is keyed to ONE invitation; a
+ * batch is not an invitation and has no row to key it to.
+ *
+ * Written after the rows, with the counts that actually happened. Best-effort
+ * like the other operator audits: the rows already committed, and failing the
+ * request now would report a failure for work that was done.
+ */
+async function recordBulkBatchAudit(input: {
+  prisma: PrismaClient;
+  teamId: string;
+  actorUserId: string;
+  bulkBatchId: string;
+  kind: "ISSUE" | "REVOKE";
+  counts: Record<string, number>;
+}): Promise<void> {
+  try {
+    await emitTenantAudit(
+      {
+        action:
+          input.kind === "ISSUE"
+            ? "external_review.invitations.bulk_issued"
+            : "external_review.invitations.bulk_revoked",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: input.actorUserId,
+        workspaceId: input.teamId,
+        resourceType: "external_review_bulk_batch",
+        resourceId: input.bulkBatchId,
+        metadata: { bulkBatchId: input.bulkBatchId, ...input.counts },
+      },
+      input.prisma,
+    );
+  } catch {
+    /* append-only audit, best-effort here; the rows already committed */
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -482,44 +544,16 @@ function appendRow(
   return row;
 }
 
-async function emitBulkStarted(
-  prisma: PrismaClient,
-  teamId: string,
-  bulkBatchId: string,
-  kind: "ISSUE",
-  totalRows: number,
-): Promise<void> {
-  await emitPortalActivity({
-    prisma,
-    teamId,
-    grantId: bulkBatchId,
-    code: "BULK_INVITATION_STARTED",
-    payload: { bulkBatchId, kind, totalRows },
-  });
-}
-
-async function emitBulkCompleted(
-  prisma: PrismaClient,
-  teamId: string,
-  bulkBatchId: string,
-  kind: "ISSUE",
-  totalRows: number,
-  summary: BulkOutcomeSummary,
-): Promise<void> {
-  await emitPortalActivity({
-    prisma,
-    teamId,
-    grantId: bulkBatchId,
-    code: "BULK_INVITATION_COMPLETED",
-    payload: {
-      bulkBatchId,
-      kind,
-      totalRows,
-      ...summary,
-    },
-  });
-}
-
+/**
+ * A failed row's own timeline entry — only when the row produced a grant.
+ *
+ * `external_review_activities.grant_id` references the invitation. A row that
+ * failed before an invitation existed (a malformed email, a refused policy)
+ * has nothing to key an activity row to; writing one under the batch id was a
+ * foreign-key violation that failed the whole request. Its outcome is in the
+ * batch's audit counts and in the response row. A row whose invitation was
+ * created but whose email could not be delivered keeps its entry.
+ */
 async function emitRowFailed(
   prisma: PrismaClient,
   teamId: string,
@@ -527,10 +561,11 @@ async function emitRowFailed(
   kind: "ISSUE",
   row: BulkInvitationResultRow,
 ): Promise<void> {
+  if (!row.grantId) return;
   await emitPortalActivity({
     prisma,
     teamId,
-    grantId: bulkBatchId,
+    grantId: row.grantId,
     code: "BULK_INVITATION_ROW_FAILED",
     payload: {
       bulkBatchId,

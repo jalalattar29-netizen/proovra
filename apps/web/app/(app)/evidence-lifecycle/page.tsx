@@ -32,7 +32,7 @@ import { PageShell, PageHeader } from "../../../components/ui/PageShell";
 import { Card } from "../../../components/ui/Card";
 import { Button } from "../../../components/ui/Button";
 import { apiFetch, ApiError } from "../../../lib/api";
-import { LifecycleSectionBoundary } from "./_shared";
+import { LifecycleSectionBoundary, delegatedTierLabel } from "./_shared";
 // PHASE 12B (Evidence Operations) — the lifecycle console is the home for
 // the dedicated policy-violation observability reads and the bounded
 // verification-package manifest preview.
@@ -462,7 +462,9 @@ function Shell() {
           data-permission-denied="DELEGATED_ADMIN_REQUIRED"
           style={denialBoxStyle}
         >
-          <strong>Permission required:</strong> {state.requiredTier ?? "DELEGATED_ADMIN"}
+          {/* PV-STATE-001 — the role to ask for, never the tier constant. */}
+          <strong>Permission required.</strong> Ask{" "}
+          {delegatedTierLabel(state.requiredTier)} to grant you access.
           <div style={{ marginTop: 4, fontSize: 12 }}>
             Ask a workspace administrator with the required delegated tier to
             grant access.
@@ -533,9 +535,9 @@ function LoadedDashboard({ dashboard }: { dashboard: LifecycleDashboard }) {
           }}
         >
           <strong>Advanced lifecycle metrics are gated.</strong> Your
-          workspace doesn&apos;t have the <code>FEATURE_LIFECYCLE_DASHBOARD</code>{" "}
-          entitlement, so per-tile counts may not back-fill from older
-          activity. Contact your account team to enable it.
+          workspace&apos;s plan doesn&apos;t include the lifecycle dashboard,
+          so per-tile counts may not back-fill from older activity. Contact
+          your account team to enable it.
         </div>
       ) : null}
       <CapabilityLauncherRow caps={caps} />

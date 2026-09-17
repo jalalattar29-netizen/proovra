@@ -476,20 +476,36 @@ vi.mock("../src/services/identity-security/mfa-policy.service.js", async (orig) 
   ...(await orig<Record<string, unknown>>()),
   getMfaPolicy: async (teamId: string) => {
     H.rec("getMfaPolicy", { teamId });
-    return { teamId, level: "ADMINS_ONLY", stepUpTtlSeconds: 900, trustedDeviceTtlDays: 30 };
+    return { teamId, level: "ADMINS_ONLY", stepUpTtlSeconds: 900, trustedDeviceTtlDays: 30, policyVersion: 1 };
   },
-  evaluateMfaRequirement: async (i: Record<string, unknown>) => {
-    H.rec("evaluateMfaRequirement", i);
-    return { required: true, reason: "role_in_policy_scope" };
-  },
-  updateMfaPolicy: async (i: Record<string, unknown>) => {
-    H.rec("updateMfaPolicy", i);
+  // WCC-NEW-011 — the canonical, versioned writer the PUT alias now uses.
+  updateMfaPolicyVersioned: async (i: Record<string, unknown>) => {
+    H.rec("updateMfaPolicyVersioned", i);
     return {
       teamId: i.teamId, level: i.level,
       stepUpTtlSeconds: i.stepUpTtlSeconds ?? null,
       trustedDeviceTtlDays: i.trustedDeviceTtlDays ?? null,
       policyVersion: 2,
     };
+  },
+  evaluateMfaRequirement: async (i: Record<string, unknown>) => {
+    H.rec("evaluateMfaRequirement", i);
+    return { required: true, reason: "role_in_policy_scope" };
+  },
+}));
+
+// WCC-NEW-011 — the PUT alias enforces the SAME Enterprise entitlement the
+// canonical PATCH does. `enterpriseOk` is the file's existing entitlement toggle.
+vi.mock("../src/services/billing-enforcement.service.js", async (orig) => ({
+  ...(await orig<Record<string, unknown>>()),
+  assertTeamAllowsEnterpriseFeature: async (teamId: string, feature: string) => {
+    H.rec("assertTeamAllowsEnterpriseFeature", { teamId, feature });
+    if (!H.enterpriseOk) {
+      throw Object.assign(new Error("This feature requires an Enterprise plan."), {
+        statusCode: 402,
+        code: "ENTERPRISE_FEATURE_REQUIRED",
+      });
+    }
   },
 }));
 
@@ -1469,11 +1485,42 @@ describe("workspace MFA policy", () => {
       payload: { teamId: TEAM, level: "ALL_MEMBERS", stepUpTtlSeconds: 600, trustedDeviceTtlDays: 14 },
     });
     expect(res.statusCode).toBe(200);
-    expect(called("updateMfaPolicy")).toHaveLength(1);
-    expect(callInput("updateMfaPolicy")).toMatchObject({
-      teamId: TEAM, level: "ALL_MEMBERS", actorUserId: ACTOR,
+    // WCC-NEW-011 — the canonical writer is the VERSIONED one, fed the version
+    // the alias read itself. (The unversioned writer was removed, 2026-09-17.)
+    expect(called("updateMfaPolicyVersioned")).toHaveLength(1);
+    expect(callInput("updateMfaPolicyVersioned")).toMatchObject({
+      teamId: TEAM, level: "ALL_MEMBERS", actorUserId: ACTOR, expectedPolicyVersion: 1,
     });
     expect(JSON.parse(res.body).policy.level).toBe("ALL_MEMBERS");
+  });
+
+  it("PUT policy is a deprecated alias that names its successor", async () => {
+    const res = await app.inject({
+      method: "PUT", url: "/v1/identity-security/mfa-policy", headers: STEP_UP,
+      payload: { teamId: TEAM, level: "ALL_MEMBERS" },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers["deprecation"]).toBe("true");
+    expect(String(res.headers["sunset"])).not.toBe("");
+    expect(String(res.headers["link"])).toContain(`/v1/identity/mfa-admin/policy/${TEAM}`);
+  });
+
+  it("PUT policy without the Enterprise entitlement → 402 with ZERO policy write and no step-up spent", async () => {
+    // Before WCC-NEW-011 this route had no entitlement check at all, so a
+    // workspace without MFA enforcement in its plan could set it here while
+    // the canonical PATCH refused it.
+    H.enterpriseOk = false;
+    const res = await app.inject({
+      method: "PUT", url: "/v1/identity-security/mfa-policy", headers: STEP_UP,
+      payload: { teamId: TEAM, level: "ALL_MEMBERS" },
+    });
+    expect(res.statusCode).toBe(402);
+    expect(JSON.parse(res.body).error.code).toBe("ENTERPRISE_FEATURE_REQUIRED");
+    expect(callInput("assertTeamAllowsEnterpriseFeature")).toMatchObject({
+      teamId: TEAM, feature: "mfaEnforcement",
+    });
+    expect(called("updateMfaPolicyVersioned")).toHaveLength(0);
+    expect(called("requireStepUpForSensitiveAction")).toHaveLength(0);
   });
 
   it("PUT policy step-up denial → 401 with ZERO policy write", async () => {
@@ -1483,7 +1530,7 @@ describe("workspace MFA policy", () => {
       payload: { teamId: TEAM, level: "ALL_MEMBERS" },
     });
     expect(res.statusCode).toBe(401);
-    expect(called("updateMfaPolicy")).toHaveLength(0);
+    expect(called("updateMfaPolicyVersioned")).toHaveLength(0);
     expect(callInput("requireStepUpForSensitiveAction")).toMatchObject({
       purpose: "MFA_POLICY_UPDATE", resourceKind: "organization_security_policy", resourceId: TEAM,
     });
@@ -1496,7 +1543,7 @@ describe("workspace MFA policy", () => {
       payload: { teamId: TEAM, level: "ALL_MEMBERS" },
     });
     expect(res.statusCode).toBe(403);
-    expect(called("updateMfaPolicy")).toHaveLength(0);
+    expect(called("updateMfaPolicyVersioned")).toHaveLength(0);
     expect(called("requireStepUpForSensitiveAction")).toHaveLength(0);
   });
 });
@@ -1704,16 +1751,53 @@ describe("MFA enrolment and factor lifecycle", () => {
     expect(JSON.parse(res.body)).toMatchObject({ hasMfa: false, factors: [], recoveryCodesRemaining: 0 });
   });
 
-  it("enroll/start begins enrolment for the SESSION subject, not a declared one", async () => {
+  it("enroll/start begins enrolment for the SESSION subject", async () => {
     const res = await app.inject({
       method: "POST", url: "/v1/identity/mfa/enroll/start",
-      payload: { label: "Work phone", userId: OTHER },
+      payload: { label: "Work phone" },
     });
     expect(res.statusCode).toBe(200);
     expect(called("beginTotpEnrollment")).toHaveLength(1);
     expect(callInput("beginTotpEnrollment")).toMatchObject({ userId: ACTOR, label: "Work phone" });
     // The account name is resolved server-side from the caller's own record.
     expect(callInput("beginTotpEnrollment").accountName).toBe("actor@example.com");
+  });
+
+  /*
+   * PV-API-002 — the body is strict. A declared subject used to be tolerated
+   * and overridden by the session subject; it is now REFUSED, which is the
+   * stronger guarantee, and nothing is enrolled. As with the step-up body
+   * above, the exact status of a raw ZodError is the harness's (no error
+   * handler here), so the refusal and its zero side effects are what is pinned.
+   */
+  it("enroll/start refuses a caller-declared subject outright, enrolling nothing", async () => {
+    const res = await app.inject({
+      method: "POST", url: "/v1/identity/mfa/enroll/start",
+      payload: { label: "Work phone", userId: OTHER },
+    });
+    expect(res.statusCode).toBeGreaterThanOrEqual(400);
+    expect(called("beginTotpEnrollment")).toHaveLength(0);
+  });
+
+  it("enroll/start refuses a phone-factor kind with a pointer to the contact-factor route", async () => {
+    for (const kind of ["SMS", "WHATSAPP"]) {
+      const res = await app.inject({
+        method: "POST", url: "/v1/identity/mfa/enroll/start",
+        payload: { label: "Work phone", kind },
+      });
+      // A DomainError carries its own status, so even the bare harness
+      // renders the bounded 400 and its public code.
+      expect(res.statusCode, kind).toBe(400);
+      expect(JSON.parse(res.body).code, kind).toBe("MFA_ENROLL_WRONG_ROUTE");
+    }
+    expect(called("beginTotpEnrollment")).toHaveLength(0);
+    // Naming what the route does is accepted.
+    const ok = await app.inject({
+      method: "POST", url: "/v1/identity/mfa/enroll/start",
+      payload: { kind: "TOTP" },
+    });
+    expect(ok.statusCode).toBe(200);
+    expect(called("beginTotpEnrollment")).toHaveLength(1);
   });
 
   it("enroll/verify activates the factor and returns recovery codes exactly once", async () => {

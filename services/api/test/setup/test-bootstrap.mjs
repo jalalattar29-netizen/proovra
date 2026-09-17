@@ -32,10 +32,11 @@
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash } from "node:crypto";
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+
+import { localS3Endpoint } from "./local-s3-endpoint.mjs";
 
 // THE canonical local-host authority. This file, the `--import` outbound
 // guard and the Point-7 closure gate used to keep three copies of the same
@@ -84,6 +85,9 @@ const HARNESS_OWNED = new Set([
   "P7_TEST_DATABASE_URL",
   "P7_GUARD_STACKS",
   "P7_CANARY_LIVE_ENV",
+  // A port number for the loopback object store (it matches the "S3_"
+  // credential fragment by name only; see localS3Endpoint).
+  "P7_HOST_S3_PORT",
   "E2E_AUTH_BYPASS_SECRET",
 ]);
 
@@ -177,7 +181,7 @@ const REQUIRED_CORE = {
  * somewhere less honest.
  */
 const LOCAL_FAKES = {
-  S3_ENDPOINT: "http://127.0.0.1:59000",
+  S3_ENDPOINT: localS3Endpoint(),
   S3_REGION: "auto",
   S3_ACCESS_KEY: "point7-local-minio",
   S3_SECRET_KEY: "point7-local-minio-secret",
@@ -353,59 +357,12 @@ function rememberMachineValue(key, value) {
   MACHINE_VALUE_HASHES.set(key, set);
 }
 
-/** Candidate env files, in the order a tool would find them. */
-const ENV_FILE_CANDIDATES = (() => {
-  const setupDir = dirname(fileURLToPath(import.meta.url));
-  const apiDir = resolve(setupDir, "..", "..");
-  const repoRoot = resolve(apiDir, "..", "..");
-  const names = [".env", ".env.local", ".env.development", ".env.production"];
-  const dirs = [
-    repoRoot,
-    apiDir,
-    resolve(repoRoot, "services", "worker"),
-    resolve(repoRoot, "apps", "web"),
-  ];
-  return dirs.flatMap((d) => names.map((n) => resolve(d, n)));
-})();
-
-/**
- * Read the machine's env files for FINGERPRINTS ONLY.
- *
- * The files are never loaded into `process.env` by this function and their
- * contents never leave it. Parsing is deliberately minimal — `KEY=VALUE`, with
- * surrounding quotes stripped — because the goal is only to recognise a value
- * if it reappears.
- */
+/** Fingerprint inherited values only. Test processes never inspect env files. */
 function collectMachineFingerprints() {
   for (const [key, value] of Object.entries(process.env)) {
     rememberMachineValue(key, value);
   }
-  for (const path of ENV_FILE_CANDIDATES) {
-    if (!existsSync(path)) continue;
-    let raw;
-    try {
-      raw = readFileSync(path, "utf8");
-    } catch {
-      continue;
-    }
-    for (const line of raw.split(/\r?\n/)) {
-      const trimmed = line.trim();
-      if (trimmed === "" || trimmed.startsWith("#")) continue;
-      const eq = trimmed.indexOf("=");
-      if (eq <= 0) continue;
-      const key = trimmed.slice(0, eq).trim().replace(/^export\s+/, "");
-      let value = trimmed.slice(eq + 1).trim();
-      if (
-        (value.startsWith('"') && value.endsWith('"') && value.length >= 2) ||
-        (value.startsWith("'") && value.endsWith("'") && value.length >= 2)
-      ) {
-        value = value.slice(1, -1);
-      }
-      rememberMachineValue(key, value);
-    }
-  }
 }
-
 /**
  * True when `value` is a string this machine already had for `key`.
  *

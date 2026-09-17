@@ -43,6 +43,8 @@ import { describe, expect, it } from "vitest";
 // asserted as behaviour rather than as a shape of source.
 import { deriveEvidenceOutputState } from "@proovra/shared";
 
+import { enclosingSource, routeSource } from "../../../scripts/source-contract/index.mjs";
+
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 }
@@ -254,21 +256,35 @@ describe("Phase 32.6.1 — verification-package download route structured respon
     // Slice the route body and confirm no storage_key / storage_bucket
     // references in the responses (those are only used internally
     // for the actual download path).
-    const idx = ROUTES_SRC.indexOf('"/v1/evidence/:id/verification-package"');
-    expect(idx).toBeGreaterThan(0);
-    // Phase 32.6.6 — bump the slice window to 12000 (route body has
-    // grown over time; the 6000 ceiling no longer reaches the 404
-    // response).
-    const slice = ROUTES_SRC.slice(idx, idx + 12000);
+    // The whole route registration — every response it can send, however
+    // the handler grows, and nothing from the next route.
+    const slice = routeSource(ROUTES_SRC, "GET", "/v1/evidence/:id/verification-package");
     // Specifically the response objects we just added must NOT
     // include any of these fields. Phase 32.6.6 — the "unavailable"
     // 410 branch has been retired, so the bounded enum is now
     // blocked | pending | not_found.
-    const lookAtResponses = slice.match(
-      /return reply[\s\S]{0,800}code:\s*"verification_package_(blocked|pending|not_found)"[\s\S]{0,400}\}\)/g,
-    );
-    expect(lookAtResponses).toBeTruthy();
-    for (const r of lookAtResponses!) {
+    //
+    // Each response is its own `return reply…send({…})` statement, read by
+    // the parser. The former character-bounded regex
+    // (`return reply[\s\S]{0,800}…[\s\S]{0,400}\}\)`) ran past the end of a
+    // 404 response into the storage lookup that follows it once the whole
+    // route was in view (the old 12000-char window held 1 of the 5 responses).
+    const lookAtResponses: string[] = [];
+    const seen = new Map<string, number>();
+    for (const m of slice.matchAll(
+      /code:\s*"verification_package_(blocked|pending|not_found)"/g,
+    )) {
+      const occurrence = seen.get(m[0]) ?? 0;
+      seen.set(m[0], occurrence + 1);
+      const response = enclosingSource(slice, m[0], "statement", {
+        occurrence,
+        fileName: "evidence.routes.ts",
+      });
+      expect(response).toMatch(/^return reply[\s\S]*\}\s*\)\s*;?$/);
+      lookAtResponses.push(response);
+    }
+    expect(lookAtResponses.length).toBeGreaterThan(0);
+    for (const r of lookAtResponses) {
       expect(r).not.toMatch(/storageKey|storage_key|storageBucket|storage_bucket|signedUrl|signed_url/);
     }
   });
@@ -287,8 +303,7 @@ describe("Phase 32.6.1 — runtime-readiness Redis live ping", () => {
   });
 
   it("ping client is bounded: connectTimeout 500ms, maxRetriesPerRequest 0, retryStrategy returns null", () => {
-    const idx = SRC.indexOf("async function checkRedis");
-    const slice = SRC.slice(idx, idx + 3000);
+    const slice = checkRedisSource(SRC);
     expect(slice).toMatch(/connectTimeout: 500/);
     expect(slice).toMatch(/maxRetriesPerRequest: 0/);
     expect(slice).toMatch(/retryStrategy: \(\) => null/);
@@ -296,41 +311,29 @@ describe("Phase 32.6.1 — runtime-readiness Redis live ping", () => {
   });
 
   it("ping uses bounded 1s timeout via withTimeout helper", () => {
-    const idx = SRC.indexOf("async function checkRedis");
-    const slice = SRC.slice(idx, idx + 3000);
+    const slice = checkRedisSource(SRC);
     expect(slice).toMatch(/withTimeout\(pingClient\.ping\(\), null, 1000\)/);
   });
 
   it("REDIS_URL missing → DEGRADED (not CRITICAL — env may legitimately be unset in dev)", () => {
-    const idx = SRC.indexOf("async function checkRedis");
-    const slice = SRC.slice(idx, idx + 3000);
+    const slice = checkRedisSource(SRC);
     expect(slice).toMatch(/reasonCode: "redis_not_configured"/);
     expect(slice).toMatch(/status: "DEGRADED",[\s\S]{0,200}reasonCode: "redis_not_configured"/);
   });
 
   it("ping success → HEALTHY with measured latency", () => {
-    const idx = SRC.indexOf("async function checkRedis");
-    const slice = SRC.slice(idx, idx + 3000);
+    const slice = checkRedisSource(SRC);
     expect(slice).toMatch(/status: "HEALTHY",[\s\S]{0,400}latencyMs/);
   });
 
   it("ping failure → CRITICAL with bounded error message slice", () => {
-    const idx = SRC.indexOf("async function checkRedis");
-    // Phase 32.7.3 — function body widened with the
-    // explicit-connect race-fix comment; the previous 3000-char
-    // window no longer reaches the CRITICAL branch. Widen to 5000
-    // (consistent with the sibling `finally` test below).
-    const slice = SRC.slice(idx, idx + 5000);
+    const slice = checkRedisSource(SRC);
     expect(slice).toMatch(/status: "CRITICAL",[\s\S]{0,400}reasonCode: "redis_unreachable"/);
     expect(slice).toMatch(/err\.message\.slice\(0, 120\)/);
   });
 
   it("ping client is always disconnected in a finally block (no socket leak)", () => {
-    const idx = SRC.indexOf("async function checkRedis");
-    // Phase 32.7.1 — function body widened to surface triage
-    // metadata; the previous 3000-char window no longer reaches
-    // the `} finally {` block. Widen to 5000.
-    const slice = SRC.slice(idx, idx + 5000);
+    const slice = checkRedisSource(SRC);
     expect(slice).toMatch(/} finally \{[\s\S]{0,400}pingClient\.disconnect\(\)/);
   });
 });
@@ -405,3 +408,17 @@ describe("Phase 32.6.1 — Redis connection event observability", () => {
     expect(QUEUE_SRC).toMatch(/void import\("\.\/logger\.js"\)\.then\(\(\{ logger \}\) =>/);
   });
 });
+
+/**
+ * The source of `checkRedis`, from its declaration to the next top-level
+ * function. These assertions used fixed 3000/4000/5000-character windows, so
+ * a comment added inside the function pushed a branch out of the window and
+ * failed tests about behaviour nobody changed — and a window longer than the
+ * function could match text in the NEXT function. The function is the unit.
+ */
+function checkRedisSource(src: string): string {
+  const start = src.indexOf("async function checkRedis");
+  if (start < 0) throw new Error("checkRedis not found in runtime-readiness.ts");
+  const next = src.slice(start + 1).search(/\n(?:export\s+)?(?:async\s+)?function\s/);
+  return next < 0 ? src.slice(start) : src.slice(start, start + 1 + next);
+}

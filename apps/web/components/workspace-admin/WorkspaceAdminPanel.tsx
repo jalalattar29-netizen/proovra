@@ -128,7 +128,7 @@ export function WorkspaceAdminPanel() {
   ];
 
   return (
-    <main className="cc-page" data-workspace-admin data-workspace-id={env.workspace.id}>
+    <div className="cc-page" data-workspace-admin data-workspace-id={env.workspace.id}>
       <header className="cc-page-header">
         <div>
           <div className="cc-kicker">Workspace Administration</div>
@@ -203,7 +203,7 @@ export function WorkspaceAdminPanel() {
         <AccountabilityTab env={env} />
       )}
       {tab === "audit" && <WorkspaceAuditTab teamId={env.workspace.id} />}
-    </main>
+    </div>
   );
 }
 
@@ -766,7 +766,7 @@ function SectionNote({
 
 function ShellLoading() {
   return (
-    <main className="cc-page" data-workspace-admin-loading>
+    <div className="cc-page" data-workspace-admin-loading>
       <header className="cc-page-header">
         <div>
           <div className="cc-kicker">Workspace Administration</div>
@@ -776,7 +776,7 @@ function ShellLoading() {
       <section className="cc-section">
         <div className="cc-skeleton" />
       </section>
-    </main>
+    </div>
   );
 }
 
@@ -792,7 +792,7 @@ function ShellAuthError({
   code: "auth_required" | "permission_denied";
 }) {
   return (
-    <main className="cc-page" data-workspace-admin-auth-error={code}>
+    <div className="cc-page" data-workspace-admin-auth-error={code}>
       <header className="cc-page-header">
         <div>
           <div className="cc-kicker">Workspace Administration</div>
@@ -806,26 +806,26 @@ function ShellAuthError({
           </p>
         </div>
       </header>
-    </main>
+    </div>
   );
 }
 
 function ShellNotFound() {
   return (
-    <main className="cc-page" data-workspace-admin-not-found>
+    <div className="cc-page" data-workspace-admin-not-found>
       <header className="cc-page-header">
         <div>
           <div className="cc-kicker">Workspace Administration</div>
           <h1 className="cc-title">Workspace not found</h1>
         </div>
       </header>
-    </main>
+    </div>
   );
 }
 
 function ShellUnavailable({ message }: { message: string }) {
   return (
-    <main className="cc-page" data-workspace-admin-unavailable>
+    <div className="cc-page" data-workspace-admin-unavailable>
       <header className="cc-page-header">
         <div>
           <div className="cc-kicker">Workspace Administration</div>
@@ -833,7 +833,7 @@ function ShellUnavailable({ message }: { message: string }) {
           <p className="cc-subtitle">{message}</p>
         </div>
       </header>
-    </main>
+    </div>
   );
 }
 

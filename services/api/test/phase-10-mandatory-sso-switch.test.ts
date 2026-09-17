@@ -8,6 +8,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 import Fastify, { type FastifyInstance } from "fastify";
 
 const H = vi.hoisted(() => ({
@@ -179,8 +180,10 @@ describe("§7/§9 — anti-divergence: no ambiguous/forged auth provenance", () 
     const { readFileSync } = await import("node:fs");
     const { fileURLToPath } = await import("node:url");
     const ctx = readFileSync(fileURLToPath(new URL("../src/routes/platform-context.routes.ts", import.meta.url)), "utf8");
-    const callIdx = ctx.indexOf("const method = provenanceToPolicyAuthMethod(");
-    const block = ctx.slice(callIdx, callIdx + 300);
+    const block = enclosingSource(ctx, "const method = provenanceToPolicyAuthMethod(", "statement", {
+      unique: true,
+      fileName: "platform-context.routes.ts",
+    });
     expect(block).toMatch(/req\.user/);
     expect(block).not.toMatch(/req\.body|req\.query|req\.headers/);
   });

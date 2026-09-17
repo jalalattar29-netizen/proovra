@@ -43,6 +43,8 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const REPO_ROOT = resolve(__dirname, "../../..");
@@ -55,6 +57,10 @@ const SIMPLE_DETAIL = src(
   "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
 );
 const CASES_ROUTES = src("services/api/src/routes/cases.routes.ts");
+// The whole `app.get("/v1/cases/:id/available-evidence", …)` registration —
+// its handler, select, where-clause and response mapping (WCC-NEW-027).
+const availableEvidenceRoute = (): string =>
+  routeSource(CASES_ROUTES, "GET", "/v1/cases/:id/available-evidence");
 
 // ===========================================================================
 // Single page-level entry point
@@ -308,9 +314,7 @@ test("All-failed run keeps the dialog open (so the user can retry without losing
 test("Backend /v1/cases/:id/available-evidence selects the filename fields the picker needs", () => {
   // Anchor on the available-evidence route and look at the
   // immediately-following findMany select block.
-  const start = CASES_ROUTES.indexOf('"/v1/cases/:id/available-evidence"');
-  assert.ok(start > 0, "available-evidence route not found");
-  const window = CASES_ROUTES.slice(start, start + 5000);
+  const window = availableEvidenceRoute();
   for (const field of [
     "title: true",
     "displayFileName: true",
@@ -333,8 +337,7 @@ test("Backend /v1/cases/:id/available-evidence selects the filename fields the p
 });
 
 test("Backend /v1/cases/:id/available-evidence now also excludes archived evidence (was previously only deleted + attached)", () => {
-  const start = CASES_ROUTES.indexOf('"/v1/cases/:id/available-evidence"');
-  const window = CASES_ROUTES.slice(start, start + 2000);
+  const window = availableEvidenceRoute();
   // The where-clause must include all three lifecycle filters.
   assert.match(window, /deletedAt: null/);
   assert.match(window, /archivedAt: null/);
@@ -344,8 +347,7 @@ test("Backend /v1/cases/:id/available-evidence now also excludes archived eviden
 });
 
 test("Backend /v1/cases/:id/available-evidence response shape stays backward-compatible (every prior field is still emitted)", () => {
-  const start = CASES_ROUTES.indexOf('"/v1/cases/:id/available-evidence"');
-  const window = CASES_ROUTES.slice(start, start + 5000);
+  const window = availableEvidenceRoute();
   for (const field of [
     "id: e.id",
     "type: String(e.type)",
@@ -360,8 +362,7 @@ test("Backend /v1/cases/:id/available-evidence response shape stays backward-com
 });
 
 test("Backend /v1/cases/:id/available-evidence keeps owner-scope authorization (cross-workspace blocked at the read layer)", () => {
-  const start = CASES_ROUTES.indexOf('"/v1/cases/:id/available-evidence"');
-  const window = CASES_ROUTES.slice(start, start + 3000);
+  const window = availableEvidenceRoute();
   // The handler checks the case belongs to the caller AND filters
   // evidence by that same owner.
   assert.match(window, /caseItem\.ownerUserId !== ownerUserId/);

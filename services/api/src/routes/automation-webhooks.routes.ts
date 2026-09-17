@@ -411,6 +411,22 @@ export async function automationWebhooksRoutes(
           actorUserId: member.userId,
         },
       });
+    } else {
+      // BATCH J — enabling resumes outbound deliveries (including after an
+      // automatic disable for repeated failures), so it is audited too. The
+      // canonical vocabulary has no dedicated "enabled" event; the existing
+      // "updated" event carries the state change explicitly.
+      safeEmitSecurityEvent({
+        teamId: existing.teamId,
+        eventType: "automation_webhook_destination_updated",
+        severity: "INFO",
+        details: {
+          destinationId: existing.id,
+          actorUserId: member.userId,
+          enabledChanged: true,
+          enabled: true,
+        },
+      });
     }
     reply.send(projectDestination(updated));
   };

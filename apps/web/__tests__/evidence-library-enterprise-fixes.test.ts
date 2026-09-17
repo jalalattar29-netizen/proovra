@@ -44,6 +44,7 @@ import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { enclosingSource, routeSource } from "../../../scripts/source-contract/index.mjs";
 import { dirname, resolve } from "node:path";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -269,16 +270,12 @@ test("FIX 7 — Backend GET /v1/evidence/library-summary endpoint still exists",
 });
 
 test("FIX 7 — Real package readiness predicate (verificationPackages.some, NOT latestReportVersion) is intact", () => {
-  const start = ROUTES.indexOf('"/v1/evidence/library-summary"');
-  const body = ROUTES.slice(start, start + 10_000);
+  const body = routeSource(ROUTES, "GET", "/v1/evidence/library-summary");
   assert.match(
     body,
     /PACKAGES_READY_PREDICATE[\s\S]{0,400}verificationPackages:\s*\{\s*some:\s*\{\s*\}\s*\}/,
   );
-  const packagesPredicateBlock = body.slice(
-    body.indexOf("PACKAGES_READY_PREDICATE"),
-    body.indexOf("PACKAGES_READY_PREDICATE") + 400,
-  );
+  const packagesPredicateBlock = enclosingSource(body, "PACKAGES_READY_PREDICATE", "statement");
   assert.doesNotMatch(packagesPredicateBlock, /latestReportVersion/);
 });
 

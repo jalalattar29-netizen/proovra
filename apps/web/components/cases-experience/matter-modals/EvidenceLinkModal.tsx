@@ -21,7 +21,9 @@
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import React, { useCallback, useEffect, useState } from "react";
 
+import { identifierLabel } from "@proovra/shared";
 import { apiFetch } from "../../../lib/api";
+import { Button } from "../../ui/Button";
 import { Modal } from "./Modal";
 
 const EVIDENCE_LINK_ROLES = [
@@ -33,6 +35,20 @@ const EVIDENCE_LINK_ROLES = [
   "CONTEXT",
 ] as const;
 export type EvidenceLinkRole = (typeof EVIDENCE_LINK_ROLES)[number];
+
+/** Operator wording for each link role. */
+const ROLE_LABEL: Record<EvidenceLinkRole, string> = {
+  PRIMARY: "Primary evidence",
+  SUPPORTING: "Supporting evidence",
+  RELATED: "Related material",
+  DUPLICATE: "Duplicate of other evidence",
+  DERIVED: "Derived from other evidence",
+  CONTEXT: "Context only",
+};
+
+function roleLabel(role: string): string {
+  return ROLE_LABEL[role as EvidenceLinkRole] ?? identifierLabel(role);
+}
 
 type LinkableEvidenceItem = {
   id: string;
@@ -99,7 +115,7 @@ export function EvidenceLinkModal({
   const [selectedEvidenceId, setSelectedEvidenceId] = useState<string | null>(
     null,
   );
-  const [role, setRole] = useState<EvidenceLinkRole>("PRIMARY");
+  const [role, setRole] = useState<EvidenceLinkRole>("SUPPORTING");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -176,7 +192,7 @@ export function EvidenceLinkModal({
     if (!open) {
       setSearch("");
       setSelectedEvidenceId(null);
-      setRole("PRIMARY");
+      setRole("SUPPORTING");
       setReason("");
       setSubmitting(false);
     }
@@ -186,6 +202,11 @@ export function EvidenceLinkModal({
   const selected =
     items.find((e) => e.id === selectedEvidenceId) ?? null;
   const cannotLink = selected?.alreadyLinked ?? false;
+  const submitDisabledReason = !selectedEvidenceId
+    ? "Select the evidence to link."
+    : cannotLink
+      ? "This evidence is already linked to the matter."
+      : undefined;
 
   const handleSubmit = useCallback(async () => {
     if (!selectedEvidenceId) return;
@@ -217,22 +238,17 @@ export function EvidenceLinkModal({
           >
             Cancel
           </button>
-          <button
-            type="button"
-            className="cases-filter-chip is-active"
+          <Button
+            variant="primary"
+            size="sm"
             data-matter-evidence-link-submit
             onClick={() => void handleSubmit()}
-            disabled={!selectedEvidenceId || submitting || cannotLink}
-            title={
-              !selectedEvidenceId
-                ? "Select an evidence item"
-                : cannotLink
-                  ? "This evidence is already linked to the matter"
-                  : "Link evidence"
-            }
+            loading={submitting}
+            disabled={Boolean(submitDisabledReason)}
+            disabledReason={submitDisabledReason}
           >
             {submitting ? "Linking…" : "Link evidence"}
-          </button>
+          </Button>
         </>
       }
     >
@@ -326,7 +342,7 @@ export function EvidenceLinkModal({
                         >
                           Already linked
                           {ev.existingLinkRole
-                            ? ` (${ev.existingLinkRole})`
+                            ? ` (${roleLabel(ev.existingLinkRole).toLowerCase()})`
                             : ""}
                         </span>
                       ) : null}
@@ -344,10 +360,10 @@ export function EvidenceLinkModal({
                         className="app-status-badge" data-tone="slate"
                         data-matter-evidence-link-row-type={ev.type}
                       >
-                        {ev.type}
+                        {identifierLabel(ev.type)}
                       </span>
                       <span data-matter-evidence-link-row-status={ev.status}>
-                        {ev.status}
+                        {identifierLabel(ev.status)}
                       </span>
                       {ev.lifecycleState ? (
                         <span
@@ -355,7 +371,7 @@ export function EvidenceLinkModal({
                             ev.lifecycleState
                           }
                         >
-                          {ev.lifecycleState}
+                          {identifierLabel(ev.lifecycleState)}
                         </span>
                       ) : null}
                       {ev.verificationStatus ? (
@@ -364,7 +380,7 @@ export function EvidenceLinkModal({
                             ev.verificationStatus
                           }
                         >
-                          {ev.verificationStatus}
+                          {identifierLabel(ev.verificationStatus)}
                         </span>
                       ) : null}
                       <span
@@ -422,7 +438,7 @@ export function EvidenceLinkModal({
           >
             {EVIDENCE_LINK_ROLES.map((r) => (
               <option key={r} value={r}>
-                {r}
+                {ROLE_LABEL[r]}
               </option>
             ))}
           </select>

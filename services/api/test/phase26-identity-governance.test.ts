@@ -338,12 +338,14 @@ describe("Phase 26 — wording sweep", () => {
     "../src/services/access-control/session-inventory.service.ts",
     "../src/routes/admin-identity.routes.ts",
     "../src/routes/scim.routes.ts",
-    "../../../apps/web/app/(app)/admin/identity/page.tsx",
-    "../../../apps/web/app/(app)/admin/identity/providers/page.tsx",
-    "../../../apps/web/app/(app)/admin/identity/permission-matrix/page.tsx",
-    "../../../apps/web/app/(app)/admin/identity/scim/page.tsx",
-    "../../../apps/web/app/(app)/admin/identity/sessions/page.tsx",
-    "../../../apps/web/app/(app)/admin/identity/access-reviews/page.tsx",
+    "../../../apps/web/app/(app)/security-center/identity/page.tsx",
+    // PV-PLACE-001 / PV-DUP-001 — the providers console merged into the
+    // canonical SSO console; the wording sweep follows it there.
+    "../../../apps/web/app/(app)/security-center/sso/page.tsx",
+    "../../../apps/web/app/(app)/security-center/identity/permission-matrix/page.tsx",
+    "../../../apps/web/app/(app)/security-center/identity/scim/page.tsx",
+    "../../../apps/web/app/(app)/security-center/identity/sessions/page.tsx",
+    "../../../apps/web/app/(app)/security-center/identity/access-reviews/page.tsx",
   ];
   for (const path of sources) {
     it(`no overclaim phrase in ${path.split("/").slice(-2).join("/")}`, () => {

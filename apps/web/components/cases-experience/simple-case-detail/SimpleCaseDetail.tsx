@@ -77,6 +77,9 @@ import { TeamResponsibilityPanel } from "../../collaboration/TeamResponsibilityP
 // Phase CASES-STATUS-LISTBOX (§22) — accessible custom status listbox
 // replaces the native status dropdown in the Settings tab.
 import { CaseStatusSelect } from "./CaseStatusSelect";
+// D37 — the repo's disabled-reason pattern: the reason is visible text beside
+// the control, its accessible description and its hover title.
+import { ReasonedActionButton } from "../../../app/(app)/evidence/[id]/components/ReasonedActionButton";
 // THE canonical dialog for this experience: portal, focus trap, Escape with
 // pending-state protection, focus restoration, scroll lock and the shared
 // `.app-dialog` anatomy. The Add-evidence dialog described all of that with
@@ -644,17 +647,16 @@ export function CaseDetailHeader({
               shadow, hover, focus and :disabled treatment stay in lockstep
               with those controls. The capability gate, disabled reason,
               handler and testid are unchanged. */}
-          <button
-            type="button"
+          <ReasonedActionButton
             className="app-header-primary-action"
             onClick={onAddEvidence}
             disabled={!canLinkEvidence}
-            title={linkEvidenceDisabledReason ?? undefined}
+            disabledReason={linkEvidenceDisabledReason}
             data-simple-case-action="add-evidence"
           >
             <Plus size={16} strokeWidth={2} aria-hidden="true" />
             {primaryActionLabel}
-          </button>
+          </ReasonedActionButton>
           {secondaryActions ?? null}
         </div>
 

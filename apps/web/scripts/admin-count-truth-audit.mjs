@@ -52,6 +52,25 @@ import {
 const WEB_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const ADMIN_DIR = join(WEB_ROOT, "app", "(app)", "admin");
 
+/**
+ * PV-PLACE-001 / PV-OD-001 — the administrative pages that LEFT /admin.
+ *
+ * Eleven workspace-administration pages moved to their tenant homes and kept
+ * the administrative visual system — including its count sites. An audit that
+ * walked /admin alone would have dropped every one of those counts from
+ * scrutiny the moment the files moved, and made "0 unbacked" true by
+ * forgetting rather than by fixing. The scan follows the pages.
+ */
+const SCANNED_DIRS = [
+  ADMIN_DIR,
+  join(WEB_ROOT, "app", "(app)", "security-center", "identity"),
+  join(WEB_ROOT, "app", "(app)", "security-center", "posture"),
+  join(WEB_ROOT, "app", "(app)", "security-center", "sso"),
+  join(WEB_ROOT, "app", "(app)", "operations", "analytics"),
+  join(WEB_ROOT, "app", "(app)", "operations", "automation"),
+  join(WEB_ROOT, "app", "(app)", "operations", "reliability"),
+];
+
 function walk(dir, out = []) {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     const p = join(dir, e.name);
@@ -111,7 +130,9 @@ const COUNTED_NOUN =
  */
 const PER_RECORD_FIELDS = [
   {
-    route: "/admin/identity",
+    // PV-PLACE-001 — the identity hub moved from /admin/identity; the
+    // judgement moved with it and the scan follows the page.
+    route: "/security-center/identity",
     expression: "a.ipAllowlist",
     reason:
       "The allowlist is a column on the ServiceAccount row being rendered, " +
@@ -150,7 +171,7 @@ function classify(block, route) {
   return "LOADED_ONLY";
 }
 
-const rows = walk(ADMIN_DIR).map((file) => {
+const rows = SCANNED_DIRS.flatMap((dir) => walk(dir)).map((file) => {
   const route = routeOf(file);
   const code = strip(sourceFor(file));
   const sites = [];
@@ -271,7 +292,11 @@ if (process.argv.includes("--json")) {
   console.log(
     JSON.stringify(
       {
-        generatedFrom: "apps/web/app/(app)/admin",
+        generatedFrom: SCANNED_DIRS.map((d) =>
+          relative(WEB_ROOT, d).split(sep).join("/"),
+        )
+          .map((d) => `apps/web/${d}`)
+          .join(", "),
         completeListDeclarations: COMPLETE_LISTS,
         sites: flat,
       },

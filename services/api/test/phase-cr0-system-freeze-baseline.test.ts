@@ -121,14 +121,18 @@ describe("Phase CR0 — every (app) page wraps in <PageRouteGate> OR is document
     { page: "admin/dashboard/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
     { page: "admin/demo-requests/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
     { page: "admin/contact-sales/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
-    { page: "admin/identity/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
-    { page: "admin/identity/access-reviews/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
-    { page: "admin/identity/permission-matrix/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
-    { page: "admin/identity/providers/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
-    { page: "admin/identity/runtime/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
-    { page: "admin/identity/scim/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
-    { page: "admin/identity/sessions/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
-    { page: "admin/identity/timeline/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
+    // PV-PLACE-001 / PV-OD-001 — the identity family left /admin for the
+    // workspace's Security Center. The hub carries its own PageRouteGate and is
+    // no longer exempt; the six children are gated ONCE by
+    // `security-center/identity/layout.tsx` (<PageRouteGate
+    // routeId="security_center.identity">), the same once-per-family model the
+    // /admin layout used, so they stay exempt for that reason and no other.
+    { page: "security-center/identity/access-reviews/page.tsx", reason: "gated by security-center/identity/layout.tsx (security_center.identity)", revisitPhase: "PERMANENT" },
+    { page: "security-center/identity/permission-matrix/page.tsx", reason: "gated by security-center/identity/layout.tsx (security_center.identity)", revisitPhase: "PERMANENT" },
+    { page: "security-center/identity/runtime/page.tsx", reason: "gated by security-center/identity/layout.tsx (security_center.identity)", revisitPhase: "PERMANENT" },
+    { page: "security-center/identity/scim/page.tsx", reason: "gated by security-center/identity/layout.tsx (security_center.identity)", revisitPhase: "PERMANENT" },
+    { page: "security-center/identity/sessions/page.tsx", reason: "gated by security-center/identity/layout.tsx (security_center.identity)", revisitPhase: "PERMANENT" },
+    { page: "security-center/identity/timeline/page.tsx", reason: "gated by security-center/identity/layout.tsx (security_center.identity)", revisitPhase: "PERMANENT" },
     // Platform Admin Control Center (P0/P1) — gated by /admin/layout.tsx's
     // <PageRouteGate routeId="platform.admin"> wrapper (same model as every
     // other /admin page above). /admin/organizations{,/[id]} additionally
@@ -146,7 +150,9 @@ describe("Phase CR0 — every (app) page wraps in <PageRouteGate> OR is document
     { page: "admin/operations/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
     { page: "admin/evidence-ops/records/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
     { page: "admin/evidence-ops/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
-    { page: "admin/security/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
+    // PV-PLACE-001 — admin/security/page.tsx moved to
+    // security-center/posture/page.tsx, which wraps its own PageRouteGate
+    // (security_center.posture), so it needs no exemption.
     { page: "admin/billing/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
 
     // Redirect-only pages — CR1 Part 2 PURGED all 8. The 8 backward-
@@ -210,8 +216,10 @@ describe("Phase CR0 — every (app) page wraps in <PageRouteGate> OR is document
     { page: "admin/platform/observability/page.tsx", reason: "Phase 1A IA reset thin wrapper — delegates to /ops/observability which carries the PageRouteGate", revisitPhase: "PERMANENT" },
     { page: "admin/platform/runbooks/page.tsx", reason: "Phase 1A IA reset thin wrapper — delegates to /ops/runbooks which carries the PageRouteGate", revisitPhase: "PERMANENT" },
     { page: "admin/platform/media-graph/page.tsx", reason: "Phase 1A IA reset thin wrapper — delegates to /ops/media-graph which carries the PageRouteGate", revisitPhase: "PERMANENT" },
-    { page: "admin/platform/automation/page.tsx", reason: "Phase 1A IA reset thin wrapper — delegates to /ops/automation which carries the PageRouteGate", revisitPhase: "PERMANENT" },
-    { page: "admin/platform/analytics/page.tsx", reason: "Phase 1A IA reset thin wrapper — delegates to /ops/analytics which carries the PageRouteGate", revisitPhase: "PERMANENT" },
+    // PV-PLACE-001 — admin/platform/{automation,analytics}/page.tsx moved to
+    // operations/{automation,analytics}/page.tsx, which wrap their own
+    // PageRouteGate (operations.automation / operations.analytics), so the two
+    // thin-wrapper exemptions are gone rather than moved.
     { page: "operations/batch-analysis/page.tsx", reason: "Phase 1A IA reset thin wrapper — delegates to /dashboard/batch-analysis which carries the PageRouteGate", revisitPhase: "PERMANENT" },
     { page: "operations/quotas/page.tsx", reason: "Phase 1A IA reset thin wrapper — delegates to /dashboard/quotas which carries the PageRouteGate", revisitPhase: "PERMANENT" },
   ];

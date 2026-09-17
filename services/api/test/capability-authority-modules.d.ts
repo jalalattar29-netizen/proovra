@@ -71,6 +71,15 @@ declare module "*/capability-authority/consumers.mjs" {
     unmatched: Array<Record<string, unknown>>;
     ambiguous: Array<Record<string, unknown>>;
   };
+  export function consumerIdentity(c: {
+    file: string;
+    method?: string | null;
+    caller?: string | null;
+    path: string;
+  }): string;
+  export function buildConsumerResolutions(
+    entries?: ReadonlyArray<{ site: string; routes: string[]; match?: Record<string, unknown> }>,
+  ): Map<string, string[]>;
 }
 
 declare module "*/generate-runtime-capability-map.mjs" {

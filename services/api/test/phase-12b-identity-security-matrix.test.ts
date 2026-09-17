@@ -667,6 +667,8 @@ const S = vi.hoisted(() => ({
   approverIsOrgAdmin: true,
   /** Section 4 sets this: the caller IS an org admin of the subject org. */
   actorIsOrgAdmin: false,
+  /** PV-ORG-001 — the denial reported for a caller who is not an org admin. */
+  actorOrgDenial: "forbidden" as "forbidden" | "not_found",
   writes: [] as string[],
   supportGrantRows: [] as Array<Record<string, unknown>>,
   emergencyGrantRows: [] as Array<Record<string, unknown>>,
@@ -708,7 +710,10 @@ vi.mock("../src/services/platform-admin.service.js", () => ({
 }));
 // NOTE: `step-up-middleware` is deliberately NOT mocked — see the DB comment.
 // Section 3 exercises the REAL gate over seeded challenge rows.
-vi.mock("../src/services/organization/org-access.js", () => ({
+// The REAL module (its pure `orgAccessDenial` rendering included), with only
+// the gate's decision replaced.
+vi.mock("../src/services/organization/org-access.js", async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   checkOrgAccess: async (
     _p: unknown,
     args: { userId: string; minRole: string },
@@ -720,7 +725,7 @@ vi.mock("../src/services/organization/org-access.js", () => ({
     //     /v1/support-access/start (section 3). There the support actor must
     //     NOT be an org admin of the customer org, which is the whole point.
     if (args.userId === S.actorUserId) {
-      return S.actorIsOrgAdmin ? { kind: "ok" } : { kind: "forbidden" };
+      return S.actorIsOrgAdmin ? { kind: "ok" } : { kind: S.actorOrgDenial };
     }
     return S.approverIsOrgAdmin ? { kind: "ok" } : { kind: "forbidden" };
   },
@@ -803,6 +808,8 @@ vi.mock("../src/services/identity/support-runtime.service.js", () => ({
     valid: true,
     grant: { id: "sa-1", supportUserId: S.actorUserId },
   }),
+  // D32 — the entry route now writes its own audit record.
+  recordSupportContextEntry: async () => {},
 }));
 vi.mock("../src/services/identity/support-context-token.service.js", () => ({
   signSupportContextToken: () => "opaque-support-token",
@@ -1339,20 +1346,49 @@ describe("PHASE 12B C1 — organization security policy authority", () => {
     expect(res.json().affectedSessionUserCount).toBe(4);
   });
 
-  it("a non-org-admin caller is concealed-denied on both read and write", async () => {
-    S.actorIsOrgAdmin = false; // drives requireOrgPolicyAdmin -> 404
+  // PV-ORG-001 — one convention: a NON-member is concealed exactly as a
+  // missing organization is (404); an ACTIVE member without the org-admin
+  // role is refused with 403. Neither reads the policy nor writes it.
+  it("a non-member caller is concealed on both read and write", async () => {
+    S.actorIsOrgAdmin = false;
+    S.actorOrgDenial = "not_found";
+    try {
+      const read = await app.inject({
+        method: "GET",
+        url: `/v1/security-policy?organizationId=${ORG}`,
+      });
+      expect(read.statusCode).toBe(404);
+      expect(JSON.parse(read.body)).toEqual({ error: { code: "not_found" } });
+      const write = await app.inject({
+        method: "PATCH",
+        url: "/v1/security-policy",
+        headers: withChallenge,
+        payload: { organizationId: ORG, expectedPolicyVersion: 1, ssoRequired: true },
+      });
+      expect(write.statusCode).toBe(404);
+      expect(write.body).toBe(read.body);
+      expect(S.writes).toEqual([]);
+    } finally {
+      S.actorOrgDenial = "forbidden";
+    }
+  });
+
+  it("a member without the org-admin role is refused on both read and write", async () => {
+    S.actorIsOrgAdmin = false;
+    S.actorOrgDenial = "forbidden";
     const read = await app.inject({
       method: "GET",
       url: `/v1/security-policy?organizationId=${ORG}`,
     });
-    expect(read.statusCode).toBe(404);
+    expect(read.statusCode).toBe(403);
+    expect(JSON.parse(read.body)).toEqual({ error: { code: "forbidden" } });
     const write = await app.inject({
       method: "PATCH",
       url: "/v1/security-policy",
       headers: withChallenge,
       payload: { organizationId: ORG, expectedPolicyVersion: 1, ssoRequired: true },
     });
-    expect(write.statusCode).toBe(404);
+    expect(write.statusCode).toBe(403);
     expect(S.writes).toEqual([]);
   });
 });

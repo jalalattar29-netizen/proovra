@@ -59,6 +59,7 @@ export type ErrorCodeDisposition =
 
 const PUBLIC_INTAKE = "apps/web/app/intake/[token]/page.tsx";
 const REGISTER = "apps/web/app/register/page.tsx";
+const EXCHANGE = "apps/web/app/(app)/exchange/page.tsx";
 
 export const ERROR_CODE_DISPOSITIONS: Readonly<
   Record<string, ErrorCodeDisposition>
@@ -121,6 +122,7 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   CASES_MANAGE_REQUIRED: { disposition: "customer", where: "global" },
   CASE_DELETE_DENIED: { disposition: "customer", where: "global" },
   CASE_RENAME_DENIED: { disposition: "customer", where: "global" },
+  CASE_ACCESS_TARGET_NOT_MEMBER: { disposition: "customer", where: "global" },
   WORKSPACE_MEMBERSHIP_REQUIRED: { disposition: "customer", where: "global" },
   WORKSPACE_CONTEXT_REQUIRED: { disposition: "customer", where: "global" },
   /**
@@ -267,6 +269,35 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
     where: "global",
   },
 
+  // -- Bounded domain refusals (Batch C) ------------------------------------
+  // Service-emitted DomainErrors the central handler answers verbatim; the
+  // coverage test holds each one to the service that throws it.
+  EVIDENCE_RELATIONSHIP_SELF_LINK: { disposition: "customer", where: "global" },
+  PAYMENTS_UNAVAILABLE: { disposition: "customer", where: "global" },
+  LEGAL_POLICY_VERSION_NOT_CURRENT: { disposition: "customer", where: "global" },
+  LIFECYCLE_DESTRUCTION_REQUIRES_REVIEW: {
+    disposition: "internal",
+    why: "Answered only by the admin lifecycle override, which no product surface calls; destruction is offered through destruction reviews.",
+  },
+  EXPORT_SNAPSHOT_CURSOR_INVALID: { disposition: "customer", where: "global" },
+  CERTIFICATION_ALREADY_ATTESTED: { disposition: "customer", where: "global" },
+  CERTIFICATION_STATEMENT_MISSING: { disposition: "customer", where: "global" },
+  CERTIFICATION_STATEMENT_CHANGED: { disposition: "customer", where: "global" },
+  WEBHOOK_ENDPOINT_URL_INVALID: { disposition: "customer", where: "global" },
+  WEBHOOK_ENDPOINT_EVENTS_INVALID: { disposition: "customer", where: "global" },
+  WEBHOOK_ENDPOINT_EVENT_UNKNOWN: { disposition: "customer", where: "global" },
+  SCIM_TOKEN_ROTATE_CONFLICT: { disposition: "customer", where: "global" },
+  // PV-OD-012 — a domain write whose step-up has no workspace to be made in
+  // is refused, never waved through; the copy names the one remedy.
+  STEP_UP_WORKSPACE_REQUIRED: { disposition: "customer", where: "global" },
+  // PV-API-002 — refused when an API caller sends a phone-factor kind to the
+  // authenticator-app enrolment route. The product's own screens enrol phones
+  // through the contact-factor route and never send it.
+  MFA_ENROLL_WRONG_ROUTE: {
+    disposition: "internal",
+    why: "Raised only for an API caller that sends kind SMS/WHATSAPP to the authenticator-app enrolment route; no product screen sends it — phone enrolment calls the contact-factor route.",
+  },
+
   // -- Feature availability -------------------------------------------------
   FEATURE_DISABLED: { disposition: "customer", where: "global" },
   INTEGRATIONS_DISABLED: {
@@ -333,7 +364,120 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
       "invitation wrote a row and granted nothing — no email was sent and no " +
       "read path consulted the table — so the surface was removed and " +
       "external reviewers are granted access by the external-review " +
-      "authority. Existing rows stay readable and revocable.",
+      "authority. Since 2026-09-16 the guest list and revoke routes answer " +
+      "the same typed 410; stored rows are untouched.",
+  },
+  // -- Retired to typed 410 tombstones on 2026-09-16 ------------------------
+  // Each is answered only to a stale client or a direct API call: no web or
+  // mobile surface calls the route that emits it.
+  COLLABORATION_TEAM_ACCESS_REVIEW_RETIRED: {
+    disposition: "internal",
+    why:
+      "A retired operation answering a legacy client, not a person. Group " +
+      "access reviews recorded decisions and enforced none of them; the panel " +
+      "and its client were removed on 2026-09-06, and enforced reviews run on " +
+      "the workspace and in Governance.",
+  },
+  COLLABORATION_THREAD_CONTRIBUTORS_RETIRED: {
+    disposition: "internal",
+    why:
+      "A retired operation answering a legacy client, not a person. A " +
+      "contributor grant on a discussion thread let nobody read or reply, " +
+      "and no surface ever offered it.",
+  },
+  COLLABORATION_THREAD_SUBSCRIPTIONS_RETIRED: {
+    disposition: "internal",
+    why:
+      "A retired operation answering a legacy client, not a person. " +
+      "Subscribing to a thread changed no notification, and no surface ever " +
+      "offered a Watch control.",
+  },
+  WORKFLOW_TEMPLATE_AUTHORING_RETIRED: {
+    disposition: "internal",
+    why:
+      "A retired operation answering a legacy client, not a person. Workflow " +
+      "templates are platform-managed; the Workflows page is read-only and no " +
+      "surface ever created, edited or archived a template.",
+  },
+  WORKFLOW_INSTANCE_MUTATION_RETIRED: {
+    disposition: "internal",
+    why:
+      "A retired operation answering a legacy client, not a person. The " +
+      "Phase 22 workflow-instance lifecycle actions (create, submit, map " +
+      "evidence, assign, approve, request changes, cancel) had no surface; " +
+      "they live in Reviewer Operations.",
+  },
+  BILLING_SUBSCRIPTION_READ_RETIRED: {
+    disposition: "internal",
+    why:
+      "A retired read answering a legacy client, not a person. No surface read " +
+      "it; billing is read through the gated account projection.",
+  },
+  EVIDENCE_BYTES_MISMATCH: {
+    disposition: "internal",
+    why:
+      "D62 — POST /v1/intelligence/evidence/:evidenceId/run/bytes refusing bytes " +
+      "that do not hash to the stored evidence. No web or mobile surface calls " +
+      "that route; product re-runs go through the media-intelligence run.",
+  },
+  EVIDENCE_BYTES_UNVERIFIED: {
+    disposition: "internal",
+    why:
+      "D62 — the same route refusing a URL or bytes it has no recorded hash to " +
+      "check against. No web or mobile surface calls it.",
+  },
+  CASE_WORKSPACE_READ_RETIRED: {
+    disposition: "internal",
+    why:
+      "A retired read answering a legacy client, not a person. No surface read " +
+      "it; every case surface reads the matter workspace.",
+  },
+  EXCHANGE_PACKAGE_MANUAL_READY_RETIRED: {
+    disposition: "internal",
+    why:
+      "A retired operation answering a legacy client, not a person. No surface " +
+      "marked packages ready; the package builder does, and people request a build.",
+  },
+  INTELLIGENCE_ENQUEUE_RETIRED: {
+    disposition: "internal",
+    why:
+      "A retired operation answering a legacy client, not a person. No surface " +
+      "queued intelligence jobs; re-runs go through the media-intelligence run.",
+  },
+  CODING_SCHEMA_PUBLISH_RETIRED: {
+    disposition: "internal",
+    why:
+      "A retired operation answering a legacy client, not a person. Custom " +
+      "coding-schema authoring is not offered; the schemas page installs the " +
+      "pre-built set, published on install.",
+  },
+  SIMILARITY_RECONCILE_RETIRED: {
+    disposition: "internal",
+    why:
+      "A retired operation answering a legacy client, not a person. " +
+      "On-demand similarity reconciliation had no surface; duplicate review " +
+      "reads the media graph.",
+  },
+  TRUST_ARTICLE_REVIEW_FLAG_RETIRED: {
+    disposition: "internal",
+    why:
+      "A retired operation answering a legacy client, not a person. The " +
+      "manual needs-review flag was overwritten by the next drift scan and " +
+      "no surface ever offered it.",
+  },
+  NL_SEARCH_RETIRED: {
+    disposition: "internal",
+    why:
+      "A retired operation answering a legacy client, not a person. The " +
+      "plain-language search card was withdrawn and its component deleted; " +
+      "Search is the one discovery surface.",
+  },
+  WORKFLOW_INSTANCE_REINDEX_RETIRED: {
+    disposition: "internal",
+    why:
+      "A retired operator operation answering a legacy client, not a person. " +
+      "It served only the deprecated workflow-instance record family and had " +
+      "no caller.",
   },
 
   // -- Operator / platform-admin only --------------------------------------
@@ -369,6 +513,11 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
     disposition: "internal",
     why: "An external-portal outcome code, not a failure.",
   },
+
+  // -- Evidence Exchange ----------------------------------------------------
+  // D59 — "Build again" on a package that is no longer DRAFT (already
+  // building, built, delivered or revoked). The Exchange page says so.
+  EXCHANGE_PACKAGE_NOT_DRAFT: { disposition: "customer", where: EXCHANGE },
 
   // -- Genuine server faults ------------------------------------------------
   INTERNAL_ERROR: {

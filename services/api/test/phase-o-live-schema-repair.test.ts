@@ -222,8 +222,15 @@ describe("Phase O — backfill safety", () => {
     // information_schema column-existence check.
     for (const upd of updates) {
       const idx = stripped.indexOf(upd);
-      const ctxBefore = stripped.slice(Math.max(0, idx - 1200), idx);
-      const ctxAfter = stripped.slice(idx, idx + 500);
+      // SQL, so the TypeScript source-contract helpers do not apply; the
+      // constructs are bounded by SQL structure instead of a character
+      // budget (WCC-NEW-027): before = from the enclosing `DO $$` block's
+      // start up to the UPDATE, after = the UPDATE statement up to its `;`.
+      const blockStart = stripped.lastIndexOf("DO $$", idx);
+      const ctxBefore = blockStart < 0 ? "" : stripped.slice(blockStart, idx);
+      const statementEnd = stripped.indexOf(";", idx);
+      expect(statementEnd, `UPDATE "${upd}" has no terminating ";"`).toBeGreaterThan(idx);
+      const ctxAfter = stripped.slice(idx, statementEnd);
       const hasIsColumnsCheck =
         /information_schema\.columns/i.test(ctxBefore);
       const hasNullGuard =

@@ -15,6 +15,7 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
@@ -84,17 +85,20 @@ describe("existing category classifications unchanged", () => {
 
 describe("intake_link_expiring source scoping (recipient model)", () => {
   it("is workspace-member scoped (teamId in teamIds), not admin-scoped", () => {
-    const at = SRC.indexOf("prisma.workflowIntakeLink.findMany");
-    expect(at).toBeGreaterThan(-1);
-    const window = SRC.slice(at, at + 260);
+    const window = enclosingSource(SRC, "prisma.workflowIntakeLink.findMany", "call", {
+      unique: true,
+      fileName: "me-inbox.routes.ts",
+    });
     expect(window).toMatch(/teamId:\s*\{\s*in:\s*teamIds\s*\}/);
     // The admin-scoped set is adjudicatorTeamIds — it must NOT gate this source.
     expect(window).not.toMatch(/adjudicatorTeamIds/);
   });
 
   it("only surfaces not-yet-expired links (expiresAtUtc > now) — so Overdue naturally excludes it", () => {
-    const at = SRC.indexOf("prisma.workflowIntakeLink.findMany");
-    const window = SRC.slice(at, at + 320);
+    const window = enclosingSource(SRC, "prisma.workflowIntakeLink.findMany", "call", {
+      unique: true,
+      fileName: "me-inbox.routes.ts",
+    });
     expect(window).toMatch(/expiresAtUtc:\s*\{[\s\S]*?gt:\s*now/);
   });
 });

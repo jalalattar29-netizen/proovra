@@ -2,7 +2,7 @@
 
 **Audience:** identity admins triaging a specific operator session.
 
-**Canonical path:** `/admin/identity/sessions` → click **View timeline** on any session row.
+**Canonical path:** `/security-center/identity/sessions` → click **View timeline** on any session row.
 
 ---
 
@@ -66,7 +66,7 @@ Viewing a timeline is itself audited:
 
 ## 7. Operating procedure
 
-1. Open `/admin/identity/sessions`.
+1. Open `/security-center/identity/sessions`.
 2. Find the session of interest (use the Show revoked / Show expired toggles if needed).
 3. Click **View timeline** on the row.
 4. The drawer opens on the right with:

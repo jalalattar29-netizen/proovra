@@ -59,6 +59,11 @@ import { Card } from "../../../../components/ui/Card";
 import { Button } from "../../../../components/ui/Button";
 import { Badge, type BadgeTone } from "../../../../components/ui/Badge";
 import { EmptyState } from "../../../../components/ui/EmptyState";
+import { identifierLabel } from "@proovra/shared";
+import {
+  planLabel,
+  workspaceBillingStatusLabel,
+} from "../../../../lib/labels/identityOrgLabels";
 import {
   StepUpVerify,
   extractStepUp,
@@ -121,6 +126,13 @@ type OrgResponse = {
   verifiedAtUtc: string | null;
   createdAt: string;
   updatedAt: string;
+  /**
+   * PV-OD-003 — SYSTEM is the organization the platform provisioned for a
+   * workspace (every personal workspace has one); CUSTOMER is a customer
+   * organization. Only a customer organization is offered the Enterprise
+   * organization-admin console.
+   */
+  organizationKind?: "SYSTEM" | "CUSTOMER";
   callerRole: OrgRole;
   summary: {
     memberCount: number;
@@ -225,6 +237,13 @@ function OrganizationDetailInner() {
 
   // ---- data state ----
   const [org, setOrg] = useState<Loadable<OrgResponse>>({ kind: "loading" });
+  /**
+   * PV-OD-003 — a SYSTEM organization (the one provisioned for a personal
+   * workspace) is not offered the Enterprise organization-admin console, so
+   * none of this page's doorways into it render.
+   */
+  const isSystemOrganization =
+    org.kind === "ready" && org.data.organizationKind === "SYSTEM";
   const [members, setMembers] = useState<Loadable<MembersResponse>>({ kind: "loading" });
   const [workspaces, setWorkspaces] = useState<Loadable<WorkspacesResponse>>({ kind: "loading" });
   const [audit, setAudit] = useState<Loadable<AuditResponse>>({ kind: "loading" });
@@ -476,7 +495,7 @@ function OrganizationDetailInner() {
         </Badge>
         <span data-pill="status">
           <Badge tone="verified" subtle>
-            {org.data.status}
+            {identifierLabel(org.data.status)}
           </Badge>
         </span>
         <span style={{ fontSize: 12.5, color: "var(--ink-muted, #94a3b8)" }}>
@@ -561,16 +580,18 @@ function OrganizationDetailInner() {
                     </Button>
                   </Link>
                 )}
-                <Link
-                  href={`/organizations/${org.data.organizationId}/admin`}
-                  data-action="open-organization-admin"
-                  data-org-id={org.data.organizationId}
-                  style={linkReset}
-                >
-                  <Button variant="primary" size="sm">
-                    Open Admin →
-                  </Button>
-                </Link>
+                {org.data.organizationKind !== "SYSTEM" ? (
+                  <Link
+                    href={`/organizations/${org.data.organizationId}/admin`}
+                    data-action="open-organization-admin"
+                    data-org-id={org.data.organizationId}
+                    style={linkReset}
+                  >
+                    <Button variant="primary" size="sm">
+                      Open Admin →
+                    </Button>
+                  </Link>
+                ) : null}
               </div>
             ) : undefined
           }
@@ -641,14 +662,14 @@ function OrganizationDetailInner() {
                 >
                   Members in the Admin console
                 </Link>
-                , pick a role, and share the invite token URL. Audited as{" "}
-                <code>ORG_INVITE_CREATED</code>.
+                , pick a role, and share the invite token URL. Each
+                invitation is recorded in the audit timeline.
               </li>
               <li data-onboarding-step="set-legal-metadata">
                 <strong>Set legal metadata.</strong> Fill name, legal name,
                 and legal email in the <strong>Settings</strong> panel below
                 so audit timeline events and exports carry your org’s
-                identity. Audited as <code>ORG_UPDATED</code>.
+                identity. Each change is recorded in the audit timeline.
               </li>
               <li data-onboarding-step="bind-workspace">
                 <strong>Bind a workspace.</strong> Workspaces are where
@@ -920,15 +941,17 @@ function OrganizationDetailInner() {
             title="Members & invites"
             subtitle="Managing members, roles, and pending invites moved to the Admin console — one canonical surface for member governance."
             right={
-              <Link
-                href={`/organizations/${orgId}/admin/members`}
-                data-action="open-admin-members"
-                style={linkReset}
-              >
-                <Button variant="primary" size="sm">
-                  Manage members →
-                </Button>
-              </Link>
+              isSystemOrganization ? undefined : (
+                <Link
+                  href={`/organizations/${orgId}/admin/members`}
+                  data-action="open-admin-members"
+                  style={linkReset}
+                >
+                  <Button variant="primary" size="sm">
+                    Manage members →
+                  </Button>
+                </Link>
+              )
             }
           />
         }
@@ -1038,7 +1061,7 @@ function OrganizationDetailInner() {
                       <>
                         <span data-pill="workspace-plan">
                           <Badge tone="governance" subtle>
-                            {w.billing.plan}
+                            {planLabel(w.billing.plan)}
                           </Badge>
                         </span>
                         <span data-pill="workspace-billing-status">
@@ -1050,7 +1073,7 @@ function OrganizationDetailInner() {
                             }
                             subtle
                           >
-                            {w.billing.status}
+                            {workspaceBillingStatusLabel(w.billing.status)}
                           </Badge>
                         </span>
                         {w.billing.overSeatLimit && (
@@ -1111,15 +1134,17 @@ function OrganizationDetailInner() {
             title="Audit timeline"
             subtitle="Organization governance events moved to the Admin console, with event-type / actor / date filters and CSV export. Requires ORG_AUDITOR or higher."
             right={
-              <Link
-                href={`/organizations/${orgId}/admin/audit`}
-                data-action="open-admin-audit"
-                style={linkReset}
-              >
-                <Button variant="primary" size="sm">
-                  Open audit timeline →
-                </Button>
-              </Link>
+              isSystemOrganization ? undefined : (
+                <Link
+                  href={`/organizations/${orgId}/admin/audit`}
+                  data-action="open-admin-audit"
+                  style={linkReset}
+                >
+                  <Button variant="primary" size="sm">
+                    Open audit timeline →
+                  </Button>
+                </Link>
+              )
             }
           />
         }
@@ -1491,7 +1516,7 @@ function OrgLifecycleControls({
         {openClosure && req ? (
           <div className="mt-2" data-org-closure-status={req.status}>
             <p style={{ margin: "6px 0 0" }}>
-              {ORG_CLOSURE_STATUS_LABEL[req.status] ?? req.status}
+              {ORG_CLOSURE_STATUS_LABEL[req.status] ?? identifierLabel(req.status)}
               {req.status === "COOLING_OFF" && req.coolingOffEndsAtUtc
                 ? ` — closes after ${formatUserDate(req.coolingOffEndsAtUtc)} unless cancelled.`
                 : ""}

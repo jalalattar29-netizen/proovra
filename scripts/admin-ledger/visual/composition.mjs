@@ -106,7 +106,8 @@ async function measure(page) {
      * finds the first instance of a shape; measuring finds all of them.
      * =================================================================== */
 
-    /* TWO PRIMARY ACTIONS ON ONE SCREEN. /admin/identity/providers rendered
+    /* TWO PRIMARY ACTIONS ON ONE SCREEN. /admin/identity/providers (since
+       merged into /security-center/sso, PV-PLACE-001 / PV-DUP-001) rendered
        "New connection" as a filled enterprise button in the page header AND
        again as a filled enterprise button in the empty state — so an operator
        had to decide which of two identical buttons was the real one. */
@@ -212,7 +213,7 @@ async function measure(page) {
     }).length;
 
     /* A COLUMN WHERE EVERY ROW SAYS THE SAME THING.
-       /admin/identity/runtime rendered `0adf0000-000…` in its User column on
+       /security-center/identity/runtime rendered `0adf0000-000…` in its User column on
        all twenty-five session rows: `shortId` took a UUID's FIRST eight
        characters, and these ids are allocated sequentially so the entropy is
        at the end. A truncation that truncates away the distinguishing part is
@@ -241,7 +242,7 @@ async function measure(page) {
         if (!values.every((v) => v === first)) continue;
 
         /* IS THE TRUNCATION HIDING A DIFFERENCE, OR ARE THE VALUES THE SAME?
-           After the `shortId` fix, /admin/identity/runtime still showed one
+           After the `shortId` fix, /security-center/identity/runtime still showed one
            string on all 25 rows — because all 25 ARE one user's sessions.
            That is honest data, and failing on it would push the page toward
            inventing a distinction that does not exist.
@@ -344,7 +345,7 @@ async function measure(page) {
     /**
      * A LINE THAT BREAKS INSIDE A WORD.
      *
-     * `/admin/platform/analytics` traces every number to the table it came
+     * `/operations/analytics` traces every number to the table it came
      * from, and under the last Automation tile that trace rendered as
      *
      *     source: AutomationWebhookDestinati
@@ -408,7 +409,7 @@ async function measure(page) {
     /**
      * HOW MANY SOLID-RED CONTROLS, AND HOW MANY IN ONE ROW.
      *
-     * `/admin/identity/sessions` rendered TWO of them per row — "Revoke" and
+     * `/security-center/identity/sessions` rendered TWO of them per row — "Revoke" and
      * "Revoke all" — so a full page carried fifty, and the more dangerous of
      * the pair was indistinguishable from the safer one. "Revoke all" is also
      * member-scoped, so a member with ten live sessions rendered ten identical
@@ -459,7 +460,7 @@ async function measure(page) {
     /**
      * A CONTROL THAT RENDERS OUTSIDE WHAT THE READER CAN SEE.
      *
-     * `/admin/identity/sessions` carried four controls in its actions cell,
+     * `/security-center/identity/sessions` carried four controls in its actions cell,
      * which made the table 1214→1268px inside a 1216px wrapper. "Revoke all"
      * rendered at x=1403 against a visible container edge at x=1362, on all
      * twenty-five rows, at the default 1440px desktop width.
@@ -571,7 +572,7 @@ async function report(route, result, bad) {
   if (result.overflow > 0) bad.push(`overflow ${result.overflow}px`);
 
   /* A SCRIPT ERROR IS A DEFECT. A 402 IS THE PAGE DOING ITS JOB.
-     `/admin/identity/access-reviews` logs "Failed to load resource: the
+     `/security-center/identity/access-reviews` logs "Failed to load resource: the
      server responded with a status of 402" because the fixture workspace's
      plan does not carry the surface — and the page then renders the refusal
      that 402 means. Counting the browser's network log as a page defect
@@ -608,8 +609,8 @@ async function report(route, result, bad) {
 
        /admin/platform/queues        15/15 — the table IS the failed-job list
        /admin/evidence-ops/records    5/5  — the cohort IS failed records
-       /admin/identity/timeline       8/12 — fixture severities, genuinely HIGH
-       /admin/security                8/12 — fixture posture findings
+       /security-center/identity/timeline       8/12 — fixture severities, genuinely HIGH
+       /security-center/posture                8/12 — fixture posture findings
 
      The one that was wrong was /admin/adoption, where 15 of 17 ordinary
      capabilities carried amber for "never used" — a fact about adoption, not

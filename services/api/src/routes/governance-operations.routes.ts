@@ -36,7 +36,7 @@ import type { Permission } from "@proovra/shared";
 
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-import { authorizeOrFail } from "../middleware/authorize.js";
+import { authorizeOrFail, evaluateAuthorize } from "../middleware/authorize.js";
 import {
   computeGovernanceAnalytics,
   type GovernanceAnalyticsResult,
@@ -52,7 +52,7 @@ import {
   captureExportSnapshot,
   getExportSnapshot,
   GovernanceExportSnapshotError,
-  listExportSnapshots,
+  listExportSnapshotsPage,
   verifyExportSnapshotHash,
 } from "../services/governance-lifecycle/export-lineage.service.js";
 import {
@@ -229,23 +229,42 @@ export async function governanceOperationsRoutes(app: FastifyInstance) {
     "/v1/governance/export-snapshots",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const query = z
-        .object({
-          teamId: z.string().uuid(),
-          snapshotKind: z.enum(GOVERNANCE_EXPORT_SNAPSHOT_KINDS).optional(),
-          evidenceId: z.string().uuid().optional(),
-          limit: z.coerce.number().int().min(1).max(500).optional(),
-        })
-        .parse(req.query ?? {});
+      const query = z.object({
+        teamId: z.string().uuid(),
+        snapshotKind: z.enum(GOVERNANCE_EXPORT_SNAPSHOT_KINDS).optional(),
+        evidenceId: z.string().uuid().optional(),
+        limit: z.coerce.number().int().min(1).max(500).optional(),
+        cursor: z.string().min(1).max(1024).optional(),
+      }).parse(req.query ?? {});
       const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
       if (!ok) return;
-      const snapshots = await listExportSnapshots({
+      let before: { createdAt: string; id: string } | undefined;
+      if (query.cursor) {
+        let decoded: unknown;
+        try { decoded = JSON.parse(Buffer.from(query.cursor, "base64url").toString("utf8")); }
+        catch { decoded = null; }
+        const cursor = z.object({
+          teamId: z.literal(query.teamId),
+          snapshotKind: z.literal(query.snapshotKind ?? null),
+          evidenceId: z.literal(query.evidenceId ?? null),
+          createdAt: z.string().datetime(),
+          id: z.string().uuid(),
+        }).safeParse(decoded);
+        if (!cursor.success) return reply.code(400).send({ error: { code: "EXPORT_SNAPSHOT_CURSOR_INVALID" } });
+        before = cursor.data;
+      }
+      const page = await listExportSnapshotsPage({ ...query, before });
+      const permission = await evaluateAuthorize(req, {
         teamId: query.teamId,
-        snapshotKind: query.snapshotKind,
-        evidenceId: query.evidenceId,
-        limit: query.limit,
+        permission: "evidence.generate_package",
+        antiEnumeration: true,
       });
-      return reply.code(200).send({ snapshots });
+      const creation = permission.allowed
+        ? { allowed: true, reason: null }
+        : { allowed: false, reason: permission.httpStatus === 503
+            ? "Creation permissions are temporarily unavailable. Refresh to try again."
+            : "Your workspace access does not allow creating export snapshots. Ask a workspace administrator for export access." };
+      return reply.code(200).send({ ...page, creation });
     },
   );
 

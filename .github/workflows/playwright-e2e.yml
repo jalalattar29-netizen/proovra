@@ -175,7 +175,7 @@ jobs:
           docker run -d --name minio --network host \
             -e MINIO_ROOT_USER=minio \
             -e MINIO_ROOT_PASSWORD=minio_password \
-            minio/minio:RELEASE.2024-12-18T13-15-44Z \
+            quay.io/minio/minio:RELEASE.2024-12-18T13-15-44Z \
             server /data --address ':9000'
           for i in $(seq 1 60); do
             if curl -fsS http://localhost:9000/minio/health/live >/dev/null 2>&1; then
@@ -192,7 +192,7 @@ jobs:
         run: |
           docker run --rm --network host \
             -e MC_HOST_local=http://minio:minio_password@localhost:9000 \
-            minio/mc:latest \
+            quay.io/minio/mc:RELEASE.2024-11-21T17-21-54Z \
             mb --ignore-existing local/proovra-e2e
 
       - name: Build shared + API + worker
@@ -596,13 +596,16 @@ jobs:
           if-no-files-found: error
 
   # ===========================================================================
-  # 97/97 ACCOUNTING ACROSS THE FOUR SHARDS
+  # 97/97 ACCOUNTING ACROSS THE FIVE SHARDS
   # ===========================================================================
   # Five green shards do not by themselves mean the suite ran. Sharding can
   # silently drop tests — an unbalanced or misconfigured split is exactly the
-  # defect this change fixes, and it presented as three fast green shards and
-  # one cancelled one. So the shards report what they executed and this job
-  # proves the union: 97 unique, none missing, none run twice, all four exit 0.
+  # defect this change fixes, and it once presented as three fast green shards
+  # and one cancelled one. So the shards report what they executed and this job
+  # proves the union: 97 unique, none missing, none run twice, all five exit 0.
+  # The shard count appears in the matrix, the --shard argument, the step name
+  # and the accounting call; admin-shard-workflow-consistency.test.mjs holds
+  # them to one value.
   admin-control-plane-accounting:
     runs-on: ubuntu-latest
     needs: admin-control-plane

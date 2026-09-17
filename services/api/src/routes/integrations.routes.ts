@@ -51,6 +51,7 @@ import {
   MAX_ROTATION_GRACE_MINUTES,
 } from "../services/integrations/api-keys.service.js";
 import { getEnvSourceHint } from "../env.js";
+import { markBoundedOutcome } from "../http/bounded-outcome.js";
 // Phase 19 — API key create/revoke require step-up.
 // Phase 4 closure — each integration action has its own dedicated
 // step-up purpose (INTEGRATION_API_KEY_* / INTEGRATION_WEBHOOK_*).
@@ -124,6 +125,14 @@ async function requireMember(
 function gateFeatureOrReply(reply: FastifyReply): boolean {
   const reason = integrationsFeatureDisabledReason();
   if (reason) {
+    // A deliberate flag is a chosen state; a missing secret is a
+    // configuration regression that still reaches ops as a warning signal.
+    // Neither is a crash, so neither pages critical (WCC-NEW-002).
+    markBoundedOutcome(reply.request, {
+      code: "INTEGRATIONS_DISABLED",
+      reportability: reason === "secret_missing" ? "OPERATIONAL_WARNING" : "EXPECTED_DENIAL",
+      severity: "warning",
+    });
     reply.code(503).send({
       error: { code: "INTEGRATIONS_DISABLED", reason },
     });
@@ -187,6 +196,7 @@ async function emitWebhookAudit(input: {
   eventType:
     | "integration.webhook.test_sent"
     | "integration.webhook.delivery_retried"
+    | "integration.webhook.delivery_cancelled"
     | "integration.webhook.secret_rotated";
   metadata?: Prisma.InputJsonValue;
 }): Promise<void> {
@@ -725,6 +735,14 @@ export async function integrationsRoutes(app: FastifyInstance) {
                   err.code === "invalid_event_types"
                 ? 400
                 : 500;
+          if (status === 503) {
+            markBoundedOutcome(reply.request, {
+              code: err.code,
+              reportability:
+                err.code === "secret_missing" ? "OPERATIONAL_WARNING" : "EXPECTED_DENIAL",
+              severity: "warning",
+            });
+          }
           return reply
             .code(status)
             .send({ error: { code: err.code, details: err.details ?? null } });
@@ -1204,6 +1222,25 @@ export async function integrationsRoutes(app: FastifyInstance) {
           id,
           teamId: body.teamId,
         });
+        // BATCH J — cancelling a scheduled redelivery is an operator
+        // decision that stops an outbound send, so it is audited like its
+        // retry sibling. Only a delivery this call actually moved to
+        // CANCELLED is recorded (a lost race returns the fresh row
+        // unchanged). Bounded metadata: never payload, signature or body.
+        if (updated.status === "CANCELLED") {
+          await emitWebhookAudit({
+            teamId: body.teamId,
+            actorUserId: ok.actorUserId,
+            endpointId: updated.endpointId,
+            eventType: "integration.webhook.delivery_cancelled",
+            metadata: {
+              deliveryId: updated.id,
+              eventType: updated.eventType,
+              status: updated.status,
+              attemptCount: updated.attemptCount,
+            },
+          });
+        }
         return reply
           .code(200)
           .send({ delivery: projectWebhookDeliveryDetail(updated) });

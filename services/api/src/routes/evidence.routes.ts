@@ -232,6 +232,7 @@ import {
 import {
   attestEvidenceCertification,
   listEvidenceCertifications,
+  CERTIFICATION_STATEMENT_MAX_LENGTH,
   requestEvidenceCertification,
   revokeEvidenceCertification,
 } from "../services/evidence-certification.service.js";
@@ -471,6 +472,8 @@ const RelationshipUpdateBody = z.object({
 
 const RequestEvidenceCertificationBody = z.object({
   declarationType: z.nativeEnum(PrismaCertificationType),
+  // D38 — the requester writes the statement the signer will sign.
+  statementMarkdown: z.string().trim().min(20).max(CERTIFICATION_STATEMENT_MAX_LENGTH),
 });
 
 const AttestEvidenceCertificationBody = z.object({
@@ -483,6 +486,34 @@ const AttestEvidenceCertificationBody = z.object({
   statementSnapshot: z.unknown().optional().nullable(),
   signatureText: z.string().trim().min(1).max(512),
 });
+
+/**
+ * Certification refusals the service classifies (4xx with a stable code) reach
+ * the panel as `{ error: { code, message } }`; `message` stays for older
+ * clients. Only the codes listed here are projected; anything else keeps the
+ * previous projection.
+ */
+const CERTIFICATION_REFUSALS: ReadonlyArray<{ code: string }> = [
+  { code: "CERTIFICATION_ALREADY_ATTESTED" },
+  { code: "CERTIFICATION_STATEMENT_MISSING" },
+  { code: "CERTIFICATION_STATEMENT_CHANGED" },
+];
+const CERTIFICATION_REFUSAL_CODES = new Set(CERTIFICATION_REFUSALS.map((r) => r.code));
+
+function sendCertificationFailure(reply: FastifyReply, err: unknown) {
+  const statusCode =
+    err instanceof Error && "statusCode" in err
+      ? (err as Error & { statusCode?: number }).statusCode ?? 500
+      : 500;
+  const message = err instanceof Error ? err.message : "Unexpected error";
+  const code =
+    statusCode < 500 &&
+    err instanceof Error &&
+    CERTIFICATION_REFUSAL_CODES.has(String((err as Error & { code?: unknown }).code))
+      ? String((err as Error & { code?: unknown }).code)
+      : null;
+  return reply.code(statusCode).send(code ? { message, error: { code, message } } : { message });
+}
 
 const RevokeEvidenceCertificationBody = z.object({
   declarationType: z.nativeEnum(PrismaCertificationType),
@@ -8320,7 +8351,9 @@ return {
       const userId = getAuthUserId(req);
       const id = z.string().uuid().parse((req.params as ParamsId).id);
       const body = RelationshipBody.parse(req.body);
-      const evidence = await getEvidenceWithReadAccess(userId, id);
+      // D21 — creating a relationship is a WRITE on the source record (the
+      // same capability as removing one); the target only has to be readable.
+      const evidence = await getEvidenceWithRecordAccess(userId, id, "evidence.update_metadata");
       const target = await getEvidenceWithReadAccess(userId, body.targetEvidenceId);
 
       const relationship = await createEvidenceRelationship({
@@ -8361,7 +8394,8 @@ return {
         .uuid()
         .parse((req.params as { relationshipId: string }).relationshipId);
       const body = RelationshipUpdateBody.parse(req.body);
-      await getEvidenceWithReadAccess(userId, id);
+      // D21 — editing a relationship is a write; see the create route.
+      await getEvidenceWithRecordAccess(userId, id, "evidence.update_metadata");
 
       const relationship = await prisma.evidenceRelationship.findUnique({
         where: { id: relationshipId },
@@ -8406,7 +8440,12 @@ return {
         .string()
         .uuid()
         .parse((req.params as { relationshipId: string }).relationshipId);
-      await getEvidenceWithReadAccess(userId, id);
+      // K3 (2026-09-16) — removing a link is a WRITE. This route asked only
+      // for read access, so a workspace VIEWER (evidence.read and nothing
+      // else) could delete any relationship on any record they could see.
+      // The canonical per-record loader answers the operation-specific
+      // question and conceals a refusal as the same 404.
+      await getEvidenceWithRecordAccess(userId, id, "evidence.update_metadata");
 
       const relationship = await prisma.evidenceRelationship.findUnique({
         where: { id: relationshipId },
@@ -12111,12 +12150,7 @@ return reply.code(200).send({
 
         return reply.code(200).send({ evidenceId: id, certifications });
       } catch (err) {
-        const statusCode =
-          err instanceof Error && "statusCode" in err
-            ? (err as Error & { statusCode?: number }).statusCode ?? 500
-            : 500;
-        const message = err instanceof Error ? err.message : "Unexpected error";
-        return reply.code(statusCode).send({ message });
+        return sendCertificationFailure(reply, err);
       }
     }
   );
@@ -12139,6 +12173,7 @@ return reply.code(200).send({
           evidenceId: id,
           declarationType: body.declarationType,
           requestedByUserId: ownerUserId,
+          statementMarkdown: body.statementMarkdown,
         });
 
 void appendCustodyEvent({
@@ -12166,12 +12201,7 @@ action: "evidence.certification_requested",
 
         return reply.code(200).send({ evidenceId: id, certification });
       } catch (err) {
-        const statusCode =
-          err instanceof Error && "statusCode" in err
-            ? (err as Error & { statusCode?: number }).statusCode ?? 500
-            : 500;
-        const message = err instanceof Error ? err.message : "Unexpected error";
-        return reply.code(statusCode).send({ message });
+        return sendCertificationFailure(reply, err);
       }
     }
   );
@@ -12235,12 +12265,7 @@ action: "evidence.certification_requested",
 
         return reply.code(200).send({ evidenceId: id, certification });
       } catch (err) {
-        const statusCode =
-          err instanceof Error && "statusCode" in err
-            ? (err as Error & { statusCode?: number }).statusCode ?? 500
-            : 500;
-        const message = err instanceof Error ? err.message : "Unexpected error";
-        return reply.code(statusCode).send({ message });
+        return sendCertificationFailure(reply, err);
       }
     }
   );
@@ -12293,12 +12318,7 @@ action: "evidence.certification_requested",
 
         return reply.code(200).send({ evidenceId: id, certification });
       } catch (err) {
-        const statusCode =
-          err instanceof Error && "statusCode" in err
-            ? (err as Error & { statusCode?: number }).statusCode ?? 500
-            : 500;
-        const message = err instanceof Error ? err.message : "Unexpected error";
-        return reply.code(statusCode).send({ message });
+        return sendCertificationFailure(reply, err);
       }
     }
   );

@@ -323,15 +323,23 @@ describe("Phase 2B Closure — bulk invitation service", () => {
     expect(SVC_BULK).toMatch(failurePathContinues);
   });
 
-  it("emits BULK_INVITATION_STARTED + COMPLETED + ROW_FAILED", () => {
-    expect(SVC_BULK).toMatch(/"BULK_INVITATION_STARTED"/);
-    expect(SVC_BULK).toMatch(/"BULK_INVITATION_COMPLETED"/);
+  it("records a bulk batch in the tenant audit; a failed row's activity only where a grant exists", () => {
+    // PV-DEFECT-002 — the batch STARTED/COMPLETED/ROW_FAILED rows were keyed by
+    // a random batch id in external_review_activities.grant_id, a foreign key
+    // to the invitation table: the first write of every bulk call failed P2003
+    // and answered 500. The batch now lives in the tenant audit; the live
+    // proof is external-review-bulk-revoke.integration.test.ts.
+    expect(SVC_BULK).toMatch(/"external_review\.invitations\.bulk_issued"/);
+    expect(SVC_BULK).not.toMatch(/grantId:\s*bulkBatchId/);
     expect(SVC_BULK).toMatch(/"BULK_INVITATION_ROW_FAILED"/);
+    expect(SVC_BULK).toMatch(/if \(!row\.grantId\) return;/);
   });
 
-  it("bulk revoke emits BULK_REVOKE_STARTED + COMPLETED", () => {
-    expect(SVC_BULK).toMatch(/"BULK_REVOKE_STARTED"/);
-    expect(SVC_BULK).toMatch(/"BULK_REVOKE_COMPLETED"/);
+  it("bulk revoke resolves every id before any write, with a per-row outcome", () => {
+    expect(SVC_BULK).toMatch(
+      /externalReviewGrant\.findMany[\s\S]*?for \(const grantId of uniqueIds\)/,
+    );
+    expect(SVC_BULK).toMatch(/"external_review\.invitations\.bulk_revoked"/);
     // Per-row outcomes are returned without aborting.
     expect(SVC_BULK).toMatch(/outcome:\s*"REVOKED"/);
     expect(SVC_BULK).toMatch(/outcome:\s*"NOT_FOUND"/);
@@ -412,9 +420,15 @@ describe("Phase 2B Closure — portal session extension", () => {
     );
   });
 
-  it("respects the inactivity window without re-prompting MFA", () => {
-    expect(SVC_SESSION).toMatch(/mfaSatisfiedRecently/);
-    expect(SVC_SESSION).toMatch(/EXTERNAL_PORTAL_INACTIVITY_TIMEOUT_MS/);
+  it("respects the inactivity window without re-prompting MFA — per session (D27b)", () => {
+    // Satisfaction is held for the SESSION that answered the code, sliding
+    // with the inactivity window; proven live in
+    // portal-mfa-email-code.integration.test.ts.
+    expect(SVC_SESSION).toMatch(
+      /mfaSatisfiedForSession = await isPortalMfaSessionSatisfied\(\{[\s\S]*?ttlMs: EXTERNAL_PORTAL_INACTIVITY_TIMEOUT_MS/,
+    );
+    expect(SVC_SESSION).toMatch(/if \(mfaRequired && !mfaSatisfiedForSession\)/);
+    expect(SVC_SESSION).not.toMatch(/mfaSatisfiedRecently/);
   });
 
   it("emits PORTAL_SESSION_EXPIRED + PORTAL_SESSION_REVOKED", () => {

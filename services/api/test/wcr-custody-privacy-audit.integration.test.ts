@@ -501,38 +501,6 @@ describe("WCR closure — custody, privacy, audit (live PostgreSQL 16)", () => {
       expect(denied).not.toBeNull();
       expect(denied!.workspaceId).toBe(a.teamId);
     });
-
-    it("concurrent losers emit no duplicate success", async () => {
-      const a = h.fixtures.teamA;
-      const group = await newGroup(a.teamId, a.ownerUserId);
-      const review = await completion.openAccessReview({
-        teamId: group.id,
-        actorUserId: a.ownerUserId,
-      });
-
-      const results = await Promise.all(
-        Array.from({ length: 6 }, () =>
-          completion
-            .completeAccessReview({
-              teamId: group.id,
-              actorUserId: a.ownerUserId,
-              reviewId: review.id,
-            })
-            .then(
-              () => "COMPLETED",
-              (err: { code?: string }) => err.code ?? "UNTYPED",
-            ),
-        ),
-      );
-      // Exactly one winner. The rest are refusals, not silent successes.
-      expect(results.filter((r) => r === "COMPLETED").length).toBe(1);
-      expect(results.filter((r) => r === "UNTYPED")).toEqual([]);
-
-      const completions = await prisma.collaborationTeamActivity.count({
-        where: { teamId: group.id, eventType: "ACCESS_REVIEW_COMPLETED" },
-      });
-      expect(completions).toBeLessThanOrEqual(1);
-    });
   });
 
   // =========================================================================
@@ -614,65 +582,11 @@ describe("WCR closure — custody, privacy, audit (live PostgreSQL 16)", () => {
       );
       expect(outcome).toBe("COLLABORATION_TEAM_GUESTS_RETIRED");
       expect(await prisma.collaborationTeamGuest.count()).toBe(0);
-      // The read path survives so an operator can see and revoke what they
-      // believed they had granted.
+      // The read path survives so an operator can see what they believed they
+      // had granted.
       await expect(
         completion.listGuests({ teamId: group.id, actorUserId: a.ownerUserId }),
       ).resolves.toBeDefined();
-    });
-
-    it("an access-review decision ENFORCES — it does not merely record", async () => {
-      const a = h.fixtures.teamA;
-      const group = await newGroup(a.teamId, a.ownerUserId);
-      await svc.addExistingMember({
-        teamId: group.id,
-        actorUserId: a.ownerUserId,
-        userIdToAdd: a.adminUserId,
-        role: "MEMBER",
-      });
-      const review = await completion.openAccessReview({
-        teamId: group.id,
-        actorUserId: a.ownerUserId,
-      });
-      const item = await prisma.collaborationTeamAccessReviewItem.findFirstOrThrow(
-        {
-          where: {
-            reviewId: review.id,
-            member: { userId: a.adminUserId },
-          },
-          select: { id: true, memberId: true },
-        },
-      );
-
-      await completion.decideAccessReviewItem({
-        teamId: group.id,
-        actorUserId: a.ownerUserId,
-        itemId: item.id,
-        decision: "REMOVE",
-      });
-      // A decision alone changes nothing — completion is where it lands.
-      expect(
-        (
-          await prisma.collaborationTeamMember.findUniqueOrThrow({
-            where: { id: item.memberId },
-            select: { status: true },
-          })
-        ).status,
-      ).toBe("ACTIVE");
-
-      await completion.completeAccessReview({
-        teamId: group.id,
-        actorUserId: a.ownerUserId,
-        reviewId: review.id,
-      });
-      expect(
-        (
-          await prisma.collaborationTeamMember.findUniqueOrThrow({
-            where: { id: item.memberId },
-            select: { status: true },
-          })
-        ).status,
-      ).toBe("REMOVED");
     });
   });
 });

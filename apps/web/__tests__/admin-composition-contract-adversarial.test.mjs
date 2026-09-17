@@ -448,7 +448,11 @@ test("an unmutated copy of the real tree is clean", () => {
   try {
     seedRoot(dir);
     const rows = findingsIn(dir);
-    assert.equal(rows.length, 47, "all 47 routes were scanned");
+    // PV-PLACE-001 / PV-OD-001 — twelve workspace-administration pages left
+    // app/(app)/admin for /security-center/* and /operations/*, so the console
+    // the contract walks is 35 routes, not 47. Still exact: a page silently
+    // skipped, or one left behind under /admin, moves this number.
+    assert.equal(rows.length, 35, "all 35 routes were scanned");
     assert.deepEqual(
       rows.filter((r) => r.failures.length > 0),
       [],

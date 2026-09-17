@@ -2749,7 +2749,7 @@ export async function buildInboxAggregation(
           body: overdue
             ? `Review kind: ${ar.kind}. Past due — please act in the access reviews console.`
             : `Review kind: ${ar.kind}. Open the access reviews console to certify, revoke, or suspend.`,
-          href: `/admin/identity/access-reviews?reviewId=${encodeURIComponent(ar.id)}`,
+          href: `/security-center/identity/access-reviews?reviewId=${encodeURIComponent(ar.id)}`,
           occurredAt: ar.createdAt.toISOString(),
           dueAt: ar.dueAtUtc ? ar.dueAtUtc.toISOString() : null,
           context: {

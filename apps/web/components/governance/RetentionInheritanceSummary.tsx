@@ -33,6 +33,8 @@ type ResolutionPayload =
       policyId: string;
       retentionDays: number | null;
       immutable: boolean;
+      /** The organization's immutable template raised the workspace value. */
+      mandatoryFloorApplied?: boolean;
     }
   | {
       source: "org_policy_inherited";
@@ -121,6 +123,9 @@ export function RetentionInheritanceSummary({
           {data.retentionDays != null
             ? `Retention horizon: ${data.retentionDays} days.`
             : "Retention horizon: indefinite."}
+          {data.mandatoryFloorApplied
+            ? " The organization's immutable retention template requires at least this much, so it applies instead of the workspace's shorter setting."
+            : ""}
           {data.immutable ? " The policy is marked immutable." : ""}
         </p>
       ) : null}

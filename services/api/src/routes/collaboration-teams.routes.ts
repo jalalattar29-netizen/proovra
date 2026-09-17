@@ -697,18 +697,12 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           userId: binding.workspace.userId,
         };
         try {
+          // D19 — the service writes the success record itself, outside the
+          // delete transaction so it survives the row; a second write here
+          // recorded every deletion twice.
           await deleteCollaborationTeam({
             teamId: req.params.teamId,
             actorUserId: ctx.userId,
-          });
-          await auditEvent({
-            userId: ctx.userId,
-            workspaceId: ctx.workspaceId,
-            action: "collaboration_team.deleted",
-            resourceType: "collaboration_team",
-            resourceId: req.params.teamId,
-            outcome: "success",
-            requestId: req.id ?? null,
           });
           return reply.send({ ok: true });
         } catch (err) {

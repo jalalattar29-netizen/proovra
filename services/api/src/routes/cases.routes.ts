@@ -2,7 +2,6 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { Readable } from "node:stream";
 import { z } from "zod";
 import { prisma } from "../db.js";
-import { hasRole } from "../services/rbac.js";
 import * as prismaPkg from "@prisma/client";
 import archiver from "archiver";
 import { getObjectStream } from "../storage.js";
@@ -32,8 +31,11 @@ import {
 // cross-team evidence attach gate. Single source of truth in the
 // case-permission matrix.
 import {
+  type CaseAccessRole,
   resolveCaseDestructiveGate,
+  evaluateCaseMutationPermission,
   evaluateCrossTeamAttach,
+  getCaseAssignmentRoles,
 } from "../services/cases/case-permission.service.js";
 import { ensurePersonalWorkspace } from "../services/platform-context/workspace-bootstrap.service.js";
 // PHASE 12 POINT 7 — the canonical commercial chokepoint + the cases plan gate.
@@ -101,6 +103,74 @@ const ShareEmailBody = z.object({
 const AccessBody = z.object({
   userId: z.string().uuid(),
 });
+
+/**
+ * O1 — the ONE decision for who may change a case's direct-access list: the
+ * grant (`POST /access`, and its `share-team` / `share-email` spellings), the
+ * revoke (`DELETE /access/:accessId`) and the member read that feeds the
+ * grant picker (`GET /team-members`).
+ *
+ *   allowed        the caller is an ACTIVE member of the case's workspace and
+ *                  MANAGE_ACCESS allows them: workspace OWNER/ADMIN, or the
+ *                  case owner (the synthetic OWNER). The grant route already
+ *                  let an ADMIN grant, so the same ADMIN may now withdraw.
+ *   concealed      the caller has no relationship to the case — not its
+ *                  owner, no direct grant, not an ACTIVE member of its
+ *                  workspace. Answered exactly as a missing case (D47).
+ *   not_team_case  the case has no workspace, so there is nobody to grant to.
+ *   forbidden      the caller can see the case but may not manage access.
+ */
+type CaseAccessManagerDecision =
+  | { kind: "allowed" }
+  | { kind: "concealed" }
+  | { kind: "not_team_case" }
+  | { kind: "forbidden"; reason: string };
+
+async function resolveCaseAccessManager(
+  caseRow: { id: string; teamId: string | null; ownerUserId: string | null },
+  userId: string,
+): Promise<CaseAccessManagerDecision> {
+  const isCaseOwner = caseRow.ownerUserId === userId;
+  const member = caseRow.teamId
+    ? await prisma.teamMember.findUnique({
+        where: { teamId_userId: { teamId: caseRow.teamId, userId } },
+        select: { role: true, status: true },
+      })
+    : null;
+  // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
+  const isActiveMember = member?.status === "ACTIVE";
+  if (!isCaseOwner && !isActiveMember) {
+    const grant = await prisma.caseAccess.findUnique({
+      where: { caseId_userId: { caseId: caseRow.id, userId } },
+      select: { id: true },
+    });
+    if (!grant) return { kind: "concealed" };
+  }
+  if (!caseRow.teamId) return { kind: "not_team_case" };
+  if (!member || !isActiveMember) {
+    return {
+      kind: "forbidden",
+      reason: "Caller is not an active member of the case's workspace.",
+    };
+  }
+  const decision = evaluateCaseMutationPermission({
+    mutation: "MANAGE_ACCESS",
+    accessRole: isCaseOwner ? "OWNER" : (member.role as CaseAccessRole),
+    assignmentRoles: [],
+  });
+  return decision.allowed
+    ? { kind: "allowed" }
+    : { kind: "forbidden", reason: decision.reason };
+}
+
+/** A standing grant may only name an ACTIVE member of the case's workspace. */
+async function isActiveWorkspaceMember(teamId: string, userId: string): Promise<boolean> {
+  const target = await prisma.teamMember.findUnique({
+    where: { teamId_userId: { teamId, userId } },
+    select: { status: true },
+  });
+  return target?.status === "ACTIVE";
+}
 
 async function requireAuthAndLegal(req: FastifyRequest, reply: FastifyReply) {
   await requireAuth(req, reply);
@@ -186,6 +256,51 @@ function fireCaseAnalyticsEvent(params: {
     req: params.req,
     skipSessionUpsert: true,
   }).catch(() => null);
+}
+
+/**
+ * Answer a refused access-management decision. `concealed` is byte-identical
+ * to each handler's missing-case branch; its audit row carries no workspace
+ * (the caller has no standing in it).
+ */
+function refuseCaseAccessManagement(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  decision: Exclude<CaseAccessManagerDecision, { kind: "allowed" }>,
+  audit: {
+    userId: string;
+    action: string;
+    caseId: string;
+    teamId: string | null;
+    metadata: Record<string, unknown>;
+  },
+) {
+  const reason =
+    decision.kind === "concealed"
+      ? "not_found_concealed"
+      : decision.kind === "not_team_case"
+        ? "not_team_case"
+        : "forbidden";
+  auditCaseAction(req, {
+    userId: audit.userId,
+    action: audit.action,
+    outcome: "blocked",
+    severity: "warning",
+    resourceId: audit.caseId,
+    teamId: decision.kind === "concealed" ? null : audit.teamId,
+    metadata: {
+      ...audit.metadata,
+      reason,
+      ...(decision.kind === "forbidden" ? { detail: decision.reason } : {}),
+    },
+  });
+  if (decision.kind === "concealed") {
+    return reply.code(404).send({ message: "Case not found" });
+  }
+  if (decision.kind === "not_team_case") {
+    return reply.code(400).send({ message: "Case is not a team case" });
+  }
+  return reply.code(403).send({ message: "Forbidden" });
 }
 
 export async function casesRoutes(app: FastifyInstance) {
@@ -671,7 +786,7 @@ export async function casesRoutes(app: FastifyInstance) {
 
       const item = await prisma.case.findUnique({
         where: { id },
-        select: { id: true, teamId: true },
+        select: { id: true, teamId: true, ownerUserId: true },
       });
 
       if (!item) {
@@ -686,30 +801,28 @@ export async function casesRoutes(app: FastifyInstance) {
         return reply.code(404).send({ message: "Case not found" });
       }
 
-      if (!item.teamId) {
-        auditCaseAction(req, {
-          userId: ownerUserId,
-          action: "cases.access_grant",
-          outcome: "blocked",
-          severity: "warning",
-          resourceId: id,
-          teamId: item.teamId,
-          metadata: { reason: "not_team_case" },
-        });
-        return reply.code(400).send({ message: "Case is not a team case" });
+      const decision = await resolveCaseAccessManager(item, ownerUserId);
+      if (decision.kind !== "allowed" || !item.teamId) {
+        return refuseCaseAccessManagement(
+          req,
+          reply,
+          decision.kind === "allowed" ? { kind: "not_team_case" } : decision,
+          {
+            userId: ownerUserId,
+            action: "cases.access_grant",
+            caseId: id,
+            teamId: item.teamId,
+            metadata: { targetUserId: body.userId },
+          },
+        );
       }
 
-      const actor = await prisma.teamMember.findUnique({
-        where: { teamId_userId: { teamId: item.teamId, userId: ownerUserId } },
-        select: { role: true, status: true },
-      });
-
-      // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
-      if (
-        !actor ||
-        actor.status !== "ACTIVE" ||
-        !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)
-      ) {
+      // D5 — a CaseAccess row is STANDING access to tenant-owned case data.
+      // The target must be an ACTIVE member of the case's workspace, the
+      // rule `share-team` has applied since 2026-07-21. A foreign tenant's
+      // user, a suspended/revoked member and an id that names nobody are
+      // refused identically, so the answer says nothing about which it was.
+      if (!(await isActiveWorkspaceMember(item.teamId, body.userId))) {
         auditCaseAction(req, {
           userId: ownerUserId,
           action: "cases.access_grant",
@@ -717,9 +830,12 @@ export async function casesRoutes(app: FastifyInstance) {
           severity: "warning",
           resourceId: id,
           teamId: item.teamId,
-          metadata: { reason: "forbidden", targetUserId: body.userId },
+          metadata: { reason: "user_not_in_team", targetUserId: body.userId },
         });
-        return reply.code(403).send({ message: "Forbidden" });
+        return reply.code(400).send({
+          message: "User is not in this team",
+          code: "CASE_ACCESS_TARGET_NOT_MEMBER",
+        });
       }
 
       const access = await prisma.caseAccess.upsert({
@@ -888,34 +1004,28 @@ export async function casesRoutes(app: FastifyInstance) {
         return reply.code(404).send({ message: "Case not found" });
       }
 
-      if (caseItem.ownerUserId !== ownerUserId) {
-        auditCaseAction(req, {
-          userId: ownerUserId,
-          action: "cases.team_members_list",
-          outcome: "blocked",
-          severity: "warning",
-          resourceId: id,
-          teamId: caseItem.teamId,
-          metadata: { reason: "forbidden" },
-        });
-        return reply.code(403).send({ message: "Forbidden" });
+      // O1 — the member read feeds the Access tab, so it answers to the same
+      // authority as the grant and revoke it serves.
+      const decision = await resolveCaseAccessManager(caseItem, ownerUserId);
+      if (decision.kind !== "allowed" || !caseItem.teamId) {
+        return refuseCaseAccessManagement(
+          req,
+          reply,
+          decision.kind === "allowed" ? { kind: "not_team_case" } : decision,
+          {
+            userId: ownerUserId,
+            action: "cases.team_members_list",
+            caseId: id,
+            teamId: caseItem.teamId,
+            metadata: {},
+          },
+        );
       }
 
-      if (!caseItem.teamId) {
-        auditCaseAction(req, {
-          userId: ownerUserId,
-          action: "cases.team_members_list",
-          outcome: "blocked",
-          severity: "warning",
-          resourceId: id,
-          teamId: caseItem.teamId,
-          metadata: { reason: "not_team_case" },
-        });
-        return reply.code(400).send({ message: "Case is not a team case" });
-      }
-
+      // Only an ACTIVE membership confers access (P0 2026-07-21), so a
+      // suspended or revoked member is not listed as someone who has it.
       const members = await prisma.teamMember.findMany({
-        where: { teamId: caseItem.teamId },
+        where: { teamId: caseItem.teamId, status: "ACTIVE" },
         include: {
           user: {
             select: {
@@ -942,6 +1052,7 @@ export async function casesRoutes(app: FastifyInstance) {
           email: m.user.email,
           displayName: m.user.displayName,
           label: m.user.displayName || m.user.email || m.user.id,
+          role: m.role,
         })),
       });
     }
@@ -1065,8 +1176,53 @@ export async function casesRoutes(app: FastifyInstance) {
         return reply.code(404).send({ message: "Case not found" });
       }
 
+      // Phase O-blockers / A-1 — destructive case mutation. Replaces
+      // the prior "any team member can delete" check with the bounded
+      // case-permission matrix: OWNER / ADMIN only, plus the
+      // synthetic OWNER role for personal-case owners. Emits a
+      // CaseDeleteDenied audit row on rejection so the security team
+      // can trace attempted destructive actions.
+      const deleteGate = await resolveCaseDestructiveGate({
+        caseRow: item,
+        userId,
+        mutation: "DELETE",
+      });
+      if (!deleteGate.allowed) {
+        // K4 (2026-09-16) — anti-enumeration, as the rename handler does: a
+        // caller with no relationship to the case learns nothing about it.
+        // This used to answer an outsider 403 CASE_DELETE_DENIED (and, when
+        // the legal-hold check ran first, 403 with the hold ids), which
+        // proved the record exists in another tenant.
+        const outsider = deleteGate.accessRole === "NONE";
+        auditCaseAction(req, {
+          userId,
+          action: "cases.delete",
+          outcome: "blocked",
+          severity: "critical",
+          resourceId: id,
+          teamId: item.teamId,
+          metadata: {
+            reason: outsider ? "not_found_concealed" : "forbidden",
+            denyReason: deleteGate.reason,
+            denyCode: "CASE_DELETE_DENIED",
+            accessRole: deleteGate.accessRole,
+            eventKind: "CaseDeleteDenied",
+          },
+        });
+        if (outsider) {
+          return reply.code(404).send({ message: "Case not found" });
+        }
+        return reply.code(403).send({
+          message: "Forbidden",
+          code: "CASE_DELETE_DENIED",
+          detail: deleteGate.reason,
+        });
+      }
+
       // Phase 4B Final Closure I5 — legal-hold gate: a CASE or
       // WORKSPACE hold MUST block deletion. Helper is try/catch-safe.
+      // K4 — evaluated AFTER the permission gate so hold ids are only ever
+      // disclosed to a caller who could otherwise delete the case.
       if (item.teamId) {
         const holdChk = await checkCaseLegalHold(id, item.teamId);
         if (!holdChk.ok) {
@@ -1081,40 +1237,6 @@ export async function casesRoutes(app: FastifyInstance) {
           });
           return reply.code(403).send({ denial: "LEGAL_HOLD_BLOCKED", holdIds: holdChk.holdIds });
         }
-      }
-
-      // Phase O-blockers / A-1 — destructive case mutation. Replaces
-      // the prior "any team member can delete" check with the bounded
-      // case-permission matrix: OWNER / ADMIN only, plus the
-      // synthetic OWNER role for personal-case owners. Emits a
-      // CaseDeleteDenied audit row on rejection so the security team
-      // can trace attempted destructive actions.
-      const deleteGate = await resolveCaseDestructiveGate({
-        caseRow: item,
-        userId,
-        mutation: "DELETE",
-      });
-      if (!deleteGate.allowed) {
-        auditCaseAction(req, {
-          userId,
-          action: "cases.delete",
-          outcome: "blocked",
-          severity: "critical",
-          resourceId: id,
-          teamId: item.teamId,
-          metadata: {
-            reason: "forbidden",
-            denyReason: deleteGate.reason,
-            denyCode: "CASE_DELETE_DENIED",
-            accessRole: deleteGate.accessRole,
-            eventKind: "CaseDeleteDenied",
-          },
-        });
-        return reply.code(403).send({
-          message: "Forbidden",
-          code: "CASE_DELETE_DENIED",
-          detail: deleteGate.reason,
-        });
       }
 
       // Track 1B — case deletion detaches relationships through the
@@ -1173,14 +1295,25 @@ export async function casesRoutes(app: FastifyInstance) {
       }
 
       let hasPermission = caseItem.ownerUserId === userId;
+      // D50 — attaching evidence is a case mutation (EVIDENCE_LINK), the same
+      // rule K4 put on detaching: VIEWER never mutates, and a caller with no
+      // relationship to the case is concealed as a missing case.
+      let isMember = false;
 
       if (!hasPermission && caseItem.teamId) {
         const member = await prisma.teamMember.findUnique({
           where: { teamId_userId: { teamId: caseItem.teamId, userId } },
-          select: { status: true },
+          select: { status: true, role: true },
         });
         // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
-        hasPermission = member?.status === "ACTIVE";
+        isMember = member?.status === "ACTIVE";
+        hasPermission =
+          isMember &&
+          evaluateCaseMutationPermission({
+            mutation: "EVIDENCE_LINK",
+            accessRole: member!.role as CaseAccessRole,
+            assignmentRoles: await getCaseAssignmentRoles(id, userId),
+          }).allowed;
       }
 
       if (!hasPermission) {
@@ -1191,8 +1324,14 @@ export async function casesRoutes(app: FastifyInstance) {
           severity: "warning",
           resourceId: id,
           teamId: caseItem.teamId,
-          metadata: { reason: "forbidden", evidenceId: body.evidenceId },
+          metadata: {
+            reason: isMember ? "forbidden" : "not_found_concealed",
+            evidenceId: body.evidenceId,
+          },
         });
+        if (!isMember) {
+          return reply.code(404).send({ message: "Case not found" });
+        }
         return reply.code(403).send({ message: "Forbidden" });
       }
 
@@ -1364,14 +1503,27 @@ export async function casesRoutes(app: FastifyInstance) {
       }
 
       let hasPermission = caseItem.ownerUserId === userId;
+      // K4 (2026-09-16) — unlinking evidence is a case mutation, so it goes
+      // through the case-permission matrix (EVIDENCE_LINK: VIEWER never
+      // mutates). The former check admitted ANY active member, VIEWER
+      // included. A caller with no relationship to the case is concealed
+      // (404) exactly like a missing case; it used to receive 403.
+      let isMember = false;
 
       if (!hasPermission && caseItem.teamId) {
         const member = await prisma.teamMember.findUnique({
           where: { teamId_userId: { teamId: caseItem.teamId, userId } },
-          select: { status: true },
+          select: { status: true, role: true },
         });
         // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
-        hasPermission = member?.status === "ACTIVE";
+        isMember = member?.status === "ACTIVE";
+        hasPermission =
+          isMember &&
+          evaluateCaseMutationPermission({
+            mutation: "EVIDENCE_LINK",
+            accessRole: member!.role as CaseAccessRole,
+            assignmentRoles: await getCaseAssignmentRoles(id, userId),
+          }).allowed;
       }
 
       if (!hasPermission) {
@@ -1382,8 +1534,14 @@ export async function casesRoutes(app: FastifyInstance) {
           severity: "warning",
           resourceId: id,
           teamId: caseItem.teamId,
-          metadata: { reason: "forbidden", evidenceId },
+          metadata: {
+            reason: isMember ? "forbidden" : "not_found_concealed",
+            evidenceId,
+          },
         });
+        if (!isMember) {
+          return reply.code(404).send({ message: "Case not found" });
+        }
         return reply.code(403).send({ message: "Forbidden" });
       }
 
@@ -1600,41 +1758,27 @@ export async function casesRoutes(app: FastifyInstance) {
         return reply.code(404).send({ message: "Case not found" });
       }
 
-      if (caseItem.ownerUserId !== ownerUserId) {
-        auditCaseAction(req, {
-          userId: ownerUserId,
-          action: "cases.share_team",
-          outcome: "blocked",
-          severity: "warning",
-          resourceId: id,
-          teamId: caseItem.teamId,
-          metadata: { reason: "forbidden", targetUserId: body.userId },
-        });
-        return reply.code(403).send({ message: "Forbidden" });
+      // O1 — same grant as `POST /access`, same authority.
+      const decision = await resolveCaseAccessManager(caseItem, ownerUserId);
+      if (decision.kind !== "allowed" || !caseItem.teamId) {
+        return refuseCaseAccessManagement(
+          req,
+          reply,
+          decision.kind === "allowed" ? { kind: "not_team_case" } : decision,
+          {
+            userId: ownerUserId,
+            action: "cases.share_team",
+            caseId: id,
+            teamId: caseItem.teamId,
+            metadata: { targetUserId: body.userId },
+          },
+        );
       }
-
-      if (!caseItem.teamId) {
-        auditCaseAction(req, {
-          userId: ownerUserId,
-          action: "cases.share_team",
-          outcome: "blocked",
-          severity: "warning",
-          resourceId: id,
-          teamId: caseItem.teamId,
-          metadata: { reason: "not_team_case", targetUserId: body.userId },
-        });
-        return reply.code(400).send({ message: "Case is not a team case" });
-      }
-
-      const teamMember = await prisma.teamMember.findUnique({
-        where: { teamId_userId: { teamId: caseItem.teamId, userId: body.userId } },
-        select: { status: true },
-      });
 
       // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
       // Granting CaseAccess confers standing access, so a suspended /
       // revoked target member must not be shareable-to.
-      if (teamMember?.status !== "ACTIVE") {
+      if (!(await isActiveWorkspaceMember(caseItem.teamId, body.userId))) {
         auditCaseAction(req, {
           userId: ownerUserId,
           action: "cases.share_team",
@@ -1644,7 +1788,10 @@ export async function casesRoutes(app: FastifyInstance) {
           teamId: caseItem.teamId,
           metadata: { reason: "user_not_in_team", targetUserId: body.userId },
         });
-        return reply.code(400).send({ message: "User is not in this team" });
+        return reply.code(400).send({
+          message: "User is not in this team",
+          code: "CASE_ACCESS_TARGET_NOT_MEMBER",
+        });
       }
 
       const access = await prisma.caseAccess.upsert({
@@ -1674,6 +1821,27 @@ export async function casesRoutes(app: FastifyInstance) {
     }
   );
 
+  // ===========================================================================
+  // POST /v1/cases/:id/share-email — grant by address.
+  //
+  // D6 — this route used to answer 404 "No user found with that email" for an
+  // unknown address, 400 for an ambiguous or non-member one and 201 for a
+  // member: an account-existence oracle for anyone who owns a case.
+  //
+  // DECISION: once the caller is authorized, EVERY address receives the same
+  // `202 { accepted: true }`. The grant is written only when the address
+  // belongs to exactly one ACTIVE member of the case's workspace (the rule
+  // NEW-025 put on this route and `share-team` has had since 2026-07-21). For
+  // any other address — no account, an account outside the workspace, a
+  // suspended/revoked member, or an ambiguous address — nothing is written and
+  // no message is sent; the audit row records which it was, for operators
+  // only. The caller can already list the workspace's members, so the only
+  // thing the outcome could still reveal is membership they can see anyway —
+  // never whether an account exists on the platform.
+  //
+  // A case with no workspace has nobody to grant to and is refused before the
+  // address is read, so that refusal is address-independent too.
+  // ===========================================================================
   app.post(
     "/v1/cases/:id/share-email",
     { preHandler: requireAuthAndLegal },
@@ -1682,7 +1850,10 @@ export async function casesRoutes(app: FastifyInstance) {
       const body = ShareEmailBody.parse(req.body);
       const ownerUserId = getAuthUserId(req);
 
-      const caseItem = await prisma.case.findUnique({ where: { id } });
+      const caseItem = await prisma.case.findUnique({
+        where: { id },
+        select: { id: true, teamId: true, ownerUserId: true },
+      });
       if (!caseItem) {
         auditCaseAction(req, {
           userId: ownerUserId,
@@ -1695,91 +1866,58 @@ export async function casesRoutes(app: FastifyInstance) {
         return reply.code(404).send({ message: "Case not found" });
       }
 
-      if (caseItem.ownerUserId !== ownerUserId) {
-        auditCaseAction(req, {
-          userId: ownerUserId,
-          action: "cases.share_email",
-          outcome: "blocked",
-          severity: "warning",
-          resourceId: id,
-          teamId: caseItem.teamId,
-          metadata: { reason: "forbidden", email: body.email },
-        });
-        return reply.code(403).send({ message: "Forbidden" });
-      }
-
-      const usersWithEmail = await prisma.user.findMany({
-        where: { email: body.email },
-      });
-
-      if (usersWithEmail.length === 0) {
-        auditCaseAction(req, {
-          userId: ownerUserId,
-          action: "cases.share_email",
-          outcome: "failure",
-          severity: "warning",
-          resourceId: id,
-          teamId: caseItem.teamId,
-          metadata: { reason: "user_not_found", email: body.email },
-        });
-        return reply.code(404).send({ message: "No user found with that email" });
-      }
-
-      if (usersWithEmail.length > 1) {
-        auditCaseAction(req, {
-          userId: ownerUserId,
-          action: "cases.share_email",
-          outcome: "blocked",
-          severity: "warning",
-          resourceId: id,
-          teamId: caseItem.teamId,
-          metadata: { reason: "multiple_users_found", email: body.email },
-        });
-        return reply
-          .code(400)
-          .send({ message: "Multiple users found with that email. Please contact support." });
-      }
-
-      const targetUser = usersWithEmail[0];
-
-      // PHASE 13 §A4 — NEW-025. `share-team` was remediated on 2026-07-21 to
-      // require the TARGET to be an ACTIVE member ("granting CaseAccess confers
-      // standing access, so a suspended / revoked target member must not be
-      // shareable-to"). This route performs the identical `caseAccess.upsert`
-      // and was left behind, so the same grant could be made by email to a user
-      // who is suspended, revoked, or was never in the workspace at all — a
-      // standing grant on tenant-owned case data to a non-member.
-      //
-      // Gated on team cases only: a personal case (teamId null) has no
-      // membership to check, and sharing one is the owner acting inside their
-      // own tenant.
-      if (caseItem.teamId) {
-        const targetMember = await prisma.teamMember.findUnique({
-          where: { teamId_userId: { teamId: caseItem.teamId, userId: targetUser.id } },
-          select: { status: true },
-        });
-        if (targetMember?.status !== "ACTIVE") {
-          auditCaseAction(req, {
+      const decision = await resolveCaseAccessManager(caseItem, ownerUserId);
+      if (decision.kind !== "allowed" || !caseItem.teamId) {
+        return refuseCaseAccessManagement(
+          req,
+          reply,
+          decision.kind === "allowed" ? { kind: "not_team_case" } : decision,
+          {
             userId: ownerUserId,
             action: "cases.share_email",
-            outcome: "blocked",
-            severity: "warning",
-            resourceId: id,
+            caseId: id,
             teamId: caseItem.teamId,
-            metadata: {
-              reason: "user_not_in_team",
-              targetUserId: targetUser.id,
-              email: body.email,
-            },
-          });
-          return reply.code(400).send({ message: "User is not in this team" });
-        }
+            metadata: { email: body.email },
+          },
+        );
       }
 
+      const accepted = { accepted: true } as const;
+
+      const targets = await prisma.teamMember.findMany({
+        where: {
+          teamId: caseItem.teamId,
+          status: "ACTIVE",
+          user: { email: body.email },
+        },
+        select: { userId: true },
+        take: 2,
+      });
+
+      if (targets.length !== 1) {
+        auditCaseAction(req, {
+          userId: ownerUserId,
+          action: "cases.share_email",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: id,
+          teamId: caseItem.teamId,
+          metadata: {
+            reason:
+              targets.length === 0
+                ? "no_active_member_with_email"
+                : "multiple_members_with_email",
+            email: body.email,
+          },
+        });
+        return reply.code(202).send(accepted);
+      }
+
+      const targetUserId = targets[0].userId;
       const access = await prisma.caseAccess.upsert({
-        where: { caseId_userId: { caseId: id, userId: targetUser.id } },
+        where: { caseId_userId: { caseId: id, userId: targetUserId } },
         update: {},
-        create: { caseId: id, userId: targetUser.id },
+        create: { caseId: id, userId: targetUserId },
       });
 
       auditCaseAction(req, {
@@ -1788,7 +1926,7 @@ export async function casesRoutes(app: FastifyInstance) {
         outcome: "success",
         resourceId: id,
         teamId: caseItem.teamId,
-        metadata: { targetUserId: targetUser.id, email: body.email, accessId: access.id },
+        metadata: { targetUserId, email: body.email, accessId: access.id },
       });
 
       fireCaseAnalyticsEvent({
@@ -1796,10 +1934,10 @@ export async function casesRoutes(app: FastifyInstance) {
         userId: ownerUserId,
         req,
         entityId: id,
-        metadata: { targetUserId: targetUser.id, mode: "email" },
+        metadata: { targetUserId, mode: "email" },
       });
 
-      return reply.code(201).send({ access });
+      return reply.code(202).send(accepted);
     }
   );
 
@@ -1827,17 +1965,23 @@ export async function casesRoutes(app: FastifyInstance) {
         return reply.code(404).send({ message: "Case not found" });
       }
 
-      if (caseItem.ownerUserId !== ownerUserId) {
-        auditCaseAction(req, {
+      // O1 + D47 — the same authority that grants may revoke; a caller with
+      // no relationship to the case is answered exactly as a missing case
+      // (this branch used to answer another tenant 403, confirming the case).
+      // Withdrawing access is always safe, so the owner of a case with no
+      // workspace keeps the right to remove a grant made before grants were
+      // restricted to workspace members.
+      const decision = await resolveCaseAccessManager(caseItem, ownerUserId);
+      const ownerOfUnscopedCase =
+        decision.kind === "not_team_case" && caseItem.ownerUserId === ownerUserId;
+      if (decision.kind !== "allowed" && !ownerOfUnscopedCase) {
+        return refuseCaseAccessManagement(req, reply, decision, {
           userId: ownerUserId,
           action: "cases.access_revoke",
-          outcome: "blocked",
-          severity: "warning",
-          resourceId: id,
+          caseId: id,
           teamId: caseItem.teamId,
-          metadata: { reason: "forbidden", accessId },
+          metadata: { accessId },
         });
-        return reply.code(403).send({ message: "Forbidden" });
       }
 
       const access = await prisma.caseAccess.findUnique({
@@ -2001,9 +2145,19 @@ export async function casesRoutes(app: FastifyInstance) {
       const memberTeams = await prisma.teamMember.findMany({
         // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
         where: { userId, status: "ACTIVE" },
-        select: { teamId: true },
+        select: { teamId: true, role: true },
       });
-      const memberTeamIds = memberTeams.map((t) => t.teamId);
+      // K4 (2026-09-16) — a status change is a case mutation and VIEWER
+      // never mutates (case-permission matrix, STATUS_CHANGE). Workspace
+      // membership therefore only makes a case bulk-mutable for a non-viewer;
+      // the single-case status route already refused a VIEWER while this bulk
+      // route closed / archived / resolved the same cases for them.
+      const memberTeamIds = memberTeams
+        .filter((t) => t.role !== "VIEWER")
+        .map((t) => t.teamId);
+      const viewerTeamIds = memberTeams
+        .filter((t) => t.role === "VIEWER")
+        .map((t) => t.teamId);
       const accessOr: Array<Record<string, unknown>> = [
         { ownerUserId: userId },
         { access: { some: { userId } } },
@@ -2019,6 +2173,20 @@ export async function casesRoutes(app: FastifyInstance) {
         select: { id: true },
       });
       const accessibleSet = new Set(accessible.map((c) => c.id));
+      // Cases the caller can READ as a workspace VIEWER are reported as
+      // `forbidden`; anything else they cannot reach stays `not_accessible`.
+      const readOnlyIds =
+        viewerTeamIds.length > 0
+          ? await prisma.case.findMany({
+              where: {
+                id: { in: ids.filter((i) => !accessibleSet.has(i)) },
+                teamId: { in: viewerTeamIds },
+                access: { none: {} },
+              },
+              select: { id: true },
+            })
+          : [];
+      const readOnlySet = new Set(readOnlyIds.map((c) => c.id));
 
       // The target status depends on the action. ARCHIVE goes through
       // CLOSED first per the transition table; we only call
@@ -2044,7 +2212,7 @@ export async function casesRoutes(app: FastifyInstance) {
           results.push({
             id,
             outcome: "SKIPPED",
-            reason: "not_accessible",
+            reason: readOnlySet.has(id) ? "forbidden" : "not_accessible",
           });
           continue;
         }

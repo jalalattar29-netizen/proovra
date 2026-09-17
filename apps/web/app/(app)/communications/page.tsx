@@ -196,7 +196,7 @@ function CommunicationsPageInner() {
   }, [messages]);
 
   return (
-    <main style={pageStyle}>
+    <div style={pageStyle}>
       <header>
         <h1 style={titleStyle}>Communications</h1>
         <p style={mutedStyle}>
@@ -353,7 +353,7 @@ function CommunicationsPageInner() {
           </section>
         </>
       )}
-    </main>
+    </div>
   );
 }
 

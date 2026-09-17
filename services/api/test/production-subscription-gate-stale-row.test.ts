@@ -22,6 +22,8 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
+import { functionSource } from "../../../scripts/source-contract/index.mjs";
+
 function readApi(rel: string) {
   return readFileSync(fileURLToPath(new URL(`../${rel}`, import.meta.url)), "utf8");
 }
@@ -35,9 +37,11 @@ const SHARED_CODES = readFileSync(
 // Isolate the canonical lifecycle policy body so the assertions cannot be
 // satisfied by an unrelated query elsewhere in the file.
 function extractLifecycle(src: string) {
-  const idx = src.indexOf("async function resolvePaidLifecycle");
-  expect(idx, "resolvePaidLifecycle must exist in commercial-context.service.ts").toBeGreaterThan(-1);
-  return src.slice(idx, idx + 6000);
+  const fn = functionSource(src, "resolvePaidLifecycle", "commercial-context.service.ts");
+  expect(fn, "resolvePaidLifecycle must exist in commercial-context.service.ts").toContain(
+    "async function resolvePaidLifecycle",
+  );
+  return fn;
 }
 const GATE = extractLifecycle(RESOLVER);
 
@@ -75,7 +79,8 @@ describe("Phase 9 STEP 5 — four-branch corroboration policy is wired", () => {
   it("Step 4 — terminal matching row → paid-through respected, then deny (CANCELLED, fail closed)", () => {
     const idx = GATE.indexOf("Step 4");
     expect(idx, "Step 4 comment present").toBeGreaterThan(-1);
-    const slice = GATE.slice(idx, idx + 1400);
+    // Step 4 is the policy's last step: from its banner to the function end.
+    const slice = GATE.slice(idx);
     // §9.5 — an explicit canonical paid-through date keeps the subject
     // active until it…
     expect(slice).toMatch(/currentPeriodEnd\.getTime\(\)\s*>\s*Date\.now\(\)/);
@@ -94,9 +99,12 @@ describe("Phase 9 STEP 5 — four-branch corroboration policy is wired", () => {
 
 describe("Phase 9 STEP 5 — billing-guards is a thin adapter (no competing engine)", () => {
   function extractAdapter(src: string) {
-    const idx = src.indexOf("export async function assertSubscriptionActiveOrGraceAllowed");
-    expect(idx, "adapter must exist").toBeGreaterThan(-1);
-    return src.slice(idx, idx + 2000);
+    const fn = functionSource(src, "assertSubscriptionActiveOrGraceAllowed", "billing-guards.ts");
+    expect(
+      fn.startsWith("export async function assertSubscriptionActiveOrGraceAllowed"),
+      "adapter must exist",
+    ).toBe(true);
+    return fn;
   }
   const ADAPTER = extractAdapter(BILLING_GUARDS);
   it("delegates to resolveCommercialContext and reads its lifecycle", () => {

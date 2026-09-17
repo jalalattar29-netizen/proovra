@@ -18,6 +18,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { functionSource, routeSource } from "../../../scripts/source-contract/index.mjs";
 
 function readWeb(rel: string): string {
   return readFileSync(
@@ -62,13 +63,9 @@ describe("Production fix — /integrations renders a panel, not raw JSON, when d
     const stripped = PAGE
       .replace(/\/\*[\s\S]*?\*\//g, "")
       .replace(/(^|[^:])\/\/.*$/gm, "$1");
-    const panelStart = stripped.indexOf("function IntegrationsDisabledPanel(");
-    expect(panelStart).toBeGreaterThan(-1);
-    // PHASE 1 — panel grew with the admin-only diagnostics chip block, so
-    // bump the slice window. Match against the entire remainder of the file
-    // after the panel start; the "disclosureBoxStyle" const that follows is
-    // safely outside the panel.
-    const panelBody = stripped.slice(panelStart, panelStart + 6000);
+    // The whole panel component (WCC-NEW-027). It used to be a character
+    // window, bumped when PHASE 1 grew the admin-only diagnostics chip block.
+    const panelBody = functionSource(stripped, "IntegrationsDisabledPanel", "page.tsx");
     expect(panelBody).not.toMatch(/INTEGRATIONS_ENABLED/);
     expect(panelBody).not.toMatch(/API_KEY_SECRET/);
     // Points admins at the deployment runbook instead.
@@ -85,9 +82,7 @@ describe("Production fix — /integrations renders a panel, not raw JSON, when d
     const stripped = PAGE
       .replace(/\/\*[\s\S]*?\*\//g, "")
       .replace(/(^|[^:])\/\/.*$/gm, "$1");
-    const panelStart = stripped.indexOf("function IntegrationsDisabledPanel(");
-    expect(panelStart).toBeGreaterThan(-1);
-    const panelBody = stripped.slice(panelStart, panelStart + 6000);
+    const panelBody = functionSource(stripped, "IntegrationsDisabledPanel", "page.tsx");
     // Title (PHASE 1 required copy).
     expect(panelBody).toMatch(
       /Integrations are not available on this workspace\./,
@@ -99,6 +94,51 @@ describe("Production fix — /integrations renders a panel, not raw JSON, when d
     expect(collapsed).toMatch(
       /Integrations are disabled because the API key signing secret is not configured in the running API environment\./,
     );
+  });
+
+  it("PV-COPY-001 — the body states the REPORTED reason, never the secret for every cause", () => {
+    // The panel said "the signing secret is not configured" whatever the API
+    // reported, including a deployment that had only switched integrations
+    // off. Each reason now has its own sentence, the secret sentence is bound
+    // to `secret_missing` alone, and an unknown reason does not guess one.
+    const stripped = PAGE
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/(^|[^:])\/\/.*$/gm, "$1");
+    const collapsed = functionSource(stripped, "IntegrationsDisabledPanel", "page.tsx").replace(/\s+/g, " ");
+    expect(collapsed).toMatch(/const reason = diagnostics\?\.reason \?\? null;/);
+    expect(collapsed).toMatch(
+      /reason === "secret_missing" \? "Integrations are disabled because the API key signing secret is not configured/,
+    );
+    expect(collapsed).toMatch(
+      /reason === "feature_flag_off" \? "Integrations are switched off for this deployment\./,
+    );
+    // The fallback names no cause.
+    const fallback = /: "(Integrations are unavailable on this deployment[^"]*)"/.exec(collapsed);
+    expect(fallback).not.toBeNull();
+    expect(fallback![1]).not.toMatch(/secret|switched off|flag/i);
+    // The body renders the chosen sentence, not a fixed one.
+    expect(collapsed).toMatch(/\{body\} <\/p>/);
+  });
+
+  it("PV-COPY-001 — the configuration flags sit behind a Technical details disclosure", () => {
+    const stripped = PAGE
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/(^|[^:])\/\/.*$/gm, "$1");
+    const collapsed = functionSource(stripped, "IntegrationsDisabledPanel", "page.tsx").replace(/\s+/g, " ");
+    expect(collapsed).toMatch(
+      /isAdmin && diagnostics \? \( <details data-testid="integrations-disabled-admin-detail"[\s\S]{0,120}<summary[^>]*> Technical details <\/summary>/,
+    );
+    // Every chip is inside the disclosure, and none is outside it.
+    const open = collapsed.indexOf("<details");
+    const close = collapsed.indexOf("</details>");
+    expect(open).toBeGreaterThan(-1);
+    expect(close).toBeGreaterThan(open);
+    const inside = collapsed.slice(open, close);
+    const outside = collapsed.slice(0, open) + collapsed.slice(close);
+    for (const chip of ["reason={diagnostics", "apiKeySecret=", "cronSecret=", "envSource="]) {
+      expect(inside, chip).toContain(chip);
+      expect(outside, chip).not.toContain(chip);
+    }
   });
 
   it("admin reason chip is gated on isAdmin AND diagnostics presence", () => {
@@ -113,8 +153,7 @@ describe("Production fix — /integrations renders a panel, not raw JSON, when d
     const stripped = PAGE
       .replace(/\/\*[\s\S]*?\*\//g, "")
       .replace(/(^|[^:])\/\/.*$/gm, "$1");
-    const panelStart = stripped.indexOf("function IntegrationsDisabledPanel(");
-    const panelBody = stripped.slice(panelStart, panelStart + 6000);
+    const panelBody = functionSource(stripped, "IntegrationsDisabledPanel", "page.tsx");
     // No <pre> dump, no JSON.stringify call inside the panel body.
     expect(panelBody).not.toMatch(/<pre/);
     expect(panelBody).not.toMatch(/JSON\.stringify/);
@@ -154,9 +193,7 @@ describe("PHASE 1 — admin-only integrations diagnostics endpoint", () => {
   it("response payload never includes the raw secret or numeric length", () => {
     // Locate the diagnostics handler and check that it only sends the
     // canonical safe fields.
-    const idx = ROUTES.indexOf("/v1/integrations/diagnostics");
-    expect(idx).toBeGreaterThan(-1);
-    const handlerSlice = ROUTES.slice(idx, idx + 2200);
+    const handlerSlice = routeSource(ROUTES, "GET", "/v1/integrations/diagnostics");
     expect(handlerSlice).toMatch(/apiKeySecretBound/);
     expect(handlerSlice).toMatch(/apiKeySecretLengthValid/);
     expect(handlerSlice).toMatch(/cronSecretBound/);

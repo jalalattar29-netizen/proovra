@@ -985,7 +985,7 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "mfa",
     title: "Multi-factor authentication",
     summary:
-      "In-house RFC 6238 TOTP (Time-based One-Time Password) for the operator workspace, compatible with Google Authenticator, 1Password, Authy, and other standard authenticator apps. Recovery codes are supported. External reviewer portal sessions track mfaSatisfiedAtUtc independently.",
+      "In-house RFC 6238 TOTP (Time-based One-Time Password) for the operator workspace, compatible with Google Authenticator, 1Password, Authy, and other standard authenticator apps. Recovery codes are supported. External reviewer portal sessions that require MFA are opened with a one-time code emailed to the invited address, and the verification applies only to the session that answered it.",
     body:
       "MFA is implemented natively in services/api/src/services/security/mfa-totp.ts — pinned parameters are HMAC-SHA1 / 6 digits / 30-second period with a +/-1 step verification window. Secrets are generated with crypto.randomBytes (160 bits), encoded as RFC 4648 Base32 for manual entry, and rendered as otpauth:// URIs for QR-code provisioning. Verification uses timingSafeEqual to prevent timing-attack disclosure. Recovery codes are managed by mfa-recovery.ts and consumed atomically with audit-event emission. The external reviewer portal session-service.ts grants the mfa_satisfied flag separately and emits portal session events. SAML SSO is supported for external reviewer grants (see saml-assertion.service.ts) but PROOVRA does not currently delegate workspace MFA to an external IdP — verification happens in-process against the encrypted-at-rest TOTP secret.",
     implementationReferences: [
@@ -1028,7 +1028,7 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
       "services/api/src/services/access-control/scim.service.ts",
       "services/api/src/services/access-control/scim-groups.service.ts",
       "services/api/src/services/access-control/scim-reconciliation.service.ts",
-      "apps/web/app/(app)/admin/identity/scim/page.tsx",
+      "apps/web/app/(app)/security-center/identity/scim/page.tsx",
     ],
     policyTags: ["SCIM", "status:partial"],
   },

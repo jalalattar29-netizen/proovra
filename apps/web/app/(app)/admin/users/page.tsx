@@ -41,6 +41,8 @@ import { LifecycleRequestQueue } from "./_sections/LifecycleRequestQueue";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDate, formatUserDateTime } from "../../../../lib/date";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
+import { identifierLabel } from "@proovra/shared";
+import { billingProviderLabel, planLabel } from "../../../../lib/labels/adminPlatformLabels";
 import {
   ADMIN_EMPTY_COPY,
   ADMIN_FAILURE_COPY,
@@ -239,7 +241,8 @@ export default function AdminPeoplePage() {
                 tone={s.status === "ACTIVE" ? "verified" : "neutral"}
                 subtle
               >
-                {s.provider} {s.plan} · {s.status}
+                {billingProviderLabel(s.provider)} {planLabel(s.plan)} ·{" "}
+                {identifierLabel(s.status)}
               </Badge>
             ))}
             {r.pendingCancellation ? (
@@ -480,6 +483,7 @@ export default function AdminPeoplePage() {
               size="sm"
               onClick={() => void load(page - 1)}
               disabled={loading || page <= 1}
+              disabledReason={page <= 1 ? "This is the first page." : undefined}
             >
               Previous
             </Button>
@@ -491,6 +495,7 @@ export default function AdminPeoplePage() {
               size="sm"
               onClick={() => void load(page + 1)}
               disabled={loading || page >= (data?.totalPages ?? 0)}
+              disabledReason={page >= (data?.totalPages ?? 0) ? "This is the last page." : undefined}
             >
               Next
             </Button>

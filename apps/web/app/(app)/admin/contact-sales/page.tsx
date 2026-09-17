@@ -603,6 +603,8 @@ export default function AdminContactSalesPage() {
           pluralNoun="inquiries"
           filtered={isFiltered}
           loading={loading}
+          // ADM-P2-002 — a refused or failed read is not "no inquiries".
+          failed={failure !== null}
           data-testid="admin-contact-sales-count"
         />
       </Card>

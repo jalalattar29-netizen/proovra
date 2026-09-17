@@ -328,12 +328,19 @@ describe("Phase 4 §7.6 — access/switcher gates key off SUSPENDED", () => {
     const { checkOrgAccess } = await import(
       "../src/services/organization/org-access.js"
     );
+    // An ACTIVE member — the premise of this case. (The fixture used to carry
+    // no status at all, so it was never an active member; it passed only
+    // because the suspended check ran before the membership read.)
     const fakePrisma = {
       organization: {
         findUnique: async () => ({ id: "o1", status: "SUSPENDED" }),
       },
       organizationMembership: {
-        findFirst: async () => ({ role: "ORG_OWNER" }),
+        findFirst: async () => ({
+          role: "ORG_OWNER",
+          status: "ACTIVE",
+          validUntilUtc: null,
+        }),
       },
     } as never;
     const outcome = await checkOrgAccess(fakePrisma, {
@@ -341,6 +348,23 @@ describe("Phase 4 §7.6 — access/switcher gates key off SUSPENDED", () => {
       userId: "u1",
     });
     expect(outcome).toEqual({ kind: "forbidden" });
+  });
+
+  it("checkOrgAccess conceals a SUSPENDED org from a non-member (PV-ORG-001)", async () => {
+    const { checkOrgAccess } = await import(
+      "../src/services/organization/org-access.js"
+    );
+    const fakePrisma = {
+      organization: {
+        findUnique: async () => ({ id: "o1", status: "SUSPENDED" }),
+      },
+      organizationMembership: { findFirst: async () => null },
+    } as never;
+    // A non-member learns nothing — not even that the organization is
+    // suspended: the same answer as an organization that does not exist.
+    expect(
+      await checkOrgAccess(fakePrisma, { orgId: "o1", userId: "u1" }),
+    ).toEqual({ kind: "not_found" });
   });
 
   const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "src");

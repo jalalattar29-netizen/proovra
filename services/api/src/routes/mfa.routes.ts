@@ -37,7 +37,7 @@ import { z } from "zod";
 
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
-import { AppError, ErrorCode } from "../errors.js";
+import { AppError, ErrorCode, inputRefusal } from "../errors.js";
 import { requireAuth } from "../middleware/auth.js";
 import { trustedClientIp } from "../middleware/client-ip.js";
 import {
@@ -93,9 +93,25 @@ async function readAccountName(userId: string): Promise<string> {
 // Zod schemas (bounded inputs)
 // =============================================================================
 
-const EnrollStartBody = z.object({
-  label: z.string().min(1).max(60).optional(),
-});
+/**
+ * PV-API-002 — THIS ROUTE ENROLS AN AUTHENTICATOR APP, AND SAYS SO.
+ *
+ * The body was a loose object: `{ "kind": "SMS" }` was silently ignored and a
+ * caller asking for a phone factor got a TOTP enrolment it never asked for,
+ * with a QR secret and no error. The body is now strict — an unknown field is
+ * a 400, not a no-op — and `kind`, when present, may only name what this route
+ * does. A request for a CONTACT factor is refused with a pointer to the route
+ * that enrols one (see the handler).
+ */
+const EnrollStartBody = z
+  .object({
+    label: z.string().min(1).max(60).optional(),
+    kind: z.literal("TOTP").optional(),
+  })
+  .strict();
+
+const CONTACT_FACTOR_ENROL_ROUTE =
+  "/v1/identity-security/contact-factors/enroll/start";
 
 const EnrollVerifyBody = z.object({
   factorId: z.string().uuid(),
@@ -147,7 +163,16 @@ export async function mfaRoutes(app: FastifyInstance) {
     async (req: FastifyRequest) => {
       const userId = getAuthUserId(req);
       if (!userId) throw new AppError(ErrorCode.UNAUTHORIZED, "Sign in.");
-      const body = EnrollStartBody.parse(req.body ?? {});
+      const raw = (req.body ?? {}) as Record<string, unknown>;
+      if (raw.kind === "SMS" || raw.kind === "WHATSAPP") {
+        throw inputRefusal({
+          code: "MFA_ENROLL_WRONG_ROUTE",
+          message:
+            "This route enrols an authenticator app. Phone factors are enrolled through the contact-factor route.",
+          metadata: { kind: raw.kind, route: CONTACT_FACTOR_ENROL_ROUTE },
+        });
+      }
+      const body = EnrollStartBody.parse(raw);
       const accountName = await readAccountName(userId);
       const result = await beginTotpEnrollment({
         userId,

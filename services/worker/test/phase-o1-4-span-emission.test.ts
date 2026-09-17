@@ -48,6 +48,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
+
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
 function read(rel: string): string {
@@ -180,12 +182,22 @@ describe("O1.4 — every BullMQ Worker registration is wrapped with the OTEL con
 
   for (let i = 0; i < workerSites.length; i++) {
     it(`worker registration #${i + 1} is wrapped with wrapJobHandlerWithOtelContext`, () => {
-      const at = workerSites[i]!.index!;
-      // The wrap MUST appear within the immediate ~600 chars after
-      // `new Worker(` — that's enough to cover the (queueName,
-      // handler, options) call shape including a multi-line
-      // formatted constructor.
-      const block = codeOnly.slice(at, at + 600);
+      const site = workerSites[i]!;
+      const at = site.index!;
+      // The wrap MUST appear inside THIS `new Worker(…)` expression — its
+      // (queueName, handler, options) arguments — not merely somewhere in
+      // the next ~600 characters, which could be the neighbouring
+      // registration (WCC-NEW-027). `occurrence` picks this site among
+      // identical matched texts.
+      let occurrence = 0;
+      for (let p = codeOnly.indexOf(site[0]); p >= 0 && p < at; p = codeOnly.indexOf(site[0], p + 1)) {
+        occurrence += 1;
+      }
+      const block = enclosingSource(codeOnly, site[0], "call", {
+        occurrence,
+        fileName: "index.ts",
+      });
+      expect(block.startsWith("new")).toBe(true);
       expect(block).toContain("wrapJobHandlerWithOtelContext");
     });
   }

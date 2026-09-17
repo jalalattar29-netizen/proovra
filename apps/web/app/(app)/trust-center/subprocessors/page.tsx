@@ -11,14 +11,16 @@
  * is unchanged.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 
-import type { SubprocessorProjection } from "@proovra/shared";
+import { identifierLabel, type SubprocessorProjection } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDate } from "../../../../lib/date";
 import { LegalDocumentShell } from "../../../../components/legal/LegalDocumentShell";
+import { Button } from "../../../../components/ui/Button";
+import { SubprocessorVersionHistory } from "../_version-history";
 
 export default function SubprocessorsPage() {
   return (
@@ -33,6 +35,9 @@ function Shell() {
   const [reason, setReason] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Until the first read settles, an empty table is not a fact about the registry.
+  const [loaded, setLoaded] = useState(false);
+  const [historyFor, setHistoryFor] = useState<string | null>(null);
 
   function degradedMessage(code: string) {
     switch (code) {
@@ -70,6 +75,7 @@ function Shell() {
       setReason(null);
       setFailed("Subprocessors could not be loaded. Press Refresh to try again.");
     } finally {
+      setLoaded(true);
       setBusy(false);
     }
   }, []);
@@ -138,7 +144,7 @@ function Shell() {
           >
             <div>{degradedMessage(reason)}</div>
             <div>
-              Reason: <code>{reason}</code>
+              Reason: <code data-identifier>{reason}</code>
             </div>
           </div>
         ) : null}
@@ -173,14 +179,18 @@ function Shell() {
               </tr>
             </thead>
             <tbody>
-              {rows.length === 0 && !reason && !failed ? (
+              {!loaded ? (
+                <tr>
+                  <td colSpan={9} role="status">Loading subprocessors…</td>
+                </tr>
+              ) : rows.length === 0 && !reason && !failed ? (
                 <tr>
                   <td colSpan={9}>No subprocessors registered.</td>
                 </tr>
               ) : (
                 rows.map((r) => (
+                  <Fragment key={r.id}>
                   <tr
-                    key={r.id}
                     data-subprocessor-row={r.slug}
                     data-subprocessor-state={r.state}
                   >
@@ -193,12 +203,24 @@ function Shell() {
                     <td>
                       {r.dataCategories.map((c) => (
                         <code key={c} className="mb-1 mr-1 inline-block">
-                          {c}
+                          {identifierLabel(c)}
                         </code>
                       ))}
                     </td>
-                    <td>{r.state}</td>
-                    <td>v{r.version}</td>
+                    <td>{identifierLabel(r.state)}</td>
+                    <td>
+                      v{r.version}{" "}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        aria-expanded={historyFor === r.id}
+                        aria-controls={`subprocessor-history-${r.id}`}
+                        aria-label={`Change history for ${r.name}`}
+                        onClick={() => setHistoryFor(historyFor === r.id ? null : r.id)}
+                      >
+                        {historyFor === r.id ? "Hide history" : "History"}
+                      </Button>
+                    </td>
                     <td>{formatUserDate(r.effectiveAtUtc)}</td>
                     <td>
                       {r.documentationUrl ? (
@@ -215,6 +237,19 @@ function Shell() {
                       )}
                     </td>
                   </tr>
+                  {historyFor === r.id ? (
+                    <tr>
+                      <td colSpan={9}>
+                        <SubprocessorVersionHistory
+                          subprocessorId={r.id}
+                          name={r.name}
+                          panelId={`subprocessor-history-${r.id}`}
+                          open
+                        />
+                      </td>
+                    </tr>
+                  ) : null}
+                  </Fragment>
                 ))
               )}
             </tbody>

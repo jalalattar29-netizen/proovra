@@ -12,6 +12,8 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROUTES = readFileSync(
   resolve(HERE, "../src/routes/organizations.routes.ts"),
@@ -23,7 +25,7 @@ const AUDIT = readFileSync(
 );
 
 const at = ROUTES.indexOf('"/v1/orgs/:id/leave"');
-const H = ROUTES.slice(at, at + 5200);
+const H = routeSource(ROUTES, "POST", "/v1/orgs/:id/leave");
 
 describe("POST /v1/orgs/:id/leave", () => {
   it("is registered behind auth + legal acceptance", () => {

@@ -247,7 +247,7 @@ describe("Phase IA-surface-tier — hidden surfaces for personal/small-office us
     "/governance",
     "/governance-platform",
     "/admin",
-    "/admin/identity",
+    "/security-center/identity",
     "/organization-admin",
     "/security-center",
     "/identity-security",

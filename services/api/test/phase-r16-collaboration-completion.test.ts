@@ -39,6 +39,7 @@ import {
   sanitiseCollaborationTeamCommentBody,
 } from "@proovra/shared";
 import { isCollaborationTeamModerator } from "../src/services/collaboration-team/collaboration-team.service.js";
+import { betweenMarkers, routeSource } from "../../../scripts/source-contract/index.mjs";
 
 const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
 function read(rel: string): string {
@@ -299,10 +300,8 @@ describe("Phase R16 — schema + migration", () => {
   });
 
   it("guests are time-bounded (expiresAtUtc) + revocable + auditable", () => {
-    const block = (() => {
-      const idx = schema.indexOf("model CollaborationTeamGuest");
-      return schema.slice(idx, idx + 2000);
-    })();
+    // The Prisma model block: from its header to its closing brace.
+    const block = betweenMarkers(schema, "model CollaborationTeamGuest {", "\n}");
     expect(block).toMatch(/expiresAtUtc\s+DateTime/);
     expect(block).toMatch(/revokedAtUtc/);
     expect(block).toMatch(/revokedByUserId/);
@@ -369,11 +368,10 @@ describe("Phase R16 — service module", () => {
       "getMyNotificationPreference",
       "inviteGuest",
       "listGuests",
-      "revokeGuest",
-      "openAccessReview",
+      // revokeGuest / openAccessReview / decideAccessReviewItem /
+      // completeAccessReview were removed with their retired routes
+      // (2026-09-17); listAccessReviews stays as the read of stored rows.
       "listAccessReviews",
-      "decideAccessReviewItem",
-      "completeAccessReview",
       "listTeamActivityFiltered",
     ];
     for (const sym of required) {
@@ -468,7 +466,7 @@ describe("Phase R16 — service module", () => {
     expect(svc).toContain("export async function listGuests");
   });
 
-  it("access review items only decidable by LEAD/ADMIN", () => {
+  it("moderation is decided by the shared LEAD/ADMIN predicate", () => {
     // PHASE 12 POINT 4 STEP 1 — this was a source regex over
     // `decideAccessReviewItem ... role !== "LEAD" && role !== "ADMIN"`. The
     // literal comparison is gone: the gate and the `viewerCapabilities`
@@ -483,18 +481,16 @@ describe("Phase R16 — service module", () => {
         `${String(role)} must not moderate`,
       ).toBe(false);
     }
-    // Every moderator-gated entry point rejects through the shared predicate
-    // rather than an inline role comparison of its own.
-    for (const fn of [
-      "decideAccessReviewItem",
-      "openAccessReview",
-      "completeAccessReview",
-    ]) {
+    // Every moderator-gated entry point decides through the shared predicate
+    // rather than an inline role comparison of its own. (The access-review
+    // writers that also gated on it were removed with their retired routes,
+    // 2026-09-17; comment moderation is what remains.)
+    for (const fn of ["editComment", "deleteComment"]) {
       expect(
         svc,
         `${fn} must gate through isCollaborationTeamModerator`,
       ).toMatch(
-        new RegExp(`${fn}[\\s\\S]{0,900}!isCollaborationTeamModerator\\(role\\)`),
+        new RegExp(`export async function ${fn}\\b[\\s\\S]{0,1500}isCollaborationTeamModerator\\(role\\)`),
       );
     }
     expect(svc).not.toMatch(/role !== "LEAD" && role !== "ADMIN"/);
@@ -550,6 +546,42 @@ describe("Phase R16 — API routes", () => {
     expect(routes).toContain(
       '"/v1/collaboration-teams/:teamId/access-review/:reviewId/complete"',
     );
+  });
+
+  // RETIRED 2026-09-16 — the 2026-09-06 closure withdrew guests and group
+  // access reviews and recorded that these routes answer a typed 410, but six
+  // still answered normally. Every guest and access-review registration is now
+  // a tombstone that does no work: the registrations above survive, and each
+  // one's handler is the retired helper and nothing else.
+  it("guest and access-review routes are typed 410 tombstones that call no service", () => {
+    const tombstones: Array<[string, string, string]> = [
+      ["GET", "/v1/collaboration-teams/:teamId/guests", "guestsRetired"],
+      ["POST", "/v1/collaboration-teams/:teamId/guests/invite", "guestsRetired"],
+      ["PATCH", "/v1/collaboration-teams/:teamId/guests/:guestId/revoke", "guestsRetired"],
+      ["GET", "/v1/collaboration-teams/:teamId/access-review", "accessReviewRetired"],
+      ["POST", "/v1/collaboration-teams/:teamId/access-review", "accessReviewRetired"],
+      ["PATCH", "/v1/collaboration-teams/:teamId/access-review/items/:itemId", "accessReviewRetired"],
+      ["POST", "/v1/collaboration-teams/:teamId/access-review/:reviewId/complete", "accessReviewRetired"],
+    ];
+    for (const [method, path, helper] of tombstones) {
+      // routeSource throws unless exactly one registration matches, so each
+      // registration stays in place and is read whole.
+      const handler = routeSource(routes, method, path);
+      expect(handler, `${method} ${path} must be a tombstone`).toContain(
+        `handler: async (_req, reply) => ${helper}(reply)`,
+      );
+    }
+    expect(routes).toContain('code: "COLLABORATION_TEAM_GUESTS_RETIRED"');
+    expect(routes).toContain('code: "COLLABORATION_TEAM_ACCESS_REVIEW_RETIRED"');
+    for (const fn of [
+      "listGuests",
+      "inviteGuest",
+      "listAccessReviews",
+    ]) {
+      expect(routes, `${fn} must not be called by the route file`).not.toMatch(
+        new RegExp(`\\b${fn}\\(`),
+      );
+    }
   });
 
   it("registers activity v2 filtered endpoint", () => {
@@ -650,8 +682,11 @@ describe("Phase R16 — frontend", () => {
     );
     expect(routes).toContain("COLLABORATION_TEAM_NOTIFICATIONS_RETIRED");
     expect(routes).toContain("COLLABORATION_TEAM_PREFERENCES_RETIRED");
-    // The guest refusal is raised by the SERVICE and mapped by the route,
-    // which is why it is asserted where it is thrown.
+    // Since 2026-09-16 the guest and access-review routes answer their own
+    // typed 410s (pinned in the API routes block above).
+    expect(routes).toContain("COLLABORATION_TEAM_GUESTS_RETIRED");
+    expect(routes).toContain("COLLABORATION_TEAM_ACCESS_REVIEW_RETIRED");
+    // The service still raises the guest refusal for any direct caller.
     const completion = read(
       "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
     );
