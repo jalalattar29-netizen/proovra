@@ -312,6 +312,20 @@ function isForwardedParameter(argNode, call) {
 }
 
 /**
+ * `${origin}${path}` and nothing else, where `path` is a parameter of an
+ * enclosing function — a forwarding wrapper that prefixes our origin. Narrow on
+ * purpose: any literal text after the origin, or a path that is not a bare
+ * parameter, is still reported.
+ */
+function isOriginPlusForwardedPath(argNode, call) {
+  if (!argNode || !ts.isTemplateExpression(argNode) || argNode.head.text !== "") return false;
+  const spans = argNode.templateSpans;
+  if (spans.length !== 2 || spans[0].literal.text !== "" || spans[1].literal.text !== "") return false;
+  const pathExpr = spans[1].expression;
+  return ts.isIdentifier(pathExpr) && isForwardedParameter(pathExpr, call);
+}
+
+/**
  * Source text of the expression standing in for the origin — the first
  * interpolation of a template that begins with one. Text, not a value: the
  * question is only WHICH base this is, and the name is what answers it.
@@ -734,7 +748,12 @@ export function analyzeConsumers(
               }
               const dropSite = `${entry.file}:${line + 1}`;
               if (dynamicResolutions.has(dropSite)) reviewedUnresolved.push(dropSite);
-              else if (origin !== null && normalized.includes(INTERP)) {
+              else if (isOriginPlusForwardedPath(arg, node)) {
+                // `fetch(\`${apiBaseUrl()}${path}\`)` inside `portalFetch(path)`:
+                // the whole path is the wrapper's own parameter. The wrapper is
+                // discovered as FORWARDING and each caller's path is counted at
+                // the call site, exactly as for a bare `fetch(path)`.
+              } else if (origin !== null && normalized.includes(INTERP)) {
                 dynamicUnresolved.push({
                   file: entry.file,
                   line: line + 1,

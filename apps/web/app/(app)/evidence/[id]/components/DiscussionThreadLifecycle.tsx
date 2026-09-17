@@ -57,6 +57,15 @@ const ACTION_LABEL: Record<Action, string> = {
   escalate: "Escalate thread",
 };
 
+/** One POST per lifecycle action; `Action` names every route this reaches. */
+function postThreadAction(threadId: string, action: Action, body: Record<string, unknown>) {
+  return apiFetch(`/v1/collaboration/threads/${encodeURIComponent(threadId)}/${action}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
 function isActive(status: LifecycleStatus): boolean {
   return status === "OPEN" || status === "IN_PROGRESS";
 }
@@ -213,14 +222,7 @@ export function DiscussionThreadLifecycle({
             : { teamId, reason: trimmed };
       let written = false;
       try {
-        await apiFetch(
-          `/v1/collaboration/threads/${encodeURIComponent(threadId)}/${action}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-          },
-        );
+        await postThreadAction(threadId, action, body);
         written = true;
         const reread = (await apiFetch(detailUrl)) as ThreadDetail;
         if (!alive.current) return;

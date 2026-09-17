@@ -26,17 +26,6 @@
       "reviewedAtUtc": "2026-08-16"
     },
     {
-      "routeId": "DELETE /v1/cases/:id/evidence-links/:linkId",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "planned product contract: the replacement matrix names the target surface and the behavioural suite it must ship with",
-      "evidence": "PLANNED CONTRACT — docs/architecture/target-replacement-matrix.json capabilityId \"DELETE:/v1/cases/:id/evidence-links/:linkId\": currentClassification=TARGET_PARTIAL, targetAction=COMPLETE_FRONTEND, targetProductSurface=apps/web/app/(app)/cases/components/SiuPanel.tsx, missingLayer=behavioral proof suite. NO visible control exists for it today (the route has zero product consumers in the canonical consumer analysis), so there is no disconnected affordance to hide. It receives no release-completion credit and remains in the canonical backlog. Original absence proof retained: DEAD_CONFIRMED · surfaces searched: apps/web (rg 'evidence-links') -> only apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:10 doc comment and apps/web/__tests__/cases-assignment-controls.test.ts:134 `assert.doesNotMatch(code, /\\/evidence-links/)` (a guard asserting ABSENCE); apps/web (rg suffix '/evidence-links') -> 0 apiFetch/fetch call sites; apps/mobile (rg 'evidence-links') -> 0; services/worker (rg 'evi · docs/architecture/target-replacement-matrix.json:709 \"capabil",
-      "reviewedAtUtc": "2026-08-17",
-      "confidence": "AMBIGUOUS",
-      "revalidatedVerdict": "DEAD_CONFIRMED",
-      "revalidationConfidence": "UNCERTAIN",
-      "postReleaseDecision": "PRESERVED_POST_RELEASE_CONTRACT"
-    },
-    {
       "routeId": "DELETE /v1/cases/:id/legacy-evidence-link/:evidenceId",
       "disposition": "COMPATIBILITY_TOMBSTONE",
       "reason": "zero-mutation shim after the Evidence.caseId column drop; every path throws",
@@ -65,20 +54,6 @@
       "evidence": "reg services/api/src/routes/ops-seed.routes.ts:179; docs/operational-seeding.md:108 \"### DELETE /v1/ops/seed/reviewer-ops/:seedRunId?teamId=<team>\" and :114 curl -X DELETE \"$API_BASE/v1/ops/seed/reviewer-ops/8c2…f0?teamId=...\" -H \"X-Operational-Seed-Secret: $OPERATIONAL_SEEDING_SECRET\"; services/api/src/services/ops/operational-seed.service.ts:640 \"/v1/ops/seed/reviewer-ops/<seedRunId>.\"",
       "reviewedAtUtc": "2026-08-16",
       "machineCallerEvidence": "reg services/api/src/routes/ops-seed.routes.ts:179; docs/operational-seeding.md:108 \"### DELETE /v1/ops/seed/reviewer-ops/:seedRunId?teamId=<team>\" and :114 curl -X DELETE \"$API_BASE/v1/ops/seed/reviewer-ops/8c2…f0?teamId=...\" -H \"X-Operational-Seed-Secret: $OPERATIONAL_SEEDING_SECRET\"; services/api/src/services/ops/operational-seed.service.ts:640 \"/v1/ops/seed/reviewer-ops/<seedRunId>.\""
-    },
-    {
-      "routeId": "DELETE /v1/redaction/policies/:id",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Policy archive control absent; create/list/versions/transition/assignments are all wired on the shipped policy console.",
-      "evidence": "reg services/api/src/routes/redaction.routes.ts:961 app.delete(\"/v1/redaction/policies/:id\"). Web console calls only: apps/web/app/(app)/redaction/policy/page.tsx:108 `/v1/redaction/policies` (GET), :155 (POST), :123 `/v1/redaction/policies/${policyId}/versions`, :132 `/v1/redaction/policies/${policyId}/audit`, :207 `/v1/redaction/policy-versions/${versionId}/transition`, :232 `/v1/redaction/policies/${selectedPolicyId}/assignments`. No DELETE call in apps/web or apps/mobile.",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
-      "routeId": "DELETE /v1/teams/:id/external-grants/:grantId",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "workspace-level external CaseAccess revoke has no control; the access-review card is read-only by design",
-      "evidence": "reg services/api/src/routes/teams.routes.ts:2511 app.delete(\"/v1/teams/:id/external-grants/:grantId\", { preHandler: requireAuthAndLegal }); services/api/src/routes/teams.routes.ts:2499-2503 \"a team ADMIN+ can revoke any CaseAccess grant on cases belonging to the team\"; apps/web/app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx:28-31 \"The card is read-only. Mutations (revoke external access, remove member, etc.) live on the existing surfaces\"; 0 call sites for external-grants in apps/web|apps/mobile",
-      "reviewedAtUtc": "2026-08-16"
     },
     {
       "routeId": "DELETE /v1/users/me/sessions/:id",
@@ -195,13 +170,6 @@
       "reviewedAtUtc": "2026-08-16"
     },
     {
-      "routeId": "GET /v1/automation/webhooks",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Webhook destination UI is explicitly deferred to a follow-up phase.",
-      "evidence": "reg services/api/src/routes/automation-webhooks.routes.ts:182 app.get(\"/v1/automation/webhooks\"). docs/product/PHASE_E3_2_WEBHOOK_DELIVERY.md:223 \"Webhook UI is **deferred** to a thin follow-up phase.\"; apps/web/app/(app)/operations/analytics/page.tsx:641-646 states the destinations/deliveries endpoints are backend-only and that surface \"shows aggregate counters only\" (descriptive text, not a call)",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
       "routeId": "GET /v1/batch-analysis/:id",
       "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
       "reason": "Job drill-down duplicated by the 4s list poll the shipped page already runs.",
@@ -282,26 +250,12 @@
       "postReleaseDecision": "PRESERVED_POST_RELEASE_CONTRACT"
     },
     {
-      "routeId": "GET /v1/collaboration/threads/:id",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "single-thread read lost its surface when the standalone /collaboration page was retired",
-      "evidence": "reg services/api/src/routes/collaboration.routes.ts:200; apps/web/next.config.js:304-317 \"/collaboration is retired as a standalone product surface ... /v1/collaboration/threads/* routes all remain intact — they continue to power the evidence detail discussion panel\"; apps/web/lib/navigation/pillarRegistry.ts:180-183 \"workspace.collaboration removed with its deleted page\"; the surviving consumer apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx uses only :219 GET `/v1/collaboration/threads?teamId=`, :278/:332 `/v1/collaboration/threads/${id}/messages`, :295 `/mark-mentions-read`",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
       "routeId": "GET /v1/evidence/:evidenceId/custody/attestations",
       "disposition": "ADMIN_OPERATOR",
       "reason": "documented per-evidence operator coverage check + package-builder integration contract",
       "evidence": "reg services/api/src/routes/operations-signers.routes.ts:502 app.get(\"/v1/evidence/:evidenceId/custody/attestations\", { preHandler: requireAuth }); docs/security/phase-p3-1-signer-governance-closure.md:55 \"GET /v1/evidence/:evidenceId/custody/attestations?teamId\" and :58 \"operators can confirm coverage before package generation\"; docs/verification/verification-package-format.md:130 names the operator backfill route for the same family; apps/web queries the team-scoped /v1/operations/custody-attestations instead (operations/signers/page.tsx:236)",
       "reviewedAtUtc": "2026-08-16",
       "machineCallerEvidence": "reg services/api/src/routes/operations-signers.routes.ts:502 app.get(\"/v1/evidence/:evidenceId/custody/attestations\", { preHandler: requireAuth }); docs/security/phase-p3-1-signer-governance-closure.md:55 \"GET /v1/evidence/:evidenceId/custody/attestations?teamId\" and :58 \"operators can confirm coverage before package generation\"; docs/verification/verification-package-format.md:130 names the operator backfill route for the same family; apps/web queries the team-scoped /v1/operations/custody-attestations instead (operations/signers/page.tsx:236)"
-    },
-    {
-      "routeId": "GET /v1/evidence/:id/certifications",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "certification list has no control; certifications reach the report through the worker view-model, not this route",
-      "evidence": "reg services/api/src/routes/evidence.routes.ts:11313; 0 call sites for \"certifications\" in apps/web + apps/mobile; services/worker/src/report-v2/render-html.ts:61-64 \"vm.certifications has been populated by the processor (and served by GET /v1/evidence/:id/certifications) all along, but nothing rendered it\"; services/api/src/routes/evidence.routes.ts:11411-11415 \"The certification lifecycle is request -> attest -> revoke ... no route reached them\"",
-      "reviewedAtUtc": "2026-08-16"
     },
     {
       "routeId": "GET /v1/evidence/:id/relationships",
@@ -362,20 +316,6 @@
       "evidence": "reg services/api/src/routes/governance.routes.ts:387 app.get(\"/v1/governance/legal-holds\"). services/api/src/routes/governance.routes.ts:353-380 \"COMPATIBILITY_TEMPORARY — Legal-Hold adapters (6 operations) ... thin delegate over the ONE canonical Legal-Hold authority\". canonical replacement services/api/src/routes/product-and-lifecycle.routes.ts:1088 \"/v1/lifecycle/legal-holds\" (GET), :1126 (POST), :1233 \"/v1/lifecycle/legal-holds/:id/release\"; product-connected at apps/web/app/(app)/evidence-lifecycle/legal-holds/page.tsx:158 apiFetch(\"/v1/lifecycle/legal-holds\", { method: \"GET\" }), :188 (POST), :250 apiFetch(`/v1/lifecycle/legal-holds/${hold.id}/release`)",
       "reviewedAtUtc": "2026-08-16",
       "replacement": "GET /v1/lifecycle/legal-holds"
-    },
-    {
-      "routeId": "GET /v1/governance/policies/:id/assignments",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Org policy assignment surface not presented anywhere in the governance platform pages.",
-      "evidence": "reg services/api/src/routes/trust-and-governance.routes.ts:1069 app.get(\"/v1/governance/policies/:id/assignments\"). The shipped page calls only apps/web/app/(app)/governance-platform/policies/page.tsx:101 `/v1/governance/policies` (GET), :115 `/${id}/activate`, :128 `/${id}/deprecate`, :147 `/v1/governance/policies/effective`, :163 `/v1/governance/departments`.",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
-      "routeId": "GET /v1/governance/policies/:id/audit",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Policy audit trail view not presented on the governance platform policies page.",
-      "evidence": "reg services/api/src/routes/trust-and-governance.routes.ts:1084 app.get(\"/v1/governance/policies/:id/audit\"). Shipped page call set: apps/web/app/(app)/governance-platform/policies/page.tsx:101/115/128/147/163 (no `/audit`).",
-      "reviewedAtUtc": "2026-08-16"
     },
     {
       "routeId": "GET /v1/identity/mfa-admin/digest-preferences/snooze-link",
@@ -477,13 +417,6 @@
       "reviewedAtUtc": "2026-08-16"
     },
     {
-      "routeId": "GET /v1/ops/causality/chains/:id",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "per-chain drill-down has no control; the command center reads the collection only",
-      "evidence": "reg services/api/src/routes/ops.routes.ts:1492; apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:216 `/v1/ops/causality/chains?teamId=${encodeURIComponent(teamId)}&limit=6` is the only call; :18 header comment \"GET /v1/ops/causality/chains{,/:id}\"; docs/architecture/route-classification/wiring-registry.json lists finalState WIRED_PRODUCT for this route but no /:id fetch exists",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
       "routeId": "GET /v1/ops/seed/reviewer-ops",
       "disposition": "ADMIN_OPERATOR",
       "reason": "operational seeding runbook uses this to find the seedRunId for cleanup",
@@ -502,13 +435,6 @@
       "postReleaseDecision": "PRESERVED_POST_RELEASE_CONTRACT"
     },
     {
-      "routeId": "GET /v1/portal/work/:workflowId/decisions",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "portal decision-history read is unused; the portal client implements every other portal route",
-      "evidence": "reg services/api/src/routes/external-portal.routes.ts:961 app.get(\"/v1/portal/work/:workflowId/decisions\") gated on capabilities portal.decide|portal.history.read; apps/web/lib/external-portal/portal-client.ts wires :111 /v1/portal/auth, :125 /v1/portal/logout, :135 /v1/portal/dashboard, :142 /work/:id/view, :157/:169 /work/:id/comments, :187 /work/:id/decision, :244 /portal/sso/start/:grantId, :266 /v1/portal/activity — no /decisions",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
       "routeId": "GET /v1/redaction/derivatives/:id",
       "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
       "reason": "Redundant metadata read; the shipped panel reads derivative state from the project projection and only calls the download-url sibling.",
@@ -522,13 +448,6 @@
       "evidence": "reg services/api/src/routes/redaction.routes.ts:905 app.get(\"/v1/redaction/policy\"). Deprecation: services/api/src/services/redaction/redaction-policy.service.ts:18-20 \"Writes go through the bounded versioned store — `setRedactionDetectionPolicy` becomes a back-compat shim that creates + publishes a synthetic 'Workspace Defaults' policy\"; redaction.routes.ts:919-921 section header \"Phase 3A Elite Closure — versioned Policy Management Console routes\". Replacement regs services/api/src/routes/redaction.routes.ts:1152 \"/v1/redaction/policy/effective\" and :922 \"/v1/redaction/policies\", product-connected at apps/web/components/redaction/PolicyScopePanel.tsx:116 and apps/web/app/(app)/redaction/policy/page.tsx:108. | replacement detail: GET /v1/redaction/policy/effective + GET /v1/redaction/policies",
       "reviewedAtUtc": "2026-08-16",
       "replacement": "GET /v1/redaction/policy/effective"
-    },
-    {
-      "routeId": "GET /v1/redaction/projects/:id/activity",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Per-project activity feed has no surface; the project detail read is wired but the activity read is not.",
-      "evidence": "reg services/api/src/routes/redaction.routes.ts:573 app.get(\"/v1/redaction/projects/:id/activity\"). Web project reads: apps/web/app/(app)/redaction/[projectId]/page.tsx:137 `/v1/redaction/projects/${projectId}`, :180 `/v1/redaction/projects/${projectId}/versions`; apps/web/components/redaction/ImageRedactionViewer.tsx:49. No `/activity` call anywhere in apps/web or apps/mobile.",
-      "reviewedAtUtc": "2026-08-16"
     },
     {
       "routeId": "GET /v1/redaction/versions/:id/derivative",
@@ -587,30 +506,6 @@
       "revalidationConfidence": "HIGH"
     },
     {
-      "routeId": "GET /v1/trust/articles/:id/versions",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "article version history has no surface",
-      "evidence": "reg services/api/src/routes/trust-and-governance.routes.ts:285; trust-center calls in apps/web are limited to /v1/trust/articles?kind=, /v1/trust/articles/seed, /v1/trust/subprocessors, /v1/trust/subprocessors/seed, /v1/trust/status*, /v1/trust/drift/*, /v1/trust/security-claims*, /v1/trust/verify-references, /v1/trust/verification-package/preview — no /versions",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
-      "routeId": "GET /v1/trust/articles/:kind/:slug",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "no product contract to build, but the repository's own behavioural suite pins the registration",
-      "evidence": "PINNED CONTRACT — services/api/test/production-trust-center-enterprise-completion.test.ts:391 and production-trust-center-empty-state.test.ts:245 pin this route; the trust-centre surface reads the collection form (GET /v1/trust/articles) and the by-slug form is the per-article contract kept for it. NO visible control exists for it (zero product consumers in the canonical consumer analysis), so nothing disconnected is on screen. No release-completion credit; stays in the canonical backlog. Original absence proof retained: DEAD_CONFIRMED · surfaces searched: apps/web (rg 'v1/trust' over apps/web/app/(app)/trust-center/) -> apps/web/app/(app)/trust-center/_section-list.tsx:102 apiFetch(`/v1/trust/articles?kind=${kind}`) (collection/query form only), plus status/page.tsx:51 /v1/trust/status, subprocessors/page.tsx:55 and :81. No slug-addressed read anywhere, including the trust-center sub-pages (methodology, security,",
-      "reviewedAtUtc": "2026-08-17",
-      "revalidatedVerdict": "DEAD_CONFIRMED",
-      "revalidationConfidence": "HIGH",
-      "postReleaseDecision": "PRESERVED_POST_RELEASE_CONTRACT"
-    },
-    {
-      "routeId": "GET /v1/trust/subprocessors/:id/versions",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "subprocessor version history has no surface",
-      "evidence": "reg services/api/src/routes/trust-and-governance.routes.ts:493; apps/web/app/(app)/trust-center/subprocessors/page.tsx:55 apiFetch(\"/v1/trust/subprocessors\", { method: \"GET\" }) and :81 \"/v1/trust/subprocessors/seed\" are the only subprocessor calls",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
       "routeId": "GET /v1/uploads/sessions/:sessionId",
       "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
       "reason": "Full session read redundant; the recovery scanner uses the narrower /status projection.",
@@ -633,13 +528,6 @@
       "reviewedAtUtc": "2026-08-16"
     },
     {
-      "routeId": "PATCH /v1/automation/webhooks/:id",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Webhook destination management UI explicitly deferred.",
-      "evidence": "reg services/api/src/routes/automation-webhooks.routes.ts:311 app.patch(\"/v1/automation/webhooks/:id\"). docs/product/PHASE_E3_2_WEBHOOK_DELIVERY.md:223 \"Webhook UI is **deferred** to a thin follow-up phase.\"; apps/web/app/(app)/operations/analytics/page.tsx:641-646 states the destinations/deliveries endpoints are backend-only and that surface \"shows aggregate counters only\" (descriptive text, not a call)",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
       "routeId": "PATCH /v1/evidence-requests/:id",
       "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
       "reason": "DRAFT edit has no control; the detail page only reads and runs status actions",
@@ -658,13 +546,6 @@
       "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
       "reason": "relationship edit has no control; product only creates and deletes relationships",
       "evidence": "reg services/api/src/routes/evidence.routes.ts:8098 app.patch(\"/v1/evidence/:id/relationships/:relationshipId\", { preHandler: requireAuth }); apps/web/app/(app)/evidence/[id]/page.tsx:482 method \"POST\", :514 method \"DELETE\"; apps/web/app/(app)/evidence/[id]/components/EvidenceRelationshipsSection.tsx:31 only surfaces DELETE",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
-      "routeId": "PATCH /v1/governance/retention-policies/:id",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Retention policy edit control absent; create, versions and status transition are all wired on the shipped retention page.",
-      "evidence": "reg services/api/src/routes/governance-lifecycle.routes.ts:281 app.patch(\"/v1/governance/retention-policies/:id\"). Wired calls: apps/web/app/(app)/governance/retention/page.tsx:963 apiFetch(\"/v1/governance/retention-policies\", POST), :287 (GET list), :299 `/${policyId}/versions`, :321 `/${policy.id}/transition`, :242 `/effective`.",
       "reviewedAtUtc": "2026-08-16"
     },
     {
@@ -698,31 +579,10 @@
       "reviewedAtUtc": "2026-08-16"
     },
     {
-      "routeId": "POST /v1/automation/webhooks",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Webhook destination creation UI explicitly deferred to a follow-up phase.",
-      "evidence": "reg services/api/src/routes/automation-webhooks.routes.ts:215 app.post(\"/v1/automation/webhooks\"). docs/product/PHASE_E3_2_WEBHOOK_DELIVERY.md:223 \"Webhook UI is **deferred** to a thin follow-up phase.\"; apps/web/app/(app)/operations/analytics/page.tsx:641-646 states the destinations/deliveries endpoints are backend-only and that surface \"shows aggregate counters only\" (descriptive text, not a call)",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
       "routeId": "POST /v1/automation/webhooks/:id/disable",
       "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
       "reason": "Webhook destination management UI explicitly deferred.",
       "evidence": "reg services/api/src/routes/automation-webhooks.routes.ts:423 app.post(\"/v1/automation/webhooks/:id/disable\"). docs/product/PHASE_E3_2_WEBHOOK_DELIVERY.md:223 \"Webhook UI is **deferred** to a thin follow-up phase.\"; apps/web/app/(app)/operations/analytics/page.tsx:641-646 states the destinations/deliveries endpoints are backend-only and that surface \"shows aggregate counters only\" (descriptive text, not a call)",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
-      "routeId": "POST /v1/automation/webhooks/:id/enable",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Webhook destination management UI explicitly deferred.",
-      "evidence": "reg services/api/src/routes/automation-webhooks.routes.ts:418 app.post(\"/v1/automation/webhooks/:id/enable\"). docs/product/PHASE_E3_2_WEBHOOK_DELIVERY.md:223 \"Webhook UI is **deferred** to a thin follow-up phase.\"; apps/web/app/(app)/operations/analytics/page.tsx:641-646 states the destinations/deliveries endpoints are backend-only and that surface \"shows aggregate counters only\" (descriptive text, not a call)",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
-      "routeId": "POST /v1/automation/webhooks/:id/rotate-secret",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Secret rotation UI explicitly deferred with the rest of the webhook destination surface.",
-      "evidence": "reg services/api/src/routes/automation-webhooks.routes.ts:438 app.post(\"/v1/automation/webhooks/:id/rotate-secret\"). docs/product/PHASE_E3_2_WEBHOOK_DELIVERY.md:223 \"Webhook UI is **deferred** to a thin follow-up phase.\"; apps/web/app/(app)/operations/analytics/page.tsx:641-646 states the destinations/deliveries endpoints are backend-only and that surface \"shows aggregate counters only\" (descriptive text, not a call); the one-time-secret contract is stated at services/api/src/routes/automation-webhooks.routes.ts:16-19.",
       "reviewedAtUtc": "2026-08-16"
     },
     {
@@ -747,17 +607,6 @@
       "reason": "per-case ACL grant has no control in any surface",
       "evidence": "reg services/api/src/routes/cases.routes.ts:664 app.post(\"/v1/cases/:id/access\", { preHandler: requireAuthAndLegal }); rg \"cases/${...}/access\" apps/web apps/mobile = 0 call sites; apps/web/components/cases-experience/MatterWorkspace.tsx:329-378 TABS = overview|evidence|timeline|graph|holds|decisions|risk|discussion|assignments|investigation-profile|audit|export (no access/share tab); docs/product/PHASE_2_6_TEAMS_GOVERNANCE.md:313 \"POST/DELETE /v1/cases/:id/access | /cases/[id] access tab | shipped pre-2.6\" (tab does not exist); docs/architecture/current-runtime-capability-map.json productConsumer:null machineConsumer:null",
       "reviewedAtUtc": "2026-08-16"
-    },
-    {
-      "routeId": "POST /v1/cases/:id/evidence-links",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "planned product contract: the replacement matrix names the target surface and the behavioural suite it must ship with",
-      "evidence": "PLANNED CONTRACT — docs/architecture/target-replacement-matrix.json capabilityId \"POST:/v1/cases/:id/evidence-links\": currentClassification=TARGET_PARTIAL, targetAction=COMPLETE_FRONTEND, targetProductSurface=apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx, missingLayer=behavioral proof suite. NO visible control exists for it today (the route has zero product consumers in the canonical consumer analysis), so there is no disconnected affordance to hide. It receives no release-completion credit and remains in the canonical backlog. Original absence proof retained: DEAD_CONFIRMED · surfaces searched: apps/web (rg 'evidence-links') -> apps/web/components/cases-experience/matter-modals/EvidenceLinkModal.tsx:10 claims it \"submits a single canonical POST /v1/cases/:id/evidence-links\", but the component calls its onSubmit prop at :193 and is never rendered by any host (pinned by apps/web/__tests__/cases-assignment-controls.test.ts:9 and the absence guard at :134); apps/web (rg suffix '/evidence-lin · docs/architecture/target-replacement-matrix.json:685 \"capabil",
-      "reviewedAtUtc": "2026-08-17",
-      "confidence": "AMBIGUOUS",
-      "revalidatedVerdict": "DEAD_CONFIRMED",
-      "revalidationConfidence": "UNCERTAIN",
-      "postReleaseDecision": "PRESERVED_POST_RELEASE_CONTRACT"
     },
     {
       "routeId": "POST /v1/cases/:id/share-email",
@@ -816,13 +665,6 @@
       "reviewedAtUtc": "2026-08-16"
     },
     {
-      "routeId": "POST /v1/coding/schemas/:id/archive",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Custom coding-schema authoring (archive) is not offered; the shipped page ships list + seed-defaults only.",
-      "evidence": "reg services/api/src/routes/reviewer-workspace.routes.ts:404. Shipped page apps/web/app/(app)/review/schemas/page.tsx:56 apiFetch(`/v1/coding/schemas?teamId=...`, GET) and :139 the only mutation button \"Seed 6 default schemas\" → apps/web/lib/reviewer-workspace/reviewer-api.ts:294 `/v1/coding/schemas/seed-defaults` (POST). Detail read at reviewer-api.ts:65 `/v1/coding/schemas/${schemaId}`. No create/publish/archive call in apps/web or apps/mobile.",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
       "routeId": "POST /v1/coding/schemas/:id/publish",
       "disposition": "COMPATIBILITY_TOMBSTONE",
       "reason": "retired to a typed 410 naming what replaced it (or that the capability is not offered); kept so a stale client is told rather than 404-ed",
@@ -838,39 +680,11 @@
       "reviewedAtUtc": "2026-08-16"
     },
     {
-      "routeId": "POST /v1/collaboration/threads/:id/assign",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "thread assign lost its surface when the standalone /collaboration page was retired",
-      "evidence": "reg services/api/src/routes/collaboration.routes.ts:290; apps/web/next.config.js:304-317 \"/collaboration is retired as a standalone product surface ... /v1/collaboration/threads/* routes all remain intact — they continue to power the evidence detail discussion panel\"; apps/web/lib/navigation/pillarRegistry.ts:180-183 \"workspace.collaboration removed with its deleted page\"; the surviving consumer apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx uses only :219 GET `/v1/collaboration/threads?teamId=`, :278/:332 `/v1/collaboration/threads/${id}/messages`, :295 `/mark-mentions-read`",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
       "routeId": "POST /v1/collaboration/threads/:id/contributors",
       "disposition": "COMPATIBILITY_TOMBSTONE",
       "reason": "retired to a typed 410 naming what replaced it (or that the capability is not offered); kept so a stale client is told rather than 404-ed",
       "evidence": "reg services/api/src/routes/collaboration.routes.ts:438. OWNER DECISION (2026-09-16). Contributor thread access is not offered: the grant wrote a CONTRIBUTOR DiscussionParticipant row that no path used (postMessage hard-codes a USER author, canReadThread has no caller, the contributor write surface was never wired). Handler is `async (_req, reply) => contributorsRetired(reply)`, defined at services/api/src/routes/collaboration.routes.ts:428, replying 410 COLLABORATION_THREAD_CONTRIBUTORS_RETIRED with `canonical` /v1/external-review/invitations. The tombstone keeps requireAuth only and reads/writes no domain data; stored rows are untouched. 0 call sites in apps/web + apps/mobile, the intended end state for a tombstone; pinned by services/api/test/retired-routes-2026-09-16.test.ts.",
       "reviewedAtUtc": "2026-09-16"
-    },
-    {
-      "routeId": "POST /v1/collaboration/threads/:id/escalate",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "thread escalate lost its surface when the standalone /collaboration page was retired",
-      "evidence": "reg services/api/src/routes/collaboration.routes.ts:322; apps/web/next.config.js:304-317 \"/collaboration is retired as a standalone product surface ... /v1/collaboration/threads/* routes all remain intact — they continue to power the evidence detail discussion panel\"; apps/web/lib/navigation/pillarRegistry.ts:180-183 \"workspace.collaboration removed with its deleted page\"; the surviving consumer apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx uses only :219 GET `/v1/collaboration/threads?teamId=`, :278/:332 `/v1/collaboration/threads/${id}/messages`, :295 `/mark-mentions-read`",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
-      "routeId": "POST /v1/collaboration/threads/:id/reopen",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "thread reopen lost its surface when the standalone /collaboration page was retired",
-      "evidence": "reg services/api/src/routes/collaboration.routes.ts:258; apps/web/next.config.js:304-317 \"/collaboration is retired as a standalone product surface ... /v1/collaboration/threads/* routes all remain intact — they continue to power the evidence detail discussion panel\"; apps/web/lib/navigation/pillarRegistry.ts:180-183 \"workspace.collaboration removed with its deleted page\"; the surviving consumer apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx uses only :219 GET `/v1/collaboration/threads?teamId=`, :278/:332 `/v1/collaboration/threads/${id}/messages`, :295 `/mark-mentions-read`",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
-      "routeId": "POST /v1/collaboration/threads/:id/resolve",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "thread resolve lost its surface when the standalone /collaboration page was retired",
-      "evidence": "reg services/api/src/routes/collaboration.routes.ts:226; apps/web/next.config.js:304-317 \"/collaboration is retired as a standalone product surface ... /v1/collaboration/threads/* routes all remain intact — they continue to power the evidence detail discussion panel\"; apps/web/lib/navigation/pillarRegistry.ts:180-183 \"workspace.collaboration removed with its deleted page\"; the surviving consumer apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx uses only :219 GET `/v1/collaboration/threads?teamId=`, :278/:332 `/v1/collaboration/threads/${id}/messages`, :295 `/mark-mentions-read`",
-      "reviewedAtUtc": "2026-08-16"
     },
     {
       "routeId": "POST /v1/collaboration/threads/:id/subscribe",
@@ -895,27 +709,6 @@
       "machineCallerEvidence": "reg services/api/src/routes/operations-signers.routes.ts:461 app.post(\"/v1/evidence/:evidenceId/custody/attestations/sign\", { preHandler: requireAuth }); services/api/src/routes/operations-signers.routes.ts:463-464 \"Single-event sign helper — useful for operators producing attestations one at a time without invoking a backfill\"; wired sibling apps/web/app/(app)/operations/signers/page.tsx:606 \"/v1/operations/custody-attestations/backfill\"; docs/security/custody-attestations.md:76 documents the backfill operator procedure"
     },
     {
-      "routeId": "POST /v1/evidence/:id/certifications/attest",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "certification attest has no control; certifications reach the report through the worker view-model, not this route",
-      "evidence": "reg services/api/src/routes/evidence.routes.ts:11409; 0 call sites for \"certifications\" in apps/web + apps/mobile; services/worker/src/report-v2/render-html.ts:61-64 \"vm.certifications has been populated by the processor (and served by GET /v1/evidence/:id/certifications) all along, but nothing rendered it\"; services/api/src/routes/evidence.routes.ts:11411-11415 \"The certification lifecycle is request -> attest -> revoke ... no route reached them\"",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
-      "routeId": "POST /v1/evidence/:id/certifications/request",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "certification request has no control; certifications reach the report through the worker view-model, not this route",
-      "evidence": "reg services/api/src/routes/evidence.routes.ts:11348; 0 call sites for \"certifications\" in apps/web + apps/mobile; services/worker/src/report-v2/render-html.ts:61-64 \"vm.certifications has been populated by the processor (and served by GET /v1/evidence/:id/certifications) all along, but nothing rendered it\"; services/api/src/routes/evidence.routes.ts:11411-11415 \"The certification lifecycle is request -> attest -> revoke ... no route reached them\"",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
-      "routeId": "POST /v1/evidence/:id/certifications/revoke",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "certification revoke has no control; certifications reach the report through the worker view-model, not this route",
-      "evidence": "reg services/api/src/routes/evidence.routes.ts:11472; 0 call sites for \"certifications\" in apps/web + apps/mobile; services/worker/src/report-v2/render-html.ts:61-64 \"vm.certifications has been populated by the processor (and served by GET /v1/evidence/:id/certifications) all along, but nothing rendered it\"; services/api/src/routes/evidence.routes.ts:11411-11415 \"The certification lifecycle is request -> attest -> revoke ... no route reached them\"",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
       "routeId": "POST /v1/exchange/packages/:id/ready",
       "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
       "reason": "planned product contract: the replacement matrix names the target surface and the behavioural suite it must ship with",
@@ -924,13 +717,6 @@
       "revalidatedVerdict": "DEAD_CONFIRMED",
       "revalidationConfidence": "UNCERTAIN",
       "postReleaseDecision": "PRESERVED_POST_RELEASE_CONTRACT"
-    },
-    {
-      "routeId": "POST /v1/exchange/packages/:id/revoke",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Package revocation control absent on the shipped exchange page (create, sign-url, record delivery, download are all wired).",
-      "evidence": "reg services/api/src/routes/product-and-lifecycle.routes.ts:574 app.post(\"/v1/exchange/packages/:id/revoke\") calling revokePackage (:581). Shipped page calls: apps/web/app/(app)/exchange/page.tsx:205 GET, :227 POST create, :247 `/${id}/sign-url`, :300 `/${packageId}/deliveries`, :350 `/v1/exchange/deliveries/${deliveryId}/download`. revokePackage (services/api/src/services/exchange/evidence-exchange.service.ts:427) has one non-test caller: product-and-lifecycle.routes.ts:581.",
-      "reviewedAtUtc": "2026-08-16"
     },
     {
       "routeId": "POST /v1/external-intake/:token/sessions/:sid/transition",
@@ -998,13 +784,6 @@
       "replacement": "POST /v1/lifecycle/legal-holds/:id/release"
     },
     {
-      "routeId": "POST /v1/governance/departments/:id/archive",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Department archive is a lifecycle refinement; create, list, membership grant and membership revoke are all wired.",
-      "evidence": "reg services/api/src/routes/trust-and-governance.routes.ts:848 app.post(\"/v1/governance/departments/:id/archive\"). Wired: apps/web/app/(app)/governance-platform/departments/page.tsx:216 GET, :311 POST create, :345 `/memberships` POST, :411 `/memberships/${membership.id}/revoke` POST, :275 memberships GET.",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
       "routeId": "POST /v1/governance/evidence/:id/restore",
       "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
       "reason": "Un-suspend leg of the publication state machine; pairs with suspend and is likewise unsurfaced.",
@@ -1042,45 +821,10 @@
       "reviewedAtUtc": "2026-08-16"
     },
     {
-      "routeId": "POST /v1/governance/policies/:id/assignments",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Policy scoping/assignment feature not presented on the governance platform surface at all.",
-      "evidence": "reg services/api/src/routes/trust-and-governance.routes.ts:1040 app.post(\"/v1/governance/policies/:id/assignments\"). No `/v1/governance/policies/.../assignments` string in apps/web or apps/mobile; shipped page call set is apps/web/app/(app)/governance-platform/policies/page.tsx:101/115/128/147/163.",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
       "routeId": "POST /v1/identity-security/sessions/revoke",
       "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
       "reason": "granular admin session revoke has no control; the security center revokes all sessions for a user",
       "evidence": "reg services/api/src/routes/identity-security.routes.ts:311 app.post(\"/v1/identity-security/sessions/revoke\", { preHandler: requireAuth }) with body { teamId, userId, sessionIdHash }; apps/web/app/(app)/security-center/page.tsx:294 await apiFetch(\"/v1/identity-security/sessions/revoke-all\", { method: \"POST\" }); self-service equivalents apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1599 /my-sessions/revoke-others and :1644 /my-sessions/${sessionId}/revoke",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
-      "routeId": "POST /v1/identity/mfa/recovery-requests/:requestId/cancel",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "self-service cancel on a flow with no user-facing entry point",
-      "evidence": "reg services/api/src/routes/mfa-admin.routes.ts:844 app.post(\"/v1/identity/mfa/recovery-requests/:requestId/cancel\", { preHandler: requireAuth }) → cancelRecoveryRequest({ requestId, actorUserId }); 0 hits for \"mfa/recovery-requests\" in apps/web + apps/mobile",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
-      "routeId": "POST /v1/identity/mfa/recovery-requests/:requestId/resend-email",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "self-service resend on a flow with no user-facing entry point",
-      "evidence": "reg services/api/src/routes/mfa-admin.routes.ts:804 app.post(\"/v1/identity/mfa/recovery-requests/:requestId/resend-email\", { preHandler: requireAuth }) → resendRecoveryRequestEmail({ requestId, actorUserId }); 0 hits for \"mfa/recovery-requests\" in apps/web + apps/mobile",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
-      "routeId": "POST /v1/integrations/webhook-deliveries/:id/cancel",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Delivery cancel control absent; the shipped integrations page wires retry only.",
-      "evidence": "reg services/api/src/routes/integrations.routes.ts:1191. Shipped delivery controls: apps/web/app/(app)/integrations/page.tsx:664 retry, :698 `/v1/integrations/webhooks/${id}/deliveries`. `cancel` does not appear in scripts/verify-integrations-staging.sh (which does cover diagnostics, health, api-keys, webhooks, test, deliveries, rotate-secret, disable, process-webhook-retries).",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
-      "routeId": "POST /v1/integrations/webhooks/endpoints/:id/deactivate",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Lifecycle-webhook endpoint deactivation not presented on the shipped endpoints page (create + list + replay only).",
-      "evidence": "reg services/api/src/routes/product-and-lifecycle.routes.ts:826 app.post(\"/v1/integrations/webhooks/endpoints/:id/deactivate\"). Shipped page calls: apps/web/app/(app)/evidence-lifecycle/webhooks/page.tsx:120 `/v1/integrations/webhooks/endpoints` GET, :166 same POST create, :150 `/v1/integrations/webhooks/lifecycle-deliveries/${deliveryId}/replay`. deactivateWebhookEndpoint (services/api/src/services/packaging/webhooks/webhook-platform.service.ts:153) has a single caller: product-and-lifecycle.routes.ts:833.",
       "reviewedAtUtc": "2026-08-16"
     },
     {
@@ -1103,13 +847,6 @@
       "reason": "retired to a typed 410 naming what replaced it (or that the capability is not offered); kept so a stale client is told rather than 404-ed",
       "evidence": "reg services/api/src/routes/intelligence.routes.ts:372. OWNER DECISION (2026-09-16). On-demand similarity reconciliation is not a product capability: the route was the only producer of HASH_DUPLICATE/FILENAME_SIMILAR rows (besides a dev seed), no surface rendered them, OCR/transcript similarity is produced by the worker, and duplicate review reads GET /v1/graph/duplicates. The handler replies 410 SIMILARITY_RECONCILE_RETIRED with `canonical` /v1/graph/duplicates. The tombstone keeps requireAuth only and reads/writes no domain data; stored rows are untouched. 0 call sites in apps/web + apps/mobile, the intended end state for a tombstone; pinned by services/api/test/retired-routes-2026-09-16.test.ts. The Playwright step in e2e/investigation-enterprise-data-flow.spec.ts that called it now pins the 410.",
       "reviewedAtUtc": "2026-09-16"
-    },
-    {
-      "routeId": "POST /v1/lifecycle/retention/policies/:id/release",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "retention policy release has no control; the lifecycle console only creates policies",
-      "evidence": "reg services/api/src/routes/product-and-lifecycle.routes.ts:1038 app.post(\"/v1/lifecycle/retention/policies/:id/release\", { preHandler: [requireAuth, requireDelegatedTierAny([\"ORG_ADMIN\",\"COMPLIANCE_OFFICER\"])] }); the only apps/web lifecycle-retention path is \"/v1/lifecycle/retention/policies\" (collection) plus \"/v1/lifecycle/retention/upcoming-expirations\"; no \"/release\" suffix anywhere in apps/web|apps/mobile",
-      "reviewedAtUtc": "2026-08-16"
     },
     {
       "routeId": "POST /v1/me/inbox/items/:itemKey/snooze",
@@ -1173,13 +910,6 @@
       "reviewedAtUtc": "2026-08-16"
     },
     {
-      "routeId": "POST /v1/redaction/derivatives/:id/quarantine",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "PHASE 13 §4 wiring — two shipped web components already tell the user this action happened; nothing could perform it",
-      "evidence": "reg services/api/src/routes/redaction.routes.ts app.post(\"/v1/redaction/derivatives/:id/quarantine\", { preHandler: requireAuth }), gated by the existing but previously unused redaction.administer capability (packages/shared/src/permissions.ts). THE SURFACES THAT PROMISE IT ALREADY SHIP: apps/web/components/redaction/ApprovalPanel.tsx renders \"This redacted copy was quarantined by an administrator.\" and apps/web/components/redaction/VersionHistoryPanel.tsx branches on state === \"QUARANTINED\" — copy naming an administrator action no administrator could take, since grep for a quarantine route over services/api/src/routes returned only the unrelated SESSION quarantine in admin-identity.routes.ts. The QUARANTINED state was already READ in production (requestRedactionDerivative refuses to re-render a quarantined row) and produced by nothing. 0 call sites in apps/web + apps/mobile — the administrator control is a follow-on to this leg.",
-      "reviewedAtUtc": "2026-08-17"
-    },
-    {
       "routeId": "POST /v1/reviewer-ops/reviews/:workflowId/reassign",
       "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
       "reason": "no product contract to build, but the repository's own behavioural suite pins the registration",
@@ -1188,20 +918,6 @@
       "revalidatedVerdict": "DEAD_CONFIRMED",
       "revalidationConfidence": "HIGH",
       "postReleaseDecision": "PRESERVED_POST_RELEASE_CONTRACT"
-    },
-    {
-      "routeId": "POST /v1/reviewer/qc/samples/:id/assign",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "QC sample assignment has no control; the QC panel lists samples and posts verdicts",
-      "evidence": "reg services/api/src/routes/reviewer-workspace.routes.ts:623; apps/web calls /v1/reviewer/qc/samples?limit=100 and /v1/reviewer/qc/samples/${input.sampleId}/verdict only (apps/web/lib/reviewer-workspace/reviewer-api.ts, apps/web/components/ai-copilot/QcSamplingPanel.tsx)",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
-      "routeId": "POST /v1/reviewer/work/:workflowId/bind-schema",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "coding-schema binding has no control; the workspace only submits codes",
-      "evidence": "reg services/api/src/routes/reviewer-workspace.routes.ts:459; apps/web reviewer call set includes /v1/reviewer/work/${input.workflowId}/code and /disagree (apps/web/lib/reviewer-workspace/reviewer-api.ts) and GET /v1/coding/schemas/${schemaId} (:65) — no /bind-schema",
-      "reviewedAtUtc": "2026-08-16"
     },
     {
       "routeId": "POST /v1/search/reindex/evidence/:id",
@@ -1389,13 +1105,6 @@
       "reviewedAtUtc": "2026-09-01"
     },
     {
-      "routeId": "POST /v1/teams/:id/invites/:inviteId/resend",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "workspace invitation resend has no control on any surface yet; the Teams invites list offers revoke only",
-      "evidence": "reg services/api/src/routes/teams.routes.ts:1867 app.post(\"/v1/teams/:id/invites/:inviteId/resend\", { preHandler: requireAuthAndLegal }); introduced by 66c1276a \"fix(membership): one workspace membership authority, and a team built from it\" with the note that an operator whose invitation bounced needs to say so directly. The workspace invites UI at apps/web/app/(app)/teams/[id]/page.tsx:852 calls DELETE /v1/teams/:id/invites/:inviteId and nothing else; the only resend controls in the product are the ORGANIZATION ones (apps/web/app/(app)/organizations/[id]/admin/members/page.tsx:376 and the admin provisioning section), which post to /v1/orgs/:id/invites/:inviteId/resend. 0 call sites for the teams path in apps/web + apps/mobile.",
-      "reviewedAtUtc": "2026-09-07"
-    },
-    {
       "routeId": "GET /v1/collaboration-team-notifications",
       "disposition": "COMPATIBILITY_TOMBSTONE",
       "reason": "retired to a typed 410 naming its replacement; kept so a stale client is told where its data went rather than 404-ed",
@@ -1488,13 +1197,6 @@
       "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
       "reason": "its web client was deleted in the 2026-09-06 collaboration closure; the route still answers and has no product caller, and the capability is reached from another surface",
       "evidence": "reg services/api/src/routes/collaboration-completion.routes.ts:658. Superseded by the Activity tab, which reads the canonical feed. apps/web/lib/api/collaboration-completion.ts:179 records the deletion of every client below that point by name, and 0 call sites remain in apps/web + apps/mobile. The route still answers, so it is COMPATIBILITY_TEMPORARY rather than a tombstone: the handler and its service are live code with no consumer, and removing them is a product decision for whoever owns the group surface. Recorded as MISSING_PRODUCT_UI_POST_RELEASE rather than SUPERSEDED_REMOVE because the replacement is a SURFACE, not a route: there is no single routeId that supersedes this one, and the generator refuses a SUPERSEDED_REMOVE with no named replacement — correctly, since a supersession claim that cannot name what supersedes it is not a claim.",
-      "reviewedAtUtc": "2026-09-07"
-    },
-    {
-      "routeId": "GET /v1/teams/:id/members",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "server-paged member search added ahead of the surface that will use it; the Teams page still reads a member at a time",
-      "evidence": "reg services/api/src/routes/teams.routes.ts:774 app.get(\"/v1/teams/:id/members\", { preHandler: requireAuthAndLegal }); introduced by e65addfb \"perf(collaboration): page the reads that grew, and index what they order on\" with the note that browser-side search over a fully-loaded list cannot work because completeness is the thing that does not scale. Every /members call site in apps/web addresses ONE member — apps/web/app/(app)/teams/[id]/page.tsx:761 and MemberRemovalDialog.tsx:117,179 — and none reads this collection. 0 product call sites.",
       "reviewedAtUtc": "2026-09-07"
     },
     {
