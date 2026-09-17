@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { AI_CHAT_LIMITS, type AiChatAbuseReason } from "@proovra/shared";
-import { prisma } from "../db.js";
+import { evaluateCurrentWorkspace } from "../middleware/authorize.js";
 import { requireAuth } from "../middleware/auth.js";
 import { trustedClientIpKey } from "../middleware/client-ip.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
@@ -295,26 +295,19 @@ async function withAiTimeout<T>(
  * workspace's allowance. An unusable pointer falls back to the personal
  * account, which is the pre-existing behaviour and the conservative one.
  */
-async function resolveAiCommercialScope(userId: string) {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { currentWorkspaceId: true },
-  });
-  const workspaceId = user?.currentWorkspaceId ?? null;
-  if (workspaceId) {
-    const membership = await prisma.teamMember.findUnique({
-      where: { teamId_userId: { teamId: workspaceId, userId } },
-      select: { status: true },
-    });
-    if (membership?.status === "ACTIVE") {
-      return (
-        await resolveCommercialContext({
-          type: "WORKSPACE",
-          teamId: workspaceId,
-          requesterUserId: userId,
-        })
-      ).scope;
-    }
+async function resolveAiCommercialScope(req: FastifyRequest, userId: string) {
+  // The pointer is only a CANDIDATE: the canonical evaluator revalidates it in
+  // full (active membership, unexpired access, workspace kind, organization
+  // lifecycle). Every workspace role holds evidence.read. (D61)
+  const current = await evaluateCurrentWorkspace(req, { permission: "evidence.read" });
+  if (current.allowed) {
+    return (
+      await resolveCommercialContext({
+        type: "WORKSPACE",
+        teamId: current.context.workspaceId,
+        requesterUserId: userId,
+      })
+    ).scope;
   }
   return (await resolveCommercialContext({ type: "PERSONAL_ACCOUNT", userId }))
     .scope;
@@ -344,7 +337,7 @@ export async function aiRoutes(app: FastifyInstance) {
     { preHandler: [requireAuthAndLegal] },
     async (req) => {
       const userId = getAuthUserId(req);
-      const aiScope = await resolveAiCommercialScope(userId);
+      const aiScope = await resolveAiCommercialScope(req, userId);
       const policy = await evaluateWorkspaceAiPolicy({
         teamId: aiScope.teamId,
         feature: "SUPPORT_CHAT",
@@ -446,7 +439,7 @@ export async function aiRoutes(app: FastifyInstance) {
       // Pricing-hardening: plan-aware monthly AI cap. Throws
       // AI_MONTHLY_LIMIT_REACHED (429) when over cap. ENTERPRISE skips.
       // §9.7 — explicit PERSONAL_ACCOUNT subject via the canonical envelope.
-      const aiScope = await resolveAiCommercialScope(userId);
+      const aiScope = await resolveAiCommercialScope(req, userId);
       try {
         await assertWorkspaceAllowsAiOperation(aiScope);
       } catch (err) {
@@ -668,7 +661,7 @@ export async function aiRoutes(app: FastifyInstance) {
 
       // Pricing-hardening: plan-aware monthly AI cap.
       // §9.7 — explicit PERSONAL_ACCOUNT subject via the canonical envelope.
-      const aiScope = await resolveAiCommercialScope(userId);
+      const aiScope = await resolveAiCommercialScope(req, userId);
       try {
         await assertWorkspaceAllowsAiOperation(aiScope);
       } catch (err) {

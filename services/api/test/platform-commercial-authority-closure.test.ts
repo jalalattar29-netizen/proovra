@@ -194,15 +194,20 @@ describe("commercial subject — the workspace, never the actor's own plan", () 
      */
     const src = read("services/api/src/routes/ai.routes.ts");
     const code = codeOnly(src);
-    expect(code).toContain("resolveAiCommercialScope(userId)");
+    expect(code).toContain("resolveAiCommercialScope(req, userId)");
     expect(code).not.toContain(
       'resolveCommercialContext({ type: "PERSONAL_ACCOUNT", userId })).scope',
     );
     // The pointer is re-proven, not trusted: a stale `currentWorkspaceId` must
-    // not borrow another workspace's allowance.
-    expect(code).toContain("currentWorkspaceId");
-    expect(code).toContain("teamMember.findUnique");
-    expect(code).toMatch(/status\s*===\s*"ACTIVE"/);
+    // not borrow another workspace's allowance. (D61, 2026-09-17) The proof is
+    // the canonical current-workspace evaluator — active membership plus
+    // access expiry, workspace kind and organization lifecycle — rather than a
+    // local membership-status read, and the workspace used is the evaluator's.
+    const body = functionSource(code, "resolveAiCommercialScope");
+    expect(body).toContain('evaluateCurrentWorkspace(req, { permission: "evidence.read" })');
+    expect(body).toMatch(/if \(current\.allowed\)/);
+    expect(body).toContain("teamId: current.context.workspaceId");
+    expect(body).not.toContain("currentWorkspaceId");
   });
 
   it("the workspace-subject readers resolve the workspace, not the requester", () => {
