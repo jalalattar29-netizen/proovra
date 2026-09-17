@@ -47,7 +47,25 @@
 
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+// ---------------------------------------------------------------------------
+// THE PROOVRA-API WORKSPACE ROOT — derived from THIS file's location, never
+// from the caller's cwd.
+//
+// prisma, prisma.config.ts and the schema are dependencies of the `proovra-api`
+// workspace (services/api), NOT of the repository root. `pnpm exec prisma`
+// resolves the CLI from the package whose directory it runs in, so invoking
+// this wrapper from the repository root (e.g. the UC-1 Windows acceptance
+// harness runs `node services/api/scripts/safe-migrate.mjs deploy` from the
+// repo root) previously failed with `Command "prisma" not found`. Pinning the
+// prisma spawn to this directory makes the wrapper cwd-invariant: it resolves
+// and runs the API-local Prisma CLI whether called from the repo root or from
+// services/api. This is the ONE canonical migration path — nothing else runs
+// prisma migrate — so pinning it here keeps every caller correct at once.
+// ---------------------------------------------------------------------------
+const API_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 // Phase 2.5D — single source of truth for host classification.
 // Both this wrapper AND the in-process prisma.config.ts hook
 // import from this module so a policy change in one place updates
@@ -227,6 +245,9 @@ if (classification !== "local") {
 // arguments after the classification check.
 // ---------------------------------------------------------------------------
 const result = spawnSync("pnpm", ["exec", "prisma", "migrate", ...filteredArgs], {
+  // Run in the proovra-api workspace directory so `pnpm exec prisma` resolves
+  // the API-local Prisma CLI regardless of the caller's cwd (see API_ROOT).
+  cwd: API_ROOT,
   stdio: "inherit",
   shell: process.platform === "win32",
 });
