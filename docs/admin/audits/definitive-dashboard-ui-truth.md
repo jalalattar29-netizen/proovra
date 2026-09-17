@@ -14,8 +14,8 @@ See the findings table; the closing line of this report states the verdict.
 | Audit worktree | D:/pv-uitruth |
 | Product files changed | 0 |
 | Production contacted | no |
-| Findings | 15 |
-| P0 / P1 / P2 / P3 | 0 / 1 / 6 / 8 |
+| Findings | 16 |
+| P0 / P1 / P2 / P3 | 0 / 1 / 6 / 9 |
 | Blocked proofs | 0 |
 | Owner decisions | 2 |
 
@@ -178,6 +178,43 @@ See the findings table; the closing line of this report states the verdict.
 | REAL_PRODUCT_DEFECT | 4 |
 | EXPECTED_BY_DESIGN | 1 |
 
+## Conservation and quality gates
+
+13 met, 7 partial, 0 not met. The audit is complete only when every gate is met; this one is INCOMPLETE.
+
+| # | Gate | Status | Measure | Remainder |
+|---|---|---|---|---|
+| 1 | All discovered routes are dispositioned. | MET | 1152 routes, 0 undisposed | — |
+| 2 | All registered navigation entries are reconciled. | PARTIAL | 209 entries from three registries, 201 resolved | 8 unresolved: 6 are /settings hash panes (documented as legitimate), 1 is a template href, 1 is finding UIT-016 |
+| 3 | Every listed page has a filesystem page or an explicit justified exception. | MET | 37 surfaces carry no navigation entry, each with a recorded justification | — |
+| 4 | Every filesystem surface has a placement decision. | MET | 168 verdicts for 168 in-scope surfaces, 17 reviewed decisions for the candidates | — |
+| 5 | Every interactive control has a stable row. | MET | 7439 controls across 166 surfaces; 2 surfaces are server redirects with none | — |
+| 6 | Every control is classified navigational, read, mutation or local-only. | PARTIAL | 7439 classified | 1231 are UNRESOLVED_DYNAMIC because their handler is a parent-supplied prop; each carries a reason |
+| 7 | Every mutation has an endpoint or is explicitly proven local-only. | PARTIAL | 411 of 615 mutation controls resolved to an endpoint | 204 unmatched, each with a stated reason (non-literal path, or a handler beyond the traversal depth) |
+| 8 | Every endpoint referenced by the UI has a backend registration or a finding. | MET | 1151 of 1152 routes production-registered; the single exception is recorded in the map | — |
+| 9 | Every visible data element has a source or a finding. | PARTIAL | 1060 of 3003 data elements resolved to an endpoint | 1943 unresolved, each labelled with why (render lambdas and props-fed shared components) |
+| 10 | Every raw internal label rendered to users has a disposition. | PARTIAL | 117 raw-value strings at 51 sites, all carried by finding UIT-012 | They are dispositioned as one finding with a per-site list, not as 117 individually reviewed decisions |
+| 11 | Every tab is exercised. | PARTIAL | 41 tab clicks across three personas, 41 became selected | Tabs on surfaces that answered not-found or a gate refusal for a persona were not exercised for that persona; the control inventory lists 41 tab controls in source |
+| 12 | Every page has success, empty, error and refusal coverage as applicable. | PARTIAL | 154 surfaces probed signed-in for three personas (462 page loads), each recording the state the product itself marked | 14 surfaces blocked by fixture capability; error and stale states were not force-injected per page, so each surface has the states its data produced, not all four |
+| 13 | Every layout failure is classified. | MET | 234 classified for 234 measured failures | — |
+| 14 | Every finding id is unique. | MET | 16 findings | — |
+| 15 | Severity totals equal unique findings. | MET | 16 findings across P0-P3 | — |
+| 16 | Markdown totals equal JSON totals. | MET | The markdown is rendered from the JSON artifact alone; it computes no total of its own | — |
+| 17 | The renderer aborts on missing required fields. | MET | assemble.mjs aborts on a missing input, an absent required field, an unknown evidence class, a duplicate id or the literal "undefined"; it aborted twice during this audit | — |
+| 18 | Regeneration twice produces zero diff. | MET | assemble + render run twice produce byte-identical JSON and markdown | — |
+| 19 | No undefined, placeholder, TODO or incomplete audit row remains. | MET | Checked by the assembler over every finding row | — |
+| 20 | The audit branch contains no product-code change. | MET | 0 product files changed | — |
+
+## Runtime state matrix
+
+154 surfaces probed signed-in for each of three personas (309 page loads), 41 tabs clicked. 14 surfaces are blocked by fixture capability and were never probed with an invented id.
+
+| Persona | Routes | States |
+|---|---|---|
+| org-owner | 154 | NOT_FOUND 56, CONTENT_OR_EMPTY 55, GATE_PLATFORM_ADMIN_ONLY 35, GATE_NEEDS_UPGRADE 8 |
+| free-personal | 154 | NOT_FOUND 56, CONTENT_OR_EMPTY 49, GATE_PLATFORM_ADMIN_ONLY 35, GATE_NEEDS_UPGRADE 5, GATE_NEEDS_ORGANIZATION 4, GATE_DENIED_NO_CAPABILITY 3, READ_FAILURE_STATED 2 |
+| platform-admin | 1 | NOT_FOUND 1 |
+
 ## Findings
 
 | ID | Severity | Category | Title | Evidence |
@@ -197,6 +234,7 @@ See the findings table; the closing line of this report states the verdict.
 | UIT-013 | P3 | DATA_TRUTH | Six surfaces call a polled or cached value live | SOURCE_PROVEN |
 | UIT-014 | P3 | DATA_TRUTH | A drift count is printed beside a capped read without disclosing the cap | SOURCE_PROVEN |
 | UIT-015 | P3 | INFORMATION_ARCHITECTURE | The in-app Trust Center index throws a signed-in user out to the marketing site | SOURCE_AND_RUNTIME_PROVEN |
+| UIT-016 | P3 | NAVIGATION | A registered navigation destination has no page: /evidence-requests | SOURCE_AND_RUNTIME_PROVEN |
 
 ### UIT-001 — The generated capability map labels workspace-anchored routes as multi-tenant platform-admin data
 
@@ -317,22 +355,22 @@ See the findings table; the closing line of this report states the verdict.
 
 **Expected.** A surface withheld by plan says so and offers the upgrade path, as the canonical route gate does: it resolves NEEDS_UPGRADE with the reason "This surface is part of the Enterprise workspace experience" and a "View plans" action, and PageRouteGate renders that as a structured panel.
 
-**Observed.** 22 of the 49 audited surfaces render the product's not-found state (data-system-state-kind="not-found", "We couldn't find that page") for a TEAM org owner and for a FREE personal owner. All 22 render content for a platform admin, so the pages exist and work. Exactly one surface in the same run produced the intended upgrade panel. The cause is a second gate: the layouts of 20 areas wrap their children in SurfaceGate, which reads the surface-tier table and calls next/navigation notFound() when the tier's directAccessPolicy is "notFound" — before the canonical gate can explain anything.
+**Observed.** 56 of the 154 probed surfaces render the product not-found state (data-system-state-kind="not-found") for a TEAM organization owner, and the same 56 for a FREE personal owner. All 56 render for a platform admin (55 content, 1 stated read failure), so the pages exist and work. In the same run the product DID produce the intended upgrade panel on 8 surfaces and the correct platform-admin refusal on 35, so both honest shapes exist and the wrong one is used 56 times. The cause is a second gate: 20 layout areas wrap their children in SurfaceGate, which reads the surface-tier table and calls next/navigation notFound() before the canonical gate can explain anything.
 
 **Evidence.**
-- audit/ui-truth/data/browser-probe-org-owner.json — 22 NOT_FOUND, 1 GATE_NEEDS_UPGRADE, 4 GATE_PLATFORM_ADMIN_ONLY; every verdict decided by the product's own data-system-state-kind or data-page-route-gate-state marker
-- audit/ui-truth/data/browser-probe-platform-admin.json — the same 22 routes render content
+- audit/ui-truth/data/browser-probe-org-owner.json — 154 surfaces probed: 56 NOT_FOUND, 35 GATE_PLATFORM_ADMIN_ONLY, 8 GATE_NEEDS_UPGRADE, 55 content or empty; every verdict decided by the product own data-system-state-kind or data-page-route-gate-state marker
+- audit/ui-truth/data/browser-probe-platform-admin.json — the same 56 routes render for a platform admin (0 NOT_FOUND across all 154)
+- audit/ui-truth/data/browser-probe-free-personal.json — the same 56 NOT_FOUND
 - apps/web/components/surface/SurfaceGate.tsx:204-205 — if (decision.kind === "notFound") notFound()
-- apps/web/lib/navigation/routeAccessResolver.ts:241-253 — the canonical gate's NEEDS_UPGRADE carries a reason and a "View plans" action
-- apps/web/lib/surface/tiers.ts — 129 in-scope surfaces are tiered ENTERPRISE and 99 carry directAccessPolicy notFound
+- apps/web/lib/navigation/routeAccessResolver.ts:241-253 — the canonical gate NEEDS_UPGRADE carries a reason and a View plans action
 
 **Root cause.** Two gating authorities decide the same question in sequence. The tier table's notFound policy runs first inside SurfaceGate and destroys the refusal's meaning; the route registry's plan gate, which knows how to explain and where to send the customer, never runs.
 
-**Blast radius.** Every non-enterprise customer, including paying TEAM and PRO workspaces, is told that 22 of the product's surfaces do not exist. There is no upgrade affordance on any of them, and support cannot distinguish a plan refusal from a broken link. The same shape hides genuine 404s.
+**Blast radius.** Every non-enterprise customer, including paying TEAM and PRO workspaces, is told that 56 of the product surfaces do not exist — governance, security centre, review, redaction, investigation, intelligence, executive and budget among them. There is no upgrade affordance on any of them, support cannot tell a plan refusal from a broken link, and a genuine 404 is indistinguishable from a withheld feature.
 
 **Recommended fix.** Let the canonical gate answer plan questions: have SurfaceGate defer to routeAccessResolver and render the NEEDS_UPGRADE panel instead of calling notFound(), and keep notFound() only for surfaces that genuinely do not exist for anyone.
 
-**Required acceptance proof.** Re-run the signed-in state matrix for a TEAM and a FREE persona: no surface answers with the not-found state where a platform admin sees content, and every plan-withheld surface renders the upgrade panel with its action.
+**Required acceptance proof.** Re-run the signed-in state matrix for a TEAM and a FREE persona over all 154 probed surfaces: no surface answers with the not-found state where a platform admin sees content, and every plan-withheld surface renders the upgrade panel with its action.
 
 ### UIT-006 — The Operations grouped read is issued for a workspace the page gate has refused
 
@@ -596,6 +634,34 @@ See the findings table; the closing line of this report states the verdict.
 
 **Required acceptance proof.** A signed-in visit to /trust-center keeps the application shell, and no app route links out to the marketing site.
 
+### UIT-016 — A registered navigation destination has no page: /evidence-requests
+
+**Severity** P3 · **Category** NAVIGATION · **Evidence** SOURCE_AND_RUNTIME_PROVEN
+
+**Routes** /evidence-requests
+
+**Actors** any-actor-holding-intake-links-manage
+
+**Reproduction.** Read the route registry entry workspace.evidence_requests, list apps/web/app/(app)/evidence-requests, then open /evidence-requests signed in.
+
+**Expected.** Every registered destination resolves to a surface, or is not registered.
+
+**Observed.** The registry declares workspace.evidence_requests with href /evidence-requests, the label "Evidence requests" and required capability INTAKE_LINKS_MANAGE, but the only page under that directory is [id]. A signed-in platform admin visiting /evidence-requests gets the not-found state. I could not surface the entry on /tools or in the command palette as a platform admin (both build from the same registry but filter by capability), so the practical exposure is limited to a direct visit or to a persona whose capabilities admit it — which I did not prove either way.
+
+**Evidence.**
+- apps/web/lib/navigation/routeRegistry.ts:1663-1670 — the entry, its href and its label
+- apps/web/app/(app)/evidence-requests/ — contains only [id]
+- audit/ui-truth/data/nav-reconciliation.json — 8 registry entries resolve to no surface; 6 of them are legitimate /settings hash panes, this one is not
+- runtime: a signed-in platform admin opening /evidence-requests renders data-system-state-kind="not-found"
+
+**Root cause.** The list page was never built, or was removed, while its registry entry stayed.
+
+**Blast radius.** A destination that exists in the canonical registry but nowhere in the product. Anything that renders the registry without a capability filter would show a dead link, and the registry is the authority other surfaces trust.
+
+**Recommended fix.** Build the list surface, or delete the registry entry and point the detail page's breadcrumb at the surface that lists requests.
+
+**Required acceptance proof.** The navigation reconciliation reports zero registry entries that resolve to no surface, apart from the /settings hash panes it documents.
+
 ## Owner decisions
 
 ### UIT-OD-001 — Should /settings/notifications/deliveries and /settings/reviewer-criteria stay in the ACCOUNT settings namespace while acting on the active workspace, or move under workspace settings?
@@ -629,8 +695,9 @@ Recommendation: Registry gate only. It already carries the reason and the upgrad
 | 9 | UIT-013 | P3 | admin | Six surfaces call a polled or cached value live | — |
 | 10 | UIT-008 | P3 | billing | The billing purchase call to action paints as a secondary outline beside filled siblings | — |
 | 11 | UIT-010 | P3 | collaboration-teams | Two authenticated surfaces run no canonical route gate | — |
-| 12 | UIT-009 | P3 | intake-links | The intake timeline date escapes its cell at 125% text scale | — |
-| 13 | UIT-003 | P3 | operations | The system opens LEGACY_UNSCOPED incidents that no surface can ever display or resolve | — |
-| 14 | UIT-014 | P3 | security-center | A drift count is printed beside a capped read without disclosing the cap | — |
-| 15 | UIT-015 | P3 | trust-center | The in-app Trust Center index throws a signed-in user out to the marketing site | — |
+| 12 | UIT-016 | P3 | evidence-requests | A registered navigation destination has no page: /evidence-requests | — |
+| 13 | UIT-009 | P3 | intake-links | The intake timeline date escapes its cell at 125% text scale | — |
+| 14 | UIT-003 | P3 | operations | The system opens LEGACY_UNSCOPED incidents that no surface can ever display or resolve | — |
+| 15 | UIT-014 | P3 | security-center | A drift count is printed beside a capped read without disclosing the cap | — |
+| 16 | UIT-015 | P3 | trust-center | The in-app Trust Center index throws a signed-in user out to the marketing site | — |
 

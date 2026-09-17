@@ -1,0 +1,155 @@
+{
+  "artifact": "ui-truth/gates",
+  "schemaVersion": 1,
+  "note": "The twenty conservation and quality gates, each evaluated against a measured number.",
+  "totals": {
+    "gates": 20,
+    "byStatus": {
+      "MET": 13,
+      "PARTIAL": 7
+    }
+  },
+  "auditComplete": false,
+  "gates": [
+    {
+      "id": 1,
+      "statement": "All discovered routes are dispositioned.",
+      "status": "MET",
+      "measure": "1152 routes, 0 undisposed",
+      "remainder": null
+    },
+    {
+      "id": 2,
+      "statement": "All registered navigation entries are reconciled.",
+      "status": "PARTIAL",
+      "measure": "209 entries from three registries, 201 resolved",
+      "remainder": "8 unresolved: 6 are /settings hash panes (documented as legitimate), 1 is a template href, 1 is finding UIT-016"
+    },
+    {
+      "id": 3,
+      "statement": "Every listed page has a filesystem page or an explicit justified exception.",
+      "status": "MET",
+      "measure": "37 surfaces carry no navigation entry, each with a recorded justification",
+      "remainder": null
+    },
+    {
+      "id": 4,
+      "statement": "Every filesystem surface has a placement decision.",
+      "status": "MET",
+      "measure": "168 verdicts for 168 in-scope surfaces, 17 reviewed decisions for the candidates",
+      "remainder": null
+    },
+    {
+      "id": 5,
+      "statement": "Every interactive control has a stable row.",
+      "status": "MET",
+      "measure": "7439 controls across 166 surfaces; 2 surfaces are server redirects with none",
+      "remainder": null
+    },
+    {
+      "id": 6,
+      "statement": "Every control is classified navigational, read, mutation or local-only.",
+      "status": "PARTIAL",
+      "measure": "7439 classified",
+      "remainder": "1231 are UNRESOLVED_DYNAMIC because their handler is a parent-supplied prop; each carries a reason"
+    },
+    {
+      "id": 7,
+      "statement": "Every mutation has an endpoint or is explicitly proven local-only.",
+      "status": "PARTIAL",
+      "measure": "411 of 615 mutation controls resolved to an endpoint",
+      "remainder": "204 unmatched, each with a stated reason (non-literal path, or a handler beyond the traversal depth)"
+    },
+    {
+      "id": 8,
+      "statement": "Every endpoint referenced by the UI has a backend registration or a finding.",
+      "status": "MET",
+      "measure": "1151 of 1152 routes production-registered; the single exception is recorded in the map",
+      "remainder": null
+    },
+    {
+      "id": 9,
+      "statement": "Every visible data element has a source or a finding.",
+      "status": "PARTIAL",
+      "measure": "1060 of 3003 data elements resolved to an endpoint",
+      "remainder": "1943 unresolved, each labelled with why (render lambdas and props-fed shared components)"
+    },
+    {
+      "id": 10,
+      "statement": "Every raw internal label rendered to users has a disposition.",
+      "status": "PARTIAL",
+      "measure": "117 raw-value strings at 51 sites, all carried by finding UIT-012",
+      "remainder": "They are dispositioned as one finding with a per-site list, not as 117 individually reviewed decisions"
+    },
+    {
+      "id": 11,
+      "statement": "Every tab is exercised.",
+      "status": "PARTIAL",
+      "measure": "41 tab clicks across three personas, 41 became selected",
+      "remainder": "Tabs on surfaces that answered not-found or a gate refusal for a persona were not exercised for that persona; the control inventory lists 41 tab controls in source"
+    },
+    {
+      "id": 12,
+      "statement": "Every page has success, empty, error and refusal coverage as applicable.",
+      "status": "PARTIAL",
+      "measure": "154 surfaces probed signed-in for three personas (462 page loads), each recording the state the product itself marked",
+      "remainder": "14 surfaces blocked by fixture capability; error and stale states were not force-injected per page, so each surface has the states its data produced, not all four"
+    },
+    {
+      "id": 13,
+      "statement": "Every layout failure is classified.",
+      "status": "MET",
+      "measure": "234 classified for 234 measured failures",
+      "remainder": null
+    },
+    {
+      "id": 14,
+      "statement": "Every finding id is unique.",
+      "status": "MET",
+      "measure": "16 findings",
+      "remainder": null
+    },
+    {
+      "id": 15,
+      "statement": "Severity totals equal unique findings.",
+      "status": "MET",
+      "measure": "16 findings across P0-P3",
+      "remainder": null
+    },
+    {
+      "id": 16,
+      "statement": "Markdown totals equal JSON totals.",
+      "status": "MET",
+      "measure": "The markdown is rendered from the JSON artifact alone; it computes no total of its own",
+      "remainder": null
+    },
+    {
+      "id": 17,
+      "statement": "The renderer aborts on missing required fields.",
+      "status": "MET",
+      "measure": "assemble.mjs aborts on a missing input, an absent required field, an unknown evidence class, a duplicate id or the literal \"undefined\"; it aborted twice during this audit",
+      "remainder": null
+    },
+    {
+      "id": 18,
+      "statement": "Regeneration twice produces zero diff.",
+      "status": "MET",
+      "measure": "assemble + render run twice produce byte-identical JSON and markdown",
+      "remainder": null
+    },
+    {
+      "id": 19,
+      "statement": "No undefined, placeholder, TODO or incomplete audit row remains.",
+      "status": "MET",
+      "measure": "Checked by the assembler over every finding row",
+      "remainder": null
+    },
+    {
+      "id": 20,
+      "statement": "The audit branch contains no product-code change.",
+      "status": "MET",
+      "measure": "0 product files changed",
+      "remainder": null
+    }
+  ]
+}

@@ -1,0 +1,277 @@
+{
+  "artifact": "ui-truth/nav-reconciliation",
+  "schemaVersion": 1,
+  "note": "Every navigation entry reconciled against the surface universe, and every surface checked for a navigation entry.",
+  "totals": {
+    "entries": 209,
+    "bySource": {
+      "SERVER_NAVIGATION_REGISTRY": 38,
+      "ADMIN_NAVIGATION": 29,
+      "ROUTE_REGISTRY": 142
+    },
+    "resolved": 201,
+    "unresolved": 8,
+    "unresolvedBySource": {
+      "ROUTE_REGISTRY": 8
+    },
+    "surfacesWithNoNavEntry": 37,
+    "unnavigatedByJustification": {
+      "DETAIL_PAGE_REACHED_FROM_ITS_LIST": 15,
+      "NO_NAVIGATION_ENTRY": 21,
+      "EXTERNAL_PORTAL_REACHED_BY_TOKEN_LINK": 1
+    }
+  },
+  "unresolvedEntries": [
+    {
+      "source": "ROUTE_REGISTRY",
+      "id": "workspace.collaboration_team_hub",
+      "href": "/collaboration-teams/[teamId]/collaboration",
+      "domain": "PERSONAL_WORKSPACE",
+      "resolved": false,
+      "how": null
+    },
+    {
+      "source": "ROUTE_REGISTRY",
+      "id": "workspace.evidence_requests",
+      "href": "/evidence-requests",
+      "domain": "PERSONAL_WORKSPACE",
+      "resolved": false,
+      "how": null
+    },
+    {
+      "source": "ROUTE_REGISTRY",
+      "id": "workspace.ai_settings",
+      "href": "/settings#ai",
+      "domain": "ACCOUNT",
+      "resolved": false,
+      "how": null
+    },
+    {
+      "source": "ROUTE_REGISTRY",
+      "id": "account.notification_settings",
+      "href": "/settings#notifications",
+      "domain": "ACCOUNT",
+      "resolved": false,
+      "how": null
+    },
+    {
+      "source": "ROUTE_REGISTRY",
+      "id": "account.profile",
+      "href": "/settings#overview",
+      "domain": "ACCOUNT",
+      "resolved": false,
+      "how": null
+    },
+    {
+      "source": "ROUTE_REGISTRY",
+      "id": "account.preferences",
+      "href": "/settings#preferences",
+      "domain": "ACCOUNT",
+      "resolved": false,
+      "how": null
+    },
+    {
+      "source": "ROUTE_REGISTRY",
+      "id": "account.privacy",
+      "href": "/settings#privacy",
+      "domain": "ACCOUNT",
+      "resolved": false,
+      "how": null
+    },
+    {
+      "source": "ROUTE_REGISTRY",
+      "id": "account.security",
+      "href": "/settings#security",
+      "domain": "ACCOUNT",
+      "resolved": false,
+      "how": null
+    }
+  ],
+  "surfacesWithNoNavEntry": [
+    {
+      "route": "/cases/[id]",
+      "isDetail": true,
+      "justification": "DETAIL_PAGE_REACHED_FROM_ITS_LIST"
+    },
+    {
+      "route": "/collaboration-teams/[teamId]",
+      "isDetail": true,
+      "justification": "DETAIL_PAGE_REACHED_FROM_ITS_LIST"
+    },
+    {
+      "route": "/collaboration-teams/[teamId]/collaboration",
+      "isDetail": true,
+      "justification": "DETAIL_PAGE_REACHED_FROM_ITS_LIST"
+    },
+    {
+      "route": "/collaboration-teams/invites/[token]/accept",
+      "isDetail": true,
+      "justification": "DETAIL_PAGE_REACHED_FROM_ITS_LIST"
+    },
+    {
+      "route": "/evidence-lifecycle/archive",
+      "isDetail": false,
+      "justification": "NO_NAVIGATION_ENTRY"
+    },
+    {
+      "route": "/evidence-lifecycle/chain-transfers",
+      "isDetail": false,
+      "justification": "NO_NAVIGATION_ENTRY"
+    },
+    {
+      "route": "/evidence-lifecycle/destruction",
+      "isDetail": false,
+      "justification": "NO_NAVIGATION_ENTRY"
+    },
+    {
+      "route": "/evidence-lifecycle/legal-holds",
+      "isDetail": false,
+      "justification": "NO_NAVIGATION_ENTRY"
+    },
+    {
+      "route": "/evidence-lifecycle/retention",
+      "isDetail": false,
+      "justification": "NO_NAVIGATION_ENTRY"
+    },
+    {
+      "route": "/evidence-lifecycle/webhooks",
+      "isDetail": false,
+      "justification": "NO_NAVIGATION_ENTRY"
+    },
+    {
+      "route": "/evidence-requests/[id]",
+      "isDetail": true,
+      "justification": "DETAIL_PAGE_REACHED_FROM_ITS_LIST"
+    },
+    {
+      "route": "/evidence/[id]",
+      "isDetail": true,
+      "justification": "DETAIL_PAGE_REACHED_FROM_ITS_LIST"
+    },
+    {
+      "route": "/governance-platform/access-reviews",
+      "isDetail": false,
+      "justification": "NO_NAVIGATION_ENTRY"
+    },
+    {
+      "route": "/governance-platform/access-reviews/[campaignId]",
+      "isDetail": true,
+      "justification": "DETAIL_PAGE_REACHED_FROM_ITS_LIST"
+    },
+    {
+      "route": "/governance-platform/cross-org",
+      "isDetail": false,
+      "justification": "NO_NAVIGATION_ENTRY"
+    },
+    {
+      "route": "/governance-platform/delegated-admin",
+      "isDetail": false,
+      "justification": "NO_NAVIGATION_ENTRY"
+    },
+    {
+      "route": "/governance-platform/departments",
+      "isDetail": false,
+      "justification": "NO_NAVIGATION_ENTRY"
+    },
+    {
+      "route": "/governance-platform/policies",
+      "isDetail": false,
+      "justification": "NO_NAVIGATION_ENTRY"
+    },
+    {
+      "route": "/inbox",
+      "isDetail": false,
+      "justification": "NO_NAVIGATION_ENTRY"
+    },
+    {
+      "route": "/investigation/cases/[caseId]/graph",
+      "isDetail": true,
+      "justification": "DETAIL_PAGE_REACHED_FROM_ITS_LIST"
+    },
+    {
+      "route": "/portal",
+      "isDetail": false,
+      "justification": "EXTERNAL_PORTAL_REACHED_BY_TOKEN_LINK"
+    },
+    {
+      "route": "/portal/[token]",
+      "isDetail": true,
+      "justification": "DETAIL_PAGE_REACHED_FROM_ITS_LIST"
+    },
+    {
+      "route": "/portal/[token]/work/[workflowId]",
+      "isDetail": true,
+      "justification": "DETAIL_PAGE_REACHED_FROM_ITS_LIST"
+    },
+    {
+      "route": "/portal/accept/[grantId]",
+      "isDetail": true,
+      "justification": "DETAIL_PAGE_REACHED_FROM_ITS_LIST"
+    },
+    {
+      "route": "/redaction/[projectId]",
+      "isDetail": true,
+      "justification": "DETAIL_PAGE_REACHED_FROM_ITS_LIST"
+    },
+    {
+      "route": "/redaction/policy",
+      "isDetail": false,
+      "justification": "NO_NAVIGATION_ENTRY"
+    },
+    {
+      "route": "/reviewer-ops/[reviewId]",
+      "isDetail": true,
+      "justification": "DETAIL_PAGE_REACHED_FROM_ITS_LIST"
+    },
+    {
+      "route": "/security-center/sso/health",
+      "isDetail": false,
+      "justification": "NO_NAVIGATION_ENTRY"
+    },
+    {
+      "route": "/security-center/sso/mapping",
+      "isDetail": false,
+      "justification": "NO_NAVIGATION_ENTRY"
+    },
+    {
+      "route": "/settings/security/saml",
+      "isDetail": false,
+      "justification": "NO_NAVIGATION_ENTRY"
+    },
+    {
+      "route": "/teams/[id]",
+      "isDetail": true,
+      "justification": "DETAIL_PAGE_REACHED_FROM_ITS_LIST"
+    },
+    {
+      "route": "/trust-center/ai-disclosure",
+      "isDetail": false,
+      "justification": "NO_NAVIGATION_ENTRY"
+    },
+    {
+      "route": "/trust-center/methodology",
+      "isDetail": false,
+      "justification": "NO_NAVIGATION_ENTRY"
+    },
+    {
+      "route": "/trust-center/security",
+      "isDetail": false,
+      "justification": "NO_NAVIGATION_ENTRY"
+    },
+    {
+      "route": "/trust-center/status",
+      "isDetail": false,
+      "justification": "NO_NAVIGATION_ENTRY"
+    },
+    {
+      "route": "/trust-center/subprocessors",
+      "isDetail": false,
+      "justification": "NO_NAVIGATION_ENTRY"
+    },
+    {
+      "route": "/workflows/[id]",
+      "isDetail": true,
+      "justification": "DETAIL_PAGE_REACHED_FROM_ITS_LIST"
+    }
+  ]
+}

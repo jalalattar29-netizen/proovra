@@ -136,18 +136,25 @@
       "REAL_PRODUCT_DEFECT": 4,
       "EXPECTED_BY_DESIGN": 1
     },
-    "findings": 15,
+    "findings": 16,
     "findingsBySeverity": {
       "P0": 0,
       "P1": 1,
       "P2": 6,
-      "P3": 8
+      "P3": 9
     },
     "findingsByEvidenceClass": {
-      "SOURCE_AND_RUNTIME_PROVEN": 3,
+      "SOURCE_AND_RUNTIME_PROVEN": 4,
       "RUNTIME_PROVEN": 3,
       "SOURCE_PROVEN": 9
     },
+    "gatesMet": 13,
+    "gatesPartial": 7,
+    "gatesNotMet": 0,
+    "runtimePageLoads": 309,
+    "runtimeSurfacesProbed": 154,
+    "runtimeSurfacesBlocked": 14,
+    "tabsExercised": 41,
     "blockedProofs": 0,
     "ownerDecisions": 2,
     "browserProbePersonas": 3
@@ -2765,6 +2772,272 @@
       }
     }
   },
+  "gates": [
+    {
+      "id": 1,
+      "statement": "All discovered routes are dispositioned.",
+      "status": "MET",
+      "measure": "1152 routes, 0 undisposed",
+      "remainder": null
+    },
+    {
+      "id": 2,
+      "statement": "All registered navigation entries are reconciled.",
+      "status": "PARTIAL",
+      "measure": "209 entries from three registries, 201 resolved",
+      "remainder": "8 unresolved: 6 are /settings hash panes (documented as legitimate), 1 is a template href, 1 is finding UIT-016"
+    },
+    {
+      "id": 3,
+      "statement": "Every listed page has a filesystem page or an explicit justified exception.",
+      "status": "MET",
+      "measure": "37 surfaces carry no navigation entry, each with a recorded justification",
+      "remainder": null
+    },
+    {
+      "id": 4,
+      "statement": "Every filesystem surface has a placement decision.",
+      "status": "MET",
+      "measure": "168 verdicts for 168 in-scope surfaces, 17 reviewed decisions for the candidates",
+      "remainder": null
+    },
+    {
+      "id": 5,
+      "statement": "Every interactive control has a stable row.",
+      "status": "MET",
+      "measure": "7439 controls across 166 surfaces; 2 surfaces are server redirects with none",
+      "remainder": null
+    },
+    {
+      "id": 6,
+      "statement": "Every control is classified navigational, read, mutation or local-only.",
+      "status": "PARTIAL",
+      "measure": "7439 classified",
+      "remainder": "1231 are UNRESOLVED_DYNAMIC because their handler is a parent-supplied prop; each carries a reason"
+    },
+    {
+      "id": 7,
+      "statement": "Every mutation has an endpoint or is explicitly proven local-only.",
+      "status": "PARTIAL",
+      "measure": "411 of 615 mutation controls resolved to an endpoint",
+      "remainder": "204 unmatched, each with a stated reason (non-literal path, or a handler beyond the traversal depth)"
+    },
+    {
+      "id": 8,
+      "statement": "Every endpoint referenced by the UI has a backend registration or a finding.",
+      "status": "MET",
+      "measure": "1151 of 1152 routes production-registered; the single exception is recorded in the map",
+      "remainder": null
+    },
+    {
+      "id": 9,
+      "statement": "Every visible data element has a source or a finding.",
+      "status": "PARTIAL",
+      "measure": "1060 of 3003 data elements resolved to an endpoint",
+      "remainder": "1943 unresolved, each labelled with why (render lambdas and props-fed shared components)"
+    },
+    {
+      "id": 10,
+      "statement": "Every raw internal label rendered to users has a disposition.",
+      "status": "PARTIAL",
+      "measure": "117 raw-value strings at 51 sites, all carried by finding UIT-012",
+      "remainder": "They are dispositioned as one finding with a per-site list, not as 117 individually reviewed decisions"
+    },
+    {
+      "id": 11,
+      "statement": "Every tab is exercised.",
+      "status": "PARTIAL",
+      "measure": "41 tab clicks across three personas, 41 became selected",
+      "remainder": "Tabs on surfaces that answered not-found or a gate refusal for a persona were not exercised for that persona; the control inventory lists 41 tab controls in source"
+    },
+    {
+      "id": 12,
+      "statement": "Every page has success, empty, error and refusal coverage as applicable.",
+      "status": "PARTIAL",
+      "measure": "154 surfaces probed signed-in for three personas (462 page loads), each recording the state the product itself marked",
+      "remainder": "14 surfaces blocked by fixture capability; error and stale states were not force-injected per page, so each surface has the states its data produced, not all four"
+    },
+    {
+      "id": 13,
+      "statement": "Every layout failure is classified.",
+      "status": "MET",
+      "measure": "234 classified for 234 measured failures",
+      "remainder": null
+    },
+    {
+      "id": 14,
+      "statement": "Every finding id is unique.",
+      "status": "MET",
+      "measure": "16 findings",
+      "remainder": null
+    },
+    {
+      "id": 15,
+      "statement": "Severity totals equal unique findings.",
+      "status": "MET",
+      "measure": "16 findings across P0-P3",
+      "remainder": null
+    },
+    {
+      "id": 16,
+      "statement": "Markdown totals equal JSON totals.",
+      "status": "MET",
+      "measure": "The markdown is rendered from the JSON artifact alone; it computes no total of its own",
+      "remainder": null
+    },
+    {
+      "id": 17,
+      "statement": "The renderer aborts on missing required fields.",
+      "status": "MET",
+      "measure": "assemble.mjs aborts on a missing input, an absent required field, an unknown evidence class, a duplicate id or the literal \"undefined\"; it aborted twice during this audit",
+      "remainder": null
+    },
+    {
+      "id": 18,
+      "statement": "Regeneration twice produces zero diff.",
+      "status": "MET",
+      "measure": "assemble + render run twice produce byte-identical JSON and markdown",
+      "remainder": null
+    },
+    {
+      "id": 19,
+      "statement": "No undefined, placeholder, TODO or incomplete audit row remains.",
+      "status": "MET",
+      "measure": "Checked by the assembler over every finding row",
+      "remainder": null
+    },
+    {
+      "id": 20,
+      "statement": "The audit branch contains no product-code change.",
+      "status": "MET",
+      "measure": "0 product files changed",
+      "remainder": null
+    }
+  ],
+  "auditComplete": false,
+  "navigationReconciliation": {
+    "entries": 209,
+    "bySource": {
+      "SERVER_NAVIGATION_REGISTRY": 38,
+      "ADMIN_NAVIGATION": 29,
+      "ROUTE_REGISTRY": 142
+    },
+    "resolved": 201,
+    "unresolved": 8,
+    "unresolvedBySource": {
+      "ROUTE_REGISTRY": 8
+    },
+    "surfacesWithNoNavEntry": 37,
+    "unnavigatedByJustification": {
+      "DETAIL_PAGE_REACHED_FROM_ITS_LIST": 15,
+      "NO_NAVIGATION_ENTRY": 21,
+      "EXTERNAL_PORTAL_REACHED_BY_TOKEN_LINK": 1
+    }
+  },
+  "runtimeStateMatrix": {
+    "personas": [
+      {
+        "persona": "org-owner",
+        "routes": 154,
+        "byState": {
+          "GATE_PLATFORM_ADMIN_ONLY": 35,
+          "CONTENT_OR_EMPTY": 55,
+          "NOT_FOUND": 56,
+          "GATE_NEEDS_UPGRADE": 8
+        },
+        "tabs": {
+          "exercised": 24,
+          "selected": 24
+        }
+      },
+      {
+        "persona": "free-personal",
+        "routes": 154,
+        "byState": {
+          "GATE_PLATFORM_ADMIN_ONLY": 35,
+          "CONTENT_OR_EMPTY": 49,
+          "NOT_FOUND": 56,
+          "READ_FAILURE_STATED": 2,
+          "GATE_NEEDS_UPGRADE": 5,
+          "GATE_DENIED_NO_CAPABILITY": 3,
+          "GATE_NEEDS_ORGANIZATION": 4
+        },
+        "tabs": {
+          "exercised": 17,
+          "selected": 17
+        }
+      },
+      {
+        "persona": "platform-admin",
+        "routes": 1,
+        "byState": {
+          "NOT_FOUND": 1
+        },
+        "tabs": {
+          "exercised": 0,
+          "selected": 0
+        }
+      }
+    ],
+    "blockedSurfaces": [
+      {
+        "route": "/cases/[id]",
+        "reason": "the fixture holds no record of this kind, and an invented id proves nothing"
+      },
+      {
+        "route": "/collaboration-teams/invites/[token]/accept",
+        "reason": "the fixture holds no record of this kind, and an invented id proves nothing"
+      },
+      {
+        "route": "/evidence-requests/[id]",
+        "reason": "the fixture holds no record of this kind, and an invented id proves nothing"
+      },
+      {
+        "route": "/governance-platform/access-reviews/[campaignId]",
+        "reason": "the fixture holds no record of this kind, and an invented id proves nothing"
+      },
+      {
+        "route": "/investigation/cases/[caseId]/graph",
+        "reason": "the fixture holds no record of this kind, and an invented id proves nothing"
+      },
+      {
+        "route": "/org-invites/[token]/accept",
+        "reason": "the fixture holds no record of this kind, and an invented id proves nothing"
+      },
+      {
+        "route": "/portal",
+        "reason": "token-bound external portal; the fixture issues no grant token"
+      },
+      {
+        "route": "/portal/[token]",
+        "reason": "token-bound external portal; the fixture issues no grant token"
+      },
+      {
+        "route": "/portal/[token]/work/[workflowId]",
+        "reason": "token-bound external portal; the fixture issues no grant token"
+      },
+      {
+        "route": "/portal/accept/[grantId]",
+        "reason": "token-bound external portal; the fixture issues no grant token"
+      },
+      {
+        "route": "/redaction/[projectId]",
+        "reason": "the fixture holds no record of this kind, and an invented id proves nothing"
+      },
+      {
+        "route": "/reviewer-ops/[reviewId]",
+        "reason": "the fixture holds no record of this kind, and an invented id proves nothing"
+      },
+      {
+        "route": "/settings/legal/[slug]",
+        "reason": "the fixture holds no record of this kind, and an invented id proves nothing"
+      },
+      {
+        "route": "/workflows/[id]",
+        "reason": "the fixture holds no record of this kind, and an invented id proves nothing"
+      }
+    ]
+  },
   "layout": {
     "artifact": "ui-truth/layout-classification-summary",
     "schemaVersion": 1,
@@ -3089,18 +3362,18 @@
       ],
       "reproduction": "Sign in to the fixture as org-owner@fixture.local (a TEAM workspace) and open /security-center, /governance-platform or /budget-center. Then open the same URLs as platform-admin@fixture.local.",
       "expected": "A surface withheld by plan says so and offers the upgrade path, as the canonical route gate does: it resolves NEEDS_UPGRADE with the reason \"This surface is part of the Enterprise workspace experience\" and a \"View plans\" action, and PageRouteGate renders that as a structured panel.",
-      "observed": "22 of the 49 audited surfaces render the product's not-found state (data-system-state-kind=\"not-found\", \"We couldn't find that page\") for a TEAM org owner and for a FREE personal owner. All 22 render content for a platform admin, so the pages exist and work. Exactly one surface in the same run produced the intended upgrade panel. The cause is a second gate: the layouts of 20 areas wrap their children in SurfaceGate, which reads the surface-tier table and calls next/navigation notFound() when the tier's directAccessPolicy is \"notFound\" — before the canonical gate can explain anything.",
+      "observed": "56 of the 154 probed surfaces render the product not-found state (data-system-state-kind=\"not-found\") for a TEAM organization owner, and the same 56 for a FREE personal owner. All 56 render for a platform admin (55 content, 1 stated read failure), so the pages exist and work. In the same run the product DID produce the intended upgrade panel on 8 surfaces and the correct platform-admin refusal on 35, so both honest shapes exist and the wrong one is used 56 times. The cause is a second gate: 20 layout areas wrap their children in SurfaceGate, which reads the surface-tier table and calls next/navigation notFound() before the canonical gate can explain anything.",
       "evidence": [
-        "audit/ui-truth/data/browser-probe-org-owner.json — 22 NOT_FOUND, 1 GATE_NEEDS_UPGRADE, 4 GATE_PLATFORM_ADMIN_ONLY; every verdict decided by the product's own data-system-state-kind or data-page-route-gate-state marker",
-        "audit/ui-truth/data/browser-probe-platform-admin.json — the same 22 routes render content",
+        "audit/ui-truth/data/browser-probe-org-owner.json — 154 surfaces probed: 56 NOT_FOUND, 35 GATE_PLATFORM_ADMIN_ONLY, 8 GATE_NEEDS_UPGRADE, 55 content or empty; every verdict decided by the product own data-system-state-kind or data-page-route-gate-state marker",
+        "audit/ui-truth/data/browser-probe-platform-admin.json — the same 56 routes render for a platform admin (0 NOT_FOUND across all 154)",
+        "audit/ui-truth/data/browser-probe-free-personal.json — the same 56 NOT_FOUND",
         "apps/web/components/surface/SurfaceGate.tsx:204-205 — if (decision.kind === \"notFound\") notFound()",
-        "apps/web/lib/navigation/routeAccessResolver.ts:241-253 — the canonical gate's NEEDS_UPGRADE carries a reason and a \"View plans\" action",
-        "apps/web/lib/surface/tiers.ts — 129 in-scope surfaces are tiered ENTERPRISE and 99 carry directAccessPolicy notFound"
+        "apps/web/lib/navigation/routeAccessResolver.ts:241-253 — the canonical gate NEEDS_UPGRADE carries a reason and a View plans action"
       ],
       "rootCause": "Two gating authorities decide the same question in sequence. The tier table's notFound policy runs first inside SurfaceGate and destroys the refusal's meaning; the route registry's plan gate, which knows how to explain and where to send the customer, never runs.",
-      "blastRadius": "Every non-enterprise customer, including paying TEAM and PRO workspaces, is told that 22 of the product's surfaces do not exist. There is no upgrade affordance on any of them, and support cannot distinguish a plan refusal from a broken link. The same shape hides genuine 404s.",
+      "blastRadius": "Every non-enterprise customer, including paying TEAM and PRO workspaces, is told that 56 of the product surfaces do not exist — governance, security centre, review, redaction, investigation, intelligence, executive and budget among them. There is no upgrade affordance on any of them, support cannot tell a plan refusal from a broken link, and a genuine 404 is indistinguishable from a withheld feature.",
       "recommendedFix": "Let the canonical gate answer plan questions: have SurfaceGate defer to routeAccessResolver and render the NEEDS_UPGRADE panel instead of calling notFound(), and keep notFound() only for surfaces that genuinely do not exist for anyone.",
-      "requiredAcceptanceProof": "Re-run the signed-in state matrix for a TEAM and a FREE persona: no surface answers with the not-found state where a platform admin sees content, and every plan-withheld surface renders the upgrade panel with its action.",
+      "requiredAcceptanceProof": "Re-run the signed-in state matrix for a TEAM and a FREE persona over all 154 probed surfaces: no surface answers with the not-found state where a platform admin sees content, and every plan-withheld surface renders the upgrade panel with its action.",
       "dependencies": [],
       "evidenceClass": "SOURCE_AND_RUNTIME_PROVEN"
     },
@@ -3387,6 +3660,33 @@
       "requiredAcceptanceProof": "A signed-in visit to /trust-center keeps the application shell, and no app route links out to the marketing site.",
       "dependencies": [],
       "evidenceClass": "SOURCE_AND_RUNTIME_PROVEN"
+    },
+    {
+      "id": "UIT-016",
+      "severity": "P3",
+      "category": "NAVIGATION",
+      "title": "A registered navigation destination has no page: /evidence-requests",
+      "affectedRoutes": [
+        "/evidence-requests"
+      ],
+      "affectedActors": [
+        "any-actor-holding-intake-links-manage"
+      ],
+      "reproduction": "Read the route registry entry workspace.evidence_requests, list apps/web/app/(app)/evidence-requests, then open /evidence-requests signed in.",
+      "expected": "Every registered destination resolves to a surface, or is not registered.",
+      "observed": "The registry declares workspace.evidence_requests with href /evidence-requests, the label \"Evidence requests\" and required capability INTAKE_LINKS_MANAGE, but the only page under that directory is [id]. A signed-in platform admin visiting /evidence-requests gets the not-found state. I could not surface the entry on /tools or in the command palette as a platform admin (both build from the same registry but filter by capability), so the practical exposure is limited to a direct visit or to a persona whose capabilities admit it — which I did not prove either way.",
+      "evidence": [
+        "apps/web/lib/navigation/routeRegistry.ts:1663-1670 — the entry, its href and its label",
+        "apps/web/app/(app)/evidence-requests/ — contains only [id]",
+        "audit/ui-truth/data/nav-reconciliation.json — 8 registry entries resolve to no surface; 6 of them are legitimate /settings hash panes, this one is not",
+        "runtime: a signed-in platform admin opening /evidence-requests renders data-system-state-kind=\"not-found\""
+      ],
+      "rootCause": "The list page was never built, or was removed, while its registry entry stayed.",
+      "blastRadius": "A destination that exists in the canonical registry but nowhere in the product. Anything that renders the registry without a capability filter would show a dead link, and the registry is the authority other surfaces trust.",
+      "recommendedFix": "Build the list surface, or delete the registry entry and point the detail page's breadcrumb at the surface that lists requests.",
+      "requiredAcceptanceProof": "The navigation reconciliation reports zero registry entries that resolve to no surface, apart from the /settings hash panes it documents.",
+      "dependencies": [],
+      "evidenceClass": "SOURCE_AND_RUNTIME_PROVEN"
     }
   ],
   "remediationBacklog": [
@@ -3486,9 +3786,9 @@
         "/audit-transparency",
         "/reviewer-ops/queue"
       ],
-      "blastRadius": "Every non-enterprise customer, including paying TEAM and PRO workspaces, is told that 22 of the product's surfaces do not exist. There is no upgrade affordance on any of them, and support cannot distinguish a plan refusal from a broken link. The same shape hides genuine 404s.",
+      "blastRadius": "Every non-enterprise customer, including paying TEAM and PRO workspaces, is told that 56 of the product surfaces do not exist — governance, security centre, review, redaction, investigation, intelligence, executive and budget among them. There is no upgrade affordance on any of them, support cannot tell a plan refusal from a broken link, and a genuine 404 is indistinguishable from a withheld feature.",
       "dependencies": [],
-      "requiredAcceptanceProof": "Re-run the signed-in state matrix for a TEAM and a FREE persona: no surface answers with the not-found state where a platform admin sees content, and every plan-withheld surface renders the upgrade panel with its action."
+      "requiredAcceptanceProof": "Re-run the signed-in state matrix for a TEAM and a FREE persona over all 154 probed surfaces: no surface answers with the not-found state where a platform admin sees content, and every plan-withheld surface renders the upgrade panel with its action."
     },
     {
       "position": 6,
@@ -3583,6 +3883,19 @@
     },
     {
       "position": 12,
+      "id": "UIT-016",
+      "severity": "P3",
+      "title": "A registered navigation destination has no page: /evidence-requests",
+      "routeFamily": "evidence-requests",
+      "affectedRoutes": [
+        "/evidence-requests"
+      ],
+      "blastRadius": "A destination that exists in the canonical registry but nowhere in the product. Anything that renders the registry without a capability filter would show a dead link, and the registry is the authority other surfaces trust.",
+      "dependencies": [],
+      "requiredAcceptanceProof": "The navigation reconciliation reports zero registry entries that resolve to no surface, apart from the /settings hash panes it documents."
+    },
+    {
+      "position": 13,
       "id": "UIT-009",
       "severity": "P3",
       "title": "The intake timeline date escapes its cell at 125% text scale",
@@ -3595,7 +3908,7 @@
       "requiredAcceptanceProof": "The intake layout spec passes at 100% and 125% text scale."
     },
     {
-      "position": 13,
+      "position": 14,
       "id": "UIT-003",
       "severity": "P3",
       "title": "The system opens LEGACY_UNSCOPED incidents that no surface can ever display or resolve",
@@ -3608,7 +3921,7 @@
       "requiredAcceptanceProof": "After a permission denial, the resulting incident is returned by a surface a human can open, or no row is written."
     },
     {
-      "position": 14,
+      "position": 15,
       "id": "UIT-014",
       "severity": "P3",
       "title": "A drift count is printed beside a capped read without disclosing the cap",
@@ -3621,7 +3934,7 @@
       "requiredAcceptanceProof": "The count names its denominator, and the 62 undecidable files are each dispositioned."
     },
     {
-      "position": 15,
+      "position": 16,
       "id": "UIT-015",
       "severity": "P3",
       "title": "The in-app Trust Center index throws a signed-in user out to the marketing site",

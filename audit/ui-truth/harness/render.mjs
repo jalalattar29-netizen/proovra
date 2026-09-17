@@ -176,6 +176,18 @@ if (c.layoutClassification) {
   out.push("");
 }
 
+out.push(`## Conservation and quality gates`);
+out.push("");
+out.push(`${c.gatesMet} met, ${c.gatesPartial} partial, ${c.gatesNotMet} not met. The audit is complete only when every gate is met; this one is ${a.auditComplete ? "complete" : "INCOMPLETE"}.`);
+out.push("");
+out.push(table(["#", "Gate", "Status", "Measure", "Remainder"], a.gates.map((g) => [String(g.id), g.statement, g.status, g.measure, g.remainder ?? "—"])));
+out.push("");
+out.push(`## Runtime state matrix`);
+out.push("");
+out.push(`${c.runtimeSurfacesProbed} surfaces probed signed-in for each of three personas (${c.runtimePageLoads} page loads), ${c.tabsExercised} tabs clicked. ${c.runtimeSurfacesBlocked} surfaces are blocked by fixture capability and were never probed with an invented id.`);
+out.push("");
+out.push(table(["Persona", "Routes", "States"], a.runtimeStateMatrix.personas.map((p) => [p.persona, String(p.routes), Object.entries(p.byState).sort((x, y) => y[1] - x[1]).map(([k, v]) => `${k} ${v}`).join(", ")])));
+out.push("");
 out.push(`## Findings`);
 out.push("");
 out.push(

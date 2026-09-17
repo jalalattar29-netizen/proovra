@@ -144,11 +144,37 @@ for (const route of routes) {
   }
   await page.waitForTimeout(1200);
   const observed = await classify(page);
+  /**
+   * Tabs are exercised, not merely counted: each one is clicked and the
+   * selected state re-read, because a tab that never becomes selected is the
+   * failure this audit is looking for. Bounded to eight per surface so one
+   * heavily tabbed page cannot dominate the run.
+   */
+  const tabs = [];
+  if (!observed.state.startsWith("GATE_") && observed.state !== "NOT_FOUND" && observed.state !== "REDIRECTED_TO_LOGIN") {
+    const handles = await page.locator('[role="tab"]:visible').all().catch(() => []);
+    for (const [index, handle] of handles.slice(0, 8).entries()) {
+      const name = (await handle.textContent().catch(() => null))?.trim()?.slice(0, 60) ?? null;
+      let selected = null;
+      let error = null;
+      try {
+        await handle.click({ timeout: 8_000 });
+        await page.waitForTimeout(350);
+        selected = await handle.getAttribute("aria-selected");
+      } catch (err) {
+        error = String(err).split("\n")[0].slice(0, 120);
+      }
+      tabs.push({ index, name, ariaSelectedAfterClick: selected, error });
+    }
+  }
   rows.push({
     route,
     persona,
     ...observed,
     navError,
+    tabs,
+    tabsExercised: tabs.length,
+    tabsSelectedAfterClick: tabs.filter((t) => t.ariaSelectedAfterClick === "true").length,
     ms: Date.now() - started,
     failedApiRequests: [...new Set(failedRequests)].sort(),
     consoleErrors: [...new Set(consoleErrors)].slice(0, 5),
@@ -158,13 +184,14 @@ for (const route of routes) {
 
 await browser.close();
 
+const totalsTabs = { exercised: rows.reduce((n, r) => n + r.tabsExercised, 0), selected: rows.reduce((n, r) => n + r.tabsSelectedAfterClick, 0) };
 const byState = {};
 for (const r of rows) byState[r.state] = (byState[r.state] ?? 0) + 1;
 const out = join(REPO, "audit", "ui-truth", "data", `browser-probe-${persona}.json`);
 writeFileSync(
   out,
   JSON.stringify(
-    { artifact: "ui-truth/browser-probe", schemaVersion: 1, persona, web: "loopback", totals: { routes: rows.length, byState }, rows },
+    { artifact: "ui-truth/browser-probe", schemaVersion: 1, persona, web: "loopback", totals: { routes: rows.length, byState, tabs: totalsTabs }, rows },
     null,
     2,
   ) + "\n",

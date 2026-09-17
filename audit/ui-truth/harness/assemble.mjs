@@ -61,6 +61,10 @@ const layoutSummary = read("layout-classification-summary", { required: false })
 const layoutCurrent = read("layout-failures-current", { required: false });
 const labels = read("labels", { required: false });
 const dataElements = read("data-elements", { required: false });
+const gates = read("gates");
+const navRecon = read("nav-reconciliation");
+const probePersonas = ["org-owner", "free-personal", "platform-admin"].map((p) => read(`browser-probe-${p}`));
+const probeRoutes = read("browser-probe-routes");
 
 /* -------------------------------------------------------------------------
  * Gate 1 — every finding is admissible.
@@ -164,6 +168,13 @@ const counts = {
   findings: findings.findings.length,
   findingsBySeverity: bySeverity,
   findingsByEvidenceClass: byEvidenceClass,
+  gatesMet: gates.totals.byStatus.MET ?? 0,
+  gatesPartial: gates.totals.byStatus.PARTIAL ?? 0,
+  gatesNotMet: gates.totals.byStatus.NOT_MET ?? 0,
+  runtimePageLoads: probePersonas.reduce((n, p) => n + p.totals.routes, 0),
+  runtimeSurfacesProbed: probePersonas[0].totals.routes,
+  runtimeSurfacesBlocked: probeRoutes.blocked.length,
+  tabsExercised: probePersonas.reduce((n, p) => n + p.totals.tabs.exercised, 0),
   blockedProofs: findings.findings.filter((f) => f.evidenceClass.startsWith("BLOCKED")).length,
   ownerDecisions: (findings.ownerDecisions ?? []).length,
   browserProbePersonas: 3,
@@ -224,6 +235,13 @@ const artifact = {
   })),
   accessMatrix: { personas: access.personas, perPersona: access.totals.perPersona },
   runtimeAuthorization: runtimeAuthz.totals,
+  gates: gates.gates,
+  auditComplete: gates.auditComplete,
+  navigationReconciliation: navRecon.totals,
+  runtimeStateMatrix: {
+    personas: probePersonas.map((p) => ({ persona: p.persona, routes: p.totals.routes, byState: p.totals.byState, tabs: p.totals.tabs })),
+    blockedSurfaces: probeRoutes.blocked,
+  },
   layout: layoutSummary ?? null,
   labels: labels?.totals ?? null,
   dataElements: dataElements?.totals ?? null,
