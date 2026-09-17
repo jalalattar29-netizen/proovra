@@ -951,11 +951,13 @@ describe("UC-0 — How this record entered PROOVRA (report acquisition statement
       }),
     );
     const html = renderReportHtml(vm);
-    const t = text(html);
-    const at = t.indexOf("How this record entered PROOVRA");
-    expect(at).toBeGreaterThan(-1);
-    expect(t.slice(at, at + 200)).toContain("Not recorded");
-    expect(t.slice(at, at + 200)).not.toContain("PROOVRA Web Upload");
+    // The whole acquisition statement section, read by its own element.
+    const panel = html.match(/<section class="[^"]*acquisition-statement-panel[^"]*">[\s\S]*?<\/section>/);
+    expect(panel).not.toBeNull();
+    const t = text(panel![0]);
+    expect(t).toContain("How this record entered PROOVRA");
+    expect(t).toContain("Not recorded");
+    expect(t).not.toContain("PROOVRA Web Upload");
   });
 
   it("the statement never claims capture verification or retired class labels", async () => {
