@@ -35,12 +35,17 @@ export type DirectCaptureSession = {
   expiresAtUtc: string;
 };
 
-export type DirectCaptureItemSource = "CAMERA" | "FILE_PICKER";
+export type DirectCaptureItemSource = "CAMERA" | "FILE_PICKER" | "SCREEN_FRAME" | "SCREEN_MANIFEST";
 
-export async function openDirectCaptureSession(): Promise<DirectCaptureSession> {
+/** Acquisition modes the mobile app may open a direct-capture session for. */
+export type DirectCaptureSessionMode = "PROOVRA_MOBILE_APP" | "DIRECT_SCREEN_CAPTURE_ANDROID";
+
+export async function openDirectCaptureSession(
+  mode: DirectCaptureSessionMode = "PROOVRA_MOBILE_APP",
+): Promise<DirectCaptureSession> {
   const res = await apiFetch("/v1/capture/direct-sessions", {
     method: "POST",
-    body: JSON.stringify({ mode: "PROOVRA_MOBILE_APP" }),
+    body: JSON.stringify({ mode }),
   });
   const session = res?.session as
     | { captureSessionId?: string; expiresAtUtc?: string }
@@ -97,15 +102,16 @@ export async function uploadDirectCaptureItem(
     originalFilename?: string;
     source: DirectCaptureItemSource;
   },
-): Promise<void> {
+): Promise<{ partIndex: number; sha256Hex: string }> {
   const integrity = await computeFileIntegrityBase64(item.uri);
+  const sha256Hex = base64ToHex(integrity.checksumSha256Base64);
 
   await apiFetch(
     `/v1/capture/direct-sessions/${session.captureSessionId}/parts/${item.partIndex}/declaration`,
     {
       method: "POST",
       body: JSON.stringify({
-        sha256: base64ToHex(integrity.checksumSha256Base64),
+        sha256: sha256Hex,
         clientReportedSource: item.source,
         signed: null,
       }),
@@ -131,6 +137,8 @@ export async function uploadDirectCaptureItem(
     checksumSha256Base64: integrity.checksumSha256Base64,
     contentMd5Base64: integrity.contentMd5Base64,
   });
+
+  return { partIndex: item.partIndex, sha256Hex };
 }
 
 export async function completeDirectCapture(

@@ -1579,6 +1579,13 @@
       "reviewedAtUtc": "2026-09-17"
     },
     {
+      "routeId": "POST /v1/capture/direct-sessions/:id/screen-complete",
+      "disposition": "PRODUCT_CONNECTED",
+      "reason": "UC-2 Android Direct Screen Capture completion — its product consumer is the PROOVRA Android app (apps/mobile), whose native MediaProjection capture flow the web+mobile consumer analyzer does not statically resolve.",
+      "evidence": "reg services/api/src/routes/capture-trust.routes.ts (POST /v1/capture/direct-sessions/:id/screen-complete), preHandler requireAuth + authorizeOwnedSession. Consumed by apps/mobile/src/screen-capture.ts (screenComplete) via the Android screen-capture flow. It validates the screen-capture manifest, classes the CAPTURE_MANIFEST part and seals through completeScreenCaptureSession -> completeDirectCapture. Exercised end to end by services/api/test/uc2-screen-capture.integration.test.ts (4 cases incl. refusals).",
+      "reviewedAtUtc": "2026-09-17"
+    },
+    {
       "routeId": "GET /v1/oauth/extension/authorize",
       "disposition": "PRODUCT_CONNECTED",
       "reason": "UC-1 first-party extension OAuth (Authorization Code + PKCE S256) — its product consumer is the PROOVRA browser extension (apps/extension), which the web+mobile consumer analyzer does not scan.",

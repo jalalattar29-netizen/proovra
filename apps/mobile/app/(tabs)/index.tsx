@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, Text, View, Pressable } from "react-native";
+import { Platform, ScrollView, StyleSheet, Text, View, Pressable } from "react-native";
 import { spacing, typography } from "@proovra/ui";
 import { Badge, BottomNav, ListRow, TopBar } from "../../components/ui";
 import { useLocale } from "../../src/locale-context";
@@ -35,6 +35,17 @@ export default function HomeScreen() {
               + {t("ctaCapture")}
             </Text>
           </Pressable>
+
+          {Platform.OS === "android" && (
+            <Pressable
+              style={styles.heroSecondaryButton}
+              onPress={() => router.push("/screen-capture")}
+            >
+              <Text style={[styles.heroButtonText, { fontFamily: fontFamilyBold }]}>
+                Direct Screen Capture
+              </Text>
+            </Pressable>
+          )}
         </View>
 
         <Text
@@ -120,6 +131,15 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
     alignSelf: "flex-start",
     backgroundColor: "rgba(6, 13, 31, 0.58)",
+    borderWidth: 1,
+    borderColor: "rgba(101,235,255,0.22)",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 999
+  },
+  heroSecondaryButton: {
+    marginTop: spacing.sm,
+    alignSelf: "flex-start",
     borderWidth: 1,
     borderColor: "rgba(101,235,255,0.22)",
     paddingVertical: 10,

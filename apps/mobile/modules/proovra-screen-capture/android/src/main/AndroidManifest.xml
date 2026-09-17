@@ -1,0 +1,21 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <!--
+    UC-2 Android Direct Screen Capture. A foreground service of type
+    mediaProjection is REQUIRED on Android 10+ to run a MediaProjection session,
+    and Android 14+ requires the dedicated FOREGROUND_SERVICE_MEDIA_PROJECTION
+    permission. Nothing is captured before the user grants the MediaProjection
+    consent dialog; the service exists to keep that authorised session alive with
+    a visible, user-dismissable notification while capture is active.
+  -->
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+  <application>
+    <service
+      android:name="com.proovra.screencapture.ScreenCaptureService"
+      android:exported="false"
+      android:foregroundServiceType="mediaProjection" />
+  </application>
+</manifest>

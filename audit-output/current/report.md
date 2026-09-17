@@ -21,16 +21,16 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | d6b08abcec944598a68d1fa8c4bb01a53bd704ec18ed77412acdc89d7577a1ce |
+| engineHash    | 94340f79f7fe87582ff5f8622ebfd224b514a40f7be69222a6d10441b112917f |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
 
 | counter                       | value |
 | ----------------------------- | ----- |
-| registeredRoutes              | 1153  |
+| registeredRoutes              | 1154  |
 | developmentOnlyRoutes         | 1     |
-| productConsumerRoutes         | 899   |
+| productConsumerRoutes         | 900   |
 | machineOnlyConsumerRoutes     | 6     |
 | noConsumerRoutes              | 248   |
 | dispositionedNonProductRoutes | 253   |

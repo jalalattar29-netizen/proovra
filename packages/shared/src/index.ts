@@ -2395,3 +2395,4 @@ export * from "./queue-job-correlation.js";
 // public Verify acquisition contract.
 export * from "./evidence-acquisition.js";
 export * from "./web-capture-manifest.js";
+export * from "./screen-capture-manifest.js";

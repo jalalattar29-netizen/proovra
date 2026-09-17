@@ -1303,6 +1303,10 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // admit DIRECT_WEB_CAPTURE_EXTENSION (a constraint swap). No
       // `security_events` column, index, enum or mapping is touched.
       "20280610000000_uc1_direct_web_capture_acquisition_mode",
+      // UC-2 (2026-09-17) — widens the same two acquisition_mode CHECK
+      // constraints to admit DIRECT_SCREEN_CAPTURE_ANDROID (a constraint swap).
+      // No `security_events` column, index, enum or mapping is touched.
+      "20280630000000_uc2_screen_capture_acquisition_mode",
       // UC-1 (2026-09-17) — one new table extension_auth_codes for the
       // extension OAuth PKCE flow. No `security_events` column/index/enum/mapping.
       "20280620000000_uc1_extension_oauth_codes",

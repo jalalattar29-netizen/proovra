@@ -48,6 +48,17 @@ export const EVIDENCE_ACQUISITION_MODES = [
    * origin (see the limitations below).
    */
   "DIRECT_WEB_CAPTURE_EXTENSION",
+  /**
+   * UC-2 — the PROOVRA Android app captured the device screen directly, through
+   * Android's MediaProjection consent, in a server-issued capture session started
+   * BEFORE the capture. Like the UC-1 web mode this is `isDirectCapture: true`:
+   * PROOVRA's own adapter produced the frame bytes and the server recomputed
+   * every artifact's digest. It still does not prove the displayed content, who
+   * or what produced it, or that the Android device was uncompromised (see the
+   * limitations below). It is NOT the same as `PROOVRA_MOBILE_APP`, which is a
+   * generic mobile submission of a file PROOVRA did not observe being produced.
+   */
+  "DIRECT_SCREEN_CAPTURE_ANDROID",
 ] as const;
 export type EvidenceAcquisitionMode = (typeof EVIDENCE_ACQUISITION_MODES)[number];
 
@@ -92,6 +103,7 @@ export const EVIDENCE_ACQUISITION_CATEGORIES = [
   "SECURE_INTAKE",
   "MOBILE_APP",
   "DIRECT_WEB_CAPTURE",
+  "DIRECT_SCREEN_CAPTURE",
   "NOT_RECORDED",
 ] as const;
 export type EvidenceAcquisitionCategory =
@@ -128,6 +140,10 @@ export const ACQUISITION_LIMITATION_CODES = [
   "WEB_CONTENT_TRUTH_NOT_PROVEN",
   "WEB_SERVER_ORIGIN_NOT_PROVEN",
   "WEB_PAGE_STATE_AT_CAPTURE",
+  // UC-2 Android direct screen capture.
+  "SCREEN_CONTENT_TRUTH_NOT_PROVEN",
+  "SCREEN_SOURCE_APP_NOT_PROVEN",
+  "SCREEN_DEVICE_INTEGRITY_NOT_VERIFIED",
 ] as const;
 export type AcquisitionLimitationCode =
   (typeof ACQUISITION_LIMITATION_CODES)[number];
@@ -149,6 +165,12 @@ export const ACQUISITION_LIMITATION_TEXT: Readonly<
     "PROOVRA does not prove that the captured bytes were served by the website's own servers. A locally modified page or a look-alike site cannot be ruled out.",
   WEB_PAGE_STATE_AT_CAPTURE:
     "A web page can change while it is being captured, and its appearance can be altered in the browser before capture. PROOVRA records the representation it received and any limitations it detected, not a guaranteed untouched original.",
+  SCREEN_CONTENT_TRUTH_NOT_PROVEN:
+    "A screen capture preserves what was shown on the Android device's screen. It does not establish that the displayed content is true, who authored it, or that any person or account shown is genuine.",
+  SCREEN_SOURCE_APP_NOT_PROVEN:
+    "PROOVRA does not prove which app produced what was on screen, or that the underlying app or server actually supplied the displayed data. Content displayed by a modified app, a mock-up or an overlay cannot be ruled out.",
+  SCREEN_DEVICE_INTEGRITY_NOT_VERIFIED:
+    "The integrity of the Android device and OS was not independently verified. A rooted, emulated or otherwise modified device cannot be ruled out; protected content (secure windows) may appear blank or be omitted.",
 };
 
 const DESCRIPTORS: Readonly<Record<ProjectedAcquisitionMode, ModeDescriptor>> = {
@@ -190,6 +212,18 @@ const DESCRIPTORS: Readonly<Record<ProjectedAcquisitionMode, ModeDescriptor>> = 
       "WEB_CONTENT_TRUTH_NOT_PROVEN",
       "WEB_SERVER_ORIGIN_NOT_PROVEN",
       "WEB_PAGE_STATE_AT_CAPTURE",
+    ],
+  },
+  DIRECT_SCREEN_CAPTURE_ANDROID: {
+    category: "DIRECT_SCREEN_CAPTURE",
+    label: "Captured from an Android screen with PROOVRA",
+    statement:
+      "PROOVRA captured this Android device screen directly through its app, using Android's screen-capture consent, in a server-issued capture session started before the capture. PROOVRA independently recomputed the digest of every captured frame and established integrity when the session was completed.",
+    isDirectCapture: true,
+    limitations: [
+      "SCREEN_CONTENT_TRUTH_NOT_PROVEN",
+      "SCREEN_SOURCE_APP_NOT_PROVEN",
+      "SCREEN_DEVICE_INTEGRITY_NOT_VERIFIED",
     ],
   },
   LEGACY_NOT_RECORDED: {
@@ -264,6 +298,7 @@ export const ACQUISITION_CATEGORY_LABELS: Readonly<
   SECURE_INTAKE: "Secure intake",
   MOBILE_APP: "Mobile app",
   DIRECT_WEB_CAPTURE: "Web capture",
+  DIRECT_SCREEN_CAPTURE: "Screen capture",
   NOT_RECORDED: "Not recorded",
 };
 
@@ -283,6 +318,9 @@ export function acquisitionTimestampLabel(
   }
   if (mode === "DIRECT_WEB_CAPTURE_EXTENSION") {
     return "Captured from the web at (server UTC)";
+  }
+  if (mode === "DIRECT_SCREEN_CAPTURE_ANDROID") {
+    return "Captured from an Android screen at (server UTC)";
   }
   return "Recorded at submission (server UTC)";
 }

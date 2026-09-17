@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 273,
-    "classifiedMigrations": 273,
+    "filesystemMigrations": 274,
+    "classifiedMigrations": 274,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 273,
+    "productionSnapshotUnknown": 274,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 273,
-    "classifiedMigrations": 273,
+    "filesystemMigrations": 274,
+    "classifiedMigrations": 274,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 273,
+    "productionSnapshotUnknown": 274,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 51,
+      "EXPAND": 52,
       "BACKFILL": 21,
       "CONTRACT_DROP": 12,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 62,
+      "SAFE_TO_APPLY_NOW": 63,
       "WAIT_FOR_BACKFILL_READINESS": 13,
       "CONTRACT_DROP_LATER": 12,
       "WAIT_FOR_RUNTIME_CUTOVER": 1
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 273
+    "ProductionMigrationStateUnknown": 274
   },
   "gateFailures": [],
   "migrations": [
@@ -21179,7 +21179,7 @@
       "checksumSha256": "315c0b6183594d6bdffd58a61d43e6b64beda2f25742dadc3b199f4768b0dec5",
       "checksumSha256Raw": "315c0b6183594d6bdffd58a61d43e6b64beda2f25742dadc3b199f4768b0dec5",
       "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
-      "gitTracked": false,
+      "gitTracked": true,
       "gitIntroductionCommit": null,
       "sqlChangedSinceIntroduction": false,
       "classification": "EXPAND",
@@ -21240,8 +21240,74 @@
       "evidence": "UC-1 EXTENSION OAUTH (2026-09-17). One new table extension_auth_codes backing the first-party extension Authorization Code + PKCE S256 flow. The code is never stored (only its SHA-256); single-use via used_at_utc (atomic UPDATE ... WHERE used_at_utc IS NULL); short-lived; bound to client_id, redirect_uri and code_challenge; FK to users ON DELETE CASCADE. EXPAND: nothing existing is altered, no column changed, no row read or written. SAFE ON EITHER IMAGE: the pre-UC-1 image never touches the table; the UC-1 image's /v1/oauth/extension/authorize+token routes read it, so it must be applied before that image. Idempotent (CREATE TABLE/INDEX IF NOT EXISTS + a guarded FK ADD). It is NOT a second auth system: the token endpoint mints an ordinary short-lived AUTH_JWT the canonical requireAuth already accepts. Clean-boot rehearsed on disposable PostgreSQL 16; drift OK. ROLLBACK is code-first: revert the image and leave the table. NOT APPLIED TO PRODUCTION."
     },
     {
-      "name": "email_password_auth",
+      "name": "20280630000000_uc2_screen_capture_acquisition_mode",
       "order": 272,
+      "sqlPresent": true,
+      "byteLength": 1915,
+      "checksumSha256": "9600c082bb60b92790c2b92148d08e09aacec5ee77e17cd5c0c451072f8739c3",
+      "checksumSha256Raw": "9600c082bb60b92790c2b92148d08e09aacec5ee77e17cd5c0c451072f8739c3",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": false,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "REPAIR",
+      "sqlShapeEvidence": "alters existing objects only (defaults / nullability / constraints / indexes / type conversion); creates nothing, drops nothing, mutates no pre-existing rows",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "capture_sessions",
+          "evidence"
+        ],
+        "addedColumns": [],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [],
+        "droppedIndexes": [],
+        "addedConstraints": [
+          "capture_sessions_acquisition_mode_check",
+          "evidence_acquisition_mode_check"
+        ],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20260131235343_init",
+        "20260510120000_add_capture_sessions"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM pg_constraint WHERE conname='evidence_acquisition_mode_check'\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "UC-2 ANDROID DIRECT SCREEN CAPTURE (2026-09-17). Widens the two acquisition_mode CHECK constraints (evidence_acquisition_mode_check, capture_sessions_acquisition_mode_check) to admit DIRECT_SCREEN_CAPTURE_ANDROID — the second isDirectCapture acquisition mode, produced by the PROOVRA Android app via MediaProjection in a server-issued capture session. EXPAND: a CHECK IN-list cannot be extended in place, so each constraint is DROPPED and RE-ADDED with the same name and a strictly WIDER value set (a constraint SWAP, not a removal — recognised as such by the artifact scanner's constraintDropsAreAllSwaps, so it carries no destructive classification). Every existing row already satisfies the narrower set, so it satisfies the wider one. SAFE ON EITHER IMAGE: the pre-UC-2 image writes only the four prior modes, still admitted; the UC-2 image writes the new mode, admitted only by the widened constraint, so this must be applied BEFORE that image. Idempotent (DROP CONSTRAINT IF EXISTS + ADD). Clean-boot rehearsed on disposable PostgreSQL 16, drift OK. ROLLBACK is code-first: revert the image and leave the widened constraint. NOT APPLIED TO PRODUCTION."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 273,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

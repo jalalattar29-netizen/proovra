@@ -42,6 +42,12 @@ test("every persisted mode resolves to itself, recorded at creation by default",
       assert.equal(a.isDirectCapture, true, `${mode} is a direct capture`);
       assert.ok(a.limitations.includes("WEB_CONTENT_TRUTH_NOT_PROVEN"));
       assert.ok(a.limitations.includes("WEB_SERVER_ORIGIN_NOT_PROVEN"));
+    } else if (mode === "DIRECT_SCREEN_CAPTURE_ANDROID") {
+      // UC-2 — the SECOND direct-capture mode. PROOVRA's own Android adapter
+      // produced the frame bytes; its own screen-capture limitations apply.
+      assert.equal(a.isDirectCapture, true, `${mode} is a direct capture`);
+      assert.ok(a.limitations.includes("SCREEN_CONTENT_TRUTH_NOT_PROVEN"));
+      assert.ok(a.limitations.includes("SCREEN_DEVICE_INTEGRITY_NOT_VERIFIED"));
     } else {
       assert.equal(a.isDirectCapture, false, `${mode} is not a direct capture in UC-0`);
       assert.ok(a.limitations.includes("CREATION_NOT_OBSERVED_BY_PROOVRA"));
@@ -106,9 +112,14 @@ test("no acquisition label or statement overclaims", () => {
 });
 
 test("filter categories partition the projected modes", () => {
-  const all = ["UPLOAD", "SECURE_INTAKE", "MOBILE_APP", "DIRECT_WEB_CAPTURE", "NOT_RECORDED"].flatMap((c) => [
-    ...acquisitionModesForCategory(c),
-  ]);
+  const all = [
+    "UPLOAD",
+    "SECURE_INTAKE",
+    "MOBILE_APP",
+    "DIRECT_WEB_CAPTURE",
+    "DIRECT_SCREEN_CAPTURE",
+    "NOT_RECORDED",
+  ].flatMap((c) => [...acquisitionModesForCategory(c)]);
   assert.deepEqual(
     [...all].sort(),
     [...EVIDENCE_ACQUISITION_MODES, ACQUISITION_NOT_RECORDED].sort(),
