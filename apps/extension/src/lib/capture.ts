@@ -54,12 +54,17 @@ async function artifactFrom(
 }
 
 async function domArtifact(tabId: number, limitations: WebCaptureLimitationCode[]): Promise<CapturedArtifact | null> {
-  const dom = await ask<{ ok: boolean; html?: string; crossOriginFrames?: number }>(tabId, {
+  const dom = await ask<{ ok: boolean; html?: string; crossOriginFrames?: number; shadowRoots?: number }>(tabId, {
     kind: "GET_SANITIZED_DOM",
   });
   if (!dom.ok || !dom.html) return null;
   if ((dom.crossOriginFrames ?? 0) > 0 && !limitations.includes("CROSS_ORIGIN_IFRAME_NOT_CAPTURED")) {
     limitations.push("CROSS_ORIGIN_IFRAME_NOT_CAPTURED");
+  }
+  // UC-1 §4.2 — cloneNode omits shadow trees, so an open shadow root means the
+  // DOM snapshot is not complete. Disclose it truthfully in the manifest.
+  if ((dom.shadowRoots ?? 0) > 0 && !limitations.includes("SHADOW_DOM_NOT_FULLY_REPRESENTED")) {
+    limitations.push("SHADOW_DOM_NOT_FULLY_REPRESENTED");
   }
   const blob = new Blob([dom.html], { type: "text/html" });
   return artifactFrom(blob, "dom_snapshot");

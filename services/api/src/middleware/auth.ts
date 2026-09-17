@@ -18,6 +18,7 @@ import { recordHeartbeat } from "../services/access-control/session-inventory.se
 // lock exists to prevent.
 import { touchMemberLastSeen } from "../services/identity/membership-provisioning.service.js";
 import { getSecret } from "../config/runtime-secrets.js";
+import { isRestrictedScope, isRouteAllowedForScope } from "../services/auth/extension-scope.js";
 import { prisma } from "../db.js";
 import { gateSecurityAction } from "../services/governance/policy-runtime-gates.service.js";
 import { enforceSessionTimeoutPolicy } from "../services/identity-security/session-timeout-policy.service.js";
@@ -337,6 +338,27 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
       mfaAt: typeof payload.mfaAt === "number" ? payload.mfaAt : null,
     };
     req.log = req.log.child({ userId: payload.sub });
+
+    // UC-1 §4.1 — restricted-scope enforcement (deny by default). A token that
+    // carries a restricted `scope` (the extension's capture.direct) may reach
+    // ONLY its allowlisted routes; every other route is refused here, so a stolen
+    // extension token cannot drive unrelated privileged operations. Ordinary
+    // tokens carry no `scope` and are unaffected. Scope is NOT workspace
+    // authorization — the route's own requireAuth + authorizeOrFail still run.
+    const tokenScope = (payload as { scope?: unknown }).scope;
+    if (isRestrictedScope(tokenScope)) {
+      const routePattern =
+        (req as { routeOptions?: { url?: string } }).routeOptions?.url ??
+        (req as { routerPath?: string }).routerPath ??
+        null;
+      if (!isRouteAllowedForScope(tokenScope, req.method, routePattern)) {
+        req.log.warn(
+          { userId: payload.sub, scope: tokenScope, method: req.method, routePattern },
+          "auth.scope_insufficient",
+        );
+        return reply.code(403).send(createErrorResponse(ErrorCode.FORBIDDEN, req.id));
+      }
+    }
 
     // Phase 26.75 — Sampled heartbeat. Fire-and-forget; the helper is
     // self-throttled via shouldWriteHeartbeat() so it writes at most

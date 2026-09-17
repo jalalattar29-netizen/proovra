@@ -92,13 +92,66 @@ describe("UC-1 extension OAuth (PKCE) — live PostgreSQL 16", () => {
     expect(tok.json().token_type).toBe("Bearer");
     expect(tok.json().expires_in).toBe(3600);
 
-    // The minted token is a real bearer the canonical requireAuth accepts.
+    // The minted token is a real bearer the canonical requireAuth accepts on an
+    // allowlisted route (the popup reads the account context).
     const me = await app.inject({
       method: "GET",
       url: "/v1/platform/context",
       headers: { authorization: `Bearer ${access}` },
     });
     expect(me.statusCode).not.toBe(401);
+    expect(me.statusCode).not.toBe(403);
+  });
+
+  async function mintExtensionToken(): Promise<string> {
+    const { verifier, challenge } = pkce();
+    const authz = await authorize({
+      response_type: "code",
+      client_id: CLIENT,
+      redirect_uri: REDIRECT,
+      code_challenge: challenge,
+      code_challenge_method: "S256",
+      state: "scope-test",
+      scope: "capture.direct",
+    });
+    const code = codeFrom(authz);
+    const tok = await tokenExchange({
+      grant_type: "authorization_code",
+      code,
+      code_verifier: verifier,
+      client_id: CLIENT,
+      redirect_uri: REDIRECT,
+    });
+    return tok.json().access_token as string;
+  }
+
+  it("§4.1 — the capture-scoped token is refused on routes outside its allowlist", async () => {
+    const access = await mintExtensionToken();
+
+    // Allowed: an allowlisted capture route (session open) is NOT a scope 403.
+    const openSession = await app.inject({
+      method: "POST",
+      url: "/v1/capture/direct-sessions",
+      headers: { authorization: `Bearer ${access}`, "content-type": "application/json" },
+      payload: JSON.stringify({ mode: "DIRECT_WEB_CAPTURE_EXTENSION", teamId: owner().teamId, deviceId: null }),
+    });
+    expect(openSession.statusCode).not.toBe(403);
+
+    // Refused: an unrelated authenticated route is 403 for a scoped token.
+    const unrelated = await app.inject({
+      method: "GET",
+      url: "/v1/evidence?scope=all&limit=1",
+      headers: { authorization: `Bearer ${access}` },
+    });
+    expect(unrelated.statusCode).toBe(403);
+
+    // Backward compatible: an ordinary (unscoped) token reaches the same route.
+    const ordinary = await app.inject({
+      method: "GET",
+      url: "/v1/evidence?scope=all&limit=1",
+      headers: { authorization: `Bearer ${owner().ownerToken}` },
+    });
+    expect(ordinary.statusCode).not.toBe(403);
   });
 
   it("authorize requires authentication", async () => {

@@ -71,9 +71,22 @@ function getS3Bucket(): string | null {
 
 function signatureHmac(payload: string): string {
   const secret =
-    process.env.DESTRUCTION_CERT_SIGNING_SECRET ??
-    process.env.WEBHOOK_SIGNING_SECRET ??
-    "PROOVRA_CERT_FALLBACK_SECRET";
+    process.env.DESTRUCTION_CERT_SIGNING_SECRET ?? process.env.WEBHOOK_SIGNING_SECRET ?? null;
+  if (!secret) {
+    // Fail closed in production: signing a certificate with a public constant
+    // would make the certificate's HMAC forgeable. A misconfigured deployment
+    // must refuse to sign rather than sign with a known key.
+    if ((process.env.NODE_ENV ?? "").toLowerCase() === "production") {
+      throw new Error(
+        "DESTRUCTION_CERT_SIGNING_SECRET (or WEBHOOK_SIGNING_SECRET) must be configured to sign a destruction certificate.",
+      );
+    }
+    // Non-production only, so local/test flows still run. The value is named so
+    // it can never be mistaken for a real secret.
+    return createHmac("sha256", "PROOVRA_DEV_ONLY_CERT_FALLBACK_NOT_FOR_PRODUCTION")
+      .update(payload, "utf8")
+      .digest("hex");
+  }
   return createHmac("sha256", secret).update(payload, "utf8").digest("hex");
 }
 

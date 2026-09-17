@@ -46,7 +46,18 @@ chrome.runtime.onMessage.addListener((message: Req, _sender, sendResponse) => {
       const clone = document.documentElement.cloneNode(true) as HTMLElement;
       const counts = sanitizeDom(clone);
       const html = `<!DOCTYPE html>\n<!-- PROOVRA sanitized DOM snapshot; inert, secrets cleared -->\n${clone.outerHTML}`;
-      sendResponse({ ok: true, html, counts, crossOriginFrames: countCrossOriginFrames() });
+      // Shadow DOM: cloneNode does NOT traverse shadow roots, so component
+      // content is not in this snapshot. We count OPEN shadow roots so the
+      // manifest can disclose the limitation truthfully (closed roots are
+      // undetectable, so this is a lower bound, never a guarantee of complete
+      // capture).
+      sendResponse({
+        ok: true,
+        html,
+        counts,
+        crossOriginFrames: countCrossOriginFrames(),
+        shadowRoots: countOpenShadowRoots(),
+      });
       return;
     }
   } catch (err) {
@@ -64,6 +75,20 @@ function countCrossOriginFrames(): number {
     } catch {
       n += 1;
     }
+  }
+  return n;
+}
+
+/**
+ * Count elements carrying an OPEN shadow root. `cloneNode(true)` omits shadow
+ * trees, so any open root means the DOM snapshot is incomplete. Closed roots are
+ * not observable from script, so this is a lower bound used only to DISCLOSE the
+ * limitation — never to assert a complete capture.
+ */
+function countOpenShadowRoots(): number {
+  let n = 0;
+  for (const el of Array.from(document.querySelectorAll("*"))) {
+    if ((el as Element & { shadowRoot?: ShadowRoot | null }).shadowRoot) n += 1;
   }
   return n;
 }

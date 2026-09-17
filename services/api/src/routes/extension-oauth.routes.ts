@@ -18,6 +18,7 @@ import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { signJwt } from "../services/jwt.js";
 import { getSecret } from "../config/runtime-secrets.js";
+import { EXTENSION_CAPTURE_SCOPE } from "../services/auth/extension-scope.js";
 import {
   EXTENSION_ACCESS_TOKEN_TTL_SECONDS,
   ExtensionOAuthError,
@@ -111,6 +112,10 @@ export async function extensionOAuthRoutes(app: FastifyInstance) {
             email: user.email,
             authMethod: "SOCIAL_OAUTH",
             authAt: Math.floor(Date.now() / 1000),
+            // UC-1 §4.1 — the RESTRICTED scope. requireAuth refuses this token on
+            // any route outside the capture allowlist (extension-scope.ts), so a
+            // leaked token cannot drive unrelated privileged operations.
+            scope: EXTENSION_CAPTURE_SCOPE,
           } as never,
           secret,
           EXTENSION_ACCESS_TOKEN_TTL_SECONDS,

@@ -534,14 +534,22 @@ browser acceptance.
 ### Remaining risks
 
 - **P0/P1:** none.
-- **P2 (deferred, non-blocking):** extension token, though no longer admin, is a
-  full-privilege user JWT — the `capture.direct` scope is returned but not enforced
-  on the JWT (scope-on-JWT enforcement is a cross-cutting auth change); Shadow DOM
-  is not captured/disclosed with a limitation code; mutation detection is
-  height-only. A pre-existing, non-UC-1 P2 (destruction-certificate HMAC fallback
-  secret) was noted for the destruction owner.
-- **P3:** sticky/fixed + navigation-during-capture disclosure; `optional_host_permissions`
-  declared-but-unused; manifest-part labelled before seal (cosmetic).
+- **P2 (deferred, non-blocking):** mutation detection is still height-only, and
+  sticky/fixed + navigation-during-capture are not distinctly disclosed
+  (bounded MutationObserver / navigation-identity work — DEFERRED, documented).
+- **P3:** none new.
+
+### UC-1 residual closure (during the UC-2 pass, 2026-09-17)
+
+| # | Residual | Prev sev | Action | Status |
+| --- | --- | --- | --- | --- |
+| 4.1 | Extension token full-user scope | P2 | Token now carries a restricted `capture.direct` scope; `requireAuth` **enforces** a deny-by-default allowlist (extension-scope.ts) so a scoped token reaches only the capture routes, refused (403) elsewhere; ordinary tokens unaffected. Negative tests added (allowed capture op, unrelated route 403, backward-compat). | **FIXED** |
+| 4.2 | Shadow DOM not disclosed | P2 | Content script counts open shadow roots; capture emits `SHADOW_DOM_NOT_FULLY_REPRESENTED` (already in the manifest schema). Closed roots undetectable → disclosed as a lower bound, never "complete". | **FIXED** |
+| 4.3 | Height-only mutation detection | P2 | A reliable bounded fingerprint needs a MutationObserver/structural hash; out of proportion to close safely now. | **DEFERRED (documented)** |
+| 4.4 | Sticky/fixed + navigation disclosure | P3 | Distinct limitation codes for sticky/navigation not added; each tile is still a truthful viewport observation. | **DEFERRED (documented)** |
+| 4.5 | `optional_host_permissions` unused | P3 | Removed from the MV3 manifest (no `chrome.permissions.request` consumer). | **FIXED** |
+| 4.6 | Manifest part labelled before seal | P3 | Web + screen capture now class the `CAPTURE_MANIFEST` part AFTER `completeDirectCapture` seals, so the label can never sit on an unsealed/failed record. | **FIXED** |
+| 4.7 | Destruction-cert HMAC public fallback | P2 (pre-existing, outside UC-1) | `signatureHmac` now **fails closed in production** when no real secret is configured (dev keeps a clearly non-production fallback), removing the forgeable public-constant path. | **FIXED** |
 
 ### UC-2 readiness
 

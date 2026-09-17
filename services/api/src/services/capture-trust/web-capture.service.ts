@@ -115,24 +115,22 @@ export async function completeWebCaptureSession(
     }
   }
 
-  // Class the manifest part. Its bytes are still verified by completeEvidence
-  // against the declared digest below, so this is a label, not a trust grant.
-  if (session.finalizedEvidenceId) {
-    await db.evidencePart.updateMany({
-      where: {
-        evidenceId: session.finalizedEvidenceId,
-        partIndex: manifestPartIndex,
-      },
-      data: { artifactClass: "CAPTURE_MANIFEST" },
-    });
-  }
-
-  // 4. Seal through the canonical direct-capture completion.
+  // 4. Seal through the canonical direct-capture completion FIRST. Only a sealed
+  //    record may carry the CAPTURE_MANIFEST label — labeling before the seal
+  //    (UC-1 §4.6) could leave the label on an unsealed/failed record.
   const result = await completeDirectCapture({
     prisma: db,
     sessionId: input.sessionId,
     ownerUserId: input.ownerUserId,
     now: input.now,
+  });
+
+  // 5. Class the manifest part now that the record is sealed. Its bytes were
+  //    already verified against the declared digest by completeEvidence, so this
+  //    is a label on a sealed record, not a trust grant on an unsealed one.
+  await db.evidencePart.updateMany({
+    where: { evidenceId: result.evidenceId, partIndex: manifestPartIndex },
+    data: { artifactClass: "CAPTURE_MANIFEST" },
   });
 
   return { ...result, manifestPartIndex };
