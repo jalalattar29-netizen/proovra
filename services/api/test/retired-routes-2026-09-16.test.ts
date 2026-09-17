@@ -70,6 +70,7 @@ import { intelligenceRoutes } from "../src/routes/intelligence.routes.js";
 import { reviewerWorkspaceRoutes } from "../src/routes/reviewer-workspace.routes.js";
 import { searchRoutes } from "../src/routes/search.routes.js";
 import { trustAndGovernanceRoutes } from "../src/routes/trust-and-governance.routes.js";
+import { workflowInstancesRoutes } from "../src/routes/workflow-instances.routes.js";
 import { workflowRoutes } from "../src/routes/workflow.routes.js";
 
 const ID = "11111111-1111-4111-8111-111111111111";
@@ -233,6 +234,58 @@ const CASES: Case[] = [
     canonical: "/v1/search/reindex/evidence/:id",
     payload: { teamId: TEAM },
   },
+  // 10. Security (D48, 2026-09-17) — Phase 22 workflow-instance mutations a
+  //     VIEWER could drive; none had a consumer. The reads and the step waive
+  //     stay live (runtime-proven in defects-workflows-audits).
+  {
+    method: "POST",
+    url: "/v1/workflows/instances",
+    code: "WORKFLOW_INSTANCE_MUTATION_RETIRED",
+    canonical: "/v1/reviewer-ops/queue",
+    payload: { teamId: TEAM, intakeMode: "AUTHENTICATED_STANDARD", actorRole: "OPERATOR", steps: [] },
+  },
+  {
+    method: "POST",
+    url: `/v1/workflows/instances/${ID}/submit`,
+    code: "WORKFLOW_INSTANCE_MUTATION_RETIRED",
+    canonical: "/v1/reviewer-ops/reviews/:workflowId/start",
+    payload: { teamId: TEAM },
+  },
+  {
+    method: "POST",
+    url: `/v1/workflows/instances/${ID}/steps/scene-photo/map-evidence`,
+    code: "WORKFLOW_INSTANCE_MUTATION_RETIRED",
+    canonical: "/v1/reviewer-ops/workspace/:workflowId",
+    payload: { teamId: TEAM, evidenceId: SESSION },
+  },
+  {
+    method: "POST",
+    url: `/v1/workflows/instances/${ID}/assign-reviewer`,
+    code: "WORKFLOW_INSTANCE_MUTATION_RETIRED",
+    canonical: "/v1/reviewer-ops/reviews/:workflowId/assign",
+    payload: { teamId: TEAM, reviewerUserId: SESSION },
+  },
+  {
+    method: "POST",
+    url: `/v1/workflows/instances/${ID}/approve`,
+    code: "WORKFLOW_INSTANCE_MUTATION_RETIRED",
+    canonical: "/v1/reviewer-ops/reviews/:workflowId/approve",
+    payload: { teamId: TEAM },
+  },
+  {
+    method: "POST",
+    url: `/v1/workflows/instances/${ID}/request-changes`,
+    code: "WORKFLOW_INSTANCE_MUTATION_RETIRED",
+    canonical: "/v1/reviewer-ops/reviews/:workflowId/request-info",
+    payload: { teamId: TEAM },
+  },
+  {
+    method: "POST",
+    url: `/v1/workflows/instances/${ID}/cancel`,
+    code: "WORKFLOW_INSTANCE_MUTATION_RETIRED",
+    canonical: "/v1/reviewer-ops/reviews/:workflowId/reject",
+    payload: { teamId: TEAM },
+  },
 ];
 
 let app: FastifyInstance;
@@ -250,6 +303,7 @@ beforeAll(async () => {
     reviewerWorkspaceRoutes,
     searchRoutes,
     trustAndGovernanceRoutes,
+    workflowInstancesRoutes,
     workflowRoutes,
   ]) {
     await app.register(routes);
@@ -289,9 +343,9 @@ describe("retired routes (2026-09-16) — typed 410 tombstones", () => {
     expect(H.dbCalls.length).toBeGreaterThan(0);
   });
 
-  it("covers the twenty-one retired registrations", () => {
-    expect(CASES).toHaveLength(21);
-    expect(new Set(CASES.map((c) => `${c.method} ${c.url}`)).size).toBe(21);
+  it("covers the 28 retired registrations", () => {
+    expect(CASES).toHaveLength(28);
+    expect(new Set(CASES.map((c) => `${c.method} ${c.url}`)).size).toBe(28);
   });
 
   for (const c of CASES) {

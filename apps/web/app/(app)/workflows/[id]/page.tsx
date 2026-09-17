@@ -11,8 +11,8 @@
  *   - mapped evidence summary
  *   - export-policy summary (operator-readable blockers)
  *   - safe activity timeline
- *   - reviewer actions: submit / assign / approve / request changes /
- *     waive / cancel
+ *   - the legacy step waive (the only mutation left on this page; the
+ *     lifecycle actions live in Reviewer Operations)
  *
  * Wording invariant: operational only. We say "review approved",
  * "workflow approved", "step satisfied", "step waived". See the
@@ -22,9 +22,12 @@
  * Hard invariants:
  *   - Frontend state is advisory. The backend engine is the source of
  *     truth; every action POSTs and re-loads on success.
- *   - Step-up errors (`STEP_UP_REQUIRED`) surface as a clear prompt;
- *     the OTP value NEVER lives in component state beyond the form
- *     submit and is never sent to any logger.
+ *   - Step-up (`STEP_UP_REQUIRED`) runs through the shared
+ *     `useStepUpAction` flow: the challenge modal opens and the SAME
+ *     request is retried once with the approved challenge id (D49 —
+ *     before this, the page never sent the step-up header, so a waive
+ *     could only ever fail). The OTP value lives in the shared modal,
+ *     never in this page's state, and is never sent to any logger.
  *   - Governance errors (`WORKFLOW_GOVERNANCE_BLOCKED`,
  *     `WORKFLOW_LEGAL_HOLD_ACTIVE`) render with the operational
  *     reason; details (legal-hold reason text) are NEVER fetched or
@@ -44,6 +47,10 @@ import { formatUserDateTime } from "../../../../lib/date";
 import { useTeamId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
+import {
+  StepUpModal,
+  useStepUpAction,
+} from "../../../../components/identity-security/StepUpModal";
 
 // Phase R canonicalization: the local InstanceStatus union has been
 // replaced by the canonical WorkflowInstanceStatus from @proovra/shared.
@@ -68,8 +75,9 @@ const TIMELINE_KIND_LABEL: Readonly<Record<string, string>> = {
 // approve / request-changes / cancel) have been removed from this
 // page; those mutations are now owned by Reviewer Operations.
 //
-// The waive-step + map-evidence routes remain Phase 22 unique. They
-// stay behind a "Show legacy step controls" toggle (default off) so
+// The waive-step route remains Phase 22 unique (map-evidence was never
+// wired to a control and is retired, D48). It stays behind a
+// "Show legacy step controls" toggle (default off) so
 // operators with in-flight Phase 22 instances can still complete
 // outstanding step bookkeeping without surfacing the dead buttons by
 // default.
@@ -171,6 +179,7 @@ function WorkflowInstancePageInner() {
   // closing out in-flight Phase 22 instances.
   const [showLegacyStepControls, setShowLegacyStepControls] = useState(false);
   const { confirm } = useConfirmAction();
+  const stepUp = useStepUpAction({ teamId });
 
   async function refresh() {
     if (!teamId || !instanceId) return;
@@ -234,21 +243,35 @@ function WorkflowInstancePageInner() {
     }
     setBusy(true);
     try {
-      const res: { error?: { code?: string; reason?: string } } = await apiFetch(
-        `/v1/workflows/instances/${instanceId}${path}`,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ teamId, ...body }),
-        },
-      );
-      if (res.error) {
+      // D49 — through the shared step-up wrapper: transparent when no
+      // step-up is needed; a 401 STEP_UP_REQUIRED opens the challenge and
+      // resumes this same request with `x-proovra-step-up-challenge-id`.
+      const res: { error?: { code?: string; reason?: string } } =
+        await stepUp.runStepUpAction((stepUpHeaders) =>
+          apiFetch(`/v1/workflows/instances/${instanceId}${path}`, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              ...(stepUpHeaders ?? {}),
+            },
+            body: JSON.stringify({ teamId, ...body }),
+          }),
+        );
+      if (res?.error) {
         handleEngineError(res.error.code ?? "", res.error.reason ?? null);
         return;
       }
       await refresh();
     } catch (err) {
-      const e = err as { status?: number; body?: { error?: { code?: string; reason?: string } } };
+      const e = err as {
+        code?: string;
+        status?: number;
+        body?: { error?: { code?: string; reason?: string } };
+      };
+      if (e.code === "STEP_UP_CANCEL") {
+        // The operator closed the challenge: nothing was changed.
+        return;
+      }
       if (e.body?.error?.code) {
         handleEngineError(e.body.error.code, e.body.error.reason ?? null);
       } else {
@@ -262,7 +285,7 @@ function WorkflowInstancePageInner() {
   function handleEngineError(code: string, _reason: string | null): void {
     if (code === "STEP_UP_REQUIRED") {
       alert(
-        "Step-up verification is required for this action. Open the security center to start a step-up challenge, then retry from here.",
+        "Step-up verification was not accepted for this action. Start the action again to verify.",
       );
       return;
     }
@@ -306,6 +329,7 @@ function WorkflowInstancePageInner() {
 
   return (
     <div style={pageStyle}>
+      <StepUpModal control={stepUp} />
       <header>
         <h1 style={titleStyle}>Workflow</h1>
         <p style={mutedStyle}>

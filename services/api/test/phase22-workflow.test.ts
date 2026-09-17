@@ -140,19 +140,25 @@ describe("Phase 22 — workflow instance routes auth posture", () => {
     expect(src).toMatch(
       /app\.post\(\s*"\/v1\/workflows\/instances"[\s\S]{0,200}preHandler:\s*requireAuth/,
     );
-    const guardBlock = src.match(/requireWorkflowActor[\s\S]{0,1500}/);
+    // D48 (2026-09-17) — the guard is the canonical authorizeOrFail with
+    // anti-enumeration (a non-member is 404 not_found), and it takes the
+    // permission per route instead of the old identity.member.read, which a
+    // VIEWER holds. The live behaviour is proven in
+    // defects-workflows-audits.integration.test.ts.
+    const guardBlock = src.match(/async function requireWorkflowActor[\s\S]{0,600}/);
     expect(guardBlock).not.toBeNull();
-    if (guardBlock) {
-      const nonMember = guardBlock[0].match(/if \(!member\)[\s\S]{0,200}/);
-      expect(nonMember).not.toBeNull();
-      if (nonMember) {
-        expect(nonMember[0]).toMatch(/reply\.code\(404\)/);
-        expect(nonMember[0]).not.toMatch(/reply\.code\(403\)/);
-      }
-    }
+    expect(guardBlock![0]).toMatch(
+      /authorizeOrFail\(req, reply, \{[\s\S]{0,80}antiEnumeration: true/,
+    );
+    expect(guardBlock![0]).toMatch(/permission: Permission/);
+    expect(src).not.toMatch(/"identity\.member\.read"/);
+    expect(src).toMatch(/WORKFLOW_READ_PERMISSION: Permission = "evidence\.read"/);
+    expect(src).toMatch(
+      /WORKFLOW_REVIEW_PERMISSION: Permission = "evidence_request\.review"/,
+    );
   });
 
-  it("waive + cancel routes wire step-up middleware", async () => {
+  it("waive wires the review permission then step-up; cancel is a retired tombstone", async () => {
     const { readFile } = await import("node:fs/promises");
     const { fileURLToPath } = await import("node:url");
     const src = await readFile(
@@ -166,7 +172,12 @@ describe("Phase 22 — workflow instance routes auth posture", () => {
       /app\.post\(\s*"\/v1\/workflows\/instances\/:id\/steps\/:stepKey\/waive"[\s\S]{0,1500}requireStepUpForSensitiveAction/,
     );
     expect(src).toMatch(
-      /app\.post\(\s*"\/v1\/workflows\/instances\/:id\/cancel"[\s\S]{0,1500}requireStepUpForSensitiveAction/,
+      /app\.post\(\s*"\/v1\/workflows\/instances\/:id\/steps\/:stepKey\/waive"[\s\S]{0,1500}WORKFLOW_REVIEW_PERMISSION[\s\S]{0,1200}requireStepUpForSensitiveAction/,
+    );
+    // D48 — cancel had no consumer and answers a typed 410 without doing any
+    // work, so there is no mutation left for step-up to guard.
+    expect(src).toMatch(
+      /app\.post\(\s*"\/v1\/workflows\/instances\/:id\/cancel"[\s\S]{0,200}workflowInstanceMutationRetired\(/,
     );
   });
 });

@@ -52,6 +52,7 @@ import {
   evaluateCurrentWorkspace,
 } from "../middleware/authorize.js";
 import { workspaceIncludesReviewerOperations } from "../services/billing-enforcement.service.js";
+import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 
 import {
   archiveSchema,
@@ -225,6 +226,66 @@ function requireCap(
     isPlatformAdmin: ctx.isPlatformAdmin,
   });
   return callerHasCapability(r, cap);
+}
+
+/**
+ * D52 (2026-09-17) — the audit row for a coding-value write.
+ *
+ * A coded value is a reviewer's finding on a piece of evidence, and the
+ * write routes recorded nothing about who set it. Each write now leaves one
+ * tenant-audit row through the canonical facade: actor, workspace, the
+ * resource written (the coding value on success, the workflow otherwise),
+ * and the outcome. The VALUE itself and any rationale are never included —
+ * only identifiers and the bounded denial code.
+ *
+ * Awaited so the row exists when the response is sent; a failed audit write
+ * is swallowed so it cannot turn a saved value into a 500.
+ */
+async function auditCodingWrite(input: {
+  action: string;
+  actorUserId: string;
+  teamId: string;
+  workflowId: string;
+  codingValueId: string | null;
+  denial: string | null;
+  metadata: Record<string, unknown>;
+}): Promise<void> {
+  const ok = input.denial === null;
+  await emitTenantAudit({
+    action: input.action,
+    outcome: ok ? "success" : "denied",
+    denialReason: input.denial,
+    reasonCode: input.denial,
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    workspaceId: input.teamId,
+    resourceType:
+      ok && input.codingValueId ? "coding_value" : "evidence_review_workflow",
+    resourceId:
+      ok && input.codingValueId ? input.codingValueId : input.workflowId,
+    metadata: { workflowId: input.workflowId, ...input.metadata },
+  }).catch(() => {});
+}
+
+/** One row per workflow a bulk coding write touched (see auditCodingWrite). */
+async function auditBulkCodingWrites(input: {
+  action: string;
+  actorUserId: string;
+  teamId: string;
+  outcomes: ReadonlyArray<{ workflowId: string; ok: boolean; denial?: string }>;
+  metadata: Record<string, unknown>;
+}): Promise<void> {
+  for (const o of input.outcomes) {
+    await auditCodingWrite({
+      action: input.action,
+      actorUserId: input.actorUserId,
+      teamId: input.teamId,
+      workflowId: o.workflowId,
+      codingValueId: null,
+      denial: o.ok ? null : (o.denial ?? "POLICY_REJECTED"),
+      metadata: { ...input.metadata, bulk: true },
+    });
+  }
 }
 
 // =============================================================================
@@ -553,6 +614,15 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
         authorUserId: ctx.userId,
         rationale: body.rationale,
       });
+      await auditCodingWrite({
+        action: "reviewer.code.write",
+        actorUserId: ctx.userId,
+        teamId: ctx.teamId,
+        workflowId,
+        codingValueId: res.ok ? res.codingValueId : null,
+        denial: res.ok ? null : res.denial,
+        metadata: { fieldId: body.fieldId },
+      });
       if (!res.ok) return denyWith(reply, 409, res.denial);
       return reply.code(200).send({ codingValueId: res.codingValueId });
     },
@@ -831,6 +901,14 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
         workflowIds: body.workflowIds,
       });
       if (!res.ok) return denyWith(reply, 409, res.denial);
+      // D52 — the verdict is a coded value; it is not copied into the row.
+      await auditBulkCodingWrites({
+        action: "reviewer.code.bulk_decide",
+        actorUserId: ctx.userId,
+        teamId: ctx.teamId,
+        outcomes: res.outcomes,
+        metadata: {},
+      });
       return reply.code(200).send(res);
     },
   );
@@ -859,6 +937,13 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
         workflowIds: body.workflowIds,
       });
       if (!res.ok) return denyWith(reply, 409, res.denial);
+      await auditBulkCodingWrites({
+        action: "reviewer.code.bulk_write",
+        actorUserId: ctx.userId,
+        teamId: ctx.teamId,
+        outcomes: res.outcomes,
+        metadata: { fieldSlug: body.fieldSlug },
+      });
       return reply.code(200).send(res);
     },
   );

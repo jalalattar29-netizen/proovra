@@ -7,32 +7,55 @@
  * The frontend mutation buttons that drove submit / approve /
  * request-changes / assign-reviewer / cancel were removed in Phase C
  * (the /workflows/[id] detail page now carries a deprecation banner
- * directing operators to /review). The routes below remain live so
- * any pre-existing Phase 22 row can still be closed out, but no new
- * UI surface should call them — extend reviewer-ops instead.
+ * directing operators to /review). The reads and the step waive remain
+ * live so a pre-existing Phase 22 row can still be inspected and its
+ * step bookkeeping closed out; no new UI surface should call them —
+ * extend reviewer-ops instead.
  *
  * Phase 22 — Workflow instance routes.
  *
  *   GET    /v1/workflows/instances?teamId&status&limit          — list
  *   GET    /v1/workflows/instances/:id                          — get + steps
- *   POST   /v1/workflows/instances                              — create
- *   POST   /v1/workflows/instances/:id/submit                   — submit
- *   POST   /v1/workflows/instances/:id/steps/:stepKey/map-evidence
- *   POST   /v1/workflows/instances/:id/steps/:stepKey/waive     — step-up required
- *   POST   /v1/workflows/instances/:id/assign-reviewer
- *   POST   /v1/workflows/instances/:id/approve                  — step-up required (if high-risk)
- *   POST   /v1/workflows/instances/:id/request-changes
- *   POST   /v1/workflows/instances/:id/cancel                   — step-up required (after submit)
+ *   GET    /v1/workflows/instances/:id/timeline
+ *   GET    /v1/workflows/instances/:id/export-policy
+ *   POST   /v1/workflows/instances/:id/steps/:stepKey/waive     — review permission + step-up
+ *   POST   /v1/workflows/instances                              — 410 (D48)
+ *   POST   /v1/workflows/instances/:id/submit                   — 410 (D48)
+ *   POST   /v1/workflows/instances/:id/steps/:stepKey/map-evidence — 410 (D48)
+ *   POST   /v1/workflows/instances/:id/assign-reviewer          — 410 (D48)
+ *   POST   /v1/workflows/instances/:id/approve                  — 410 (D48)
+ *   POST   /v1/workflows/instances/:id/request-changes          — 410 (D48)
+ *   POST   /v1/workflows/instances/:id/cancel                   — 410 (D48)
  *
  * Auth posture:
  *   - All routes use `requireAuth` (session JWT).
- *   - 404 on non-member (anti-enumeration via the Phase 17 access-
- *     policy engine + identity.member.read permission gate).
- *   - Sensitive mutations gate through `requireStepUpForSensitiveAction`
- *     reusing the Phase 19 catalog (e.g. `STEP_WAIVE_REQUIRED`,
- *     `INSTANCE_CANCEL_AFTER_SUBMIT`).
+ *   - Every live route authorizes through the canonical `authorizeOrFail`
+ *     with anti-enumeration (a non-member is 404 `not_found`).
  *   - Engine errors map to Phase 20 standardized response codes:
  *     STEP_UP_REQUIRED / GOVERNANCE_BLOCKED / RATE_LIMITED.
+ *
+ * D48 (2026-09-17) — PERMISSIONS AND RETIREMENT.
+ *
+ * Every route here used to be gated on `identity.member.read` — a
+ * member-DIRECTORY read that VIEWER holds — so a read-only VIEWER could
+ * create, submit, approve, request changes on, reassign and cancel a
+ * workflow instance. The gate is now the one reviewer-ops uses for the
+ * same actions:
+ *
+ *   - reads (list / get / timeline / export-policy / templates alias):
+ *     `evidence.read` — the reviewer-ops read baseline.
+ *   - waive (the ONE surviving product mutation — the detail page's
+ *     legacy step control): `evidence_request.review` — the reviewer-ops
+ *     write capability (OWNER / ADMIN / REVIEWER; not CONTRIBUTOR, not
+ *     VIEWER). Step-up is still required after the permission check.
+ *
+ * The other seven mutations had no consumer anywhere (apps/web,
+ * apps/mobile, e2e, worker): the detail page's lifecycle buttons were
+ * removed in Phase C and no page ever called create or map-evidence. They
+ * are retired to a typed 410 `WORKFLOW_INSTANCE_MUTATION_RETIRED` naming
+ * the reviewer-ops route that replaced each one. The tombstones keep
+ * `requireAuth`, never parse their input and read/write no domain data;
+ * stored instances are untouched and still readable.
  */
 
 import type {
@@ -41,29 +64,21 @@ import type {
   FastifyRequest,
 } from "fastify";
 import { z } from "zod";
-import {
-  WORKFLOW_ACTOR_ROLES,
-  WORKFLOW_INSTANCE_STATUSES,
-  WorkflowIntakeModeSchema,
-} from "@proovra/shared";
+import { WORKFLOW_INSTANCE_STATUSES, type Permission } from "@proovra/shared";
 
-import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import { authorizeOrFail } from "../middleware/authorize.js";
 import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
 import {
   WorkflowEngineError,
-  assignReviewer,
-  createWorkflowInstance,
   getInstanceExportPolicySummary,
   getInstanceTimeline,
   getInstanceWithSteps,
   listInstances,
-  mapEvidenceToStep,
   projectInstance,
   projectStep,
   projectStepForReviewer,
-  transitionInstance,
   waiveStep,
 } from "../services/workflows/evidence-workflow-engine.service.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
@@ -81,39 +96,46 @@ function requestUa(req: FastifyRequest): string | null {
   return raw.trim().slice(0, 512) || null;
 }
 
+/** The reviewer-ops read baseline (see the D48 note in the header). */
+const WORKFLOW_READ_PERMISSION: Permission = "evidence.read";
+/** The reviewer-ops write capability (see the D48 note in the header). */
+const WORKFLOW_REVIEW_PERMISSION: Permission = "evidence_request.review";
+
 /**
- * 404-on-non-member + identity.member.read permission gate.
+ * Canonical authorization: 404 `not_found` for a caller outside the
+ * workspace (anti-enumeration), 403 `permission_denied` for a member who
+ * lacks `permission`.
  */
 async function requireWorkflowActor(
   req: FastifyRequest,
   reply: FastifyReply,
   teamId: string,
+  permission: Permission,
 ): Promise<{ userId: string } | null> {
-  const userId = getAuthUserId(req);
-  const member = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
-    select: { id: true },
-  });
-  if (!member) {
-    reply.code(404).send({ error: { code: "not_found" } });
-    return null;
-  }
-  const decision = await evaluateMemberAccess({
+  const outcome = await authorizeOrFail(req, reply, {
     teamId,
-    userId,
-    permission: "identity.member.read",
+    permission,
+    antiEnumeration: true,
   });
-  if (!decision.allowed) {
-    reply.code(403).send({
-      error: {
-        code: "permission_denied",
-        reason: decision.reason,
-        detail: decision.detail ?? null,
-      },
-    });
-    return null;
-  }
-  return { userId };
+  return outcome ? { userId: outcome.actorUserId } : null;
+}
+
+/**
+ * D48 — the typed 410 for a retired Phase 22 mutation. Reads and writes
+ * nothing; `canonical` names the reviewer-ops route that replaced it.
+ */
+function workflowInstanceMutationRetired(
+  reply: FastifyReply,
+  canonical: string,
+) {
+  return reply.code(410).send({
+    error: {
+      code: "WORKFLOW_INSTANCE_MUTATION_RETIRED",
+      message:
+        "This workflow action has moved to Reviewer Operations. Existing workflow records stay readable here.",
+    },
+    canonical,
+  });
 }
 
 function handleEngineError(reply: FastifyReply, err: unknown): boolean {
@@ -153,7 +175,12 @@ export async function workflowInstancesRoutes(app: FastifyInstance) {
           limit: z.coerce.number().int().min(1).max(500).optional(),
         })
         .parse(req.query ?? {});
-      const actor = await requireWorkflowActor(req, reply, q.teamId);
+      const actor = await requireWorkflowActor(
+        req,
+        reply,
+        q.teamId,
+        WORKFLOW_READ_PERMISSION,
+      );
       if (!actor) return;
       const rows = await listInstances({
         teamId: q.teamId,
@@ -176,7 +203,12 @@ export async function workflowInstancesRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = ParamsId.parse(req.params);
       const q = TeamIdQuery.parse(req.query ?? {});
-      const actor = await requireWorkflowActor(req, reply, q.teamId);
+      const actor = await requireWorkflowActor(
+        req,
+        reply,
+        q.teamId,
+        WORKFLOW_READ_PERMISSION,
+      );
       if (!actor) return;
       try {
         const { instance, steps } = await getInstanceWithSteps({
@@ -232,112 +264,32 @@ export async function workflowInstancesRoutes(app: FastifyInstance) {
   );
 
   // -------------------------------------------------------------------------
-  // Create
+  // RETIRED (D48) — create, map-evidence
+  //
+  // Neither had a caller anywhere: no page ever created a Phase 22 instance
+  // or mapped evidence to one of its steps. New review work is created by the
+  // platform as an EvidenceReviewWorkflow and worked in reviewer-ops.
   // -------------------------------------------------------------------------
-
-  const CreateBody = z.object({
-    teamId: z.string().uuid(),
-    templateId: z.string().uuid().nullable().optional(),
-    templateSlug: z.string().min(1).max(120).nullable().optional(),
-    templateVersion: z.number().int().min(1).nullable().optional(),
-    intakeMode: WorkflowIntakeModeSchema,
-    actorRole: z.enum(WORKFLOW_ACTOR_ROLES as unknown as [string, ...string[]]),
-    caseId: z.string().uuid().nullable().optional(),
-    claimRef: z.string().max(128).nullable().optional(),
-    matterRef: z.string().max(128).nullable().optional(),
-    evidenceRequestId: z.string().uuid().nullable().optional(),
-    intakeSessionId: z.string().uuid().nullable().optional(),
-    title: z.string().max(180).nullable().optional(),
-    steps: z
-      .array(
-        z.object({
-          stepKey: z.string().min(1).max(80),
-          title: z.string().min(1).max(180),
-          required: z.boolean(),
-          orderIndex: z.number().int().min(0),
-          acceptedKinds: z.array(z.string().min(1).max(40)).optional(),
-          identityRequirement: z.string().max(40).nullable().optional(),
-          locationRequirement: z.string().max(20).nullable().optional(),
-        }),
-      )
-      .min(1)
-      .max(50),
-  });
 
   app.post(
     "/v1/workflows/instances",
     { preHandler: requireAuth },
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      const body = CreateBody.parse(req.body ?? {});
-      const actor = await requireWorkflowActor(req, reply, body.teamId);
-      if (!actor) return;
-      try {
-        const created = await createWorkflowInstance({
-          teamId: body.teamId,
-          templateId: body.templateId ?? null,
-          templateSlug: body.templateSlug ?? null,
-          templateVersion: body.templateVersion ?? null,
-          steps: body.steps,
-          intakeMode: body.intakeMode as never,
-          actorRole: body.actorRole as never,
-          caseId: body.caseId ?? null,
-          claimRef: body.claimRef ?? null,
-          matterRef: body.matterRef ?? null,
-          evidenceRequestId: body.evidenceRequestId ?? null,
-          intakeSessionId: body.intakeSessionId ?? null,
-          createdByUserId: actor.userId,
-          title: body.title ?? null,
-        });
-        return reply
-          .code(201)
-          .send({ instance: projectInstance(created) });
-      } catch (err) {
-        if (handleEngineError(reply, err)) return;
-        throw err;
-      }
-    },
+    async (_req: FastifyRequest, reply: FastifyReply) =>
+      workflowInstanceMutationRetired(reply, "/v1/reviewer-ops/queue"),
   );
-
-  // -------------------------------------------------------------------------
-  // Map evidence to a step
-  // -------------------------------------------------------------------------
-
-  const MapEvidenceBody = z.object({
-    teamId: z.string().uuid(),
-    evidenceId: z.string().uuid(),
-  });
 
   app.post(
     "/v1/workflows/instances/:id/steps/:stepKey/map-evidence",
     { preHandler: requireAuth },
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      const params = z
-        .object({
-          id: z.string().uuid(),
-          stepKey: z.string().min(1).max(80),
-        })
-        .parse(req.params);
-      const body = MapEvidenceBody.parse(req.body ?? {});
-      const actor = await requireWorkflowActor(req, reply, body.teamId);
-      if (!actor) return;
-      try {
-        const step = await mapEvidenceToStep({
-          teamId: body.teamId,
-          workflowInstanceId: params.id,
-          stepKey: params.stepKey,
-          evidenceId: body.evidenceId,
-          actorUserId: actor.userId,
-        });
-        return reply.code(200).send({ step: projectStep(step) });
-      } catch (err) {
-        if (handleEngineError(reply, err)) return;
-        throw err;
-      }
-    },
+    async (_req: FastifyRequest, reply: FastifyReply) =>
+      workflowInstanceMutationRetired(
+        reply,
+        "/v1/reviewer-ops/workspace/:workflowId",
+      ),
   );
 
   // -------------------------------------------------------------------------
-  // Waive a step (step-up required)
+  // Waive a step (review permission + step-up required)
   // -------------------------------------------------------------------------
 
   const WaiveBody = z.object({
@@ -356,7 +308,16 @@ export async function workflowInstancesRoutes(app: FastifyInstance) {
         })
         .parse(req.params);
       const body = WaiveBody.parse(req.body ?? {});
-      const actor = await requireWorkflowActor(req, reply, body.teamId);
+      // D48 — waiving a REQUIRED step is a review decision, so it needs the
+      // reviewer-ops write capability, checked BEFORE step-up so a VIEWER is
+      // refused outright rather than invited to verify for an action they
+      // can never take.
+      const actor = await requireWorkflowActor(
+        req,
+        reply,
+        body.teamId,
+        WORKFLOW_REVIEW_PERMISSION,
+      );
       if (!actor) return;
       // Step-up: STEP_WAIVE_REQUIRED — defined in @proovra/shared
       // WORKFLOW_STEP_UP_ACTIONS. The Phase 19 catalog covers the
@@ -391,165 +352,61 @@ export async function workflowInstancesRoutes(app: FastifyInstance) {
   );
 
   // -------------------------------------------------------------------------
-  // Transitions: submit / approve / request-changes / cancel
+  // RETIRED (D48) — submit / approve / request-changes / cancel /
+  // assign-reviewer
+  //
+  // Their buttons were removed from the detail page in Phase C; each action
+  // is owned by the reviewer-ops lifecycle route named in `canonical`.
   // -------------------------------------------------------------------------
 
   app.post(
     "/v1/workflows/instances/:id/submit",
     { preHandler: requireAuth },
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      const { id } = ParamsId.parse(req.params);
-      const body = TeamIdQuery.parse(req.body ?? {});
-      const actor = await requireWorkflowActor(req, reply, body.teamId);
-      if (!actor) return;
-      try {
-        const updated = await transitionInstance({
-          teamId: body.teamId,
-          workflowInstanceId: id,
-          targetStatus: "SUBMITTED",
-          actorUserId: actor.userId,
-        });
-        return reply.code(200).send({ instance: projectInstance(updated) });
-      } catch (err) {
-        if (handleEngineError(reply, err)) return;
-        throw err;
-      }
-    },
+    async (_req: FastifyRequest, reply: FastifyReply) =>
+      workflowInstanceMutationRetired(
+        reply,
+        "/v1/reviewer-ops/reviews/:workflowId/start",
+      ),
   );
 
   app.post(
     "/v1/workflows/instances/:id/approve",
     { preHandler: requireAuth },
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      const { id } = ParamsId.parse(req.params);
-      const body = TeamIdQuery.parse(req.body ?? {});
-      const actor = await requireWorkflowActor(req, reply, body.teamId);
-      if (!actor) return;
-      try {
-        // Must move SUBMITTED → NEEDS_REVIEW → APPROVED via the
-        // allow-list. Approval emits its own audit + counter bump.
-        // The route serves both NEEDS_REVIEW → APPROVED and
-        // SUBMITTED → NEEDS_REVIEW shortcut; for Phase 22 we only
-        // accept NEEDS_REVIEW → APPROVED here (operator must move
-        // to NEEDS_REVIEW first via /assign-reviewer or its own
-        // transition).
-        const updated = await transitionInstance({
-          teamId: body.teamId,
-          workflowInstanceId: id,
-          targetStatus: "APPROVED",
-          actorUserId: actor.userId,
-        });
-        return reply.code(200).send({ instance: projectInstance(updated) });
-      } catch (err) {
-        if (handleEngineError(reply, err)) return;
-        throw err;
-      }
-    },
+    async (_req: FastifyRequest, reply: FastifyReply) =>
+      workflowInstanceMutationRetired(
+        reply,
+        "/v1/reviewer-ops/reviews/:workflowId/approve",
+      ),
   );
 
   app.post(
     "/v1/workflows/instances/:id/request-changes",
     { preHandler: requireAuth },
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      const { id } = ParamsId.parse(req.params);
-      const body = TeamIdQuery.parse(req.body ?? {});
-      const actor = await requireWorkflowActor(req, reply, body.teamId);
-      if (!actor) return;
-      try {
-        const updated = await transitionInstance({
-          teamId: body.teamId,
-          workflowInstanceId: id,
-          targetStatus: "CHANGES_REQUESTED",
-          actorUserId: actor.userId,
-        });
-        return reply.code(200).send({ instance: projectInstance(updated) });
-      } catch (err) {
-        if (handleEngineError(reply, err)) return;
-        throw err;
-      }
-    },
+    async (_req: FastifyRequest, reply: FastifyReply) =>
+      workflowInstanceMutationRetired(
+        reply,
+        "/v1/reviewer-ops/reviews/:workflowId/request-info",
+      ),
   );
 
   app.post(
     "/v1/workflows/instances/:id/cancel",
     { preHandler: requireAuth },
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      const { id } = ParamsId.parse(req.params);
-      const body = TeamIdQuery.parse(req.body ?? {});
-      const actor = await requireWorkflowActor(req, reply, body.teamId);
-      if (!actor) return;
-      // Cancellation after submission is operator-sensitive — gate
-      // with step-up. (Cancellation of DRAFT is non-sensitive; the
-      // service layer still requires the actor to be a workspace
-      // member.)
-      const gate = await requireStepUpForSensitiveAction({
-        req,
+    async (_req: FastifyRequest, reply: FastifyReply) =>
+      workflowInstanceMutationRetired(
         reply,
-        teamId: body.teamId,
-        userId: actor.userId,
-        purpose: "SESSION_SANITY_CHECK",
-        resourceKind: "evidence_workflow_instance",
-        resourceId: id,
-      });
-      if (gate.sent) return;
-      try {
-        const updated = await transitionInstance({
-          teamId: body.teamId,
-          workflowInstanceId: id,
-          targetStatus: "CANCELLED",
-          actorUserId: actor.userId,
-        });
-        return reply.code(200).send({ instance: projectInstance(updated) });
-      } catch (err) {
-        if (handleEngineError(reply, err)) return;
-        throw err;
-      }
-    },
+        "/v1/reviewer-ops/reviews/:workflowId/reject",
+      ),
   );
-
-  // -------------------------------------------------------------------------
-  // Assign reviewer
-  // -------------------------------------------------------------------------
-
-  const AssignReviewerBody = z.object({
-    teamId: z.string().uuid(),
-    reviewerUserId: z.string().uuid(),
-  });
 
   app.post(
     "/v1/workflows/instances/:id/assign-reviewer",
     { preHandler: requireAuth },
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      const { id } = ParamsId.parse(req.params);
-      const body = AssignReviewerBody.parse(req.body ?? {});
-      const actor = await requireWorkflowActor(req, reply, body.teamId);
-      if (!actor) return;
-      try {
-        const updated = await assignReviewer({
-          teamId: body.teamId,
-          workflowInstanceId: id,
-          reviewerUserId: body.reviewerUserId,
-          actorUserId: actor.userId,
-        });
-        // Transition to NEEDS_REVIEW if currently SUBMITTED.
-        if (updated.status === "SUBMITTED") {
-          try {
-            await transitionInstance({
-              teamId: body.teamId,
-              workflowInstanceId: id,
-              targetStatus: "NEEDS_REVIEW",
-              actorUserId: actor.userId,
-            });
-          } catch {
-            /* best-effort — operator can re-issue */
-          }
-        }
-        return reply.code(200).send({ instance: projectInstance(updated) });
-      } catch (err) {
-        if (handleEngineError(reply, err)) return;
-        throw err;
-      }
-    },
+    async (_req: FastifyRequest, reply: FastifyReply) =>
+      workflowInstanceMutationRetired(
+        reply,
+        "/v1/reviewer-ops/reviews/:workflowId/assign",
+      ),
   );
 
   // -------------------------------------------------------------------------
@@ -562,7 +419,12 @@ export async function workflowInstancesRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = ParamsId.parse(req.params);
       const q = TeamIdQuery.parse(req.query ?? {});
-      const actor = await requireWorkflowActor(req, reply, q.teamId);
+      const actor = await requireWorkflowActor(
+        req,
+        reply,
+        q.teamId,
+        WORKFLOW_READ_PERMISSION,
+      );
       if (!actor) return;
       try {
         const events = await getInstanceTimeline({ teamId: q.teamId, id });
@@ -580,7 +442,12 @@ export async function workflowInstancesRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = ParamsId.parse(req.params);
       const q = TeamIdQuery.parse(req.query ?? {});
-      const actor = await requireWorkflowActor(req, reply, q.teamId);
+      const actor = await requireWorkflowActor(
+        req,
+        reply,
+        q.teamId,
+        WORKFLOW_READ_PERMISSION,
+      );
       if (!actor) return;
       try {
         const summary = await getInstanceExportPolicySummary({
@@ -619,7 +486,12 @@ export async function workflowInstancesRoutes(app: FastifyInstance) {
           limit: z.coerce.number().int().min(1).max(200).optional(),
         })
         .parse(req.query ?? {});
-      const actor = await requireWorkflowActor(req, reply, q.teamId);
+      const actor = await requireWorkflowActor(
+        req,
+        reply,
+        q.teamId,
+        WORKFLOW_READ_PERMISSION,
+      );
       if (!actor) return;
       const { listEffectiveWorkflowTemplates, projectEffectiveWorkflowTemplate } =
         await import("../services/workflow-template.service.js");

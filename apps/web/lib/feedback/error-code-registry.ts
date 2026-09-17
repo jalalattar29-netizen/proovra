@@ -399,6 +399,14 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
       "templates are platform-managed; the Workflows page is read-only and no " +
       "surface ever created, edited or archived a template.",
   },
+  WORKFLOW_INSTANCE_MUTATION_RETIRED: {
+    disposition: "internal",
+    why:
+      "A retired operation answering a legacy client, not a person. The " +
+      "Phase 22 workflow-instance lifecycle actions (create, submit, map " +
+      "evidence, assign, approve, request changes, cancel) had no surface; " +
+      "they live in Reviewer Operations.",
+  },
   BILLING_SUBSCRIPTION_READ_RETIRED: {
     disposition: "internal",
     why:

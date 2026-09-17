@@ -585,8 +585,17 @@ describe("K4-B — reviewer and saved views (live PostgreSQL 16)", () => {
       row = await prisma.codingValue.findUniqueOrThrow({ where: { id: codingValueId } });
       expect(row.value).toEqual({ text: "Dent and scratch on the rear door." });
       expect(row.authorUserId).toBe(a.adminUserId);
-      // The coding-value writer emits no audit row (coding-value.service.ts).
-      expect(await prisma.adminAuditLog.count({ where: { resourceId: codingValueId } })).toBe(0);
+      // D52 — each write leaves one audit row (reviewer-workspace.routes.ts),
+      // attributed to its own writer; the coded text is never copied into it.
+      const audits = await prisma.adminAuditLog.findMany({
+        where: { resourceId: codingValueId, action: "reviewer.code.write" },
+        orderBy: { createdAt: "asc" },
+      });
+      expect(audits.map((r) => [r.userId, r.workspaceId, r.outcome, r.resourceType])).toEqual([
+        [a.memberUserId, a.teamId, "success", "coding_value"],
+        [a.adminUserId, a.teamId, "success", "coding_value"],
+      ]);
+      expect(JSON.stringify(audits)).not.toContain("rear door");
     });
 
     it("POST /v1/reviewer/work/:id/code — a VIEWER, an invalid value, an unbound field and another tenant are refused; value unchanged", async () => {
@@ -802,8 +811,11 @@ describe("K4-B — reviewer and saved views (live PostgreSQL 16)", () => {
       });
       expect(row.filterJson).toEqual({ investigationStatus: ["review"], requireMissingChecklistItems: true });
       expect(row.sortJson).toEqual({ key: "updatedAtUtc", direction: "desc" });
-      // The SIU saved-view writer emits no audit row (siu-saved-views.service.ts).
-      expect(await prisma.adminAuditLog.count({ where: { resourceId: id } })).toBe(0);
+      // D52 — the create leaves exactly one audit row (siu-saved-views.service.ts).
+      const audits = await prisma.adminAuditLog.findMany({ where: { resourceId: id } });
+      expect(audits.map((r) => [r.action, r.userId, r.workspaceId, r.outcome])).toEqual([
+        ["siu.saved_view.create", a.memberUserId, a.teamId, "success"],
+      ]);
     });
 
     it("POST /v1/siu/saved-views — another tenant is refused member_inactive; nothing written", async () => {

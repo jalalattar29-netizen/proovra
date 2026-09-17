@@ -12,9 +12,11 @@
  * Payloads come from the real consumers:
  *   - apps/web/app/(app)/intake-links/_lib/wizardState.ts          (buildCreateBody)
  *   - apps/web/app/(app)/workflows/[id]/page.tsx                   (performAction body)
- * Routes with no current web consumer (POST /v1/workflows/instances) take their
- * contract from the route's zod schema. The workspace template mutations were
- * retired to typed 410s on 2026-09-16; their block pins the tombstone.
+ * The Phase 22 instance mutations with no consumer (create, submit, approve,
+ * request-changes, cancel, assign-reviewer, map-evidence) were retired to typed
+ * 410s on 2026-09-17 (D48); instances are seeded through the engine and the
+ * tombstones are pinned here. The workspace template mutations were retired to
+ * typed 410s on 2026-09-16; their block pins the tombstone.
  *
  * Step-up is satisfied exactly as step-up-totp-org-boundary.integration.test.ts
  * does: a verified authenticator factor, then the real start/check routes.
@@ -183,14 +185,36 @@ describe("K4-C — workflow instances, intake links, templates (live PostgreSQL 
       ],
     });
 
+    /**
+     * D48 — create is retired (no consumer), so a DRAFT instance is seeded
+     * through the engine function the route used to call.
+     */
     async function createInstance(title = `k4 wf ${tag()}`) {
       const a = h.fixtures.teamA;
-      const res = await call({ method: "POST", url: "/v1/workflows/instances", token: a.memberToken, payload: createBody(a.teamId, title) });
-      expect(res.statusCode, res.body).toBe(201);
-      return res.json().instance.id as string;
+      const { createWorkflowInstance } = await import(
+        "../src/services/workflows/evidence-workflow-engine.service.js"
+      );
+      const body = createBody(a.teamId, title);
+      const row = await createWorkflowInstance({
+        ...body,
+        createdByUserId: a.memberUserId,
+      } as never);
+      return row.id;
     }
 
-    it("POST /v1/workflows/instances — a member creates a DRAFT instance with its step snapshot; audited", async () => {
+    it("POST /v1/workflows/instances — retired (D48): a member gets 410 and nothing is written", async () => {
+      const a = h.fixtures.teamA;
+      const title = `Claim intake ${tag()}`;
+      const res = await call({ method: "POST", url: "/v1/workflows/instances", token: a.memberToken, payload: createBody(a.teamId, title) });
+      expect(res.statusCode, res.body).toBe(410);
+      expect(res.json()).toMatchObject({
+        error: { code: "WORKFLOW_INSTANCE_MUTATION_RETIRED" },
+        canonical: "/v1/reviewer-ops/queue",
+      });
+      expect(await prisma.evidenceWorkflowInstance.count({ where: { title } })).toBe(0);
+    });
+
+    it("the engine seed used by this block creates a DRAFT instance with its step snapshot; audited", async () => {
       const a = h.fixtures.teamA;
       const title = `Claim intake ${tag()}`;
       const id = await createInstance(title);
@@ -217,23 +241,6 @@ describe("K4-C — workflow instances, intake links, templates (live PostgreSQL 
         outcome: "success",
         resourceType: "evidence_workflow_instance",
       });
-    });
-
-    it("POST /v1/workflows/instances — another tenant is concealed 404 and an external role on an internal mode is refused; nothing written", async () => {
-      const a = h.fixtures.teamA;
-      const title = `Refused ${tag()}`;
-      const foreign = await call({ method: "POST", url: "/v1/workflows/instances", token: h.fixtures.teamB.ownerToken, payload: createBody(a.teamId, title) });
-      expect(foreign.statusCode).toBe(404);
-      expect(foreign.json()).toEqual({ error: { code: "not_found" } });
-      const badRole = await call({
-        method: "POST",
-        url: "/v1/workflows/instances",
-        token: a.memberToken,
-        payload: { ...createBody(a.teamId, title), actorRole: "EXTERNAL_CONTRIBUTOR" },
-      });
-      expect(badRole.statusCode).toBe(403);
-      expect(badRole.json()).toEqual({ error: { code: "WORKFLOW_ACTOR_NOT_PERMITTED" } });
-      expect(await prisma.evidenceWorkflowInstance.count({ where: { title } })).toBe(0);
     });
 
     it("POST /v1/workflows/instances/:id/steps/:stepKey/waive — refused without step-up and for another tenant; step unchanged", async () => {
@@ -303,25 +310,10 @@ describe("K4-C — workflow instances, intake links, templates (live PostgreSQL 
       ).toBe("NOT_STARTED");
     });
 
-    it("POST /v1/workflows/instances/:id/cancel — refused without step-up and for another tenant; status unchanged", async () => {
-      const a = h.fixtures.teamA;
-      const id = await createInstance();
-      const url = `/v1/workflows/instances/${id}/cancel`;
-      const noStepUp = await call({ method: "POST", url, token: a.adminToken, payload: { teamId: a.teamId } });
-      expect(noStepUp.statusCode).toBe(401);
-      expect(noStepUp.json().error.code).toBe("STEP_UP_REQUIRED");
-      const foreign = await call({ method: "POST", url, token: h.fixtures.teamB.ownerToken, payload: { teamId: a.teamId } });
-      expect(foreign.statusCode).toBe(404);
-      const intoOwnTeam = await call({ method: "POST", url, token: h.fixtures.teamB.ownerToken, payload: { teamId: h.fixtures.teamB.teamId } });
-      expect(intoOwnTeam.statusCode).toBe(401);
-      expect((await prisma.evidenceWorkflowInstance.findUniqueOrThrow({ where: { id } })).status).toBe("DRAFT");
-    });
-
-    it("POST /v1/workflows/instances/:id/cancel — an ADMIN with an approved step-up cancels; status + closedAt re-read; audited", async () => {
+    it("POST /v1/workflows/instances/:id/cancel — retired (D48): an ADMIN, even with an approved step-up, gets 410; status unchanged and the challenge unspent", async () => {
       const a = h.fixtures.teamA;
       const id = await createInstance();
       const challengeId = await stepUp(a.adminToken, a.adminUserId, a.teamId, "evidence_workflow_instance", id);
-      // workflows/[id]/page.tsx performAction("/cancel", {}) → { teamId }.
       const res = await call({
         method: "POST",
         url: `/v1/workflows/instances/${id}/cancel`,
@@ -329,16 +321,16 @@ describe("K4-C — workflow instances, intake links, templates (live PostgreSQL 
         payload: { teamId: a.teamId },
         headers: { "x-proovra-step-up-challenge-id": challengeId },
       });
-      expect(res.statusCode, res.body).toBe(200);
-      expect(res.json().instance.status).toBe("CANCELLED");
+      expect(res.statusCode, res.body).toBe(410);
+      expect(res.json()).toMatchObject({
+        error: { code: "WORKFLOW_INSTANCE_MUTATION_RETIRED" },
+        canonical: "/v1/reviewer-ops/reviews/:workflowId/reject",
+      });
       const row = await prisma.evidenceWorkflowInstance.findUniqueOrThrow({ where: { id } });
-      expect(row.status).toBe("CANCELLED");
-      expect(row.closedAtUtc).toBeInstanceOf(Date);
-      const audit = await auditRow("workflow.instance.transition.cancelled", id);
-      expect(audit).toMatchObject({ userId: a.adminUserId, workspaceId: a.teamId, outcome: "success" });
-      expect(audit?.metadata as Record<string, unknown>).toMatchObject({ from: "DRAFT", to: "CANCELLED" });
-      const stepUpRow = await prisma.stepUpChallenge.findUniqueOrThrow({ where: { id: challengeId } });
-      expect(stepUpRow.status).toBe("CANCELLED");
+      expect(row.status).toBe("DRAFT");
+      expect(row.closedAtUtc).toBeNull();
+      expect(await auditRow("workflow.instance.transition.cancelled", id)).toBeNull();
+      expect((await prisma.stepUpChallenge.findUniqueOrThrow({ where: { id: challengeId } })).status).toBe("APPROVED");
     });
   });
 

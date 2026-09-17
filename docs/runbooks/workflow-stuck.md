@@ -14,19 +14,20 @@
 
 ## Safe commands / routes
 1. Inspect a specific instance: `GET /v1/workflows/instances/:id?teamId=...` — returns instance + step list with statuses.
-2. Assign a reviewer: `POST /v1/workflows/instances/:id/assign-reviewer` — moves SUBMITTED → NEEDS_REVIEW.
-3. If a reviewer is already assigned but inactive, reassign to a different reviewer via the same route.
-4. Request changes from the contributor: `POST /v1/workflows/instances/:id/request-changes` — moves to CHANGES_REQUESTED so the contributor can re-engage.
+2. Assign a reviewer: `POST /v1/reviewer-ops/reviews/:workflowId/assign` — the reviewer-ops lifecycle owns review actions; the legacy `/v1/workflows/instances` mutations answer 410 and name their replacement.
+3. If a reviewer is already assigned but inactive, move the review with `POST /v1/reviewer-ops/reviews/:workflowId/reassign`.
+4. Ask the contributor for more: `POST /v1/reviewer-ops/reviews/:workflowId/request-info`.
+5. A required step that genuinely does not apply can be waived on the instance: `POST /v1/workflows/instances/:id/steps/:stepKey/waive` — needs the review permission and a step-up challenge, and records the reason.
 
 ## What NOT to do
 - **Do not** approve a workflow with unsatisfied required steps. The engine refuses; if you see an error, the system is working as designed.
-- **Do not** cancel a SUBMITTED instance without a step-up challenge — Phase 19 step-up gates this action.
+- **Do not** reject a review to clear the backlog — `POST /v1/reviewer-ops/reviews/:workflowId/reject` is a decision about the evidence, not an operational reset.
 - **Do not** delete the row. Workflow instances are part of the audit chain for the evidence they govern.
 - **Do not** rewrite the Phase 22 schema to "force-approve". The state machine is the source of truth.
 
 ## Rollback / retry guidance
 - Most stuck workflows resolve via reviewer assignment.
-- For long-stuck workflows tied to an external contributor who has gone silent, transition to `CHANGES_REQUESTED` with a clear note (operator-visible only) and let it expire naturally per retention policy.
+- For long-stuck workflows tied to an external contributor who has gone silent, request more information with a clear note (operator-visible only) and let it expire naturally per retention policy.
 
 ## Escalation
 - > 50 SUBMITTED instances older than 7 days in a single workspace → page the workspace owner.
