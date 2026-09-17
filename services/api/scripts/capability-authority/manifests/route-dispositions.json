@@ -1185,13 +1185,6 @@
       "reviewedAtUtc": "2026-09-07"
     },
     {
-      "routeId": "POST /v1/collaboration-team-invites/accept",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "the canonical body-token accept, added ahead of the client cutover; the accept page still calls the legacy path with the token in the URL",
-      "evidence": "reg services/api/src/routes/collaboration-teams.routes.ts:1070, documented CANONICAL because the token travels in the body where no intermediary logs it and it cannot leak through Referer. The web client at apps/web/lib/api/collaboration-teams.ts:471 still posts to /v1/collaboration-team-invites/{token}/accept, the LEGACY COMPATIBILITY route kept for links already in mailboxes, so this one has 0 product call sites until that call moves. The capability itself is delivered — this is the safer door to the same handler, not a missing feature.",
-      "reviewedAtUtc": "2026-09-07"
-    },
-    {
       "routeId": "POST /v1/capture/mobile/ingest",
       "disposition": "SUPERSEDED_REMOVE",
       "replacement": "POST /v1/capture/direct-sessions",

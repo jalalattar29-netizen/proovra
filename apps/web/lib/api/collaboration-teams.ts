@@ -701,17 +701,22 @@ export type CollaborationTeamInviteAcceptResult = {
 };
 
 /**
- * Accept an invite token. The token is sent in the URL path and is
- * never logged client-side. On success returns the team id (plus the
- * member id for fresh joins) for redirect.
+ * Accept an invite token. On success returns the team id (plus the member id
+ * for fresh joins) for redirect.
+ *
+ * D9 (2026-09-17) — the token travels in the request BODY to the canonical
+ * `POST /v1/collaboration-team-invites/accept`. It used to be put in the URL
+ * path of the legacy `/v1/collaboration-team-invites/:token/accept`, which the
+ * API keeps only for links already in mailboxes; a path token is written to
+ * access logs by every intermediary.
  */
 export async function acceptInvite(
   rawToken: string,
 ): Promise<CollaborationTeamInviteAcceptResult> {
-  return (await apiFetch(
-    `/v1/collaboration-team-invites/${encodeURIComponent(rawToken)}/accept`,
-    { method: "POST" },
-  )) as CollaborationTeamInviteAcceptResult;
+  return (await apiFetch("/v1/collaboration-team-invites/accept", {
+    method: "POST",
+    body: JSON.stringify({ token: rawToken }),
+  })) as CollaborationTeamInviteAcceptResult;
 }
 
 export async function listActivity(

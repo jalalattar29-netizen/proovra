@@ -15,9 +15,12 @@
  *     this login. It is included in the watermark signature.
  *   * Activity emission: LOGIN on first establishment, MFA_*, LOGOUT,
  *     INACTIVITY_TIMEOUT, GRANT_DENIED_ATTEMPT.
- *   * Sessions live in memory only — no parallel session store. The
- *     `sessionId` is re-derived per request from (grantId, secretSalt,
- *     issuedAtUtc); the client carries it in a bearer header.
+ *   * D2 / D31 — only the token exchange issues a session id, and every
+ *     issued id is recorded in the session registry
+ *     (`portal-session-registry.service.ts`). Every other portal request
+ *     must name a registered, live session; sign-out and the operator's
+ *     "end sessions" action remove ids from it. The client carries the id in
+ *     the `x-portal-session` header.
  */
 
 import { createHash, randomBytes } from "node:crypto";
@@ -37,12 +40,17 @@ import {
 } from "./external-review-grant.service.js";
 import { emitPortalActivity } from "./portal-activity.service.js";
 import {
-  clearPortalMfaSession,
   isPortalMfaSessionSatisfied,
   issuePortalMfaCode,
   markPortalMfaSessionSatisfied,
   verifyPortalMfaCode,
 } from "./portal-mfa-challenge.service.js";
+import {
+  PORTAL_SESSION_ID_PATTERN,
+  endRegisteredPortalSession,
+  registerPortalSession,
+  touchPortalSession,
+} from "./portal-session-registry.service.js";
 
 export type PortalSessionContext = {
   grantId: string;
@@ -122,6 +130,11 @@ export async function establishPortalSession(input: {
   acceptInvited?: boolean;
   /** Only the token exchange (POST /v1/portal/auth) issues an emailed code. */
   issueMfaCode?: boolean;
+  /**
+   * D2 — only the token exchange (POST /v1/portal/auth) may open a NEW
+   * session. Every other caller must name a registered, live session.
+   */
+  openSession?: boolean;
 }): Promise<EstablishSessionResult> {
   const prisma = input.prisma ?? defaultPrisma;
 
@@ -167,10 +180,19 @@ export async function establishPortalSession(input: {
 
   // Session id. Stable per login; a fresh token exchange without one gets a
   // new id. Chosen before the MFA gate because satisfaction belongs to it.
-  const reusedSessionId =
-    input.existingSessionId && /^[0-9a-f]{32}$/.test(input.existingSessionId)
-      ? input.existingSessionId
-      : null;
+  // D2 / D31 — an id is reused only when the registry says this grant issued
+  // it and it is still live; a signed-out, operator-ended, lapsed or made-up
+  // id is treated as no id at all. A store failure fails closed.
+  let reusedSessionId: string | null = null;
+  if (input.existingSessionId && PORTAL_SESSION_ID_PATTERN.test(input.existingSessionId)) {
+    try {
+      if (await touchPortalSession({ grantId: invited.id, sessionId: input.existingSessionId })) {
+        reusedSessionId = input.existingSessionId;
+      }
+    } catch {
+      return { ok: false, denial: "SESSION_UNAVAILABLE" };
+    }
+  }
   const sessionId = reusedSessionId ?? randomBytes(16).toString("hex");
 
   // D27b — satisfaction is per SESSION. The grant's `mfaSatisfiedAtUtc` is a
@@ -284,6 +306,13 @@ export async function establishPortalSession(input: {
     });
   }
 
+  // 3a. D2 / D31 — outside the token exchange a request must carry a live
+  // session. (An MFA grant never reaches here without one: the gate above
+  // refuses an unsatisfied session with MFA_REQUIRED.)
+  if (input.openSession !== true && reusedSessionId === null) {
+    return { ok: false, denial: "SESSION_ENDED" };
+  }
+
   // 3b. Deferred acceptance (D27). Reached only when MFA is not required or
   // has been satisfied. The inviting operator is recorded as the approving
   // actor, exactly as the lookup's own acceptance did.
@@ -302,9 +331,14 @@ export async function establishPortalSession(input: {
     grant = accepted.grant;
   }
 
-  // 4. Emit LOGIN activity on first establishment.
-  const newLogin = !input.existingSessionId;
+  // 4. Register and emit LOGIN on first establishment.
+  const newLogin = reusedSessionId === null;
   if (newLogin) {
+    try {
+      await registerPortalSession({ grantId: grant.id, sessionId });
+    } catch {
+      return { ok: false, denial: "SESSION_UNAVAILABLE" };
+    }
     await emitPortalActivity({
       prisma,
       teamId: grant.teamId,
@@ -346,7 +380,9 @@ export async function establishPortalSession(input: {
 }
 
 /**
- * Honest end-of-session — emits LOGOUT.
+ * Honest end-of-session — the session id stops working (D31), then LOGOUT is
+ * emitted. Throws when the session store is unreachable, so the caller can
+ * refuse instead of reporting a sign-out that did not happen.
  */
 export async function endPortalSession(input: {
   prisma?: PrismaClient;
@@ -357,11 +393,9 @@ export async function endPortalSession(input: {
   userAgent?: string | null;
 }): Promise<void> {
   const prisma = input.prisma ?? defaultPrisma;
-  // D27b — a logged-out session no longer counts as having answered a code.
-  // Best effort: the record expires with the inactivity window regardless.
-  await clearPortalMfaSession({ grantId: input.grantId, sessionId: input.sessionId }).catch(
-    () => undefined,
-  );
+  // D31 — the id leaves the registry; D27b — and no longer counts as having
+  // answered a code.
+  await endRegisteredPortalSession({ grantId: input.grantId, sessionId: input.sessionId });
   await emitPortalActivity({
     prisma,
     teamId: input.teamId,

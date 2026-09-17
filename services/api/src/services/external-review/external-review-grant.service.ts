@@ -546,6 +546,27 @@ export async function lookupExternalReviewGrantByToken(
   }
 }
 
+/**
+ * D33 (2026-09-17) — true when the grant is a portal invitation that requires
+ * the emailed one-time code (`external_reviewer_role_assignments.mfa_required`).
+ * Callers that cannot run that step refuse the grant. A read failure answers
+ * true, so they fail closed.
+ */
+export async function externalReviewGrantRequiresPortalMfa(
+  grantId: string,
+  client: PrismaClient = defaultPrisma,
+): Promise<boolean> {
+  try {
+    const role = await client.externalReviewerRoleAssignment.findUnique({
+      where: { id: grantId },
+      select: { mfaRequired: true },
+    });
+    return role?.mfaRequired === true;
+  } catch {
+    return true;
+  }
+}
+
 // =============================================================================
 // State transitions — revoke / accept / mark-accessed
 // =============================================================================

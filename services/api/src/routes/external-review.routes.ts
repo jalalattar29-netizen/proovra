@@ -49,6 +49,7 @@ import { requireStepUpForSensitiveAction } from "../services/identity-security/s
 import { bump } from "../services/ops/metrics.service.js";
 import {
   EXTERNAL_REVIEW_SCOPE_KINDS,
+  externalReviewGrantRequiresPortalMfa,
   issueExternalReviewGrant,
   listExternalReviewGrants,
   lookupExternalReviewGrantByToken,
@@ -60,6 +61,17 @@ import {
   EXTERNAL_REVIEW_ACCESS_STATES,
   type ExternalReviewAccessState,
 } from "@proovra/shared";
+
+// =============================================================================
+// D33 — the legacy reviewer routes cannot run the portal's MFA step
+// =============================================================================
+
+// These path-token routes have no emailed-code step, so a grant that requires
+// one (`externalReviewGrantRequiresPortalMfa`) is refused and the reviewer is
+// pointed to the portal (POST /v1/portal/auth), which runs the gate.
+const PORTAL_MFA_REQUIRED_BODY = {
+  error: { code: "portal_mfa_required", portalPath: "/portal" },
+} as const;
 
 // =============================================================================
 // Bounded validators
@@ -319,7 +331,16 @@ export async function externalReviewRoutes(app: FastifyInstance) {
     "/v1/external-review/access/:token",
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { token } = TokenParamSchema.parse(req.params);
-      const lookup = await lookupExternalReviewGrantByToken(token);
+      // D33 (2026-09-17) — without `acceptInvited` the lookup refused an
+      // INVITED grant as not active, so the INVITED → ACTIVE branch below was
+      // dead and no invitation could ever be accepted here. The INVITED grant
+      // is now judged as ACTIVE would be (revocation, expiry and legal hold
+      // still refuse) and accepted only after the MFA check below, exactly as
+      // POST /v1/portal/auth does.
+      const lookup = await lookupExternalReviewGrantByToken(token, undefined, {
+        acceptInvited: true,
+        deferAcceptance: true,
+      });
       if (!lookup.ok) {
         // ANTI-ENUMERATION: every non-success reason returns 401 with
         // the same shape, so an attacker cannot distinguish "token
@@ -328,6 +349,11 @@ export async function externalReviewRoutes(app: FastifyInstance) {
         return reply.code(401).send({
           error: { code: "grant_not_active" },
         });
+      }
+      // D33 — this route has no emailed-code step. An invitation that
+      // requires MFA is neither accepted nor opened here.
+      if (await externalReviewGrantRequiresPortalMfa(lookup.grant.id)) {
+        return reply.code(403).send(PORTAL_MFA_REQUIRED_BODY);
       }
       // Transition INVITED → ACTIVE on first acceptance. Subsequent
       // acceptances are idempotent (already-ACTIVE transitions allow
@@ -344,9 +370,12 @@ export async function externalReviewRoutes(app: FastifyInstance) {
           // distinct from "the inviting operator pre-activated".
           actorUserId: grant.invitedByUserId,
         });
-        if (transition.ok) {
-          grant = transition.grant;
+        if (!transition.ok) {
+          return reply.code(401).send({
+            error: { code: "grant_not_active" },
+          });
         }
+        grant = transition.grant;
       }
       // Record the access event (best-effort).
       await recordExternalReviewAccess({
@@ -372,6 +401,10 @@ export async function externalReviewRoutes(app: FastifyInstance) {
         return reply.code(401).send({
           error: { code: "grant_not_active" },
         });
+      }
+      // D33 — the scope of an MFA invitation is shown only past the portal's gate.
+      if (await externalReviewGrantRequiresPortalMfa(lookup.grant.id)) {
+        return reply.code(403).send(PORTAL_MFA_REQUIRED_BODY);
       }
       return reply.code(200).send({
         context: projectGrantForReviewer(lookup.grant),

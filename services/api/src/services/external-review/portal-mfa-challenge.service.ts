@@ -113,6 +113,15 @@ function redis(): RedisLike {
   return client;
 }
 
+/**
+ * The portal's one Redis access path, shared with the session registry
+ * (`portal-session-registry.service.ts`) so both stores fail the same way:
+ * any connection or command failure is `PortalMfaChallengeUnavailableError`.
+ */
+export async function withPortalRedis<T>(fn: (r: RedisLike) => Promise<T>): Promise<T> {
+  return withRedis(fn);
+}
+
 async function withRedis<T>(fn: (r: RedisLike) => Promise<T>): Promise<T> {
   try {
     const r = redis();
@@ -162,6 +171,16 @@ export async function isPortalMfaSessionSatisfied(input: {
 /** Logout: the session's satisfaction ends with it. */
 export async function clearPortalMfaSession(input: { grantId: string; sessionId: string }): Promise<void> {
   await withRedis((r) => r.del(sessionKeyFor(input.grantId, input.sessionId)));
+}
+
+/** D2 — an operator ended these sessions: none of them counts as having answered a code. */
+export async function clearPortalMfaSessions(input: {
+  grantId: string;
+  sessionIds: ReadonlyArray<string>;
+}): Promise<void> {
+  if (input.sessionIds.length === 0) return;
+  const keys = input.sessionIds.map((id) => sessionKeyFor(input.grantId, id));
+  await withRedis((r) => r.del(...keys));
 }
 
 // ---------------------------------------------------------------------------

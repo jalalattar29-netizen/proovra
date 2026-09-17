@@ -626,6 +626,13 @@ describe("Phase 4A Closure — cross-org accept calls portal", () => {
           state: "INVITED",
           invitedOrgSlug: "external-org",
           expiresAtUtc: null,
+          // D17 — the invitation is scoped to the review's own subject; a
+          // review without one is not accepted (see the live proof in
+          // defects-external-review.integration.test.ts).
+          scope: {
+            text: "Review the intake photo",
+            subject: { kind: "EVIDENCE", id: "0b9a4d0e-7a53-4d3c-9d1e-2f6c1c5a9e11" },
+          },
         }),
         update: async () => ({ id: "cog-1" }),
       },
@@ -643,7 +650,13 @@ describe("Phase 4A Closure — cross-org accept calls portal", () => {
       actorUserId: "user-1",
     });
     expect(res.ok).toBe(true);
-    expect(issueSpy).toHaveBeenCalled();
+    expect(issueSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        teamId: "team-1",
+        invitedByUserId: "user-1",
+        scope: { kind: "EVIDENCE", evidenceId: "0b9a4d0e-7a53-4d3c-9d1e-2f6c1c5a9e11" },
+      }),
+    );
     issueSpy.mockRestore();
   });
 });
