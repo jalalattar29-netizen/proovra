@@ -78,6 +78,9 @@ import { CaseRiskPanel } from "../hidden-feature-panels/HiddenFeaturePanels";
 // the file existed and was tested but no host page imported it.
 import { SiuPanel } from "../../app/(app)/cases/components/SiuPanel";
 import { SiuWorklistPanel } from "../../app/(app)/cases/components/SiuWorklistPanel";
+// O1 — who can open the case, and the grant / revoke controls.
+import { MatterAccessTab } from "./MatterAccessTab";
+import { ReasonedActionButton } from "../../app/(app)/evidence/[id]/components/ReasonedActionButton";
 
 // =============================================================================
 // Envelope shape (mirror of services/api/src/services/cases/matter-workspace.service.ts)
@@ -116,6 +119,8 @@ type MatterEnvelope = {
     // POST/DELETE evidence-links routes use (EVIDENCE_LINK).
     canLinkEvidence?: boolean;
     canUnlinkEvidence?: boolean;
+    // Who may give / remove individual case access (MANAGE_ACCESS).
+    canManageAccess?: boolean;
     disabledReasons?: Readonly<Record<string, string>>;
     activeAssignmentRoles?: ReadonlyArray<string>;
   };
@@ -347,6 +352,7 @@ type TabId =
   | "risk"
   | "communications"
   | "assignments"
+  | "access"
   | "siu"
   | "audit"
   | "export";
@@ -385,6 +391,7 @@ const TABS: ReadonlyArray<{
     label: "Assignments",
     description: "Ownership + escalation routing",
   },
+  { id: "access", label: "Access", description: "Who can open this case" },
   // Phase Final-Closure-Verification — SIU tab. Hosts the canonical
   // `SiuPanel` (profile, checklist, indicators, follow-ups, saved
   // views, export preflight). The component was orphaned prior to
@@ -688,6 +695,7 @@ export function MatterWorkspace({
         risk: "ok",
         communications: "ok",
         assignments: "ok",
+        access: "ok",
         // Final Closure Remediation Part J — SIU tab status defaults
         // to "ok"; the SiuPanel manages its own load/empty/error
         // states independently of the matter envelope.
@@ -706,6 +714,8 @@ export function MatterWorkspace({
       risk: envelope.risk.status,
       communications: envelope.sections.notes.status,
       assignments: envelope.assignments.length > 0 ? "ok" : "not_applicable",
+      // The Access tab reads its own list and states its own load failure.
+      access: "ok",
       // Final Closure Remediation Part J — SIU section is not part of
       // the canonical matter envelope; the SiuPanel manages its own
       // state. Default to "ok" so it doesn't render a degradation chip
@@ -873,7 +883,8 @@ export function MatterWorkspace({
           Graph / Risk tabs where it does not apply. */}
       {activeTab !== "overview" &&
       activeTab !== "graph" &&
-      activeTab !== "risk" ? (
+      activeTab !== "risk" &&
+      activeTab !== "access" ? (
         <div
           className="app-search-field app-search-field--block"
           data-matter-filter-row
@@ -987,6 +998,14 @@ export function MatterWorkspace({
             filterText={filterText}
             caseId={caseId}
             onChanged={() => void load()}
+          />
+        ) : null}
+        {activeTab === "access" ? (
+          <MatterAccessTab
+            caseId={caseId}
+            teamId={envelope.case.teamId}
+            caseOwnerUserId={envelope.case.ownerUserId}
+            viewer={envelope.viewer}
           />
         ) : null}
         {activeTab === "siu" ? (
@@ -1842,11 +1861,19 @@ function AssignmentsTab({
   // from the SAME canonical guard the write routes enforce
   // (evaluateCaseMutationPermission("ASSIGN")). We render the manage
   // controls only when the mutation would actually be accepted, and
-  // never on PERSONAL-scope cases (which reject assignment server-side).
-  const canAssign =
-    envelope.viewer.canAssign === true && envelope.case.scope === "TEAM";
-  const assignDisabledReason =
-    envelope.viewer.disabledReasons?.["ASSIGN"] ?? null;
+  // never on a case without a workspace (the assignment service rejects it).
+  //
+  // D37 — this used to test the case scope for "TEAM", but the
+  // envelope's scope vocabulary is SHARED / SINGLE_OCCUPANT, so the control
+  // was disabled for everyone. And the server keys disabled reasons by
+  // camel-cased action name ("assign"), not "ASSIGN", so the reason was
+  // never found.
+  const hasWorkspace = envelope.case.teamId !== null;
+  const canAssign = envelope.viewer.canAssign === true && hasWorkspace;
+  const assignDisabledReason = !hasWorkspace
+    ? "Cases outside a team workspace do not support assignments."
+    : envelope.viewer.disabledReasons?.["assign"] ??
+      "You need a manage-level role to change assignments.";
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [banner, setBanner] = useState<string | null>(null);
@@ -1935,21 +1962,17 @@ function AssignmentsTab({
       Assign teammate
     </Button>
   ) : (
-    <Button
-      variant="secondary"
-      size="sm"
-      data-matter-assignments-add
-      data-disabled="true"
-      disabled
-      title={
-        assignDisabledReason ??
-        (envelope.case.scope === "PERSONAL"
-          ? "Personal cases do not support assignments. Switch to a team workspace."
-          : "You need a manage-level role to change assignments.")
-      }
-    >
-      Assign teammate
-    </Button>
+    <div>
+      <ReasonedActionButton
+        className="app-secondary-action"
+        data-matter-assignments-add
+        data-disabled="true"
+        disabled
+        disabledReason={assignDisabledReason}
+      >
+        Assign teammate
+      </ReasonedActionButton>
+    </div>
   );
 
   return (

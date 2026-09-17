@@ -95,6 +95,8 @@ export type MatterWorkspaceEnvelope = {
     canUnlinkLegacyEvidence: boolean;
     canComment: boolean;
     canResolveComment: boolean;
+    /** Grant / revoke direct case access (MANAGE_ACCESS). */
+    canManageAccess: boolean;
     /**
      * Bounded reason strings keyed by action name. Only populated
      * when the action is denied — the frontend uses this for the
@@ -108,6 +110,7 @@ export type MatterWorkspaceEnvelope = {
       unlinkLegacyEvidence: string;
       comment: string;
       resolveComment: string;
+      manageAccess: string;
     }>;
     /**
      * Bounded list of the viewer's ACTIVE CaseAssignment role names
@@ -559,6 +562,7 @@ export async function buildMatterWorkspace(input: {
       canUnlinkLegacyEvidence: viewerCaps.canUnlinkLegacyEvidence,
       canComment: viewerCaps.canComment,
       canResolveComment: viewerCaps.canResolveComment,
+      canManageAccess: viewerCaps.canManageAccess,
       disabledReasons: viewerCaps.disabledReasons,
       activeAssignmentRoles: activeAssignmentRoleNames,
     },

@@ -655,6 +655,12 @@ const CODE_MAP: Record<
       "Renaming a case needs additional permissions in this workspace. Ask a workspace admin for access.",
     severity: "warning",
   },
+  CASE_ACCESS_TARGET_NOT_MEMBER: {
+    title: "That person isn't an active member of this workspace",
+    message:
+      "Only active members of the workspace that owns this case can be given access to it.",
+    severity: "warning",
+  },
   ILLEGAL_MEMBERSHIP_TRANSITION: {
     title: "That membership change isn't possible",
     message:

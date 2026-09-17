@@ -19,8 +19,8 @@
  * legacy-evidence-link, access/:accessId) take their contract from the route's
  * zod params (path-only, no body).
  *
- * The case-access grant route has known defects the lead is fixing; the access
- * row the revoke test removes is therefore SEEDED, never granted through it.
+ * The access row the revoke test removes is SEEDED; the grant route's own
+ * proof (D5) lives in matter-access-tab.integration.test.ts.
  *
  * `auditCaseAction` in cases.routes.ts is fire-and-forget (`void
  * emitTenantAudit(...)`); those rows are read with `expect.poll` — a bounded
@@ -455,19 +455,24 @@ describe("K4-A — cases and external portal (live PostgreSQL 16)", () => {
   // DELETE /v1/cases/:id/access/:accessId
   // ===========================================================================
   describe("DELETE /v1/cases/:id/access/:accessId", () => {
-    it("the case owner revokes a direct-access grant; row gone + audited; a non-owner ADMIN is refused", async () => {
+    it("the case owner revokes a direct-access grant; row gone + audited; a non-manager MEMBER is refused", async () => {
       const a = h.fixtures.teamA;
       const c = await newCase(a.teamId, a.ownerUserId);
-      // Seeded — the grant route is being reworked by the lead.
+      // Seeded — the grant route is proven in matter-access-tab.
       const access = await prisma.caseAccess.create({
         data: { caseId: c.id, userId: a.memberUserId },
         select: { id: true },
       });
       const url = `/v1/cases/${c.id}/access/${access.id}`;
 
-      const admin = await call({ method: "DELETE", url, token: a.adminToken });
-      expect(admin.statusCode).toBe(403);
-      expect(admin.json()).toEqual({ message: "Forbidden" });
+      // O1 — revoke answers to MANAGE_ACCESS (workspace OWNER/ADMIN or the
+      // case owner), the same authority as the grant route, which already let
+      // an ADMIN grant. The old pin refused a non-owner ADMIN here, which left
+      // an ADMIN's own grant irrevocable by them; the admin-allowed branch is
+      // proven in matter-access-tab. A plain MEMBER is still refused.
+      const member = await call({ method: "DELETE", url, token: a.memberToken });
+      expect(member.statusCode).toBe(403);
+      expect(member.json()).toEqual({ message: "Forbidden" });
       expect(await prisma.caseAccess.count({ where: { id: access.id } })).toBe(1);
 
       const ok = await call({ method: "DELETE", url, token: a.ownerToken });
@@ -488,7 +493,7 @@ describe("K4-A — cases and external portal (live PostgreSQL 16)", () => {
       });
     });
 
-    it("another tenant's owner is refused and the grant survives (status observed for the lead)", async () => {
+    it("another tenant's owner is answered as a missing case and the grant survives", async () => {
       const a = h.fixtures.teamA;
       const b = h.fixtures.teamB;
       const c = await newCase(a.teamId, a.ownerUserId);
@@ -501,10 +506,16 @@ describe("K4-A — cases and external portal (live PostgreSQL 16)", () => {
         url: `/v1/cases/${c.id}/access/${access.id}`,
         token: b.ownerToken,
       });
-      // DEFECT_FOR_LEAD — the family conceals cross-tenant existence (404)
-      // elsewhere; this handler answers 403 for an existing case. Pinned as
-      // observed so the lead's access-route rework flips it deliberately.
-      expect(foreign.statusCode).toBe(403);
+      // D47 — this pin was 403, which confirmed to another tenant that the
+      // case exists. The family conceals cross-tenant existence, so the answer
+      // is now the missing-case 404, byte for byte.
+      expect(foreign.statusCode).toBe(404);
+      const missing = await call({
+        method: "DELETE",
+        url: `/v1/cases/${randomUUID()}/access/${access.id}`,
+        token: b.ownerToken,
+      });
+      expect(foreign.body).toBe(missing.body);
       expect(await prisma.caseAccess.count({ where: { id: access.id } })).toBe(1);
     });
   });

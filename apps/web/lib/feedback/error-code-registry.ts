@@ -121,6 +121,7 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   CASES_MANAGE_REQUIRED: { disposition: "customer", where: "global" },
   CASE_DELETE_DENIED: { disposition: "customer", where: "global" },
   CASE_RENAME_DENIED: { disposition: "customer", where: "global" },
+  CASE_ACCESS_TARGET_NOT_MEMBER: { disposition: "customer", where: "global" },
   WORKSPACE_MEMBERSHIP_REQUIRED: { disposition: "customer", where: "global" },
   WORKSPACE_CONTEXT_REQUIRED: { disposition: "customer", where: "global" },
   /**

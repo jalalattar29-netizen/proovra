@@ -94,10 +94,12 @@ describe("NEW-025 / NEW-026 — tenant grants and tenant stamps", () => {
         await setMemberStatus(teamId, memberUserId, status);
         try {
           const res = await shareByEmail(caseId, ownerToken, target!.email as string);
-          expect(
-            res.statusCode,
-            `a ${status} member was shareable-to (${res.statusCode}): ${res.body.slice(0, 200)}`,
-          ).toBeGreaterThanOrEqual(400);
+          // D6 — share-email no longer answers a refusal status: every address
+          // gets the same 202 so the route is not an account-existence oracle
+          // (matter-access-tab.integration.test.ts). The refusal is now the
+          // absence of the grant, asserted below.
+          expect(res.statusCode, res.body).toBe(202);
+          expect(res.json()).toEqual({ accepted: true });
 
           // The assertion that matters: no standing grant was written.
           expect(
@@ -122,10 +124,9 @@ describe("NEW-025 / NEW-026 — tenant grants and tenant stamps", () => {
 
       await prisma.caseAccess.deleteMany({ where: { caseId, userId: foreignUserId } });
       const res = await shareByEmail(caseId, ownerToken, foreign!.email as string);
-      expect(
-        res.statusCode,
-        `a user outside the workspace was granted access (${res.statusCode}): ${res.body.slice(0, 200)}`,
-      ).toBeGreaterThanOrEqual(400);
+      // D6 — same 202 as every other address; no grant is the refusal.
+      expect(res.statusCode, res.body).toBe(202);
+      expect(res.json()).toEqual({ accepted: true });
       expect(
         await accessRows(caseId, foreignUserId),
         "a cross-tenant CaseAccess row was written",
