@@ -95,6 +95,17 @@ export function EvidenceLibraryRow({
           {item.itemCount} item{item.itemCount === 1 ? "" : "s"}
           <span aria-hidden> • </span>
           {getRecordStatusLabel(item.status)}
+          {/* UC-0 — how the record entered PROOVRA, as neutral text, only
+              when it is not the ordinary signed-in upload (kept quiet so the
+              common case adds no clutter). Never a success tone. */}
+          {item.acquisition && item.acquisition.category !== "UPLOAD" ? (
+            <>
+              <span aria-hidden> • </span>
+              <span data-evidence-row-acquisition={item.acquisition.mode}>
+                {item.acquisition.label}
+              </span>
+            </>
+          ) : null}
         </span>
         <time
           className="evidence-library-row__timestamp"

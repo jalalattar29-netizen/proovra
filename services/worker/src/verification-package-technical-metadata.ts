@@ -56,8 +56,7 @@ type EvidenceRow = {
 };
 
 type AcquisitionRow = {
-  capture_method: string | null;
-  capture_environment: unknown;
+  acquisition_mode: string | null;
   identity_level: string | null;
   opened_at_utc: Date | string | null;
   submitted_at_utc: Date | string | null;
@@ -79,9 +78,6 @@ type AcquisitionRow = {
  *  recipient at read-time via the approved helper (raw email is never
  *  exposed); provider IDs are never selected. */
 function rawAcquisitionInput(r: AcquisitionRow): AcquisitionRawInput {
-  const uploadSource =
-    (r.capture_environment as { uploadSource?: string } | null)?.uploadSource ??
-    null;
   const channel = (r.channel ?? "").toUpperCase();
   const isEmail = channel === "EMAIL";
   const recipientType = isEmail ? "email" : channel ? "phone" : null;
@@ -97,8 +93,7 @@ function rawAcquisitionInput(r: AcquisitionRow): AcquisitionRawInput {
     recipientMasked = maskEmail(r.recipient_email ?? r.submitter_email);
   }
   return {
-    uploadSource,
-    captureMethod: r.capture_method,
+    acquisitionMode: r.acquisition_mode,
     intakeMode: r.intake_mode,
     identityLevel: r.identity_level,
     deliveryChannelRaw: r.channel,
@@ -264,6 +259,11 @@ export async function buildTechnicalMetadataPackageFiles(input: {
           source: "browser+server-observed",
           advisory:
             "Privacy-safe record of the PROOVRA upload/capture environment. Browser/OS/device/timezone/locale are parsed from the client; masked IP + UA hash + country are server-observed. NEVER the full IP or raw User-Agent.",
+          // UC-0 — these two are the capture environment's OWN legacy
+          // labels, recorded as-is. They are not the acquisition authority
+          // (see acquisition.json) and were inverted on historical mobile and
+          // citizen records.
+          environmentLabelsAuthoritative: false,
           captureMethod: captureEnv.captureMethod ?? null,
           uploadSource: captureEnv.uploadSource ?? null,
           browserName: captureEnv.browserName ?? null,
@@ -390,8 +390,7 @@ export async function buildTechnicalMetadataPackageFiles(input: {
     try {
       const rows = (await input.prisma.$queryRawUnsafe(
         `SELECT
-            e."capture_method"              AS capture_method,
-            e."capture_environment"         AS capture_environment,
+            e."acquisition_mode"            AS acquisition_mode,
             e."identity_level_snapshot"     AS identity_level,
             wis."opened_at_utc"             AS opened_at_utc,
             wis."submitted_at_utc"          AS submitted_at_utc,

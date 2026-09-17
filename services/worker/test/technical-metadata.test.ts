@@ -25,8 +25,6 @@ import {
   imageMetadataFromExif,
   toPerPartMediaSummary,
   unparsedMetadata,
-  humanizeUploadSource,
-  humanizeCaptureMethod,
   captureMethodDisplayLabel,
   isMeaningfulMetadataValue,
   metadataRows,
@@ -193,42 +191,29 @@ describe("Client IP resolution + private/Docker suppression", () => {
 });
 
 describe("Capture Context timestamp label (never 'intake' for web/mobile)", () => {
-  it("uses submission wording for WEB_APP secure capture", () => {
+  // UC-0 — chosen from the acquisition authority, never from uploadSource.
+  it("uses submission wording for a web upload", () => {
     expect(
-      getCaptureContextTimestampLabel({
-        uploadSource: "WEB_APP",
-        captureMethod: "SECURE_CAPTURE",
-        acquisitionMethod: "Direct Upload",
-        isIntake: false,
-      }),
+      getCaptureContextTimestampLabel({ acquisitionMode: "PROOVRA_WEB_UPLOAD", isIntake: false }),
     ).toBe("Recorded at submission (server UTC)");
   });
-  it("uses intake wording for intake-link evidence", () => {
+  it("uses intake wording for intake evidence (authority or intake join)", () => {
     expect(
-      getCaptureContextTimestampLabel({
-        uploadSource: "INTAKE_LINK",
-        acquisitionMethod: "Intake Link",
-        isIntake: true,
-      }),
+      getCaptureContextTimestampLabel({ acquisitionMode: "SECURE_INTAKE_LINK" }),
+    ).toBe("Intake submitted at (server UTC)");
+    expect(
+      getCaptureContextTimestampLabel({ acquisitionMode: null, isIntake: true }),
     ).toBe("Intake submitted at (server UTC)");
   });
-  it("uses mobile wording for mobile-app capture", () => {
+  it("uses mobile wording for a mobile-app session", () => {
     expect(
-      getCaptureContextTimestampLabel({
-        uploadSource: "MOBILE_APP",
-        acquisitionMethod: "Mobile Capture",
-        isIntake: false,
-      }),
-    ).toBe("Recorded at mobile capture (server UTC)");
+      getCaptureContextTimestampLabel({ acquisitionMode: "PROOVRA_MOBILE_APP" }),
+    ).toBe("Recorded at mobile app submission (server UTC)");
   });
-  it("falls back to safe generic submission wording when unknown", () => {
-    expect(getCaptureContextTimestampLabel({})).toBe(
-      "Recorded at submission (server UTC)",
-    );
-    // Never the word "intake" for a non-intake/unknown source.
-    expect(getCaptureContextTimestampLabel({}).toLowerCase()).not.toContain(
-      "intake",
-    );
+  it("falls back to safe generic submission wording when not recorded", () => {
+    const label = getCaptureContextTimestampLabel({ acquisitionMode: null });
+    expect(label).toBe("Recorded at submission (server UTC)");
+    expect(label.toLowerCase()).not.toContain("intake");
   });
 });
 
@@ -240,6 +225,7 @@ describe("Evidence Acquisition mapper (channels + privacy)", () => {
       ["EMAIL", "Email", "email"],
     ] as const) {
       const ctx = buildEvidenceAcquisitionContext({
+        acquisitionMode: "SECURE_INTAKE_LINK",
         intakeMode: "EXTERNAL_ONE_TIME",
         deliveryChannelRaw: raw,
         recipientMasked: type === "email" ? "j***@x.com" : "+49 ••• 1234",
@@ -253,7 +239,7 @@ describe("Evidence Acquisition mapper (channels + privacy)", () => {
 
   it("treats a reusable link with no messaging as a Public Secure Link (no recipient)", () => {
     const ctx = buildEvidenceAcquisitionContext({
-      captureMethod: "EXTERNAL_INTAKE_UPLOAD",
+      acquisitionMode: null,
       intakeMode: "EXTERNAL_REUSABLE",
     })!;
     expect(ctx.method).toBe("Public Secure Link");
@@ -261,25 +247,31 @@ describe("Evidence Acquisition mapper (channels + privacy)", () => {
     expect(ctx.recipientMasked).toBeNull();
   });
 
-  it("maps mobile-app and API and web uploads (non-intake)", () => {
-    const mobile = buildEvidenceAcquisitionContext({ uploadSource: "MOBILE_APP" })!;
-    expect(mobile.method).toBe("Mobile Capture");
-    expect(mobile.deliveryChannel).toBe("PROOVRA Mobile");
+  it("maps mobile-app and web uploads from the acquisition authority (non-intake)", () => {
+    const mobile = buildEvidenceAcquisitionContext({ acquisitionMode: "PROOVRA_MOBILE_APP" })!;
+    expect(mobile.method).toBe("PROOVRA Mobile App");
+    expect(mobile.acquisitionMode).toBe("PROOVRA_MOBILE_APP");
+    // A delivery channel exists only for intake.
+    expect(mobile.deliveryChannel).toBeNull();
     expect(mobile.isIntake).toBe(false);
-    expect(buildEvidenceAcquisitionContext({ uploadSource: "API" })!.method).toBe(
-      "API Submission",
-    );
     expect(
-      buildEvidenceAcquisitionContext({ uploadSource: "WEB_APP" })!.method,
+      buildEvidenceAcquisitionContext({ acquisitionMode: "PROOVRA_WEB_UPLOAD" })!.method,
     ).toBe("Direct Upload");
   });
 
-  it("returns null when there is no acquisition signal at all", () => {
-    expect(buildEvidenceAcquisitionContext({})).toBeNull();
+  it("returns null when acquisition was not recorded and there is no intake link", () => {
+    expect(buildEvidenceAcquisitionContext({ acquisitionMode: null })).toBeNull();
+    // Legacy labels are not an acquisition signal.
+    expect(
+      buildEvidenceAcquisitionContext({
+        acquisitionMode: "UPLOADED_FILE",
+      }),
+    ).toBeNull();
   });
 
   it("public view NEVER carries a recipient; internal view carries the masked one", () => {
     const ctx = buildEvidenceAcquisitionContext({
+      acquisitionMode: "SECURE_INTAKE_LINK",
       intakeMode: "EXTERNAL_ONE_TIME",
       deliveryChannelRaw: "SMS",
       deliveryStatusRaw: "DELIVERED",
@@ -305,42 +297,24 @@ describe("Evidence Acquisition mapper (channels + privacy)", () => {
 });
 
 describe("humanization + smart rows", () => {
-  it("humanizes upload source enums (never raw)", () => {
-    expect(humanizeUploadSource("WEB_APP")).toBe("PROOVRA Web Application");
-    expect(humanizeUploadSource("INTAKE_LINK")).toBe("Intake Link Submission");
-    expect(humanizeUploadSource("MOBILE_APP")).toBe("Mobile Capture");
-    expect(humanizeUploadSource("API")).toBe("API Submission");
-    expect(humanizeUploadSource(null)).toBe("Unknown");
-    expect(humanizeUploadSource("UNKNOWN")).toBe("Unknown");
-  });
-  it("humanizes capture method enums", () => {
-    expect(humanizeCaptureMethod("SECURE_CAPTURE")).toBe("Secure Browser Capture");
-    expect(humanizeCaptureMethod("UPLOAD")).toBe("Direct Upload");
-    expect(humanizeCaptureMethod("MOBILE")).toBe("Mobile Capture");
-  });
-  it("captureMethodDisplayLabel is flow-aware (web upload never 'Secure Browser Capture')", () => {
-    // Web ingest — even a 'secure capture' browser session — reads as an upload.
-    expect(
-      captureMethodDisplayLabel({ captureMethod: "SECURE_CAPTURE", uploadSource: "WEB_APP" }),
-    ).toBe("PROOVRA Web Upload");
-    expect(
-      captureMethodDisplayLabel({ captureMethod: "MULTIPART_PACKAGE", uploadSource: "WEB_APP" }),
-    ).toBe("PROOVRA Web Upload");
-    expect(
-      captureMethodDisplayLabel({ captureMethod: "BULK_IMPORT", uploadSource: null }),
-    ).toBe("PROOVRA Web Upload");
-    // Other flows keep their precise labels.
-    expect(
-      captureMethodDisplayLabel({ uploadSource: "MOBILE_APP" }),
-    ).toBe("PROOVRA Mobile Capture");
-    expect(captureMethodDisplayLabel({ uploadSource: "API" })).toBe("API Submission");
-    expect(
-      captureMethodDisplayLabel({ isIntake: true, acquisitionMethod: "Intake Link" }),
-    ).toBe("Secure Intake Link");
-    // Never the misleading device-attested label for web.
-    expect(
-      captureMethodDisplayLabel({ captureMethod: "SECURE_CAPTURE", uploadSource: "WEB_APP" }),
-    ).not.toBe("Secure Browser Capture");
+  it("captureMethodDisplayLabel reads the acquisition authority only (UC-0)", () => {
+    expect(captureMethodDisplayLabel({ acquisitionMode: "PROOVRA_WEB_UPLOAD" })).toBe(
+      "PROOVRA Web Upload",
+    );
+    expect(captureMethodDisplayLabel({ acquisitionMode: "PROOVRA_MOBILE_APP" })).toBe(
+      "PROOVRA Mobile App",
+    );
+    expect(captureMethodDisplayLabel({ acquisitionMode: "SECURE_INTAKE_LINK" })).toBe(
+      "Secure Intake Link",
+    );
+    expect(captureMethodDisplayLabel({ acquisitionMode: null, isIntake: true })).toBe(
+      "Secure Intake Link",
+    );
+    // Not recorded is said, never guessed (the old fallback was "PROOVRA Web Upload").
+    expect(captureMethodDisplayLabel({ acquisitionMode: null })).toBe("Not recorded");
+    for (const legacy of ["SECURE_CAPTURE", "MULTIPART_PACKAGE", "WEB_APP", "MOBILE_APP", "API"]) {
+      expect(captureMethodDisplayLabel({ acquisitionMode: legacy })).toBe("Not recorded");
+    }
   });
   it("metadataStatusLabel reads as plain English", () => {
     expect(metadataStatusLabel("MISSING")).toBe("No embedded metadata detected");
@@ -1236,6 +1210,7 @@ describe("PDF report: Capture Device & Camera Metadata section", () => {
           metadataStatus: "PRESENT",
         },
         captureEnvironment: {
+          acquisitionMode: "PROOVRA_WEB_UPLOAD",
           uploadSource: "WEB_APP",
           captureMethod: "SECURE_CAPTURE",
           browserName: "Chrome",
@@ -1266,7 +1241,10 @@ describe("PDF report: Capture Device & Camera Metadata section", () => {
     expect(html).toContain("Exposure");
     // Humanized labels — never the raw enum. Web ingest reads as an upload,
     // NOT the misleading "Secure Browser Capture" device-attested wording.
-    expect(html).toContain("PROOVRA Web Application");
+    // UC-0: the channel comes from the acquisition authority ("Submitted
+    // through"); the client-reported `uploadSource` label is no longer shown.
+    expect(html).not.toContain("PROOVRA Web Application");
+    expect(html).toContain("Submitted through");
     expect(html).toContain("PROOVRA Web Upload");
     expect(html).not.toContain("Secure Browser Capture");
     expect(html).not.toContain("WEB_APP");

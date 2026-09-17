@@ -262,9 +262,9 @@ describe("intake + TSA semantics", () => {
       "evidence.service.ts"
     );
 
-    // Authenticated Web Capture / Browser Upload → web_upload_authorization;
-    // Secure Intake (browserUpload false/undefined) keeps intake_authorization.
-    expect(source).toContain("uploadKind: params.browserUpload");
+    // UC-0: the upload kind is keyed by the server-authoritative acquisition
+    // mode (the old boolean `browserUpload` flag was retired with it).
+    expect(source).toContain("uploadKind: UPLOAD_KIND_BY_ACQUISITION[params.acquisitionMode]");
     expect(source).toContain('"web_upload_authorization"');
     expect(source).toContain('"intake_authorization"');
     expect(source).toContain("final evidence structure may still become multipart");

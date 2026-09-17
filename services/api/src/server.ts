@@ -22,8 +22,9 @@ import { readFastifyClientError } from "./observability/fastify-client-error.js"
 // `services/platform-audit-log.service.ts` (hash-chained, DB-backed).
 import { evidenceRoutes } from "./routes/evidence.routes.js";
 import { captureRoutes } from "./routes/capture.routes.js";
-// Phase 1B — Citizen PWA capture ingest (Class B provenance, anonymous
-// Ed25519 signing). Registered alongside the operator capture routes.
+// Phase 1B citizen capture ingest — RETIRED in UC-0 (answers 410; the
+// canonical secure intake flow replaces it). Still registered so outdated
+// clients get an explicit answer.
 import { citizenCaptureRoutes } from "./routes/citizen-capture.routes.js";
 // Phase 1B — Capture Trust routes (device attestation + Ed25519 signature
 // + provenance projection). Real route module already exists on disk; this
@@ -1209,11 +1210,11 @@ allowedHeaders: [
   await app.register(casesRoutes);
   await app.register(evidenceRoutes);
   await app.register(captureRoutes);
-  // Phase 1B — Citizen PWA capture ingest (Class B provenance).
+  // Retired citizen capture ingest (410) — see the route module.
   await app.register(citizenCaptureRoutes);
-  // Phase 1B — Capture Trust routes: device registration / mobile ingest /
-  // session trust timeline / bounded ProvenanceChain projection. Real
-  // module on disk; wired here so the routes are actually mounted at boot.
+  // Capture Trust routes: device registration / UC-0 direct-capture sessions
+  // / session trust timeline / bounded ProvenanceChain projection. The old
+  // receipt-only mobile ingest answers 410.
   await app.register(captureTrustRoutes);
   // Phase 4A — Trust Center + Organization Governance. Registered after
   // the core workspace routes so governance depends on team context.

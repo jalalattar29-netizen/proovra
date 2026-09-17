@@ -18,7 +18,6 @@ import {
 } from "./formatters.js";
 import {
   mapAuthProviderLabel,
-  mapCaptureMethodLabel,
   mapIdentityLevelLabel,
   mapAnchorModePublicLabel,
   mapOtsStatusPublicLabelWithTxid,
@@ -153,18 +152,11 @@ export function buildTechnicalIdentityRows(
   // workspace's) email as "Submitted By Email"; it shows a role label instead.
   // Web/mobile capture is UNCHANGED (isIntake defaults to false).
   isIntake = false,
-  // Capture-environment uploadSource (e.g. WEB_APP). Used ONLY to give Web
-  // Capture / Browser Upload the same acquisition label the Executive Summary
-  // shows ("PROOVRA Web Upload") instead of the structure enum
-  // ("Multipart package"). Mobile / API / unknown are untouched.
-  //
-  // NOTE: a `contributorIdentity` parameter used to sit before this one and was
-  // never read — deliberately, because it is REQUESTER-derived and must not be
-  // presented as the contributor's. Carrying it as a dead parameter implied the
-  // opposite: that this builder had a verified contributor identity available
-  // and merely chose not to show it. It was removed; the reasoning now lives at
-  // the one place the decision is made, beside the Contributor Identity row.
-  uploadSource: string | null = null
+  // NOTE: a `contributorIdentity` parameter and (UC-0) an `uploadSource`
+  // parameter used to follow. The first was never read (it is REQUESTER-
+  // derived); the second picked the Capture Method label from the capture
+  // environment, which was inverted for the mobile and citizen routes. The
+  // label now comes from `evidence.acquisitionMode`.
 ): KeyValueRow[] {
   const lastAccessedRows: KeyValueRow[] = [
     {
@@ -249,17 +241,12 @@ export function buildTechnicalIdentityRows(
     ...lastAccessedRows,
     {
       label: "Capture Method",
-      // Web Capture / Browser Upload: use the SAME flow-aware acquisition
-      // mapper as the Executive Summary so both read "PROOVRA Web Upload", not
-      // the structure enum "Multipart package". Gated on WEB_APP so Mobile /
-      // API / unknown keep their existing label (this task is Web-only).
-      value:
-        (uploadSource ?? "").toUpperCase() === "WEB_APP"
-          ? captureMethodDisplayLabel({
-              captureMethod: evidence.captureMethod,
-              uploadSource,
-            })
-          : mapCaptureMethodLabel(evidence.captureMethod),
+      // UC-0 — the report's acquisition snapshot, the same label every other
+      // report and package surface shows.
+      value: captureMethodDisplayLabel({
+        acquisitionMode: evidence.acquisitionMode ?? null,
+        isIntake,
+      }),
     },
     {
       label: "Identity Level",

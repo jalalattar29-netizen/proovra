@@ -197,8 +197,13 @@ export function sanitiseSearchTags(
  * 3 → moves recipient contact OUT of the free-text body and into the gated
  *     contact haystack, so matching on an address or a number is a decision
  *     the query makes rather than something every reader gets for free.
+ * 4 → UC-0: acquisition comes from the acquisition authority (metadata
+ *     `acquisitionMode` / `acquisitionCategory`, and `contributorScoped`
+ *     from it instead of the overwritten `captureMethod`), and machine-
+ *     extracted text is marked DERIVED (`textProvenance` + a `derived_text`
+ *     tag) so a hit on it never reads as original content.
  */
-export const SEARCH_PROJECTION_VERSION = 3;
+export const SEARCH_PROJECTION_VERSION = 4;
 
 /**
  * WHERE RECIPIENT CONTACT LIVES IN A SEARCH DOCUMENT.
@@ -339,7 +344,13 @@ export type EvidenceProjectionInput = {
     originalFileName: string | null;
     type: string | null;
     mimeType: string | null;
+    /** Legacy STRUCTURE field — not acquisition. */
     captureMethod: string | null;
+    /**
+     * UC-0 — `Evidence.acquisitionMode`, the acquisition authority. Optional
+     * only so older fixtures still type-check; absent means not recorded.
+     */
+    acquisitionMode?: string | null;
     caseId: string | null;
     deletedAt: Date | null;
     /** Phase 27 lifecycle state. */
@@ -401,6 +412,10 @@ export type EvidenceProjectionInput = {
 };
 
 import { isSearchIndexableLifecycle } from "./search-readiness.js";
+import {
+  DERIVED_TEXT_PROVENANCE,
+  resolveEvidenceAcquisition,
+} from "./evidence-acquisition.js";
 
 /**
  * Build the canonical projection for an Evidence row. Returns a
@@ -456,6 +471,9 @@ export function buildEvidenceProjection(
   const extracted = (input.extractedTextChunks ?? [])
     .filter((s): s is string => typeof s === "string" && s.length > 0)
     .join("\n");
+  const acquisition = resolveEvidenceAcquisition({
+    acquisitionMode: evidence.acquisitionMode ?? null,
+  });
 
   const title =
     sanitiseSearchString(evidence.title, SEARCH_TITLE_MAX_CHARS) ??
@@ -513,6 +531,11 @@ export function buildEvidenceProjection(
       type: evidence.type,
       mimeType: evidence.mimeType,
       captureMethod: evidence.captureMethod,
+      acquisitionMode: acquisition.mode,
+      acquisitionCategory: acquisition.category,
+      // Machine-extracted text (OCR / transcript) in the body is DERIVED from
+      // the source parts — never original content.
+      textProvenance: extracted.length > 0 ? DERIVED_TEXT_PROVENANCE : null,
       publicVerifyState,
       retentionPolicySource: evidence.retentionPolicySource ?? null,
       lifecycleState: lifecycle,
@@ -541,6 +564,7 @@ export function buildEvidenceProjection(
       evidence.deletedAt ? "in_trash" : null,
       lifecycle === "ON_HOLD" ? "on_hold" : null,
       lifecycle === "RETENTION_LOCKED" ? "retention_locked" : null,
+      extracted.length > 0 ? "derived_text" : null,
     ]),
     visibilityScope: { publicVerifyState },
     governanceScope: {
@@ -554,7 +578,10 @@ export function buildEvidenceProjection(
     exportState,
     retentionState: evidence.retentionPolicySource ?? null,
     legalHoldState,
-    contributorScoped: evidence.captureMethod === "EXTERNAL_INTAKE_UPLOAD",
+    // UC-0 — from the acquisition authority. The old test read
+    // `captureMethod === "EXTERNAL_INTAKE_UPLOAD"`, which completion always
+    // overwrote, so no completed intake record was ever contributor-scoped.
+    contributorScoped: acquisition.mode === "SECURE_INTAKE_LINK",
     reviewerRestricted: false,
     evidenceId: evidence.id,
     workflowInstanceId: null,

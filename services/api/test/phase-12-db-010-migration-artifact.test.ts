@@ -26,7 +26,7 @@ import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { materialize } from "../scripts/release-materialize.mjs";
-import { verifyArtifact } from "../scripts/verify-migration-artifact.mjs";
+import { classifyMigration, verifyArtifact } from "../scripts/verify-migration-artifact.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "../../..");
@@ -79,6 +79,22 @@ describe("§7 — DB-010: the migration artifact gate", () => {
       "the artifact genuinely contains destructive migrations; a gate that sees none is inert",
     ).toBeGreaterThan(3);
   }, 300_000);
+
+  it("UC-0 — trigger EXECUTE FUNCTION is readable; an opaque EXECUTE is still UNKNOWN", () => {
+    // `CREATE TRIGGER … EXECUTE FUNCTION f()` names a function. Reading it as
+    // a dynamic statement refused the UC-0 set-once trigger.
+    const trigger = [
+      `CREATE TRIGGER "t" BEFORE UPDATE ON "evidence"`,
+      `  FOR EACH ROW EXECUTE FUNCTION "f"();`,
+      `CREATE TRIGGER "u" AFTER INSERT ON "evidence"`,
+      `  FOR EACH ROW EXECUTE PROCEDURE "g"();`,
+    ].join("\n");
+    expect(classifyMigration(trigger)).toEqual([]);
+    // The rule it narrows still bites: a statement built from a variable.
+    const opaque = `DO $$ DECLARE s text := current_setting('x'); BEGIN EXECUTE s; END $$;`;
+    expect(classifyMigration(opaque)).toContain("UNKNOWN_EXECUTABLE_SQL");
+    expect(classifyMigration(`${trigger}\n${opaque}`)).toContain("UNKNOWN_EXECUTABLE_SQL");
+  });
 
   it("1 — a persona drop shipped WITHOUT its guard is refused", () => {
     const a = freshArtifact("i1");

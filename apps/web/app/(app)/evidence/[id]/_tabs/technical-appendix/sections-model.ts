@@ -138,27 +138,30 @@ export function buildAcquisitionModel(
     };
   }
 
-  // Normal Capture Page / Web Upload path.
+  // Non-intake path. UC-0 — the server sends the acquisition label (from
+  // Evidence.acquisitionMode) in `captureMethod`; a legacy record reads
+  // "Not recorded". Nothing here is guessed from the upload path.
+  const acquisitionLabel = ce?.captureMethod ?? "Not recorded";
+  const isWebUpload = acquisitionLabel === "PROOVRA Web Upload";
   return {
     isIntake: false,
     rows: rows([
-      {
-        label: "Acquisition method",
-        value: ce?.captureMethod ?? "PROOVRA Web Upload",
-      },
+      { label: "Acquisition method", value: acquisitionLabel },
       {
         label: "Delivery channel",
-        value: "Direct upload",
+        value: isWebUpload ? "Direct upload" : null,
       },
-      { label: "Submission type", value: "Authenticated workspace user" },
-      { label: "Submitted through", value: ce?.uploadSource },
+      {
+        label: "Submission type",
+        value: acquisitionLabel === "Not recorded" ? null : "Authenticated workspace user",
+      },
     ]),
     roleModel: rows([
-      { label: "Submitted by", value: "Authenticated workspace user" },
       {
-        label: "Capture method",
-        value: ce?.captureMethod ?? "PROOVRA Web Upload",
+        label: "Submitted by",
+        value: acquisitionLabel === "Not recorded" ? null : "Authenticated workspace user",
       },
+      { label: "Capture method", value: acquisitionLabel },
     ]),
   };
 }
@@ -182,8 +185,7 @@ export function buildCaptureDeviceRows(
       label: "Browser",
       value: [ce.browserName, ce.browserVersion].filter(Boolean).join(" ") || null,
     },
-    { label: "Submitted through", value: ce.uploadSource },
-    { label: "Capture method", value: ce.captureMethod },
+    { label: "Submitted through", value: ce.captureMethod },
     { label: "Timezone", value: ce.timezone },
   ]);
 }
@@ -323,7 +325,7 @@ export function buildUploadSessionRows(input: {
     0,
   );
   return rows([
-    { label: "Upload source", value: ce?.uploadSource },
+    { label: "Acquisition", value: ce?.captureMethod },
     { label: "Total items", value: input.itemCount != null ? String(input.itemCount) : null },
     { label: "Multipart upload", value: input.multipart ? "Yes" : "No" },
     {

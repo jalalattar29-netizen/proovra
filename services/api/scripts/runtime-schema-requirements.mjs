@@ -202,6 +202,63 @@ export const RUNTIME_SCHEMA_REQUIREMENTS = Object.freeze([
       "the serialization point for credit spend. consumeEvidenceCreditForCompletion decrements the wallet conditionally and then INSERTs this row inside the completion transaction; the unique violation is what rolls a concurrent second spend back. Without the index a retried or re-delivered completion can burn a second credit for one evidence record — a customer charged twice for one capture",
     suppliedBy: "20271227000000_billing_commercial_correctness",
   },
+  {
+    id: "evidence.acquisition_mode",
+    kind: "column",
+    detail: 'column public."evidence"."acquisition_mode" must exist',
+    requiredBy:
+      "THE acquisition authority. createEvidence writes it for every new record and every acquisition surface (library, detail, search, report, package, public Verify) reads it; without it evidence creation fails outright",
+    suppliedBy: "20280601000000_uc0_acquisition_provenance_foundation",
+  },
+  {
+    id: "evidence_parts.artifact_class",
+    kind: "column",
+    detail: 'column public."evidence_parts"."artifact_class" must exist',
+    requiredBy:
+      "the original / capture-record / derived boundary in reports, verification packages and the public Verify record counts",
+    suppliedBy: "20280601000000_uc0_acquisition_provenance_foundation",
+  },
+  {
+    id: "capture_session_status.active",
+    kind: "enum_value",
+    detail: 'enum "CaptureSessionStatus" must contain ACTIVE',
+    requiredBy:
+      "server-issued direct-capture sessions (the mobile app ingest adapter) open in ACTIVE; without the value no mobile submission can start",
+    suppliedBy: "20280601000000_uc0_acquisition_provenance_foundation",
+  },
+  {
+    id: "capture_sessions.nonce_sha256",
+    kind: "column",
+    detail: 'column public."capture_sessions"."nonce_sha256" must exist',
+    requiredBy:
+      "the replay defence for direct-capture sessions: the server-issued nonce is checked against this hash when a client declares a signed part",
+    suppliedBy: "20280601000000_uc0_acquisition_provenance_foundation",
+  },
+  {
+    id: "reports.acquisition_mode_snapshot",
+    kind: "column",
+    detail: 'column public."reports"."acquisition_mode_snapshot" must exist',
+    requiredBy:
+      "the report worker snapshots acquisition on every generated report version so historical reports stay deterministic",
+    suppliedBy: "20280601000000_uc0_acquisition_provenance_foundation",
+  },
+  {
+    id: "capture_device_attestations.verifier_version",
+    kind: "column",
+    detail: 'column public."capture_device_attestations"."verifier_version" must exist',
+    requiredBy:
+      "the attestation verifier stamps which verifier wrote each verdict; readers only display a positive verdict written by a cryptographic verifier",
+    suppliedBy: "20280601000000_uc0_acquisition_provenance_foundation",
+  },
+  {
+    id: "evidence_part_derived_assets.variant_uk",
+    kind: "index",
+    detail:
+      'unique index public."evidence_part_derived_assets_team_part_kind_variant_uk" must exist',
+    requiredBy:
+      "the derivative writer upserts ON CONFLICT (team_id, evidence_part_id, asset_kind, variant_key); without the index every derived-asset write fails",
+    suppliedBy: "20280601000000_uc0_acquisition_provenance_foundation",
+  },
 ]);
 
 /**
@@ -315,6 +372,55 @@ const PROBES = Object.freeze({
        AND i.indisunique
        AND i.indnatts = 1
        AND a.attname = 'evidence_id'
+     LIMIT 1`,
+  "evidence.acquisition_mode": `
+    SELECT 1
+      FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = 'evidence'
+       AND column_name = 'acquisition_mode'
+     LIMIT 1`,
+  "evidence_parts.artifact_class": `
+    SELECT 1
+      FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = 'evidence_parts'
+       AND column_name = 'artifact_class'
+     LIMIT 1`,
+  "capture_session_status.active": `
+    SELECT 1
+      FROM pg_type t
+      JOIN pg_enum e ON e.enumtypid = t.oid
+     WHERE t.typname = 'CaptureSessionStatus'
+       AND e.enumlabel = 'ACTIVE'
+     LIMIT 1`,
+  "capture_sessions.nonce_sha256": `
+    SELECT 1
+      FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = 'capture_sessions'
+       AND column_name = 'nonce_sha256'
+     LIMIT 1`,
+  "reports.acquisition_mode_snapshot": `
+    SELECT 1
+      FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = 'reports'
+       AND column_name = 'acquisition_mode_snapshot'
+     LIMIT 1`,
+  "capture_device_attestations.verifier_version": `
+    SELECT 1
+      FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = 'capture_device_attestations'
+       AND column_name = 'verifier_version'
+     LIMIT 1`,
+  "evidence_part_derived_assets.variant_uk": `
+    SELECT 1
+      FROM pg_indexes
+     WHERE schemaname = 'public'
+       AND tablename = 'evidence_part_derived_assets'
+       AND indexname = 'evidence_part_derived_assets_team_part_kind_variant_uk'
      LIMIT 1`,
 });
 

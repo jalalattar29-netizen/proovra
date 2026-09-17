@@ -17,7 +17,6 @@ import {
   deriveExifSummary,
   formatCameraLabel,
   captureMethodDisplayLabel,
-  humanizeUploadSource,
   primaryMediaTypeLabel,
   toPerPartMediaSummary,
   evidencePartRoleLabel,
@@ -172,9 +171,15 @@ export async function projectVerifyTechnicalMetadata(input: {
     }>;
 
     const evidenceRows = (await prisma.$queryRawUnsafe(
-      `SELECT "capture_environment" FROM "evidence" WHERE "id" = $1 LIMIT 1`,
+      `SELECT "capture_environment", "acquisition_mode" FROM "evidence" WHERE "id" = $1 LIMIT 1`,
       input.evidenceId,
-    )) as Array<{ capture_environment: unknown }>;
+    )) as Array<{ capture_environment: unknown; acquisition_mode: string | null }>;
+    // UC-0 — the channel labels on the capture-environment card come from the
+    // acquisition authority, not from the environment's own `uploadSource`
+    // (which the mobile and citizen routes recorded inverted).
+    const acquisitionChannelLabel = captureMethodDisplayLabel({
+      acquisitionMode: evidenceRows[0]?.acquisition_mode ?? null,
+    });
 
     const perPart = parts.map((p) =>
       toPerPartMediaSummary({
@@ -280,16 +285,10 @@ export async function projectVerifyTechnicalMetadata(input: {
 
     const captureEnvironment = ceRaw
       ? {
-          // Humanized labels — never the raw enum on any surface.
-          uploadSource: humanizeUploadSource(
-            (ceRaw.uploadSource as string | null) ?? null,
-          ),
-          // Precise, flow-aware label — web upload reads "PROOVRA Web Upload",
-          // not "Secure Browser Capture".
-          captureMethod: captureMethodDisplayLabel({
-            captureMethod: (ceRaw.captureMethod as string | null) ?? null,
-            uploadSource: (ceRaw.uploadSource as string | null) ?? null,
-          }),
+          // Both keys kept for compatibility; both state the acquisition
+          // channel ("Not recorded" when it was never recorded).
+          uploadSource: acquisitionChannelLabel,
+          captureMethod: acquisitionChannelLabel,
           browserName: (ceRaw.browserName as string | null) ?? null,
           browserVersion: (ceRaw.browserVersion as string | null) ?? null,
           osName: (ceRaw.osName as string | null) ?? null,
@@ -380,8 +379,7 @@ async function queryAcquisitionContext(
 ): Promise<EvidenceAcquisitionContext | null> {
   const rows = (await prisma.$queryRawUnsafe(
     `SELECT
-        e."capture_method"              AS capture_method,
-        e."capture_environment"         AS capture_environment,
+        e."acquisition_mode"            AS acquisition_mode,
         e."identity_level_snapshot"     AS identity_level,
         wis."opened_at_utc"             AS opened_at_utc,
         wis."submitted_at_utc"          AS submitted_at_utc,
@@ -446,10 +444,7 @@ async function queryAcquisitionContext(
     (r.consent_policy_version as string | null) ??
     null;
   return buildEvidenceAcquisitionContext({
-    uploadSource:
-      (r.capture_environment as { uploadSource?: string } | null)
-        ?.uploadSource ?? null,
-    captureMethod: (r.capture_method as string | null) ?? null,
+    acquisitionMode: (r.acquisition_mode as string | null) ?? null,
     intakeMode: (r.intake_mode as string | null) ?? null,
     identityLevel: (r.identity_level as string | null) ?? null,
     deliveryChannelRaw: (r.channel as string | null) ?? null,

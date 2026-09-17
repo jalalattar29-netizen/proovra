@@ -1,63 +1,76 @@
 /**
- * Phase 1B — Capture Trust routes.
+ * Capture Trust routes.
  *
  *   POST   /v1/capture/devices                       — register a device
  *   GET    /v1/capture/devices                       — list workspace devices
  *   GET    /v1/capture/devices/:id                   — read single device
  *   POST   /v1/capture/devices/:id/revoke            — revoke a device
  *
- *   POST   /v1/capture/mobile/ingest                 — mobile ingest with signature + attestation
+ *   POST   /v1/capture/direct-sessions                              — open a server-issued session (nonce)
+ *   POST   /v1/capture/direct-sessions/:id/evidence                 — reserve the session's Evidence
+ *   POST   /v1/capture/direct-sessions/:id/parts/:partIndex/declaration — declare a part digest (signed when device-bound)
+ *   POST   /v1/capture/direct-sessions/:id/attestation              — platform attestation (fails closed)
+ *   POST   /v1/capture/direct-sessions/:id/complete                 — server digest check, seal, bind
+ *
+ *   POST   /v1/capture/mobile/ingest                 — RETIRED (410). See below.
  *
  *   GET    /v1/capture/sessions/:id/trust-timeline   — trust event timeline for a session
  *
  *   GET    /v1/provenance/:evidenceId                — bounded ProvenanceChain projection
  *
  * Hard rules:
- *   * Every authenticated route requires a workspace context (teamId);
+ *   * Device registry and read routes require a workspace context (teamId);
  *     personal-space callers receive a bounded 403.
- *   * Bounded denial reasons via shared CAPTURE_INGEST_DENIAL_REASONS.
- *   * NEVER returns raw assertion bytes or device public keys in
- *     plaintext — only fingerprints and bounded labels.
+ *   * Direct-capture sessions are authorized with the canonical primitive
+ *     (`authorizeOrFail`, evidence.create, anti-enumeration) at open, reserve,
+ *     declaration and completion, plus the personal-space guard. A session is
+ *     only ever visible to its owner; a foreign or unknown id is a 404.
+ *   * Bytes never travel in these JSON bodies: parts are uploaded through the
+ *     canonical presign (POST /v1/evidence/:id/parts) to storage.
+ *   * NEVER returns raw assertion bytes, device public keys, nonce hashes or
+ *     storage keys.
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
 import {
-  CAPTURE_INGEST_DENIAL_REASONS,
-  CAPTURE_INGEST_WARNINGS,
   CAPTURE_MODES,
   CAPTURE_PROVENANCE_CLASSES,
   CAPTURE_SIGNATURE_ALGORITHMS,
   DEVICE_ATTESTATION_PROVIDERS,
-  attestationVerdictKeepsClassA,
-  clampProvenanceClass,
-  demoteToClassC,
-  type CaptureIngestDenialReason,
-  type CaptureIngestReceipt,
-  type CaptureIngestWarning,
-  type CaptureProvenanceClass,
   type CaptureSignaturePayload,
 } from "@proovra/shared";
+import * as prismaPkg from "@prisma/client";
 
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-import { evaluateCurrentWorkspace } from "../middleware/authorize.js";
+import { authorizeOrFail, evaluateCurrentWorkspace } from "../middleware/authorize.js";
+import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
+import { assertPersonalUploadMutationAllowed } from "./upload-sessions.routes.js";
 
-import { verifyDeviceAttestation } from "../services/capture-trust/attestation-verifier.service.js";
 import {
   listDevicesForTeam,
   getDevice as getDeviceById,
   registerDevice,
   revokeDevice,
 } from "../services/capture-trust/device-identity.service.js";
-import { projectProvenanceChain } from "../services/capture-trust/provenance-projection.service.js";
-import { verifyCaptureSignature } from "../services/capture-trust/signature-verifier.service.js";
 import {
-  emitCaptureTrustEvent,
-  readCaptureTrustTimeline,
-} from "../services/capture-trust/trust-event.service.js";
+  DIRECT_CAPTURE_CLIENT_SOURCES,
+  DIRECT_CAPTURE_SESSION_MODES,
+  DirectCaptureError,
+  completeDirectCapture,
+  declareDirectCapturePart,
+  loadOwnedDirectCaptureSession,
+  openDirectCaptureSession,
+  reserveDirectCaptureEvidence,
+  submitDirectCaptureAttestation,
+} from "../services/capture-trust/direct-capture-ingest.service.js";
+import { projectProvenanceChain } from "../services/capture-trust/provenance-projection.service.js";
+import { readCaptureTrustTimeline } from "../services/capture-trust/trust-event.service.js";
+import { ensurePersonalWorkspace } from "../services/platform-context/workspace-bootstrap.service.js";
+import { enforceRateLimit } from "../services/rate-limit.js";
 
 // =============================================================================
 // Zod input schemas
@@ -135,21 +148,61 @@ const CaptureSignaturePayloadSchema = z.object({
   }),
 });
 
-const MobileIngestBody = z.object({
-  payload: CaptureSignaturePayloadSchema,
-  signatureHex: z.string().regex(/^[0-9a-fA-F]+$/).min(64).max(512),
-  assetBase64: z.string().min(1).max(64 * 1024 * 1024 * 2), // base64 of bytes; bounded to ~96MB raw
-  attestation: z
-    .object({
-      provider: z.enum(DEVICE_ATTESTATION_PROVIDERS),
-      rawAssertionBase64: z.string().min(1).max(64 * 1024),
-      assertedAtUtc: z.string().datetime(),
-      nonceHex: z.string().regex(/^[0-9a-fA-F]{64}$/),
-      expiresAtUtc: z.string().datetime().nullable().optional(),
-      providerMetadata: z.record(z.string(), z.unknown()).optional(),
-    })
-    .nullable(),
+const OpenDirectSessionBody = z
+  .object({
+    mode: z.enum(DIRECT_CAPTURE_SESSION_MODES),
+    // Omitted = the caller's personal workspace (resolved server-side).
+    teamId: z.string().uuid().optional(),
+    deviceId: z.string().uuid().nullable().optional(),
+  })
+  .strict();
+
+const ReserveDirectEvidenceBody = z
+  .object({
+    type: z.nativeEnum(prismaPkg.EvidenceType),
+    mimeType: z.string().min(1).max(128).optional(),
+    originalFileName: z.string().trim().min(1).max(255).optional(),
+    deviceTimeIso: z.string().min(1).max(64).optional(),
+    gps: z
+      .object({
+        lat: z.number().finite().min(-90).max(90),
+        lng: z.number().finite().min(-180).max(180),
+        accuracyMeters: z.number().finite().min(0).max(1_000_000).optional(),
+      })
+      .optional(),
+  })
+  .strict();
+
+const DeclarePartBody = z
+  .object({
+    sha256: z.string().regex(/^[0-9a-fA-F]{64}$/),
+    clientReportedSource: z.enum(DIRECT_CAPTURE_CLIENT_SOURCES),
+    signed: z
+      .object({
+        payload: CaptureSignaturePayloadSchema,
+        signatureHex: z.string().regex(/^[0-9a-fA-F]+$/).min(64).max(512),
+      })
+      .nullable()
+      .optional(),
+  })
+  .strict();
+
+const AttestationBody = z
+  .object({
+    provider: z.enum(["APPLE_APP_ATTEST", "GOOGLE_PLAY_INTEGRITY"]),
+    rawAssertionBase64: z.string().min(1).max(64 * 1024),
+    nonceHex: z.string().regex(/^[0-9a-fA-F]{64}$/),
+    assertedAtUtc: z.string().datetime(),
+  })
+  .strict();
+
+const SessionParams = z.object({ id: z.string().uuid() });
+const PartParams = z.object({
+  id: z.string().uuid(),
+  partIndex: z.coerce.number().int().min(0).max(199),
 });
+
+const DIRECT_SESSION_OPEN_LIMIT_PER_MIN = 30;
 
 // =============================================================================
 // Route handlers
@@ -249,197 +302,180 @@ export async function captureTrustRoutes(app: FastifyInstance) {
   );
 
   // ---------------------------------------------------------------------------
-  // POST /v1/capture/mobile/ingest — mobile capture ingest (operator native + SDK embed)
+  // POST /v1/capture/mobile/ingest — RETIRED (UC-0, 2026-09-16)
   //
-  // This route is the trust-bearing ingest endpoint. It:
-  //
-  //   1. Validates the body shape.
-  //   2. Re-hashes the raw bytes; refuses on mismatch.
-  //   3. Verifies the at-source capture signature.
-  //   4. (Optional) Verifies device attestation.
-  //   5. Clamps provenance class to the mode's ceiling AND further
-  //      demotes per verdict.
-  //   6. Hands off the raw bytes to the existing evidence ingest
-  //      pipeline (out of scope for this handler — see capture.routes
-  //      sibling flow). For Phase 1B we accept the bytes, write the
-  //      trust events, and return the bounded receipt; the actual
-  //      `Evidence` row creation happens in the existing pipeline.
-  //   7. Emits bounded trust events the whole way.
+  // This route verified an envelope, wrote trust events with evidenceId null,
+  // created no Evidence, returned `evidenceId: ""`, claimed `otsQueued: true`
+  // without queuing anything, and carried the whole asset as base64 JSON under
+  // the 1 MiB default body limit — while the app uploaded the same bytes a
+  // second time through POST /v1/evidence, and nothing joined the two. Its
+  // trust chain could never reach the record it described. The mobile app now
+  // uses the direct-capture session adapter below. The route answers 410 so an
+  // outdated client fails loudly instead of believing a receipt.
   // ---------------------------------------------------------------------------
   app.post(
     "/v1/capture/mobile/ingest",
     { preHandler: requireAuth },
+    async (_req: FastifyRequest, reply: FastifyReply) => {
+      return reply.code(410).send({
+        denial: "INGEST_RETIRED",
+        replacement: "/v1/capture/direct-sessions",
+      });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // POST /v1/capture/direct-sessions — open a server-issued capture session
+  // ---------------------------------------------------------------------------
+  app.post(
+    "/v1/capture/direct-sessions",
+    { preHandler: requireAuthAndLegal },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const teamId = await resolveTeamIdOrDeny(req, reply);
+      const userId = getAuthUserId(req);
+      const body = OpenDirectSessionBody.parse(req.body ?? {});
+
+      const rate = await enforceRateLimit({
+        key: `ratelimit:capture:direct-session:open:${userId}`,
+        max: DIRECT_SESSION_OPEN_LIMIT_PER_MIN,
+        windowSec: 60,
+      });
+      if (!rate.allowed) {
+        return reply.code(429).send({ denial: "RATE_LIMITED" });
+      }
+
+      // The workspace is the caller's own personal Team unless one is named;
+      // either way the canonical primitive decides access.
+      let candidateTeamId = body.teamId ?? null;
+      if (!candidateTeamId) {
+        try {
+          candidateTeamId = (await ensurePersonalWorkspace({ userId })).teamId;
+        } catch (err) {
+          return sendPersonalSpaceDenial(reply, err);
+        }
+      }
+      const teamId = await authorizeDirectCapture(req, reply, candidateTeamId, userId);
       if (!teamId) return reply;
 
-      const body = MobileIngestBody.parse(req.body);
-      const payload: CaptureSignaturePayload = body.payload;
-
-      // Step 1 — decode bytes.
-      let assetBytes: Buffer;
       try {
-        assetBytes = Buffer.from(body.assetBase64, "base64");
-      } catch {
-        return denyIngest(reply, "BYTES_HASH_MISMATCH", payload.provenanceClass);
-      }
-      if (assetBytes.length === 0) {
-        return denyIngest(reply, "BYTES_HASH_MISMATCH", payload.provenanceClass);
-      }
-
-      // Step 2 — verify capture signature.
-      const sigResult = await verifyCaptureSignature({
-        teamId,
-        payload,
-        signatureHex: body.signatureHex,
-        assetBytes,
-      });
-
-      const warnings: CaptureIngestWarning[] = [];
-      let provenanceClass: CaptureProvenanceClass = clampProvenanceClass(
-        payload.provenanceClass,
-        payload.captureMode,
-      );
-      if (provenanceClass !== payload.provenanceClass) {
-        warnings.push("CAPTURE_PROVENANCE_DOWNGRADED");
-      }
-
-      // Fatal signature failure → fail-closed denial.
-      if (sigResult.fatal) {
-        const denial: CaptureIngestDenialReason =
-          sigResult.verdict === "UNKNOWN_DEVICE"
-            ? "DEVICE_NOT_REGISTERED"
-            : sigResult.verdict === "INVALID_HASH"
-            ? "BYTES_HASH_MISMATCH"
-            : "SIGNATURE_INVALID";
-
-        await emitCaptureTrustEvent({
+        const opened = await openDirectCaptureSession({
+          ownerUserId: userId,
           teamId,
-          deviceId: sigResult.deviceId,
-          captureSessionId: payload.captureSessionId,
-          evidenceId: null,
-          code: "CAPTURE_ARTIFACT_VERIFICATION_FAILED",
-          payload: {
-            verdict: sigResult.verdict,
-            denial,
-            captureMode: payload.captureMode,
-          },
+          mode: body.mode,
+          deviceId: body.deviceId ?? null,
         });
-        return denyIngest(reply, denial, "C");
+        return reply.code(201).send({ session: opened });
+      } catch (err) {
+        return sendDirectCaptureError(reply, err);
       }
+    },
+  );
 
-      // Step 3 — verify attestation when present.
-      type AttestVerdict =
-        | "VERIFIED_STRONG"
-        | "VERIFIED_BASIC"
-        | "TEE_ONLY"
-        | "UNVERIFIED"
-        | "FAILED"
-        | "REVOKED"
-        | "NOT_ATTEMPTED";
-      let attestationVerdict: AttestVerdict =
-        "NOT_ATTEMPTED" as AttestVerdict;
-      if (body.attestation && sigResult.deviceId) {
-        const att = await verifyDeviceAttestation({
-          teamId,
-          deviceId: sigResult.deviceId,
-          captureSessionId: payload.captureSessionId,
-          provider: body.attestation.provider,
-          rawAssertionBase64: body.attestation.rawAssertionBase64,
-          assertedAtUtc: body.attestation.assertedAtUtc,
-          nonceHex: body.attestation.nonceHex,
-          expiresAtUtc: body.attestation.expiresAtUtc ?? null,
-          providerMetadata: body.attestation.providerMetadata ?? {},
+  // ---------------------------------------------------------------------------
+  // POST /v1/capture/direct-sessions/:id/evidence — reserve the session's record
+  // ---------------------------------------------------------------------------
+  app.post(
+    "/v1/capture/direct-sessions/:id/evidence",
+    { preHandler: requireAuthAndLegal },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const userId = getAuthUserId(req);
+      const { id } = SessionParams.parse(req.params);
+      const body = ReserveDirectEvidenceBody.parse(req.body ?? {});
+      if (!(await authorizeOwnedSession(req, reply, id, userId))) return reply;
+      try {
+        const reserved = await reserveDirectCaptureEvidence({
+          sessionId: id,
+          ownerUserId: userId,
+          type: body.type,
+          mimeType: body.mimeType,
+          originalFileName: body.originalFileName ?? null,
+          deviceTimeIso: body.deviceTimeIso,
+          gps: body.gps,
         });
-        attestationVerdict = att.verdict as AttestVerdict;
+        return reply.code(201).send({ evidence: reserved });
+      } catch (err) {
+        return sendDirectCaptureError(reply, err);
+      }
+    },
+  );
 
-        await emitCaptureTrustEvent({
-          teamId,
-          deviceId: sigResult.deviceId,
-          captureSessionId: payload.captureSessionId,
-          evidenceId: null,
-          code:
-            att.verdict === "FAILED" || att.verdict === "REVOKED"
-              ? "ATTESTATION_FAILED"
-              : "ATTESTATION_VERIFIED",
-          payload: {
-            verdict: att.verdict,
-            provider: body.attestation.provider,
-            failureReason: att.failureReason,
-            attestationRecordId: att.attestationRecordId,
-          },
+  // ---------------------------------------------------------------------------
+  // POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration
+  // ---------------------------------------------------------------------------
+  app.post(
+    "/v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const userId = getAuthUserId(req);
+      const { id, partIndex } = PartParams.parse(req.params);
+      const body = DeclarePartBody.parse(req.body ?? {});
+      if (!(await authorizeOwnedSession(req, reply, id, userId))) return reply;
+      try {
+        const out = await declareDirectCapturePart({
+          sessionId: id,
+          ownerUserId: userId,
+          partIndex,
+          sha256: body.sha256,
+          clientReportedSource: body.clientReportedSource,
+          signed: body.signed
+            ? {
+                payload: body.signed.payload as CaptureSignaturePayload,
+                signatureHex: body.signed.signatureHex,
+              }
+            : null,
         });
-
-        if (att.verdict === "REVOKED") {
-          return denyIngest(reply, "DEVICE_REVOKED", "C");
-        }
+        return reply.code(out.created ? 201 : 200).send({
+          declaration: out.declaration,
+        });
+      } catch (err) {
+        return sendDirectCaptureError(reply, err);
       }
+    },
+  );
 
-      // Step 4 — provenance class final demotion.
-      if (
-        payload.provenanceClass === "A" &&
-        !attestationVerdictKeepsClassA(attestationVerdict)
-      ) {
-        // Strong attestation required for class A. Without it, class
-        // drops to B (or C when attestation failed hard).
-        const demoted: CaptureProvenanceClass =
-          attestationVerdict === "FAILED" || attestationVerdict === "REVOKED"
-            ? demoteToClassC(provenanceClass)
-            : "B";
-        if (demoted !== provenanceClass) {
-          provenanceClass = demoted;
-          warnings.push("CAPTURE_PROVENANCE_DOWNGRADED");
-        }
+  // ---------------------------------------------------------------------------
+  // POST /v1/capture/direct-sessions/:id/attestation
+  //
+  // A platform attestation for a device-bound session, bound to THIS session's
+  // nonce. Verified by the canonical verifier, which fails closed: no client
+  // field can produce a verified verdict.
+  // ---------------------------------------------------------------------------
+  app.post(
+    "/v1/capture/direct-sessions/:id/attestation",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const userId = getAuthUserId(req);
+      const { id } = SessionParams.parse(req.params);
+      const body = AttestationBody.parse(req.body ?? {});
+      if (!(await authorizeOwnedSession(req, reply, id, userId))) return reply;
+      try {
+        const out = await submitDirectCaptureAttestation({
+          sessionId: id,
+          ownerUserId: userId,
+          ...body,
+        });
+        return reply.code(200).send({ attestation: out });
+      } catch (err) {
+        return sendDirectCaptureError(reply, err);
       }
+    },
+  );
 
-      // Step 5 — emit trust events recording the verified capture.
-      await emitCaptureTrustEvent({
-        teamId,
-        deviceId: sigResult.deviceId,
-        captureSessionId: payload.captureSessionId,
-        evidenceId: null,
-        code: "CAPTURE_ARTIFACT_RECEIVED",
-        payload: {
-          captureMode: payload.captureMode,
-          provenanceClass,
-          signatureVerdict: sigResult.verdict,
-          attestationVerdict,
-          assetHash: sigResult.computedAssetHash,
-          sizeBytes: assetBytes.length,
-        },
-      });
-      await emitCaptureTrustEvent({
-        teamId,
-        deviceId: sigResult.deviceId,
-        captureSessionId: payload.captureSessionId,
-        evidenceId: null,
-        code: "CAPTURE_ARTIFACT_SIGNED_AT_SOURCE",
-        payload: {
-          algorithm: payload.algorithm,
-          signedAtUtc: payload.signedAtUtc,
-          captureMode: payload.captureMode,
-          provenanceClass,
-          signatureVerdict: sigResult.verdict,
-        },
-      });
-
-      // Step 6 — return receipt. The actual Evidence row creation is
-      // performed by the existing evidence ingest pipeline (the
-      // caller uploads bytes via the existing presign flow and the
-      // worker finalises). The receipt carries the trust verdicts
-      // the caller needs to surface.
-      const receipt: CaptureIngestReceipt = {
-        evidenceId: "", // populated by the evidence pipeline downstream
-        provenanceClass,
-        signatureVerdict: sigResult.verdict,
-        attestationVerdict,
-        countersigned: false,
-        rfc3161Applied: false,
-        otsQueued: true,
-        warnings: warnings as ReadonlyArray<CaptureIngestWarning>,
-        denialReason: null,
-      };
-      return reply.code(202).send({ receipt });
+  // ---------------------------------------------------------------------------
+  // POST /v1/capture/direct-sessions/:id/complete
+  // ---------------------------------------------------------------------------
+  app.post(
+    "/v1/capture/direct-sessions/:id/complete",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const userId = getAuthUserId(req);
+      const { id } = SessionParams.parse(req.params);
+      if (!(await authorizeOwnedSession(req, reply, id, userId))) return reply;
+      try {
+        const done = await completeDirectCapture({ sessionId: id, ownerUserId: userId });
+        return reply.code(200).send({ result: done });
+      } catch (err) {
+        return sendDirectCaptureError(reply, err);
+      }
     },
   );
 
@@ -501,6 +537,87 @@ export async function captureTrustRoutes(app: FastifyInstance) {
 // Helpers
 // =============================================================================
 
+async function requireAuthAndLegal(req: FastifyRequest, reply: FastifyReply) {
+  await requireAuth(req, reply);
+  if (reply.sent) return;
+  await requireLegalAcceptance(req, reply);
+}
+
+/**
+ * Canonical authorization for a direct-capture workspace: ACTIVE membership,
+ * evidence.create, org lifecycle — all decided by `authorizeOrFail` — plus the
+ * managed-identity personal-space guard. Returns the proven team id or null
+ * (the response has been sent).
+ */
+async function authorizeDirectCapture(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  teamId: string,
+  userId: string,
+): Promise<string | null> {
+  const auth = await authorizeOrFail(req, reply, {
+    teamId,
+    permission: "evidence.create",
+    resourceKind: "capture_session",
+    antiEnumeration: true,
+  });
+  if (!auth) return null;
+  const personalDenial = await assertPersonalUploadMutationAllowed(auth.teamId, userId);
+  if (personalDenial) {
+    reply.code(personalDenial.statusCode).send({
+      code: personalDenial.code,
+      message: personalDenial.message,
+    });
+    return null;
+  }
+  return auth.teamId;
+}
+
+/**
+ * A session is visible only to its owner, and only while the owner is still
+ * authorized in the session's workspace (membership can end mid-session).
+ */
+async function authorizeOwnedSession(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  sessionId: string,
+  userId: string,
+): Promise<boolean> {
+  let teamId: string;
+  try {
+    const session = await loadOwnedDirectCaptureSession(prisma, sessionId, userId);
+    teamId = session.teamId!;
+  } catch (err) {
+    sendDirectCaptureError(reply, err);
+    return false;
+  }
+  return (await authorizeDirectCapture(req, reply, teamId, userId)) !== null;
+}
+
+function sendDirectCaptureError(reply: FastifyReply, err: unknown): FastifyReply {
+  if (err instanceof DirectCaptureError) {
+    return reply.code(err.statusCode).send({ denial: err.code });
+  }
+  const e = err as { statusCode?: unknown; code?: unknown };
+  const status = typeof e.statusCode === "number" ? e.statusCode : 500;
+  if (status >= 500) throw err;
+  // Canonical creation / completion refusals (commercial gates, personal-space
+  // policy, upload-session gate) keep their own bounded code.
+  return reply.code(status).send({
+    denial: typeof e.code === "string" ? e.code : "CAPTURE_REQUEST_REFUSED",
+  });
+}
+
+function sendPersonalSpaceDenial(reply: FastifyReply, err: unknown): FastifyReply {
+  const e = err as { statusCode?: unknown; code?: unknown };
+  if (typeof e.statusCode === "number" && e.statusCode < 500) {
+    return reply.code(e.statusCode).send({
+      denial: typeof e.code === "string" ? e.code : "WORKSPACE_NOT_FOUND",
+    });
+  }
+  throw err;
+}
+
 /**
  * Resolve the workspace id for the authenticated request. Personal-space
  * callers are denied — device + ingest are organization concepts.
@@ -557,29 +674,4 @@ async function resolveTeamIdOrDeny(
     return null;
   }
   return outcome.context.workspaceId;
-}
-
-function denyIngest(
-  reply: FastifyReply,
-  denial: CaptureIngestDenialReason,
-  provenanceClass: CaptureProvenanceClass,
-): FastifyReply {
-  if (!(CAPTURE_INGEST_DENIAL_REASONS as ReadonlyArray<string>).includes(denial)) {
-    throw new Error(`capture-trust: unknown denial reason "${denial}"`);
-  }
-  // Mark the warning list as a no-op placeholder; downstream surfaces
-  // expect the field even on denial.
-  void CAPTURE_INGEST_WARNINGS;
-  const receipt: CaptureIngestReceipt = {
-    evidenceId: "",
-    provenanceClass,
-    signatureVerdict: "MISSING",
-    attestationVerdict: "NOT_ATTEMPTED",
-    countersigned: false,
-    rfc3161Applied: false,
-    otsQueued: false,
-    warnings: [],
-    denialReason: denial,
-  };
-  return reply.code(409).send({ receipt });
 }

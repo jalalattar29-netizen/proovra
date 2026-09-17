@@ -17,8 +17,16 @@ import {
 
 const OWNER = "jalal.attar@proovra.com";
 
-function metadata(isIntake: boolean) {
+// UC-0: the capture-method label comes from the server-authoritative
+// `acquisitionMode`; `captureMethod` is only the legacy STRUCTURE enum.
+function metadata(isIntake: boolean, acquisitionMode?: string | null) {
   return {
+    acquisitionMode:
+      acquisitionMode === undefined
+        ? isIntake
+          ? "SECURE_INTAKE_LINK"
+          : "PROOVRA_WEB_UPLOAD"
+        : acquisitionMode,
     title: "Roadside incident photo",
     rawEvidenceType: "PHOTO",
     reviewerEvidenceType: "Photo Evidence",
@@ -91,6 +99,17 @@ describe("verification package — intake role-safe submitter + capture method",
     expect(ol.submittedByEmail).toBe("owner@acme-legal.example");
     expect(ol.submittedByRole).toBeUndefined();
     expect(ol.captureMethod).toBe("PROOVRA Web Upload");
+  });
+
+  it("a legacy record with no recorded acquisition reads Not recorded — never guessed from structure", () => {
+    const cm = buildCaseMetadata(metadata(false, null), "ev-legacy") as {
+      evidence: { captureMethod: string };
+    };
+    expect(cm.evidence.captureMethod).toBe("Not recorded");
+    const ol = buildOriginalLinkage([] as never, metadata(false, null)) as {
+      captureMethod: string;
+    };
+    expect(ol.captureMethod).toBe("Not recorded");
   });
 
   it("no recipient phone/email or provider IDs are introduced", () => {

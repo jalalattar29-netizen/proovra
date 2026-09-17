@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "5ed058805558999585e841a2cb95ea5fe6e11219d63af300ee9319dda79d2fa6",
-  "capabilityRouteInventoryHash": "0f3f53b23962413f9da3a687a710e8204f5761b258fec001278802a693cbb85a",
+  "capabilityRouteInventoryHash": "b17e04b121a244d9ea104f254b92dccffc9cdb028e31bcee3f13331e319d1f55",
   "totals": {
-    "routes": 1145,
+    "routes": 1150,
     "routesWithAnyTestCaller": 39,
     "testOnlyRoutes": 5,
     "testCallSites": 67,
@@ -4109,6 +4109,36 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/capture/direct-sessions",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/capture/direct-sessions/:id/attestation",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/capture/direct-sessions/:id/complete",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/capture/direct-sessions/:id/evidence",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/capture/mobile/ingest",
       "testCallerCount": 0,
       "testOnly": false,
@@ -6967,5 +6997,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "043a45cf9df8fdabf8e915bc2fd2c27409d353f30df16201f8f016bee83ffc1a"
+  "contentHash": "07444b09cda7e2ef4900077e74ec5c2115dbb1334a570c8c18664b32c1746196"
 }

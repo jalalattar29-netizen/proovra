@@ -1,4 +1,5 @@
 import QRCode from "qrcode";
+import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
 import sharp from "sharp";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -52,7 +53,6 @@ import {
 } from "./formatters.js";
 import {
   mapAnchorModePublicLabel,
-  mapCaptureMethodLabel,
   mapCertificationStatusLabel,
   mapEvidenceAssetKindLabel,
   mapIdentityLevelLabel,
@@ -676,7 +676,9 @@ function buildReviewReadinessRows(
     },
     {
       label: "Capture Method",
-      value: mapCaptureMethodLabel(evidence.captureMethod),
+      value: captureMethodDisplayLabel({
+        acquisitionMode: evidence.acquisitionMode ?? null,
+      }),
     },
     {
       label: "Organization / Workspace",
@@ -1800,7 +1802,6 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
       input.evidence,
       externalMode,
       input.acquisition?.isIntake === true,
-      input.technicalSummary?.captureEnvironment?.uploadSource ?? null
     ),
     technicalFingerprintNarrative: buildFingerprintNarrative(
       parsedFingerprintSummary,
@@ -1837,6 +1838,7 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
     meta: {
       hasCoreCrypto: hasCoreCryptoMaterials(input.evidence),
       acquisition: input.acquisition ?? null,
+      acquisitionMode: input.evidence.acquisitionMode ?? null,
       captureContext,
       previewPolicy,
       anchorSummary,

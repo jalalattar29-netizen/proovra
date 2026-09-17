@@ -65,6 +65,11 @@ import {
   generationOutcomeAcceptedWork,
   type GenerationIntent,
   type GenerationRequestOutcome,
+  // UC-0 — the ONE acquisition authority.
+  acquisitionModesForCategory,
+  resolveEvidenceAcquisition,
+  EVIDENCE_ACQUISITION_CATEGORIES,
+  type EvidenceAcquisitionProjection,
 } from "@proovra/shared";
 /**
  * THE SAFE SENTENCE FOR EACH GENERATION OUTCOME.
@@ -836,6 +841,8 @@ const SAFE_EVIDENCE_SELECT = {
   status: true,
   verificationStatus: true,
   captureMethod: true,
+  acquisitionMode: true,
+  acquisitionModeSource: true,
   identityLevelSnapshot: true,
   submittedByEmail: true,
   submittedByAuthProvider: true,
@@ -1016,6 +1023,8 @@ type SafeEvidence = {
   status: prismaPkg.EvidenceStatus;
   verificationStatus: prismaPkg.VerificationStatus | null;
   captureMethod: prismaPkg.CaptureMethod | null;
+  /** UC-0 — how this record entered PROOVRA (the acquisition authority). */
+  acquisition: EvidenceAcquisitionProjection;
   identityLevelSnapshot: prismaPkg.IdentityLevel | null;
   submittedByEmail: string | null;
   submittedByAuthProvider: prismaPkg.AuthProvider | null;
@@ -1501,30 +1510,21 @@ function mapEvidenceTypeLabel(params: {
   });
 }
 
-function mapCaptureMethodLabel(
-  captureMethod: prismaPkg.CaptureMethod | string | null | undefined
-): string {
-  switch (String(captureMethod ?? "").toUpperCase()) {
-    case "SECURE_CAMERA":
-      return "Captured with PROOVRA secure camera";
-    case "UPLOADED_FILE":
-      return "Uploaded existing file";
-    case "IMPORTED_DOCUMENT":
-      return "Imported document";
-    case "MULTIPART_PACKAGE":
-      // Renamed from the engineering term "Multipart package" to
-      // reviewer copy. The bytes/manifest are unchanged; this is
-      // display-only.
-      return "Multi-file submission";
-    case "EXTERNAL_INTAKE_UPLOAD":
-      // Phase 4 intake-link path. The contributor uploaded files
-      // through a one-time secure intake link (consent → upload →
-      // submit). Reviewer wording matches the contributor's
-      // experience.
-      return "Secure upload session";
-    default:
-      return "Capture method not recorded";
-  }
+/**
+ * UC-0 — the reviewer label for HOW a record entered PROOVRA. The response
+ * keys stay `captureMethodLabel` for compatibility, but the value now comes
+ * from the acquisition authority: it used to be derived from `captureMethod`,
+ * a structure field completion overwrites, so an intake submission read
+ * "Multi-file submission" and nothing ever read as mobile.
+ */
+function mapAcquisitionLabel(input: {
+  acquisitionMode?: string | null;
+  acquisitionModeSource?: string | null;
+}): string {
+  return resolveEvidenceAcquisition({
+    acquisitionMode: input.acquisitionMode ?? null,
+    acquisitionModeSource: input.acquisitionModeSource ?? null,
+  }).label;
 }
 
 function getTimestampDigestLabel(params: {
@@ -2055,6 +2055,7 @@ function toSafeEvidence(e: SelectedEvidence): SafeEvidence {
     status: e.status,
     verificationStatus: e.verificationStatus ?? null,
     captureMethod: e.captureMethod ?? null,
+    acquisition: resolveEvidenceAcquisition(e),
     identityLevelSnapshot: e.identityLevelSnapshot ?? null,
     submittedByEmail: e.submittedByEmail ?? null,
     submittedByAuthProvider: e.submittedByAuthProvider ?? null,
@@ -2419,6 +2420,7 @@ function buildEvidenceListBaseWhere(params: {
   const otsFilter = inOrEq(query.otsStatus);
   const publicVerifyFilter = inOrEq(query.publicVerifyState);
   const verificationStatusFilter = inOrEq(query.verificationStatus);
+  const acquisitionFilter = buildEvidenceListAcquisitionFilter(query.acquisition);
 
   return {
     AND: [
@@ -2439,8 +2441,32 @@ function buildEvidenceListBaseWhere(params: {
       ...(verificationStatusFilter !== null
         ? [{ verificationStatus: verificationStatusFilter } satisfies Prisma.EvidenceWhereInput]
         : []),
+      ...(acquisitionFilter ? [acquisitionFilter] : []),
     ],
   };
+}
+
+/**
+ * UC-0 — the acquisition filter, expressed ONLY over the acquisition
+ * authority column. Category → modes comes from the shared vocabulary so the
+ * library filter and the resolver cannot disagree.
+ */
+function buildEvidenceListAcquisitionFilter(
+  categories: EvidenceListQuery["acquisition"],
+): Prisma.EvidenceWhereInput | null {
+  if (!categories || categories.length === 0) return null;
+  const modes = new Set<string>();
+  let includeNotRecorded = false;
+  for (const category of categories) {
+    for (const mode of acquisitionModesForCategory(category)) {
+      if (mode === "LEGACY_NOT_RECORDED") includeNotRecorded = true;
+      else modes.add(mode);
+    }
+  }
+  const arms: Prisma.EvidenceWhereInput[] = [];
+  if (modes.size > 0) arms.push({ acquisitionMode: { in: [...modes] } });
+  if (includeNotRecorded) arms.push({ acquisitionMode: null });
+  return arms.length === 1 ? arms[0]! : { OR: arms };
 }
 
 function buildEvidenceListSearchFilter(
@@ -2657,7 +2683,11 @@ function mapEvidenceListItem(item: SelectedEvidenceListItem) {
     verificationStatus: item.verificationStatus,
     verificationStatusLabel: mapVerificationStatusLabel(item.verificationStatus),
     captureMethod: item.captureMethod,
-    captureMethodLabel: mapCaptureMethodLabel(item.captureMethod),
+    captureMethodLabel: mapAcquisitionLabel(item),
+    acquisition: (() => {
+      const a = resolveEvidenceAcquisition(item);
+      return { mode: a.mode, category: a.category, label: a.label, recorded: a.recorded };
+    })(),
     identityLevel: item.identityLevelSnapshot,
     identityLevelLabel: mapIdentityLevelLabel(item.identityLevelSnapshot),
     submittedByEmail: item.submittedByEmail,
@@ -3241,6 +3271,12 @@ type EvidenceListQuery = {
   otsStatus: string[] | null;
   publicVerifyState: prismaPkg.PublicVerifyState[] | null;
   verificationStatus: prismaPkg.VerificationStatus[] | null;
+  /**
+   * UC-0 — acquisition categories (UPLOAD, SECURE_INTAKE, MOBILE_APP,
+   * NOT_RECORDED), comma-separated. Filters on the acquisition authority;
+   * NOT_RECORDED matches records whose acquisition was never recorded.
+   */
+  acquisition: Array<(typeof EVIDENCE_ACQUISITION_CATEGORIES)[number]> | null;
   sort: EvidenceListSort;
 };
 
@@ -3254,6 +3290,8 @@ const EVIDENCE_LIST_SELECT = {
   status: true,
   verificationStatus: true,
   captureMethod: true,
+  acquisitionMode: true,
+  acquisitionModeSource: true,
   identityLevelSnapshot: true,
   submittedByEmail: true,
   latestReportVersion: true,
@@ -3475,6 +3513,11 @@ function parseEvidenceListQuery(query: Record<string, unknown>): EvidenceListQue
     otsStatus,
     publicVerifyState,
     verificationStatus,
+    acquisition: parseEvidenceMultiEnumFilter(
+      query.acquisition,
+      EVIDENCE_ACQUISITION_CATEGORIES,
+      "acquisition",
+    ),
     sort,
   };
 }
@@ -3944,6 +3987,8 @@ function buildPublicVerifyOverview(params: {
     status: prismaPkg.EvidenceStatus;
     verificationStatus: prismaPkg.VerificationStatus | null;
     captureMethod: prismaPkg.CaptureMethod | null;
+    acquisitionMode: string | null;
+    acquisitionModeSource: string | null;
     identityLevelSnapshot: prismaPkg.IdentityLevel | null;
     submittedByEmail: string | null;
     submittedByAuthProvider: prismaPkg.AuthProvider | null;
@@ -4032,8 +4077,12 @@ primaryContentLabel: buildPrimaryContentLabel(
     evidenceStructure:
       params.itemCount > 1 ? "Multipart evidence package" : "Single evidence item",
     itemCount: params.itemCount,
-    captureMethod: mapCaptureMethodLabel(params.evidence.captureMethod),
+    // Key kept for compatibility; the value is the acquisition label.
+    captureMethod: mapAcquisitionLabel(params.evidence),
+    // Legacy STRUCTURE code (UPLOADED_FILE / MULTIPART_PACKAGE …) — not
+    // acquisition.
     captureMethodCode: params.evidence.captureMethod,
+    acquisitionMode: resolveEvidenceAcquisition(params.evidence).mode,
     mimeType: params.evidence.mimeType ?? null,
     // Phase 1 — `submittedByEmail` is always redacted on the public
     // surface. The call site in /public/verify passes null. For other
@@ -4755,23 +4804,22 @@ function buildSourceContext(params: {
       (part) => readBooleanClientSignal(part.clientSignals, "locationIncluded") === true
     );
   const captureMethod = params.evidence.captureMethod ?? null;
-  // EXTERNAL_INTAKE_UPLOAD is checked FIRST so an intake-link record
-  // never falls through to "folder_upload" (when the contributor sent
-  // multiple files) or "unknown". The web-side `displaySourceType()`
-  // helper independently re-checks captureMethod so callers that
-  // don't read sourceType are still correct, but this keeps the raw
-  // server enum honest too.
+  // UC-0 — the source type is a projection of the acquisition authority. It
+  // was derived from `captureMethod` (a structure field completion
+  // overwrites), so an intake record read as a folder upload and a record
+  // whose origin was never recorded read as an upload. The folder flag only
+  // refines an UPLOAD; it never decides the acquisition.
+  const acquisition = resolveEvidenceAcquisition(params.evidence);
   const sourceType =
-    captureMethod === prismaPkg.CaptureMethod.EXTERNAL_INTAKE_UPLOAD
+    acquisition.mode === "SECURE_INTAKE_LINK"
       ? "external_intake"
-      : folderPathPresent || captureMethod === prismaPkg.CaptureMethod.MULTIPART_PACKAGE
-      ? "folder_upload"
-      : captureMethod === prismaPkg.CaptureMethod.SECURE_CAMERA
-        ? "native_capture"
-        : captureMethod === prismaPkg.CaptureMethod.UPLOADED_FILE ||
-            captureMethod === prismaPkg.CaptureMethod.IMPORTED_DOCUMENT
-          ? "imported_upload"
-        : "unknown";
+      : acquisition.mode === "PROOVRA_MOBILE_APP"
+        ? "mobile_app"
+        : acquisition.mode === "PROOVRA_WEB_UPLOAD"
+          ? folderPathPresent
+            ? "folder_upload"
+            : "imported_upload"
+          : "not_recorded";
   const clientSignalsRecorded = params.parts.some((part) =>
     Boolean(part.clientSignals)
   );
@@ -4782,15 +4830,16 @@ function buildSourceContext(params: {
   const folderPathStatus = resolveClientSignalState({
     recorded: clientSignalsRecorded,
     detected: folderPathPresent,
-    unavailable: sourceType === "native_capture" && !clientSignalsRecorded,
   });
 
   return {
     sourceType,
+    acquisition,
     captureMethod,
-    captureMethodLabel: mapCaptureMethodLabel(captureMethod),
+    captureMethodLabel: acquisition.label,
     importedUpload: sourceType === "imported_upload",
-    nativeCapture: sourceType === "native_capture",
+    // No UC-0 acquisition is a direct capture.
+    nativeCapture: acquisition.isDirectCapture,
     folderUpload: sourceType === "folder_upload",
     // Issue #6 timestamp provenance (capture context surface).
     // deviceTimeIso is a CLIENT-supplied device/browser clock value at intake.
@@ -5275,11 +5324,11 @@ intakePlanJson:
   body.intakePlanJson === null || body.intakePlanJson === undefined
     ? undefined
     : (body.intakePlanJson as Prisma.InputJsonValue),
-  // POST /v1/evidence is the authenticated Web Capture / Browser Upload path —
-  // its UPLOAD_AUTHORIZED custody event should read "initial browser upload
-  // location", not the generic "initial intake location". Mobile (citizen
-  // capture) and Intake Link callers do not set this and keep their wording.
-  browserUpload: true,
+  // UC-0 — POST /v1/evidence is the signed-in upload ingress. The acquisition
+  // is this route's constant, never a body field. The PROOVRA mobile app
+  // submits through the direct-capture session adapter instead
+  // (/v1/capture/direct-sessions), which records PROOVRA_MOBILE_APP.
+  acquisitionMode: "PROOVRA_WEB_UPLOAD",
       });
 
       // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — THE DUPLICATE QUOTA
@@ -5349,15 +5398,14 @@ intakePlanJson:
             typeof req.headers["accept-language"] === "string"
               ? req.headers["accept-language"]
               : null,
-          captureMethod: body.captureSessionId ? "SECURE_CAPTURE" : "UPLOAD",
-          // TODO(capture-environment): set uploadSource: "API" when a
-          // reliable API-key / service-token marker is available on this
-          // route. As of now POST /v1/evidence is JWT session auth only
-          // (requireAuthAndLegal; AuthProvider = GOOGLE|APPLE|GUEST|EMAIL)
-          // — there is no programmatic-caller marker on req.user to key
-          // off, and the integrations-auth / internal-service-auth
-          // middlewares do not guard this route. Leaving WEB_APP rather
-          // than inventing an unreliable signal.
+          // UC-0 — a web capture DRAFT session (template/checklist state) is
+          // not a capture: the bytes are still files the browser uploads, so
+          // this is always UPLOAD. The capture environment is a compatibility
+          // projection only; acquisition is `Evidence.acquisitionMode`.
+          captureMethod: "UPLOAD",
+          // This route is JWT session auth only (requireAuthAndLegal); no
+          // API-key ingress creates Evidence (integrations upload into
+          // existing records), so there is no API acquisition to record here.
           uploadSource: "WEB_APP",
         });
       }
@@ -7859,6 +7907,7 @@ return {
         otsStatus: null,
         publicVerifyState: null,
         verificationStatus: null,
+        acquisition: null,
         sort: "newest",
       },
       userId,
@@ -9645,7 +9694,7 @@ const timestampDigestMatches: boolean | null =
                 evidenceType: evidence.type,
               }),
               captureMethod: evidence.captureMethod ?? null,
-              captureMethodLabel: mapCaptureMethodLabel(evidence.captureMethod),
+              captureMethodLabel: mapAcquisitionLabel(evidence),
               intakeTemplate:
                 typeof evidence.intakePlanJson === "object" &&
                 evidence.intakePlanJson &&
@@ -10965,6 +11014,7 @@ limitationsSnapshot: true,
           submittedByEmailSnapshot: true,
           submittedByAuthProviderSnapshot: true,
           captureMethodSnapshot: true,
+          acquisitionModeSnapshot: true,
           reviewerSummaryVersion: true,
           verificationPackageVersion: true,
         },
@@ -11079,9 +11129,15 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
             latest.submittedByAuthProviderSnapshot
           ),
           captureMethod: latest.captureMethodSnapshot ?? null,
-          captureMethodLabel: mapCaptureMethodLabel(
-            latest.captureMethodSnapshot
-          ),
+          // The report's OWN acquisition snapshot; a report generated before
+          // UC-0 has none and reads "Not recorded" (never re-derived from
+          // today's record).
+          acquisitionMode: resolveEvidenceAcquisition({
+            acquisitionMode: latest.acquisitionModeSnapshot,
+          }).mode,
+          captureMethodLabel: mapAcquisitionLabel({
+            acquisitionMode: latest.acquisitionModeSnapshot,
+          }),
           reviewerSummaryVersion: latest.reviewerSummaryVersion ?? null,
           verificationPackageVersion: latest.verificationPackageVersion ?? null,
         },
@@ -12384,6 +12440,8 @@ action: "evidence.certification_requested",
         status: true,
         verificationStatus: true,
         captureMethod: true,
+        acquisitionMode: true,
+        acquisitionModeSource: true,
         identityLevelSnapshot: true,
         submittedByEmail: true,
         submittedByAuthProvider: true,
@@ -13361,6 +13419,8 @@ title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?
         status: evidence.status,
         verificationStatus: responseVerificationStatus,
         captureMethod: evidence.captureMethod ?? null,
+        acquisitionMode: evidence.acquisitionMode ?? null,
+        acquisitionModeSource: evidence.acquisitionModeSource ?? null,
         identityLevelSnapshot: evidence.identityLevelSnapshot ?? null,
         // Phase 1 — PII redaction. submittedByEmail is ALWAYS null
         // on the public surface. maskPublicEmail (used downstream)
@@ -13624,25 +13684,25 @@ const mediaIntelligenceAdvisory = evidence.teamId
     })()
   : null;
 
-// Phase 1B Closure — bounded capture-trust projection for the public
-// verify response. Returns null when there's nothing surfaceable
-// (legacy non-trust artifact); the verify page already handles null.
-// Workspace-anchored via teamId so cross-tenant leaks are impossible.
-const captureTrust = evidence.teamId
-  ? await (async () => {
-      try {
-        const { projectVerifyCaptureTrust } = await import(
-          "../services/capture-trust/verify-trust-projection.service.js"
-        );
-        return await projectVerifyCaptureTrust({
-          teamId: evidence.teamId!,
-          evidenceId: evidence.id,
-        });
-      } catch {
-        return null;
-      }
-    })()
-  : null;
+// UC-0 — THE public acquisition projection (`PublicVerifyAcquisition`,
+// @proovra/shared). It replaced `captureTrust`, whose flat shape the page
+// read through a nested `chain.*` path it never received. Always present for
+// a verifiable record — a legacy record states "Not recorded", never a
+// failure. Public-safe by construction (bounded enums, counts and server
+// timestamps only). `evidence` was resolved from this route's token and has
+// already passed every publication/integrity gate above.
+const acquisition = await (async () => {
+  try {
+    const { loadPublicVerifyAcquisition } = await import("@proovra/shared-runtime");
+    return await loadPublicVerifyAcquisition(prisma, evidence.id);
+  } catch (err) {
+    req.log.warn(
+      { evidenceId: evidence.id, err: err instanceof Error ? err.name : "unknown" },
+      "public_verify.acquisition_projection_failed",
+    );
+    return null;
+  }
+})();
 
 // PHASE 12B (Evidence Operations) — bounded public-safe redaction
 // projection. This is the CANONICAL public home of the redaction
@@ -13685,7 +13745,7 @@ const technicalMetadata = await (async () => {
 return reply.code(200).send({
   evidenceId: evidence.id,
   mediaIntelligenceAdvisory,
-  captureTrust,
+  acquisition,
   // PHASE 12B — redaction verification badge (converged from the
   // deleted anonymous /v1/redaction/public/verify/:evidenceId probe).
   redaction,

@@ -474,14 +474,20 @@ describe("Evidence Acquisition table (Executive Summary only)", () => {
       network: null,
     };
     const vm = await buildReportViewModel(
-      buildInput({ technicalSummary: WEB_TECH_SUMMARY, acquisition: WEB_ACQUISITION }),
+      buildInput({
+        technicalSummary: WEB_TECH_SUMMARY,
+        acquisition: WEB_ACQUISITION,
+        evidence: { ...buildInput().evidence, acquisitionMode: "PROOVRA_WEB_UPLOAD" },
+      }),
     );
     const html = renderReportHtml(vm);
     // ONE unified Executive Summary metadata grid (device + overview merged).
     expect(html).toContain("executive-unified-grid");
     // Device context appears (inside the unified grid), humanized. Web ingest
     // reads "PROOVRA Web Upload", not the misleading "Secure Browser Capture".
-    expect(html).toContain("PROOVRA Web Application");
+    // UC-0: from the acquisition authority, not the client-reported
+    // `uploadSource` ("PROOVRA Web Application" is no longer shown).
+    expect(html).not.toContain("PROOVRA Web Application");
     expect(html).toContain("PROOVRA Web Upload");
     expect(html).not.toContain("Secure Browser Capture");
     // Evidence Overview fields live in the SAME grid — merged, not a second
@@ -685,7 +691,11 @@ describe("Evidence Acquisition table (Executive Summary only)", () => {
         // Multi-file web upload — the persisted capture method is the STRUCTURE
         // enum MULTIPART_PACKAGE, which must NOT surface as the acquisition
         // "Capture Method" label.
-        evidence: { ...buildInput().evidence, captureMethod: "MULTIPART_PACKAGE" },
+        evidence: {
+          ...buildInput().evidence,
+          captureMethod: "MULTIPART_PACKAGE",
+          acquisitionMode: "PROOVRA_WEB_UPLOAD",
+        },
         technicalSummary: TECH_SUMMARY, // WEB_APP capture environment → device rows
       }),
     );
@@ -889,6 +899,51 @@ describe("retired media-intelligence section module", () => {
       ]) {
         expect(noComments, `${file} leaks ${banned}`).not.toContain(banned);
       }
+    }
+  });
+});
+
+describe("UC-0 — How this record entered PROOVRA (report acquisition statement)", () => {
+  const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+
+  it("states the recorded channel from the snapshot, with its limitations", async () => {
+    const vm = await buildReportViewModel(
+      buildInput({
+        evidence: { ...buildInput().evidence, acquisitionMode: "PROOVRA_MOBILE_APP" },
+      }),
+    );
+    const t = text(renderReportHtml(vm));
+    expect(t).toContain("How this record entered PROOVRA");
+    expect(t).toContain("Submitted through the PROOVRA mobile app");
+    expect(t).toMatch(/Legal admissibility and evidentiary weight require separate review/);
+  });
+
+  it("a legacy record says Not recorded — never a guessed channel", async () => {
+    const vm = await buildReportViewModel(
+      buildInput({
+        evidence: {
+          ...buildInput().evidence,
+          acquisitionMode: null,
+          // The structure enum must not be read as acquisition.
+          captureMethod: "UPLOADED_FILE",
+        },
+      }),
+    );
+    const html = renderReportHtml(vm);
+    const t = text(html);
+    const at = t.indexOf("How this record entered PROOVRA");
+    expect(at).toBeGreaterThan(-1);
+    expect(t.slice(at, at + 200)).toContain("Not recorded");
+    expect(t.slice(at, at + 200)).not.toContain("PROOVRA Web Upload");
+  });
+
+  it("the statement never claims capture verification or retired class labels", async () => {
+    for (const mode of ["PROOVRA_WEB_UPLOAD", "SECURE_INTAKE_LINK", "PROOVRA_MOBILE_APP", null]) {
+      const vm = await buildReportViewModel(
+        buildInput({ evidence: { ...buildInput().evidence, acquisitionMode: mode } }),
+      );
+      const t = text(renderReportHtml(vm));
+      expect(t).not.toMatch(/verified at source|verified capture|Class [ABC] provenance|tamper-?proof/i);
     }
   });
 });

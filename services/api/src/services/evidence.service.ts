@@ -26,6 +26,10 @@ import {
   resolveUserDepartmentScope,
 } from "./governance/department-scope.service.js";
 import { ensurePersonalWorkspace } from "./platform-context/workspace-bootstrap.service.js";
+import {
+  isEvidenceAcquisitionMode,
+  type EvidenceAcquisitionMode,
+} from "@proovra/shared";
 // PHASE 10 §13.2 STEP 6 (2026-07-23) — managed-identity no-personal guard.
 import { assertPersonalSpaceAllowed } from "./identity/identity-mode.service.js";
 
@@ -79,6 +83,19 @@ function resolveIdentityLevel(params: {
 }
 
 const { EvidenceStatus } = prismaPkg;
+
+// UC-0 — the UPLOAD_AUTHORIZED wording per acquisition channel. The web and
+// intake strings are byte-identical to what those callers produced before.
+const UPLOAD_KIND_BY_ACQUISITION: Readonly<Record<EvidenceAcquisitionMode, string>> = {
+  PROOVRA_WEB_UPLOAD: "web_upload_authorization",
+  SECURE_INTAKE_LINK: "intake_authorization",
+  PROOVRA_MOBILE_APP: "mobile_app_upload_authorization",
+};
+const UPLOAD_LOCATION_BY_ACQUISITION: Readonly<Record<EvidenceAcquisitionMode, string>> = {
+  PROOVRA_WEB_UPLOAD: "browser upload",
+  SECURE_INTAKE_LINK: "intake",
+  PROOVRA_MOBILE_APP: "mobile app upload",
+};
 
 function sanitizeFileName(value: string | null | undefined): string | null {
   const raw = typeof value === "string" ? value.trim() : "";
@@ -176,14 +193,33 @@ export async function createEvidence(params: {
   checksumSha256Base64?: string | null;
   contentMd5Base64?: string | null;
 intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
-  // Web Capture / Browser Upload only. When true, the UPLOAD_AUTHORIZED custody
-  // event's human-readable `meaning` says "initial browser upload location"
-  // instead of the generic "initial intake location" (which is misleading for a
-  // normal browser upload — it is NOT an Intake Link submission). Default
-  // (undefined/false) preserves the existing wording for Intake and Mobile.
-  browserUpload?: boolean;
+  /**
+   * UC-0 — HOW this Evidence enters PROOVRA. REQUIRED, and always a constant
+   * chosen by the ingress adapter that calls this function (the web upload
+   * route, external intake, the direct-capture session adapter) — never a
+   * value taken from a request body. Persisted once on
+   * `Evidence.acquisitionMode` with source RECORDED_AT_CREATION; nothing
+   * after this call may change it (completion does not write it, and the
+   * database trigger refuses any change).
+   */
+  acquisitionMode: EvidenceAcquisitionMode;
+  /**
+   * The server-issued direct-capture session this record is reserved for, when
+   * the caller is the session adapter. Recorded on EVIDENCE_CREATED only; the
+   * binding itself is the session's `finalizedEvidenceId`.
+   */
+  captureSessionId?: string | null;
 })
 {
+  // Fail closed on a caller that bypasses the type system: an unrecorded or
+  // unknown acquisition must never be written as if it were known.
+  if (!isEvidenceAcquisitionMode(params.acquisitionMode)) {
+    throw Object.assign(new Error("EVIDENCE_ACQUISITION_MODE_REQUIRED"), {
+      statusCode: 500,
+      code: "EVIDENCE_ACQUISITION_MODE_REQUIRED",
+    });
+  }
+
   const owner = await prisma.user.findUnique({
     where: { id: params.ownerUserId },
     select: {
@@ -407,7 +443,10 @@ data: {
   status: EvidenceStatus.CREATED,
   verificationStatus: prismaPkg.VerificationStatus.MATERIALS_AVAILABLE,
   mimeType: normalizedMimeType,
+  // Structure/compat default (see schema); completion rewrites it.
   captureMethod: prismaPkg.CaptureMethod.UPLOADED_FILE,
+  acquisitionMode: params.acquisitionMode,
+  acquisitionModeSource: "RECORDED_AT_CREATION",
   identityLevelSnapshot,
   submittedByEmail: owner.email ?? null,
   submittedByAuthProvider: owner.provider,
@@ -445,6 +484,11 @@ const key = `evidence/${evidence.id}/original-${resolvedFileNames.displayFileNam
         type: params.type,
         mimeType: normalizedMimeType,
         captureMethod: prismaPkg.CaptureMethod.UPLOADED_FILE,
+        // UC-0 — the acquisition authority, bound into the custody chain at
+        // the moment it is recorded.
+        acquisitionMode: params.acquisitionMode,
+        acquisitionModeSource: "RECORDED_AT_CREATION",
+        captureSessionId: params.captureSessionId ?? null,
         verificationStatus: prismaPkg.VerificationStatus.MATERIALS_AVAILABLE,
         deviceTimeIso: params.deviceTimeIso ?? null,
         gps: params.gps
@@ -502,21 +546,14 @@ const key = `evidence/${evidence.id}/original-${resolvedFileNames.displayFileNam
       atUtc: new Date(),
       payload: {
         phase: "upload_authorized",
-        // `uploadKind` must reflect the ACTUAL acquisition source, not a shared
-        // authorization label. Authenticated Web Capture / Browser Upload
-        // (`browserUpload`) → web_upload_authorization; Secure Intake (citizen
-        // PWA + external-intake callers, browserUpload false/undefined) keeps
-        // the intake value unchanged.
-        uploadKind: params.browserUpload
-          ? "web_upload_authorization"
-          : "intake_authorization",
+        // `uploadKind` reflects the ACTUAL acquisition channel, derived from
+        // the acquisition authority rather than a per-caller flag.
+        uploadKind: UPLOAD_KIND_BY_ACQUISITION[params.acquisitionMode],
         captureMethod: prismaPkg.CaptureMethod.UPLOADED_FILE,
         bucket,
         key,
         contentType: normalizedMimeType,
-        meaning: params.browserUpload
-          ? "A presigned upload URL was issued for the initial browser upload location. No bytes have been confirmed uploaded yet, and the final evidence structure may still become multipart during completion."
-          : "A presigned upload URL was issued for the initial intake location. No bytes have been confirmed uploaded yet, and the final evidence structure may still become multipart during completion.",
+        meaning: `A presigned upload URL was issued for the initial ${UPLOAD_LOCATION_BY_ACQUISITION[params.acquisitionMode]} location. No bytes have been confirmed uploaded yet, and the final evidence structure may still become multipart during completion.`,
       } as prismaPkg.Prisma.InputJsonValue,
     });
 

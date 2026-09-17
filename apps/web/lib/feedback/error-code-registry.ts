@@ -202,18 +202,6 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
     disposition: "internal",
     why: "An outcome code on a successful download, not a failure.",
   },
-  CAPTURE_ARTIFACT_RECEIVED: {
-    disposition: "internal",
-    why: "A capture-trust outcome code, not a failure.",
-  },
-  CAPTURE_ARTIFACT_SIGNED_AT_SOURCE: {
-    disposition: "internal",
-    why: "A capture-trust outcome code, not a failure.",
-  },
-  CAPTURE_ARTIFACT_VERIFICATION_FAILED: {
-    disposition: "internal",
-    why: "A capture-trust attestation outcome consumed by the device pipeline.",
-  },
 
   // -- Public external intake ----------------------------------------------
   INVALID_OR_EXPIRED_LINK: { disposition: "customer", where: PUBLIC_INTAKE },

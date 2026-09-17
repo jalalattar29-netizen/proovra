@@ -288,6 +288,7 @@ async function createAndFinalizeEvidence(input: {
     mimeType: input.mimeType,
     originalFileName: input.originalFileName,
     captureFileName: null,
+    acquisitionMode: "PROOVRA_WEB_UPLOAD",
   });
   await putObjectBuffer({
     bucket: created.upload.bucket,

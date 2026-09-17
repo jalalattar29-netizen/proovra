@@ -29,10 +29,8 @@ const FILES_UNDER_CONTRACT = [
     __dirname,
     "../../worker/src/capture-trust/load-provenance-chain.ts",
   ),
-  resolve(
-    __dirname,
-    "../../worker/src/capture-trust/provenance-projection.ts",
-  ),
+  // UC-0: the worker-local `provenance-projection.ts` was deleted — the loader
+  // now delegates to THE shared implementation in @proovra/shared-runtime.
 ];
 
 // Patterns that indicate a cross-service import into the API tree.
@@ -69,13 +67,11 @@ describe("Phase R9 — worker → API boundary (provenance-chain pipeline)", () 
     ).toEqual([]);
   });
 
-  it("loader delegates to the worker-local projection", () => {
+  it("loader delegates to the shared-runtime projection (UC-0)", () => {
     const loader = readFileSync(FILES_UNDER_CONTRACT[0]!, "utf8");
-    // Loader must call `projectProvenanceChain` and import it from a
-    // sibling worker-local path (relative + ending in "./provenance-projection").
-    expect(loader).toMatch(/projectProvenanceChain/);
     expect(loader).toMatch(
-      /from\s+["']\.\/provenance-projection(?:\.js)?["']/,
+      /import\s*\{\s*loadProvenanceChain\s*\}\s*from\s+["']@proovra\/shared-runtime["']/,
     );
+    expect(loader).not.toMatch(/from\s+["']\.\/provenance-projection(?:\.js)?["']/);
   });
 });

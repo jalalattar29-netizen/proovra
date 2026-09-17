@@ -49,7 +49,7 @@ import {
 import { EvidenceProvenanceChainSection } from "./EvidenceProvenanceChainSection";
 import { formatUserDateTime } from "../../../../../lib/date";
 import {
-  displayCaptureMethod,
+  displayAcquisition,
   displaySourceType,
   shouldShowContextSignal,
 } from "../../../../../lib/evidence/source-display";
@@ -353,26 +353,17 @@ export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           const sc = workspace.sourceContext;
           const items: { label: string; value: string }[] = [];
 
-          // Source type — only push when the helper resolves to a real
-          // label. Both null sourceType and unknown captureMethod
-          // produce "Source not recorded", which we suppress.
-          const sourceTypeLabel = displaySourceType(
-            sc.sourceType,
-            sc.captureMethod,
-          );
-          if (sourceTypeLabel && sourceTypeLabel !== "Source not recorded") {
+          // UC-0 — acquisition is ALWAYS shown, from the server's
+          // acquisition projection. "Not recorded" is a real, collected
+          // answer for a legacy record (not a placeholder), so the
+          // strict-honesty rule above does not hide it.
+          items.push({
+            label: "Acquisition",
+            value: displayAcquisition(sc.acquisition ?? null),
+          });
+          const sourceTypeLabel = displaySourceType(sc.sourceType);
+          if (sourceTypeLabel !== "Not recorded") {
             items.push({ label: "Source type", value: sourceTypeLabel });
-          }
-
-          // Capture method — same rule. "Capture method not recorded"
-          // is the helper's fallback for unknown enum values and is
-          // suppressed.
-          const captureMethodLabel = displayCaptureMethod(sc.captureMethod);
-          if (
-            captureMethodLabel &&
-            captureMethodLabel !== "Capture method not recorded"
-          ) {
-            items.push({ label: "Capture method", value: captureMethodLabel });
           }
 
           // Server-stamped timestamps. formatUserDateTime returns null

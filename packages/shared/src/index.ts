@@ -2037,7 +2037,11 @@ export {
   PROVENANCE_LIMITATION_CODES,
   CAPTURE_INGEST_WARNINGS,
   CAPTURE_INGEST_DENIAL_REASONS,
-  provenanceClassLabel,
+  PROVENANCE_CHAIN_SCHEMA_VERSION_V1,
+  ATTESTATION_VERIFIER_VERSION,
+  CRYPTOGRAPHIC_ATTESTATION_VERIFIER_VERSIONS,
+  isPositiveAttestationVerdict,
+  projectRecordedAttestationVerdict,
   clampProvenanceClass,
   demoteToClassC,
   attestationVerdictKeepsClassA,
@@ -2385,3 +2389,8 @@ export {
 // PHASE 5 — the derived correlation both the API and the Worker compute for
 // a queue job, so a replay request and its eventual result can be joined.
 export * from "./queue-job-correlation.js";
+
+// UC-0 — the ONE acquisition authority ("how did this Evidence enter
+// PROOVRA?"), artifact classes, derivative lineage vocabulary, and the typed
+// public Verify acquisition contract.
+export * from "./evidence-acquisition.js";

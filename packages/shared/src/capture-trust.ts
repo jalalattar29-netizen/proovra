@@ -34,6 +34,8 @@
  *      breaking change.
  */
 
+import type { EvidenceAcquisitionProjection } from "./evidence-acquisition.js";
+
 // =============================================================================
 // 1. Provenance class — capture trust tier
 // =============================================================================
@@ -57,22 +59,13 @@
 export const CAPTURE_PROVENANCE_CLASSES = ["A", "B", "C"] as const;
 export type CaptureProvenanceClass = (typeof CAPTURE_PROVENANCE_CLASSES)[number];
 
-/**
- * Operator-readable provenance class label used by Verify page and
- * Reports. Bounded to avoid silent drift between surfaces.
- */
-export function provenanceClassLabel(
-  c: CaptureProvenanceClass,
-): "Class A — Verified at source" | "Class B — Browser captured" | "Class C — Imported, origin unverified" {
-  switch (c) {
-    case "A":
-      return "Class A — Verified at source";
-    case "B":
-      return "Class B — Browser captured";
-    case "C":
-      return "Class C — Imported, origin unverified";
-  }
-}
+// UC-0 (D2, 2026-09-16) — the public "Class A — Verified at source" /
+// "Class B — Browser captured" / "Class C — …" labels are RETIRED. They
+// asserted an assurance PROOVRA could not establish (A was reachable only
+// through a client-forgeable attestation; B was applied to arbitrary files
+// picked from disk). The class letters remain an INTERNAL ordering only.
+// Surfaces state acquisition through `resolveEvidenceAcquisition`
+// (./evidence-acquisition.ts) instead.
 
 // =============================================================================
 // 2. Capture mode — how the asset entered PROOVRA
@@ -86,6 +79,11 @@ export const CAPTURE_MODES = [
   "CITIZEN_PWA", // Public intake browser, no install
   "SECURE_INTAKE_LINK", // Remote contributor upload via a secure intake link
   "BULK_IMPORT", // Operator imports existing files
+  // UC-0 (2026-09-16) — appended. The PROOVRA mobile app submitting through a
+  // server-issued direct-capture session. A channel, not a capture claim.
+  "PROOVRA_MOBILE_APP",
+  // Projection-only: the record's acquisition was never recorded.
+  "LEGACY_NOT_RECORDED",
 ] as const;
 export type CaptureMode = (typeof CAPTURE_MODES)[number];
 
@@ -108,6 +106,11 @@ export const MAX_PROVENANCE_CLASS_BY_MODE: Readonly<
   CITIZEN_PWA: "B",
   SECURE_INTAKE_LINK: "C",
   BULK_IMPORT: "C",
+  // No platform attestation can be verified (see
+  // CRYPTOGRAPHIC_ATTESTATION_VERIFIER_VERSIONS), so a mobile-app submission
+  // carries no capture-side assurance beyond a device-key signature.
+  PROOVRA_MOBILE_APP: "B",
+  LEGACY_NOT_RECORDED: "C",
 };
 
 // =============================================================================
@@ -149,6 +152,10 @@ export type DeviceAttestationProvider =
 /**
  * Bounded attestation verdict. Single field that downstream surfaces
  * (verify page, reports, verification package) rely on.
+ *
+ *   (UC-0) The positive verdicts below are reachable ONLY through a
+ *   server-side cryptographic verifier listed in
+ *   CRYPTOGRAPHIC_ATTESTATION_VERIFIER_VERSIONS. None exists today.
  *
  *   VERIFIED_STRONG    — Apple App Attest valid; or Play Integrity
  *                        verdict with `MEETS_STRONG_INTEGRITY`.
@@ -199,9 +206,65 @@ export const DEVICE_ATTESTATION_FAILURE_REASONS = [
   "INTEGRITY_NOT_MET",
   "NONCE_MISMATCH",
   "UNKNOWN",
+  // UC-0 (2026-09-16) — appended. The deployment has no server-side
+  // cryptographic verifier for this provider's token, so no verdict can be
+  // established. Distinct from PROVIDER_DISABLED (missing configuration).
+  "CRYPTOGRAPHIC_VERIFIER_UNAVAILABLE",
+  // A persisted verdict written by the pre-UC-0 verifier, which derived
+  // VERIFIED_* from client-supplied metadata. Re-projected, never trusted.
+  "LEGACY_VERIFIER_NOT_CRYPTOGRAPHIC",
 ] as const;
 export type DeviceAttestationFailureReason =
   (typeof DEVICE_ATTESTATION_FAILURE_REASONS)[number];
+
+/**
+ * UC-0 — attestation verdict authority.
+ *
+ * A positive attestation verdict (VERIFIED_STRONG / VERIFIED_BASIC / TEE_ONLY)
+ * may only exist when the server cryptographically verified a platform token:
+ * decrypted/verified the Play Integrity JWS, or validated the App Attest
+ * certificate chain to Apple's root. No client-supplied field can establish
+ * one.
+ *
+ * `ATTESTATION_VERIFIER_VERSION` is stamped on every row the verifier writes.
+ * `CRYPTOGRAPHIC_ATTESTATION_VERIFIER_VERSIONS` lists the verifier versions
+ * that perform real cryptographic verification. It is EMPTY: this deployment
+ * has none, so every verdict fails closed. A future real verifier appends its
+ * version here in the same change that implements it — and only then can a
+ * positive verdict be displayed.
+ */
+export const ATTESTATION_VERIFIER_VERSION = "FAIL_CLOSED_NO_CRYPTOGRAPHIC_VERIFIER_V1" as const;
+export const CRYPTOGRAPHIC_ATTESTATION_VERIFIER_VERSIONS: ReadonlyArray<string> = [];
+
+const POSITIVE_ATTESTATION_VERDICTS: ReadonlyArray<string> = [
+  "VERIFIED_STRONG",
+  "VERIFIED_BASIC",
+  "TEE_ONLY",
+];
+
+export function isPositiveAttestationVerdict(verdict: string): boolean {
+  return POSITIVE_ATTESTATION_VERDICTS.includes(verdict);
+}
+
+/**
+ * The ONE reader-side gate for a persisted attestation row. Any positive
+ * verdict not written by a cryptographic verifier version — including every
+ * row the pre-UC-0 metadata-trusting verifier wrote — is re-projected as
+ * UNVERIFIED. The stored row is never rewritten or deleted.
+ */
+export function projectRecordedAttestationVerdict(row: {
+  verdict: string;
+  verifierVersion: string | null | undefined;
+}): DeviceAttestationVerdict {
+  const verdict = (DEVICE_ATTESTATION_VERDICTS as ReadonlyArray<string>).includes(row.verdict)
+    ? (row.verdict as DeviceAttestationVerdict)
+    : "UNVERIFIED";
+  if (!isPositiveAttestationVerdict(verdict)) return verdict;
+  const version = row.verifierVersion ?? "";
+  return CRYPTOGRAPHIC_ATTESTATION_VERIFIER_VERSIONS.includes(version)
+    ? verdict
+    : "UNVERIFIED";
+}
 
 // =============================================================================
 // 5. Capture-side signature verdict
@@ -261,6 +324,16 @@ export const CAPTURE_TRUST_EVENT_CODES = [
   // Policy
   "CAPTURE_POLICY_LOCATION_CHANGED",
   "CAPTURE_POLICY_DEGRADED",
+
+  // UC-0 (2026-09-16) — appended. Server-issued session lifecycle.
+  // CAPTURE_SESSION_BOUND is the ONE event that joins a session's trust chain
+  // to its Evidence; it is emitted exactly once per successful binding and is
+  // mirrored to custody as CAPTURE_TRUST_EVENT.
+  "CAPTURE_SESSION_BOUND",
+  "CAPTURE_SESSION_INTERRUPTED",
+  // An attestation the server could not verify cryptographically. Distinct
+  // from ATTESTATION_VERIFIED, which is only emitted for a verified verdict.
+  "ATTESTATION_UNVERIFIED",
 ] as const;
 export type CaptureTrustEventCode = (typeof CAPTURE_TRUST_EVENT_CODES)[number];
 
@@ -428,7 +501,15 @@ export type CaptureIngestDenialReason =
 // Package builder. The Trust pillar surfaces individual fields.
 // =============================================================================
 
+/**
+ * V2 (UC-0) is ADDITIVE over V1: it adds `acquisition`, `captureSession`
+ * and `derivedArtifacts`, and `capture.mode` is now the acquisition
+ * authority's projection (never inferred from uploadSource). Every V1 field
+ * keeps its name and type. Packages already issued with V1 are unchanged.
+ */
 export const PROVENANCE_CHAIN_SCHEMA_VERSION =
+  "PROOVRA_PROVENANCE_CHAIN_V2" as const;
+export const PROVENANCE_CHAIN_SCHEMA_VERSION_V1 =
   "PROOVRA_PROVENANCE_CHAIN_V1" as const;
 
 export type ProvenanceChain = {
@@ -438,9 +519,43 @@ export type ProvenanceChain = {
   /** Evidence id this projection is for. */
   evidenceId: string;
 
+  /** V2 — the acquisition authority's projection. */
+  acquisition: EvidenceAcquisitionProjection;
+
+  /** V2 — the bound server-issued capture session, when one exists. */
+  captureSession: {
+    sessionId: string;
+    status: string;
+    startedAtUtc: string | null;
+    endedAtUtc: string | null;
+    /** Parts whose client-declared digest equalled the server digest. */
+    digestsConfirmed: number;
+    /** Head of the session's trust-event hash chain at binding. */
+    trustChainHeadHash: string | null;
+  } | null;
+
+  /**
+   * V2 — derived review materials (EvidencePartDerivedAsset). Never originals,
+   * never part of the sealed set.
+   */
+  derivedArtifacts: ReadonlyArray<{
+    artifactClass: "DERIVED";
+    sourcePartIndex: number | null;
+    assetKind: string;
+    variantKey: string;
+    transformation: string;
+    engineVersion: string;
+    sourceSha256AtGeneration: string | null;
+    derivedSha256: string | null;
+    parametersSha256: string | null;
+    status: string;
+    generatedAtUtc: string | null;
+  }>;
+
   /** Capture-side primitives (Class A/B only — Class C surfaces NOT_ATTEMPTED). */
   capture: {
     mode: CaptureMode;
+    /** INTERNAL ordering only — never rendered as an assurance label. */
     provenanceClass: CaptureProvenanceClass;
     /** Capture session id (may be null for Class C bulk imports). */
     sessionId: string | null;
@@ -491,7 +606,10 @@ export type ProvenanceChain = {
     };
   };
 
-  /** Derivation lineage (parent → derived edges). */
+  /**
+   * V1 record-level derivation edges (from CAPTURE_DERIVATION_CREATED trust
+   * events). Part-level derivatives are in `derivedArtifacts`.
+   */
   derivations: ReadonlyArray<{
     derivedEvidenceId: string;
     transformLabel: string;

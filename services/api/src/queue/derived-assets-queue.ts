@@ -15,7 +15,12 @@
  * from it.
  */
 
-import { JOB_NAMES, type EnqueueOutcome } from "@proovra/shared";
+import {
+  DEFAULT_DERIVED_ASSET_VARIANT_KEY,
+  JOB_NAMES,
+  derivedAssetTransformationForKind,
+  type EnqueueOutcome,
+} from "@proovra/shared";
 import { bump } from "@proovra/shared-runtime/ops";
 
 import { prisma } from "../db.js";
@@ -85,17 +90,19 @@ export async function enqueueDerivedAssetGeneration(
     return { enqueued: false, reason: "evidence_part_not_found" };
   }
 
-  // The unique index on (teamId, evidencePartId, assetKind) IS the idempotency:
+  // The unique index on (teamId, evidencePartId, assetKind, variantKey) IS the
+  // idempotency (UC-0; every request today is the "default" variant):
   // two concurrent requests for the same derived asset produce one row, and the
   // deterministic job id then collapses their two enqueues onto one job.
   let derivedAssetId: string;
   try {
     const row = await prisma.evidencePartDerivedAsset.upsert({
       where: {
-        teamId_evidencePartId_assetKind: {
+        teamId_evidencePartId_assetKind_variantKey: {
           teamId: input.teamId,
           evidencePartId: input.evidencePartId,
           assetKind: input.assetKind,
+          variantKey: DEFAULT_DERIVED_ASSET_VARIANT_KEY,
         },
       },
       create: {
@@ -103,6 +110,8 @@ export async function enqueueDerivedAssetGeneration(
         evidenceId: input.evidenceId,
         evidencePartId: input.evidencePartId,
         assetKind: input.assetKind,
+        variantKey: DEFAULT_DERIVED_ASSET_VARIANT_KEY,
+        transformation: derivedAssetTransformationForKind(input.assetKind),
         status: "PENDING",
       },
       // A re-request re-opens the row rather than creating a second one. It

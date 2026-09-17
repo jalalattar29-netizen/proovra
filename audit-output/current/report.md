@@ -21,19 +21,19 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | 8419fc2460680b64748db81cf36638940e04a7c2a276616d7299c3e5ba51d974 |
+| engineHash    | a53036b36b38b4ce8ee038caf08b59b69bfc5fbde4b49a7ae5e382cbac327ed4 |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
 
 | counter                       | value |
 | ----------------------------- | ----- |
-| registeredRoutes              | 1145  |
+| registeredRoutes              | 1150  |
 | developmentOnlyRoutes         | 1     |
 | productConsumerRoutes         | 899   |
 | machineOnlyConsumerRoutes     | 4     |
-| noConsumerRoutes              | 242   |
-| dispositionedNonProductRoutes | 245   |
+| noConsumerRoutes              | 247   |
+| dispositionedNonProductRoutes | 250   |
 | undisposedRoutes              | 0     |
 | authorizationUnresolved       | 0     |
 | publicUnguardedRoutes         | 21    |

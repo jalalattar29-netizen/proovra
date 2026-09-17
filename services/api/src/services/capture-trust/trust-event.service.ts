@@ -37,12 +37,17 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { appendCustodyEvent } from "../custody-events.service.js";
+import { warn as logWarn } from "../../utils/logger.js";
 
 export type EmitCaptureTrustEventInput = {
   prisma?: PrismaClient;
   teamId: string;
   code: CaptureTrustEventCode;
-  /** Optional capture session id (pre-finalise events have one; post-finalise events may omit). */
+  /**
+   * Optional capture session id (pre-finalise events have one; post-finalise
+   * events may omit). UC-0: must name a server-issued direct-capture
+   * CaptureSession of `teamId`, or the emit is refused.
+   */
   captureSessionId: string | null;
   /** Optional evidence id (post-finalise events have one; pre-finalise events do not). */
   evidenceId: string | null;
@@ -73,6 +78,23 @@ export async function emitCaptureTrustEvent(
   const prisma = input.prisma ?? defaultPrisma;
   const now = new Date();
   const payload = input.payload ?? {};
+
+  // UC-0 — a trust event can only describe a SERVER-ISSUED session of the same
+  // workspace. Client-invented session ids (the retired mobile ingest and
+  // citizen routes minted their own) cannot anchor a timeline any more.
+  if (input.captureSessionId !== null) {
+    const session = await prisma.captureSession.findFirst({
+      where: {
+        id: input.captureSessionId,
+        teamId: input.teamId,
+        acquisitionMode: { not: null },
+      },
+      select: { id: true },
+    });
+    if (!session) {
+      throw new Error("capture-trust: unknown capture session");
+    }
+  }
 
   // Resolve previous-event hash for the (session, evidence) pair so
   // the trust-event sub-chain is verifiable independently.
@@ -154,7 +176,12 @@ export async function emitCaptureTrustEvent(
     } catch {
       // Custody-event mirroring failure is non-fatal — the trust-event
       // row is the source of truth for the pre-finalise timeline and
-      // custody chain can be re-emitted via a worker.
+      // custody chain can be re-emitted via a worker. It is NOT silent:
+      // bounded identifiers only (no payload, no driver text).
+      logWarn("capture_trust.custody_mirror_failed", {
+        code: input.code,
+        trustEventRecordId: record.id,
+      });
     }
   }
 

@@ -1290,6 +1290,11 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // contract had nowhere to state it. No `security_events` column, index,
       // enum or mapping is touched, which is what this allowlist is about.
       "20280512000000_enterprise_contract_legal_hold",
+      // UC-0 ACQUISITION PROVENANCE FOUNDATION (2026-09-17) — additive
+      // acquisition/capture-session/derivative columns, CHECKs, a set-once
+      // trigger on `evidence` and the D9 intake backfill. No `security_events`
+      // column, index, enum or mapping is touched.
+      "20280601000000_uc0_acquisition_provenance_foundation",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

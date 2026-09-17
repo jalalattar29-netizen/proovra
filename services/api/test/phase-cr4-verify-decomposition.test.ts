@@ -105,7 +105,11 @@ const PRE_CR4_TOKEN_PAGE_BYTES = 255081;
 const PRE_CR4_VERIFY_LANDING_BYTES = 21548;
 const PRE_CR4_VERIFY_DEMO_BYTES = 18486;
 const VERIFY_PROJECTION_SVC_BYTES = 3953;
-const CLAIMS_MATRIX_BYTES = 2266;
+// UC-0 ACQUISITION TRUST rebaseline (2026-09-17): 2,266 -> 3,389.
+// Forbidden acquisition claims ("verified at source", "tamper-proof",
+// "authentic screenshot", ...) and the allowed acquisition phrases were added
+// to THE claims authority. No existing claim changed.
+const CLAIMS_MATRIX_BYTES = 3389;
 // Phase E5 rebaseline: trustCenterDeepLink helper repointed at the
 // canonical `/trust` hub (was `/about/trust`). Source-of-truth pin
 // updated to the new on-disk size after the helper fix + comment.
@@ -218,7 +222,14 @@ describe("CR4 Group 1 — file-size guards", () => {
 // sold. Finalize-transaction semantics, custody chain and sealing are
 // untouched — this runs strictly AFTER the commit, beside the report request,
 // and its failure cannot roll back a signature.
-    expect(sz).toBe(52223);
+    // UC-0 ACQUISITION TRUST rebaseline (2026-09-17): 52,223 -> 55,830.
+    // Completion of a record bound to an ACTIVE server-issued direct-capture
+    // session is now refused unless it arrives through that session, and the
+    // session's declared per-part SHA-256 digests are compared with the server's
+    // own stream hash BEFORE signing (a mismatch refuses the seal). The growth is
+    // that guard plus its explanation; the finalize transaction, custody chain,
+    // signing, TSA and OTS steps are unchanged.
+    expect(sz).toBe(55830);
   });
 
   it("custody-events.service.ts remains the ONE custody writer (CR1.6)", () => {

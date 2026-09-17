@@ -1,5 +1,6 @@
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
+import { sumDerivedAssetStorageBytes } from "@proovra/shared-runtime";
 import type { WorkspaceScope } from "./workspace-billing.service.js";
 import {
   resolveEffectiveBaseStorageBytes,
@@ -374,6 +375,7 @@ export async function getWorkspaceUsage(
     verificationPackageAggregate,
     evidenceCount,
     teamMemberCount,
+    derivedStorageBytes,
   ] = await Promise.all([
     prisma.evidence.aggregate({
       where: evidenceWhere,
@@ -399,6 +401,10 @@ export async function getWorkspaceUsage(
           where: { teamId: scope.teamId, status: "ACTIVE" },
         })
       : Promise.resolve(0),
+    // UC-0 (D5) — derived review materials are stored bytes too.
+    sumDerivedAssetStorageBytes(prisma, {
+      teamId: scope.teamId ?? personalTeamForUsage?.id ?? null,
+    }),
   ]);
 
   const evidenceStorageBytes = toBigIntOrZero(evidenceAggregate._sum.sizeBytes);
@@ -408,7 +414,10 @@ export async function getWorkspaceUsage(
   );
 
   const storageBytesUsed =
-    evidenceStorageBytes + reportStorageBytes + verificationPackageStorageBytes;
+    evidenceStorageBytes +
+    reportStorageBytes +
+    verificationPackageStorageBytes +
+    derivedStorageBytes;
 
   // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — a contracted storage figure
   // is the base capacity. It was previously ignored: every Enterprise

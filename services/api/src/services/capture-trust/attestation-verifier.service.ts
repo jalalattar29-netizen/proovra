@@ -38,19 +38,16 @@
  *      GOOGLE_PLAY_INTEGRITY_*). Missing config → PROVIDER_DISABLED,
  *      verdict `UNVERIFIED`.
  *
- * Provider readiness env (configured at deployment time):
- *   APPLE_APP_ATTEST_TEAM_ID
- *   APPLE_APP_ATTEST_BUNDLE_ID
- *   APPLE_APP_ATTEST_ROOT_CA_PATH (PEM)
- *   GOOGLE_PLAY_INTEGRITY_PACKAGE_NAME
- *   GOOGLE_PLAY_INTEGRITY_DECRYPT_KEY_PATH
- *   GOOGLE_PLAY_INTEGRITY_VERIFY_KEY_PATH
- *   GOOGLE_PLAY_INTEGRITY_PROJECT_NUMBER
+ *   6. (UC-0) FAIL CLOSED. No provider in this deployment performs real
+ *      cryptographic verification, so no call can return a positive verdict.
+ *      Client-supplied `providerMetadata` is persisted for audit and never
+ *      influences a verdict.
  */
 
 import { createHash } from "node:crypto";
 
 import {
+  ATTESTATION_VERIFIER_VERSION,
   DEVICE_ATTESTATION_FAILURE_REASONS,
   DEVICE_ATTESTATION_VERDICTS,
   type DeviceAttestationFailureReason,
@@ -83,7 +80,10 @@ export type VerifyAttestationInput = {
   nonceHex: string;
   /** Optional provider-reported expiry. */
   expiresAtUtc: string | null;
-  /** Bounded provider metadata (no raw bytes). */
+  /**
+   * Bounded provider metadata (no raw bytes). CLIENT-SUPPLIED: persisted for
+   * audit, never read by a provider, never able to influence the verdict.
+   */
   providerMetadata?: Record<string, unknown>;
 };
 
@@ -120,9 +120,12 @@ type ProviderVerifyContext = {
   providerMetadata: Record<string, unknown>;
 };
 
-type ProviderResult =
-  | { verdict: "VERIFIED_STRONG" | "VERIFIED_BASIC" | "TEE_ONLY" }
-  | { verdict: "FAILED" | "UNVERIFIED"; reason: DeviceAttestationFailureReason };
+// No provider in this deployment can return a positive verdict (see the
+// fail-closed note below). The type says so, so a regression is a compile error.
+type ProviderResult = {
+  verdict: "FAILED" | "UNVERIFIED";
+  reason: DeviceAttestationFailureReason;
+};
 
 interface DeviceAttestationProviderImpl {
   readonly id: DeviceAttestationProvider;
@@ -136,158 +139,43 @@ interface DeviceAttestationProviderImpl {
 }
 
 // -----------------------------------------------------------------------------
-// Apple App Attest provider
+// Platform providers — FAIL CLOSED (UC-0, 2026-09-16)
+//
+// The previous Apple and Google providers returned VERIFIED_STRONG when the
+// CLIENT sent `providerMetadata.chainVerifiedByWorker === true` or
+// `providerMetadata.deviceIntegrityLabel === "MEETS_STRONG_INTEGRITY"`, and
+// VERIFIED_BASIC for any App Attest blob of 64+ bytes. No token was decrypted
+// and no certificate chain was validated; the "worker tier" verification those
+// comments deferred to was never built. Any authenticated caller could
+// therefore manufacture the strongest verdict PROOVRA can express.
+//
+// This deployment has no server-side cryptographic verifier for either
+// platform. Until one exists (decode + verify the Play Integrity JWS and check
+// requestHash / package / certificate digest / freshness; parse the App Attest
+// CBOR attestation, validate x5c to Apple's root, nonce, RP-ID hash and
+// counter), every platform assertion resolves to UNVERIFIED with the bounded
+// reason CRYPTOGRAPHIC_VERIFIER_UNAVAILABLE. `providerMetadata` is recorded for
+// audit only and is NEVER read by a provider.
+//
+// A real verifier must be added as its own provider AND its version appended to
+// CRYPTOGRAPHIC_ATTESTATION_VERIFIER_VERSIONS in @proovra/shared — the reader
+// gate re-projects any positive verdict from an unlisted version as UNVERIFIED.
 // -----------------------------------------------------------------------------
 
-class AppleAppAttestProvider implements DeviceAttestationProviderImpl {
-  readonly id: DeviceAttestationProvider = "APPLE_APP_ATTEST";
+class UnverifiablePlatformProvider implements DeviceAttestationProviderImpl {
+  constructor(readonly id: DeviceAttestationProvider) {}
 
   readinessCheck(): DeviceAttestationFailureReason | null {
-    if (
-      !process.env.APPLE_APP_ATTEST_TEAM_ID ||
-      !process.env.APPLE_APP_ATTEST_BUNDLE_ID ||
-      !process.env.APPLE_APP_ATTEST_ROOT_CA_PATH
-    ) {
-      return "PROVIDER_DISABLED";
-    }
     return null;
   }
 
   async verify(ctx: ProviderVerifyContext): Promise<ProviderResult> {
-    // Apple App Attest assertion verification:
-    //   * Parse CBOR-encoded assertion.
-    //   * Validate the `authData` and `clientDataHash` against the
-    //     device's stored receipt + the nonce.
-    //   * Verify the signature against the device's stored public key.
-    //   * Confirm the assertion's `teamId` + `bundleId` match the
-    //     deployment configuration.
-    //
-    // For Phase 1B we implement the bounded validation surface: every
-    // structural failure maps to a bounded reason. The cryptographic
-    // verification is performed by a thin wrapper that:
-    //   - never throws to the caller (try/catch wraps the full path)
-    //   - reads only from configured env vars (no remote calls)
-    //   - is provider-isolated (does not import device-trust state)
-    //
-    // The wrapper below is intentionally a structural validator: the
-    // hardest crypto path runs only when the assertion length + CBOR
-    // header + Apple App Attest root CA cert chain are present. When
-    // any of those fail the verdict short-circuits to FAILED with a
-    // bounded reason.
-
-    try {
-      // Structural minimum: assertion must be > 64 bytes (CBOR header +
-      // authData + sig). This is a sanity check — full verification
-      // happens via the apple-app-attest module in the worker tier.
-      if (ctx.rawAssertionBytes.length < 64) {
-        return { verdict: "FAILED", reason: "ASSERTION_MALFORMED" };
-      }
-
-      // Team-id / bundle-id verification against env.
-      const teamId = process.env.APPLE_APP_ATTEST_TEAM_ID!;
-      const bundleId = process.env.APPLE_APP_ATTEST_BUNDLE_ID!;
-      const md = ctx.providerMetadata;
-      if (typeof md["teamId"] === "string" && md["teamId"] !== teamId) {
-        return { verdict: "FAILED", reason: "TEAM_ID_MISMATCH" };
-      }
-      if (typeof md["bundleId"] === "string" && md["bundleId"] !== bundleId) {
-        return { verdict: "FAILED", reason: "BUNDLE_ID_MISMATCH" };
-      }
-
-      // Time validity — provider-side expiry takes precedence over the
-      // ±5-minute global window enforced by the caller. App Attest
-      // assertions do not carry their own expiry; we trust the device's
-      // local clock + the caller's window check.
-
-      // Pubkey-fingerprint sanity: the device's stored public key
-      // fingerprint MUST match the on-receipt fingerprint reported by
-      // the provider metadata (when present).
-      if (
-        typeof md["devicePublicKeyFingerprint"] === "string" &&
-        md["devicePublicKeyFingerprint"] !== ctx.device.publicKeyFingerprint
-      ) {
-        return { verdict: "FAILED", reason: "PUBKEY_MISMATCH" };
-      }
-
-      // Class-A verdict: structural validation passed AND provider
-      // metadata declares STRONG. This is the conservative Phase 1B
-      // surface — the worker-tier full cryptographic check elevates to
-      // VERIFIED_STRONG when the full chain validates. Until that
-      // worker pass runs, the verdict here is VERIFIED_BASIC.
-      if (md["chainVerifiedByWorker"] === true) {
-        return { verdict: "VERIFIED_STRONG" };
-      }
-      return { verdict: "VERIFIED_BASIC" };
-    } catch {
-      return { verdict: "UNVERIFIED", reason: "PROVIDER_UNAVAILABLE" };
+    // An empty assertion is malformed; everything else is unverifiable here,
+    // whatever the client claims about it.
+    if (ctx.rawAssertionBytes.length === 0) {
+      return { verdict: "FAILED", reason: "ASSERTION_MALFORMED" };
     }
-  }
-}
-
-// -----------------------------------------------------------------------------
-// Google Play Integrity provider
-// -----------------------------------------------------------------------------
-
-class GooglePlayIntegrityProvider implements DeviceAttestationProviderImpl {
-  readonly id: DeviceAttestationProvider = "GOOGLE_PLAY_INTEGRITY";
-
-  readinessCheck(): DeviceAttestationFailureReason | null {
-    if (
-      !process.env.GOOGLE_PLAY_INTEGRITY_PACKAGE_NAME ||
-      !process.env.GOOGLE_PLAY_INTEGRITY_DECRYPT_KEY_PATH ||
-      !process.env.GOOGLE_PLAY_INTEGRITY_VERIFY_KEY_PATH
-    ) {
-      return "PROVIDER_DISABLED";
-    }
-    return null;
-  }
-
-  async verify(ctx: ProviderVerifyContext): Promise<ProviderResult> {
-    // Google Play Integrity returns an encrypted JWE. The bounded
-    // validation surface here:
-    //   * Decrypts JWE with the deployment-configured AES key.
-    //   * Verifies the inner JWS signature against the Google
-    //     verification key.
-    //   * Reads `deviceIntegrity` and maps to bounded verdict.
-    //
-    // Phase 1B implements the structural check; the full JWE
-    // decryption is deferred to the worker tier where Google's
-    // libraries can run safely. The bounded structural surface here
-    // collapses provider failures into bounded reasons.
-
-    try {
-      if (ctx.rawAssertionBytes.length < 100) {
-        return { verdict: "FAILED", reason: "ASSERTION_MALFORMED" };
-      }
-
-      const md = ctx.providerMetadata;
-      const expectedPackage =
-        process.env.GOOGLE_PLAY_INTEGRITY_PACKAGE_NAME!;
-      if (
-        typeof md["packageName"] === "string" &&
-        md["packageName"] !== expectedPackage
-      ) {
-        return { verdict: "FAILED", reason: "BUNDLE_ID_MISMATCH" };
-      }
-
-      const verdictLabel =
-        typeof md["deviceIntegrityLabel"] === "string"
-          ? (md["deviceIntegrityLabel"] as string)
-          : null;
-      switch (verdictLabel) {
-        case "MEETS_STRONG_INTEGRITY":
-          return { verdict: "VERIFIED_STRONG" };
-        case "MEETS_DEVICE_INTEGRITY":
-        case "MEETS_BASIC_INTEGRITY":
-          return { verdict: "VERIFIED_BASIC" };
-        case null:
-          return { verdict: "UNVERIFIED", reason: "PROVIDER_UNAVAILABLE" };
-        default:
-          return { verdict: "FAILED", reason: "INTEGRITY_NOT_MET" };
-      }
-    } catch {
-      return { verdict: "UNVERIFIED", reason: "PROVIDER_UNAVAILABLE" };
-    }
+    return { verdict: "UNVERIFIED", reason: "CRYPTOGRAPHIC_VERIFIER_UNAVAILABLE" };
   }
 }
 
@@ -302,18 +190,16 @@ class TeeOnlyProvider implements DeviceAttestationProviderImpl {
     return null;
   }
 
-  async verify(ctx: ProviderVerifyContext): Promise<ProviderResult> {
-    // No platform attestation chain. We assert TEE-only when the
-    // device has a registered public key. The verdict is a bounded
-    // TEE_ONLY — surfaces as a yellow chip on the verify page, never
-    // VERIFIED_STRONG.
-    void ctx;
-    return { verdict: "TEE_ONLY" };
+  async verify(): Promise<ProviderResult> {
+    // "TEE-only" used to be granted to any registered device on the client's
+    // word. Without a verified key-attestation chain the server cannot know the
+    // key lives in a secure element, so it cannot say so.
+    return { verdict: "UNVERIFIED", reason: "CRYPTOGRAPHIC_VERIFIER_UNAVAILABLE" };
   }
 }
 
 // -----------------------------------------------------------------------------
-// None provider (citizen PWA / bulk import)
+// None provider (citizen / bulk)
 // -----------------------------------------------------------------------------
 
 class NoneProvider implements DeviceAttestationProviderImpl {
@@ -324,7 +210,6 @@ class NoneProvider implements DeviceAttestationProviderImpl {
   }
 
   async verify(): Promise<ProviderResult> {
-    // No attestation attempted. The verify page surfaces NOT_ATTEMPTED.
     return { verdict: "UNVERIFIED", reason: "PROVIDER_DISABLED" };
   }
 }
@@ -334,8 +219,8 @@ class NoneProvider implements DeviceAttestationProviderImpl {
 // -----------------------------------------------------------------------------
 
 const PROVIDERS: Record<DeviceAttestationProvider, DeviceAttestationProviderImpl> = {
-  APPLE_APP_ATTEST: new AppleAppAttestProvider(),
-  GOOGLE_PLAY_INTEGRITY: new GooglePlayIntegrityProvider(),
+  APPLE_APP_ATTEST: new UnverifiablePlatformProvider("APPLE_APP_ATTEST"),
+  GOOGLE_PLAY_INTEGRITY: new UnverifiablePlatformProvider("GOOGLE_PLAY_INTEGRITY"),
   TEE_ONLY: new TeeOnlyProvider(),
   NONE: new NoneProvider(),
 };
@@ -464,13 +349,11 @@ export async function verifyDeviceAttestation(
     ? (result.verdict as DeviceAttestationVerdict)
     : "UNVERIFIED";
 
-  const failureReason: DeviceAttestationFailureReason | null =
-    "reason" in result &&
-    (DEVICE_ATTESTATION_FAILURE_REASONS as ReadonlyArray<string>).includes(
-      result.reason,
-    )
-      ? (result.reason as DeviceAttestationFailureReason)
-      : null;
+  const failureReason: DeviceAttestationFailureReason = (
+    DEVICE_ATTESTATION_FAILURE_REASONS as ReadonlyArray<string>
+  ).includes(result.reason)
+    ? result.reason
+    : "UNKNOWN";
 
   return materialise(prisma, input, {
     verdict,
@@ -512,6 +395,7 @@ async function materialise(
           input.providerMetadata === null || input.providerMetadata === undefined
             ? Prisma.JsonNull
             : (input.providerMetadata as Prisma.InputJsonValue),
+        verifierVersion: ATTESTATION_VERIFIER_VERSION,
       },
       select: { id: true },
     });

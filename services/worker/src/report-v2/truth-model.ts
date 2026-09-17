@@ -336,16 +336,12 @@ export function buildReportCanonicalMaterials(params: {
       id: ev.id,
       status: ev.status ?? null,
       verificationStatus: ev.verificationStatus ?? null,
-      // Role-safe display. `completeEvidence` overwrites capture_method to the
-      // structure enum MULTIPART_PACKAGE, so the canonical record must never
-      // surface the raw enum. Intake → "Secure Intake Link"; otherwise the
-      // flow-aware display label (e.g. "PROOVRA Web Upload").
-      captureMethod:
-        params.isIntake === true
-          ? "Secure Intake Link"
-          : ev.captureMethod
-            ? captureMethodDisplayLabel({ captureMethod: ev.captureMethod })
-            : null,
+      // UC-0 — the acquisition label from the record's acquisition snapshot
+      // (never the `captureMethod` structure enum).
+      captureMethod: captureMethodDisplayLabel({
+        acquisitionMode: ev.acquisitionMode ?? null,
+        isIntake: params.isIntake === true,
+      }),
       uploadedAtUtc: ev.uploadedAtUtc ?? null,
       signedAtUtc: ev.signedAtUtc ?? null,
       recordedIntegrityVerifiedAtUtc:

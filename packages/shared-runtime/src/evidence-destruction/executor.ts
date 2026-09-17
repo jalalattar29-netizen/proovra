@@ -450,6 +450,29 @@ export async function executeEvidenceDestruction(
     await tx.report.deleteMany({ where: { evidenceId: evidence.id } });
     await tx.evidencePart.deleteMany({ where: { evidenceId: evidence.id } });
 
+    // UC-0 (P0-7) — everything PROOVRA DERIVED from the content. These tables
+    // have no foreign key to the tombstone (or cascade only on a row delete the
+    // tombstone never performs), so without this they outlived destruction:
+    // thumbnails/frames/proxies (objects already deleted above), OCR and
+    // transcript text, extracted text, semantic chunks, and the search
+    // documents that index that text.
+    await tx.evidencePartDerivedAsset.deleteMany({
+      where: { evidenceId: evidence.id },
+    });
+    await tx.evidenceOcrText.deleteMany({ where: { evidenceId: evidence.id } });
+    await tx.evidenceTranscriptSegment.deleteMany({
+      where: { evidenceId: evidence.id },
+    });
+    await tx.evidenceExtractedText.deleteMany({
+      where: { evidenceId: evidence.id },
+    });
+    await tx.evidenceSemanticChunk.deleteMany({
+      where: { evidenceId: evidence.id },
+    });
+    await tx.evidenceSearchDocument.deleteMany({
+      where: { evidenceId: evidence.id },
+    });
+
     // The tombstone. The row stays; the content pointers do not.
     await tx.evidence.update({
       where: { id: evidence.id },
@@ -511,13 +534,18 @@ export async function executeEvidenceDestruction(
  * Redaction derivatives are included because they are copies of the evidence
  * content by construction. The old purge worker did not delete them, so a
  * "purged" record could leave a fully readable redacted rendering behind.
+ *
+ * UC-0 (P0-7) — part-level derived assets (thumbnails, frames, waveforms,
+ * proxies) are included for the same reason. Every row with a storage pointer
+ * is enumerated regardless of status: a FAILED regeneration keeps the pointer
+ * of the bytes that still exist.
  */
 async function enumerateStorageTargets(
   prisma: PrismaClient,
   evidenceId: string,
   evidence: { storageBucket: string | null; storageKey: string | null },
 ): Promise<StorageTarget[]> {
-  const [parts, reports, packages, derivatives] = await Promise.all([
+  const [parts, reports, packages, derivatives, derivedAssets] = await Promise.all([
     prisma.evidencePart.findMany({
       where: { evidenceId },
       select: { storageBucket: true, storageKey: true },
@@ -534,11 +562,15 @@ async function enumerateStorageTargets(
       where: { version: { project: { evidenceId } } },
       select: { storageBucket: true, storageKey: true },
     }),
+    prisma.evidencePartDerivedAsset.findMany({
+      where: { evidenceId, storageKey: { not: null } },
+      select: { storageBucket: true, storageKey: true },
+    }),
   ]);
 
   const all: Array<{ bucket: string | null; key: string | null }> = [
     { bucket: evidence.storageBucket, key: evidence.storageKey },
-    ...[...parts, ...reports, ...packages, ...derivatives].map((row) => ({
+    ...[...parts, ...reports, ...packages, ...derivatives, ...derivedAssets].map((row) => ({
       bucket: row.storageBucket,
       key: row.storageKey,
     })),

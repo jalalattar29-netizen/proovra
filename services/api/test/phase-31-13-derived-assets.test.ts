@@ -128,9 +128,10 @@ describe("Phase 31.13 — derived assets persistence service", () => {
     "../../../packages/shared-runtime/src/media-intelligence/derived-assets.service.ts",
   );
 
-  it("upsert keyed by (team_id, evidence_part_id, asset_kind) — idempotent", () => {
+  it("upsert keyed by (team_id, evidence_part_id, asset_kind, variant_key) — idempotent", () => {
+    // UC-0 added the derivative variant to the key (derivative descriptor).
     expect(src).toMatch(
-      /ON CONFLICT \("team_id", "evidence_part_id", "asset_kind"\) DO UPDATE/,
+      /ON CONFLICT \("team_id", "evidence_part_id", "asset_kind", "variant_key"\) DO UPDATE/,
     );
   });
 

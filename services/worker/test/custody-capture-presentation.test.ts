@@ -31,24 +31,44 @@ const processorSrc = readFileSync(
   fileURLToPath(new URL("../src/processor.ts", import.meta.url)),
   "utf8",
 );
-const workerProjectorSrc = readFileSync(
+const provenanceLoaderSrc = readFileSync(
   fileURLToPath(
-    new URL("../src/capture-trust/provenance-projection.ts", import.meta.url),
+    new URL("../src/capture-trust/load-provenance-chain.ts", import.meta.url),
   ),
   "utf8",
 );
 
+// UC-0 — the method label comes from the record's acquisition authority.
+const INTAKE = { acquisitionMode: "SECURE_INTAKE_LINK", isIntake: true };
+const WEB = { acquisitionMode: "PROOVRA_WEB_UPLOAD", isIntake: false };
+const LEGACY = { acquisitionMode: null, isIntake: false };
+const MOBILE = { acquisitionMode: "PROOVRA_MOBILE_APP", isIntake: false };
+
 describe("resolveCustodyCapturePresentation", () => {
   it("intake: MULTIPART_PACKAGE → Secure Intake Link + Multipart evidence package", () => {
-    const r = resolveCustodyCapturePresentation("MULTIPART_PACKAGE", true);
+    const r = resolveCustodyCapturePresentation("MULTIPART_PACKAGE", INTAKE);
     expect(r.method).toBe("Secure Intake Link");
     expect(r.structure).toBe("Multipart evidence package");
   });
 
-  it("capture: MULTIPART_PACKAGE → PROOVRA Web Upload + Multipart evidence package", () => {
-    const r = resolveCustodyCapturePresentation("MULTIPART_PACKAGE", false);
+  it("web upload: MULTIPART_PACKAGE → PROOVRA Web Upload + Multipart evidence package", () => {
+    const r = resolveCustodyCapturePresentation("MULTIPART_PACKAGE", WEB);
     expect(r.method).toBe("PROOVRA Web Upload");
     expect(r.structure).toBe("Multipart evidence package");
+  });
+
+  it("the structure enum never decides the method (UC-0)", () => {
+    // A legacy record whose acquisition was never recorded does NOT become a
+    // web upload just because its structure snapshot says MULTIPART_PACKAGE.
+    expect(resolveCustodyCapturePresentation("MULTIPART_PACKAGE", LEGACY).method).toBe(
+      "Not recorded",
+    );
+    expect(resolveCustodyCapturePresentation("SECURE_CAMERA", LEGACY).method).toBe(
+      "Not recorded",
+    );
+    expect(resolveCustodyCapturePresentation("UPLOADED_FILE", MOBILE).method).toBe(
+      "PROOVRA Mobile App",
+    );
   });
 
   it("BULK_IMPORT maps to a structure label", () => {
@@ -65,7 +85,7 @@ describe("normalizeCustodyEventPayloadForPresentation", () => {
       captureMethodSnapshot: "MULTIPART_PACKAGE",
       identityLevelSnapshot: "ORGANIZATION_ACCOUNT",
     };
-    const out = normalizeCustodyEventPayloadForPresentation(payload, true) as Record<
+    const out = normalizeCustodyEventPayloadForPresentation(payload, INTAKE) as Record<
       string,
       unknown
     >;
@@ -81,7 +101,7 @@ describe("normalizeCustodyEventPayloadForPresentation", () => {
   it("also normalizes a payload.captureMethod key", () => {
     const out = normalizeCustodyEventPayloadForPresentation(
       { captureMethod: "MULTIPART_PACKAGE" },
-      false,
+      WEB,
     ) as Record<string, unknown>;
     expect(out.captureMethod).toBe("PROOVRA Web Upload");
     expect(JSON.stringify(out)).not.toContain("MULTIPART_PACKAGE");
@@ -89,8 +109,20 @@ describe("normalizeCustodyEventPayloadForPresentation", () => {
 
   it("leaves non-capture payloads untouched", () => {
     const payload = { phase: "verify_viewed", viewer: "reviewer" };
-    const out = normalizeCustodyEventPayloadForPresentation(payload, true);
+    const out = normalizeCustodyEventPayloadForPresentation(payload, INTAKE);
     expect(out).toBe(payload);
+  });
+
+  it("relabels a legacy intake_authorization only for a recorded web upload", () => {
+    const payload = { uploadKind: "intake_authorization" };
+    expect(
+      (normalizeCustodyEventPayloadForPresentation(payload, WEB) as Record<string, unknown>)
+        .uploadKind,
+    ).toBe("web_upload_authorization");
+    expect(
+      (normalizeCustodyEventPayloadForPresentation(payload, LEGACY) as Record<string, unknown>)
+        .uploadKind,
+    ).toBe("upload_authorization");
   });
 });
 
@@ -131,18 +163,19 @@ describe("processor render wiring (REPORT_GENERATED custody summary)", () => {
   });
 });
 
-describe("provenance projector capture mode (non-intake)", () => {
-  it("derives a real acquisition mode from uploadSource, never BULK_IMPORT by default", () => {
-    expect(workerProjectorSrc).toContain("deriveNonIntakeCaptureMode");
-    // Web upload → PROOVRA_WEB_UPLOAD (not BULK_IMPORT).
-    expect(workerProjectorSrc).toMatch(
-      /case "WEB_APP":\s*\n\s*return "PROOVRA_WEB_UPLOAD"/,
-    );
-    // Only genuinely-absent / import channels fall through to BULK_IMPORT.
-    expect(workerProjectorSrc).toMatch(/default:\s*\n\s*return "BULK_IMPORT"/);
-    // The default mode is no longer an unconditional BULK_IMPORT for non-intake.
-    expect(workerProjectorSrc).not.toContain(
-      'isIntakeEvidence ? "SECURE_INTAKE_LINK" : "BULK_IMPORT"',
+describe("provenance chain (UC-0)", () => {
+  it("the package loader uses THE shared projection, not a worker copy", () => {
+    // The worker-local projector (which inferred the mode from uploadSource)
+    // was deleted; the loader delegates to @proovra/shared-runtime.
+    expect(provenanceLoaderSrc).toContain('from "@proovra/shared-runtime"');
+    expect(provenanceLoaderSrc).toContain("loadProvenanceChain(prisma, evidenceId)");
+    expect(provenanceLoaderSrc).not.toMatch(/^import .*provenance-projection/m);
+  });
+
+  it("processor threads the acquisition snapshot into custody display and the report row", () => {
+    expect(processorSrc).toContain("acquisitionModeSnapshot:");
+    expect(processorSrc).toContain(
+      "acquisitionMode: effectiveReportEvidencePayload.acquisitionMode ?? null",
     );
   });
 });

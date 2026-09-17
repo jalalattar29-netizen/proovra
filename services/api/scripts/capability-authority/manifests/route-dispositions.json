@@ -228,9 +228,9 @@
     {
       "routeId": "GET /v1/capture/devices/:id",
       "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Single-device read redundant with the device list the mobile client already calls.",
-      "evidence": "reg services/api/src/routes/capture-trust.routes.ts:214 app.get(\"/v1/capture/devices/:id\"). Mobile calls only apps/mobile/src/trust/device-registration.ts:120 apiFetch(\"/v1/capture/devices\", POST) and :158 apiFetch(\"/v1/capture/devices?includeRevoked=true\"). No apps/web reference to /v1/capture/devices at all.",
-      "reviewedAtUtc": "2026-08-16"
+      "reason": "Single-device read redundant with the device list the web Security Center already calls.",
+      "evidence": "reg services/api/src/routes/capture-trust.routes.ts:268 app.get(\"/v1/capture/devices/:id\"). The device list GET /v1/capture/devices is called from apps/web/app/(app)/security-center/components/CaptureDevicesSection.tsx:118 and revoke from :171; no client reads a single device. | Re-reviewed 2026-09-17 (UC-0): the mobile caller the previous evidence named, apps/mobile/src/trust/device-registration.ts, was deleted with the base64 trust queue.",
+      "reviewedAtUtc": "2026-09-17"
     },
     {
       "routeId": "GET /v1/capture/intake-templates/:id",
@@ -1532,6 +1532,44 @@
       "reason": "the canonical body-token accept, added ahead of the client cutover; the accept page still calls the legacy path with the token in the URL",
       "evidence": "reg services/api/src/routes/collaboration-teams.routes.ts:1070, documented CANONICAL because the token travels in the body where no intermediary logs it and it cannot leak through Referer. The web client at apps/web/lib/api/collaboration-teams.ts:471 still posts to /v1/collaboration-team-invites/{token}/accept, the LEGACY COMPATIBILITY route kept for links already in mailboxes, so this one has 0 product call sites until that call moves. The capability itself is delivered — this is the safer door to the same handler, not a missing feature.",
       "reviewedAtUtc": "2026-09-07"
+    },
+    {
+      "routeId": "POST /v1/capture/mobile/ingest",
+      "disposition": "SUPERSEDED_REMOVE",
+      "replacement": "POST /v1/capture/direct-sessions",
+      "reason": "UC-0 retired the receipt-only mobile ingest; the handler answers 410 INGEST_RETIRED",
+      "evidence": "reg services/api/src/routes/capture-trust.routes.ts:317 — the handler returns 410 { denial: \"INGEST_RETIRED\", replacement: \"/v1/capture/direct-sessions\" }. It created no Evidence, returned evidenceId \"\" and accepted base64 bytes in JSON. The replacement is called from apps/mobile/src/direct-capture.ts:41 (openDirectCaptureSession). The 410 is kept so an old app build is told the surface moved.",
+      "reviewedAtUtc": "2026-09-17"
+    },
+    {
+      "routeId": "POST /v1/intake/citizen/sessions",
+      "disposition": "SUPERSEDED_REMOVE",
+      "replacement": "POST /v1/external-intake/:token/sessions/:sid/parts",
+      "reason": "UC-0 retired the citizen base64 capture path; the handler answers 410 CITIZEN_CAPTURE_RETIRED behind its rate limiter",
+      "evidence": "reg services/api/src/routes/citizen-capture.routes.ts:127 — applyCitizenRateLimits then reply.code(410).send({ denial: \"CITIZEN_CAPTURE_RETIRED\", replacement: \"/intake/{token}\" }). apps/web/app/intake/[token]/capture/page.tsx now hands off to /intake/[token], whose canonical upload is apps/web/app/intake/[token]/page.tsx:713 (POST /v1/external-intake/:token/sessions/:sid/parts). Executed by services/api/test/citizen-capture-evidence-materialisation.test.ts.",
+      "reviewedAtUtc": "2026-09-17"
+    },
+    {
+      "routeId": "POST /v1/intake/citizen/sessions/:id/capture",
+      "disposition": "SUPERSEDED_REMOVE",
+      "replacement": "POST /v1/external-intake/:token/sessions/:sid/parts",
+      "reason": "UC-0 retired the citizen base64 capture path; the handler answers 410 CITIZEN_CAPTURE_RETIRED behind its rate limiter",
+      "evidence": "reg services/api/src/routes/citizen-capture.routes.ts:139 — applyCitizenRateLimits then reply.code(410). Bytes in a JSON body never reach storage, createEvidence or completeEvidence (executed by services/api/test/citizen-capture-evidence-materialisation.test.ts). The canonical intake upload is apps/web/app/intake/[token]/page.tsx:713.",
+      "reviewedAtUtc": "2026-09-17"
+    },
+    {
+      "routeId": "POST /v1/capture/devices",
+      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
+      "reason": "device-key registration has no current client: UC-0 removed the mobile trust module that called it, and on-device signing is out of UC-0 scope",
+      "evidence": "reg services/api/src/routes/capture-trust.routes.ts:216. Its only caller was apps/mobile/src/trust/device-registration.ts, deleted in UC-0 with the base64 trust queue. The direct-capture session accepts an OPTIONAL Ed25519 signature bound to a registered device (services/api/src/services/capture-trust/direct-capture-ingest.service.ts declareDirectCapturePart), exercised by services/api/test/uc0-acquisition-capture.integration.test.ts. GET /v1/capture/devices keeps its web caller. 0 call sites in apps/web + apps/mobile.",
+      "reviewedAtUtc": "2026-09-17"
+    },
+    {
+      "routeId": "POST /v1/capture/direct-sessions/:id/attestation",
+      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
+      "reason": "platform attestation is recorded but cannot be verified: the verifier fails closed (UNVERIFIED) until a real Play Integrity / App Attest verifier exists, so the app does not submit tokens yet",
+      "evidence": "reg services/api/src/routes/capture-trust.routes.ts:443 → submitDirectCaptureAttestation → verifyDeviceAttestation (services/api/src/services/capture-trust/attestation-verifier.service.ts, UnverifiablePlatformProvider, CRYPTOGRAPHIC_VERIFIER_UNAVAILABLE). Executed by services/api/test/uc0-acquisition-capture.integration.test.ts, which proves a forged 'verified' payload is recorded UNVERIFIED. 0 call sites in apps/web + apps/mobile.",
+      "reviewedAtUtc": "2026-09-17"
     }
   ]
 }

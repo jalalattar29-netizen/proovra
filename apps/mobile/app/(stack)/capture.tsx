@@ -23,19 +23,19 @@ import {
   useCameraPermissions,
   useMicrophonePermissions
 } from "expo-camera";
-import { ensureFileUri, uploadWithPut } from "../../src/upload-utils";
+import {
+  completeDirectCapture,
+  openDirectCaptureSession,
+  reserveDirectCaptureEvidence,
+  uploadDirectCaptureItem,
+  type DirectCaptureItemSource,
+  type DirectCaptureSession,
+} from "../../src/direct-capture";
 import { formatUserDateTime } from "../../src/lib/date";
-// Phase 1B Closure — mobile trust runtime. captureWithTrust registers the
-// device, signs the asset with the device key, queues the trust envelope
-// (offline-safe), and emits the bounded outcome the chip strip renders.
-// runTrustCapture is the canonical capture-site alias for the same
-// runtime. listTrustQueueSummary surfaces queued+failed counts in the
-// session footer so operators see real queue state, not a placeholder.
-//
-// `captureWithTrust` is deliberately NOT imported: this screen calls the
-// canonical `runTrustCapture` alias, and importing both left an unused
-// binding that read as if two capture entry points were in play here.
-import { runTrustCapture, listTrustQueueSummary } from "../../src/trust";
+// UC-0 — every item goes through ONE server-issued direct-capture session
+// (src/direct-capture.ts): the record is reserved by the session, each file's
+// digest is declared to it, the bytes go to storage, and the server re-hashes
+// and seals. The former second, base64 "trust ingest" upload is gone.
 // PHASE 10 CLOSURE FIX 3 (2026-07-23) — no-Personal client gate. The
 // citizen-capture app has no workspace switcher/alternative target, so a
 // disallowed Personal Space blocks capture outright (never a silent
@@ -47,13 +47,9 @@ import {
   shouldBlockMobileCapture,
 } from "../../src/personal-space";
 
-// Bounded PROOVRA-language chip strings — render after a successful
-// trust capture, when the capture was signed but queued offline, when
-// device attestation passed, and when attestation could not run.
-const TRUST_CHIP_SIGNED_AT_SOURCE = "Signed at source";
-const TRUST_CHIP_QUEUED = "Queued securely for sync";
-const TRUST_CHIP_DEVICE_TRUSTED = "Device trust verified";
-const TRUST_CHIP_LIMITED_TRUST = "Captured under limited device trust";
+// UC-0 — the former chips ("Signed at source", "Device trust verified") are
+// gone: device attestation is never verified by the server, and an item is
+// only preserved once the session completes.
 
 type CaptureKind = "PHOTO" | "VIDEO" | "DOCUMENT";
 
@@ -65,6 +61,8 @@ type CapturedItem = {
   sizeBytes?: number;
   originalFilename?: string;
   partIndex: number;
+  /** Where the app took the item from — client-reported, recorded as such. */
+  source: DirectCaptureItemSource;
   uploadProgress: number;
   uploading: boolean;
   uploaded: boolean;
@@ -115,6 +113,7 @@ export default function CaptureScreen() {
 
   const cameraRef = useRef<CameraView | null>(null);
   const sessionEvidenceIdRef = useRef<string | null>(null);
+  const captureSessionRef = useRef<DirectCaptureSession | null>(null);
   const sessionItemsRef = useRef<CapturedItem[]>([]);
 
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
@@ -227,23 +226,26 @@ export default function CaptureScreen() {
 
       const gps = await getGps();
 
-      const created = await apiFetch("/v1/evidence", {
-        method: "POST",
-        body: JSON.stringify({
+      // UC-0 — the server issues the session, then reserves the record for
+      // it; the record's acquisition is the session's (PROOVRA mobile app).
+      try {
+        const session = await openDirectCaptureSession();
+        captureSessionRef.current = session;
+        const createdId = await reserveDirectCaptureEvidence(session, {
           type: activeType,
           mimeType: firstMimeType,
           deviceTimeIso: new Date().toISOString(),
           gps
-        })
-      });
-
-      const createdId = created?.id as string;
-      sessionEvidenceIdRef.current = createdId;
-      setSessionEvidenceId(createdId);
-      setSessionCreatingEvidence(false);
-      setInfo(null);
-
-      return createdId;
+        });
+        sessionEvidenceIdRef.current = createdId;
+        setSessionEvidenceId(createdId);
+        setSessionCreatingEvidence(false);
+        setInfo(null);
+        return createdId;
+      } catch (err) {
+        captureSessionRef.current = null;
+        throw err;
+      }
     },
     [activeType, getGps]
   );
@@ -255,6 +257,7 @@ export default function CaptureScreen() {
       durationMs?: number;
       sizeBytes?: number;
       originalFilename?: string;
+      source: DirectCaptureItemSource;
     }) => {
       setError(null);
       setInfo(null);
@@ -269,6 +272,7 @@ export default function CaptureScreen() {
           durationMs: input.durationMs,
           sizeBytes: input.sizeBytes,
           originalFilename: input.originalFilename,
+          source: input.source,
           partIndex: sessionItemsRef.current.length,
           uploadProgress: 0,
           uploading: false,
@@ -309,6 +313,7 @@ export default function CaptureScreen() {
 
       if (filtered.length === 0) {
         sessionEvidenceIdRef.current = null;
+        captureSessionRef.current = null;
         setSessionEvidenceId(null);
       }
 
@@ -320,6 +325,7 @@ export default function CaptureScreen() {
   const discardSession = useCallback(() => {
     if (sessionCompletingEvidence) return;
     sessionEvidenceIdRef.current = null;
+    captureSessionRef.current = null;
     setSessionEvidenceId(null);
     setSessionState([]);
     setError(null);
@@ -388,7 +394,8 @@ export default function CaptureScreen() {
           uri: file.uri,
           mimeType: file.mimeType ?? "application/octet-stream",
           sizeBytes: file.size ?? (fileInfo.exists ? fileInfo.size : undefined),
-          originalFilename: file.name ?? getFilename(file.uri, `document-${Date.now()}`)
+          originalFilename: file.name ?? getFilename(file.uri, `document-${Date.now()}`),
+          source: "FILE_PICKER"
         });
 
         return;
@@ -424,41 +431,14 @@ export default function CaptureScreen() {
         return;
       }
 
-      // Phase 1B Closure — sign + queue the trust envelope BEFORE adding
-      // to the upload session so the offline queue carries the bounded
-      // trust outcome. captureWithTrust runs registration, key, envelope,
-      // queue, and best-effort sync. Outcome chips are surfaced from
-      // trustQueueSummary (also fetched below) so the operator sees
-      // honest signed/queued/device-trust state.
-      const trustOutcome = await runTrustCapture({
-        fileUri: result.uri,
-        mimeType: "image/jpeg",
-        online: true,
-        location: null,
-      }).catch(() => null);
-      if (trustOutcome?.kind === "QUEUED") {
-        addToast(
-          trustOutcome.offline ? TRUST_CHIP_QUEUED : TRUST_CHIP_SIGNED_AT_SOURCE,
-          "info",
-        );
-        addToast(
-          trustOutcome.attestationAttempted
-            ? TRUST_CHIP_DEVICE_TRUSTED
-            : TRUST_CHIP_LIMITED_TRUST,
-          "info",
-        );
-      }
-      // Refresh the bounded trust-queue counts so the session footer
-      // reflects the new envelope.
-      void listTrustQueueSummary();
-
       const fileInfo = await FileSystem.getInfoAsync(result.uri);
 
       await addCapturedItemToSession({
         uri: result.uri,
         mimeType: "image/jpeg",
         sizeBytes: fileInfo.exists ? fileInfo.size : undefined,
-        originalFilename: getFilename(result.uri, `photo-${Date.now()}.jpg`)
+        originalFilename: getFilename(result.uri, `photo-${Date.now()}.jpg`),
+        source: "CAMERA"
       });
 
       setInfo(null);
@@ -491,30 +471,6 @@ export default function CaptureScreen() {
       const recordResult = result as { uri?: string; duration?: number };
 
       if (recordResult?.uri) {
-        // Phase 1B Closure — sign + queue the trust envelope for the
-        // recorded video BEFORE persisting to the upload session. Same
-        // bounded outcome contract as the photo path; runTrustCapture is
-        // the canonical alias for captureWithTrust.
-        const trustOutcome = await runTrustCapture({
-          fileUri: recordResult.uri,
-          mimeType: "video/mp4",
-          online: true,
-          location: null,
-        }).catch(() => null);
-        if (trustOutcome?.kind === "QUEUED") {
-          addToast(
-            trustOutcome.offline ? TRUST_CHIP_QUEUED : TRUST_CHIP_SIGNED_AT_SOURCE,
-            "info",
-          );
-          addToast(
-            trustOutcome.attestationAttempted
-              ? TRUST_CHIP_DEVICE_TRUSTED
-              : TRUST_CHIP_LIMITED_TRUST,
-            "info",
-          );
-        }
-        void listTrustQueueSummary();
-
         const fileInfo = await FileSystem.getInfoAsync(recordResult.uri);
         const durationMs =
           typeof recordResult.duration === "number"
@@ -526,7 +482,8 @@ export default function CaptureScreen() {
           mimeType: "video/mp4",
           durationMs,
           sizeBytes: fileInfo.exists ? fileInfo.size : undefined,
-          originalFilename: getFilename(recordResult.uri, `video-${Date.now()}.mp4`)
+          originalFilename: getFilename(recordResult.uri, `video-${Date.now()}.mp4`),
+          source: "CAMERA"
         });
       }
     } catch (err) {
@@ -551,9 +508,10 @@ export default function CaptureScreen() {
 
   const completeSession = useCallback(async () => {
     const evidenceId = sessionEvidenceIdRef.current;
+    const captureSession = captureSessionRef.current;
     const items = sessionItemsRef.current;
 
-    if (!evidenceId || items.length === 0) {
+    if (!evidenceId || !captureSession || items.length === 0) {
       setError("No items in session");
       addToast("No items in session", "error");
       return;
@@ -577,30 +535,24 @@ export default function CaptureScreen() {
           )
         );
 
-        const part = await apiFetch(`/v1/evidence/${evidenceId}/parts`, {
-          method: "POST",
-          body: JSON.stringify({
-            partIndex: item.partIndex,
-            mimeType: item.mimeType,
-            durationMs: item.durationMs ?? undefined
-          })
+        setSessionState(
+          sessionItemsRef.current.map((current) =>
+            current.id === item.id
+              ? { ...current, uploading: true, uploadProgress: 10 }
+              : current
+          )
+        );
+
+        // Declare the digest to the session, then upload the bytes through
+        // the canonical part presign (never as JSON).
+        await uploadDirectCaptureItem(captureSession, evidenceId, {
+          partIndex: item.partIndex,
+          uri: item.uri,
+          mimeType: item.mimeType,
+          durationMs: item.durationMs,
+          originalFilename: item.originalFilename,
+          source: item.source
         });
-
-        const fileUri = await ensureFileUri(item.uri);
-
-setSessionState(
-  sessionItemsRef.current.map((current) =>
-    current.id === item.id
-      ? { ...current, uploading: true, uploadProgress: 10 }
-      : current
-  )
-);
-
-await uploadWithPut({
-  putUrl: part.upload.putUrl,
-  uri: fileUri,
-  mimeType: item.mimeType
-});
 
 setSessionState(
   sessionItemsRef.current.map((current) =>
@@ -623,21 +575,9 @@ setSessionState(
       setInfo("Finalizing evidence...");
       setUploadProgress(92);
 
-      await apiFetch(`/v1/evidence/${evidenceId}/complete`, {
-        method: "POST",
-        body: JSON.stringify({
-          sizeBytes:
-            sessionItemsRef.current.reduce(
-              (sum, item) => sum + (item.sizeBytes ?? 0),
-              0
-            ) || undefined,
-          durationMs:
-            sessionItemsRef.current.reduce(
-              (sum, item) => sum + (item.durationMs ?? 0),
-              0
-            ) || undefined
-        })
-      });
+      // The server re-hashes every stored item, compares each with its
+      // declared digest, and only then signs and binds the session.
+      await completeDirectCapture(captureSession);
 
       setUploadProgress(96);
       await pollReport(evidenceId);
@@ -646,6 +586,7 @@ setSessionState(
       addToast("Evidence created successfully", "success", 2000);
 
       sessionEvidenceIdRef.current = null;
+      captureSessionRef.current = null;
       setSessionEvidenceId(null);
       setSessionState([]);
       setInfo(null);

@@ -60,7 +60,11 @@ import {
   VerifyTechnicalMetadataSection,
   type VerifyTechnicalMetadata,
 } from "../../../components/verify-v2/VerifyTechnicalMetadataSection";
-import { VerifyCaptureIntegritySection } from "../../../components/verify-v2/VerifyCaptureIntegritySection";
+import {
+  VerifyCaptureIntegritySection,
+  readPublicVerifyAcquisition,
+} from "../../../components/verify-v2/VerifyCaptureIntegritySection";
+import type { PublicVerifyAcquisition } from "@proovra/shared";
 // PHASE 12B — redaction verification badge. Converged onto this
 // token-bound Verify projection from the deleted anonymous
 // GET /v1/redaction/public/verify/:evidenceId probe.
@@ -2826,19 +2830,11 @@ export default function VerifyPage() {
     useState<NonNullable<VerifyResponse["mediaIntelligenceAdvisory"]> | null>(
       null,
     );
-  // Phase 1B Closure — bounded capture-trust projection. The API returns
-  // null when there is nothing surfaceable (legacy non-trust artifact or
-  // projection failure). We render no section in either case; the page
-  // is honest about no-data rather than fabricating a Class B or claim.
-  const [captureTrust, setCaptureTrust] = useState<{
-    provenanceClassLabel: string;
-    signatureVerdict: string;
-    attestationVerdict: string;
-    serverCountersigned: boolean;
-    rfc3161Applied: boolean;
-    otsApplied: boolean;
-    limitations: ReadonlyArray<string>;
-  } | null>(null);
+  // UC-0 — the typed public acquisition projection (the API's
+  // `acquisition` field, rendered verbatim). Null only when the API sent
+  // no valid projection; a legacy record arrives as "Not recorded".
+  const [acquisition, setAcquisition] =
+    useState<PublicVerifyAcquisition | null>(null);
 
   // Enterprise Technical Metadata layer — privacy-safe Media / EXIF /
   // Capture Environment projection. Null when the API has nothing to
@@ -2955,41 +2951,8 @@ function isAccessEventType(eventType?: string | null): boolean {
       ((data as { redaction?: VerifyRedaction | null }).redaction ??
         null) as VerifyRedaction | null,
     );
-    // Phase 1B Closure — bounded captureTrust projection from the API.
-    // Reshape from the projection's nested chain.capture/server/time
-    // structure into the flat bounded fields the verify section renders.
-    const ct = (data as { captureTrust?: unknown }).captureTrust as
-      | {
-          provenanceClassLabel?: string | null;
-          chain?: {
-            capture?: {
-              signatureVerdict?: string | null;
-              attestationVerdict?: string | null;
-            } | null;
-            server?: { countersigned?: boolean | null } | null;
-            time?: {
-              rfc3161?: { applied?: boolean | null } | null;
-              ots?: { applied?: boolean | null } | null;
-            } | null;
-          } | null;
-          limitations?: ReadonlyArray<string> | null;
-        }
-      | null
-      | undefined;
-    setCaptureTrust(
-      ct
-        ? {
-            provenanceClassLabel: ct.provenanceClassLabel ?? "",
-            signatureVerdict: ct.chain?.capture?.signatureVerdict ?? "MISSING",
-            attestationVerdict:
-              ct.chain?.capture?.attestationVerdict ?? "NOT_ATTEMPTED",
-            serverCountersigned: Boolean(ct.chain?.server?.countersigned),
-            rfc3161Applied: Boolean(ct.chain?.time?.rfc3161?.applied),
-            otsApplied: Boolean(ct.chain?.time?.ots?.applied),
-            limitations: ct.limitations ?? [],
-          }
-        : null,
-    );
+    // UC-0 — the ONE typed contract; no reshaping, no fallback guesses.
+    setAcquisition(readPublicVerifyAcquisition(data));
 
     const reviewTrailForensic =
       data.reviewTrail?.forensicCustodyEvents ??
@@ -3734,11 +3697,8 @@ const trustDecision = useMemo(() => {
       transactionId: anchorTransactionId,
     },
     custodyEvents: [...forensicTimeline, ...accessTimeline],
-    // Intake is derived from the reviewer-facing capture-method label
-    // ("Secure Intake Link"). Everything else is authenticated Capture.
-    isIntake: /intake/i.test(
-      String(humanSummary?.captureMethod ?? overview?.captureMethod ?? ""),
-    ),
+    // UC-0 — intake is the acquisition authority's answer, not a label match.
+    isIntake: acquisition?.acquisition.mode === "SECURE_INTAKE_LINK",
   });
 }, [
   accessTimeline,
@@ -3747,8 +3707,7 @@ const trustDecision = useMemo(() => {
   fingerprintHash,
   forensicTimeline,
   hash,
-  humanSummary?.captureMethod,
-  overview?.captureMethod,
+  acquisition?.acquisition.mode,
   humanSummary?.recordedIntegrityVerifiedAtUtc,
   humanSummary?.verificationPackageGeneratedAtUtc,
   identityLevel,
@@ -3960,10 +3919,17 @@ const executiveBadges = useMemo<
           ),
         },
         {
-          label: "Capture Method",
+          // UC-0 — the value is the acquisition label ("Not recorded" for a
+          // legacy record), never a structure enum.
+          label: "Acquisition",
           value:
-            humanSummary?.captureMethod ?? overview?.captureMethod ?? "N/A",
-          show: Boolean(humanSummary?.captureMethod ?? overview?.captureMethod),
+            acquisition?.acquisition.label ??
+            humanSummary?.captureMethod ??
+            overview?.captureMethod ??
+            "N/A",
+          show: Boolean(
+            acquisition ?? humanSummary?.captureMethod ?? overview?.captureMethod,
+          ),
         },
         {
           label: "Submitted By",
@@ -4155,6 +4121,7 @@ const executiveBadges = useMemo<
       tsaStatus,
       otsStatus,
       storagePresentation.badgeLabel,
+      acquisition,
     ]
   );
 
@@ -5405,14 +5372,11 @@ Reviewer Action
 />
 
 {/*
-  Capture-trust panel — extracted to VerifyCaptureIntegritySection (CR4
-  decomposition). The CURRENT preservation verification (trusted timestamp
-  + blockchain anchoring) is shown prominently ABOVE. The full capture-
-  side panel renders only on a positive capture-side signal; otherwise a
-  reassuring Advanced details accordion is shown. Behaviour is unchanged.
+  UC-0 — "How this record was acquired": a neutral statement from the
+  typed acquisition projection. Cryptographic verification is shown above.
 */}
 <VerifyCaptureIntegritySection
-  captureTrust={captureTrust}
+  acquisition={acquisition}
   typo={VERIFY_TYPO}
   brand={VERIFY_BRAND}
 />

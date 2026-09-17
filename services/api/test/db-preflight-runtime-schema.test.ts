@@ -73,6 +73,8 @@ function databaseWith(present: {
   reportGenerationRequestsIdempotencyUnique?: boolean;
   evidenceCreditLedgerTable?: boolean;
   evidenceCreditLedgerEvidenceIdUnique?: boolean;
+  // UC-0 — the acquisition/provenance foundation (20280601000000).
+  uc0AcquisitionFoundation?: boolean;
 }) {
   return async (sql: string): Promise<boolean> => {
     if (sql.includes("WORKSPACE_OPERATIONS")) return present.reconciliationEnumValue === true;
@@ -126,6 +128,18 @@ function databaseWith(present: {
     if (sql.includes("table_name = 'evidence_credit_ledger_entries'")) {
       return present.evidenceCreditLedgerTable === true;
     }
+    // UC-0 (20280601000000) — one migration supplies all seven objects.
+    if (
+      sql.includes("column_name = 'acquisition_mode'") ||
+      sql.includes("column_name = 'artifact_class'") ||
+      sql.includes("typname = 'CaptureSessionStatus'") ||
+      sql.includes("column_name = 'nonce_sha256'") ||
+      sql.includes("column_name = 'acquisition_mode_snapshot'") ||
+      sql.includes("column_name = 'verifier_version'") ||
+      sql.includes("evidence_part_derived_assets_team_part_kind_variant_uk")
+    ) {
+      return present.uc0AcquisitionFoundation === true;
+    }
     throw new Error(`unrecognised probe:\n${sql}`);
   };
 }
@@ -143,6 +157,7 @@ const FULLY_MIGRATED = {
   reportGenerationRequestsIdempotencyUnique: true,
   evidenceCreditLedgerTable: true,
   evidenceCreditLedgerEvidenceIdUnique: true,
+  uc0AcquisitionFoundation: true,
 };
 
 describe("runtime schema requirements", () => {

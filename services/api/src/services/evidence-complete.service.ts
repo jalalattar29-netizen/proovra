@@ -39,7 +39,23 @@ import { warn as logWarn } from "../utils/logger.js";
 import { AppError, ErrorCode } from "../errors.js";
 import { validateRequiredChecklistMapping } from "./capture-checklist-gate.js";
 
-type HttpError = Error & { statusCode: number };
+type HttpError = Error & { statusCode: number; code?: string };
+
+/**
+ * UC-0 — the digests a server-issued direct-capture session DECLARED for its
+ * parts before the bytes were uploaded. Completion compares each against the
+ * SERVER-computed SHA-256 of the stored object and refuses — before any
+ * signature, timestamp or custody event — when one differs or is missing. The
+ * declared value is a claim to check, never a substitute for the server hash.
+ */
+export type CaptureSessionCompletion = {
+  sessionId: string;
+  expectedSha256ByPartIndex: ReadonlyMap<number, string>;
+};
+
+function captureCompletionError(code: string, statusCode = 409): HttpError {
+  return Object.assign(new Error(code), { statusCode, code });
+}
 
 // Adapter: bridge utils/logger.warn → FanoutLogger contract.
 const completeFanoutLogger = {
@@ -453,6 +469,12 @@ function buildFingerprint(params: {
 export async function completeEvidence(params: {
   evidenceId: string;
   ownerUserId: string;
+  /**
+   * UC-0 — present ONLY when the direct-capture session adapter completes the
+   * record it reserved. A record bound to an ACTIVE direct-capture session can
+   * be completed through that session and nothing else.
+   */
+  captureSession?: CaptureSessionCompletion;
 }): Promise<CompleteEvidenceReturn> {
   const signer = getEvidenceSigner();
 
@@ -607,6 +629,28 @@ export async function completeEvidence(params: {
         }
       }
 
+      // UC-0 — direct-capture session guard. A record reserved by a
+      // server-issued capture session carries that session's declared digests
+      // and trust chain; completing it through any other door (e.g.
+      // POST /v1/evidence/:id/complete) would seal it without the digest
+      // comparison and without binding the session. Refuse that, and refuse a
+      // session completion that names a different session. Web capture DRAFT
+      // sessions carry no acquisition mode and are unaffected.
+      const boundCaptureSession = await tx.captureSession.findFirst({
+        where: { finalizedEvidenceId: evidence.id, acquisitionMode: { not: null } },
+        select: { id: true, status: true },
+      });
+      if (boundCaptureSession) {
+        if (params.captureSession?.sessionId !== boundCaptureSession.id) {
+          throw captureCompletionError("CAPTURE_SESSION_COMPLETION_REQUIRED");
+        }
+        if (boundCaptureSession.status !== prismaPkg.CaptureSessionStatus.ACTIVE) {
+          throw captureCompletionError("CAPTURE_SESSION_NOT_ACTIVE");
+        }
+      } else if (params.captureSession) {
+        throw captureCompletionError("CAPTURE_SESSION_NOT_BOUND_TO_EVIDENCE");
+      }
+
       // Phase 12 — move the operations-side session to VERIFYING. Best
       // effort; failure here MUST NOT break the forensic write path.
       safeTransitionUploadSession({
@@ -739,6 +783,25 @@ export async function completeEvidence(params: {
           throw err;
         }
 
+        // UC-0 — server digest vs session-declared digest, per part, BEFORE
+        // anything is signed. A part with no declaration is refused too: the
+        // session adapter declares every part it uploads.
+        if (params.captureSession) {
+          const expected = params.captureSession.expectedSha256ByPartIndex;
+          if (expected.size !== updatedParts.length) {
+            throw captureCompletionError("CAPTURE_PART_DECLARATION_MISMATCH");
+          }
+          for (const p of updatedParts) {
+            const declared = expected.get(p.partIndex);
+            if (!declared) {
+              throw captureCompletionError("CAPTURE_PART_UNDECLARED");
+            }
+            if (declared.toLowerCase() !== p.sha256.toLowerCase()) {
+              throw captureCompletionError("CAPTURE_DIGEST_MISMATCH");
+            }
+          }
+        }
+
         const maxBytes = readMaxEvidenceSizeBytes();
         if (sizeBytesNum > maxBytes) {
           const err: HttpError = Object.assign(new Error("EVIDENCE_TOO_LARGE"), {
@@ -833,6 +896,11 @@ const fingerprint = buildFingerprint({
         canonical = canonicalJson(fingerprint);
         fingerprintHash = sha256Hex(canonical);
       } else {
+        // UC-0 — a session-bound record is always sealed from its declared
+        // parts; the legacy single-object path has nothing to compare against.
+        if (params.captureSession) {
+          throw captureCompletionError("CAPTURE_PARTS_REQUIRED");
+        }
         const bucket = evidenceBucket!;
         const key = evidenceKey!;
 
@@ -915,6 +983,10 @@ const fingerprint = buildFingerprint({
       const tsaInputKind =
         multipartItemCount > 1 ? "CANONICAL_PACKAGE_SHA256" : "FILE_SHA256";
 
+// UC-0 — `captureMethod` is the legacy STRUCTURE/compat field (single file vs
+// multipart). It is NOT acquisition: `acquisitionMode` is written once by
+// createEvidence and is deliberately absent from `finalizeData` below, so
+// completion can never change how a record says it entered PROOVRA.
 const captureMethod =
   multipartItemCount > 1
     ? prismaPkg.CaptureMethod.MULTIPART_PACKAGE

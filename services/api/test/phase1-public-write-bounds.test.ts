@@ -59,9 +59,10 @@ const PUBLIC_WRITES = [
     route: "POST /v1/intake/citizen/sessions",
     file: "services/api/src/routes/citizen-capture.routes.ts",
     limiterCall: "applyCitizenRateLimits",
-    // The first thing this handler persists: device registration precedes the
-    // capture-session descriptor, so it is the write that must not be reached.
-    persist: "registerDevice(",
+    // UC-0: the citizen base64 capture path is retired and persists nothing;
+    // its only action is the 410 answer, which must still come after the
+    // limiter so the retired endpoint cannot be used as an unbounded probe.
+    persist: "reply.code(410)",
     limiterKey: "citizen-intake:ip:",
   },
 ] as const;

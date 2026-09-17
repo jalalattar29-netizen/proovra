@@ -1,8 +1,11 @@
 import { ReportViewModel } from "../types.js";
 import { escapeHtml } from "../formatters.js";
 import {
+  ACQUISITION_GLOBAL_QUALIFIER,
+  ACQUISITION_LIMITATION_TEXT,
   getTrustDecisionConfidenceLabel,
   getTrustDecisionLabel,
+  resolveEvidenceAcquisition,
 } from "@proovra/shared";
 import {
   getCaptureContextTimestampLabel,
@@ -22,9 +25,35 @@ import {
 function captureTimestampLabel(vm: ReportViewModel): string {
   const a = vm.meta.acquisition;
   return getCaptureContextTimestampLabel({
-    acquisitionMethod: a?.method ?? null,
+    acquisitionMode: vm.meta.acquisitionMode ?? null,
     isIntake: a?.isIntake ?? false,
   });
+}
+
+/**
+ * UC-0 — "How this record entered PROOVRA": the acquisition statement from the
+ * report's own acquisition snapshot, its bounded limitations, and the global
+ * qualifier. Always rendered, and always neutral — a legacy record says the
+ * acquisition was not recorded; nothing here is a verification signal.
+ */
+function renderAcquisitionStatement(vm: ReportViewModel): string {
+  const a = resolveEvidenceAcquisition({
+    acquisitionMode: vm.meta.acquisitionMode ?? null,
+  });
+  const limitations = a.limitations
+    .map((code) => `<li>${escapeHtml(ACQUISITION_LIMITATION_TEXT[code])}</li>`)
+    .join("");
+  return `
+    <section class="capture-context-panel acquisition-statement-panel">
+      <div class="capture-context-header">
+        <div class="executive-confirmation-kicker">How this record entered PROOVRA</div>
+        <div class="capture-context-intro">${escapeHtml(a.label)}</div>
+      </div>
+      <div class="capture-context-note">${escapeHtml(a.statement)}</div>
+      <ul class="acquisition-limitations">${limitations}</ul>
+      <div class="capture-context-note">${escapeHtml(ACQUISITION_GLOBAL_QUALIFIER)}</div>
+    </section>
+  `;
 }
 
 /**
@@ -46,23 +75,6 @@ function buildCaptureDeviceRows(
 
   const titleCaseWord = (s: string) =>
     s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
-  const humanUpload = (v: string | null): string | null => {
-    if (!v) return null;
-    if (v === "WEB_APP") return "PROOVRA Web Application";
-    if (v === "MOBILE_APP") return "PROOVRA Mobile";
-    if (v === "INTAKE_LINK") return "Intake Link Submission";
-    if (v === "API") return "API Submission";
-    return null;
-  };
-  const humanMethod = (v: string | null): string | null => {
-    if (!v) return null;
-    // Precise flow-aware label — web upload reads "PROOVRA Web Upload", not
-    // "Secure Browser Capture".
-    return captureMethodDisplayLabel({
-      captureMethod: v,
-      uploadSource: ce.uploadSource,
-    });
-  };
 
   const rows: Array<{ label: string; value: string }> = [];
   const push = (label: string, value: string | null | undefined) => {
@@ -78,8 +90,11 @@ function buildCaptureDeviceRows(
     "Browser",
     [ce.browserName, ce.browserVersion].filter(Boolean).join(" ") || null,
   );
-  push("Submitted through", humanUpload(ce.uploadSource));
-  push("Capture method", humanMethod(ce.captureMethod));
+  // UC-0 — the acquisition authority, not the environment's legacy labels.
+  push(
+    "Submitted through",
+    captureMethodDisplayLabel({ acquisitionMode: vm.meta.acquisitionMode ?? null }),
+  );
   push("Timezone", ce.timezone);
   return rows;
 }
@@ -401,6 +416,8 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
             ${escapeHtml(conclusion.body)}
           </div>
         </section>
+
+        ${renderAcquisitionStatement(vm)}
 
         ${renderEvidenceAcquisition(vm)}
 

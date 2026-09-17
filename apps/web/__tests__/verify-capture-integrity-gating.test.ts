@@ -10,6 +10,11 @@
  *      (`verify-capture-trust-advanced`) with reassuring human wording.
  *   3. The current-preservation language (preservation shown above) is
  *      preserved so the page emphasises current verification.
+ *
+ * UC-0 (2026-09-17): points 2 and 3 pinned the retired capture-trust panel,
+ * which reshaped a nested `chain.*` object the API never sent and could show
+ * a device verdict nothing verified. The section now renders ONE typed
+ * public acquisition contract, neutrally, and renders nothing without it.
  */
 
 import assert from "node:assert/strict";
@@ -49,48 +54,34 @@ test("no terse RFC3161/OTS/countersign 'absent' language as primary text", () =>
   }
 });
 
-test("capture-side integrity is gated on a positive signal", () => {
-  // The render is conditional on at least one positive capture-side
-  // signal (signature present / attestation attempted / countersigned /
-  // capture-side rfc3161 or ots applied).
-  assert.ok(
-    PAGE.includes('captureTrust.signatureVerdict !== "MISSING"'),
-    "must gate on signatureVerdict !== MISSING",
-  );
-  assert.ok(
-    PAGE.includes('captureTrust.attestationVerdict !== "NOT_ATTEMPTED"'),
-    "must gate on attestationVerdict !== NOT_ATTEMPTED",
-  );
-  assert.ok(
-    PAGE.includes("captureTrust.serverCountersigned") &&
-      PAGE.includes("captureTrust.rfc3161Applied") &&
-      PAGE.includes("captureTrust.otsApplied"),
-    "must include positive-signal checks for countersign/rfc3161/ots",
-  );
+test("the acquisition section renders only a valid typed contract", () => {
+  assert.ok(PAGE.includes("if (!acquisition) return null;"));
+  assert.ok(PAGE.includes("v.schemaVersion !== PUBLIC_ACQUISITION_SCHEMA_VERSION"));
+  assert.ok(PAGE.includes("readPublicVerifyAcquisition(data)"));
+  assert.ok(!PAGE.includes("captureTrust"), "the retired capture-trust reshaping must be gone");
 });
 
-test("absent case is routed into an Advanced details accordion with reassuring wording", () => {
-  assert.ok(
-    PAGE.includes("verify-capture-trust-advanced"),
-    "must render an Advanced details accordion for the absent case",
-  );
-  assert.ok(
-    PAGE.includes("does not reduce the recorded preservation"),
-    "advanced note must reassure that preservation verdict is unaffected",
-  );
-  assert.ok(
-    PAGE.includes("Advanced: capture-side integrity"),
-    "advanced accordion must have a clear summary label",
-  );
+test("the acquisition block is neutral — no success styling, check mark or class label", () => {
+  // Comments stripped: prose that explains the rule names what it forbids.
+  const section = readFileSync(
+    resolve(HERE, "..", "components", "verify-v2", "VerifyCaptureIntegritySection.tsx"),
+    "utf8",
+  )
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "");
+  assert.ok(!/✓|✔|CheckCircle|brand\.success|#16a34a|green/i.test(section));
+  assert.ok(!/Class [ABC]\b|verified at source|verified capture/i.test(section));
+  // No private identifier is rendered.
+  assert.ok(!/session\.sessionId|deviceId|evidenceId/.test(section));
+  // A backfilled intake mode is disclosed as such.
+  assert.ok(section.includes('a.recordedBy === "BACKFILL_INTAKE_SESSION_LINK"'));
+  // An unverified attestation is never shown as verified.
+  assert.ok(section.includes("Device integrity was not independently verified."));
 });
 
 test("current-preservation emphasis is preserved", () => {
-  // Contiguous substrings (the surrounding copy is line-wrapped in JSX).
-  assert.ok(
-    PAGE.includes("verified preservation") ||
-      PAGE.includes("Current preservation verification"),
-    "must point reviewers to the current preservation verification",
-  );
+  // The integrity statement anchors on the server's own completion moment.
+  assert.ok(PAGE.includes("PROOVRA established integrity on its server"));
 });
 
 // ============================================================================

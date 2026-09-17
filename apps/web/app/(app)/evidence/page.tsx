@@ -64,6 +64,7 @@ const DEFAULT_FILTERS: EvidenceFilterState = {
   otsStatus: "all",
   publicVerifyState: "all",
   verificationStatus: "all",
+  acquisition: "all",
 };
 
 /**
@@ -101,6 +102,9 @@ function buildEvidenceLibrarySummaryPath(query: EvidenceListQuery) {
   if (query.verificationStatus && query.verificationStatus !== "all") {
     params.set("verificationStatus", query.verificationStatus);
   }
+  if (query.acquisition && query.acquisition !== "all") {
+    params.set("acquisition", query.acquisition);
+  }
   return `/v1/evidence/library-summary?${params.toString()}`;
 }
 
@@ -131,6 +135,9 @@ function buildEvidenceListPath(query: EvidenceListQuery) {
   }
   if (query.verificationStatus && query.verificationStatus !== "all") {
     params.set("verificationStatus", query.verificationStatus);
+  }
+  if (query.acquisition && query.acquisition !== "all") {
+    params.set("acquisition", query.acquisition);
   }
   if (query.sort) params.set("sort", query.sort);
 
@@ -222,6 +229,8 @@ function readUrlFilterOverrides(): Partial<EvidenceFilterState> {
   if (pv) out.publicVerifyState = pv.toUpperCase();
   const vs = params.get("verificationStatus");
   if (vs) out.verificationStatus = vs.toUpperCase();
+  const acq = params.get("acquisition");
+  if (acq) out.acquisition = acq.toUpperCase();
   const status = params.get("status");
   if (status) out.status = status.toLowerCase();
   const type = params.get("type");
@@ -357,6 +366,7 @@ function EvidenceLibraryPageInner() {
         filters.publicVerifyState !== "all" ? filters.publicVerifyState : undefined,
       verificationStatus:
         filters.verificationStatus !== "all" ? filters.verificationStatus : undefined,
+      acquisition: filters.acquisition !== "all" ? filters.acquisition : undefined,
       sort:
         filters.sort === "oldest" || filters.sort === "priority"
           ? filters.sort
@@ -375,6 +385,7 @@ function EvidenceLibraryPageInner() {
       filters.otsStatus,
       filters.publicVerifyState,
       filters.verificationStatus,
+      filters.acquisition,
     ]
   );
 

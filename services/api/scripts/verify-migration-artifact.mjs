@@ -94,7 +94,9 @@ const DESTRUCTIVE_PATTERNS = [
  */
 function dynamicDestructiveKinds(sql) {
   const kinds = new Set();
-  for (const m of sql.matchAll(/\bEXECUTE\b([\s\S]{0,600}?);/gi)) {
+  // `CREATE TRIGGER … EXECUTE FUNCTION|PROCEDURE f()` names a function; it is
+  // not a dynamic statement, and its text is fully readable.
+  for (const m of sql.matchAll(/\bEXECUTE\b(?!\s+(?:FUNCTION|PROCEDURE)\b)([\s\S]{0,600}?);/gi)) {
     const body = m[1] ?? "";
     for (const { kind, re } of DESTRUCTIVE_PATTERNS) {
       if (re.test(body)) kinds.add(`DYNAMIC_${kind}`);

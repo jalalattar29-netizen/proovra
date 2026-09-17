@@ -16,12 +16,20 @@
  * recipient for public surfaces.
  */
 
+import {
+  acquisitionTimestampLabel,
+  resolveEvidenceAcquisition,
+  type ProjectedAcquisitionMode,
+} from "@proovra/shared";
+
 export type AcquisitionRawInput = {
-  /** Evidence.captureEnvironment.uploadSource, e.g. WEB_APP / INTAKE_LINK /
-   *  MOBILE_APP / API / UNKNOWN. */
-  uploadSource?: string | null;
-  /** Evidence.captureMethod enum, e.g. EXTERNAL_INTAKE_UPLOAD. */
-  captureMethod?: string | null;
+  /**
+   * UC-0 — Evidence.acquisitionMode, THE acquisition authority. The former
+   * `uploadSource` / `captureMethod` inputs are gone: the first was inverted
+   * for the mobile and citizen routes and the second is a structure field
+   * completion overwrites.
+   */
+  acquisitionMode: string | null | undefined;
   /** WorkflowIntakeLink.intakeMode, e.g. EXTERNAL_ONE_TIME / EXTERNAL_REUSABLE
    *  / EXTERNAL_ANONYMOUS / EXTERNAL_PSEUDONYMOUS / AUTHENTICATED_*. */
   intakeMode?: string | null;
@@ -54,8 +62,10 @@ export type AcquisitionRawInput = {
 };
 
 export type EvidenceAcquisitionContext = {
-  /** Product label: Intake Link / Direct Upload / Mobile Capture /
-   *  API Submission / Public Secure Link / Unknown. */
+  /** UC-0 — the acquisition authority's projected mode. */
+  acquisitionMode: ProjectedAcquisitionMode;
+  /** Product label: Intake Link / Public Secure Link / Direct Upload /
+   *  PROOVRA Mobile App / Not recorded. */
   method: string;
   /** The ONLY valid intake delivery channels: SMS / WhatsApp / Email /
    *  Public Secure Link / PROOVRA Mobile. `null` only for non-intake
@@ -87,10 +97,15 @@ function up(v: string | null | undefined): string {
   return (v ?? "").toUpperCase();
 }
 
+/**
+ * Intake is proven by the acquisition authority or by the intake-session join
+ * (`intakeMode` / delivery channel come from WorkflowIntakeSession →
+ * WorkflowIntakeLink / CommunicationMessage) — never by a label.
+ */
 function isIntakeAcquisition(raw: AcquisitionRawInput): boolean {
   return (
-    up(raw.captureMethod) === "EXTERNAL_INTAKE_UPLOAD" ||
-    up(raw.uploadSource) === "INTAKE_LINK" ||
+    resolveEvidenceAcquisition({ acquisitionMode: raw.acquisitionMode }).mode ===
+      "SECURE_INTAKE_LINK" ||
     Boolean(raw.intakeMode) ||
     Boolean(raw.deliveryChannelRaw)
   );
@@ -112,8 +127,8 @@ function mapDeliveryChannel(raw: AcquisitionRawInput): string | null {
     default:
       break;
   }
-  // No messaging record. Mobile-app submissions are PROOVRA Mobile.
-  if (up(raw.uploadSource) === "MOBILE_APP") return "PROOVRA Mobile";
+  // (UC-0) The former "PROOVRA Mobile" channel was keyed on an uploadSource
+  // that only the browser citizen route ever wrote — it was never mobile.
   // Any intake link with no SMS/WhatsApp/Email/mobile record was delivered via
   // the secure link itself (reusable, anonymous, pseudonymous, or a one-time
   // link shared manually). This is always a Public Secure Link — never null,
@@ -137,15 +152,13 @@ function mapMethod(raw: AcquisitionRawInput, deliveryChannel: string | null): st
     }
     return "Intake Link";
   }
-  switch (up(raw.uploadSource)) {
-    case "MOBILE_APP":
-      return "Mobile Capture";
-    case "API":
-      return "API Submission";
-    case "WEB_APP":
+  switch (resolveEvidenceAcquisition({ acquisitionMode: raw.acquisitionMode }).mode) {
+    case "PROOVRA_WEB_UPLOAD":
       return "Direct Upload";
+    case "PROOVRA_MOBILE_APP":
+      return "PROOVRA Mobile App";
     default:
-      return "Unknown";
+      return "Not recorded";
   }
 }
 
@@ -217,10 +230,12 @@ export function buildEvidenceAcquisitionContext(
   const deliveryChannel = mapDeliveryChannel(raw);
   const method = mapMethod(raw, deliveryChannel);
 
-  // Nothing to say — not intake and no recognizable upload source.
-  if (!intake && method === "Unknown") return null;
+  // Nothing to say — not intake and acquisition not recorded. Absence is not
+  // rendered as a failure; the acquisition statement says "not recorded".
+  if (!intake && method === "Not recorded") return null;
 
   return {
+    acquisitionMode: resolveEvidenceAcquisition({ acquisitionMode: raw.acquisitionMode }).mode,
     method,
     deliveryChannel,
     submissionType: mapSubmissionType(raw),
@@ -243,6 +258,7 @@ export function buildEvidenceAcquisitionContext(
 
 /** Public-safe view (PDF + Verify): NEVER any recipient value. */
 export type PublicAcquisition = {
+  acquisitionMode: ProjectedAcquisitionMode;
   method: string;
   deliveryChannel: string | null;
   submissionType: string;
@@ -260,6 +276,7 @@ export function toPublicAcquisition(
   ctx: EvidenceAcquisitionContext,
 ): PublicAcquisition {
   return {
+    acquisitionMode: ctx.acquisitionMode,
     method: ctx.method,
     deliveryChannel: ctx.deliveryChannel,
     submissionType: ctx.submissionType,
@@ -293,34 +310,13 @@ export function toInternalAcquisition(
 
 /**
  * Choose the correct Capture Context timestamp label for the server-recorded
- * time, so NON-intake evidence never reads "Recorded at intake".
- *
- *   - Intake flow  → "Intake submitted at (server UTC)"
- *   - Mobile app   → "Recorded at mobile capture (server UTC)"
- *   - Web capture  → "Recorded at submission (server UTC)"
- *   - Unknown      → "Recorded at submission (server UTC)" (safe generic)
+ * time, so NON-intake evidence never reads "Recorded at intake". Decided by
+ * the acquisition authority (shared `acquisitionTimestampLabel`).
  */
 export function getCaptureContextTimestampLabel(input: {
-  uploadSource?: string | null;
-  captureMethod?: string | null;
-  acquisitionMethod?: string | null;
+  acquisitionMode: string | null | undefined;
   isIntake?: boolean | null;
 }): string {
-  const method = (input.acquisitionMethod ?? "").toLowerCase();
-  const isIntake =
-    input.isIntake === true ||
-    up(input.uploadSource) === "INTAKE_LINK" ||
-    up(input.captureMethod) === "EXTERNAL_INTAKE_UPLOAD" ||
-    method.includes("intake") ||
-    method.includes("public secure link");
-  if (isIntake) return "Intake submitted at (server UTC)";
-
-  if (
-    up(input.uploadSource) === "MOBILE_APP" ||
-    method.includes("mobile") ||
-    up(input.captureMethod) === "SECURE_CAMERA"
-  ) {
-    return "Recorded at mobile capture (server UTC)";
-  }
-  return "Recorded at submission (server UTC)";
+  const a = resolveEvidenceAcquisition({ acquisitionMode: input.acquisitionMode });
+  return acquisitionTimestampLabel(a.mode, input.isIntake === true);
 }

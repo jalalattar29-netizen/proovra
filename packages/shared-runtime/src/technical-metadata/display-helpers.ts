@@ -8,102 +8,40 @@
  *   * status enums read as plain English.
  */
 
+import { resolveEvidenceAcquisition } from "@proovra/shared";
+
 import type { MetadataStatus, ParseResult } from "./types.js";
 
 // =============================================================================
 // Human-readable enum labels
 // =============================================================================
 
-export function humanizeUploadSource(value: string | null | undefined): string {
-  switch ((value ?? "").toUpperCase()) {
-    case "WEB_APP":
-      return "PROOVRA Web Application";
-    case "INTAKE_LINK":
-      return "Intake Link Submission";
-    case "MOBILE_APP":
-      return "Mobile Capture";
-    case "API":
-      return "API Submission";
-    default:
-      return "Unknown";
-  }
-}
-
-export function humanizeCaptureMethod(value: string | null | undefined): string {
-  switch ((value ?? "").toUpperCase()) {
-    case "SECURE_CAPTURE":
-      return "Secure Browser Capture";
-    case "UPLOAD":
-      return "Direct Upload";
-    case "INTAKE_LINK":
-      return "Intake Link Upload";
-    case "MOBILE":
-      return "Mobile Capture";
-    case "API":
-      return "API Upload";
-    default:
-      return "Unknown";
-  }
-}
-
 /**
- * Precise, flow-aware Capture Method display label for reviewer surfaces.
+ * UC-0 — the acquisition CHANNEL label for reviewer surfaces ("Capture
+ * method", "Submitted through"), derived ONLY from the acquisition authority.
  *
- * Normal PROOVRA web upload / multipart / bulk import must read
- * "PROOVRA Web Upload" — NOT "Secure Browser Capture", which could be
- * misread as device/camera-attested capture (PROOVRA web has no capture-side
- * device attestation). The precise flow is derived from uploadSource /
- * acquisition first, then the raw capture-method enum as a fallback. Internal
- * enum values are never shown.
+ * It used to read `captureEnvironment.uploadSource` (inverted for the mobile
+ * and citizen routes) and then the `captureMethod` structure enum, and fell
+ * back to "PROOVRA Web Upload" for anything it did not recognise — a guess
+ * rendered as a fact. A record whose acquisition was never recorded now reads
+ * "Not recorded". `isIntake` is the reliable intake-session join, which is
+ * the same proof the D9 backfill uses.
  */
 export function captureMethodDisplayLabel(input: {
-  captureMethod?: string | null;
-  uploadSource?: string | null;
-  acquisitionMethod?: string | null;
+  acquisitionMode: string | null | undefined;
   isIntake?: boolean | null;
 }): string {
-  const method = (input.acquisitionMethod ?? "").toLowerCase();
-  if (
-    input.isIntake === true ||
-    method.includes("intake") ||
-    method.includes("public secure link")
-  ) {
+  const a = resolveEvidenceAcquisition({ acquisitionMode: input.acquisitionMode });
+  if (input.isIntake === true || a.mode === "SECURE_INTAKE_LINK") {
     return "Secure Intake Link";
   }
-
-  switch ((input.uploadSource ?? "").toUpperCase()) {
-    case "MOBILE_APP":
-      return "PROOVRA Mobile Capture";
-    case "API":
-      return "API Submission";
-    case "INTAKE_LINK":
-      return "Secure Intake Link";
-    case "WEB_APP":
-      // All PROOVRA web ingest (including "secure browser capture" sessions
-      // and multipart uploads) is a browser upload, not device-attested.
+  switch (a.mode) {
+    case "PROOVRA_WEB_UPLOAD":
       return "PROOVRA Web Upload";
+    case "PROOVRA_MOBILE_APP":
+      return "PROOVRA Mobile App";
     default:
-      break;
-  }
-
-  switch ((input.captureMethod ?? "").toUpperCase()) {
-    case "MULTIPART_PACKAGE":
-    case "BULK_IMPORT":
-    case "IMPORTED_DOCUMENT":
-    case "UPLOADED_FILE":
-    case "UPLOAD":
-    case "SECURE_CAPTURE":
-      return "PROOVRA Web Upload";
-    case "SECURE_CAMERA":
-    case "MOBILE":
-      return "PROOVRA Mobile Capture";
-    case "EXTERNAL_INTAKE_UPLOAD":
-    case "INTAKE_LINK":
-      return "Secure Intake Link";
-    case "API":
-      return "API Submission";
-    default:
-      return "PROOVRA Web Upload";
+      return "Not recorded";
   }
 }
 

@@ -49,6 +49,8 @@ export * from "./notifications/index.js";
 // PHASE 12 REMEDIATION §6.1 (2026-08-06) — the ONE seat/member occupancy
 // authority, shared by API and worker so their arithmetic cannot diverge.
 export * from "./billing/seat-occupancy.js";
+// UC-0 (D5) — derived bytes in storage accounting, one query for both hosts.
+export * from "./billing/derived-storage.js";
 // PHASE 12 CORRECTIVE PASS §4 (SEC-004, 2026-08-06) — the ONE secrets
 // authority. It lived in services/api, so the Worker could not use it and the
 // two processes of one deployment could resolve secrets from different
@@ -70,6 +72,12 @@ export * from "./evidence-analysis-revision.js";
 // they never performed. Every trigger in both processes now calls this.
 export * from "./evidence-destruction/executor.js";
 export * from "./evidence-destruction/approval.js";
+
+// UC-0 — THE provenance-chain projection and the public Verify acquisition
+// projection. One implementation for the API (Verify, /v1/provenance) and the
+// Worker (verification package); both used to carry their own copy.
+export * from "./capture-trust/provenance-chain.js";
+export * from "./capture-trust/public-acquisition.js";
 
 // ADM-002 / ADM-004 / ADM-007 / ADM-008 — THE control-plane population
 // authority. "Which rows is a platform-wide count actually about?" was answered

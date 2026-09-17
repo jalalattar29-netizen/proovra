@@ -34,17 +34,27 @@ export function mapEvidenceStructureLabel(
   }
 }
 
+/**
+ * The acquisition facts a custody presentation needs. UC-0: the METHOD label
+ * comes from the record's acquisition authority; the raw custody snapshot only
+ * ever contributes the STRUCTURE label.
+ */
+export type CustodyAcquisitionContext = {
+  acquisitionMode: string | null;
+  isIntake: boolean;
+};
+
 /** Resolve a raw custody capture-method snapshot into a role-safe method label
- *  + a structure label. Intake → "Secure Intake Link". */
+ *  + a structure label. */
 export function resolveCustodyCapturePresentation(
   raw: unknown,
-  isIntake: boolean,
+  acquisition: CustodyAcquisitionContext,
 ): { method: string | null; structure: string | null } {
   const rawStr =
     raw == null ? null : String(raw).trim().length > 0 ? String(raw) : null;
   if (!rawStr) return { method: null, structure: null };
   return {
-    method: captureMethodDisplayLabel({ captureMethod: rawStr, isIntake }),
+    method: captureMethodDisplayLabel(acquisition),
     structure: mapEvidenceStructureLabel(rawStr),
   };
 }
@@ -59,8 +69,9 @@ export function resolveCustodyCapturePresentation(
  */
 export function normalizeCustodyEventPayloadForPresentation(
   payload: unknown,
-  isIntake: boolean,
+  acquisition: CustodyAcquisitionContext,
 ): unknown {
+  const isIntake = acquisition.isIntake;
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     return payload;
   }
@@ -81,7 +92,7 @@ export function normalizeCustodyEventPayloadForPresentation(
     const raw = hasSnapshot ? obj.captureMethodSnapshot : obj.captureMethod;
     const { method, structure } = resolveCustodyCapturePresentation(
       raw,
-      isIntake,
+      acquisition,
     );
     if (hasSnapshot) next.captureMethodSnapshot = method;
     if (hasMethod) next.captureMethod = method;
@@ -91,8 +102,14 @@ export function normalizeCustodyEventPayloadForPresentation(
   }
 
   // Non-intake evidence must never carry the intake authorization label.
+  // Historically that label was also written for the mobile and citizen
+  // routes, so only a record the acquisition authority says was a web upload
+  // is relabelled as one; anything else reads as a neutral authorization.
   if (legacyIntakeUploadKind) {
-    next.uploadKind = "web_upload_authorization";
+    next.uploadKind =
+      acquisition.acquisitionMode === "PROOVRA_WEB_UPLOAD"
+        ? "web_upload_authorization"
+        : "upload_authorization";
   }
 
   return next;
@@ -149,32 +166,9 @@ export function mapCertificationStatusLabel(
   }
 }
 
-export function mapCaptureMethodLabel(value: string | null | undefined): string {
-  switch (safe(value, "").toUpperCase()) {
-    case "SECURE_CAMERA":
-      return "Captured with PROOVRA secure camera";
-    case "UPLOADED_FILE":
-      return "Uploaded existing file";
-    case "IMPORTED_DOCUMENT":
-      return "Imported document";
-    case "MULTIPART_PACKAGE":
-      // MULTIPART_PACKAGE is an evidence STRUCTURE, not an acquisition method.
-      // A multipart record is produced by a PROOVRA web/browser multi-file
-      // upload, so the reviewer-facing capture method reads "PROOVRA Web
-      // Upload". The structure is shown separately as "Multipart evidence
-      // package".
-      return "PROOVRA Web Upload";
-    case "EXTERNAL_INTAKE_UPLOAD":
-      // Intake-only value. Keeps the Technical Appendix "Capture Method"
-      // consistent with the Technical Summary + Evidence Acquisition, which
-      // both read "Secure Intake Link" for intake evidence (never the
-      // misleading "Capture method not recorded"). Non-intake capture
-      // methods are unaffected.
-      return "Secure Intake Link";
-    default:
-      return "Capture method not recorded";
-  }
-}
+// UC-0 — `mapCaptureMethodLabel` (structure enum → method label) was removed.
+// Every report "Capture Method" row reads `captureMethodDisplayLabel` over
+// the record's acquisition snapshot instead.
 
 export function mapIdentityLevelLabel(value: string | null | undefined): string {
   switch (safe(value, "").toUpperCase()) {

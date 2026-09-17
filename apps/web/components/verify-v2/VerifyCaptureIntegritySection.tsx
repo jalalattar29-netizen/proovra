@@ -1,146 +1,148 @@
 /**
- * Verify token page — Capture Integrity (at submission) section (CR4
- * extraction).
+ * Verify token page — "How this record was acquired" (UC-0).
  *
- * Extracted VERBATIM from `apps/web/app/verify/[token]/page.tsx` to keep
- * the orchestrator under its byte-pin. ZERO behaviour change.
+ * Renders `PublicVerifyAcquisition` (@proovra/shared) — the ONE typed shape
+ * `GET /public/verify/:id` emits as `acquisition`. It replaced a capture-trust
+ * block that read a nested `chain.*` path the API never sent, so every record
+ * rendered MISSING / NOT_ATTEMPTED / false regardless of what was recorded.
  *
- * Gating contract (unchanged): the full panel renders ONLY when there is
- * a POSITIVE capture-side signal (client signature, device attestation,
- * capture-side countersignature, or capture-side RFC3161/OTS). Otherwise
- * a short, reassuring Advanced details accordion is shown with human
- * wording (no terse "absent" constants). The CURRENT preservation
- * verification (trusted timestamp + blockchain anchoring) is shown
- * prominently ABOVE this and is the authoritative integrity verdict.
- * Renders nothing when the API returned no capture-trust projection.
- *
- * `typo` / `brand` are passed in from the orchestrator so the verify
- * design tokens stay single-source on the page.
+ * Presentation rules:
+ *   * Acquisition is a neutral FACT. Nothing here uses success styling or a
+ *     check mark; green is reserved for cryptographic checks that passed,
+ *     which are shown in the preservation sections above.
+ *   * A record whose acquisition was never recorded reads "Not recorded" —
+ *     absence is not a failure.
+ *   * Device signature / attestation lines appear only when applicable and
+ *     only as what was recorded; attestation is never called verified unless
+ *     the projection says a cryptographic verifier established it.
+ *   * No session id, device id, IP, URL path, nonce or digest is rendered —
+ *     the projection does not carry them.
  */
 
 import type { CSSProperties } from "react";
+import {
+  PUBLIC_ACQUISITION_SCHEMA_VERSION,
+  type PublicVerifyAcquisition,
+} from "@proovra/shared";
 
-export type VerifyCaptureTrust = {
-  provenanceClassLabel: string;
-  signatureVerdict: string;
-  attestationVerdict: string;
-  serverCountersigned: boolean;
-  rfc3161Applied: boolean;
-  otsApplied: boolean;
-  limitations: ReadonlyArray<string>;
+import { formatUserDateTime } from "../../lib/date";
+
+/**
+ * Accept the API field only when it is the contract this component renders.
+ * Anything else (an older API, a malformed body) renders nothing rather than a
+ * guessed state.
+ */
+export function readPublicVerifyAcquisition(
+  data: unknown,
+): PublicVerifyAcquisition | null {
+  const value = (data as { acquisition?: unknown } | null)?.acquisition;
+  if (!value || typeof value !== "object") return null;
+  const v = value as Partial<PublicVerifyAcquisition>;
+  if (v.schemaVersion !== PUBLIC_ACQUISITION_SCHEMA_VERSION) return null;
+  if (!v.acquisition || typeof v.acquisition.label !== "string") return null;
+  return value as PublicVerifyAcquisition;
+}
+
+const SIGNATURE_TEXT: Record<string, string> = {
+  VALID:
+    "The submitting app's registered device key signed the declared file digest for this session.",
+  INVALID_SIGNATURE: "A device signature was supplied but did not verify.",
+  INVALID_HASH: "A device signature was supplied for different bytes.",
+  INVALID_CANONICAL_JSON: "A device signature was supplied in an invalid form.",
+  UNKNOWN_DEVICE: "A device signature was supplied by an unregistered device.",
+  ALGORITHM_UNSUPPORTED: "A device signature used an unsupported algorithm.",
 };
 
 export function VerifyCaptureIntegritySection({
-  captureTrust,
+  acquisition,
   typo,
   brand,
 }: {
-  captureTrust: VerifyCaptureTrust | null;
+  acquisition: PublicVerifyAcquisition | null;
   typo: Record<string, CSSProperties>;
   brand: Record<string, string>;
 }) {
-  if (!captureTrust) return null;
-
-  const hasPositiveCaptureSignal =
-    captureTrust.signatureVerdict !== "MISSING" ||
-    captureTrust.attestationVerdict !== "NOT_ATTEMPTED" ||
-    captureTrust.serverCountersigned ||
-    captureTrust.rfc3161Applied ||
-    captureTrust.otsApplied;
-
-  if (!hasPositiveCaptureSignal) {
-    return (
-      <details
-        data-testid="verify-capture-trust-advanced"
-        style={{
-          border: "1px solid rgba(11,46,39,0.12)",
-          borderRadius: 14,
-          padding: "10px 14px",
-        }}
-      >
-        <summary style={{ ...typo.small, cursor: "pointer", color: brand.ink }}>
-          Advanced: capture-side integrity
-        </summary>
-        <div style={{ ...typo.small, fontSize: 12.5, marginTop: 8, lineHeight: 1.5 }}>
-          No capture-side timestamp, signature, or device attestation was
-          supplied by the client for this submission. This is normal for a
-          standard upload and does not reduce the recorded preservation
-          integrity verdict. PROOVRA preservation timestamping and
-          blockchain anchoring are shown in the verified preservation
-          section above.
-        </div>
-      </details>
-    );
-  }
+  if (!acquisition) return null;
+  const a = acquisition.acquisition;
+  const session = acquisition.captureSession;
+  const counts = acquisition.artifacts;
 
   return (
-    <div
-      data-testid="verify-capture-trust"
-      role="status"
+    <section
+      data-testid="verify-acquisition"
+      data-acquisition-mode={a.mode}
+      data-acquisition-recorded={a.recorded ? "true" : "false"}
       style={{
-        border: "1px solid rgba(11,46,39,0.16)",
-        borderLeft: `5px solid ${brand.accent}`,
-        background: "rgba(11,46,39,0.045)",
+        border: "1px solid rgba(11,46,39,0.14)",
+        background: "rgba(11,46,39,0.03)",
         borderRadius: 18,
         padding: 18,
         display: "grid",
         gap: 8,
       }}
     >
-      <div
-        data-testid="verify-capture-trust-class"
-        style={{ ...typo.kicker, fontSize: 10.5, color: brand.accent }}
-      >
-        Capture integrity at submission — {captureTrust.provenanceClassLabel || "Unclassified"}
+      <div style={{ ...typo.kicker, fontSize: 10.5, color: brand.ink, opacity: 0.75 }}>
+        How this record was acquired
       </div>
-      <div
-        style={{ ...typo.small, fontSize: 12, color: brand.ink, opacity: 0.8 }}
-      >
-        This describes the integrity primitives the client supplied at
-        the moment of submission. Current preservation verification is
-        shown separately above and is the authoritative integrity
-        verdict; it is applied by PROOVRA after submission.
+      <div data-testid="verify-acquisition-label" style={{ ...typo.small, fontWeight: 600, color: brand.ink }}>
+        {a.label}
       </div>
-      {captureTrust.signatureVerdict !== "MISSING" ? (
-        <div data-testid="verify-capture-trust-signature" style={typo.small}>
-          A source signature was supplied at capture.
-        </div>
-      ) : (
-        <div data-testid="verify-capture-trust-signature" style={{ display: "none" }} />
-      )}
-      {captureTrust.attestationVerdict !== "NOT_ATTEMPTED" ? (
-        <div data-testid="verify-capture-trust-attestation" style={typo.small}>
-          A device attestation was provided for this submission.
-        </div>
-      ) : (
-        <div data-testid="verify-capture-trust-attestation" style={{ display: "none" }} />
-      )}
-      {captureTrust.rfc3161Applied || captureTrust.otsApplied ? (
-        <div data-testid="verify-capture-trust-time" style={typo.small}>
-          {captureTrust.rfc3161Applied
-            ? "A trusted timestamp was applied at capture."
-            : "OpenTimestamps anchoring was initiated at capture."}
-        </div>
-      ) : (
-        <div data-testid="verify-capture-trust-time" style={{ display: "none" }} />
-      )}
-      {captureTrust.serverCountersigned ? (
-        <div style={typo.small}>
-          A server countersignature with trusted time was recorded at submission.
+      <div data-testid="verify-acquisition-statement" style={typo.small}>
+        {a.statement}
+      </div>
+      {a.recordedBy === "BACKFILL_INTAKE_SESSION_LINK" ? (
+        <div data-testid="verify-acquisition-backfill" style={{ ...typo.small, fontSize: 12 }}>
+          Recorded later from this record&apos;s secure intake session, not at the moment it was
+          created.
         </div>
       ) : null}
-      {captureTrust.limitations.length > 0 ? (
+      {session ? (
+        <div data-testid="verify-acquisition-session" style={typo.small}>
+          Submitted in a server-issued capture session
+          {session.startedAtUtc ? ` opened ${formatUserDateTime(session.startedAtUtc)}` : ""}
+          {session.endedAtUtc ? ` and completed ${formatUserDateTime(session.endedAtUtc)}` : ""}.
+          {session.digestsConfirmed > 0
+            ? ` ${session.digestsConfirmed} file digest${session.digestsConfirmed === 1 ? "" : "s"} declared by the app matched what PROOVRA received.`
+            : ""}
+        </div>
+      ) : null}
+      {acquisition.deviceSignature.applicable ? (
+        <div data-testid="verify-acquisition-signature" style={typo.small}>
+          {SIGNATURE_TEXT[acquisition.deviceSignature.verdict] ??
+            "A device signature was supplied."}
+        </div>
+      ) : null}
+      {acquisition.deviceAttestation.applicable ? (
+        <div data-testid="verify-acquisition-attestation" style={typo.small}>
+          {acquisition.deviceAttestation.verified
+            ? "The platform's device attestation was verified by PROOVRA."
+            : "Device integrity was not independently verified."}
+        </div>
+      ) : null}
+      {acquisition.integrity.establishedAtUtc ? (
+        <div data-testid="verify-acquisition-integrity" style={typo.small}>
+          PROOVRA established integrity on its server at{" "}
+          {formatUserDateTime(acquisition.integrity.establishedAtUtc)}.
+        </div>
+      ) : null}
+      <div data-testid="verify-acquisition-artifacts" style={{ ...typo.small, fontSize: 12 }}>
+        {counts.original} original file{counts.original === 1 ? "" : "s"}
+        {counts.captureRecord > 0 ? ` · ${counts.captureRecord} capture record${counts.captureRecord === 1 ? "" : "s"}` : ""}
+        {counts.derived > 0
+          ? ` · ${counts.derived} derived review item${counts.derived === 1 ? "" : "s"} (generated by PROOVRA, not originals)`
+          : ""}
+      </div>
+      {acquisition.limitations.length > 0 ? (
         <ul
-          data-testid="verify-capture-trust-limitations"
-          style={{ ...typo.small, margin: 0, paddingLeft: 18 }}
+          data-testid="verify-acquisition-limitations"
+          style={{ ...typo.small, fontSize: 12, margin: 0, paddingLeft: 18 }}
         >
-          {captureTrust.limitations.map((l) => (
-            <li key={l}>{l}</li>
+          {acquisition.limitations.map((l) => (
+            <li key={l.code}>{l.text}</li>
           ))}
         </ul>
-      ) : (
-        <div data-testid="verify-capture-trust-limitations" style={{ display: "none" }} />
-      )}
-    </div>
+      ) : null}
+      <div style={{ ...typo.small, fontSize: 11.5, opacity: 0.75 }}>{acquisition.qualifier}</div>
+    </section>
   );
 }

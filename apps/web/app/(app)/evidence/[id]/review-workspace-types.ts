@@ -98,7 +98,23 @@ export type PublicVerificationDetailState =
   | "UNKNOWN_ERROR";
 
 export type SourceContext = {
-  sourceType: "native_capture" | "imported_upload" | "folder_upload" | "unknown";
+  sourceType:
+    | "imported_upload"
+    | "folder_upload"
+    | "external_intake"
+    | "mobile_app"
+    | "not_recorded";
+  /** UC-0 — the server's acquisition projection (the only acquisition source). */
+  acquisition?: {
+    mode: string;
+    category: string;
+    recorded: boolean;
+    recordedBy: string | null;
+    label: string;
+    statement: string;
+    isDirectCapture: boolean;
+  } | null;
+  /** Legacy STRUCTURE field — not acquisition. */
   captureMethod: string | null;
   captureMethodLabel: string;
   importedUpload: boolean;

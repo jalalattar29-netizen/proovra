@@ -11,7 +11,10 @@ import {
 import { normalizeWorkspaceKind } from "@proovra/shared";
 // PHASE 12 REMEDIATION §6.1 (2026-08-06) — the ONE seat-occupancy authority,
 // shared with the API so their arithmetic cannot diverge.
-import { countActiveSeatOccupancy } from "@proovra/shared-runtime";
+import {
+  countActiveSeatOccupancy,
+  sumDerivedAssetStorageBytes,
+} from "@proovra/shared-runtime";
 
 export type WorkerWorkspaceScope = {
   billingShape: "SINGLE_OCCUPANT" | "SHARED";
@@ -331,6 +334,7 @@ export async function getWorkspaceUsage(
     verificationPackageAggregate,
     evidenceCount,
     teamMemberCount,
+    derivedStorageBytes,
   ] = await Promise.all([
     prisma.evidence.aggregate({
       where: evidenceWhere,
@@ -356,6 +360,10 @@ export async function getWorkspaceUsage(
     scope.teamId
       ? countActiveSeatOccupancy({ teamId: scope.teamId }, prisma)
       : Promise.resolve(0),
+    // UC-0 (D5) — same derived-bytes authority as the API. This calculator's
+    // personal scope is `team_id IS NULL`, and a derived row always carries a
+    // team id, so that scope holds no derived bytes.
+    sumDerivedAssetStorageBytes(prisma, { teamId: scope.teamId ?? null }),
   ]);
 
   const evidenceStorageBytes = toBigIntOrZero(evidenceAggregate._sum.sizeBytes);
@@ -365,7 +373,10 @@ export async function getWorkspaceUsage(
   );
 
   const storageBytesUsed =
-    evidenceStorageBytes + reportStorageBytes + verificationPackageStorageBytes;
+    evidenceStorageBytes +
+    reportStorageBytes +
+    verificationPackageStorageBytes +
+    derivedStorageBytes;
 
 // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — a contracted figure is the
   // base capacity; the catalog default applies only when the contract is

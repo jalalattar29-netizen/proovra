@@ -10,10 +10,15 @@
  *   4. CustodyEventType enum includes `CAPTURE_TRUST_EVENT`.
  *   5. Service files exist (attestation-verifier, device-identity,
  *      signature-verifier, trust-event, provenance-projection,
- *      verify-trust-projection, citizen-capture).
+ *      direct-capture-ingest).
  *   6. Capture-trust routes file exists with the bounded surface.
  *   7. Server registers captureTrustRoutes.
- *   8. Mobile capture-trust scaffolding declares the bounded contract.
+ *   8. The mobile app submits through the direct-capture session client.
+ *
+ * UC-0 (2026-09-16): the metadata-trusting attestation providers, the
+ * receipt-only mobile ingest, the verify-trust projection and the citizen
+ * capture service were retired; the executing proof of their replacements is
+ * uc0-acquisition-capture.integration.test.ts.
  *
  * Source-contract style: parses source rather than importing.
  */
@@ -54,11 +59,11 @@ const SERVICE_TRUST_EVENT = readSource(
 const SERVICE_PROVENANCE_PROJECTION = readSource(
   "../../../services/api/src/services/capture-trust/provenance-projection.service.ts",
 );
-const SERVICE_VERIFY_TRUST = readSource(
-  "../../../services/api/src/services/capture-trust/verify-trust-projection.service.ts",
+const SERVICE_DIRECT_CAPTURE = readSource(
+  "../../../services/api/src/services/capture-trust/direct-capture-ingest.service.ts",
 );
-const SERVICE_CITIZEN = readSource(
-  "../../../services/api/src/services/capture-trust/citizen-capture.service.ts",
+const SHARED_RUNTIME_CHAIN = readSource(
+  "../../../packages/shared-runtime/src/capture-trust/provenance-chain.ts",
 );
 const SERVICE_CANONICAL_JSON = readSource(
   "../../../services/api/src/services/capture-trust/canonical-json.ts",
@@ -77,7 +82,18 @@ const SERVER = readSource("../../../services/api/src/server.ts");
 // which the capture screen imports via `runTrustCapture` — leaving the
 // scaffold as a shadow declaration with zero importers. It was deleted;
 // the contract is pinned on the code that actually runs.
-const MOBILE_TRUST_BARREL = readSource("../../../apps/mobile/src/trust/index.ts");
+// UC-0 — `apps/mobile/src/trust/*` was retired in turn (it shipped bytes as
+// base64 JSON to a receipt-only route); the running code is now the
+// direct-capture session client.
+const MOBILE_DIRECT_CAPTURE = readSource("../../../apps/mobile/src/direct-capture.ts");
+/** Source without comments — prose that NAMES a retired behaviour is not the behaviour. */
+function code(src: string): string {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n")
+    .map((line) => line.replace(/(^|[^:])\/\/.*$/, "$1"))
+    .join("\n");
+}
 const MOBILE_CAPTURE_SCREEN = readSource(
   "../../../apps/mobile/app/(stack)/capture.tsx",
 );
@@ -133,8 +149,13 @@ describe("Phase 1B — shared capture-trust contracts", () => {
     expect(SHARED_CAPTURE_TRUST).toContain('"PROOVRA_CAPTURE_SIG_V1"');
   });
 
-  it("provenance chain schema version is v1", () => {
+  it("provenance chain schema is V2 (additive), V1 still named for issued packages", () => {
+    expect(SHARED_CAPTURE_TRUST).toContain('"PROOVRA_PROVENANCE_CHAIN_V2"');
     expect(SHARED_CAPTURE_TRUST).toContain('"PROOVRA_PROVENANCE_CHAIN_V1"');
+  });
+
+  it("the public Class A/B/C labels are retired", () => {
+    expect(SHARED_CAPTURE_TRUST).not.toMatch(/export\s+function\s+provenanceClassLabel/);
   });
 
   it("shared index re-exports the trust constants + types", () => {
@@ -234,14 +255,17 @@ describe("Phase 1B — Prisma schema", () => {
 // ===========================================================================
 
 describe("Phase 1B — services", () => {
-  it("attestation verifier exposes verifyDeviceAttestation + bounded provider classes", () => {
+  it("attestation verifier fails closed and never reads client metadata", () => {
     expect(SERVICE_ATTESTATION).toMatch(
       /export\s+async\s+function\s+verifyDeviceAttestation/,
     );
-    expect(SERVICE_ATTESTATION).toMatch(/AppleAppAttestProvider/);
-    expect(SERVICE_ATTESTATION).toMatch(/GooglePlayIntegrityProvider/);
+    expect(SERVICE_ATTESTATION).toMatch(/UnverifiablePlatformProvider/);
     expect(SERVICE_ATTESTATION).toMatch(/TeeOnlyProvider/);
     expect(SERVICE_ATTESTATION).toMatch(/NoneProvider/);
+    expect(SERVICE_ATTESTATION).toMatch(/CRYPTOGRAPHIC_VERIFIER_UNAVAILABLE/);
+    expect(code(SERVICE_ATTESTATION)).not.toMatch(/chainVerifiedByWorker|deviceIntegrityLabel|md\[/);
+    // No provider can produce a positive verdict: the result type says so.
+    expect(SERVICE_ATTESTATION).toMatch(/verdict: "FAILED" \| "UNVERIFIED";/);
   });
 
   it("attestation verifier honors a ±5-minute time window", () => {
@@ -296,28 +320,41 @@ describe("Phase 1B — services", () => {
     expect(SERVICE_TRUST_EVENT).toMatch(/buildTrustEventHash/);
   });
 
-  it("provenance projection assembles capture + server + time + derivations", () => {
-    expect(SERVICE_PROVENANCE_PROJECTION).toMatch(/capture:/);
-    expect(SERVICE_PROVENANCE_PROJECTION).toMatch(/server:/);
-    expect(SERVICE_PROVENANCE_PROJECTION).toMatch(/time:/);
-    expect(SERVICE_PROVENANCE_PROJECTION).toMatch(/derivations/);
-    expect(SERVICE_PROVENANCE_PROJECTION).toMatch(/STANDING_PROVENANCE_LIMITATIONS/);
+  it("the API provenance projection delegates to THE shared implementation", () => {
+    expect(SERVICE_PROVENANCE_PROJECTION).toMatch(/loadProvenanceChain/);
+    for (const section of ["acquisition", "captureSession:", "derivedArtifacts", "capture:", "server:", "time:", "STANDING_PROVENANCE_LIMITATIONS"]) {
+      expect(SHARED_RUNTIME_CHAIN).toContain(section);
+    }
+    // The mode comes from the acquisition authority only.
+    expect(code(SHARED_RUNTIME_CHAIN)).not.toMatch(/uploadSource/);
+    expect(SHARED_RUNTIME_CHAIN).toMatch(/projectRecordedAttestationVerdict/);
   });
 
-  it("verify-page trust projection NEVER returns device/session ids", () => {
-    // Bounded public projection — operator-internal identifiers MUST
-    // NOT appear in the public projection shape.
-    const projTypeBlock = SERVICE_VERIFY_TRUST.match(
-      /export\s+type\s+VerifyTrustProjection\s*=\s*\{[\s\S]*?\};/,
-    );
-    expect(projTypeBlock).toBeTruthy();
-    expect(projTypeBlock![0]).not.toMatch(/deviceId/);
-    expect(projTypeBlock![0]).not.toMatch(/captureSessionId/);
+  it("the direct-capture adapter orchestrates the canonical authorities", () => {
+    expect(SERVICE_DIRECT_CAPTURE).toMatch(/createEvidence\(/);
+    expect(SERVICE_DIRECT_CAPTURE).toMatch(/completeEvidence\(/);
+    expect(SERVICE_DIRECT_CAPTURE).toMatch(/CAPTURE_SESSION_BOUND/);
+    expect(SERVICE_DIRECT_CAPTURE).toMatch(/randomBytes\(32\)/);
+    expect(code(SERVICE_DIRECT_CAPTURE)).not.toMatch(/putObjectBuffer|assetBase64/);
   });
 
-  it("citizen capture service clamps to provenance class B/C", () => {
-    expect(SERVICE_CITIZEN).toMatch(/CITIZEN_PWA/);
-    expect(SERVICE_CITIZEN).toMatch(/clampProvenanceClass/);
+  it("telemetry privacy: the capture path never logs nonces, digests, signatures or tokens", () => {
+    for (const src of [SERVICE_DIRECT_CAPTURE, ROUTES_CAPTURE_TRUST, SERVICE_TRUST_EVENT]) {
+      const calls = code(src).match(/\b(?:log(?:Warn|Info|Error)|console\.\w+|captureException)\([\s\S]*?\);/g) ?? [];
+      for (const call of calls) {
+        expect(call).not.toMatch(/nonce|sha256|digest|signature|attestationToken|assertion|payload/i);
+      }
+    }
+    // The server stores only the nonce's hash, never the nonce.
+    expect(code(SERVICE_DIRECT_CAPTURE)).toMatch(/nonceSha256:\s*sha256HexOf\(nonceHex\)/);
+    // Neither the session row nor the STARTED trust event carries the nonce.
+    const src = code(SERVICE_DIRECT_CAPTURE);
+    const createAt = src.indexOf("db.captureSession.create(");
+    const startedAt = src.indexOf('code: "CAPTURE_SESSION_STARTED"');
+    expect(createAt).toBeGreaterThan(-1);
+    expect(startedAt).toBeGreaterThan(createAt);
+    const persisted = src.slice(createAt, src.indexOf("});", startedAt));
+    expect(persisted).not.toMatch(/\bnonceHex\b(?!\))/);
   });
 });
 
@@ -337,6 +374,11 @@ describe("Phase 1B — routes", () => {
     '"/v1/capture/devices/:id"',
     '"/v1/capture/devices/:id/revoke"',
     '"/v1/capture/mobile/ingest"',
+    '"/v1/capture/direct-sessions"',
+    '"/v1/capture/direct-sessions/:id/evidence"',
+    '"/v1/capture/direct-sessions/:id/parts/:partIndex/declaration"',
+    '"/v1/capture/direct-sessions/:id/attestation"',
+    '"/v1/capture/direct-sessions/:id/complete"',
     '"/v1/capture/sessions/:id/trust-timeline"',
     '"/v1/provenance/:evidenceId"',
   ]) {
@@ -345,14 +387,16 @@ describe("Phase 1B — routes", () => {
     });
   }
 
-  it("mobile ingest verifies signature + (optional) attestation", () => {
-    expect(ROUTES_CAPTURE_TRUST).toMatch(/verifyCaptureSignature/);
-    expect(ROUTES_CAPTURE_TRUST).toMatch(/verifyDeviceAttestation/);
+  it("the receipt-only mobile ingest is retired (410)", () => {
+    expect(ROUTES_CAPTURE_TRUST).toMatch(/INGEST_RETIRED/);
+    expect(code(ROUTES_CAPTURE_TRUST)).not.toMatch(/evidenceId:\s*""/);
+    expect(code(ROUTES_CAPTURE_TRUST)).not.toMatch(/assetBase64/);
   });
 
-  it("mobile ingest demotes provenance class on weak/failed attestation", () => {
-    expect(ROUTES_CAPTURE_TRUST).toMatch(/attestationVerdictKeepsClassA/);
-    expect(ROUTES_CAPTURE_TRUST).toMatch(/CAPTURE_PROVENANCE_DOWNGRADED/);
+  it("direct-session routes use the canonical authorization primitive", () => {
+    expect(ROUTES_CAPTURE_TRUST).toMatch(/authorizeOrFail\(/);
+    expect(ROUTES_CAPTURE_TRUST).toMatch(/permission: "evidence\.create"/);
+    expect(ROUTES_CAPTURE_TRUST).toMatch(/antiEnumeration: true/);
   });
 
   it("server registers captureTrustRoutes", () => {
@@ -365,33 +409,17 @@ describe("Phase 1B — routes", () => {
 // 6 — Mobile scaffolding
 // ===========================================================================
 
-describe("Phase 1B — mobile capture-trust runtime", () => {
-  it("the trust barrel implements the bounded capture surface", () => {
-    // Device registration → envelope assembly → durable queue → sync.
-    expect(MOBILE_TRUST_BARREL).toMatch(/ensureDeviceRegistered/);
-    expect(MOBILE_TRUST_BARREL).toMatch(/assembleTrustEnvelope/);
-    expect(MOBILE_TRUST_BARREL).toMatch(/enqueueTrustEnvelope/);
-    expect(MOBILE_TRUST_BARREL).toMatch(/syncTrustQueue/);
-    expect(MOBILE_TRUST_BARREL).toMatch(
-      /export\s+async\s+function\s+captureWithTrust/,
-    );
+describe("UC-0 — mobile capture submits through the direct-capture session", () => {
+  it("the client uses the session adapter and never ships bytes in JSON", () => {
+    expect(MOBILE_DIRECT_CAPTURE).toMatch(/export async function openDirectCaptureSession/);
+    expect(MOBILE_DIRECT_CAPTURE).toMatch(/export async function uploadDirectCaptureItem/);
+    expect(MOBILE_DIRECT_CAPTURE).toMatch(/export async function completeDirectCapture/);
+    expect(code(MOBILE_DIRECT_CAPTURE)).not.toMatch(/assetBase64|mobile\/ingest/);
   });
 
-  it("the provenance class is a real projection, not a hardcoded ceiling", () => {
-    // The deleted scaffold's `maxProvenanceClassForMobileMode` returned
-    // "A" unconditionally. The runtime must derive the class from the
-    // shared vocabulary instead.
-    expect(MOBILE_TRUST_BARREL).toMatch(/CaptureProvenanceClass/);
-    expect(MOBILE_TRUST_BARREL).toMatch(/provenanceClass/);
-    expect(MOBILE_TRUST_BARREL).not.toMatch(/return\s+"A"\s*;/);
-  });
-
-  it("the capture screen consumes the runtime — not a scaffold stub", () => {
-    expect(MOBILE_CAPTURE_SCREEN).toMatch(
-      /import\s*\{[^}]*runTrustCapture[^}]*\}\s*from\s*"\.\.\/\.\.\/src\/trust"/,
-    );
-    // Nothing may reach for the deleted Phase-1B scaffold again.
-    expect(MOBILE_CAPTURE_SCREEN).not.toMatch(/capture-trust/);
+  it("the capture screen consumes the session client — not the retired trust queue", () => {
+    expect(MOBILE_CAPTURE_SCREEN).toMatch(/from "\.\.\/\.\.\/src\/direct-capture"/);
+    expect(MOBILE_CAPTURE_SCREEN).not.toMatch(/src\/trust"/);
     expect(MOBILE_CAPTURE_SCREEN).not.toMatch(/prepareTrustEnvelope/);
   });
 });

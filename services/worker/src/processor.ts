@@ -70,6 +70,8 @@ import {
   isCommerciallyObsoleteTerminalReason,
   type ReviewerArtifactRole,
   type ReviewerArtifactRoleSource,
+  // UC-0 — the acquisition authority.
+  resolveEvidenceAcquisition,
 } from "@proovra/shared";
 import { appendCustodyEventTx, evaluateCustodyChain } from "./custody-events.js";
 import { appendWorkerAnalyticsEvent } from "./analytics-events.js";
@@ -136,6 +138,8 @@ type WorkerError = Error & {
 };
 
 type VerificationEvidenceFile = {
+  /** UC-0 — EvidencePart.artifactClass. */
+  artifactClass?: string | null;
   name: string;
   buffer: Buffer;
   sha256?: string | null;
@@ -497,6 +501,8 @@ export function summarizePayloadForReport(
     itemCount?: number | null;
     structure?: "single" | "multipart" | null;
     isIntake?: boolean;
+    /** UC-0 — the record's acquisition snapshot; drives the method label. */
+    acquisitionMode?: string | null;
   }
 ): string {
   const event = String(eventType || "").toUpperCase();
@@ -678,10 +684,10 @@ case "TIMESTAMP_FAILED": {
       // and the structure ("Multipart evidence package") separately — never
       // the raw enum as the "Capture:" label.
       const capturePresentation = captureMethodSnapshot
-        ? resolveCustodyCapturePresentation(
-            captureMethodSnapshot,
-            context?.isIntake === true
-          )
+        ? resolveCustodyCapturePresentation(captureMethodSnapshot, {
+            acquisitionMode: context?.acquisitionMode ?? null,
+            isIntake: context?.isIntake === true,
+          })
         : { method: null, structure: null };
 
       return [
@@ -1829,6 +1835,7 @@ async function prepareReportArtifacts(
       caseLinks: { select: { caseId: true }, orderBy: { linkedAtUtc: "asc" }, take: 1 },
       organizationId: true,
       captureMethod: true,
+      acquisitionMode: true,
       submittedByEmail: true,
       submittedByAuthProvider: true,
       submittedByUserId: true,
@@ -1967,6 +1974,7 @@ async function prepareReportArtifacts(
         sizeBytes: true,
         sha256: true,
         durationMs: true,
+        artifactClass: true,
         storageBucket: true,
         storageKey: true,
         storageRegion: true,
@@ -2203,6 +2211,7 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
           part.storageObjectLockRetainUntilUtc?.toISOString() ?? null,
         storageObjectLockLegalHoldStatus:
           part.storageObjectLockLegalHoldStatus ?? null,
+        artifactClass: part.artifactClass ?? null,
         checklistStepId: resolvedRole.checklistStepId,
         checklistStepLabel: resolvedRole.checklistStepLabel,
         sourceLabel: part.sourceLabel ?? null,
@@ -2515,6 +2524,9 @@ captureMethod: deriveReportCaptureMethod({
     itemCount: contentArtifacts.summary.itemCount,
     structure: contentArtifacts.summary.structure,
     isIntake: reportAcquisition?.isIntake === true,
+    acquisitionMode: resolveEvidenceAcquisition({
+      acquisitionMode: evidence.acquisitionMode ?? null,
+    }).mode,
   } as const;
 
   const custodyEventsForReport = [
@@ -2563,6 +2575,10 @@ createdAtUtc: evidence.createdAt.toISOString(),
       evidence.verificationStatus ??
       identitySnapshot.verificationStatus,
     captureMethod: identitySnapshot.captureMethod,
+    // UC-0 — the acquisition snapshot for this output (never re-derived).
+    acquisitionMode: resolveEvidenceAcquisition({
+      acquisitionMode: evidence.acquisitionMode ?? null,
+    }).mode,
     identityLevelSnapshot: identitySnapshot.identityLevelSnapshot,
     submittedByEmail: identitySnapshot.submittedByEmail,
     submittedByAuthProvider: identitySnapshot.submittedByAuthProvider,
@@ -3387,6 +3403,8 @@ const effectiveReportEvidencePayload = {
             generatedAtUtc: prepared.now.toISOString(),
             verificationStatusSnapshot: effectiveVerificationStatus,
             captureMethodSnapshot: effectiveIdentitySnapshot.captureMethod,
+            acquisitionModeSnapshot:
+              effectiveReportEvidencePayload.acquisitionMode ?? null,
             identityLevelSnapshot:
               effectiveIdentitySnapshot.identityLevelSnapshot,
             ...(regenerateReason ? { refreshReason: regenerateReason } : {}),
@@ -3469,6 +3487,7 @@ const effectiveReportEvidencePayload = {
           itemCount: prepared.contentSummary.itemCount,
           structure: prepared.contentSummary.structure,
           isIntake: finalizedReportAcquisition?.isIntake === true,
+          acquisitionMode: effectiveReportEvidencePayload.acquisitionMode ?? null,
         } as const;
 
         const finalizedCustodyForReport = finalizedCustodyEvents.map((ev) => ({
@@ -3611,6 +3630,8 @@ const effectiveReportEvidencePayload = {
             submittedByAuthProviderSnapshot:
               effectiveIdentitySnapshot.submittedByAuthProvider,
             captureMethodSnapshot: effectiveIdentitySnapshot.captureMethod,
+            acquisitionModeSnapshot:
+              effectiveReportEvidencePayload.acquisitionMode ?? null,
             reviewerSummaryVersion:
               effectiveIdentitySnapshot.reviewerSummaryVersion,
             /*
@@ -3905,10 +3926,7 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
         // the acquisition context (intake-link linkage / uploadSource). Optional
         // — a null chain never blocks the bundle.
         const verificationPackageProvenanceChain =
-          await loadProvenanceChainForPackage(
-            prepared.evidenceId,
-            packageAcquisition?.isIntake === true,
-          );
+          await loadProvenanceChainForPackage(prepared.evidenceId);
 
         const finalizedVerificationPackage = await createVerificationPackage({
           teamId: evidence.teamId ?? undefined,
@@ -3938,10 +3956,11 @@ publicKey: finalized.finalizedReportEvidencePayload.publicKeyPem as string,
           // structure label. The immutable event hash is preserved.
           custody: finalized.finalizedCustodyEvents.map((e) => ({
             ...e,
-            payload: normalizeCustodyEventPayloadForPresentation(
-              e.payload,
-              packageAcquisition?.isIntake === true,
-            ),
+            payload: normalizeCustodyEventPayloadForPresentation(e.payload, {
+              acquisitionMode:
+                finalized.finalizedReportEvidencePayload.acquisitionMode ?? null,
+              isIntake: packageAcquisition?.isIntake === true,
+            }),
           })),
           evidenceId: prepared.evidenceId,
           reportVersion: prepared.version,
@@ -4056,6 +4075,7 @@ captureMethod: String(
 // original-linkage.json (the identity-snapshot email is the LINK CREATOR /
 // workspace owner for intake, never the remote contributor).
 isIntake: packageAcquisition?.isIntake === true,
+acquisitionMode: finalized.finalizedReportEvidencePayload.acquisitionMode ?? null,
 identityLevelSnapshot: String(
   finalized.finalizedReportEvidencePayload.identityLevelSnapshot,
 ),

@@ -310,7 +310,14 @@ const CAPTURE_ROUTES_BYTES_EXACT = 23490;
 // sold. Finalize-transaction semantics, custody chain and sealing are
 // untouched — this runs strictly AFTER the commit, beside the report request,
 // and its failure cannot roll back a signature.
-const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 52223;
+// UC-0 ACQUISITION TRUST rebaseline (2026-09-17): 52,223 -> 55,830.
+// Completion of a record bound to an ACTIVE server-issued direct-capture
+// session is now refused unless it arrives through that session, and the
+// session's declared per-part SHA-256 digests are compared with the server's
+// own stream hash BEFORE signing (a mismatch refuses the seal). The growth is
+// that guard plus its explanation; the finalize transaction, custody chain,
+// signing, TSA and OTS steps are unchanged.
+const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 55830;
 // Phase CAPTURE-CLOSURE rebaseline: 23,045 → 24,618 — added the
 // "AI advisory is not saved" transient disclaimer + bounded JSDoc
 // comment. No new behaviour, no extra POST surface.

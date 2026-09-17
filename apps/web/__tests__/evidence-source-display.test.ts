@@ -22,9 +22,16 @@
  *   - Every per-card render is guarded by a real-value check.
  *   - The signal-hiding helper (`shouldShowContextSignal`) refuses
  *     NOT_COLLECTED, UNAVAILABLE, null, undefined, and empty.
- *   - Friendly labels for real values still pass through unchanged
- *     (External intake / Secure upload session / Contributor
- *     browser permission).
+ *   - Friendly labels for real values still pass through unchanged.
+ *
+ * UC-0 (2026-09-17): the "Source type" and "Capture method" labels used to be
+ * derived from `captureMethod` — a STRUCTURE field that completion overwrites
+ * (an intake record read as a multi-file submission, a never-recorded origin
+ * read as an upload, and "PROOVRA secure camera" was claimed for records whose
+ * capture PROOVRA never observed). Those assertions pinned the retired
+ * behaviour and were replaced: the acquisition is now ONE server projection,
+ * and "Acquisition: Not recorded" is the honest statement for a legacy record,
+ * so it is always shown rather than hidden.
  *   - The dead-button reviewer-status fix from the prior phase is
  *     NOT regressed.
  *
@@ -56,11 +63,11 @@ const SCHEMA = "services/api/prisma/schema.prisma";
 // Helper module — public surface + friendly labels for REAL values only
 // ============================================================================
 
-test("source-display helper exports the four public functions", () => {
+test("source-display helper exports its public functions — and no captureMethod label", () => {
   const src = read(HELPER);
   for (const fn of [
     "displaySourceType",
-    "displayCaptureMethod",
+    "displayAcquisition",
     "shouldShowContextSignal",
     "displayUnavailableSignal",
   ]) {
@@ -70,40 +77,30 @@ test("source-display helper exports the four public functions", () => {
       `${fn} must be exported from source-display.ts`,
     );
   }
-});
-
-test("EXTERNAL_INTAKE_UPLOAD source type → 'External intake'", () => {
-  const src = read(HELPER);
-  assert.match(src, /if \(cm === "EXTERNAL_INTAKE_UPLOAD"\) return "External intake";/);
-});
-
-test("EXTERNAL_INTAKE_UPLOAD capture method → 'Secure upload session'", () => {
-  const src = read(HELPER);
-  assert.match(
-    src,
-    /case "EXTERNAL_INTAKE_UPLOAD":[\s\S]{0,500}return "Secure upload session";/,
-  );
-});
-
-test("MULTIPART_PACKAGE relabelled to 'Multi-file submission'", () => {
-  const src = read(HELPER);
-  assert.match(
-    src,
-    /case "MULTIPART_PACKAGE":[\s\S]{0,300}return "Multi-file submission";/,
-  );
   assert.ok(
-    !/return "Multipart package"/.test(src),
-    "the helper must not surface 'Multipart package' to users",
+    !/export function displayCaptureMethod\(/.test(src),
+    "captureMethod is a structure field, not an acquisition label",
   );
 });
 
-test("PROOVRA secure capture wording is preserved (no regression)", () => {
+test("source types are projections of the acquisition authority", () => {
   const src = read(HELPER);
-  assert.match(
-    src,
-    /case "SECURE_CAMERA":[\s\S]{0,200}return "Captured with PROOVRA secure camera";/,
-  );
-  assert.match(src, /return "PROOVRA secure capture";/);
+  assert.match(src, /case "external_intake":\s*return "Secure intake submission";/);
+  assert.match(src, /case "mobile_app":\s*return "PROOVRA mobile app submission";/);
+  assert.match(src, /case "not_recorded":[\s\S]{0,120}return "Not recorded";/);
+  // No structure enum is read as a source.
+  assert.ok(!/EXTERNAL_INTAKE_UPLOAD|MULTIPART_PACKAGE/.test(src));
+});
+
+test("no capture claim PROOVRA cannot support is rendered", () => {
+  const src = read(HELPER);
+  assert.ok(!/secure camera|PROOVRA secure capture|Multipart package/i.test(src));
+});
+
+test("a backfilled intake acquisition is disclosed as recorded later", () => {
+  const src = read(HELPER);
+  assert.match(src, /recordedBy === "BACKFILL_INTAKE_SESSION_LINK"/);
+  assert.match(src, /recorded later from the intake session/);
 });
 
 test("shouldShowContextSignal hides every missing/unavailable state", () => {
@@ -122,13 +119,19 @@ test("Integrity tab imports the helpers (no inline ugly strings)", () => {
   const tab = read(TAB);
   assert.match(tab, /from "\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/lib\/evidence\/source-display"/);
   assert.match(tab, /displaySourceType\(/);
-  assert.match(tab, /displayCaptureMethod\(/);
+  assert.match(tab, /displayAcquisition\(/);
   assert.match(tab, /shouldShowContextSignal\(/);
+  assert.ok(!/displayCaptureMethod\(/.test(tab));
   // The legacy raw-enum hack must be gone.
   assert.ok(
     !/sourceContext\.sourceType\.replace\(\/_\/g/.test(tab),
     "raw sourceType replace() hack must be removed",
   );
+});
+
+test("Integrity tab always states the acquisition from the server projection", () => {
+  const tab = read(TAB);
+  assert.match(tab, /label: "Acquisition",\s*value: displayAcquisition\(sc\.acquisition \?\? null\)/);
 });
 
 test("Integrity tab NEVER renders 'Not recorded' as a card value", () => {
@@ -218,21 +221,12 @@ test("Every describeClientSignalState call is guarded by shouldShowContextSignal
   );
 });
 
-test("Source type card is suppressed when helper returns 'Source not recorded'", () => {
+test("Source type card is suppressed when the helper has no real value", () => {
   const tab = read(TAB);
   assert.match(
     tab,
-    /sourceTypeLabel !== "Source not recorded"/,
-    "the Source type card must be hidden when the helper has no real value",
-  );
-});
-
-test("Capture method card is suppressed when helper returns 'Capture method not recorded'", () => {
-  const tab = read(TAB);
-  assert.match(
-    tab,
-    /captureMethodLabel !== "Capture method not recorded"/,
-    "the Capture method card must be hidden when the helper has no real value",
+    /sourceTypeLabel !== "Not recorded"/,
+    "the Source type card must be hidden when the helper has no real value (the Acquisition row already says so)",
   );
 });
 
@@ -259,13 +253,9 @@ test("Empty grid is suppressed — render nothing rather than an empty skeleton"
   );
 });
 
-test("Intake-link evidence still renders Source type + Capture method (the meaningful pair)", () => {
-  // Both helpers return real strings for EXTERNAL_INTAKE_UPLOAD, so
-  // the strict-render rule lets them through. This re-pins the
-  // helper output that the tab depends on.
+test("Intake-link evidence still renders a meaningful source (from the authority)", () => {
   const helper = read(HELPER);
-  assert.match(helper, /return "External intake";/);
-  assert.match(helper, /return "Secure upload session";/);
+  assert.match(helper, /return "Secure intake submission";/);
 });
 
 // ============================================================================
@@ -330,24 +320,25 @@ test("REGRESSION GUARD: backend reviewer-workflow route + enum unchanged", () =>
 });
 
 // ============================================================================
-// Backend label parity (no backend behaviour changes — labels only)
+// Backend label parity — ONE acquisition authority (UC-0)
 // ============================================================================
 
-test("Backend mapCaptureMethodLabel: intake gets 'Secure upload session', multi-file gets 'Multi-file submission'", () => {
+test("Backend acquisition label comes from the shared resolver, not captureMethod", () => {
   const routes = read(ROUTES);
-  assert.match(routes, /case "EXTERNAL_INTAKE_UPLOAD":/);
-  assert.match(routes, /return "Secure upload session"/);
-  assert.match(routes, /return "Multi-file submission"/);
-  assert.ok(
-    !/return "Multipart package"/.test(routes),
-    "the old 'Multipart package' label must be retired",
-  );
+  assert.match(routes, /function mapAcquisitionLabel\(/);
+  assert.match(routes, /return resolveEvidenceAcquisition\(\{/);
+  assert.ok(!/function mapCaptureMethodLabel\(/.test(routes));
+  assert.ok(!/return "Multipart package"/.test(routes));
 });
 
-test("Backend buildSourceContext: EXTERNAL_INTAKE_UPLOAD short-circuits to 'external_intake'", () => {
+test("Backend buildSourceContext derives the source type from the acquisition mode", () => {
   const routes = read(ROUTES);
   assert.match(
     routes,
-    /captureMethod === prismaPkg\.CaptureMethod\.EXTERNAL_INTAKE_UPLOAD\s*\?\s*"external_intake"/,
+    /acquisition\.mode === "SECURE_INTAKE_LINK"\s*\?\s*"external_intake"/,
+  );
+  assert.match(routes, /: "not_recorded";/);
+  assert.ok(
+    !/captureMethod === prismaPkg\.CaptureMethod\.EXTERNAL_INTAKE_UPLOAD\s*\?\s*"external_intake"/.test(routes),
   );
 });

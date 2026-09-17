@@ -67,7 +67,12 @@ const RailProveIcon = () => (
 
 const RAIL_ITEMS = [
   { Icon: RailCameraIcon, color: "#FF6B00", title: "CAPTURE", body: ["Collect evidence from", "any source"] },
-  { Icon: RailLockIcon, color: "#2563EB", title: "PRESERVE", body: ["Hash, encrypt & timestamp", "to prevent alteration"] },
+  /*
+   * NOT "to prevent alteration". A hash does not stop anyone changing a file;
+   * it makes any later change detectable against the recorded digest, which
+   * the signature and trusted timestamp then anchor in time.
+   */
+  { Icon: RailLockIcon, color: "#2563EB", title: "PRESERVE", body: ["Hash, sign & timestamp", "so later changes are detectable"] },
 {
   Icon: Fingerprint,
   color: "#6D28D9",

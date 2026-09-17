@@ -29,8 +29,10 @@ const EVIDENCE_ROUTES = readFileSync(
   repoPath("services/api/src/routes/evidence.routes.ts"),
   "utf8",
 );
-const CITIZEN = readFileSync(
-  repoPath("services/api/src/services/capture-trust/citizen-capture.service.ts"),
+// UC-0: the citizen capture service was retired; the direct-capture routes are
+// the remaining capture ingress that wraps canonical creation refusals.
+const CAPTURE_ROUTES = readFileSync(
+  repoPath("services/api/src/routes/capture-trust.routes.ts"),
   "utf8",
 );
 
@@ -229,7 +231,10 @@ describe("public intake error contract", () => {
     expect(EVIDENCE_ROUTES).toMatch(/outcome: expected \? "blocked" : "failure"/);
     expect(EVIDENCE_ROUTES).toMatch(/severity: expected \? "warning" : "critical"/);
 
-    expect(CITIZEN).toContain('"WORKSPACE_CAPACITY_REACHED"');
-    expect(CITIZEN).toMatch(/classifyReportability\(err\) === "UNEXPECTED"/);
+    // Expected refusals (capacity, plan, policy) keep their own bounded
+    // status and code; only an unexpected failure becomes a 500.
+    expect(CAPTURE_ROUTES).toMatch(/if \(status >= 500\) throw err;/);
+    expect(CAPTURE_ROUTES).toMatch(/denial: typeof e\.code === "string" \? e\.code : "CAPTURE_REQUEST_REFUSED"/);
+    expect(CAPTURE_ROUTES).not.toMatch(/EVIDENCE_PERSIST_FAILED/);
   });
 });

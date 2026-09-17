@@ -48,8 +48,14 @@ export type VerifyCaptureSignatureInput = {
   payload: CaptureSignaturePayload;
   /** Signature bytes hex (base16). */
   signatureHex: string;
-  /** Raw asset bytes (for re-hash). */
-  assetBytes: Buffer;
+  /**
+   * Raw asset bytes (for re-hash), or null when the bytes travel to storage
+   * separately (UC-0 direct-capture sessions). With null, step 1 is DEFERRED:
+   * the payload's assetHash is only a claim here, and completeEvidence
+   * compares it with the server-computed digest of the stored object before
+   * anything is signed.
+   */
+  assetBytes: Buffer | null;
 };
 
 export type CaptureSignatureVerificationResult = {
@@ -79,11 +85,15 @@ export async function verifyCaptureSignature(
     return result("INVALID_CANONICAL_JSON", "", 0, null);
   }
 
-  // Step 1 — re-hash bytes.
-  const computedAssetHash = createHash("sha256")
-    .update(input.assetBytes)
-    .digest("hex");
-  if (computedAssetHash !== input.payload.assetHash.toLowerCase()) {
+  // Step 1 — re-hash bytes (or defer to completion when none are supplied).
+  const computedAssetHash =
+    input.assetBytes === null
+      ? ""
+      : createHash("sha256").update(input.assetBytes).digest("hex");
+  if (
+    input.assetBytes !== null &&
+    computedAssetHash !== input.payload.assetHash.toLowerCase()
+  ) {
     return result("INVALID_HASH", computedAssetHash, 0, null);
   }
 

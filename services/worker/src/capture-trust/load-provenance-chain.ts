@@ -11,14 +11,11 @@
  *   imports also break TS resolution under the worker's tsconfig and
  *   break Phase 2.7C image-layer caching.
  *
- *   The projection logic lives next to this loader in
- *   `./provenance-projection.ts` — a worker-local PURE Prisma
- *   projection that depends only on `@prisma/client` and
- *   `@proovra/shared` (the same two deps the worker already carries).
- *   It is byte-for-byte equivalent to the API copy at
- *   `services/api/src/services/capture-trust/provenance-projection.service.ts`;
- *   contract drift between the two surfaces as a typecheck failure
- *   against the shared `ProvenanceChain` type.
+ *   UC-0 — the projection is THE shared implementation in
+ *   `@proovra/shared-runtime` (`loadProvenanceChain`), which the API uses
+ *   too. The worker-local copy it replaced inferred the capture mode from
+ *   `uploadSource` / `captureMethod`; it was deleted, so the chain a package
+ *   ships cannot drift from the chain the API serves.
  *
  * Hard rules:
  *   * Never throws — returns null on any failure so the package
@@ -29,15 +26,16 @@
 
 import type { ProvenanceChain } from "@proovra/shared";
 
-import { projectProvenanceChain } from "./provenance-projection.js";
+import { loadProvenanceChain } from "@proovra/shared-runtime";
+
+import { prisma } from "../db.js";
 
 export async function loadProvenanceChainForPackage(
   evidenceId: string,
-  isIntake?: boolean,
 ): Promise<ProvenanceChain | null> {
   if (!evidenceId) return null;
   try {
-    return await projectProvenanceChain({ evidenceId, isIntake });
+    return await loadProvenanceChain(prisma, evidenceId);
   } catch {
     return null;
   }

@@ -5,7 +5,7 @@
  * WorkflowIntakeSession into the existing authenticated evidence pipeline:
  *
  *   1. createOrLoadExternalEvidence       — idempotently create an Evidence
- *      row owned by the link creator, marked as captureMethod=EXTERNAL_INTAKE_UPLOAD.
+ *      row owned by the link creator, with acquisitionMode=SECURE_INTAKE_LINK.
  *   2. addExternalEvidencePart            — create an EvidencePart and return
  *      a presigned PUT URL so the contributor can upload bytes directly to S3.
  *   3. updateExternalEvidencePartMapping  — map a staged part to a workflow
@@ -17,8 +17,8 @@
  *      link.usedCount, and emit the EXTERNAL_INTAKE_SUBMITTED custody event.
  *
  * Reuse statement:
- *   - createEvidence() is called unmodified. We post-update three columns to
- *     mark the external origin (captureMethod, submittedByEmail, submittedByUserId).
+ *   - createEvidence() is called with acquisitionMode SECURE_INTAKE_LINK. We post-update columns to
+ *     record the submitter (submittedByEmail, submittedByUserId).
  *   - presignPutObject() from storage.ts is called for upload URLs.
  *   - completeEvidence() from evidence-complete.service.ts is the SINGLE entry
  *     into the integrity/signing pipeline. The external path does not bypass
@@ -297,6 +297,8 @@ export async function createOrLoadExternalEvidence(
     originalFileName: safeOriginalFileName(seed.originalFileName),
     captureFileName: null,
     intakePlanJson: workflowTemplateSnapshotFromLink(pair.link),
+    // UC-0 — the canonical secure-intake ingress (also Evidence Requests).
+    acquisitionMode: "SECURE_INTAKE_LINK",
   });
 
   // createEvidence returns a presign-response shape; pull the full row.
@@ -304,15 +306,18 @@ export async function createOrLoadExternalEvidence(
     where: { id: createResult.id },
   });
 
-  // Post-update: mark the external origin. These three columns describe
-  // who/how the evidence arrived; they do not affect the integrity pipeline
-  // (fingerprint / signature / OTS / TSA / anchor are computed from the
-  // bytes, not from these fields).
+  // Post-update: record who submitted. These columns do not affect the
+  // integrity pipeline (fingerprint / signature / OTS / TSA / anchor are
+  // computed from the bytes, not from these fields).
+  //
+  // UC-0 — `captureMethod` is no longer set to EXTERNAL_INTAKE_UPLOAD here.
+  // Completion always overwrote it with a structure value, so it never carried
+  // intake origin past submission; the acquisition authority
+  // (`acquisitionMode`, written by createEvidence above) now does.
   const externalSubmitterEmail = pair.session.submitterEmail ?? null;
   const updatedEvidence = await client.evidence.update({
     where: { id: evidence.id },
     data: {
-      captureMethod: prismaPkg.CaptureMethod.EXTERNAL_INTAKE_UPLOAD,
       submittedByEmail: externalSubmitterEmail,
       // submittedByUserId stays null — the contributor has no User row.
       //

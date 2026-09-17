@@ -268,8 +268,10 @@ function analyzeSql(rawSql) {
     new RegExp(
       // `(?<!ON\s+)` keeps referential-action clauses out: `ON UPDATE CASCADE`
       // and `ON DELETE NO ACTION` are not references to relations named
-      // "cascade" or "no".
-      String.raw`(?:ALTER\s+TABLE(?:\s+ONLY)?(?:\s+IF\s+EXISTS)?|REFERENCES|(?<!ON\s{1,8})UPDATE|INSERT\s+INTO|DELETE\s+FROM|JOIN|FROM)\s+(?:ONLY\s+)?(?:"?public"?\.)?${ident}`,
+      // "cascade" or "no". BEFORE/AFTER/OR do the same for a trigger's event
+      // list (`BEFORE UPDATE ON "evidence"`, `INSERT OR UPDATE OF col`), which
+      // names an event, not a relation called "on" or "of".
+      String.raw`(?:ALTER\s+TABLE(?:\s+ONLY)?(?:\s+IF\s+EXISTS)?|REFERENCES|(?<!(?:ON|BEFORE|AFTER|OR)\s{1,8})UPDATE|INSERT\s+INTO|DELETE\s+FROM|JOIN|FROM)\s+(?:ONLY\s+)?(?:"?public"?\.)?${ident}`,
       "gi",
     ),
   )) {

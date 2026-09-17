@@ -23,6 +23,8 @@ export type EvidenceFilterState = {
   otsStatus: string;
   publicVerifyState: string;
   verificationStatus: string;
+  /** UC-0 — acquisition category from the server's acquisition authority. */
+  acquisition: string;
 };
 
 /**
@@ -154,6 +156,20 @@ export function EvidenceFilters({
             { value: "document", label: "Document" },
             { value: "multipart", label: "Multipart" },
             { value: "other", label: "Other" },
+          ]}
+        />
+        <FilterChip
+          id="acquisition-filter"
+          label="How the record entered PROOVRA"
+          prefix="Source:"
+          value={value.acquisition}
+          onChange={(next) => update("acquisition", next)}
+          options={[
+            { value: "all", label: "All" },
+            { value: "UPLOAD", label: "Uploaded" },
+            { value: "SECURE_INTAKE", label: "Secure intake" },
+            { value: "MOBILE_APP", label: "Mobile app" },
+            { value: "NOT_RECORDED", label: "Not recorded" },
           ]}
         />
         <FilterChip

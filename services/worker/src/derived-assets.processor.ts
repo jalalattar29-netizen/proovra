@@ -44,7 +44,8 @@ import { JOB_NAMES } from "@proovra/shared";
 import { decodeCanonicalJob } from "./canonical-job.js";
 import { prisma } from "./db.js";
 import { logger } from "./logger.js";
-import { getObjectRange, putObjectBuffer } from "./storage.js";
+import { deleteObject, getObjectRange, putObjectBuffer } from "./storage.js";
+import { evaluateEffectiveLegalHold } from "./governance/effective-legal-hold.js";
 import { detectDerivedAssetCapability } from "./derived-assets-capability.js";
 // Phase 31.20 — ffmpeg-derived asset producers.
 import {
@@ -656,7 +657,9 @@ async function persistCompleted(
       },
       prisma,
     );
-    return r.ok ? { ok: true } : { ok: false, reason: r.reason };
+    if (!r.ok) return { ok: false, reason: r.reason };
+    await removeSupersededDerivedObject(input, r.previousStorage);
+    return { ok: true };
   } catch (err) {
     return {
       ok: false,
@@ -665,6 +668,47 @@ async function persistCompleted(
           ? `import_failed:${err.message.slice(0, 80)}`
           : "import_failed",
     };
+  }
+}
+
+/**
+ * UC-0 — a regenerated derivative is written under a content-addressed key, so
+ * a changed output lands at a NEW key and the row now points there. The object
+ * it replaced has no other pointer: left alone it would survive destruction and
+ * escape storage accounting. Remove it once the new row is committed.
+ *
+ * A record under an effective legal hold keeps the superseded object (holds
+ * block removal of anything derived from held evidence); that is logged with
+ * bounded identifiers so an operator can reconcile after release.
+ */
+async function removeSupersededDerivedObject(
+  input: PersistBaseInput & { storageBucket: string; storageKey: string },
+  previous: { bucket: string; key: string } | null,
+): Promise<void> {
+  if (!previous) return;
+  if (previous.bucket === input.storageBucket && previous.key === input.storageKey) return;
+  try {
+    const hold = await evaluateEffectiveLegalHold(prisma, {
+      teamId: input.teamId,
+      evidenceId: input.evidenceId,
+    });
+    if (hold.held) {
+      logger.warn(
+        { evidenceId: input.evidenceId, assetKind: input.assetKind },
+        "derived_assets.superseded_object_retained_under_hold",
+      );
+      return;
+    }
+    await deleteObject({ bucket: previous.bucket, key: previous.key });
+  } catch (err) {
+    logger.warn(
+      {
+        evidenceId: input.evidenceId,
+        assetKind: input.assetKind,
+        err: err instanceof Error ? err.name : "unknown",
+      },
+      "derived_assets.superseded_object_delete_failed",
+    );
   }
 }
 

@@ -34,6 +34,31 @@ export const PROOVRA_FORBIDDEN_SURFACE_PATTERNS = [
   /\btruepic-style\b/i,
   /\bcellebrite-style\b/i,
   /\bai (?:verified|certified|determined) (?:the )?evidence\b/i,
+  // UC-0 — acquisition overclaims. An acquisition statement says which channel
+  // received the bytes; it never makes the content, the device or the capture
+  // "verified", "authentic" or tamper-proof. The retired public labels
+  // ("Class A — Verified at source", "Class B — Browser captured") are here so
+  // they cannot return.
+  /\bverified at source\b/i,
+  /\bbrowser captured\b/i,
+  /\bverified capture\b/i,
+  /\bcaptured and verified\b/i,
+  /\bunfakeable\b/i,
+  /\btamper-?proof\b/i,
+  /\bauthentic screenshot\b/i,
+  /\bproves the message was sent\b/i,
+] as const;
+
+/**
+ * UC-0 — the acquisition claims PROOVRA may make. Every surface states
+ * acquisition through `resolveEvidenceAcquisition` (@proovra/shared), whose
+ * statements are these facts, plus ACQUISITION_GLOBAL_QUALIFIER.
+ */
+export const PROOVRA_ALLOWED_ACQUISITION_CLAIMS = [
+  "Uploaded to PROOVRA by a signed-in account.",
+  "Submitted to PROOVRA through a secure intake link.",
+  "Submitted through the PROOVRA mobile app in a server-issued capture session.",
+  "How this record entered PROOVRA was not recorded when it was created.",
 ] as const;
 
 export const PROOVRA_REQUIRED_BOUNDARY_PHRASES = [

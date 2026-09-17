@@ -36,6 +36,11 @@ import {
   isAccessCustodyEventType,
   serializeTrustDecisionForReviewerPackage,
   type CanonicalEvidenceMaterials,
+  // UC-0 — acquisition authority + artifact classes.
+  ACQUISITION_GLOBAL_QUALIFIER,
+  ACQUISITION_LIMITATION_TEXT,
+  normalizePartArtifactClass,
+  resolveEvidenceAcquisition,
 } from "@proovra/shared";
 import {
   PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE,
@@ -67,6 +72,8 @@ type VerificationEvidenceFile = {
   checklistStepId?: string | null;
   checklistStepLabel?: string | null;
   sourceLabel?: string | null;
+  /** UC-0 — EvidencePart.artifactClass (ORIGINAL | CAPTURE_MANIFEST). */
+  artifactClass?: string | null;
 };
 
 type VerificationPackageArtifactPresence = {
@@ -216,6 +223,11 @@ type VerificationPackageMetadata = {
    *  case-metadata.json + original-linkage.json (the identity-snapshot email
    *  is the LINK CREATOR / workspace owner, NOT the remote contributor). */
   isIntake?: boolean | null;
+  /**
+   * UC-0 — Evidence.acquisitionMode as snapshotted for this output. The ONE
+   * source of every capture-method / acquisition label in the package.
+   */
+  acquisitionMode?: string | null;
   createdAtUtc?: string | null;
   capturedAtUtc?: string | null;
   deviceTimeIso?: string | null;
@@ -973,14 +985,8 @@ function buildPackageSubmitterFields(metadata: VerificationPackageMetadata): {
   return {
     submittedByEmail: metadata.submittedByEmail ?? null,
     submittedByAuthProvider: metadata.submittedByAuthProvider ?? null,
-    // The persisted enum (e.g. MULTIPART_PACKAGE) is an evidence STRUCTURE,
-    // not a capture method. Surface a reviewer-facing acquisition label
-    // ("PROOVRA Web Upload" etc.) so legal/forensic reviewers never see the
-    // internal structure token as a capture method. The structure is shown
-    // separately as "Multipart evidence package".
-    captureMethod: metadata.captureMethod
-      ? captureMethodDisplayLabel({ captureMethod: metadata.captureMethod })
-      : null,
+    // UC-0 — the acquisition authority, never the structure enum.
+    captureMethod: resolvePackageCaptureMethodLabel(metadata),
   };
 }
 
@@ -995,10 +1001,114 @@ function buildPackageSubmitterFields(metadata: VerificationPackageMetadata): {
 function resolvePackageCaptureMethodLabel(
   metadata: VerificationPackageMetadata,
 ): string | null {
-  if (metadata.isIntake) return "Secure Intake Link";
-  return metadata.captureMethod
-    ? captureMethodDisplayLabel({ captureMethod: metadata.captureMethod })
-    : null;
+  return captureMethodDisplayLabel({
+    acquisitionMode: metadata.acquisitionMode ?? null,
+    isIntake: metadata.isIntake === true,
+  });
+}
+
+/**
+ * UC-0 — `acquisition.json`: the package's statement of HOW the record
+ * entered PROOVRA, when PROOVRA established integrity, and which facts a
+ * reviewer can check independently versus which depend on PROOVRA's record.
+ * Always emitted (a legacy record states "not recorded"). Built from the same
+ * provenance chain as `provenance/chain.json`, so the two cannot disagree.
+ * Exported for focused tests. Pure.
+ */
+export function buildPackageAcquisitionRecord(params: {
+  evidenceId: string | null;
+  chain: import("@proovra/shared").ProvenanceChain | null;
+  acquisitionMode: string | null;
+  signedAtUtc: string | null;
+  evidenceFiles: ReadonlyArray<{ artifactClass?: string | null }>;
+}): Record<string, unknown> {
+  const acquisition =
+    params.chain?.acquisition ??
+    resolveEvidenceAcquisition({ acquisitionMode: params.acquisitionMode });
+  const session = params.chain?.captureSession ?? null;
+  const captureRecordCount = params.evidenceFiles.filter(
+    (f) => normalizePartArtifactClass(f.artifactClass) === "CAPTURE_MANIFEST",
+  ).length;
+  return {
+    schema: "PROOVRA_PACKAGE_ACQUISITION",
+    version: 1,
+    evidenceId: params.evidenceId,
+    acquisition: {
+      mode: acquisition.mode,
+      category: acquisition.category,
+      recorded: acquisition.recorded,
+      recordedBy: acquisition.recordedBy,
+      label: acquisition.label,
+      statement: acquisition.statement,
+      isDirectCapture: acquisition.isDirectCapture,
+      limitations: acquisition.limitations.map((code) => ({
+        code,
+        text: ACQUISITION_LIMITATION_TEXT[code],
+      })),
+    },
+    captureSession: session
+      ? {
+          sessionId: session.sessionId,
+          status: session.status,
+          startedAtUtc: session.startedAtUtc,
+          endedAtUtc: session.endedAtUtc,
+          digestsConfirmed: session.digestsConfirmed,
+          trustChainHeadHash: session.trustChainHeadHash,
+        }
+      : null,
+    integrity: {
+      establishedAtUtc: params.signedAtUtc,
+      establishedBy: "PROOVRA_SERVER_COMPLETION",
+      note: "PROOVRA computed the SHA-256 of every stored original on its server, signed the resulting fingerprint and requested a trusted timestamp at completion. Integrity statements in this package run from that moment.",
+    },
+    artifacts: {
+      original: params.evidenceFiles.length - captureRecordCount,
+      captureRecord: captureRecordCount,
+      derived: (params.chain?.derivedArtifacts ?? []).filter((d) => d.status === "COMPLETED").length,
+    },
+    verifiability: {
+      independentlyVerifiable: [
+        "per-file SHA-256 digests and the multipart composite",
+        "the PROOVRA fingerprint signature",
+        "the RFC 3161 timestamp token, when present",
+        "the OpenTimestamps proof, when present",
+      ],
+      dependsOnProovraRecord: [
+        "the acquisition mode assignment",
+        "the capture session window and its binding",
+        "device signature and attestation verdicts",
+      ],
+    },
+    qualifier: ACQUISITION_GLOBAL_QUALIFIER,
+  };
+}
+
+/** UC-0 — `derived/derived-manifest.json`: lineage only; no derived bytes. */
+export function buildDerivedManifest(params: {
+  evidenceId: string | null;
+  chain: import("@proovra/shared").ProvenanceChain | null;
+}): Record<string, unknown> {
+  const items = params.chain?.derivedArtifacts ?? [];
+  return {
+    schema: "PROOVRA_PACKAGE_DERIVED_MANIFEST",
+    version: 1,
+    evidenceId: params.evidenceId,
+    boundary:
+      "Derived review materials are generated by PROOVRA from the preserved originals. They are not originals, are not part of the sealed fingerprint, and are not included under evidence-parts/. Each entry names its source part and the digest that source had when the derivative was generated.",
+    items: items.map((d) => ({
+      artifactClass: d.artifactClass,
+      sourcePartIndex: d.sourcePartIndex,
+      sourceSha256AtGeneration: d.sourceSha256AtGeneration,
+      assetKind: d.assetKind,
+      variantKey: d.variantKey,
+      transformation: d.transformation,
+      engineVersion: d.engineVersion,
+      parametersSha256: d.parametersSha256,
+      derivedSha256: d.derivedSha256,
+      status: d.status,
+      generatedAtUtc: d.generatedAtUtc,
+    })),
+  };
 }
 
 // Exported for focused tests / artifact harnesses that verify the emitted
@@ -1296,6 +1406,8 @@ function buildEvidenceManifest(
       checklistStepId: file.checklistStepId ?? null,
       checklistStepLabel: file.checklistStepLabel ?? null,
       sourceLabel: file.sourceLabel ?? null,
+      // UC-0 — original vs capture record. Derivatives are never listed here.
+      artifactClass: normalizePartArtifactClass(file.artifactClass),
       sizeBytes: file.buffer.length,
       mimeType: file.mimeType ?? null,
       sha256:
@@ -1800,13 +1912,27 @@ or probative weight. Court-facing use typically also requires a custodian or qua
 function buildArtifactBoundaries(params: {
   evidenceFiles: VerificationEvidenceFile[];
   reportIncluded: boolean;
+  derivedCount?: number;
 }): Record<string, unknown> {
+  const captureRecords = params.evidenceFiles.filter(
+    (f) => normalizePartArtifactClass(f.artifactClass) === "CAPTURE_MANIFEST",
+  ).length;
   return {
     preservedOriginal: {
       role: "primary evidentiary source",
       description:
         "The included evidence file(s) are the preserved original binary content used to compute the recorded hashes and fingerprint state.",
       fileCount: params.evidenceFiles.length,
+      // UC-0 — additive classification of the sealed set.
+      originalCount: params.evidenceFiles.length - captureRecords,
+      captureRecordCount: captureRecords,
+    },
+    // UC-0 — derived review materials are never originals.
+    derivedReviewMaterials: {
+      count: params.derivedCount ?? 0,
+      role: "derived review material",
+      description:
+        "Thumbnails, frames, proxies and machine-extracted text are generated from the originals for review. They are listed in derived/derived-manifest.json with their source digests and are not part of the sealed set.",
     },
     reportArtifact: {
       included: params.reportIncluded,
@@ -2784,6 +2910,9 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
         buildArtifactBoundaries({
           evidenceFiles: evidenceFilesWithFinalName,
           reportIncluded: Boolean(data.reportPdf),
+          derivedCount: (data.provenanceChain?.derivedArtifacts ?? []).filter(
+            (d) => d.status === "COMPLETED",
+          ).length,
         })
       ),
       "application/json"
@@ -3006,6 +3135,39 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
         packageEntries,
         "provenance/chain.json",
         jsonBuffer(data.provenanceChain),
+        "application/json",
+      );
+    }
+
+    // UC-0 — the acquisition record (always) and the derivative lineage
+    // manifest (when derivatives exist). Emitted before the checksums index so
+    // both are covered by package-checksums.json and the signed manifest.
+    appendPackageEntry(
+      archive,
+      packageEntries,
+      "acquisition.json",
+      jsonBuffer(
+        buildPackageAcquisitionRecord({
+          evidenceId: data.evidenceId ?? null,
+          chain: data.provenanceChain ?? null,
+          acquisitionMode: metadata.acquisitionMode ?? null,
+          signedAtUtc: metadata.signedAtUtc ?? null,
+          evidenceFiles: evidenceFilesWithFinalName,
+        }),
+      ),
+      "application/json",
+    );
+    if ((data.provenanceChain?.derivedArtifacts ?? []).length > 0) {
+      appendPackageEntry(
+        archive,
+        packageEntries,
+        "derived/derived-manifest.json",
+        jsonBuffer(
+          buildDerivedManifest({
+            evidenceId: data.evidenceId ?? null,
+            chain: data.provenanceChain ?? null,
+          }),
+        ),
         "application/json",
       );
     }

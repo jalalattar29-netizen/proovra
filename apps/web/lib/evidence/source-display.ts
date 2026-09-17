@@ -10,13 +10,14 @@
  * helper returns a stable display string — never an undefined that
  * would render as "undefined" in the JSX.
  *
- * Capture vs. intake distinction:
- *   - Authenticated PROOVRA-secure-camera captures keep their original
- *     wording. The wording change only triggers for intake-link evidence
- *     (captureMethod === "EXTERNAL_INTAKE_UPLOAD") and for cases where
- *     the engineering label is actively misleading
- *     (MULTIPART_PACKAGE → "Folder upload" → "Folder upload (multiple
- *     files)", which still beats "Multipart package").
+ * UC-0 — acquisition vs. structure:
+ *   - HOW a record entered PROOVRA comes ONLY from the API's acquisition
+ *     projection (`sourceContext.acquisition`, resolved server-side from
+ *     `Evidence.acquisitionMode`). These helpers never infer it from
+ *     `captureMethod` — a STRUCTURE field that completion overwrites — nor
+ *     from MIME types, file names or client signals.
+ *   - A record whose acquisition was never recorded reads "Not recorded".
+ *     That is a fact about the record, not a failure, and it is shown.
  *
  * Importance vs. visibility:
  *   - shouldShowContextSignal() returns false for "NOT_COLLECTED" and
@@ -27,22 +28,12 @@
 
 /** Raw values from the backend; treat as loose strings. */
 export type RawSourceType =
-  | "native_capture"
   | "imported_upload"
   | "folder_upload"
   | "external_intake"
-  | "unknown"
+  | "mobile_app"
+  | "not_recorded"
   | (string & {});
-
-export type RawCaptureMethod =
-  | "SECURE_CAMERA"
-  | "UPLOADED_FILE"
-  | "IMPORTED_DOCUMENT"
-  | "MULTIPART_PACKAGE"
-  | "EXTERNAL_INTAKE_UPLOAD"
-  | (string & {})
-  | null
-  | undefined;
 
 export type RawSignalState =
   | "NOT_COLLECTED"
@@ -51,67 +42,57 @@ export type RawSignalState =
   | "UNAVAILABLE"
   | (string & {});
 
+/** The subset of the API's acquisition projection this module reads. */
+export type AcquisitionView = {
+  mode: string;
+  recorded: boolean;
+  recordedBy?: string | null;
+  label: string;
+  statement?: string;
+};
+
 /**
- * Human-friendly source-type label. Prefer the captureMethod when
- * available because it's the canonical signal; sourceType is derived
- * (and historically conflates EXTERNAL_INTAKE_UPLOAD into "unknown",
- * which is why intake-link evidence currently displays "unknown" or
- * the misleading "folder_upload" raw enum).
+ * Human-friendly source-type label, from the server's acquisition-derived
+ * source type. "Not recorded" is returned for a legacy record.
  */
 export function displaySourceType(
   sourceType: RawSourceType | null | undefined,
-  captureMethod: RawCaptureMethod = null,
 ): string {
-  const cm = String(captureMethod ?? "").toUpperCase();
-  if (cm === "EXTERNAL_INTAKE_UPLOAD") return "External intake";
   switch (sourceType) {
-    case "native_capture":
-      return "PROOVRA secure capture";
     case "imported_upload":
       return "Uploaded file";
     case "folder_upload":
       return "Folder upload (multiple files)";
     case "external_intake":
-      return "External intake";
+      return "Secure intake submission";
+    case "mobile_app":
+      return "PROOVRA mobile app submission";
+    case "not_recorded":
     case "unknown":
     case undefined:
     case null:
     case "":
-      return "Source not recorded";
+      return "Not recorded";
     default:
-      // Friendly-cased fallback so a future enum value doesn't render
-      // a raw snake_case token to the reviewer.
+      // Friendly-cased fallback so a future value doesn't render a raw
+      // snake_case token to the reviewer.
       return prettyFromSnake(String(sourceType));
   }
 }
 
 /**
- * Human-friendly capture-method label. Replaces engineering enums
- * like "MULTIPART_PACKAGE" with reviewer copy.
+ * The acquisition label exactly as the server resolved it. A missing
+ * projection (older API) reads "Not recorded" — never a guess.
  */
-export function displayCaptureMethod(
-  captureMethod: RawCaptureMethod,
+export function displayAcquisition(
+  acquisition: AcquisitionView | null | undefined,
 ): string {
-  switch (String(captureMethod ?? "").toUpperCase()) {
-    case "SECURE_CAMERA":
-      return "Captured with PROOVRA secure camera";
-    case "UPLOADED_FILE":
-      return "Uploaded existing file";
-    case "IMPORTED_DOCUMENT":
-      return "Imported document";
-    case "MULTIPART_PACKAGE":
-      // The old label "Multipart package" is engineering shorthand
-      // for "we received more than one file in the same submission".
-      // Reviewers want to know what it MEANS, not the protocol name.
-      return "Multi-file submission";
-    case "EXTERNAL_INTAKE_UPLOAD":
-      // The brief explicitly asks for this wording for intake-link
-      // evidence; "Secure upload session" matches the contributor's
-      // experience (a one-time secure link → consent → upload).
-      return "Secure upload session";
-    default:
-      return "Capture method not recorded";
+  if (!acquisition || typeof acquisition.label !== "string" || !acquisition.label) {
+    return "Not recorded";
   }
+  return acquisition.recordedBy === "BACKFILL_INTAKE_SESSION_LINK"
+    ? `${acquisition.label} (recorded later from the intake session)`
+    : acquisition.label;
 }
 
 /**

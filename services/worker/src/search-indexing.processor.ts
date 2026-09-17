@@ -108,6 +108,7 @@ async function buildForEvidence(evidenceId: string): Promise<BuildOutcome> {
       type: true,
       mimeType: true,
       captureMethod: true,
+      acquisitionMode: true,
       // PHASE 12B — index projects the primary linked case (earliest link).
       caseLinks: { select: { caseId: true }, orderBy: { linkedAtUtc: "asc" }, take: 1 },
       deletedAt: true,
@@ -213,6 +214,7 @@ async function buildForEvidence(evidenceId: string): Promise<BuildOutcome> {
       type: evidence.type,
       mimeType: evidence.mimeType,
       captureMethod: evidence.captureMethod,
+      acquisitionMode: evidence.acquisitionMode ?? null,
       caseId: evidence.caseLinks?.[0]?.caseId ?? null,
       deletedAt: evidence.deletedAt,
       lifecycleState: evidence.lifecycleState,

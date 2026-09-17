@@ -26,7 +26,6 @@ import { renderFieldGrid, renderPageSection } from "../ui.js";
 import { formatDeviceTime } from "@proovra/shared";
 import {
   captureMethodDisplayLabel,
-  humanizeUploadSource,
   metadataRows,
 } from "@proovra/shared-runtime/technical-metadata";
 
@@ -124,13 +123,12 @@ function buildTechnicalSummaryBlocks(vm: ReportViewModel): TechnicalSummaryBlock
           display: [ce.osName, ce.osVersion].filter(Boolean).join(" ") || undefined,
         },
         { label: "Device", value: ce.deviceClass, display: ce.deviceClass ? titleCase(ce.deviceClass) : undefined },
-        { label: "Submitted through", value: humanizeUploadSource(ce.uploadSource) },
+        // UC-0 — one acquisition row from the acquisition authority; the
+        // environment's own uploadSource/captureMethod labels are legacy and
+        // were inverted for the mobile and citizen routes.
         {
-          label: "Capture method",
-          value: captureMethodDisplayLabel({
-            captureMethod: ce.captureMethod,
-            uploadSource: ce.uploadSource,
-          }),
+          label: "Submitted through",
+          value: captureMethodDisplayLabel({ acquisitionMode: ce.acquisitionMode ?? null }),
         },
         ...(showBrowser
           ? [

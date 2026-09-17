@@ -44,8 +44,12 @@ export type ReportExifSummary = {
 };
 
 export type ReportCaptureEnvironment = {
+  /** Legacy environment label — NOT acquisition (inverted for mobile/citizen). */
   uploadSource: string | null;
+  /** Legacy environment label — NOT acquisition. */
   captureMethod: string | null;
+  /** UC-0 — Evidence.acquisitionMode, the acquisition authority. */
+  acquisitionMode: string | null;
   browserName: string | null;
   browserVersion: string | null;
   osName: string | null;
@@ -107,9 +111,9 @@ export async function buildReportTechnicalSummary(input: {
     }>;
 
     const evidenceRows = (await prisma.$queryRawUnsafe(
-      `SELECT "capture_environment" FROM "evidence" WHERE "id" = $1 LIMIT 1`,
+      `SELECT "capture_environment", "acquisition_mode" FROM "evidence" WHERE "id" = $1 LIMIT 1`,
       input.evidenceId,
-    )) as Array<{ capture_environment: unknown }>;
+    )) as Array<{ capture_environment: unknown; acquisition_mode: string | null }>;
 
     if (parts.length === 0 && evidenceRows.length === 0) return null;
 
@@ -179,6 +183,7 @@ export async function buildReportTechnicalSummary(input: {
       captureEnvironment = {
         uploadSource: (ce.uploadSource as string | null) ?? null,
         captureMethod: (ce.captureMethod as string | null) ?? null,
+        acquisitionMode: evidenceRows[0]?.acquisition_mode ?? null,
         browserName: (ce.browserName as string | null) ?? null,
         browserVersion: (ce.browserVersion as string | null) ?? null,
         osName: (ce.osName as string | null) ?? null,
@@ -247,8 +252,7 @@ export async function buildReportAcquisitionContext(input: {
   try {
     const rows = (await prisma.$queryRawUnsafe(
       `SELECT
-          e."capture_method"            AS capture_method,
-          e."capture_environment"       AS capture_environment,
+          e."acquisition_mode"          AS acquisition_mode,
           e."identity_level_snapshot"   AS identity_level,
           wis."opened_at_utc"           AS opened_at_utc,
           wis."submitted_at_utc"        AS submitted_at_utc,
@@ -299,10 +303,7 @@ export async function buildReportAcquisitionContext(input: {
       (r.consent_policy_version as string | null) ??
       null;
     const ctx = buildEvidenceAcquisitionContext({
-      uploadSource:
-        (r.capture_environment as { uploadSource?: string } | null)
-          ?.uploadSource ?? null,
-      captureMethod: (r.capture_method as string | null) ?? null,
+      acquisitionMode: (r.acquisition_mode as string | null) ?? null,
       intakeMode: (r.intake_mode as string | null) ?? null,
       identityLevel: (r.identity_level as string | null) ?? null,
       deliveryChannelRaw: (r.channel as string | null) ?? null,

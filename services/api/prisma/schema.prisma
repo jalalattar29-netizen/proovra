@@ -49,7 +49,23 @@ model Evidence {
   originalFileName                 String?             @map("original_file_name") @db.VarChar(255)
   displayFileName                  String?             @map("display_file_name") @db.VarChar(255)
 
+  /// LEGACY STRUCTURE / COMPATIBILITY FIELD — NOT an acquisition authority.
+  /// `completeEvidence` (and the report worker) rewrite it to describe the
+  /// record's STRUCTURE (UPLOADED_FILE / MULTIPART_PACKAGE / IMPORTED_DOCUMENT).
+  /// Values on historical rows describe structure, not how the record entered
+  /// PROOVRA. Read acquisition from `acquisitionMode` via
+  /// `resolveEvidenceAcquisition` (@proovra/shared). UC-0, 2026-09-16.
   captureMethod                  CaptureMethod?      @map("capture_method")
+  /// UC-0 — THE acquisition authority: how this Evidence entered PROOVRA.
+  /// Written once by the ingress adapter inside `createEvidence`; a database
+  /// trigger (`evidence_acquisition_set_once`) refuses any UPDATE that
+  /// changes it once set. Bounded by `evidence_acquisition_mode_check` to
+  /// EVIDENCE_ACQUISITION_MODES. NULL = not recorded (legacy); never guessed.
+  acquisitionMode                String?             @map("acquisition_mode") @db.VarChar(64)
+  /// UC-0 — how `acquisitionMode` came to exist: RECORDED_AT_CREATION, or
+  /// BACKFILL_INTAKE_SESSION_LINK (derived from the unique
+  /// workflow_intake_sessions.evidence_id join). Set together with the mode.
+  acquisitionModeSource          String?             @map("acquisition_mode_source") @db.VarChar(40)
   identityLevelSnapshot          IdentityLevel?      @map("identity_level_snapshot")
   submittedByEmail               String?             @map("submitted_by_email") @db.VarChar(320)
   submittedByAuthProvider        AuthProvider?       @map("submitted_by_auth_provider")
@@ -360,6 +376,7 @@ model Evidence {
   @@index([storageObjectLockMode])
   @@index([storageObjectLockRetainUntilUtc])
   @@index([captureMethod])
+  @@index([teamId, acquisitionMode])
   @@index([identityLevelSnapshot])
   @@index([submittedByUserId])
   @@index([createdByUserId])
@@ -437,6 +454,9 @@ model EvidencePart {
   // operator-initiated and non-image parts will never carry a hash.
   perceptualPhash                  String?              @map("perceptual_phash") @db.VarChar(16)
   perceptualDhash                  String?              @map("perceptual_dhash") @db.VarChar(16)
+  /// UC-0 — ORIGINAL | CAPTURE_MANIFEST. Every part ever stored is an
+  /// original; derivatives are never parts (EvidencePartDerivedAsset).
+  artifactClass                    String               @default("ORIGINAL") @map("artifact_class") @db.VarChar(32)
   createdAt                        DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
   annotations                      EvidenceAnnotation[]
   evidence                         Evidence             @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
@@ -679,6 +699,10 @@ model Report {
   submittedByEmailSnapshot        String?             @map("submitted_by_email_snapshot") @db.VarChar(320)
   submittedByAuthProviderSnapshot AuthProvider?       @map("submitted_by_auth_provider_snapshot")
   captureMethodSnapshot           CaptureMethod?      @map("capture_method_snapshot")
+  /// UC-0 — acquisition mode as projected when this report version was
+  /// generated (incl. LEGACY_NOT_RECORDED). Keeps historical reports
+  /// deterministic. NULL on reports generated before UC-0.
+  acquisitionModeSnapshot         String?             @map("acquisition_mode_snapshot") @db.VarChar(64)
   reviewerSummaryVersion          Int?                @map("reviewer_summary_version")
   verificationPackageVersion      Int?                @map("verification_package_version")
 
@@ -1776,10 +1800,26 @@ model CaptureSession {
   uploadStateSnapshot Json?   @map("upload_state_snapshot")
 
   // Evidence record produced when this draft is finalized.
+  // For a UC-0 direct-capture session this is the ONE Evidence the session is
+  // bound to (set when the session reserves its record; unique, so a session
+  // can never bind twice and a record never belongs to two sessions).
   finalizedEvidenceId String?   @unique @map("finalized_evidence_id") @db.Uuid
   finalizedAtUtc      DateTime? @map("finalized_at_utc") @db.Timestamptz(6)
   discardedAtUtc      DateTime? @map("discarded_at_utc") @db.Timestamptz(6)
   expiresAtUtc        DateTime? @map("expires_at_utc") @db.Timestamptz(6)
+
+  // UC-0 — server-issued direct-capture session fields. NULL on web capture
+  // drafts (status DRAFT/FINALIZED/…); set on sessions opened by a capture
+  // adapter (status ACTIVE → BOUND | INTERRUPTED). The session is a bounded
+  // session/nonce authority only — it never owns Evidence.
+  acquisitionMode String?   @map("acquisition_mode") @db.VarChar(64)
+  // SHA-256 of the server-issued nonce. The nonce itself is returned once and
+  // never stored.
+  nonceSha256     String?   @unique @map("nonce_sha256") @db.VarChar(64)
+  deviceId        String?   @map("device_id") @db.Uuid
+  startedAtUtc    DateTime? @map("started_at_utc") @db.Timestamptz(6)
+  endedAtUtc      DateTime? @map("ended_at_utc") @db.Timestamptz(6)
+  endReason       String?   @map("end_reason") @db.VarChar(40)
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -3514,6 +3554,10 @@ enum CaptureSessionStatus {
   FINALIZED
   DISCARDED
   EXPIRED
+  // UC-0 — direct-capture sessions.
+  ACTIVE
+  BOUND
+  INTERRUPTED
 }
 
 enum CaptureSessionEventType {
@@ -11587,6 +11631,12 @@ model CaptureDeviceAttestation {
   // checks regardless of whether these columns are populated.
   expiresAtUtc       DateTime? @map("expires_at_utc") @db.Timestamptz(6)
   providerMetadata   Json?     @map("provider_metadata")
+  // UC-0 — which verifier wrote this verdict. A positive verdict is only ever
+  // displayed when this names a CRYPTOGRAPHIC verifier
+  // (CRYPTOGRAPHIC_ATTESTATION_VERIFIER_VERSIONS). NULL = pre-UC-0 verifier,
+  // which trusted client metadata; its positive verdicts re-project as
+  // UNVERIFIED.
+  verifierVersion    String?   @map("verifier_version") @db.VarChar(80)
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
@@ -13778,10 +13828,26 @@ model EvidencePartDerivedAsset {
   storageKey               String?   @map("storage_key") @db.VarChar(512)
   lastError                String?   @map("last_error") @db.VarChar(240)
   engineVersion            String    @default("sharp-v0-phase31-v1") @map("engine_version") @db.VarChar(48)
+  // UC-0 — lineage descriptor (DERIVED_ASSET_TRANSFORMATIONS). NULL on rows
+  // generated before UC-0; projected as the kind's canonical transformation.
+  transformation           String?   @map("transformation") @db.VarChar(64)
+  // SHA-256 of the canonical JSON of the generation parameters.
+  parametersSha256         String?   @map("parameters_sha256") @db.VarChar(64)
+  // Offset into a time-based source (video/audio), when the derivative is a
+  // point in it.
+  sourceOffsetMs           Int?      @map("source_offset_ms")
+  // Deterministic variant identity: several derivatives of one kind per part
+  // (e.g. keyframes) are distinguished by this key. "default" for the single
+  // per-kind derivative every current producer writes.
+  variantKey               String    @default("default") @map("variant_key") @db.VarChar(64)
   generatedAtUtc           DateTime? @map("generated_at_utc") @db.Timestamptz(6)
   createdAtUtc             DateTime  @default(now()) @map("created_at_utc") @db.Timestamptz(6)
   updatedAtUtc             DateTime  @default(now()) @map("updated_at_utc") @db.Timestamptz(6)
 
+  // UC-0 — the canonical identity. The narrower per-kind key below is RETAINED
+  // until a later contract migration (an older image still upserts ON CONFLICT
+  // against it); with every producer writing variant "default" both hold.
+  @@unique([teamId, evidencePartId, assetKind, variantKey], map: "evidence_part_derived_assets_team_part_kind_variant_uk")
   @@unique([teamId, evidencePartId, assetKind], map: "evidence_part_derived_assets_team_part_kind_uk")
   @@index([evidenceId], map: "evidence_part_derived_assets_evidence_idx")
   @@index([status, updatedAtUtc(sort: Desc)], map: "evidence_part_derived_assets_status_updated_idx")

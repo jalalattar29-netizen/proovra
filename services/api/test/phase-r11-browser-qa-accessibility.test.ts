@@ -190,7 +190,9 @@ describe("R11 Group 1 — cross-phase byte-pin guard", () => {
     // funding: integrity is not sold. Finalize-transaction semantics, custody
     // chain and sealing are untouched — it runs strictly AFTER the commit,
     // beside the report request, and its failure cannot roll back a signature.
-    ).toBe(52223);
+      // UC-0 rebaseline (2026-09-17): 52,223 -> 55,830 — direct-capture
+      // session completion guard; see phase-cr5-capture-safety.test.ts.
+    ).toBe(55830);
   });
   it("CR1.6 single-custody-writer invariant on custody-events.service.ts holds", () => {
     const src = readFileSync(
@@ -209,7 +211,8 @@ describe("R11 Group 1 — cross-phase byte-pin guard", () => {
     expect(src).toMatch(/TsaProviderFailureCode/);
   });
   it("E5 byte-exact pin on claims-matrix.ts holds", () => {
-    expect(statSync(sharedPath("claims-matrix.ts")).size).toBe(2266);
+    // UC-0 rebaseline (2026-09-17): 2,266 -> 3,389 — forbidden acquisition claims.
+    expect(statSync(sharedPath("claims-matrix.ts")).size).toBe(3389);
   });
   it("CR4 byte-exact pin on verify-projection.service.ts holds", () => {
     expect(

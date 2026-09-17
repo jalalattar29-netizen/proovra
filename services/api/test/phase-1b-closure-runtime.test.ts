@@ -13,14 +13,8 @@
  *      present.
  *   5. ProvenanceChain projection assembles the bounded shape.
  *
- * Source-contract assertions for runtime wiring:
- *
- *   - mobile capture screen invokes `captureWithTrust`
- *   - mobile trust upload queue persists envelopes in SQLite
- *   - citizen-capture routes registered
- *   - verify route surfaces `captureTrust`
- *   - verify page renders bounded fields
- *   - verification-package builder writes `provenance/chain.json`
+ * Source-contract assertions (UC-0): the retired Phase 1B paths stay
+ * retired and their replacements stay wired (see section 3).
  *
  * The test uses an in-memory Prisma mock for the verification round-
  * trip so the assertion does not require a real database. The
@@ -144,7 +138,14 @@ describe("Phase 1B Closure — Ed25519 signature round-trip", () => {
 });
 
 // ===========================================================================
-// 3 — Source-contract assertions for runtime wiring
+// 3 — Source-contract assertions for runtime wiring (UC-0)
+//
+// The Phase 1B wiring this section used to pin — the mobile base64 trust
+// queue, the receipt-only /v1/capture/mobile/ingest, the citizen "Class B"
+// client and the Verify page's nested `chain.*` reshaping — was retired in
+// UC-0 because it was false or disconnected. Its behaviour is now EXECUTED in
+// uc0-acquisition-capture.integration.test.ts; these assertions only pin that
+// the retired paths stay retired and the replacements stay wired.
 // ===========================================================================
 
 const SHARED_CANONICAL = readSource(
@@ -154,36 +155,21 @@ const SHARED_INDEX = readSource("../../../packages/shared/src/index.ts");
 const API_CANONICAL = readSource(
   "../../../services/api/src/services/capture-trust/canonical-json.ts",
 );
-const MOBILE_ED25519 = readSource(
-  "../../../apps/mobile/src/trust/ed25519.ts",
-);
-const MOBILE_SHA = readSource("../../../apps/mobile/src/trust/sha256.ts");
-const MOBILE_KEY = readSource(
-  "../../../apps/mobile/src/trust/device-key.ts",
-);
-const MOBILE_REG = readSource(
-  "../../../apps/mobile/src/trust/device-registration.ts",
-);
-const MOBILE_ATTEST = readSource(
-  "../../../apps/mobile/src/trust/attestation.ts",
-);
-const MOBILE_ENV = readSource(
-  "../../../apps/mobile/src/trust/envelope.ts",
-);
-const MOBILE_QUEUE = readSource(
-  "../../../apps/mobile/src/trust/upload-queue.ts",
-);
-const MOBILE_INDEX = readSource(
-  "../../../apps/mobile/src/trust/index.ts",
-);
+/** Source without comments — prose that NAMES a retired claim is not a claim. */
+function code(src: string): string {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n")
+    .map((line) => line.replace(/(^|[^:])\/\/.*$/, "$1"))
+    .join("\n");
+}
+
+const MOBILE_DIRECT_CAPTURE = readSource("../../../apps/mobile/src/direct-capture.ts");
 const MOBILE_CAPTURE_SCREEN = readSource(
   "../../../apps/mobile/app/(stack)/capture.tsx",
 );
 const CITIZEN_ROUTE = readSource(
   "../../../services/api/src/routes/citizen-capture.routes.ts",
-);
-const CITIZEN_CLIENT = readSource(
-  "../../../apps/web/lib/citizen-capture/citizen-capture-client.ts",
 );
 const CITIZEN_PAGE = readSource(
   "../../../apps/web/app/intake/[token]/capture/page.tsx",
@@ -195,10 +181,6 @@ const EVIDENCE_ROUTES = readSource(
 const VERIFY_PAGE = readSource(
   "../../../apps/web/app/verify/[token]/page.tsx",
 );
-// CR4 decomposition — the bounded capture-trust panel was extracted from
-// the verify orchestrator into this component (same testids, same
-// honest-no-data behaviour). Source-contract assertions that previously
-// scanned the page now scan the component.
 const VERIFY_CAPTURE_INTEGRITY = readSource(
   "../../../apps/web/components/verify-v2/VerifyCaptureIntegritySection.tsx",
 );
@@ -228,181 +210,47 @@ describe("Phase 1B Closure — wiring: shared canonical JSON", () => {
   });
 });
 
-describe("Phase 1B Closure — wiring: mobile crypto runtime", () => {
-  it("mobile SHA-256 prefers expo-crypto, falls back to noble", () => {
-    expect(MOBILE_SHA).toMatch(/expo-crypto/);
-    expect(MOBILE_SHA).toMatch(/@noble\/hashes\/sha2/);
+describe("UC-0 — mobile submits through ONE server-issued session", () => {
+  it("the client opens a session, declares digests and completes through it", () => {
+    expect(MOBILE_DIRECT_CAPTURE).toMatch(/\/v1\/capture\/direct-sessions/);
+    expect(MOBILE_DIRECT_CAPTURE).toMatch(/\/declaration/);
+    expect(MOBILE_DIRECT_CAPTURE).toMatch(/\/complete/);
+    expect(MOBILE_DIRECT_CAPTURE).toMatch(/\/v1\/evidence\/\$\{evidenceId\}\/parts/);
   });
-  it("mobile Ed25519 wires sha512 + signAsync", () => {
-    expect(MOBILE_ED25519).toMatch(/sha512/);
-    expect(MOBILE_ED25519).toMatch(/signAsync/);
-    expect(MOBILE_ED25519).toMatch(/getPublicKeyAsync/);
+  it("bytes never travel in a JSON body and the retired ingest is gone", () => {
+    expect(MOBILE_DIRECT_CAPTURE).not.toMatch(/assetBase64/);
+    expect(MOBILE_CAPTURE_SCREEN).not.toMatch(/assetBase64|mobile\/ingest|runTrustCapture/);
+    expect(MOBILE_CAPTURE_SCREEN).not.toMatch(/"\/v1\/evidence", \{\s*method: "POST"/);
   });
-  it("mobile device-key uses expo-secure-store with hardware accessibility", () => {
-    expect(MOBILE_KEY).toMatch(/expo-secure-store/);
-    expect(MOBILE_KEY).toMatch(/AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY/);
-  });
-  it("mobile device-key NEVER stores keys in AsyncStorage / plain files", () => {
-    // Strip comments before scanning so the documentation comment
-    // ("NEVER stored in AsyncStorage") does not trigger the guard.
-    const code = MOBILE_KEY.replace(/\/\*[\s\S]*?\*\//g, "")
-      .split(/\n/)
-      .map((line) => line.replace(/(^|[^:])\/\/.*$/, "$1"))
-      .join("\n");
-    expect(code).not.toMatch(/from\s+["']@react-native-async-storage/);
-    expect(code).not.toMatch(/writeAsStringAsync/);
+  it("the screen makes no device-trust or signed-at-source claims", () => {
+    expect(code(MOBILE_CAPTURE_SCREEN)).not.toMatch(/Signed at source|Device trust verified/);
   });
 });
 
-describe("Phase 1B Closure — wiring: device registration flow", () => {
-  it("calls POST /v1/capture/devices with the public-key hex + bounded metadata", () => {
-    expect(MOBILE_REG).toMatch(/\/v1\/capture\/devices/);
-    expect(MOBILE_REG).toMatch(/publicKeyHex/);
-    expect(MOBILE_REG).toMatch(/attestationProvider/);
-  });
-  it("re-uses existing identity on subsequent launches", () => {
-    expect(MOBILE_REG).toMatch(/REUSED|getDeviceId\(\)/);
-  });
-  it("recovers from DEVICE_PUBKEY_TAKEN by looking up the existing device", () => {
-    expect(MOBILE_REG).toMatch(/DEVICE_PUBKEY_TAKEN/);
-  });
-});
-
-describe("Phase 1B Closure — wiring: attestation interface", () => {
-  it("Apple + Google + None providers all surface bounded verdicts", () => {
-    expect(MOBILE_ATTEST).toMatch(/APPLE_APP_ATTEST/);
-    expect(MOBILE_ATTEST).toMatch(/GOOGLE_PLAY_INTEGRITY/);
-    expect(MOBILE_ATTEST).toMatch(/PROVIDER_UNAVAILABLE/);
-  });
-  it("does not fabricate STRONG verdicts when the native module is absent", () => {
-    // The honest fallback is `attempted: false`. The mobile envelope
-    // then carries `attestation: null` and the server returns
-    // `NOT_ATTEMPTED`.
-    expect(MOBILE_ATTEST).toMatch(/attempted:\s*false/);
-  });
-});
-
-describe("Phase 1B Closure — wiring: TrustEnvelope assembly", () => {
-  it("envelope hashes bytes, signs canonical-JSON, self-verifies", () => {
-    expect(MOBILE_ENV).toMatch(/sha256HexOfBytes/);
-    expect(MOBILE_ENV).toMatch(/signEd25519/);
-    expect(MOBILE_ENV).toMatch(/verifyEd25519/);
-    expect(MOBILE_ENV).toMatch(/canonicalJson/);
-  });
-  it("refuses to ship envelope when local self-verify fails", () => {
-    expect(MOBILE_ENV).toMatch(/SELF_VERIFY_FAILED/);
-  });
-});
-
-describe("Phase 1B Closure — wiring: trust-aware upload queue", () => {
-  it("persists the trust envelope columns in SQLite", () => {
-    expect(MOBILE_QUEUE).toMatch(/CREATE TABLE IF NOT EXISTS trust_queue/);
-    expect(MOBILE_QUEUE).toMatch(/payload_json/);
-    expect(MOBILE_QUEUE).toMatch(/signature_hex/);
-    expect(MOBILE_QUEUE).toMatch(/asset_base64/);
-    expect(MOBILE_QUEUE).toMatch(/attestation_raw_base64/);
-  });
-  it("bounded state machine codes are present", () => {
-    for (const state of [
-      "signed_pending_sync",
-      "queued_offline",
-      "syncing",
-      "synced",
-      "sync_failed",
-      "rejected_by_server",
-    ]) {
-      expect(MOBILE_QUEUE).toContain(state);
-    }
-  });
-  it("syncs via POST /v1/capture/mobile/ingest with bounded backoff", () => {
-    expect(MOBILE_QUEUE).toMatch(/\/v1\/capture\/mobile\/ingest/);
-    expect(MOBILE_QUEUE).toMatch(/BACKOFF_MS/);
-    expect(MOBILE_QUEUE).toMatch(/MAX_ATTEMPTS/);
-  });
-  it("treats bounded denial reasons as terminal (no retry loop on DEVICE_REVOKED etc.)", () => {
-    expect(MOBILE_QUEUE).toMatch(/TERMINAL_DENIALS/);
-    expect(MOBILE_QUEUE).toMatch(/DEVICE_REVOKED/);
-    expect(MOBILE_QUEUE).toMatch(/SIGNATURE_INVALID/);
-    expect(MOBILE_QUEUE).toMatch(/BYTES_HASH_MISMATCH/);
-  });
-});
-
-describe("Phase 1B Closure — wiring: capture screen hook", () => {
-  it("capture screen imports the trust runtime barrel", () => {
-    expect(MOBILE_CAPTURE_SCREEN).toMatch(
-      /from\s+"\.\.\/\.\.\/src\/trust"/,
-    );
-    expect(MOBILE_CAPTURE_SCREEN).toMatch(/captureWithTrust/);
-    expect(MOBILE_CAPTURE_SCREEN).toMatch(/listTrustQueueSummary/);
-  });
-  it("photo capture invokes the trust runtime", () => {
-    expect(MOBILE_CAPTURE_SCREEN).toMatch(
-      /takePictureAsync[\s\S]{0,2000}?runTrustCapture/,
-    );
-  });
-  it("video capture invokes the trust runtime", () => {
-    expect(MOBILE_CAPTURE_SCREEN).toMatch(
-      /recordAsync[\s\S]{0,3000}?runTrustCapture/,
-    );
-  });
-  it("surfaces bounded trust state chips in PROOVRA language", () => {
-    expect(MOBILE_CAPTURE_SCREEN).toMatch(/Signed at source/);
-    expect(MOBILE_CAPTURE_SCREEN).toMatch(/Queued securely for sync/);
-    expect(MOBILE_CAPTURE_SCREEN).toMatch(/Device trust verified/);
-    expect(MOBILE_CAPTURE_SCREEN).toMatch(/limited device trust/);
-  });
-  it("trust runtime barrel returns bounded outcome kinds", () => {
-    expect(MOBILE_INDEX).toMatch(/QUEUED|FAILED/);
-  });
-});
-
-describe("Phase 1B Closure — wiring: citizen PWA capture", () => {
-  it("citizen ingest route registered", () => {
-    expect(CITIZEN_ROUTE).toMatch(/\/v1\/intake\/citizen\/sessions/);
-    expect(CITIZEN_ROUTE).toMatch(/\/capture/);
-    expect(CITIZEN_ROUTE).toMatch(/acceptCitizenCapture/);
-  });
-  it("server.ts registers citizenCaptureRoutes", () => {
-    expect(SERVER).toMatch(/citizenCaptureRoutes/);
+describe("UC-0 — the citizen base64 capture path is retired", () => {
+  it("the routes stay registered and answer 410", () => {
     expect(SERVER).toMatch(/app\.register\(citizenCaptureRoutes\)/);
+    expect(CITIZEN_ROUTE).toMatch(/CITIZEN_CAPTURE_RETIRED/);
+    expect(CITIZEN_ROUTE).toMatch(/code\(410\)/);
+    expect(CITIZEN_ROUTE).not.toMatch(/createEvidence|registerDevice|assetBase64/);
   });
-  it("citizen client signs with Ed25519 via @noble + SubtleCrypto", () => {
-    expect(CITIZEN_CLIENT).toMatch(/@noble\/ed25519/);
-    expect(CITIZEN_CLIENT).toMatch(/crypto\.subtle\.digest\(["']SHA-256["']\)/);
-  });
-  it("citizen client claims Class B honestly", () => {
-    expect(CITIZEN_CLIENT).toMatch(/provenanceClass:\s*"B"/);
-  });
-  it("citizen capture page wires open-session + capture-submit flow", () => {
-    expect(CITIZEN_PAGE).toMatch(/openCitizenSession/);
-    expect(CITIZEN_PAGE).toMatch(/captureAndSubmit/);
-    expect(CITIZEN_PAGE).toMatch(/Class B/);
+  it("the page hands off to the canonical secure intake and claims nothing", () => {
+    expect(CITIZEN_PAGE).toMatch(/\/intake\/\$\{encodeURIComponent\(token\)\}/);
+    expect(code(CITIZEN_PAGE)).not.toMatch(/Class B|browser captured|signAsync/i);
   });
 });
 
-describe("Phase 1B Closure — wiring: verify page surfaces trust", () => {
-  it("/public/verify response includes the captureTrust projection", () => {
-    expect(EVIDENCE_ROUTES).toMatch(
-      /projectVerifyCaptureTrust/,
-    );
-    expect(EVIDENCE_ROUTES).toMatch(/captureTrust,/);
+describe("UC-0 — public Verify consumes ONE typed acquisition contract", () => {
+  it("the API emits `acquisition` from the shared projection", () => {
+    expect(EVIDENCE_ROUTES).toMatch(/loadPublicVerifyAcquisition/);
+    expect(EVIDENCE_ROUTES).toMatch(/^\s*acquisition,\s*$/m);
+    expect(EVIDENCE_ROUTES).not.toMatch(/projectVerifyCaptureTrust/);
   });
-  it("verify page renders the bounded fields", () => {
-    // The page still wires the captureTrust projection into the
-    // extracted section component...
-    expect(VERIFY_PAGE).toMatch(/captureTrust/);
-    expect(VERIFY_PAGE).toMatch(/VerifyCaptureIntegritySection/);
-    // ...and the component renders the bounded testid fields.
-    expect(VERIFY_CAPTURE_INTEGRITY).toMatch(/verify-capture-trust/);
-    expect(VERIFY_CAPTURE_INTEGRITY).toMatch(/verify-capture-trust-class/);
-    expect(VERIFY_CAPTURE_INTEGRITY).toMatch(/verify-capture-trust-signature/);
-    expect(VERIFY_CAPTURE_INTEGRITY).toMatch(/verify-capture-trust-attestation/);
-    expect(VERIFY_CAPTURE_INTEGRITY).toMatch(/verify-capture-trust-time/);
-    expect(VERIFY_CAPTURE_INTEGRITY).toMatch(/verify-capture-trust-limitations/);
-  });
-  it("verify page renders nothing when captureTrust is null (honest no-data)", () => {
-    // The extracted component early-returns null on a null projection.
-    expect(VERIFY_CAPTURE_INTEGRITY).toMatch(/if \(!captureTrust\) return null/);
+  it("the page reads it through the typed reader, with no nested reshaping", () => {
+    expect(VERIFY_PAGE).toMatch(/readPublicVerifyAcquisition\(data\)/);
+    expect(VERIFY_PAGE).not.toMatch(/chain\?\.capture|captureTrust/);
+    expect(VERIFY_CAPTURE_INTEGRITY).toMatch(/PUBLIC_ACQUISITION_SCHEMA_VERSION/);
+    expect(VERIFY_CAPTURE_INTEGRITY).toMatch(/if \(!acquisition\) return null/);
   });
 });
 
@@ -410,23 +258,17 @@ describe("Phase 1B Closure — wiring: verification package + worker", () => {
   it("verification-package builder accepts a ProvenanceChain field", () => {
     expect(VERIFICATION_PACKAGE).toMatch(/provenanceChain\?:\s*import/);
   });
-  it("verification-package builder writes provenance/chain.json", () => {
+  it("verification-package builder writes provenance/chain.json and acquisition.json", () => {
     expect(VERIFICATION_PACKAGE).toMatch(/provenance\/chain\.json/);
+    expect(VERIFICATION_PACKAGE).toMatch(/"acquisition\.json"/);
   });
-  it("worker loads the chain projection from the API service", () => {
-    expect(WORKER_PROVENANCE_LOADER).toMatch(/projectProvenanceChain/);
+  it("worker loads the chain from THE shared projection", () => {
+    expect(WORKER_PROVENANCE_LOADER).toMatch(/loadProvenanceChain/);
+    expect(WORKER_PROVENANCE_LOADER).toMatch(/@proovra\/shared-runtime/);
   });
   it("processor calls the loader before createVerificationPackage", () => {
-    // The invariant is ORDERING, not proximity: the provenance chain must be
-    // loaded before createVerificationPackage runs. Asserting on the character
-    // distance is brittle — unrelated edits between the two calls (e.g. the
-    // canonical-materials snapshot, or timestamp-display changes) widen the gap
-    // without breaking the ordering. Assert the order directly instead.
-    // Anchor on the CALL sites (not the bare names, which also appear in the
-    // import block at the top of the file) so the ordering check is accurate.
     const provenanceIndex = PROCESSOR.indexOf("await loadProvenanceChainForPackage");
     const packageIndex = PROCESSOR.indexOf("await createVerificationPackage");
-
     expect(provenanceIndex).toBeGreaterThanOrEqual(0);
     expect(packageIndex).toBeGreaterThanOrEqual(0);
     expect(provenanceIndex).toBeLessThan(packageIndex);

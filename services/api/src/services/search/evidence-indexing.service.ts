@@ -422,6 +422,7 @@ export async function indexEvidence(
       type: evidence.type,
       mimeType: evidence.mimeType,
       captureMethod: evidence.captureMethod,
+      acquisitionMode: evidence.acquisitionMode ?? null,
       caseId: evidence.caseLinks[0]?.caseId ?? null,
       deletedAt: evidence.deletedAt ?? null,
       lifecycleState: evidence.lifecycleState ?? null,

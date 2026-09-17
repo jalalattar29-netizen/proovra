@@ -155,7 +155,13 @@ export type ReportEvidence = {
   type?: string | null;
   status: string;
   verificationStatus?: string | null;
+  /** Legacy STRUCTURE field — not acquisition. */
   captureMethod?: string | null;
+  /**
+   * UC-0 — the acquisition mode snapshotted for THIS report version
+   * (incl. LEGACY_NOT_RECORDED). The only input to acquisition labels.
+   */
+  acquisitionMode?: string | null;
   identityLevelSnapshot?: string | null;
   submittedByEmail?: string | null;
   submittedByAuthProvider?: string | null;
@@ -343,6 +349,8 @@ export type TechnicalSummaryReportData = {
   captureEnvironment: {
     uploadSource: string | null;
     captureMethod: string | null;
+    /** UC-0 — acquisition authority; the two labels above are legacy. */
+    acquisitionMode?: string | null;
     browserName: string | null;
     browserVersion: string | null;
     osName: string | null;
@@ -736,6 +744,8 @@ export type ReportViewModel = {
     hasCoreCrypto: boolean;
     /** Evidence Acquisition context (public-safe, no recipient). */
     acquisition: ReportAcquisitionInput | null;
+    /** UC-0 — this report's acquisition snapshot (incl. LEGACY_NOT_RECORDED). */
+    acquisitionMode: string | null;
     captureContext: {
       statusLabel: string;
       description: string;

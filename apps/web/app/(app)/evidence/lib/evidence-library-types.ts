@@ -39,6 +39,8 @@ export type EvidenceListQuery = {
   otsStatus?: string;
   publicVerifyState?: string;
   verificationStatus?: string;
+  /** UC-0 — acquisition categories (UPLOAD, SECURE_INTAKE, MOBILE_APP, NOT_RECORDED). */
+  acquisition?: string;
   sort?: "newest" | "oldest" | "priority";
 };
 
@@ -77,8 +79,16 @@ export type EvidenceListItem = {
   statusLabel?: string;
   verificationStatus: string | null;
   verificationStatusLabel?: string;
+  /** Legacy STRUCTURE field — not acquisition. */
   captureMethod: string | null;
   captureMethodLabel?: string;
+  /** UC-0 — the server's acquisition projection (the only acquisition source). */
+  acquisition?: {
+    mode: string;
+    category: string;
+    label: string;
+    recorded: boolean;
+  } | null;
   identityLevel: string | null;
   identityLevelLabel?: string;
   submittedByEmail: string | null;
