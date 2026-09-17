@@ -39,6 +39,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { conflictRefusal, notFoundRefusal } from "../../errors.js";
 import {
   isUnderLegalHold,
   assertNoLegalHoldOrBlock,
@@ -346,6 +347,18 @@ export type RecordApprovalResult = {
   allApproved: boolean;
 };
 
+/**
+ * D63 — an id that answers to no request in the caller's workspace. The same
+ * 404 whether it does not exist or belongs to another workspace.
+ */
+function destructionRequestNotFound() {
+  return notFoundRefusal({
+    code: "DESTRUCTION_REQUEST_NOT_FOUND",
+    message: "No destruction request with that id exists in this workspace.",
+    developerMessage: "destruction_request_not_found",
+  });
+}
+
 export async function recordApproval(
   input: RecordApprovalInput,
 ): Promise<RecordApprovalResult> {
@@ -355,9 +368,7 @@ export async function recordApproval(
     where: { id: input.requestId, teamId: input.teamId },
     select: { id: true, state: true, approverUserIds: true },
   });
-  if (!row) {
-    throw new Error("destruction_request_not_found");
-  }
+  if (!row) throw destructionRequestNotFound();
   if (row.state !== "REQUESTED") {
     return {
       ok: true,
@@ -466,9 +477,13 @@ export async function executeDestruction(
     where: { id: input.requestId, teamId: input.teamId },
     select: { id: true, state: true, evidenceIds: true },
   });
-  if (!row) throw new Error("destruction_request_not_found");
+  if (!row) throw destructionRequestNotFound();
   if (row.state !== "APPROVED") {
-    throw new Error(`destruction_request_not_approved:${row.state}`);
+    throw conflictRefusal({
+      code: "DESTRUCTION_REQUEST_NOT_APPROVED",
+      message: "This destruction request has not been approved, so it cannot be executed.",
+      developerMessage: `destruction_request_not_approved:${row.state}`,
+    });
   }
 
   // Defence in depth — re-check legal hold immediately before
@@ -495,7 +510,11 @@ export async function executeDestruction(
       where: { id: input.requestId },
       data: { state: "FAILED" },
     });
-    throw new Error("legal_hold_blocked_at_execute");
+    throw conflictRefusal({
+      code: "DESTRUCTION_BLOCKED_BY_LEGAL_HOLD",
+      message: "A legal hold now covers at least one record in this request, so it was not executed.",
+      developerMessage: "legal_hold_blocked_at_execute",
+    });
   }
 
   // Transition to EXECUTING so concurrent callers are blocked.
@@ -683,9 +702,13 @@ export async function certifyDestruction(
       approverUserIds: true,
     },
   });
-  if (!row) throw new Error("destruction_request_not_found");
+  if (!row) throw destructionRequestNotFound();
   if (!row.executedAtUtc) {
-    throw new Error("destruction_request_not_executed");
+    throw conflictRefusal({
+      code: "DESTRUCTION_REQUEST_NOT_EXECUTED",
+      message: "This destruction request has not been executed, so it cannot be certified.",
+      developerMessage: "destruction_request_not_executed",
+    });
   }
 
   const evidenceIds = Array.isArray(row.evidenceIds)

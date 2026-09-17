@@ -50,6 +50,7 @@ export interface LifecycleDenial {
     | "FORBIDDEN"
     | "AUTHENTICATION_REQUIRED"
     | "VALIDATION_FAILED"
+    | "ACTION_REFUSED"
     | "UNKNOWN_ERROR";
   /** Human-readable title for the banner. */
   title: string;
@@ -84,6 +85,35 @@ function extractDenialDetails(
         ? (details.requiredEntitlement as string)
         : undefined;
   return { denial, tier, feature };
+}
+
+/**
+ * D63 — the destruction queue's bounded refusals. A 404/409 here is a decision
+ * about one request, not a broken section, so it gets its own words.
+ */
+const ACTION_REFUSAL_COPY: Readonly<Record<string, { title: string; detail: string }>> = {
+  DESTRUCTION_REQUEST_NOT_FOUND: {
+    title: "That destruction request no longer exists",
+    detail: "Reload the queue; the request may have been removed or belongs to another workspace.",
+  },
+  DESTRUCTION_REQUEST_NOT_APPROVED: {
+    title: "Not approved yet",
+    detail: "Every required approver must approve the request before it can be executed.",
+  },
+  DESTRUCTION_BLOCKED_BY_LEGAL_HOLD: {
+    title: "Blocked by a legal hold",
+    detail: "A legal hold now covers a record in this request, so nothing was destroyed. The request is marked failed.",
+  },
+  DESTRUCTION_REQUEST_NOT_EXECUTED: {
+    title: "Not executed yet",
+    detail: "A certificate is issued only after the request has been executed.",
+  },
+};
+
+function actionRefusal(status: number | undefined, denial: string | null): LifecycleDenial | null {
+  if ((status !== 404 && status !== 409) || !denial) return null;
+  const copy = ACTION_REFUSAL_COPY[denial];
+  return copy ? { denial: "ACTION_REFUSED", ...copy } : null;
 }
 
 /**
@@ -133,6 +163,8 @@ export function resolveLifecycleError(err: unknown): LifecycleDenial | null {
           "This lifecycle section is not enabled here, or your role doesn't have permission.",
       };
     }
+    const refusedApi = actionRefusal(err.statusCode, denial);
+    if (refusedApi) return refusedApi;
     if (err.statusCode === 422 || err.statusCode === 400) {
       return {
         denial: "VALIDATION_FAILED",
@@ -187,6 +219,8 @@ export function resolveLifecycleError(err: unknown): LifecycleDenial | null {
     if (e.statusCode === 403) {
       return { denial: "FORBIDDEN", title: "Not available for this workspace" };
     }
+    const refusedLoose = actionRefusal(e.statusCode, denial);
+    if (refusedLoose) return refusedLoose;
   }
 
   // String / undefined / arbitrary throws.
@@ -210,6 +244,8 @@ const DENIAL_PALETTE: Record<
   FORBIDDEN: { bg: "#fef3c7", border: "#fcd34d", text: "#78350f" },
   AUTHENTICATION_REQUIRED: { bg: "#eff6ff", border: "#bfdbfe", text: "#1e3a8a" },
   VALIDATION_FAILED: { bg: "#fef2f2", border: "#fecaca", text: "#7f1d1d" },
+  // A decision about one request (D63), toned like the other refusals.
+  ACTION_REFUSED: { bg: "#fef3c7", border: "#fcd34d", text: "#78350f" },
   UNKNOWN_ERROR: { bg: "#fef2f2", border: "#fecaca", text: "#7f1d1d" },
 };
 

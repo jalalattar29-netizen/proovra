@@ -15,6 +15,7 @@
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { isDomainError } from "../errors.js";
 import { z } from "zod";
 
 import { getAuthUserId } from "../auth.js";
@@ -144,6 +145,18 @@ async function resolveWorkspace(
 // ---------------------------------------------------------------------------
 // Route registration
 // ---------------------------------------------------------------------------
+
+/**
+ * D63 — destruction refusals the service classifies are answered in the
+ * lifecycle pages' `{ denial }` shape with their own status; anything else is
+ * rethrown for the central handler.
+ */
+function sendDestructionRefusal(reply: FastifyReply, err: unknown) {
+  if (isDomainError(err)) {
+    return reply.code(err.httpStatus).send({ denial: err.publicCode });
+  }
+  throw err;
+}
 
 export async function productAndLifecycleRoutes(app: FastifyInstance) {
   // =========================================================================
@@ -1651,12 +1664,16 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
-      const res = await recordApproval({
-        teamId: ctx.teamId,
-        requestId: id,
-        approverUserId: ctx.userId,
-      });
-      return reply.code(200).send({ ok: res.ok, state: res.state, allApproved: res.allApproved });
+      try {
+        const res = await recordApproval({
+          teamId: ctx.teamId,
+          requestId: id,
+          approverUserId: ctx.userId,
+        });
+        return reply.code(200).send({ ok: res.ok, state: res.state, allApproved: res.allApproved });
+      } catch (err) {
+        return sendDestructionRefusal(reply, err);
+      }
     },
   );
 
@@ -1703,8 +1720,11 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         });
         return reply.code(200).send({ ok: true, certificateId: res.certificateId });
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "EXECUTE_ERROR";
-        return reply.code(409).send({ denial: msg });
+        // D63 — a bounded refusal keeps this page's `denial` shape; anything
+        // else is a real fault and reaches the central handler as one (the
+        // service has already marked the request FAILED). The raw internal
+        // message never crosses the wire.
+        return sendDestructionRefusal(reply, err);
       }
     },
   );
