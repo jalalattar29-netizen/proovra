@@ -708,54 +708,29 @@ export async function billingRoutes(app: FastifyInstance) {
    * (`/v1/billing/accounts`, then `/v1/billing/accounts/PERSONAL/:id`).
    */
 
+  /**
+   * (RETIRED) GET /v1/billing/subscription — typed 410 (2026-09-17, D4).
+   *
+   * The same defect `GET /v1/billing/status` was deleted for: it returned
+   * RAW `Subscription` and `WorkspaceStorageAddon` rows (provider ids and
+   * all) for every account the caller had ever paid for, behind nothing but
+   * authentication, with no capability check on any of those accounts. No
+   * web or mobile surface read it. Billing state is read through the
+   * capability-gated account projection. The route keeps authentication and
+   * reads nothing.
+   */
   app.get(
     "/v1/billing/subscription",
     { preHandler: requireAuthAndLegal },
-    async (req, reply) => {
-      const userId = getAuthUserId(req);
-
-      const [personal, teamSubscriptions, storageAddons] = await Promise.all([
-        prisma.subscription.findFirst({
-          where: { userId, teamId: null },
-          orderBy: { createdAt: "desc" },
-        }),
-        prisma.subscription.findMany({
-          where: { userId, teamId: { not: null } },
-          orderBy: { createdAt: "desc" },
-          take: 20,
-        }),
-        prisma.workspaceStorageAddon.findMany({
-          where: {
-            ownerUserId: userId,
-            status: {
-              in: [
-                prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
-                prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE,
-              ],
-            },
-          },
-          orderBy: { createdAt: "desc" },
-          take: 50,
-        }),
-      ]);
-
-      auditBillingAction(req, {
-        userId,
-        action: "billing.subscription_view",
-        outcome: "success",
-        metadata: {
-          foundPersonal: Boolean(personal),
-          teamCount: teamSubscriptions.length,
-          storageAddonCount: storageAddons.length,
+    async (_req, reply) =>
+      reply.code(410).send({
+        error: {
+          code: "BILLING_SUBSCRIPTION_READ_RETIRED",
+          message:
+            "This subscription read is retired. Billing is read per account through the billing accounts projection.",
         },
-      });
-
-      return reply.code(200).send({
-        personal,
-        teams: teamSubscriptions,
-        storageAddons,
-      });
-    }
+        canonical: "/v1/billing/accounts",
+      })
   );
 
   /**

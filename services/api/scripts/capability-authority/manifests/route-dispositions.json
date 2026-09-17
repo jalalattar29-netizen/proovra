@@ -185,13 +185,11 @@
     },
     {
       "routeId": "GET /v1/billing/subscription",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "planned product contract: the replacement matrix names the target surface and the behavioural suite it must ship with",
-      "evidence": "PLANNED CONTRACT — docs/architecture/target-replacement-matrix.json capabilityId \"GET:/v1/billing/subscription\": currentClassification=TARGET_PARTIAL, targetAction=COMPLETE_FRONTEND, targetProductSurface=apps/web/app/(app)/billing/page.tsx, missingLayer=behavioral proof suite. NO visible control exists for it today (the route has zero product consumers in the canonical consumer analysis), so there is no disconnected affordance to hide. It receives no release-completion credit and remains in the canonical backlog. Original absence proof retained: DEAD_CONFIRMED · surfaces searched: apps/web (rg 'billing/subscription') -> only apps/web/app/(app)/billing/page.tsx:214 apiFetch(\"/v1/billing/subscription/cancel\") — a DIFFERENT route (POST .../cancel, registered billing.routes.ts:579); apps/web (rg suffix '/subscription') -> same single /cancel hit only; apps/mobile (full enumeration of all /v1/ calls) -> apps/mobile/app/(stack)/billing.tsx:15 apiFetch(\"/v1/billing/status\"), not / · docs/architecture/target-replacement-matrix.json:445 \"capabil",
-      "reviewedAtUtc": "2026-08-17",
-      "revalidatedVerdict": "DEAD_CONFIRMED",
-      "revalidationConfidence": "UNCERTAIN",
-      "postReleaseDecision": "PRESERVED_POST_RELEASE_CONTRACT"
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "retired to a typed 410 naming what replaced it (or that the capability is not offered); kept so a stale client is told rather than 404-ed",
+      "evidence": "reg services/api/src/routes/billing.routes.ts. SECURITY (D4, 2026-09-17). The route returned raw Subscription and WorkspaceStorageAddon rows (provider ids included) for every account the caller paid for, with no capability check on any of them — the defect GET /v1/billing/status was deleted for. The handler replies 410 BILLING_SUBSCRIPTION_READ_RETIRED with `canonical` /v1/billing/accounts, keeps requireAuthAndLegal only and reads no rows. 0 call sites in apps/web + apps/mobile, the intended end state for a tombstone; pinned by services/api/test/retired-routes-2026-09-16.test.ts.",
+      "reviewedAtUtc": "2026-09-17",
+      "replacement": "GET /v1/billing/accounts"
     },
     {
       "routeId": "GET /v1/capture/devices/:id",

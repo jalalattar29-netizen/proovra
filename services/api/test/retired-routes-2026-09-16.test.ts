@@ -44,6 +44,11 @@ vi.mock("../src/db.js", () => {
   };
 });
 
+// Legal acceptance reads the database; it is a process edge like auth.
+vi.mock("../src/middleware/require-legal-acceptance.js", () => ({
+  requireLegalAcceptance: async () => undefined,
+}));
+
 vi.mock("../src/middleware/auth.js", () => {
   const requireAuth = async (
     req: { headers: Record<string, string | undefined> },
@@ -58,6 +63,7 @@ vi.mock("../src/middleware/auth.js", () => {
 });
 
 import { aiSearchRoutes } from "../src/routes/ai-search.routes.js";
+import { billingRoutes } from "../src/routes/billing.routes.js";
 import { collaborationCompletionRoutes } from "../src/routes/collaboration-completion.routes.js";
 import { collaborationRoutes } from "../src/routes/collaboration.routes.js";
 import { intelligenceRoutes } from "../src/routes/intelligence.routes.js";
@@ -204,6 +210,13 @@ const CASES: Case[] = [
     code: "CODING_SCHEMA_PUBLISH_RETIRED",
     canonical: "/v1/coding/schemas/seed-defaults",
   },
+  // 8. Security (D4, 2026-09-17) — the raw subscription read.
+  {
+    method: "GET",
+    url: "/v1/billing/subscription",
+    code: "BILLING_SUBSCRIPTION_READ_RETIRED",
+    canonical: "/v1/billing/accounts",
+  },
   // 7. Obsolete — workflow-instance reindex.
   {
     method: "POST",
@@ -222,6 +235,7 @@ beforeAll(async () => {
   // must never parse its input, so any 400/500 is a failure.
   for (const routes of [
     aiSearchRoutes,
+    billingRoutes,
     collaborationCompletionRoutes,
     collaborationRoutes,
     intelligenceRoutes,
@@ -267,9 +281,9 @@ describe("retired routes (2026-09-16) — typed 410 tombstones", () => {
     expect(H.dbCalls.length).toBeGreaterThan(0);
   });
 
-  it("covers the nineteen retired registrations", () => {
-    expect(CASES).toHaveLength(19);
-    expect(new Set(CASES.map((c) => `${c.method} ${c.url}`)).size).toBe(19);
+  it("covers the twenty retired registrations", () => {
+    expect(CASES).toHaveLength(20);
+    expect(new Set(CASES.map((c) => `${c.method} ${c.url}`)).size).toBe(20);
   });
 
   for (const c of CASES) {

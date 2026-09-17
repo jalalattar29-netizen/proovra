@@ -397,6 +397,12 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
       "templates are platform-managed; the Workflows page is read-only and no " +
       "surface ever created, edited or archived a template.",
   },
+  BILLING_SUBSCRIPTION_READ_RETIRED: {
+    disposition: "internal",
+    why:
+      "A retired read answering a legacy client, not a person. No surface read " +
+      "it; billing is read through the gated account projection.",
+  },
   CODING_SCHEMA_PUBLISH_RETIRED: {
     disposition: "internal",
     why:
