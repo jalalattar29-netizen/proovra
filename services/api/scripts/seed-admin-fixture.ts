@@ -228,6 +228,11 @@ async function wipeFixture(): Promise<void> {
   await prisma.evidence.deleteMany({ where: { teamId: { in: teamIds } } });
   await prisma.teamMember.deleteMany({ where: { teamId: { in: teamIds } } });
   await prisma.team.deleteMany({ where: { id: { in: teamIds } } });
+  // The org-scoped security policy is a required child of every organization
+  // (backfilled by migration, created by provisioning) and does not cascade.
+  await prisma.organizationSecurityPolicy.deleteMany({
+    where: { organizationId: { in: [ORG_POPULATED, ORG_EMPTY] } },
+  });
   await prisma.organization.deleteMany({
     where: { id: { in: [ORG_POPULATED, ORG_EMPTY] } },
   });
