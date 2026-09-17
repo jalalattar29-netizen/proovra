@@ -16,6 +16,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { externalReviewTargetBelongsToTeam } from "../external-review/external-review-grant.service.js";
 import {
   issueInvitation,
   revokeInvitation,
@@ -65,7 +66,7 @@ export type InviteCrossOrgReviewInput = {
 
 export type InviteCrossOrgReviewResult =
   | { ok: true; grantId: string }
-  | { ok: false; denial: "POLICY_REJECTED" };
+  | { ok: false; denial: "POLICY_REJECTED" | "SUBJECT_NOT_IN_WORKSPACE" };
 
 export async function inviteCrossOrgReview(
   input: InviteCrossOrgReviewInput,
@@ -77,6 +78,11 @@ export async function inviteCrossOrgReview(
     return { ok: false, denial: "POLICY_REJECTED" };
   }
   const prisma = input.prisma ?? defaultPrisma;
+  // D17 — the subject must be a record of the inviting workspace, checked
+  // with the rule the portal invitation is later issued under.
+  if (input.subject && !(await externalReviewTargetBelongsToTeam(prisma, input.teamId, input.subject))) {
+    return { ok: false, denial: "SUBJECT_NOT_IN_WORKSPACE" };
+  }
   const row = await prisma.crossOrgReviewGrant.create({
     data: {
       teamId: input.teamId,

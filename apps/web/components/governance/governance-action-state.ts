@@ -129,6 +129,12 @@ const CONFLICT_COPY: Readonly<Record<string, string>> = {
     "A legal hold blocks a destruction review for this evidence. Release the hold first.",
   DESTRUCTION_REVIEW_BLOCKED_BY_IMMUTABLE:
     "Immutable retention blocks a destruction review for this evidence.",
+  SUBJECT_NOT_IN_WORKSPACE:
+    "The record chosen for review is no longer in this workspace. Choose it again.",
+  SUBJECT_REQUIRED:
+    "This review was created without a record to review, so it cannot be accepted. Ask the inviting organization to send a new invitation.",
+  PORTAL_INVITATION_REFUSED:
+    "The reviewer portal refused the invitation for this review's record. The record may have been removed; ask the inviting organization to send a new invitation.",
   DESTRUCTION_REVIEW_BLOCKED_BY_LIFECYCLE:
     "The lifecycle state of this evidence does not allow a destruction review right now.",
 };

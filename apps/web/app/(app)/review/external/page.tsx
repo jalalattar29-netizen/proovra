@@ -64,11 +64,11 @@ import {
 } from "../../../../lib/platform-context";
 
 import {
-  BulkInviteScopePicker,
+  ReviewScopePicker,
   SCOPE_REQUIRED_REASON,
   defaultScopeFor,
-  type BulkInviteScopeState,
-} from "./_components/BulkInviteScopePicker";
+  type ReviewScopeState,
+} from "../../../../components/external-review/ReviewScopePicker";
 import {
   bulkIssueBannerText,
   bulkOutcomeReason,
@@ -1327,7 +1327,7 @@ function BulkInvitePanel({
   const { addToast } = useToast();
   // D16 — every grant needs ONE target in this workspace. Without it the
   // API answers each row POLICY_DENIED and writes nothing.
-  const [scope, setScope] = useState<BulkInviteScopeState>({
+  const [scope, setScope] = useState<ReviewScopeState>({
     target: null,
     blockedReason: SCOPE_REQUIRED_REASON,
   });
@@ -1533,7 +1533,7 @@ function BulkInvitePanel({
         </p>
       </header>
 
-      <BulkInviteScopePicker teamId={teamId} onChange={setScope} />
+      <ReviewScopePicker teamId={teamId} onChange={setScope} />
 
       <div
         style={{

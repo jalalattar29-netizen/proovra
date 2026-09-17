@@ -227,6 +227,23 @@ export async function issueExternalReviewGrant(
   );
 }
 
+/**
+ * Whether an evidence record, matter or verification package belongs to the
+ * workspace — the same rule a grant is issued under. The cross-org review
+ * invitation (D17) checks its subject with it before recording it.
+ */
+export function externalReviewTargetBelongsToTeam(
+  client: PrismaClient,
+  teamId: string,
+  target: { kind: IssueGrantInput["scopeKind"]; id: string },
+): Promise<boolean> {
+  return scopeTargetBelongsToTeam(client, teamId, target.kind, {
+    evidenceId: target.kind === "EVIDENCE" ? target.id : null,
+    caseId: target.kind === "CASE" ? target.id : null,
+    packageId: target.kind === "PACKAGE" ? target.id : null,
+  });
+}
+
 async function scopeTargetBelongsToTeam(
   client: PrismaClient,
   teamId: string,

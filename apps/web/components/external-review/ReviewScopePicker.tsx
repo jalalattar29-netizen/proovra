@@ -1,6 +1,10 @@
 "use client";
 
 /**
+ * The record an external review is scoped to — one evidence record, one
+ * matter or one verification package of this workspace. Used by the bulk
+ * external-review invitation (D16) and the cross-org review invitation (D17).
+ *
  * D16 — the scope an external-review bulk invitation grants.
  *
  * `POST /v1/external-review/invitations/bulk` issues each grant against
@@ -26,25 +30,25 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 
-import { apiFetch } from "../../../../../lib/api";
-import { formatUserDate } from "../../../../../lib/date";
-import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
+import { apiFetch } from "../../lib/api";
+import { formatUserDate } from "../../lib/date";
+import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 
-export type BulkInviteScopeKind = "EVIDENCE" | "CASE" | "PACKAGE";
+export type ReviewScopeKind = "EVIDENCE" | "CASE" | "PACKAGE";
 
-export type BulkInviteScopeTarget = {
-  kind: BulkInviteScopeKind;
+export type ReviewScopeTarget = {
+  kind: ReviewScopeKind;
   id: string;
   label: string;
 };
 
-export type BulkInviteDefaultScope =
+export type ReviewDefaultScope =
   | { kind: "EVIDENCE"; evidenceId: string }
   | { kind: "CASE"; caseId: string }
   | { kind: "PACKAGE"; packageId: string };
 
 /** The `defaultScope` body field for a chosen target. */
-export function defaultScopeFor(target: BulkInviteScopeTarget): BulkInviteDefaultScope {
+export function defaultScopeFor(target: ReviewScopeTarget): ReviewDefaultScope {
   switch (target.kind) {
     case "EVIDENCE":
       return { kind: "EVIDENCE", evidenceId: target.id };
@@ -56,7 +60,7 @@ export function defaultScopeFor(target: BulkInviteScopeTarget): BulkInviteDefaul
 }
 
 const KIND_OPTIONS: ReadonlyArray<{
-  kind: BulkInviteScopeKind;
+  kind: ReviewScopeKind;
   label: string;
   hint: string;
 }> = [
@@ -216,8 +220,8 @@ function projectPackages(res: unknown): Option[] {
   }));
 }
 
-export type BulkInviteScopeState = {
-  target: BulkInviteScopeTarget | null;
+export type ReviewScopeState = {
+  target: ReviewScopeTarget | null;
   /** Why submit must stay disabled, or null when a target is chosen. */
   blockedReason: string | null;
 };
@@ -225,18 +229,27 @@ export type BulkInviteScopeState = {
 export const SCOPE_REQUIRED_REASON =
   "Choose what these reviewers will see before issuing invitations.";
 
-export function BulkInviteScopePicker({
+export function ReviewScopePicker({
   teamId,
   onChange,
+  legend = "What will these reviewers see?",
+  requiredReason = SCOPE_REQUIRED_REASON,
+  summaryLead = "Reviewers will see:",
 }: {
   teamId: string | null;
-  onChange: (state: BulkInviteScopeState) => void;
+  onChange: (state: ReviewScopeState) => void;
+  /** The question the fieldset asks. */
+  legend?: string;
+  /** Why submit is blocked until a record is chosen. */
+  requiredReason?: string;
+  /** The sentence that introduces the chosen record. */
+  summaryLead?: string;
 }) {
   const groupId = useId();
-  const [kind, setKind] = useState<BulkInviteScopeKind | null>(null);
+  const [kind, setKind] = useState<ReviewScopeKind | null>(null);
   const [search, setSearch] = useState("");
   const [evidence, setEvidence] = useState<Option | null>(null);
-  const [target, setTarget] = useState<BulkInviteScopeTarget | null>(null);
+  const [target, setTarget] = useState<ReviewScopeTarget | null>(null);
   const applied = useDebounced(search);
 
   // A workspace switch invalidates every choice made in the old one.
@@ -294,7 +307,7 @@ export function BulkInviteScopePicker({
   } else if (kind === "PACKAGE" && evidence && packageList.status === "failed") {
     blockedReason = packageList.message;
   } else if (!target) {
-    blockedReason = SCOPE_REQUIRED_REASON;
+    blockedReason = requiredReason;
   }
 
   const onChangeRef = useRef(onChange);
@@ -303,7 +316,7 @@ export function BulkInviteScopePicker({
     onChangeRef.current({ target, blockedReason });
   }, [target, blockedReason]);
 
-  const chooseKind = (next: BulkInviteScopeKind) => {
+  const chooseKind = (next: ReviewScopeKind) => {
     if (next === kind) return;
     setKind(next);
     setSearch("");
@@ -328,7 +341,7 @@ export function BulkInviteScopePicker({
 
   return (
     <fieldset data-bulk-scope-picker style={fieldsetStyle}>
-      <legend style={legendStyle}>What will these reviewers see?</legend>
+      <legend style={legendStyle}>{legend}</legend>
       <div role="radiogroup" aria-label="Scope type" style={kindRowStyle}>
         {KIND_OPTIONS.map((o) => (
           <label key={o.kind} style={kindOptionStyle} data-bulk-scope-kind={o.kind}>
@@ -397,13 +410,13 @@ export function BulkInviteScopePicker({
       <p data-bulk-scope-summary style={summaryStyle} aria-live="polite">
         {target ? (
           <>
-            Reviewers will see: <strong>{target.label}</strong>{" "}
+            {summaryLead} <strong>{target.label}</strong>{" "}
             <code data-identifier style={codeStyle}>
               {target.id}
             </code>
           </>
         ) : (
-          (blockedReason ?? SCOPE_REQUIRED_REASON)
+          (blockedReason ?? requiredReason)
         )}
       </p>
     </fieldset>

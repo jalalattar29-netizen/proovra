@@ -1385,6 +1385,13 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
           invitingOrganizationId: z.string().uuid(),
           invitedOrgSlug: z.string().regex(/^[a-z0-9][a-z0-9-]{0,80}$/),
           scope: z.string().min(1).max(600),
+          // D17 — the record under review. Acceptance issues the portal
+          // invitation for exactly this record, so an invite without one
+          // could never be accepted.
+          subject: z.object({
+            kind: z.enum(["EVIDENCE", "CASE", "PACKAGE"]),
+            id: z.string().uuid(),
+          }),
           expiresAtUtc: z.string().datetime().nullable().optional(),
         })
         .parse(req.body);
@@ -1393,6 +1400,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
         invitingOrganizationId: body.invitingOrganizationId,
         invitedOrgSlug: body.invitedOrgSlug,
         scope: body.scope,
+        subject: body.subject,
         expiresAtUtc: body.expiresAtUtc ? new Date(body.expiresAtUtc) : null,
         createdByUserId: ctx.userId,
       });
@@ -1421,7 +1429,8 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
         externalReviewGrantId: body.externalReviewGrantId ?? null,
         actorUserId: ctx.userId,
       });
-      if (!r.ok) return reply.code(409).send({ denial: "POLICY_REJECTED" });
+      // D17 — the console explains which acceptance precondition failed.
+      if (!r.ok) return reply.code(409).send({ denial: r.denial ?? "POLICY_REJECTED" });
       return reply.code(200).send({ ok: true });
     },
   );

@@ -387,6 +387,87 @@ describe("external review defects D2 / D31 / D33 / D17 (live PostgreSQL 16 + Red
     });
   });
 
+  it("D17 the invite route requires a subject of the inviting workspace, records it, and the review can then be accepted", async () => {
+    const a = harness.fixtures.teamA;
+    const b = harness.fixtures.teamB;
+    const invite = (payload: Json) =>
+      harness.app.inject({
+        method: "POST",
+        url: "/v1/governance/cross-org-review",
+        headers: { authorization: `Bearer ${a.ownerToken}`, "content-type": "application/json" },
+        payload: payload as never,
+      });
+    // CrossOrgReviewForms.tsx — the invite body.
+    const base = {
+      invitingOrganizationId: randomUUID(),
+      invitedOrgSlug: `dx-org-${randomUUID().slice(0, 6)}`,
+      scope: "Review the dock camera footage",
+      expiresAtUtc: null,
+    };
+    // The inviting workspace is licensed for cross-org review (both gates the
+    // route checks), granted through the entitlement authority.
+    const { upsertEntitlementGrant } = await import("../src/services/packaging/entitlement.service.js");
+    for (const key of ["FEATURE_CROSS_ORG_REVIEW", "FEATURE_GOVERNANCE_PLATFORM"] as const) {
+      await upsertEntitlementGrant({
+        teamId: a.teamId,
+        key,
+        value: true,
+        kind: "FEATURE",
+        source: "CUSTOM",
+        grantedByUserId: a.ownerUserId,
+      });
+    }
+    const before = await prisma.crossOrgReviewGrant.count({ where: { teamId: a.teamId } });
+
+    const bare = await invite(base);
+    expect(bare.statusCode, bare.body).toBe(400);
+    const foreign = await invite({ ...base, subject: { kind: "EVIDENCE", id: b.evidenceId } });
+    expect(foreign.statusCode, foreign.body).toBe(409);
+    expect(json(foreign)).toEqual({ denial: "SUBJECT_NOT_IN_WORKSPACE" });
+    expect(await prisma.crossOrgReviewGrant.count({ where: { teamId: a.teamId } })).toBe(before);
+
+    const created = await invite({ ...base, subject: { kind: "EVIDENCE", id: a.evidenceId } });
+    expect(created.statusCode, created.body).toBe(201);
+    const grantId = String(json(created).grantId);
+    const row = await prisma.crossOrgReviewGrant.findUniqueOrThrow({ where: { id: grantId } });
+    expect(row).toMatchObject({ teamId: a.teamId, state: "INVITED", createdByUserId: a.ownerUserId });
+    expect(row.scope).toEqual({ text: base.scope, subject: { kind: "EVIDENCE", id: a.evidenceId } });
+
+    const accepted = await harness.app.inject({
+      method: "POST",
+      url: `/v1/governance/cross-org-review/${grantId}/accept`,
+      headers: { authorization: `Bearer ${a.ownerToken}`, "content-type": "application/json" },
+      payload: { acceptingOrganizationId: randomUUID() },
+    });
+    expect(accepted.statusCode, accepted.body).toBe(200);
+    const after = await prisma.crossOrgReviewGrant.findUniqueOrThrow({ where: { id: grantId } });
+    expect(after.state).toBe("ACCEPTED");
+    expect(after.externalReviewGrantId).not.toBeNull();
+  });
+
+  it("D17 accepting a review with no subject names the reason", async () => {
+    const a = harness.fixtures.teamA;
+    const row = await prisma.crossOrgReviewGrant.create({
+      data: {
+        teamId: a.teamId,
+        invitingOrganizationId: randomUUID(),
+        invitedOrgSlug: `dx-org-${randomUUID().slice(0, 6)}`,
+        state: "INVITED",
+        scope: { text: "created before subjects were recorded" },
+        createdByUserId: a.ownerUserId,
+      },
+      select: { id: true },
+    });
+    const res = await harness.app.inject({
+      method: "POST",
+      url: `/v1/governance/cross-org-review/${row.id}/accept`,
+      headers: { authorization: `Bearer ${a.ownerToken}`, "content-type": "application/json" },
+      payload: { acceptingOrganizationId: randomUUID() },
+    });
+    expect(res.statusCode, res.body).toBe(409);
+    expect(json(res)).toEqual({ denial: "SUBJECT_REQUIRED" });
+  });
+
   it("D17 a cross-org review with no subject, or a subject outside the workspace, is not accepted", async () => {
     const a = harness.fixtures.teamA;
     const b = harness.fixtures.teamB;
