@@ -1,7 +1,7 @@
 {
-  "generatedAtUtc": "2026-09-05T11:08:54.765Z",
-  "modelsParsed": 279,
-  "issuesCount": 112,
+  "generatedAtUtc": "2026-09-17T08:57:06.246Z",
+  "modelsParsed": 280,
+  "issuesCount": 116,
   "issues": [
     {
       "migration": "20260131235343_init",
@@ -58,6 +58,14 @@
       "model": "Evidence",
       "column": "case_id",
       "detail": "Migration ADDs column evidence.case_id but Prisma model Evidence no longer references it."
+    },
+    {
+      "migration": "20260205090000_phase2_invites_claim",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "team_invites",
+      "model": "TeamInvite",
+      "column": "token",
+      "detail": "Migration ADDs column team_invites.token but Prisma model TeamInvite no longer references it."
     },
     {
       "migration": "20260215095541_email_password_auth",
@@ -890,6 +898,30 @@
       "model": "WorkerLease",
       "column": "queue_subscriptions",
       "detail": "Migration ADDs column worker_leases.queue_subscriptions but Prisma model WorkerLease no longer references it."
+    },
+    {
+      "migration": "20280601000000_uc0_acquisition_provenance_foundation",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "evidence",
+      "model": "Evidence",
+      "column": "artifact_class",
+      "detail": "Migration ADDs column evidence.artifact_class but Prisma model Evidence no longer references it."
+    },
+    {
+      "migration": "20280601000000_uc0_acquisition_provenance_foundation",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "evidence_parts",
+      "model": "EvidencePart",
+      "column": "acquisition_mode_snapshot",
+      "detail": "Migration ADDs column evidence_parts.acquisition_mode_snapshot but Prisma model EvidencePart no longer references it."
+    },
+    {
+      "migration": "20280601000000_uc0_acquisition_provenance_foundation",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "capture_sessions",
+      "model": "CaptureSession",
+      "column": "verifier_version",
+      "detail": "Migration ADDs column capture_sessions.verifier_version but Prisma model CaptureSession no longer references it."
     },
     {
       "migration": "email_password_auth",

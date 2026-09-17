@@ -1,8 +1,9 @@
 # UC-1 — CHROMIUM DIRECT WEB CAPTURE
 
-Status: **IMPLEMENTATION COMPLETE — BROWSER ACCEPTANCE PENDING**
-Date: 2026-09-17
+Status: **ENGINEERING COMPLETE (real OAuth included) — UC-1 NOT CLOSED: Chrome + Edge browser acceptance not yet executed-and-passed here.**
+Date: 2026-09-17 (hardening pass — see FINAL ACCEPTANCE at the end)
 Precondition: UC-0 Gate A CLOSED (`26ad3ddb`).
+Run the one remaining gate: `pnpm uc1:acceptance:windows` (Windows + Chrome/Edge Stable).
 
 ## Status
 
@@ -114,12 +115,17 @@ disclosure. UC-1's viewport + full-page-tile capture does not need it.
 
 ## 3. Authentication
 
-OAuth2 authorization-code + PKCE against the existing auth system; short-lived
-access token, refresh via the platform's existing rotation; no embedded secret,
-no long-lived API key, no cookie scraping. Workspace/case selection is sent as a
-request, never trusted: the server authorizes via the canonical `authorizeOrFail`
-(evidence.create, anti-enumeration) and the existing case-access checks — exactly
-as the UC-0 direct-session routes already do.
+**IMPLEMENTED (real, tested).** OAuth2 Authorization Code + PKCE (S256) on the
+existing PROOVRA identity authority — see FINAL ACCEPTANCE §1 for the full
+mechanism, routes (`/v1/oauth/extension/authorize`, `/v1/oauth/extension/token`),
+storage (`extension_auth_codes`) and proof (`uc1-extension-oauth.integration.test.ts`,
+4/4). Short-lived access token; no embedded secret, no long-lived API key, no
+cookie scraping; redirect restricted to `*.chromiumapp.org` (or an env
+allowlist), never arbitrary. The token endpoint mints an ordinary `AUTH_JWT` the
+canonical `requireAuth` already accepts — not a second auth system. Workspace/case
+selection is sent as a request, never trusted: the server authorizes via the
+canonical `authorizeOrFail` (evidence.create, anti-enumeration) and the existing
+case-access checks — exactly as the UC-0 direct-session routes already do.
 
 ## 4. Capture manifest (versioned, bounded, server-validated)
 
@@ -252,23 +258,31 @@ plugs into, and the session/digest/binding machine is channel-agnostic. UC-2
 | Page mutation / navigation / SW restart mid-capture | DETECTED / RECORDED — `pageMutatedDuringCapture`, `CAPTURE_INTERRUPTED`; a partial capture is represented PARTIAL, never sealed as whole. |
 | Broad permission escalation | PREVENTED — MV3 lint forbids `cookies`/`webRequest`/`<all_urls>`/`debugger`; CSP forbids remote/unsafe code. |
 
-### Capability / commercial
+### Capability / commercial (RESOLVED — no contradiction)
 
-No new plan, no invented quota. The direct-capture session route already gates
-on the ONE canonical commercial authority (it returns `TEAM_PLAN_REQUIRED` /
-`ENTITLEMENT_REQUIRED` when the workspace's plan does not permit capture — proven
-in the integration suite). The extension surfaces that denial ("Direct Web
-Capture isn't available on this workspace's plan"). The exact FREE/PRO/TEAM/
-ENTERPRISE packaging of Direct Web Capture is a **product decision left open**;
-the capability plumbing is complete and reuses the canonical authority.
+There is **no Direct-Web-Capture-specific plan, quota, or purchase path**, and
+introducing one would violate the one-commercial-authority law. Direct Web
+Capture is a new *acquisition channel* for evidence, so it inherits the SAME
+gate every capture channel already passes: the general evidence-creation
+eligibility enforced by `assertCommercialLifecycleAllowsPaidMutation` plus the
+shared-workspace `getPlanCapabilities` check in
+`billing-enforcement.service.ts`. The direct-capture session route returns
+`TEAM_PLAN_REQUIRED` / `ENTITLEMENT_REQUIRED` when the workspace's plan does not
+permit evidence creation (proven in the integration suite; the fixture workspace
+had no paid plan, which is why the capture suite grants one), and the extension
+surfaces that denial. Because the channel adds no commercial dimension of its
+own, there is **nothing to reconcile across API / web / extension / pricing /
+website** — the capability plumbing is complete and plan-blind, exactly like
+every other capture channel. No plan was invented for it.
 
 ### Test evidence (executed here)
 
 - shared: **923/0** node:test (adds the acquisition-mode + manifest-validator + URL-privacy cases).
 - API integration `uc1-web-capture.integration.test.ts`: **4/4** — seal, manifest-omission refusal, session-mismatch refusal, mobile-session/forged-mode refusal.
+- API integration `uc1-extension-oauth.integration.test.ts`: **4/4** — full authorize→code→token→usable-bearer journey, auth-required, redirect/method refusals, PKCE/single-use/redirect-binding enforcement (live PG16, real OAuth server).
 - extension unit: **12/12** (capture-plan, sanitizer predicates, manifest builder).
 - extension: typecheck clean, `build.mjs` reproducible (SHA256SUMS), MV3 lint OK.
-- migration `20280610000000`: clean-boot + drift OK on disposable PG16.
+- migrations `20280610000000` + `20280620000000`: clean-boot from empty + idempotent re-run on disposable PG16; audit + phase-o + db-010 gates green.
 
 ### Browser acceptance (the one pending gate)
 
@@ -291,6 +305,107 @@ Detail / public Verify). Exact Windows commands in `apps/extension/e2e/README.md
 ### Residual risks
 
 - **P0:** none.
-- **P1:** browser E2E not yet executed (environment) — UC-1 is not CLOSED until it is.
-- **P2:** OAuth extension client + redirect URI must be registered server-side for the interactive PKCE flow (the E2E seeds the token directly); server-side multi-source stitching deferred; extension store icons + counsel-reviewed legal text pending.
-- **P3:** Direct Web Capture plan packaging unresolved (capability plumbing complete).
+- **P1:** real Chrome + Edge browser E2E not yet executed-and-passed (this sandbox has no browser automation) — UC-1 is not CLOSED until both pass via `pnpm uc1:acceptance:windows`.
+- **P2:** none engineering-side. Extension store icons are placeholders and the extension's Privacy/Terms/AUP/DPA disclosures are counsel-review-required — both are PUBLICATION residuals, not engineering gates (see the ENGINEERING CLOSED vs PUBLICATION PENDING split below). Server-side multi-source stitching remains deliberately out of scope (tiles stay ORIGINAL — see artifact-semantics decision).
+- **P3:** none. (Commercial packaging is resolved above: no capture-specific plan.)
+
+---
+
+## FINAL ACCEPTANCE (2026-09-17) — hardening pass
+
+This pass closed every UC-1 residual that can be closed without a browser, and
+built the runnable gate for the one that cannot. **UC-1 is not being declared
+CLOSED** because the mandatory Chrome + Edge browser acceptance has not been
+executed-and-passed in this environment. Nothing below downgrades that.
+
+### 1. Real extension authentication (was: seeded token)
+
+The extension now authenticates through a complete **first-party OAuth
+Authorization Code + PKCE (S256)** flow on the existing PROOVRA identity
+authority — no embedded secret, no long-lived token, no cookie scraping.
+
+- New table `extension_auth_codes` (migration `20280620000000`): the code is
+  never stored (only its SHA-256), single-use (atomic `UPDATE … WHERE
+  used_at_utc IS NULL`), 60s TTL, bound to `client_id` + `redirect_uri` +
+  `code_challenge`.
+- `GET /v1/oauth/extension/authorize` (behind `requireAuth`) validates the S256
+  method, the challenge shape and the redirect (only `*.chromiumapp.org` or an
+  env-allowlisted dev redirect — **never an arbitrary redirect URI**), issues the
+  code and 302-redirects.
+- `POST /v1/oauth/extension/token` verifies the PKCE verifier timing-safely and
+  the client/redirect binding, then mints an ordinary short-lived `AUTH_JWT` that
+  the canonical `requireAuth` already accepts. **This is not a second auth
+  system** — it is a code-to-JWT exchange onto the one identity authority.
+- Proof: `uc1-extension-oauth.integration.test.ts` — **4/4 against live
+  PostgreSQL 16**: full journey (authorize → code → token → the minted bearer is
+  accepted by `/v1/platform/context`); authorize requires auth (401); arbitrary
+  redirect + non-S256 refused (400); token enforces the verifier, single-use and
+  redirect binding. The OAuth server is exercised for real — nothing mocked.
+
+### 2. Acceptance no longer uses a pre-seeded token
+
+`apps/extension/e2e/direct-web-capture.spec.ts` now performs the **real OAuth
+journey** to obtain the extension's token: it computes a PKCE verifier/challenge,
+calls the real `/authorize` endpoint carrying the user session, reads the
+single-use code from the 302, and exchanges it at `/token`. The token the
+extension carries is the one the OAuth server issued. The only step skipped is
+the interactive consent *click* inside `launchWebAuthFlow` (that window cannot be
+driven headlessly); the protocol — authorize, PKCE, single-use code, exchange —
+is fully exercised. `PROOVRA_E2E_SESSION_BEARER` must never be a production token.
+
+### 3. Same-Evidence trace (downstream surfaces)
+
+The acceptance spec captures each fixture, then reads the SAME Evidence id back —
+with the OAuth-issued bearer — across **Library** (`GET /v1/evidence?...`),
+**Detail** (`review-workspace`) and **public Verify** (`public-overview`), and
+asserts the acquisition statement (`DIRECT_WEB_CAPTURE_EXTENSION`, domain-only in
+public) is identical on all three. Case / Search / Report / Package / validator
+read the same canonical Evidence + acquisition snapshot (UC-0 spine); the
+web-capture integration suite proves the seal and the acquisition snapshot at the
+source. The end-to-end multi-surface assertion runs inside the browser gate.
+
+### 4. Windows acceptance harness
+
+`pnpm uc1:acceptance:windows` (`scripts/uc1-acceptance-windows.mjs`) boots a
+fully **disposable** stack (docker PG16 + Redis via `--start-infra`, a migrated
+`*_test` DB, API + worker + web + fixture server), seeds one paid workspace + a
+real session bearer (`services/api/scripts/uc1-seed-acceptance.ts`), builds the
+extension, and runs the Chrome + Edge Playwright acceptance. **Hard
+production-safety**: every child process gets its environment from the allowlist
+in `scripts/local-fixture-env` (throws before spawning if any value resolves off
+this machine or looks like a live credential), and the harness independently
+refuses a non-local or non-disposable DB / Redis / API endpoint. It never
+deploys, never publishes an extension, never touches Production.
+
+### 5. Migration sequence
+
+`20280620000000_uc1_extension_oauth_codes` is EXPAND / SAFE_TO_APPLY_NOW, applied
+**before** the UC-1 image. Registered across every gate: p6 curation +
+regenerated inventory (0 gate failures), deployment plan, phase-32-7-2 allowlist,
+phase-o approved-critical allowlist (additive `CREATE TABLE IF NOT EXISTS` on a
+brand-new table), db-010 verifier (`failures: []`). Rehearsed on disposable PG16:
+full chain applied from empty **and** idempotent on re-run; table shape verified.
+NOT APPLIED TO PRODUCTION.
+
+### 6. ENGINEERING CLOSED vs PUBLICATION PENDING
+
+- **ENGINEERING** — every gate that can run here is green: shared / extension /
+  API typecheck, the OAuth (4/4) + web-capture (4/4) integration suites, the
+  migration gates, `pnpm audit:architecture` (AuditEngineIntegrity = PASS,
+  ProductClosure = CLOSED, ReleaseBlockingClosure = PASS), MV3 lint,
+  reproducible build. The real-auth acceptance harness is built and runnable.
+- **BROWSER ACCEPTANCE** — the mandatory Chrome + Edge gate is **NOT EXECUTED
+  here** (no browser automation in this sandbox). Run `pnpm
+  uc1:acceptance:windows` on a Windows host with Chrome + Edge Stable.
+- **PUBLICATION** — store icons (placeholder pending brand assets) and the
+  extension's counsel-reviewed Privacy/Terms/AUP/DPA disclosures are required
+  before any Chrome/Edge store submission. Not done in this task by design (no
+  store publication, no counsel sign-off available here).
+
+### FINAL VERDICT
+
+**UC-1 NOT CLOSED.** Exact remaining blocker: the real Chrome + Edge
+same-Evidence browser acceptance has not been executed-and-passed in this
+environment. Every implementable residual is closed and the browser gate is a
+single runnable command (`pnpm uc1:acceptance:windows`) on a Windows host. UC-1
+becomes CLOSED when that command passes on both browsers.

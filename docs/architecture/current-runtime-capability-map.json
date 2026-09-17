@@ -4,19 +4,19 @@
   "generator": "services/api/scripts/generate-runtime-capability-map.mjs",
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "350df28cd1b3592fbce302d87d8037fa4ec1ea078f008fcbdfae86936dbafd59",
-  "routeInventoryHash": "4f969a091f0bed6e2d0201ecdc1bd984e6f8c08519a2782cba78c599acbebb34",
-  "consumerInventoryHash": "904ebb7002fc7f0d1c4ea6f632db1056c8acbdf56a42d9d12cb0c70552fc2c56",
-  "dispositionsHash": "6694e9761869294c3bb29b09d66581294f03589b2c015c486d6a41c529a378fe",
+  "routeInventoryHash": "f5f6ef6f44acdd63ac694a97ab2499fd0d8668bffb95c7e62c4c2a5b6b6dcfe2",
+  "consumerInventoryHash": "def901a98f1b055be19c8a511b20e57c9e944ac74af189a26551fe72a99f9464",
+  "dispositionsHash": "9ec3bf4cad46b79b30eef314f16a5217130d24c38564460e697f19d912aae535",
   "totals": {
-    "RegisteredRoutes": 1151,
-    "ProductionRegisteredRoutes": 1150,
+    "RegisteredRoutes": 1153,
+    "ProductionRegisteredRoutes": 1152,
     "DevelopmentOnlyRoutes": 1,
     "ProductConsumedRoutes": 899,
-    "NonProductDispositionedRoutes": 251,
+    "NonProductDispositionedRoutes": 253,
     "UndisposedRoutes": 0,
     "ConservationIdentityHolds": true,
     "ProductConsumerRoutes": 899,
-    "MachineOnlyConsumerRoutes": 4,
+    "MachineOnlyConsumerRoutes": 6,
     "NoConsumerRoutes": 248,
     "AuthorizationUnresolved": 0,
     "PublicUnguardedRoutes": 21,
@@ -45,7 +45,7 @@
       "ORPHAN_DEFECT": 0,
       "DEVELOPMENT_ONLY": 2,
       "PUBLIC_PRODUCT_SURFACE": 0,
-      "PRODUCT_CONNECTED": 1,
+      "PRODUCT_CONNECTED": 3,
       "EXTERNAL_API": 5,
       "MACHINE_OR_CRON": 2,
       "WEBHOOK": 0,
@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 134
     },
-    "TerminalWriters": 1274,
-    "ReachableSensitiveMutations": 1267,
-    "ClassifiedSensitiveMutations": 1267,
+    "TerminalWriters": 1276,
+    "ReachableSensitiveMutations": 1269,
+    "ClassifiedSensitiveMutations": 1269,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 0,
     "NonRequestWriters": 7,
@@ -71,7 +71,7 @@
     "TenantUnboundMutations": 0,
     "UnsafeEffectsInsideTransactions": 0,
     "byFamily": {
-      "ACCOUNT_SESSION_SECURITY": 218,
+      "ACCOUNT_SESSION_SECURITY": 220,
       "ORGANIZATION": 31,
       "ORGANIZATION_MEMBERSHIP": 29,
       "WORKSPACE": 55,
@@ -100,7 +100,7 @@
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1144,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1146,
       "JOB_ATTRIBUTED_REACHABLE": 113,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 3,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 8570,
-      "UNRESOLVED_IDENTIFIER": 1070
+      "METHOD_ON_VALUE": 8587,
+      "UNRESOLVED_IDENTIFIER": 1073
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": true,
@@ -134,7 +134,7 @@
     "byMandateDisposition": {
       "DEVELOPMENT_ONLY": 2,
       "UNDISPOSED": 0,
-      "PRODUCT_CONNECTED": 900,
+      "PRODUCT_CONNECTED": 902,
       "EXTERNAL_API": 30,
       "MACHINE_OR_CRON": 21,
       "WEBHOOK": 4,
@@ -146,11 +146,11 @@
       "MISSING_PRODUCT_UI_POST_RELEASE": 134
     },
     "MandateDispositionConservationHolds": true,
-    "TenantBindingResolved": 1149,
+    "TenantBindingResolved": 1151,
     "TenantBindingUnresolved": 0,
     "byDataScope": {
       "PUBLIC_DATA": 16,
-      "GLOBAL_USER_SELF": 57,
+      "GLOBAL_USER_SELF": 59,
       "PLATFORM_GLOBAL": 52,
       "WORKSPACE_SCOPED": 716,
       "ORGANIZATION_SCOPED": 105,
@@ -165,7 +165,7 @@
     "OrganizationAuthorizationUnresolved": 0,
     "OrganizationRoutesMissingRequiredAuthorization": 0,
     "CurrentWorkspaceIdAuthorizationUses": 0,
-    "ClassifiedSecurityRoutes": 1149,
+    "ClassifiedSecurityRoutes": 1151,
     "UnclassifiedSecurityRoutes": 0,
     "DevelopmentGatedRoutes": 1,
     "SecurityFamilyConservationHolds": true,
@@ -179,8 +179,8 @@
         "tagged": 11
       },
       "SESSION_AUTHENTICATED": {
-        "primary": 407,
-        "tagged": 407
+        "primary": 409,
+        "tagged": 409
       },
       "WORKSPACE_AUTHORIZED": {
         "primary": 380,
@@ -240,24 +240,24 @@
       }
     }
   },
-  "totalRoutes": 1151,
+  "totalRoutes": 1153,
   "classificationCounts": {
     "COMPATIBILITY_TEMPORARY": 6,
-    "INTERNAL_REQUIRED": 246,
+    "INTERNAL_REQUIRED": 248,
     "TARGET_COMPLETE": 899
   },
   "evidenceLevelCounts": {
     "BEHAVIORALLY_PROVEN": 401,
     "BEHAVIORAL_SERVICE_ONLY": 15,
     "STRUCTURALLY_CONNECTED_ONLY": 516,
-    "UNPROVEN": 219
+    "UNPROVEN": 221
   },
   "verticalCounts": {
     "ENTERPRISE_IDENTITY_SECURITY": 178,
     "EVIDENCE_OPERATIONS": 277,
     "OPERATIONS_AUTOMATION": 1,
     "OPERATIONS_INTELLIGENCE": 126,
-    "PLATFORM_CORE": 425,
+    "PLATFORM_CORE": 427,
     "TRUST_ADMINISTRATION": 144
   },
   "capabilities": [
@@ -808,7 +808,7 @@
       "route": "/healthz",
       "registeringFile": "services/api/src/routes/ops.routes.ts",
       "productConsumer": null,
-      "machineConsumer": null,
+      "machineConsumer": "scripts/uc1-acceptance-windows.mjs:313",
       "authorization": "PUBLIC_UNGUARDED",
       "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
@@ -844,7 +844,7 @@
       "route": "/readyz",
       "registeringFile": "services/api/src/routes/ops.routes.ts",
       "productConsumer": null,
-      "machineConsumer": null,
+      "machineConsumer": "scripts/uc1-acceptance-windows.mjs:314",
       "authorization": "PUBLIC_UNGUARDED",
       "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
@@ -4592,6 +4592,18 @@
       "authorization": "MULTI_GATE",
       "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
+    },
+    {
+      "capabilityId": "GET:/v1/oauth/extension/authorize",
+      "vertical": "PLATFORM_CORE",
+      "method": "GET",
+      "route": "/v1/oauth/extension/authorize",
+      "registeringFile": "services/api/src/routes/extension-oauth.routes.ts",
+      "productConsumer": null,
+      "machineConsumer": null,
+      "authorization": "AUTHENTICATED",
+      "classification": "INTERNAL_REQUIRED",
+      "evidenceLevel": "UNPROVEN"
     },
     {
       "capabilityId": "GET:/v1/operations/custody-attestations",
@@ -11634,6 +11646,18 @@
       "productConsumer": null,
       "machineConsumer": null,
       "authorization": "CRON_SECRET",
+      "classification": "INTERNAL_REQUIRED",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
+      "capabilityId": "POST:/v1/oauth/extension/token",
+      "vertical": "PLATFORM_CORE",
+      "method": "POST",
+      "route": "/v1/oauth/extension/token",
+      "registeringFile": "services/api/src/routes/extension-oauth.routes.ts",
+      "productConsumer": null,
+      "machineConsumer": null,
+      "authorization": "AUTHENTICATED",
       "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "UNPROVEN"
     },
@@ -27699,6 +27723,72 @@
       "entrySchedules": [],
       "invariants": {
         "authorizationAuthority": "MEMBERSHIP_LOOKUP",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/auth/extension-oauth.service.ts#extensionAuthCode.create@90",
+      "terminalLocation": "services/api/src/services/auth/extension-oauth.service.ts:90",
+      "file": "services/api/src/services/auth/extension-oauth.service.ts",
+      "enclosingDeclaration": "createExtensionAuthCode",
+      "kind": "DATABASE",
+      "target": "extensionAuthCode",
+      "mutationKind": "create",
+      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "GET /v1/oauth/extension/authorize"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/extension-oauth.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NONE",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/auth/extension-oauth.service.ts#extensionAuthCode.updateMany@125",
+      "terminalLocation": "services/api/src/services/auth/extension-oauth.service.ts:125",
+      "file": "services/api/src/services/auth/extension-oauth.service.ts",
+      "enclosingDeclaration": "exchangeExtensionAuthCode",
+      "kind": "DATABASE",
+      "target": "extensionAuthCode",
+      "mutationKind": "updateMany",
+      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/oauth/extension/token"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/extension-oauth.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NONE",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -87852,7 +87942,15 @@
       ],
       "gates": [],
       "productConsumers": [],
-      "nonProductConsumers": [],
+      "nonProductConsumers": [
+        {
+          "file": "scripts/uc1-acceptance-windows.mjs",
+          "line": 313,
+          "caller": "main",
+          "class": "CLI",
+          "primitive": "waitForHttp"
+        }
+      ],
       "primaryDisposition": "MACHINE_CONSUMER",
       "dispositionSource": "REVIEWED",
       "dispositionEvidence": "services/api/src/routes/ops.routes.ts:323 — returns a bounded liveness projection with no tenant data and no side effect. Public by design; a liveness probe that required a credential could not do its job.",
@@ -88004,7 +88102,15 @@
       ],
       "gates": [],
       "productConsumers": [],
-      "nonProductConsumers": [],
+      "nonProductConsumers": [
+        {
+          "file": "scripts/uc1-acceptance-windows.mjs",
+          "line": 314,
+          "caller": "main",
+          "class": "CLI",
+          "primitive": "waitForHttp"
+        }
+      ],
       "primaryDisposition": "MACHINE_CONSUMER",
       "dispositionSource": "REVIEWED",
       "dispositionEvidence": "services/api/src/routes/ops.routes.ts:332 — readiness projection. No tenant data, no mutation.",
@@ -108255,6 +108361,47 @@
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "GET /v1/oauth/extension/authorize",
+      "method": "GET",
+      "path": "/v1/oauth/extension/authorize",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/extension-oauth.routes.ts:47",
+      "authorizationClass": "AUTHENTICATED",
+      "authorizationEvidence": [
+        "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [],
+      "nonProductConsumers": [],
+      "primaryDisposition": "PRODUCT_CONNECTED",
+      "dispositionSource": "REVIEWED",
+      "dispositionEvidence": "reg services/api/src/routes/extension-oauth.routes.ts (GET /v1/oauth/extension/authorize), preHandler requireAuth (the logged-in user session). createExtensionAuthCode validates the S256 method, the challenge shape and the redirect (chromiumapp.org or an allowlisted dev redirect — never arbitrary), stores only sha256(code) with a 60s expiry, and 302-redirects to the extension's redirect_uri with code+state. Consumed by apps/extension/src/lib/auth.ts via chrome.identity.launchWebAuthFlow. Exercised end to end by services/api/test/uc1-extension-oauth.integration.test.ts (4 cases incl. auth required, arbitrary-redirect refusal, non-S256 refusal).",
+      "dispositionReason": "UC-1 first-party extension OAuth (Authorization Code + PKCE S256) — its product consumer is the PROOVRA browser extension (apps/extension), which the web+mobile consumer analyzer does not scan.",
+      "replacement": null,
+      "result": "DISPOSED_PRODUCT_CONNECTED",
+      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "AUTHENTICATED",
+      "authorizationAuthority": "AUTHENTICATED",
+      "dataScope": "GLOBAL_USER_SELF",
+      "tenantType": "NONE",
+      "tenantBindingAuthority": null,
+      "membershipStatusRequirement": null,
+      "modelsRead": [],
+      "modelsWritten": [
+        "extensionAuthCode"
+      ],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [],
+      "tenantIdSource": "NONE",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "NONE_OBSERVED",
       "tenantStampingInsertSites": [],
       "tenantUnboundInsertSites": []
     },
@@ -147786,6 +147933,50 @@
         "services/api/src/services/notifications/index.ts: notificationDelivery.create",
         "services/api/src/services/integrations/webhook-dispatcher.ts: integrationWebhookDelivery.create"
       ],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "POST /v1/oauth/extension/token",
+      "method": "POST",
+      "path": "/v1/oauth/extension/token",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/extension-oauth.routes.ts:79",
+      "authorizationClass": "AUTHENTICATED",
+      "authorizationEvidence": [
+        "handler body -> handler: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
+      ],
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [],
+      "nonProductConsumers": [],
+      "primaryDisposition": "PRODUCT_CONNECTED",
+      "dispositionSource": "REVIEWED",
+      "dispositionEvidence": "reg services/api/src/routes/extension-oauth.routes.ts (POST /v1/oauth/extension/token), public by OAuth design. exchangeExtensionAuthCode atomically claims the single-use code (updateMany WHERE used_at_utc IS NULL AND not expired), verifies the PKCE S256 verifier timing-safely and the client/redirect binding, then mints an ordinary short-lived AUTH_JWT the canonical requireAuth already accepts (NOT a second auth system). Consumed by apps/extension/src/lib/auth.ts. Exercised end to end by services/api/test/uc1-extension-oauth.integration.test.ts (wrong verifier, reuse, redirect mismatch all refused; the minted bearer is accepted by /v1/platform/context).",
+      "dispositionReason": "UC-1 first-party extension OAuth token exchange — public by protocol (the PKCE verifier is the proof), consumed by the PROOVRA browser extension (apps/extension), which the web+mobile consumer analyzer does not scan.",
+      "replacement": null,
+      "result": "DISPOSED_PRODUCT_CONNECTED",
+      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "AUTHENTICATED",
+      "authorizationAuthority": "AUTHENTICATED",
+      "dataScope": "GLOBAL_USER_SELF",
+      "tenantType": "NONE",
+      "tenantBindingAuthority": null,
+      "membershipStatusRequirement": null,
+      "modelsRead": [
+        "extensionAuthCode",
+        "user"
+      ],
+      "modelsWritten": [
+        "extensionAuthCode"
+      ],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [],
+      "tenantIdSource": "NONE",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "NONE_OBSERVED",
+      "tenantStampingInsertSites": [],
       "tenantUnboundInsertSites": []
     },
     {

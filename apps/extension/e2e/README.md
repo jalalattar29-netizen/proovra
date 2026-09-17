@@ -36,10 +36,11 @@ node apps/extension/e2e/fixture-server.mjs        # http://127.0.0.1:4599
 ## Run the gate
 
 ```bash
-# Windows PowerShell / bash — set the four env vars, then:
+# Windows PowerShell / bash — set the env vars, then:
 export PROOVRA_API_ORIGIN=http://localhost:4000
-export PROOVRA_E2E_TOKEN=<bearer token for the seeded user>
+export PROOVRA_E2E_SESSION_BEARER=<bearer proving the logged-in user session>
 export PROOVRA_E2E_TEAM_ID=<paid workspace id>
+export PROOVRA_E2E_REDIRECT_URI=https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.chromiumapp.org/oauth
 export EXTENSION_DIST="$(pwd)/apps/extension/dist"
 
 cd apps/extension/e2e
@@ -50,6 +51,13 @@ npx playwright test --project=edge         # Edge acceptance
 A pass on both projects is the UC-1 CLOSED gate. Until both pass, UC-1 status is
 **IMPLEMENTATION COMPLETE — BROWSER ACCEPTANCE PENDING**.
 
-> The spec seeds the session token directly (standing in for the interactive
-> OAuth flow) so the gate is deterministic. The interactive PKCE flow itself is
-> exercised manually per the manual-verification checklist in the UC-1 doc.
+> **The spec obtains the extension token through the REAL OAuth journey.** It does
+> not seed a static token: each test computes a PKCE verifier/challenge, calls the
+> real `/v1/oauth/extension/authorize` endpoint (carrying the user session as a
+> bearer — the browser cookie the logged-in web app would send), reads the single-
+> use code from the 302 redirect, and exchanges it at `/v1/oauth/extension/token`.
+> The token the extension carries is the one the OAuth server issued. The only step
+> skipped is the interactive consent CLICK inside `launchWebAuthFlow` (that window
+> cannot be driven headlessly); the protocol — authorize, PKCE, single-use code,
+> code exchange — is fully exercised. `PROOVRA_E2E_SESSION_BEARER` must NEVER be a
+> production token; use the disposable seeded user only.

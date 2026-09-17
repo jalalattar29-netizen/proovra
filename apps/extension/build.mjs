@@ -17,11 +17,17 @@ const pkg = JSON.parse(readFileSync(join(HERE, "package.json"), "utf8"));
 const env = process.env;
 const define = {
   __PROOVRA_API_ORIGIN__: JSON.stringify(env.PROOVRA_API_ORIGIN ?? "http://localhost:4000"),
+  // The authorize + token endpoints are BOTH on the API (the first-party
+  // extension OAuth server). Authorize runs behind requireAuth (the user's
+  // proovra_session cookie), issues a PKCE-bound code, and redirects to the
+  // extension's chromiumapp.org callback; the token endpoint exchanges it.
   __PROOVRA_AUTH_AUTHORIZE_URL__: JSON.stringify(
-    env.PROOVRA_AUTH_AUTHORIZE_URL ?? "http://localhost:3000/oauth/extension/authorize",
+    env.PROOVRA_AUTH_AUTHORIZE_URL ??
+      `${env.PROOVRA_API_ORIGIN ?? "http://localhost:4000"}/v1/oauth/extension/authorize`,
   ),
   __PROOVRA_AUTH_TOKEN_URL__: JSON.stringify(
-    env.PROOVRA_AUTH_TOKEN_URL ?? "http://localhost:4000/v1/oauth/extension/token",
+    env.PROOVRA_AUTH_TOKEN_URL ??
+      `${env.PROOVRA_API_ORIGIN ?? "http://localhost:4000"}/v1/oauth/extension/token`,
   ),
   __PROOVRA_OAUTH_CLIENT_ID__: JSON.stringify(env.PROOVRA_OAUTH_CLIENT_ID ?? "proovra-extension"),
   __PROOVRA_EXTENSION_VERSION__: JSON.stringify(pkg.version),

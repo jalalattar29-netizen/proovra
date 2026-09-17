@@ -690,6 +690,33 @@ describe("Phase O — CI gate on post-baseline migrations", () => {
     "20271113000000_point5_report_generation_authority": new Set([
       "CREATE_TABLE_IF_NOT_EXISTS",
     ]),
+    // UC-1 EXTENSION OAUTH (2026-09-17) — the first-party extension
+    // Authorization Code + PKCE (S256) store.
+    //
+    // Pure-additive, mirroring the report-generation-authority precedent
+    // directly above: ONE new table `extension_auth_codes` via CREATE TABLE
+    // IF NOT EXISTS, both indexes (unique `code_hash`, `expires_at_utc`)
+    // CREATE ... IF NOT EXISTS, and the FK to `users(id)` ON DELETE CASCADE
+    // added inside a DO/duplicate_object guard. Zero DROP / RENAME / TRUNCATE
+    // / DELETE, zero ALTER on any existing table, zero data movement, no
+    // backfill — a failed apply leaves the prior state exactly intact and a
+    // deployment still running the previous build is unaffected. The
+    // CREATE_TABLE_IF_NOT_EXISTS finding does not apply to a brand-new table:
+    // there is no prior version whose column evolution could be silently
+    // skipped.
+    //
+    // Why it exists: the extension needs a real authentication journey. The
+    // code is never stored (only its SHA-256), is single-use (atomic UPDATE
+    // ... WHERE used_at_utc IS NULL), short-lived, and bound to client_id,
+    // redirect_uri and code_challenge. The token endpoint mints an ordinary
+    // short-lived AUTH_JWT the canonical requireAuth already accepts — NOT a
+    // second auth system. Rehearsed against a disposable PostgreSQL 16 (clean
+    // apply + idempotent re-run). Unapplied remotely; also registered in
+    // phase-32-7-2-security-event-mapping-drift.test.ts and the Point-6
+    // migration inventory as EXPAND / SAFE_TO_APPLY_NOW.
+    "20280620000000_uc1_extension_oauth_codes": new Set([
+      "CREATE_TABLE_IF_NOT_EXISTS",
+    ]),
   };
 
   it("every migration with timestamp > baseline has ZERO CRITICAL findings", async () => {

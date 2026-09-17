@@ -954,6 +954,7 @@ model User {
   claimedGuestIdentities            GuestIdentity[]               @relation("GuestClaimedBy")
   guestIdentity                     GuestIdentity?
   passwordResetTokens               PasswordResetToken[]
+  extensionAuthCodes                ExtensionAuthCode[]
   emailVerificationTokens           EmailVerificationToken[]
   payments                          Payment[]
   subscriptions                     Subscription[]
@@ -2451,6 +2452,29 @@ model PasswordResetToken {
   @@index([tokenHash])
   @@index([expiresAt])
   @@map("password_reset_tokens")
+}
+
+// UC-1 — first-party extension OAuth authorization code (Authorization Code +
+// PKCE S256). The code itself is never stored; only its SHA-256. Single-use via
+// `usedAt` (atomic UPDATE ... WHERE used_at IS NULL), short-lived, and bound to
+// the client, the redirect URI and the PKCE code_challenge. This is NOT a second
+// auth system: the token endpoint mints an ordinary short-lived AUTH_JWT for the
+// same user the canonical requireAuth already accepts.
+model ExtensionAuthCode {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  codeHash      String    @unique @map("code_hash") @db.VarChar(64)
+  userId        String    @map("user_id") @db.Uuid
+  clientId      String    @map("client_id") @db.VarChar(64)
+  redirectUri   String    @map("redirect_uri") @db.VarChar(512)
+  codeChallenge String    @map("code_challenge") @db.VarChar(128)
+  scope         String    @default("capture.direct") @map("scope") @db.VarChar(120)
+  expiresAtUtc  DateTime  @map("expires_at_utc") @db.Timestamptz(6)
+  usedAtUtc     DateTime? @map("used_at_utc") @db.Timestamptz(6)
+  createdAtUtc  DateTime  @default(now()) @map("created_at_utc") @db.Timestamptz(6)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAtUtc])
+  @@map("extension_auth_codes")
 }
 
 // Enterprise email verification (EV1).

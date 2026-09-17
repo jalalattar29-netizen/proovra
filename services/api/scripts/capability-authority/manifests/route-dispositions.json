@@ -1577,6 +1577,20 @@
       "reason": "UC-1 Direct Web Capture completion — its product consumer is the PROOVRA browser extension (apps/extension), which the web+mobile consumer analyzer does not scan.",
       "evidence": "reg services/api/src/routes/capture-trust.routes.ts (POST /v1/capture/direct-sessions/:id/web-complete), preHandler requireAuth + authorizeOwnedSession. Consumed by apps/extension/src/lib/api-client.ts (apiClient.webComplete) via apps/extension/src/background.ts. It validates the capture manifest, classes the CAPTURE_MANIFEST part and seals through completeWebCaptureSession -> completeDirectCapture. Exercised end to end by services/api/test/uc1-web-capture.integration.test.ts (4 cases incl. refusals).",
       "reviewedAtUtc": "2026-09-17"
+    },
+    {
+      "routeId": "GET /v1/oauth/extension/authorize",
+      "disposition": "PRODUCT_CONNECTED",
+      "reason": "UC-1 first-party extension OAuth (Authorization Code + PKCE S256) — its product consumer is the PROOVRA browser extension (apps/extension), which the web+mobile consumer analyzer does not scan.",
+      "evidence": "reg services/api/src/routes/extension-oauth.routes.ts (GET /v1/oauth/extension/authorize), preHandler requireAuth (the logged-in user session). createExtensionAuthCode validates the S256 method, the challenge shape and the redirect (chromiumapp.org or an allowlisted dev redirect — never arbitrary), stores only sha256(code) with a 60s expiry, and 302-redirects to the extension's redirect_uri with code+state. Consumed by apps/extension/src/lib/auth.ts via chrome.identity.launchWebAuthFlow. Exercised end to end by services/api/test/uc1-extension-oauth.integration.test.ts (4 cases incl. auth required, arbitrary-redirect refusal, non-S256 refusal).",
+      "reviewedAtUtc": "2026-09-17"
+    },
+    {
+      "routeId": "POST /v1/oauth/extension/token",
+      "disposition": "PRODUCT_CONNECTED",
+      "reason": "UC-1 first-party extension OAuth token exchange — public by protocol (the PKCE verifier is the proof), consumed by the PROOVRA browser extension (apps/extension), which the web+mobile consumer analyzer does not scan.",
+      "evidence": "reg services/api/src/routes/extension-oauth.routes.ts (POST /v1/oauth/extension/token), public by OAuth design. exchangeExtensionAuthCode atomically claims the single-use code (updateMany WHERE used_at_utc IS NULL AND not expired), verifies the PKCE S256 verifier timing-safely and the client/redirect binding, then mints an ordinary short-lived AUTH_JWT the canonical requireAuth already accepts (NOT a second auth system). Consumed by apps/extension/src/lib/auth.ts. Exercised end to end by services/api/test/uc1-extension-oauth.integration.test.ts (wrong verifier, reuse, redirect mismatch all refused; the minted bearer is accepted by /v1/platform/context).",
+      "reviewedAtUtc": "2026-09-17"
     }
   ]
 }

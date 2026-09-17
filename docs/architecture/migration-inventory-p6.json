@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 272,
-    "classifiedMigrations": 272,
+    "filesystemMigrations": 273,
+    "classifiedMigrations": 273,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 272,
+    "productionSnapshotUnknown": 273,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 272,
-    "classifiedMigrations": 272,
+    "filesystemMigrations": 273,
+    "classifiedMigrations": 273,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 272,
+    "productionSnapshotUnknown": 273,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 50,
+      "EXPAND": 51,
       "BACKFILL": 21,
       "CONTRACT_DROP": 12,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 61,
+      "SAFE_TO_APPLY_NOW": 62,
       "WAIT_FOR_BACKFILL_READINESS": 13,
       "CONTRACT_DROP_LATER": 12,
       "WAIT_FOR_RUNTIME_CUTOVER": 1
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 272
+    "ProductionMigrationStateUnknown": 273
   },
   "gateFailures": [],
   "migrations": [
@@ -21113,7 +21113,7 @@
       "checksumSha256": "717e766b8bb67390c48efd14fe02f93a42857e063c2765716e221ed433c09461",
       "checksumSha256Raw": "717e766b8bb67390c48efd14fe02f93a42857e063c2765716e221ed433c09461",
       "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
-      "gitTracked": false,
+      "gitTracked": true,
       "gitIntroductionCommit": null,
       "sqlChangedSinceIntroduction": false,
       "classification": "EXPAND",
@@ -21172,8 +21172,76 @@
       "evidence": "UC-1 DIRECT WEB CAPTURE (2026-09-17). Widens the two acquisition_mode CHECK constraints (evidence_acquisition_mode_check, capture_sessions_acquisition_mode_check) to admit DIRECT_WEB_CAPTURE_EXTENSION — the first isDirectCapture acquisition mode, produced by the PROOVRA browser extension in a server-issued capture session. EXPAND: a CHECK IN-list cannot be extended in place, so each constraint is DROPPED and RE-ADDED with the same name and a strictly WIDER value set (a constraint SWAP, not a removal — recognised as such by the artifact scanner's constraintDropsAreAllSwaps, so it carries no destructive classification). Every existing row already satisfies the narrower set, so it satisfies the wider one. SAFE ON EITHER IMAGE: the pre-UC-1 image writes only PROOVRA_WEB_UPLOAD/SECURE_INTAKE_LINK/PROOVRA_MOBILE_APP, still admitted; the UC-1 image writes the new mode, admitted only by the widened constraint, so this must be applied BEFORE that image. Idempotent (DROP CONSTRAINT IF EXISTS + ADD). Clean-boot rehearsed on disposable PostgreSQL 16, drift OK. ROLLBACK is code-first: revert the image and leave the widened constraint. NOT APPLIED TO PRODUCTION."
     },
     {
-      "name": "email_password_auth",
+      "name": "20280620000000_uc1_extension_oauth_codes",
       "order": 271,
+      "sqlPresent": true,
+      "byteLength": 1766,
+      "checksumSha256": "315c0b6183594d6bdffd58a61d43e6b64beda2f25742dadc3b199f4768b0dec5",
+      "checksumSha256Raw": "315c0b6183594d6bdffd58a61d43e6b64beda2f25742dadc3b199f4768b0dec5",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": false,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "EXPAND",
+      "sqlShapeEvidence": "additive only — tables:1 columns:0 types:0 extensions:0",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [
+          "extension_auth_codes"
+        ],
+        "droppedTables": [],
+        "alteredTables": [
+          "extension_auth_codes"
+        ],
+        "addedColumns": [],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [
+          "extension_auth_codes_code_hash_key",
+          "extension_auth_codes_expires_at_utc_idx"
+        ],
+        "droppedIndexes": [],
+        "addedConstraints": [
+          "extension_auth_codes_user_id_fkey"
+        ],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20260204190000_add_auth_billing"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 1,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT to_regclass('public.extension_auth_codes') IS NOT NULL\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "UC-1 EXTENSION OAUTH (2026-09-17). One new table extension_auth_codes backing the first-party extension Authorization Code + PKCE S256 flow. The code is never stored (only its SHA-256); single-use via used_at_utc (atomic UPDATE ... WHERE used_at_utc IS NULL); short-lived; bound to client_id, redirect_uri and code_challenge; FK to users ON DELETE CASCADE. EXPAND: nothing existing is altered, no column changed, no row read or written. SAFE ON EITHER IMAGE: the pre-UC-1 image never touches the table; the UC-1 image's /v1/oauth/extension/authorize+token routes read it, so it must be applied before that image. Idempotent (CREATE TABLE/INDEX IF NOT EXISTS + a guarded FK ADD). It is NOT a second auth system: the token endpoint mints an ordinary short-lived AUTH_JWT the canonical requireAuth already accepts. Clean-boot rehearsed on disposable PostgreSQL 16; drift OK. ROLLBACK is code-first: revert the image and leave the table. NOT APPLIED TO PRODUCTION."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 272,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

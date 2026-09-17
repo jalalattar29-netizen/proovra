@@ -5,11 +5,11 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "5ed058805558999585e841a2cb95ea5fe6e11219d63af300ee9319dda79d2fa6",
-  "capabilityRouteInventoryHash": "4f969a091f0bed6e2d0201ecdc1bd984e6f8c08519a2782cba78c599acbebb34",
+  "capabilityRouteInventoryHash": "f5f6ef6f44acdd63ac694a97ab2499fd0d8668bffb95c7e62c4c2a5b6b6dcfe2",
   "totals": {
-    "routes": 1151,
+    "routes": 1153,
     "routesWithAnyTestCaller": 39,
-    "testOnlyRoutes": 5,
+    "testOnlyRoutes": 4,
     "testCallSites": 67,
     "testOnlyIsDisjointFromConsumedRoutes": true
   },
@@ -289,7 +289,7 @@
     {
       "routeId": "GET /healthz",
       "testCallerCount": 1,
-      "testOnly": true,
+      "testOnly": false,
       "testCallerFiles": [
         "services/api/test/phase13-public-write-bounds.integration.test.ts"
       ]
@@ -2203,6 +2203,12 @@
     },
     {
       "routeId": "GET /v1/notifications/deliveries/:id",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/oauth/extension/authorize",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -5769,6 +5775,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/oauth/extension/token",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/operations/custody-attestations/:id/verify",
       "testCallerCount": 0,
       "testOnly": false,
@@ -7003,5 +7015,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "6e2bc4a5f97f191fb75f7feedb1f1659262ea07f23a32f940661c4907618c8b3"
+  "contentHash": "34c562b1015fa16343c6d82b6c7c89aa332784ec9b8c530838f755d0797e0baf"
 }

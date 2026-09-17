@@ -722,6 +722,48 @@ _Tables touched_: `workflow_intake_links`
 **Recommended action:**
 - Verify every index column exists in production before re-deploy. Wrap CREATE INDEX in a `DO $$ ... END $$` block with an `information_schema.columns` existence check (Phase O-Final pattern).
 
+### `20280501000000_workspace_invite_lifecycle_hardening`
+- `SET_NOT_NULL_NO_READINESS` (line 51) — SET NOT NULL without a readiness marker risks rejecting NULL rows from production.
+
+_Tables touched_: `team_invites`
+
+**Recommended action:**
+- Confirm the column has been backfilled to 100% non-NULL before SET NOT NULL runs. Add a readiness-marker comment OR wrap in a DO block that verifies via SELECT COUNT(*) ... WHERE col IS NULL = 0.
+
+### `20280502000000_workspace_invite_raw_token_drop`
+- `ALTER_TABLE_DROP_COLUMN` (line 43) — DROP COLUMN is destructive and cannot be safely re-applied.
+- `DROP_INDEX` (line 41) — DROP INDEX risks production-read regressions.
+
+_Tables touched_: (none detected)
+
+**Recommended action:**
+- Operator review required. Document the production state of every affected table before any further action.
+
+### `20280601000000_uc0_acquisition_provenance_foundation`
+- `INDEX_COLUMN_RISK` (line 112) — Index evidence_team_id_acquisition_mode_idx ON evidence(team_id,acquisition_mode) references column(s) {team_id} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'.
+- `INDEX_COLUMN_RISK` (line 238) — Index evidence_part_derived_assets_team_part_kind_variant_uk ON evidence_part_derived_assets(team_id,evidence_part_id,asset_kind,variant_key) references column(s) {team_id,evidence_part_id,asset_kind} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'.
+
+_Tables touched_: `capture_sessions`, `evidence`, `evidence_part_derived_assets`, `evidence_parts`
+
+**Recommended action:**
+- Verify every index column exists in production before re-deploy. Wrap CREATE INDEX in a `DO $$ ... END $$` block with an `information_schema.columns` existence check (Phase O-Final pattern).
+
+### `20280602000000_derived_asset_variant_contract`
+- `DROP_INDEX` (line 40) — DROP INDEX risks production-read regressions.
+
+_Tables touched_: (none detected)
+
+**Recommended action:**
+- Operator review required. Document the production state of every affected table before any further action.
+
+### `20280620000000_uc1_extension_oauth_codes`
+- `CREATE_TABLE_IF_NOT_EXISTS` (line 12) — CREATE TABLE IF NOT EXISTS silently skips the entire block when the table already exists, hiding missed column evolution. This is the root cause of the Phase O-Final `discussion_mentions.team_id` failure.
+
+_Tables touched_: `extension_auth_codes`
+
+**Recommended action:**
+- Confirm the table shape in production matches Prisma's expectations via `full-production-schema-audit.mjs`. If drift is present, author an additive repair migration (ADD COLUMN IF NOT EXISTS + deterministic backfill, Phase O-Final pattern).
+
 ### `email_password_auth`
 - `CREATE_TABLE_IF_NOT_EXISTS` (line 19) — CREATE TABLE IF NOT EXISTS silently skips the entire block when the table already exists, hiding missed column evolution. This is the root cause of the Phase O-Final `discussion_mentions.team_id` failure.
 
@@ -1321,6 +1363,7 @@ _Tables touched_: `password_reset_tokens`, `users`
 | `20260131235343_init` | `reports` | `report_sha256` | Migration ADDs column reports.report_sha256 but Prisma model Report no longer references it. |
 | `20260131235343_init` | `reports` | `created_at` | Migration ADDs column reports.created_at but Prisma model Report no longer references it. |
 | `20260204190000_add_auth_billing` | `evidence` | `case_id` | Migration ADDs column evidence.case_id but Prisma model Evidence no longer references it. |
+| `20260205090000_phase2_invites_claim` | `team_invites` | `token` | Migration ADDs column team_invites.token but Prisma model TeamInvite no longer references it. |
 | `20260215095541_email_password_auth` | `password_reset_tokens` | `ON` | Migration ADDs column password_reset_tokens.ON but Prisma model PasswordResetToken no longer references it. |
 | `20260407_add_legal_acceptance_and_cookie_consent` | `user_legal_acceptances` | `ON` | Migration ADDs column user_legal_acceptances.ON but Prisma model UserLegalAcceptance no longer references it. |
 | `20260407_add_legal_acceptance_and_cookie_consent` | `cookie_consent_records` | `ON` | Migration ADDs column cookie_consent_records.ON but Prisma model CookieConsentRecord no longer references it. |
@@ -1425,6 +1468,9 @@ _Tables touched_: `password_reset_tokens`, `users`
 | `20271201000000_new058_verified_contact_factors` | `mfa_factors` | `factor_id` | Migration ADDs column mfa_factors.factor_id but Prisma model MfaFactor no longer references it. |
 | `20271227000000_billing_commercial_correctness` | `evidence_credit_ledger_entries` | `cancel_at_period_end` | Migration ADDs column evidence_credit_ledger_entries.cancel_at_period_end but Prisma model EvidenceCreditLedgerEntry no longer references it. |
 | `20280115000000_worker_lease_and_heartbeat_retention` | `worker_leases` | `queue_subscriptions` | Migration ADDs column worker_leases.queue_subscriptions but Prisma model WorkerLease no longer references it. |
+| `20280601000000_uc0_acquisition_provenance_foundation` | `evidence` | `artifact_class` | Migration ADDs column evidence.artifact_class but Prisma model Evidence no longer references it. |
+| `20280601000000_uc0_acquisition_provenance_foundation` | `evidence_parts` | `acquisition_mode_snapshot` | Migration ADDs column evidence_parts.acquisition_mode_snapshot but Prisma model EvidencePart no longer references it. |
+| `20280601000000_uc0_acquisition_provenance_foundation` | `capture_sessions` | `verifier_version` | Migration ADDs column capture_sessions.verifier_version but Prisma model CaptureSession no longer references it. |
 | `email_password_auth` | `password_reset_tokens` | `ON` | Migration ADDs column password_reset_tokens.ON but Prisma model PasswordResetToken no longer references it. |
 
 ## Naming drift (camelCase quoted identifiers)
