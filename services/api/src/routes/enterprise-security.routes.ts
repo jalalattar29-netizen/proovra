@@ -43,7 +43,10 @@ import { emergencyOrgRevoke } from "../services/access-control/session-quarantin
 // PHASE 10 CLOSURE FIX 1 (2026-07-23) — server-authoritative support-context
 // entry. Reads-only: re-validates the caller's grant against the DB, then
 // mints the opaque signed token the canonical authorize path verifies.
-import { validateGrantForSupportContextEntry } from "../services/identity/support-runtime.service.js";
+import {
+  recordSupportContextEntry,
+  validateGrantForSupportContextEntry,
+} from "../services/identity/support-runtime.service.js";
 import {
   signSupportContextToken,
   SUPPORT_CONTEXT_TOKEN_TTL_SECONDS,
@@ -707,6 +710,17 @@ export async function enterpriseSecurityRoutes(app: FastifyInstance) {
       const validated = await validateGrantForSupportContextEntry({
         actorUserId: auth.actorUserId,
         grantId: body.grantId,
+      });
+      // D32 — entry is audited in its own right, on every outcome that
+      // reached the grant decision.
+      await recordSupportContextEntry({
+        actorUserId: auth.actorUserId,
+        grantId: body.grantId,
+        anchorTeamId: body.teamId,
+        outcome: validated.valid ? "success" : "denied",
+        reason: validated.valid ? null : validated.reason,
+        ipAddress: ip(req),
+        userAgent: (req.headers["user-agent"] as string) ?? null,
       });
       if (!validated.valid) {
         return reply.code(403).send({

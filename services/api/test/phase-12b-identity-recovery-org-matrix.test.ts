@@ -1424,13 +1424,15 @@ describe("SYSTEM 1 — MFA recovery-request lifecycle", () => {
     expect(throttled.statusCode).toBe(429);
     expect(JSON.parse(throttled.body).error).toBe("resend_throttled");
     // A different signed-in user cannot drive someone else's recovery.
+    // D11 — and is told exactly what a missing id is told: a distinct 403
+    // "wrong_user" confirmed that the guessed id was a real recovery.
     H.actorUserId = ACTOR;
     const wrong = await app.inject({
       method: "POST",
       url: SELF_BASE + "/" + id + "/resend-email",
     });
-    expect(wrong.statusCode).toBe(403);
-    expect(JSON.parse(wrong.body)).toEqual({ error: "wrong_user" });
+    expect(wrong.statusCode).toBe(404);
+    expect(JSON.parse(wrong.body)).toEqual({ error: "request_not_found" });
   });
 
   it("cancel leg is owner-only and refuses to cancel an already-approved request", async () => {
@@ -1440,7 +1442,9 @@ describe("SYSTEM 1 — MFA recovery-request lifecycle", () => {
       method: "POST",
       url: SELF_BASE + "/" + id + "/cancel",
     });
-    expect(notOwner.statusCode).toBe(403);
+    // D11 — concealed as a missing request, not a distinguishable 403.
+    expect(notOwner.statusCode).toBe(404);
+    expect(JSON.parse(notOwner.body)).toEqual({ error: "request_not_found" });
     expect(requestRow(id).status).toBe("PENDING_ADMIN_REVIEW");
 
     H.actorUserId = SUBJECT;

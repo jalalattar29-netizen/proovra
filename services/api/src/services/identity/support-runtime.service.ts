@@ -305,6 +305,60 @@ export async function validateGrantForSupportContextEntry(
   return { valid: true, grant };
 }
 
+/**
+ * D32 — the audit record of a support-context ENTRY attempt.
+ *
+ * Entry is where a staff member turns a grant into a token that reads a
+ * customer's data, yet it wrote nothing of its own: the trail showed the
+ * grant being minted and later actions, but not who entered, from which
+ * anchor workspace, or who tried with somebody else's grant. Every outcome
+ * is recorded through the canonical tenant audit writer, against the
+ * CUSTOMER Organization/workspace the grant names (re-read here, so a
+ * refused attempt against a real grant lands in that customer's trail too).
+ * Best-effort like every sibling audit in this module: an audit write
+ * failure never changes the entry decision.
+ */
+export async function recordSupportContextEntry(
+  input: {
+    actorUserId: string;
+    grantId: string;
+    anchorTeamId: string;
+    outcome: "success" | "denied";
+    reason?: string | null;
+    ipAddress?: string | null;
+    userAgent?: string | null;
+  },
+  client: PrismaClient = defaultPrisma,
+): Promise<void> {
+  const grant = await fetchGrantById(client, input.grantId).catch(() => null);
+  await emitTenantAudit({
+    action:
+      input.outcome === "success"
+        ? "identity.support_access.entered"
+        : "identity.support_access.entry_denied",
+    outcome: input.outcome,
+    denialReason:
+      input.outcome === "denied" ? (input.reason ?? "support_access_denied") : null,
+    sourceApp: "API",
+    actorUserId: input.actorUserId, // ACTOR identity (DUAL IDENTITY)
+    supportActorUserId: input.actorUserId,
+    organizationId: grant?.organizationId ?? null, // CUSTOMER identity
+    workspaceId: grant?.teamId ?? null,
+    resourceType: "support_access_grant",
+    resourceId: input.grantId,
+    metadata: {
+      grantId: input.grantId,
+      anchorTeamId: input.anchorTeamId,
+      grantSupportUserId: grant?.supportUserId ?? null,
+      accessLevel: grant?.accessLevel ?? null,
+      decision: input.outcome,
+      reason: input.reason ?? null,
+      ipAddress: input.ipAddress ?? null,
+      userAgent: input.userAgent ?? null,
+    },
+  }, client).catch(() => null);
+}
+
 export type AuthorizeSupportActionInput = {
   context: SupportRuntimeContext;
   /** The action being attempted, e.g. "evidence.read" / "evidence.update". */

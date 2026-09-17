@@ -19,6 +19,7 @@ import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+import { checkOrgAccess } from "../organization/org-access.js";
 
 export type EmergencyRole = "EMERGENCY_READ_ONLY" | "EMERGENCY_OPERATOR";
 
@@ -362,8 +363,8 @@ function bgError(
  * §10.6 — activate an emergency grant. Fails closed when a reason or step-up
  * proof is missing; caps duration; the grant is org-scoped only; audits and
  * (best-effort) notifies org security owners. The `emergencyUserId` must be a
- * pre-configured emergency identity — the caller resolves that from the
- * org configuration (never an arbitrary user).
+ * pre-configured emergency identity — an active administrator of the
+ * Organization, verified HERE rather than trusted from the caller (D30).
  */
 export async function activateBreakGlass(
   input: ActivateBreakGlassInput,
@@ -375,6 +376,31 @@ export async function activateBreakGlass(
   if (!input.stepUpProofId) {
     throw bgError("BREAK_GLASS_STEP_UP_REQUIRED", "Break-glass access requires a completed step-up challenge.");
   }
+  /*
+   * D30 — THE EMERGENCY IDENTITY BELONGS TO THE ORGANIZATION IT RESCUES.
+   *
+   * The id arrived from the request body and was written verbatim, so a
+   * grant could name any account at all — a user of another Organization, a
+   * suspended member, or an id that is nobody. The organization's own
+   * configuration of who may hold its emergency access is its administrator
+   * roster: the identity must be an ACTIVE ORG_ADMIN (or owner) of THIS
+   * Organization, decided by the canonical organization-access check (which
+   * also refuses a suspended or archived Organization). The same rule
+   * support-access applies to the customer approver it records.
+   */
+  const emergencyAccess = await checkOrgAccess(client, {
+    orgId: input.organizationId,
+    userId: input.emergencyUserId,
+    minRole: "ORG_ADMIN",
+  });
+  if (emergencyAccess.kind !== "ok") {
+    throw bgError(
+      "BREAK_GLASS_EMERGENCY_USER_INVALID",
+      "The emergency user must be an active administrator of this organization.",
+      400,
+    );
+  }
+
   const now = input.nowMs ?? Date.now();
   const durationMs = Math.min(input.durationMs ?? BREAK_GLASS_MAX_DURATION_MS, BREAK_GLASS_MAX_DURATION_MS);
   const expiresAtUtc = new Date(now + durationMs);

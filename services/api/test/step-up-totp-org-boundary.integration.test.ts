@@ -438,18 +438,21 @@ describe("Batch E — step-up factors and the organization boundary (live Postgr
   // ===========================================================================
 
   describe("identity administration surfaces", () => {
-    it("the MFA recovery queue refuses a non-admin with the family's concealed 404", async () => {
+    // D14 — this pinned the member's refusal as the concealed 404. The member
+    // already knows the workspace exists, so concealment protected nothing and
+    // disagreed with the 403 authorizeOrFail gives a member without the
+    // capability. A member now gets the canonical 403 envelope; a workspace
+    // the caller is not in stays the concealed 404.
+    it("the MFA recovery queue refuses a non-admin member with the canonical 403 and an unknown workspace with the concealed 404", async () => {
       const { memberToken, ownerToken, teamId } = harness.fixtures.teamA;
       const url = (t: string) => `/v1/identity/mfa-admin/recovery-requests/${t}`;
       const denied = await call({ method: "GET", url: url(teamId), token: memberToken });
       const missing = await call({ method: "GET", url: url(randomUUID()), token: memberToken });
-      expect(denied.statusCode).toBe(404);
+      expect(denied.statusCode).toBe(403);
+      expect(json(denied)).toEqual({ error: { code: "permission_denied", reason: "permission_not_granted" } });
       expect(missing.statusCode).toBe(404);
-      // Same code for "not an admin here" and "no such workspace" — and the
-      // bare-string `{"error":"admin_not_in_team"}` is gone.
-      expect((json(denied).error as { code: string }).code).toBe(
-        (json(missing).error as { code: string }).code,
-      );
+      expect(json(missing)).toEqual({ error: { code: "not_found" } });
+      // The bare-string `{"error":"admin_not_in_team"}` is gone.
       expect(denied.body).not.toContain("admin_not");
       const allowed = await call({ method: "GET", url: url(teamId), token: ownerToken });
       expect(allowed.statusCode).toBe(200);

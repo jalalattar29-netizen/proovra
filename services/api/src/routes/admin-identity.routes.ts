@@ -372,6 +372,14 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
         "identity.external_mapping.manage",
       );
       if (!actor) return;
+      /*
+       * D28 — SSO is an Enterprise capability, decided where a connection is
+       * created, exactly as SCIM token minting below decides it: after
+       * authorization (a non-member learns nothing about the plan) and before
+       * step-up (nobody is asked for a second factor for something their plan
+       * does not include).
+       */
+      if (await denyTeamIfNotEnterprise(reply, body.teamId, "ssoScim")) return;
       // Phase 26.75 — runtime adaptive gate (quarantine + age + risk).
       const runtimeGate = await runtimeAdaptiveGate({
         req,

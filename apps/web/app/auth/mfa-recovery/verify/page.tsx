@@ -276,8 +276,10 @@ function errorCopy(reason: VerifyErrorReason): {
         title: "Recovery link invalid",
         message:
           "This recovery link is not valid. It may have been already used or replaced by a more recent one.",
+        // D11 — the server no longer says "different account" (that answer
+        // confirmed the request existed), so this state covers it too.
         next:
-          "If you need to start over, request a fresh MFA recovery from your sign-in page.",
+          "If you are signed in to a different account, sign out and open the link again. Otherwise, request a fresh MFA recovery from your sign-in page.",
       };
     case "wrong_user":
       return {

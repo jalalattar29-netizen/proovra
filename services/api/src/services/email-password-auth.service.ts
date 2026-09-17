@@ -21,6 +21,19 @@ export class EmailAlreadyExistsError extends Error {
   }
 }
 
+/**
+ * D24 — a registration password below the account password policy. Carries
+ * the SAME bounded code a password change and a password reset answer with,
+ * so every surface that sets a password refuses a weak one identically.
+ */
+export class WeakPasswordError extends Error {
+  readonly code = "weak_new_password" as const;
+  constructor() {
+    super("Password does not meet the password policy");
+    this.name = "WeakPasswordError";
+  }
+}
+
 export async function isEmailAvailableForRegistration(
   emailRaw: string,
 ): Promise<boolean> {
@@ -105,6 +118,12 @@ export async function registerWithEmailPassword(params: {
   displayName?: string | null;
 }) {
   const email = normalizeEmail(params.email);
+
+  // D24 — the same floor as reset and change. The register form enforces
+  // it; the server accepted any eight characters from a direct call.
+  if (!isPasswordPolicyCompliant(params.password)) {
+    throw new WeakPasswordError();
+  }
 
   const provider = AuthProvider.EMAIL;
   const providerUserId = email;

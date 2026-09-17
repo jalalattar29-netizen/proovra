@@ -17,6 +17,7 @@ import {
   resetPasswordWithToken,
   isEmailAvailableForRegistration,
   EmailAlreadyExistsError,
+  WeakPasswordError,
 } from "../services/email-password-auth.service.js";
 import {
   dispatchVerificationEmail,
@@ -887,6 +888,23 @@ export async function authRoutes(app: FastifyInstance) {
           error: {
             code: "EMAIL_ALREADY_EXISTS",
             message: "An account already exists for this email.",
+            timestamp: new Date().toISOString(),
+          },
+        });
+      }
+      if (err instanceof WeakPasswordError) {
+        // D24 — same code as reset/change; the form states the policy.
+        auditAuthEvent(req, {
+          userId: null,
+          action: "auth.email_register",
+          outcome: "failure",
+          severity: "info",
+          metadata: { reason: err.code },
+        });
+        return reply.code(400).send({
+          error: {
+            code: err.code,
+            message: "Password does not meet the password requirements.",
             timestamp: new Date().toISOString(),
           },
         });

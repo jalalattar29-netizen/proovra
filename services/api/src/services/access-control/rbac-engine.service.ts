@@ -268,6 +268,30 @@ export async function grantTemporaryElevation(
   if (!PERMISSION_SET.has(input.permission)) {
     throw new RbacEngineError("RBAC_PERMISSION_UNKNOWN");
   }
+  /*
+   * D29 — NOBODY HANDS OUT AUTHORITY THEY DO NOT HOLD.
+   *
+   * `identity.capability.grant` says who may elevate, not what they may
+   * elevate to. Without this check an ADMIN (who does not hold
+   * `billing.manage`) could elevate a colleague — or a second account of
+   * their own — into it. The grantor is evaluated through the same chain as
+   * any other decision, in this workspace, for this exact permission.
+   * Checked before the subject is looked up so the refusal says nothing
+   * about who is a member.
+   */
+  const grantorDecision = await evaluateMemberAccess(
+    {
+      teamId: input.teamId,
+      userId: input.grantedByUserId,
+      permission: input.permission as Permission,
+    },
+    client,
+  );
+  if (!grantorDecision.allowed) {
+    throw new RbacEngineError("RBAC_ELEVATION_BLOCKED", {
+      reason: "grantor_lacks_permission",
+    });
+  }
   const member = await client.teamMember.findUnique({
     where: { teamId_userId: { teamId: input.teamId, userId: input.userId } },
     select: { id: true, status: true },

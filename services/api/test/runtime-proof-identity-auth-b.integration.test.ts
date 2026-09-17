@@ -587,7 +587,8 @@ describe("K1 identity-auth (B) — workspace identity administration (live Postg
         expect(json(res)).toEqual({ error: { code: "not_found" } });
       }
       // A non-admin who HOLDS the capability is still not an MFA
-      // administrator: the OWNER/ADMIN narrowing conceals as 404.
+      // administrator. D14 — they are a member, so they are told the truth
+      // too: the OWNER/ADMIN narrowing answers the same 403 as above.
       const { grantCapability, revokeCapability } = await import(
         "../src/services/identity/membership-provisioning.service.js"
       );
@@ -603,8 +604,8 @@ describe("K1 identity-auth (B) — workspace identity administration (live Postg
       });
       try {
         const narrowed = await call({ method: "POST", url, token: viewerToken, payload });
-        expect(narrowed.statusCode).toBe(404);
-        expect(json(narrowed)).toEqual({ error: { code: "not_found" } });
+        expect(narrowed.statusCode).toBe(403);
+        expect(narrowed.body).toBe(viewer.body);
       } finally {
         await revokeCapability({ teamId, grantId: grant.id, actorUserId: ownerUserId });
       }
@@ -658,9 +659,10 @@ describe("K1 identity-auth (B) — workspace identity administration (live Postg
       const url = `/v1/identity/mfa/recovery-requests/${requestId}/resend-email`;
       const before = await prisma.mfaRecoveryRequest.findUniqueOrThrow({ where: { id: requestId } });
 
+      // D11 — another user's request answers exactly like a missing one.
       const other = await call({ method: "POST", url, token: memberToken });
-      expect(other.statusCode).toBe(403);
-      expect(json(other)).toEqual({ error: "wrong_user" });
+      expect(other.statusCode).toBe(404);
+      expect(json(other)).toEqual({ error: "request_not_found" });
       const missing = await call({
         method: "POST",
         url: `/v1/identity/mfa/recovery-requests/${randomUUID()}/resend-email`,
@@ -702,8 +704,9 @@ describe("K1 identity-auth (B) — workspace identity administration (live Postg
       expect(stale.statusCode).toBe(400);
       expect(json(stale)).toEqual({ error: "token_invalid" });
       const otherUser = await call({ method: "POST", url, token: memberToken, payload: { token: secondToken } });
-      expect(otherUser.statusCode).toBe(403);
-      expect(json(otherUser)).toEqual({ error: "wrong_user" });
+      // D11 — concealed as a missing request.
+      expect(otherUser.statusCode).toBe(404);
+      expect(json(otherUser)).toEqual({ error: "request_not_found" });
       expect((await prisma.mfaRecoveryRequest.findUniqueOrThrow({ where: { id: requestId } })).status).toBe(
         "EMAIL_VERIFICATION_PENDING",
       );
@@ -729,9 +732,10 @@ describe("K1 identity-auth (B) — workspace identity administration (live Postg
       const { viewerToken, viewerUserId, memberToken, teamId } = harness.fixtures.teamA;
       const url = `/v1/identity/mfa/recovery-requests/${requestId}/cancel`;
 
+      // D11 — another user's request answers exactly like a missing one.
       const other = await call({ method: "POST", url, token: memberToken });
-      expect(other.statusCode).toBe(403);
-      expect(json(other)).toEqual({ error: "wrong_user" });
+      expect(other.statusCode).toBe(404);
+      expect(json(other)).toEqual({ error: "request_not_found" });
       expect((await prisma.mfaRecoveryRequest.findUniqueOrThrow({ where: { id: requestId } })).status).toBe(
         "PENDING_ADMIN_REVIEW",
       );

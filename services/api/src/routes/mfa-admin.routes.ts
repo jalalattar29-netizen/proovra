@@ -167,13 +167,20 @@ function readOptionalSessionUserId(req: FastifyRequest): string | null {
  *      Organization lifecycle, capability, audit emission, fail-closed.
  *      A teamId belonging to another Organization returns 404 not_found.
  *   2. OWNER/ADMIN-only narrowing (the identity.* capabilities are not
- *      admin-exclusive) — concealed as 404, never 403.
+ *      admin-exclusive) — 403 permission_denied, byte-identical to the
+ *      refusal `authorizeOrFail` sends a member who lacks the capability.
  *   3. The TARGET userId must hold an ACTIVE membership in the SAME
  *      workspace — otherwise concealed 404.
  *
- * Every denial from this helper is the SAME 404 body, so an outside caller
- * cannot tell "team does not exist" from "you are not an admin of it" from
- * "that user is not a member".
+ * D14 — WHO GETS 404 AND WHO GETS 403. Anti-enumeration protects the
+ * EXISTENCE of things the caller may not know about: a workspace in another
+ * Organization (step 1) and a person in this one (step 3). Both answer the
+ * same 404 as "does not exist". A caller who is already an ACTIVE member of
+ * the workspace knows it exists, so hiding it from them protects nothing;
+ * they are told the truth — 403 — exactly as `authorizeOrFail` already tells
+ * a member without the capability. The narrowing used to answer 404 here,
+ * so one member got 403 or 404 for the same "you are not an MFA
+ * administrator" depending on which layer happened to refuse.
  */
 async function authorizeMfaAdminScope(
   req: FastifyRequest,
@@ -205,11 +212,15 @@ async function authorizeMfaAdminScope(
     },
     select: { role: true },
   });
-  if (
-    !actorMembership ||
-    (actorMembership.role !== "OWNER" && actorMembership.role !== "ADMIN")
-  ) {
-    return conceal();
+  // No ACTIVE membership row is an outsider however authorization was
+  // satisfied, and stays concealed.
+  if (!actorMembership) return conceal();
+  if (actorMembership.role !== "OWNER" && actorMembership.role !== "ADMIN") {
+    // A member without authority, not an outsider (see D14 above).
+    reply.code(403).send({
+      error: { code: "permission_denied", reason: "permission_not_granted" },
+    });
+    return null;
   }
   if (opts.targetUserId) {
     const target = await prisma.teamMember.findFirst({
@@ -785,13 +796,15 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
           req,
           skipSessionUpsert: true,
         }).catch(() => null);
-        if (result.reason === "request_not_found") {
+        // D11 — "someone else's request" and "no such request" are one
+        // answer. A distinguishable 403 confirmed that a guessed id names a
+        // real recovery in progress for another account.
+        if (
+          result.reason === "request_not_found" ||
+          result.reason === "wrong_user"
+        ) {
           reply.code(404);
           return { error: "request_not_found" };
-        }
-        if (result.reason === "wrong_user") {
-          reply.code(403);
-          return { error: "wrong_user" };
         }
         reply.code(400);
         return { error: result.reason };
@@ -835,13 +848,15 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
         actorUserId,
       });
       if (!result.ok) {
-        if (result.reason === "request_not_found") {
+        // D11 — "someone else's request" and "no such request" are one
+        // answer. A distinguishable 403 confirmed that a guessed id names a
+        // real recovery in progress for another account.
+        if (
+          result.reason === "request_not_found" ||
+          result.reason === "wrong_user"
+        ) {
           reply.code(404);
           return { error: "request_not_found" };
-        }
-        if (result.reason === "wrong_user") {
-          reply.code(403);
-          return { error: "wrong_user" };
         }
         if (
           result.reason === "resend_throttled" ||
@@ -881,13 +896,15 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
         userAgent: readUserAgent(req),
       });
       if (!result.ok) {
-        if (result.reason === "request_not_found") {
+        // D11 — "someone else's request" and "no such request" are one
+        // answer. A distinguishable 403 confirmed that a guessed id names a
+        // real recovery in progress for another account.
+        if (
+          result.reason === "request_not_found" ||
+          result.reason === "wrong_user"
+        ) {
           reply.code(404);
           return { error: "request_not_found" };
-        }
-        if (result.reason === "wrong_user") {
-          reply.code(403);
-          return { error: "wrong_user" };
         }
         if (result.reason === "already_approved") {
           reply.code(409);

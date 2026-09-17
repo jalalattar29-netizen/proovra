@@ -808,6 +808,8 @@ vi.mock("../src/services/identity/support-runtime.service.js", () => ({
     valid: true,
     grant: { id: "sa-1", supportUserId: S.actorUserId },
   }),
+  // D32 — the entry route now writes its own audit record.
+  recordSupportContextEntry: async () => {},
 }));
 vi.mock("../src/services/identity/support-context-token.service.js", () => ({
   signSupportContextToken: () => "opaque-support-token",

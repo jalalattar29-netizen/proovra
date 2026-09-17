@@ -30,6 +30,10 @@ vi.mock("../src/db.js", () => {
               return { kind: "CUSTOMER" };
             if (model === "team" && method === "findFirst")
               return { id: "team-1" };
+            // D30 — break-glass activation verifies the emergency identity is
+            // an active administrator of the organization.
+            if (model === "organizationMembership" && method === "findFirst")
+              return { role: "ORG_OWNER", status: "ACTIVE", validUntilUtc: null };
             if (model === "organizationSecurityPolicy" && method === "findUnique")
               return { organizationId: "org-1", policyVersion: 1 }; // existing v1 → patch bumps to v2
             if (method === "updateMany") return { count: 1 };
