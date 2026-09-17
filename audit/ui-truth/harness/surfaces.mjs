@@ -1,0 +1,150 @@
+/**
+ * PHASE UI-TRUTH — surface universe generator (AUDIT HARNESS, not product code).
+ *
+ * Walks the Next.js app router under apps/web/app and emits one row per
+ * filesystem page, with the canonical route, the area it lives in, the layout
+ * chain that wraps it, its dynamic parameters and the files that make it up.
+ *
+ * Deterministic: sorted output, no timestamps, no run ids. Regenerating on an
+ * unchanged tree produces a byte-identical file.
+ */
+
+import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { dirname, join, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const HARNESS = dirname(fileURLToPath(import.meta.url));
+export const REPO = resolve(HARNESS, "..", "..", "..");
+const WEB_APP = join(REPO, "apps", "web", "app");
+
+const PAGE_FILES = new Set(["page.tsx", "page.ts", "page.jsx", "page.js"]);
+
+/** A route group segment — `(app)` — shapes layout, never the URL. */
+const isGroup = (seg) => seg.startsWith("(") && seg.endsWith(")");
+const isDynamic = (seg) => seg.startsWith("[");
+
+function walk(dir, out = []) {
+  for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      walk(full, out);
+      continue;
+    }
+    if (PAGE_FILES.has(entry.name)) out.push(full);
+  }
+  return out;
+}
+
+/** Every layout.tsx from apps/web/app down to the page's own directory. */
+function layoutChain(pageDir) {
+  const chain = [];
+  let cur = pageDir;
+  for (;;) {
+    for (const name of ["layout.tsx", "layout.ts"]) {
+      const candidate = join(cur, name);
+      try {
+        if (statSync(candidate).isFile()) chain.push(rel(candidate));
+      } catch {
+        /* no layout at this level */
+      }
+    }
+    if (cur === WEB_APP) break;
+    cur = dirname(cur);
+  }
+  return chain.reverse();
+}
+
+const rel = (p) => relative(REPO, p).split("\\").join("/");
+
+/**
+ * The area a surface belongs to, decided by its filesystem position only.
+ * This is the OBSERVED area; whether it is the CORRECT area is a placement
+ * decision recorded separately (never inferred from the URL alone).
+ */
+function observedArea(segments, groups) {
+  const [first] = segments;
+  if (groups.includes("(app)")) {
+    if (first === "admin") return "PLATFORM_ADMIN_NAMESPACE";
+    if (first === "organizations") return "ORGANIZATION_NAMESPACE";
+    if (first === "security-center") return "SECURITY_CENTER";
+    if (first === "governance" || first === "governance-platform") return "GOVERNANCE";
+    if (first === "settings") return "SETTINGS";
+    return "WORKSPACE_DASHBOARD";
+  }
+  if (first === "portal") return "EXTERNAL_PORTAL";
+  if (first === "platform") return "PUBLIC_PLATFORM";
+  if (["intake", "verify", "share", "invite"].includes(first)) return "PUBLIC_EXCHANGE";
+  if (["login", "register", "auth", "forgot-password", "reset-password"].includes(first)) return "AUTH";
+  if (first === "api") return "ROUTE_HANDLER";
+  if (first === "health") return "OPERATIONAL_PROBE";
+  return "PUBLIC_MARKETING";
+}
+
+/** In scope for PHASE UI-TRUTH: the authenticated product plus the portal boundary. */
+const IN_SCOPE = new Set([
+  "PLATFORM_ADMIN_NAMESPACE",
+  "ORGANIZATION_NAMESPACE",
+  "SECURITY_CENTER",
+  "GOVERNANCE",
+  "SETTINGS",
+  "WORKSPACE_DASHBOARD",
+  "EXTERNAL_PORTAL",
+]);
+
+export function buildSurfaces() {
+  const rows = [];
+  for (const file of walk(WEB_APP)) {
+    const dir = dirname(file);
+    const parts = relative(WEB_APP, dir).split(/[\\/]/).filter((p) => p !== "" && p !== ".");
+    const groups = parts.filter(isGroup);
+    const segments = parts.filter((p) => !isGroup(p));
+    const route = "/" + segments.join("/");
+    const source = readFileSync(file, "utf8");
+    const area = observedArea(segments, groups);
+    rows.push({
+      surfaceId: route === "/" ? "root" : segments.join("."),
+      route: route === "/" ? "/" : route,
+      file: rel(file),
+      area,
+      inScope: IN_SCOPE.has(area),
+      routeGroups: groups,
+      dynamicParams: segments.filter(isDynamic).map((s) => s.replace(/[[\].]/g, "")),
+      isDetail: segments.some(isDynamic),
+      depth: segments.length,
+      layoutChain: layoutChain(dir),
+      renderMode: /"use client"|'use client'/.test(source.slice(0, 400)) ? "CLIENT" : "SERVER",
+      sourceBytes: source.length,
+      siblingFiles: readdirSync(dir, { withFileTypes: true })
+        .filter((e) => e.isFile() && !PAGE_FILES.has(e.name))
+        .map((e) => e.name)
+        .sort(),
+    });
+  }
+  rows.sort((a, b) => (a.route < b.route ? -1 : a.route > b.route ? 1 : 0));
+  return rows;
+}
+
+function main() {
+  const surfaces = buildSurfaces();
+  const byArea = {};
+  for (const s of surfaces) byArea[s.area] = (byArea[s.area] ?? 0) + 1;
+  const payload = {
+    artifact: "ui-truth/surfaces",
+    schemaVersion: 1,
+    note: "Filesystem page universe of apps/web. Generated by audit/ui-truth/harness/surfaces.mjs.",
+    totals: {
+      filesystemPages: surfaces.length,
+      inScope: surfaces.filter((s) => s.inScope).length,
+      outOfScope: surfaces.filter((s) => !s.inScope).length,
+      detailPages: surfaces.filter((s) => s.isDetail).length,
+      byArea: Object.fromEntries(Object.entries(byArea).sort()),
+    },
+    surfaces,
+  };
+  const out = join(REPO, "audit", "ui-truth", "data", "surfaces.json");
+  writeFileSync(out, JSON.stringify(payload, null, 2) + "\n");
+  console.log(`wrote ${rel(out)} — ${surfaces.length} pages, ${payload.totals.inScope} in scope`);
+  console.log(JSON.stringify(payload.totals.byArea, null, 2));
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) main();
