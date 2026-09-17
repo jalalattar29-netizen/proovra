@@ -4,7 +4,7 @@
  *   GET   /v1/intelligence/search?teamId&q&scope
  *   GET   /v1/intelligence/jobs?teamId&status&kind
  *   GET   /v1/intelligence/evidence/:id
- *   POST  /v1/intelligence/evidence/:id/enqueue
+ *   POST  /v1/intelligence/evidence/:id/enqueue      (RETIRED — typed 410)
  *   POST  /v1/intelligence/evidence/:id/reconcile-similarity
  *   POST  /v1/intelligence/evidence/:id/ai-assist
  *
@@ -37,7 +37,6 @@ import { authorizeWorkspaceOrFail } from "../middleware/authorize.js";
 import {
   configuredOcrProviderName,
   configuredTranscriptProviderName,
-  enqueueIntelligenceJob,
   listExtractedTexts,
   listIntelligenceJobs,
   projectExtractedTextSummary,
@@ -314,46 +313,29 @@ export async function intelligenceRoutes(app: FastifyInstance) {
   );
 
   // ---------------------------------------------------------------------------
-  // POST /v1/intelligence/evidence/:id/enqueue
+  // (RETIRED) POST /v1/intelligence/evidence/:id/enqueue — typed 410 (D7)
+  //
+  // It answered 202 with a PENDING `evidence_intelligence_jobs` row that
+  // nothing ever claimed: no worker or sweep reads PENDING rows of that table
+  // (extraction runs inline through /v1/internal/media-intelligence/extract,
+  // driven by the media-intelligence pipeline). The caller was told work was
+  // accepted that would never happen. No surface called it. A re-run goes
+  // through the media-intelligence run, which a worker does process. The
+  // route keeps authentication and does nothing else.
   // ---------------------------------------------------------------------------
 
   app.post(
     "/v1/intelligence/evidence/:id/enqueue",
     { preHandler: requireAuth },
-    async (req, reply) => {
-      const { id } = ParamsEvidenceId.parse(req.params);
-      const body = z
-        .object({
-          teamId: z.string().uuid(),
-          kind: z.enum(INTELLIGENCE_JOB_KINDS),
-        })
-        .parse(req.body ?? {});
-      // AUTH-001 — the enqueue is an outbound durable effect, so BOTH the
-      // authorization and the evidence tenant reload complete BEFORE it.
-      const ok = await authorizeWorkspaceOrFail(req, reply, {
-        workspaceId: body.teamId,
-        permission: "intelligence.run",
-        resourceKind: "evidence",
-        resourceId: id,
-      });
-      if (!ok) return;
-      const ev = await prisma.evidence.findUnique({
-        where: { id },
-        select: { id: true, teamId: true },
-      });
-      if (!ev || ev.teamId !== ok.workspaceId) {
-        return reply.code(404).send({ error: { code: "not_found" } });
-      }
-      const job = await enqueueIntelligenceJob({
-        evidenceId: id,
-        teamId: body.teamId,
-        kind: body.kind,
-      });
-      if (!job) {
-        return reply.code(500).send({ error: { code: "enqueue_failed" } });
-      }
-      return reply.code(202).send({ job: projectIntelligenceJob(job) });
-    },
+    async (_req, reply) =>
+      reply.code(410).send({
+        error: {
+          code: "INTELLIGENCE_ENQUEUE_RETIRED",
+          message:
+            "Queuing an intelligence job here is retired; nothing processed it. Re-run analysis through the evidence media-intelligence run.",
+        },
+        canonical: "/v1/evidence/:evidenceId/media-intelligence/run",
+      }),
   );
 
   // ---------------------------------------------------------------------------

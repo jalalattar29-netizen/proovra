@@ -119,11 +119,16 @@ describe("intelligence routes — anti-enumeration + scope", () => {
     // why, so the assertion targets the code shapes, not the word.)
     expect(src).not.toMatch(/function requireReviewerMember\s*\(/);
     expect(src).not.toMatch(/await requireReviewerMember\(/);
-    // RETIRED 2026-09-16 — reconcile-similarity is a typed 410 tombstone that
-    // runs no gate and no detector, so enqueue is the one mutating
-    // intelligence route left in this file (AI-assist went in Phase P2).
-    const matches = src.match(/permission:\s*"intelligence\.run"/g) ?? [];
-    expect(matches.length).toBeGreaterThanOrEqual(1);
+    // RETIRED 2026-09-16/17 — reconcile-similarity and enqueue are typed 410
+    // tombstones that run no gate and no work (enqueue wrote jobs nothing
+    // processed, D7), and AI-assist went in Phase P2: no mutating
+    // intelligence route is left in this file to gate.
+    expect(src).not.toMatch(/permission:\s*"intelligence\.run"/);
+    const enqueueIdx = src.indexOf('"/v1/intelligence/evidence/:id/enqueue"');
+    const enqueue = src.slice(enqueueIdx, enqueueIdx + 500);
+    expect(enqueue).toContain("reply.code(410)");
+    expect(enqueue).toContain('code: "INTELLIGENCE_ENQUEUE_RETIRED"');
+    expect(src).not.toMatch(/enqueueIntelligenceJob\(/);
     const reconcileIdx = src.indexOf('"/v1/intelligence/evidence/:id/reconcile-similarity"');
     const reconcile = src.slice(reconcileIdx, reconcileIdx + 500);
     expect(reconcile).toContain("reply.code(410)");

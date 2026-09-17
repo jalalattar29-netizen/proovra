@@ -19,13 +19,6 @@
   ],
   "entries": [
     {
-      "routeId": "DELETE /v1/cases/:id/access/:accessId",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "per-case access revoke has no control; only documented in phase docs",
-      "evidence": "reg services/api/src/routes/cases.routes.ts:1772 app.delete(\"/v1/cases/:id/access/:accessId\", { preHandler: requireAuthAndLegal }); docs/product/PHASE_2_6D_GOVERNANCE_FINALIZATION.md:97 \"The existing per-case revoke (DELETE /v1/cases/:id/access/:accessId)\"; docs/product/PHASE_2_6C_GOVERNANCE_VISIBILITY.md:84; 0 call sites in apps/web + apps/mobile",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
       "routeId": "DELETE /v1/cases/:id/legacy-evidence-link/:evidenceId",
       "disposition": "COMPATIBILITY_TOMBSTONE",
       "reason": "zero-mutation shim after the Evidence.caseId column drop; every path throws",
@@ -219,13 +212,6 @@
       "evidence": "reg services/api/src/routes/cases.routes.ts:1866 app.get<{Params:{id:string}}>(\"/v1/cases/:id/link-reconciliation\"); services/api/src/routes/cases.routes.ts:1852-1861 \"READ-ONLY diagnostic that surfaces the divergence\"; docs/architecture/compatibility-adapter-registry.json:225-236 {\"id\":\"case-evidence-link-reconciliation\",\"kind\":\"cutover-observability\",\"repositoryCallers\":[],\"reasonRetained\":\"Lets an operator see legacy-pointer vs canonical-link convergence\",\"state\":\"REQUIRED_MIGRATION_COMPATIBILITY\"}; :648 \"GET /v1/cases/:id/link-reconciliation  [CASE_EVIDENCE_LINK]\" under RUNTIME_COMPATIBILITY_ROUTE",
       "reviewedAtUtc": "2026-08-16",
       "machineCallerEvidence": "reg services/api/src/routes/cases.routes.ts:1866 app.get<{Params:{id:string}}>(\"/v1/cases/:id/link-reconciliation\"); services/api/src/routes/cases.routes.ts:1852-1861 \"READ-ONLY diagnostic that surfaces the divergence\"; docs/architecture/compatibility-adapter-registry.json:225-236 {\"id\":\"case-evidence-link-reconciliation\",\"kind\":\"cutover-observability\",\"repositoryCallers\":[],\"reasonRetained\":\"Lets an operator see legacy-pointer vs canonical-link convergence\",\"state\":\"REQUIRED_MIGRATION_COMPATIBILITY\"}; :648 \"GET /v1/cases/:id/link-reconciliation  [CASE_EVIDENCE_LINK]\" under RUNTIME_COMPATIBILITY_ROUTE"
-    },
-    {
-      "routeId": "GET /v1/cases/:id/team-members",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "share-picker read for the unbuilt case-ACL surface",
-      "evidence": "reg services/api/src/routes/cases.routes.ts:867 app.get(\"/v1/cases/:id/team-members\", { preHandler: requireAuthAndLegal }); rg \"team-members\" apps/web apps/mobile = 0 hits; docs/architecture/target-replacement-matrix.json:745-752 capabilityId \"GET:/v1/cases/:id/team-members\" targetAction \"COMPLETE_FRONTEND\"",
-      "reviewedAtUtc": "2026-08-16"
     },
     {
       "routeId": "GET /v1/cases/:id/workspace",
@@ -600,13 +586,6 @@
       "machineCallerEvidence": "reg services/api/src/routes/enterprise-security.routes.ts:441 app.post(\"/v1/break-glass/emergency/sessions/revoke\", { preHandler: requireAuth }) then requirePlatformStaff + authorizeWithEmergencyOverlay({ action: \"session.revoke\", grantId, stepUpProofId }); apps/web/app/(app)/admin/support-access/page.tsx:31-36 \"This page mints nothing itself: starting a support grant requires a customer approver identity and a reason, and activating break-glass requires a pre-configured emergency identity — both are deliberately performed through the incident workflow, not casually from a console. What this page adds is VISIBILITY, ENTRY and REVOCATION\"; that console calls only :184 /v1/support-access/grants, :207 /v1/break-glass/grants, :255 /v1/support-access/enter, :304 /v1/support-access/revoke, :337 /v1/break-glass/revoke"
     },
     {
-      "routeId": "POST /v1/cases/:id/access",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "per-case ACL grant has no control in any surface",
-      "evidence": "reg services/api/src/routes/cases.routes.ts:664 app.post(\"/v1/cases/:id/access\", { preHandler: requireAuthAndLegal }); rg \"cases/${...}/access\" apps/web apps/mobile = 0 call sites; apps/web/components/cases-experience/MatterWorkspace.tsx:329-378 TABS = overview|evidence|timeline|graph|holds|decisions|risk|discussion|assignments|investigation-profile|audit|export (no access/share tab); docs/product/PHASE_2_6_TEAMS_GOVERNANCE.md:313 \"POST/DELETE /v1/cases/:id/access | /cases/[id] access tab | shipped pre-2.6\" (tab does not exist); docs/architecture/current-runtime-capability-map.json productConsumer:null machineConsumer:null",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
       "routeId": "POST /v1/cases/:id/share-email",
       "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
       "reason": "case share-by-email has no control in any surface",
@@ -834,10 +813,11 @@
     },
     {
       "routeId": "POST /v1/intelligence/evidence/:id/enqueue",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Manual re-run control absent; the jobs table the page renders is populated by the machine extraction path.",
-      "evidence": "reg services/api/src/routes/intelligence.routes.ts:321 app.post(\"/v1/intelligence/evidence/:id/enqueue\"). enqueueIntelligenceJob (services/api/src/services/intelligence/extraction.service.ts:133) has one caller: intelligence.routes.ts:348. The machine path that fills the table is services/api/src/routes/internal-media-intelligence-extract.routes.ts:63 runExtractionInline. Page reads the list only: apps/web/app/(app)/intelligence/page.tsx:96 `/v1/intelligence/jobs?${qs}`.",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "retired to a typed 410 naming what replaced it (or that the capability is not offered); kept so a stale client is told rather than 404-ed",
+      "evidence": "reg services/api/src/routes/intelligence.routes.ts. DEFECT D7 (2026-09-17). The route answered 202 with a PENDING evidence_intelligence_jobs row that no worker, sweep or route ever claimed (the table's only writers are enqueueIntelligenceJob and runExtractionInline, which the machine route /v1/internal/media-intelligence/extract drives), so it promised work that never ran. The handler replies 410 INTELLIGENCE_ENQUEUE_RETIRED with `canonical` /v1/evidence/:evidenceId/media-intelligence/run (processed by the media-intelligence worker), keeps requireAuth only and reads/writes no domain data. 0 call sites in apps/web + apps/mobile + e2e; pinned by services/api/test/retired-routes-2026-09-16.test.ts.",
+      "reviewedAtUtc": "2026-09-17",
+      "replacement": "POST /v1/evidence/:evidenceId/media-intelligence/run"
     },
     {
       "routeId": "POST /v1/intelligence/evidence/:id/reconcile-similarity",

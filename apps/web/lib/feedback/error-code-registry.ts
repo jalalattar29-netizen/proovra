@@ -403,6 +403,12 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
       "A retired read answering a legacy client, not a person. No surface read " +
       "it; billing is read through the gated account projection.",
   },
+  INTELLIGENCE_ENQUEUE_RETIRED: {
+    disposition: "internal",
+    why:
+      "A retired operation answering a legacy client, not a person. No surface " +
+      "queued intelligence jobs; re-runs go through the media-intelligence run.",
+  },
   CODING_SCHEMA_PUBLISH_RETIRED: {
     disposition: "internal",
     why:

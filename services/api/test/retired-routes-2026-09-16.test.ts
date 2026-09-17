@@ -210,6 +210,14 @@ const CASES: Case[] = [
     code: "CODING_SCHEMA_PUBLISH_RETIRED",
     canonical: "/v1/coding/schemas/seed-defaults",
   },
+  // 9. Defect (D7, 2026-09-17) — an enqueue nothing processed.
+  {
+    method: "POST",
+    url: `/v1/intelligence/evidence/${ID}/enqueue`,
+    code: "INTELLIGENCE_ENQUEUE_RETIRED",
+    canonical: "/v1/evidence/:evidenceId/media-intelligence/run",
+    payload: { teamId: TEAM, kind: "OCR" },
+  },
   // 8. Security (D4, 2026-09-17) — the raw subscription read.
   {
     method: "GET",
@@ -281,9 +289,9 @@ describe("retired routes (2026-09-16) — typed 410 tombstones", () => {
     expect(H.dbCalls.length).toBeGreaterThan(0);
   });
 
-  it("covers the twenty retired registrations", () => {
-    expect(CASES).toHaveLength(20);
-    expect(new Set(CASES.map((c) => `${c.method} ${c.url}`)).size).toBe(20);
+  it("covers the twenty-one retired registrations", () => {
+    expect(CASES).toHaveLength(21);
+    expect(new Set(CASES.map((c) => `${c.method} ${c.url}`)).size).toBe(21);
   });
 
   for (const c of CASES) {
