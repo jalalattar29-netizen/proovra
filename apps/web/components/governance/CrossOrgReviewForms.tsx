@@ -22,7 +22,7 @@ import { useCallback, useId, useState } from "react";
 import type { CrossOrgReviewGrantProjection } from "@proovra/shared";
 
 import { apiFetch } from "../../lib/api";
-import { useActiveWorkspaceId } from "../../lib/platform-context/useTeamWorkspaceGate";
+import { useActiveSpaceId } from "../../lib/platform-context/useTenantModel";
 import {
   ReviewScopePicker,
   type ReviewScopeState,
@@ -69,7 +69,7 @@ export function CrossOrgInviteForm({
   const [errors, setErrors] = useState<FieldErrors>({});
   // D17 — the record the invited organization will review. Acceptance issues
   // the portal invitation for exactly this record.
-  const teamId = useActiveWorkspaceId();
+  const teamId = useActiveSpaceId();
   const [subject, setSubject] = useState<ReviewScopeState>({ target: null, blockedReason: null });
   const [pickerKey, setPickerKey] = useState(0);
 

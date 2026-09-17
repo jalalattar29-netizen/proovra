@@ -20,8 +20,8 @@ vi.mock("../../lib/api", () => ({
   apiFetch: mocks.fetch,
   ApiError: class ApiError extends Error {},
 }));
-vi.mock("../../lib/platform-context/useTeamWorkspaceGate", () => ({
-  useActiveWorkspaceId: () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+vi.mock("../../lib/platform-context/useTenantModel", () => ({
+  useActiveSpaceId: () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
 }));
 vi.mock("../../components/governance/governance-action-state", async (orig) => {
   const real = (await orig()) as Record<string, unknown>;
