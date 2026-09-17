@@ -23,10 +23,7 @@ import { deriveCanonicalArtifactAvailability } from "@proovra/shared";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 
-import {
-  buildCasesSummary,
-  buildCaseWorkspace,
-} from "../services/cases/case-workspace.service.js";
+import { buildCasesSummary } from "../services/cases/case-workspace.service.js";
 import { listWorkspaceArtifacts } from "../services/reports/reports-aggregator.service.js";
 import { buildMatterWorkspace } from "../services/cases/matter-workspace.service.js";
 import { buildMatterQueue } from "../services/cases/matter-queue.service.js";
@@ -240,24 +237,27 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
     },
   );
 
-  // ----------- Single case workspace (for /cases/:id tabs) -----------
+  // ---------------------------------------------------------------------------
+  // (RETIRED) GET /v1/cases/:id/workspace — typed 410 (WCC 2026-09-17)
+  //
+  // The Phase 32.8D single-case envelope, superseded by the 11-section
+  // GET /v1/cases/:id/matter-workspace that MatterWorkspace and
+  // SimpleCaseDetail read. No web, mobile, worker or e2e caller remained, so
+  // two reads of the same case could only drift apart. The route keeps
+  // authentication and does nothing else: it reads no case data.
+  // ---------------------------------------------------------------------------
   app.get(
     "/v1/cases/:id/workspace",
     { preHandler: requireAuth },
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      const params = WorkspaceParams.parse(req.params ?? {});
-      const member = await requireCaseAccess(req, reply, params.id);
-      if (!member) return;
-      const envelope = await buildCaseWorkspace({
-        caseId: params.id,
-        userId: member.userId,
-        role: member.role,
-      });
-      if ("notFound" in envelope) {
-        return reply.code(404).send({ error: { code: "not_found" } });
-      }
-      return reply.code(200).send(envelope);
-    },
+    async (_req, reply) =>
+      reply.code(410).send({
+        error: {
+          code: "CASE_WORKSPACE_READ_RETIRED",
+          message:
+            "This case workspace read is retired. Read the case through the matter workspace instead.",
+        },
+        canonical: "/v1/cases/:id/matter-workspace",
+      }),
   );
 
   // =========================================================================

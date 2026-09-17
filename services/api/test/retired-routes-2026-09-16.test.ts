@@ -64,9 +64,11 @@ vi.mock("../src/middleware/auth.js", () => {
 
 import { aiSearchRoutes } from "../src/routes/ai-search.routes.js";
 import { billingRoutes } from "../src/routes/billing.routes.js";
+import { caseWorkspaceRoutes } from "../src/routes/case-workspace.routes.js";
 import { collaborationCompletionRoutes } from "../src/routes/collaboration-completion.routes.js";
 import { collaborationRoutes } from "../src/routes/collaboration.routes.js";
 import { intelligenceRoutes } from "../src/routes/intelligence.routes.js";
+import { productAndLifecycleRoutes } from "../src/routes/product-and-lifecycle.routes.js";
 import { reviewerWorkspaceRoutes } from "../src/routes/reviewer-workspace.routes.js";
 import { searchRoutes } from "../src/routes/search.routes.js";
 import { trustAndGovernanceRoutes } from "../src/routes/trust-and-governance.routes.js";
@@ -231,7 +233,7 @@ const CASES: Case[] = [
     method: "POST",
     url: `/v1/search/reindex/workflow/${ID}`,
     code: "WORKFLOW_INSTANCE_REINDEX_RETIRED",
-    canonical: "/v1/search/reindex/evidence/:id",
+    canonical: "/v1/search/reconcile",
     payload: { teamId: TEAM },
   },
   // 10. Security (D48, 2026-09-17) — Phase 22 workflow-instance mutations a
@@ -286,6 +288,23 @@ const CASES: Case[] = [
     canonical: "/v1/reviewer-ops/reviews/:workflowId/reject",
     payload: { teamId: TEAM },
   },
+  // 11. Duplicate (WCC 2026-09-17) — the Phase 32.8D single-case envelope,
+  //     superseded by the matter workspace every case surface reads.
+  {
+    method: "GET",
+    url: `/v1/cases/${ID}/workspace`,
+    code: "CASE_WORKSPACE_READ_RETIRED",
+    canonical: "/v1/cases/:id/matter-workspace",
+  },
+  // 12. Security (WCC 2026-09-17) — a caller-typed READY attestation (storage
+  //     key, sha256, size) outside the worker's build.
+  {
+    method: "POST",
+    url: `/v1/exchange/packages/${ID}/ready`,
+    code: "EXCHANGE_PACKAGE_MANUAL_READY_RETIRED",
+    canonical: "/v1/exchange/packages/:id/build",
+    payload: { storageKey: "exchange/forged.zip", packageSha256: "a".repeat(64), packageSizeBytes: 1 },
+  },
 ];
 
 let app: FastifyInstance;
@@ -297,9 +316,11 @@ beforeAll(async () => {
   for (const routes of [
     aiSearchRoutes,
     billingRoutes,
+    caseWorkspaceRoutes,
     collaborationCompletionRoutes,
     collaborationRoutes,
     intelligenceRoutes,
+    productAndLifecycleRoutes,
     reviewerWorkspaceRoutes,
     searchRoutes,
     trustAndGovernanceRoutes,
@@ -343,9 +364,9 @@ describe("retired routes (2026-09-16) — typed 410 tombstones", () => {
     expect(H.dbCalls.length).toBeGreaterThan(0);
   });
 
-  it("covers the 28 retired registrations", () => {
-    expect(CASES).toHaveLength(28);
-    expect(new Set(CASES.map((c) => `${c.method} ${c.url}`)).size).toBe(28);
+  it("covers the 30 retired registrations", () => {
+    expect(CASES).toHaveLength(30);
+    expect(new Set(CASES.map((c) => `${c.method} ${c.url}`)).size).toBe(30);
   });
 
   for (const c of CASES) {

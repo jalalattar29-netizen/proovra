@@ -40,6 +40,17 @@ const TERMINAL = new Set(["CLOSED", "CANCELLED"]);
 const box = { border: "1px solid var(--app-border, currentColor)", borderRadius: 8, padding: 12, marginTop: 16, display: "grid", gap: 10, minWidth: 0 } as const;
 const row = { display: "flex", flexWrap: "wrap" as const, gap: 8, alignItems: "center", minWidth: 0 };
 
+/** The request writes this component makes; `RequestAction` names every route this reaches. */
+type RequestAction = "assign" | "send";
+
+function postRequestAction(requestId: string, action: RequestAction, body: Record<string, unknown>) {
+  return apiFetch(`/v1/evidence-requests/${encodeURIComponent(requestId)}/${action}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
 function errorMessage(error: unknown, fallback: string): string {
   const code = (error as { code?: unknown } | null)?.code;
   if (code === "assignee_not_workspace_member") {
@@ -104,8 +115,7 @@ export function EvidenceRequestAssignment<T extends AssignableRequest>({
 
   async function writeThenReread(
     kind: "assign" | "unassign" | "send",
-    init: RequestInit,
-    path: string,
+    write: () => Promise<unknown>,
     verify: (fresh: T) => boolean,
     success: string,
   ) {
@@ -114,7 +124,7 @@ export function EvidenceRequestAssignment<T extends AssignableRequest>({
     setError(null);
     let written = false;
     try {
-      await apiFetch(path, { ...init, headers: { "Content-Type": "application/json" } });
+      await write();
       written = true;
       const fresh = ((await apiFetch(url)) as { request: T }).request;
       if (!alive.current) return;
@@ -150,8 +160,7 @@ export function EvidenceRequestAssignment<T extends AssignableRequest>({
     const target = choice;
     await writeThenReread(
       "assign",
-      { method: "POST", body: JSON.stringify({ assignedReviewerUserId: target.userId }) },
-      `${url}/assign`,
+      () => postRequestAction(request.id, "assign", { assignedReviewerUserId: target.userId }),
       (fresh) => fresh.assignedReviewerUserId === target.userId,
       `${target.label} is now the assigned reviewer. The saved request was reloaded.`,
     );
@@ -170,8 +179,7 @@ export function EvidenceRequestAssignment<T extends AssignableRequest>({
     if (!ok || !alive.current) return;
     await writeThenReread(
       "unassign",
-      { method: "POST", body: JSON.stringify({ assignedReviewerUserId: null }) },
-      `${url}/assign`,
+      () => postRequestAction(request.id, "assign", { assignedReviewerUserId: null }),
       (fresh) => fresh.assignedReviewerUserId === null,
       "The request is now unassigned. The saved request was reloaded.",
     );
@@ -187,8 +195,7 @@ export function EvidenceRequestAssignment<T extends AssignableRequest>({
     if (!ok || !alive.current) return;
     await writeThenReread(
       "send",
-      { method: "POST", body: JSON.stringify({}) },
-      `${url}/send`,
+      () => postRequestAction(request.id, "send", {}),
       (fresh) => fresh.status !== "DRAFT",
       "Request sent to the assigned reviewer. The saved request was reloaded.",
     );

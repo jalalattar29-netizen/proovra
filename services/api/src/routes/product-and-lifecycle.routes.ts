@@ -473,40 +473,29 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     },
   );
 
+  // ---------------------------------------------------------------------------
+  // (RETIRED) POST /v1/exchange/packages/:id/ready — typed 410 (WCC 2026-09-17)
+  //
+  // It let a caller declare a package READY with a storage key, sha256 and
+  // size it typed itself, and minted a signed URL on the way, outside the
+  // worker's build. The worker is the only party that computes those facts:
+  // it moves BUILDING -> READY with the hash it produced and meters the
+  // export. A human asks for a build with POST /v1/exchange/packages/:id/build.
+  // No web, mobile, worker or e2e caller existed. The route keeps
+  // authentication and does nothing else: it reads and writes no package data.
+  // ---------------------------------------------------------------------------
   app.post(
     "/v1/exchange/packages/:id/ready",
-    { preHandler: [requireAuth, requireDelegatedTier("ORG_ADMIN")] },
-    async (req, reply) => {
-      const ctx = await resolveWorkspace(req, reply);
-      if (!ctx) return reply;
-      const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
-      const body = z
-        .object({
-          storageKey: z.string().min(1).max(400),
-          packageSha256: z.string().min(1).max(64),
-          packageSizeBytes: z.number().int().nonnegative(),
-        })
-        .parse(req.body);
-      await generateSignedUrl({
-        teamId: ctx.teamId,
-        packageId: id,
-        ttlSeconds: 3600,
-      });
-      // markPackageReady is lower-level; for this route we use it by
-      // importing the function directly since the route needs explicit fields.
-      const { markPackageReady } = await import(
-        "../services/exchange/evidence-exchange.service.js"
-      );
-      const mr = await markPackageReady({
-        teamId: ctx.teamId,
-        packageId: id,
-        storageKey: body.storageKey,
-        packageSha256: body.packageSha256,
-        packageSizeBytes: body.packageSizeBytes,
-      });
-      if (!mr.ok) return reply.code(404).send({ denial: "NOT_FOUND" });
-      return reply.code(200).send({ ok: true });
-    },
+    { preHandler: requireAuth },
+    async (_req, reply) =>
+      reply.code(410).send({
+        error: {
+          code: "EXCHANGE_PACKAGE_MANUAL_READY_RETIRED",
+          message:
+            "Marking a package ready by hand is retired. The package builder marks it ready; request a build instead.",
+        },
+        canonical: "/v1/exchange/packages/:id/build",
+      }),
   );
 
   app.post(

@@ -17,6 +17,8 @@
  * so the adapter registry has entries when the routes resolve.
  */
 
+import { createHash } from "node:crypto";
+
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
@@ -36,6 +38,7 @@ import {
 import type { Permission } from "@proovra/shared";
 
 import { getAuthUserId } from "../auth.js";
+import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
@@ -312,6 +315,55 @@ function renderVersionChain(chain: RawVersionChain): RenderedVersionChain {
   };
 }
 
+/**
+ * D62 — the bytes a caller sends to run/bytes are analysed and the results
+ * are recorded AGAINST THE EVIDENCE, so they must BE the evidence. Proven
+ * here, before any policy, budget or provider work: the sha256 of the
+ * supplied bytes must equal a hash this platform recorded for the stored
+ * evidence — the original-file hash of a single-file record, or the hash of
+ * one of its parts. A caller-supplied URL can never be proven without
+ * fetching it, so it is never used.
+ *
+ *   NOT_FOUND   — no such evidence in this workspace (answered exactly like
+ *                 a missing record);
+ *   UNVERIFIED  — no bytes supplied, or the platform holds no hash to check
+ *                 them against;
+ *   MISMATCH    — the bytes are not the stored evidence.
+ */
+async function proveSuppliedEvidenceBytes(input: {
+  teamId: string;
+  evidenceId: string;
+  bytes: Uint8Array | null;
+}): Promise<"OK" | "NOT_FOUND" | "UNVERIFIED" | "MISMATCH"> {
+  const evidence = await prisma.evidence.findFirst({
+    where: {
+      AND: [
+        { id: input.evidenceId, deletedAt: null },
+        (await workspaceEvidenceWhere(input.teamId, prisma)) as never,
+      ],
+    },
+    select: {
+      fileSha256: true,
+      hashSemantics: true,
+      parts: { select: { sha256: true } },
+    },
+  });
+  if (!evidence) return "NOT_FOUND";
+  const recorded = new Set<string>();
+  // A multipart composite is a hash of hashes, never the hash of any bytes.
+  if (evidence.fileSha256 && evidence.hashSemantics !== "multipart_composite") {
+    recorded.add(evidence.fileSha256.toLowerCase());
+  }
+  for (const part of evidence.parts) {
+    if (part.sha256) recorded.add(part.sha256.toLowerCase());
+  }
+  if (!input.bytes || input.bytes.byteLength === 0 || recorded.size === 0) {
+    return "UNVERIFIED";
+  }
+  const supplied = createHash("sha256").update(input.bytes).digest("hex");
+  return recorded.has(supplied) ? "OK" : "MISMATCH";
+}
+
 function decodeBase64(payload: string): Uint8Array {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const B = (globalThis as any).Buffer;
@@ -392,6 +444,32 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
         .parse(req.params);
       const body = RunProviderByteSchema.parse(req.body);
       const bytes = body.bytesBase64 ? decodeBase64(body.bytesBase64) : null;
+      // D62 — never analyse bytes that are not this evidence.
+      const proof = await proveSuppliedEvidenceBytes({
+        teamId: ctx.teamId,
+        evidenceId,
+        bytes,
+      });
+      if (proof === "NOT_FOUND") {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
+      if (proof === "UNVERIFIED") {
+        return reply.code(409).send({
+          error: {
+            code: "EVIDENCE_BYTES_UNVERIFIED",
+            message:
+              "Supply the evidence bytes inline; they must match a hash recorded for this evidence.",
+          },
+        });
+      }
+      if (proof === "MISMATCH") {
+        return reply.code(409).send({
+          error: {
+            code: "EVIDENCE_BYTES_MISMATCH",
+            message: "The supplied bytes are not the stored evidence. Nothing was analysed.",
+          },
+        });
+      }
       const res = await runProviderOperation({
         teamId: ctx.teamId,
         evidenceId,
@@ -400,7 +478,8 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
         initiatedByUserId: ctx.userId,
         caseId: body.caseId ?? null,
         projectId: body.projectId ?? null,
-        byteSource: { bytes, url: body.url, contentType: body.contentType },
+        // The URL is never forwarded: only the proven bytes are analysed.
+        byteSource: { bytes, url: null, contentType: body.contentType },
       });
       if (!res.ok) {
         return reply

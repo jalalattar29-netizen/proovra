@@ -58,6 +58,16 @@ type Secret = { destinationName: string; value: string; rotated: boolean };
 
 const ROOT = "/v1/automation/webhooks";
 
+/** The two delivery switches; `DestinationSwitch` names every route this reaches. */
+type DestinationSwitch = "enable" | "disable";
+
+function switchDestination(destinationId: string, action: DestinationSwitch) {
+  return apiFetch(`${ROOT}/${encodeURIComponent(destinationId)}/${action}`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
 export const MANAGE_REASON =
   "Only a workspace owner or admin can change webhook destinations.";
 
@@ -268,11 +278,7 @@ function DestinationsWorkspace({
     if (!alive.current || !ok) return;
     const result = await mutate(
       destination.id,
-      () =>
-        apiFetch(`${ROOT}/${encodeURIComponent(destination.id)}/${enabled ? "enable" : "disable"}`, {
-          method: "POST",
-          body: JSON.stringify({}),
-        }),
+      () => switchDestination(destination.id, enabled ? "enable" : "disable"),
       (row) => row?.enabled === enabled,
       enabled
         ? `"${destination.name}" is enabled and confirmed from the saved record. Deliveries resume from now.`

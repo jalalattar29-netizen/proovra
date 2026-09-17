@@ -413,6 +413,31 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
       "A retired read answering a legacy client, not a person. No surface read " +
       "it; billing is read through the gated account projection.",
   },
+  EVIDENCE_BYTES_MISMATCH: {
+    disposition: "internal",
+    why:
+      "D62 — POST /v1/intelligence/evidence/:evidenceId/run/bytes refusing bytes " +
+      "that do not hash to the stored evidence. No web or mobile surface calls " +
+      "that route; product re-runs go through the media-intelligence run.",
+  },
+  EVIDENCE_BYTES_UNVERIFIED: {
+    disposition: "internal",
+    why:
+      "D62 — the same route refusing a URL or bytes it has no recorded hash to " +
+      "check against. No web or mobile surface calls it.",
+  },
+  CASE_WORKSPACE_READ_RETIRED: {
+    disposition: "internal",
+    why:
+      "A retired read answering a legacy client, not a person. No surface read " +
+      "it; every case surface reads the matter workspace.",
+  },
+  EXCHANGE_PACKAGE_MANUAL_READY_RETIRED: {
+    disposition: "internal",
+    why:
+      "A retired operation answering a legacy client, not a person. No surface " +
+      "marked packages ready; the package builder does, and people request a build.",
+  },
   INTELLIGENCE_ENQUEUE_RETIRED: {
     disposition: "internal",
     why:

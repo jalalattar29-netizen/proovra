@@ -642,7 +642,8 @@ export async function searchRoutes(app: FastifyInstance) {
   // call them — extend reviewer-ops instead"). No product, worker or ops
   // caller existed, and the reindex sweep never covered workflow documents.
   // The route keeps authentication and does nothing else; existing search
-  // documents are untouched. Evidence reindex (above) is unaffected.
+  // documents are untouched. Search documents are brought current by the
+  // workspace reconcile, which the product calls.
   // -------------------------------------------------------------------------
   app.post(
     "/v1/search/reindex/workflow/:id",
@@ -654,7 +655,7 @@ export async function searchRoutes(app: FastifyInstance) {
           message:
             "Reindexing workflow instances is not offered. Workflow instances are a retired record family; evidence is reindexed individually.",
         },
-        canonical: "/v1/search/reindex/evidence/:id",
+        canonical: "/v1/search/reconcile",
       }),
   );
 

@@ -150,10 +150,10 @@
     },
     {
       "routeId": "GET /v1/automation/runs/:id",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Single-run drill-down; the shipped page already renders the run list projection.",
-      "evidence": "reg services/api/src/routes/automation.routes.ts:460 app.get(\"/v1/automation/runs/:id\"). apps/web/app/(app)/operations/automation/page.tsx:104-110 apiFetch(`/v1/automation/rules?teamId=...`) + apiFetch(`/v1/automation/runs?teamId=...&limit=50`) are the ONLY automation calls; :241-243 data-automation-manage-hint text \"Owner/admin: create + edit + enable + disable via API (form UI lands in E3.1)\". Runbook docs/operations/runbooks/04-automation-recovery.md:29-30 cites only `GET /v1/automation/runs?teamId=<id>&status=...` (the list), never `/runs/:id`.",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "INTENTIONALLY_BACKEND_ONLY",
+      "reason": "no UI owed: the product already shows this data through another route (ledger UI_ALREADY_PRESENT_ELSEWHERE)",
+      "evidence": "reg services/api/src/routes/automation.routes.ts:460 app.get(\"/v1/automation/runs/:id\"). LEDGER DECISION (docs/admin/remediation/admin-enterprise-closure-ledger.json backendUiReconciliation \"GET /v1/automation/runs/:id\", reconciled 2026-09-17): finalDisposition=UI_ALREADY_PRESENT_ELSEWHERE; J triage UI_ALREADY_PRESENT_ELSEWHERE (automation runs); consumer: apps/web/app/(app)/operations/automation/page.tsx (GET /v1/automation/runs list, same projectRun projection). J triage (UI_ALREADY_PRESENT_ELSEWHERE): services/api/src/routes/automation.routes.ts:486-509 returns projectRun(row), the same projection the list returns (:440-481). apps/web/app/(app)/operations/automation/page.tsx:249 fetches GET /v1/automation/runs with a status filter and renders each run (created, trigger, target, status, reason) at … No product consumer (canonical consumer analysis). Previous manifest reason (reviewed 2026-08-16): Single-run drill-down; the shipped page already renders the run list projection.",
+      "reviewedAtUtc": "2026-09-17"
     },
     {
       "routeId": "GET /v1/automation/webhook-deliveries",
@@ -164,17 +164,18 @@
     },
     {
       "routeId": "GET /v1/batch-analysis/:id",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Job drill-down duplicated by the 4s list poll the shipped page already runs.",
-      "evidence": "reg services/api/src/routes/enterprise.routes.ts:478 app.get(\"/v1/batch-analysis/:id\"). Web calls: apps/web/app/(app)/operations/batch-analysis/page.tsx:68 apiFetch(\"/v1/batch-analysis\"), :96 (POST create), :106 `/${id}/process`, :138 `/${jobId}/cancel`, :167 `/${jobId}/export`. No `/v1/batch-analysis/${id}` bare GET.",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "INTENTIONALLY_BACKEND_ONLY",
+      "reason": "no UI owed: the product already shows this data through another route (ledger UI_ALREADY_PRESENT_ELSEWHERE)",
+      "evidence": "reg services/api/src/routes/enterprise.routes.ts:478 app.get(\"/v1/batch-analysis/:id\"). LEDGER DECISION (docs/admin/remediation/admin-enterprise-closure-ledger.json backendUiReconciliation \"GET /v1/batch-analysis/:id\", reconciled 2026-09-17): finalDisposition=UI_ALREADY_PRESENT_ELSEWHERE; J triage UI_ALREADY_PRESENT_ELSEWHERE (batch analysis (legacy)); consumer: apps/web/app/(app)/operations/batch-analysis/page.tsx (4s list poll + CSV export). J triage (UI_ALREADY_PRESENT_ELSEWHERE): services/api/src/routes/enterprise.routes.ts:478 returns job fields plus items. apps/web/app/(app)/operations/batch-analysis/page.tsx polls the list GET /v1/batch-analysis every 4s (:59-68) and renders status/progress/counts; per-item status and errors come through the wired CSV export (:167, GET /v … No product consumer (canonical consumer analysis). Previous manifest reason (reviewed 2026-08-16): Job drill-down duplicated by the 4s list poll the shipped page already runs.",
+      "reviewedAtUtc": "2026-09-17"
     },
     {
       "routeId": "GET /v1/batch-analysis/:id/results",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Results read superseded in the product by the CSV export path that is wired.",
-      "evidence": "reg services/api/src/routes/enterprise.routes.ts:697 app.get(\"/v1/batch-analysis/:id/results\"). Wired results path: apps/web/app/(app)/operations/batch-analysis/page.tsx:167 fetch(`${apiBase}/v1/batch-analysis/${jobId}/export`).",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "SUPERSEDED_REMOVE",
+      "reason": "duplicate of the canonical route the product calls (ledger DUPLICATE_ENDPOINT); no UI owed",
+      "evidence": "reg services/api/src/routes/enterprise.routes.ts:697 app.get(\"/v1/batch-analysis/:id/results\"). LEDGER DECISION (docs/admin/remediation/admin-enterprise-closure-ledger.json backendUiReconciliation \"GET /v1/batch-analysis/:id/results\", reconciled 2026-09-17): finalDisposition=DUPLICATE_ENDPOINT; J triage DUPLICATE_ENDPOINT (batch analysis (legacy)); consumer: GET /v1/batch-analysis/:id/export (apps/web/app/(app)/operations/batch-analysis/page.tsx). J triage (DUPLICATE_ENDPOINT): services/api/src/routes/enterprise.routes.ts:697 returns getAggregateResults (batch-analysis.service.ts:254-310) over classification/moderation/tag fields that processBatch never writes (it stores analysisMode 'metadata_only_legacy_batch', :144-180), so aggregates are always empty. Results are deliv … No product consumer (canonical consumer analysis). Previous manifest reason (reviewed 2026-08-16): Results read superseded in the product by the CSV export path that is wired.",
+      "reviewedAtUtc": "2026-09-17",
+      "replacement": "GET /v1/batch-analysis/:id/export"
     },
     {
       "routeId": "GET /v1/billing/subscription",
@@ -186,24 +187,24 @@
     },
     {
       "routeId": "GET /v1/capture/devices/:id",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Single-device read redundant with the device list the web Security Center already calls.",
-      "evidence": "reg services/api/src/routes/capture-trust.routes.ts:268 app.get(\"/v1/capture/devices/:id\"). The device list GET /v1/capture/devices is called from apps/web/app/(app)/security-center/components/CaptureDevicesSection.tsx:118 and revoke from :171; no client reads a single device. | Re-reviewed 2026-09-17 (UC-0): the mobile caller the previous evidence named, apps/mobile/src/trust/device-registration.ts, was deleted with the base64 trust queue.",
+      "disposition": "INTENTIONALLY_BACKEND_ONLY",
+      "reason": "no UI owed: the product already shows this data through another route (ledger UI_ALREADY_PRESENT_ELSEWHERE)",
+      "evidence": "reg services/api/src/routes/capture-trust.routes.ts:268 app.get(\"/v1/capture/devices/:id\"). LEDGER DECISION (docs/admin/remediation/admin-enterprise-closure-ledger.json backendUiReconciliation \"GET /v1/capture/devices/:id\", reconciled 2026-09-17): finalDisposition=UI_ALREADY_PRESENT_ELSEWHERE; J triage UI_ALREADY_PRESENT_ELSEWHERE (capture trust devices); consumer: apps/web/app/(app)/security-center/components/CaptureDevicesSection.tsx (device list with includeRevoked). J triage (UI_ALREADY_PRESENT_ELSEWHERE): services/api/src/routes/capture-trust.routes.ts:214-226 (getDevice, services/api/src/services/capture-trust/device-identity.service.ts:241-257) returns a subset of listDevicesForTeam (:298-324). The registry apps/web/app/(app)/security-center/components/CaptureDevicesSection.tsx:118 loads the full l … No product consumer (canonical consumer analysis). Previous manifest reason (reviewed 2026-08-16): Single-device read redundant with the device list the mobile client already calls. | Re-reviewed 2026-09-17 (UC-0): the mobile caller apps/mobile/src/trust/device-registration.ts was deleted with the base64 trust queue; the web Security Center list is the only device read.",
       "reviewedAtUtc": "2026-09-17"
     },
     {
       "routeId": "GET /v1/capture/intake-templates/:id",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Single-template read redundant; the in-code seed catalog is served whole by the list route the capture page uses.",
-      "evidence": "reg services/api/src/routes/capture.routes.ts:180 app.get(\"/v1/capture/intake-templates/:id\"). List route reg services/api/src/routes/capture.routes.ts:170, product-connected at apps/web/app/(app)/capture/_hooks/useIntakeTemplates.ts:66 `/v1/capture/intake-templates`. Handler is a pure in-memory lookup (capture.routes.ts:187 getIntakeTemplate(id)).",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "INTENTIONALLY_BACKEND_ONLY",
+      "reason": "no UI owed: the product already shows this data through another route (ledger UI_ALREADY_PRESENT_ELSEWHERE)",
+      "evidence": "reg services/api/src/routes/capture.routes.ts:180 app.get(\"/v1/capture/intake-templates/:id\"). LEDGER DECISION (docs/admin/remediation/admin-enterprise-closure-ledger.json backendUiReconciliation \"GET /v1/capture/intake-templates/:id\", reconciled 2026-09-17): finalDisposition=UI_ALREADY_PRESENT_ELSEWHERE; J triage UI_ALREADY_PRESENT_ELSEWHERE (capture intake templates); consumer: apps/web/app/(app)/capture/_hooks/useIntakeTemplates.ts (list route, whole catalog). J triage (UI_ALREADY_PRESENT_ELSEWHERE): services/api/src/routes/capture.routes.ts:180-195 is an in-memory lookup returning the same snapshotIntakeTemplate shape as the list (:170-178); apps/web/app/(app)/capture/_hooks/useIntakeTemplates.ts:66 loads the whole catalog from the list route. No product consumer (canonical consumer analysis). Previous manifest reason (reviewed 2026-08-16): Single-template read redundant; the in-code seed catalog is served whole by the list route the capture page uses.",
+      "reviewedAtUtc": "2026-09-17"
     },
     {
       "routeId": "GET /v1/capture/sessions/:id/trust-timeline",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Capture trust event timeline has no surface in web or mobile.",
-      "evidence": "reg services/api/src/routes/capture-trust.routes.ts:448 app.get(\"/v1/capture/sessions/:id/trust-timeline\"). Repo-wide `trust-timeline` matches: services/api/src/routes/capture-trust.routes.ts, services/api/test/phase-1b-mobile-capture-trust.test.ts, services/api/scripts/capability-authority/manifests/capability-taxonomy.json, docs/architecture/current-runtime-capability-map.json — no apps/web, apps/mobile, services/worker, scripts or runbook hit.",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "INTENTIONALLY_BACKEND_ONLY",
+      "reason": "no UI owed: the product already shows this data through another route (ledger UI_ALREADY_PRESENT_ELSEWHERE)",
+      "evidence": "reg services/api/src/routes/capture-trust.routes.ts:448 app.get(\"/v1/capture/sessions/:id/trust-timeline\"). LEDGER DECISION (docs/admin/remediation/admin-enterprise-closure-ledger.json backendUiReconciliation \"GET /v1/capture/sessions/:id/trust-timeline\", reconciled 2026-09-17): finalDisposition=UI_ALREADY_PRESENT_ELSEWHERE; J triage UI_ALREADY_PRESENT_ELSEWHERE (capture trust timeline); consumer: apps/web/app/(app)/evidence/[id]/_tabs/EvidenceProvenanceChainSection.tsx (GET /v1/provenance/:evidenceId, same captureTrustEventRecord rows). J triage (UI_ALREADY_PRESENT_ELSEWHERE): services/api/src/routes/capture-trust.routes.ts:449-466 is keyed by a captureSessionId minted on the mobile device (apps/mobile/src/trust/index.ts:116) that no product surface exposes. The operator capture-trust surface is Evidence Detail > Integrity: apps/web/app/(app)/evidence/[id]/_tabs/EvidenceP … No product consumer (canonical consumer analysis). Previous manifest reason (reviewed 2026-08-16): Capture trust event timeline has no surface in web or mobile.",
+      "reviewedAtUtc": "2026-09-17"
     },
     {
       "routeId": "GET /v1/cases/:id/link-reconciliation",
@@ -215,23 +216,21 @@
     },
     {
       "routeId": "GET /v1/cases/:id/workspace",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "planned product contract: the replacement matrix names the target surface and the behavioural suite it must ship with",
-      "evidence": "PLANNED CONTRACT — docs/architecture/target-replacement-matrix.json capabilityId \"GET:/v1/cases/:id/workspace\": currentClassification=TARGET_PARTIAL, targetAction=COMPLETE_FRONTEND, targetProductSurface=apps/web/components/cases-experience/types.ts, missingLayer=behavioral proof suite. NO visible control exists for it today (the route has zero product consumers in the canonical consumer analysis), so there is no disconnected affordance to hide. It receives no release-completion credit and remains in the canonical backlog. Original absence proof retained: DEAD_CONFIRMED · surfaces searched: apps/web (rg suffix '/workspace') -> hits are /v1/reviewer/workspace, /v1/reviewer-ops/workspace/*, /v1/redaction/workspace/summary only; no /v1/cases/*/workspace call; apps/web (rg 'matter-workspace') -> apps/web/components/cases-experience/MatterWorkspace.tsx:531 and apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:217 fetch the REPLACEMENT; apps/web (rg 'cases/:id/wo · docs/architecture/target-replacement-matrix.json:589 \"capabil",
-      "reviewedAtUtc": "2026-08-17",
-      "revalidatedVerdict": "DEAD_CONFIRMED",
-      "revalidationConfidence": "UNCERTAIN",
-      "postReleaseDecision": "PRESERVED_POST_RELEASE_CONTRACT"
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "retired to a typed 410 naming what replaced it (or that the capability is not offered); kept so a stale client is told rather than 404-ed",
+      "evidence": "reg services/api/src/routes/case-workspace.routes.ts:250. DUPLICATE_ENDPOINT (J triage 2026-09-16, WCC 2026-09-17). The Phase 32.8D single-case envelope is superseded by GET /v1/cases/:id/matter-workspace (services/api/src/routes/case-workspace.routes.ts:332), which apps/web/components/cases-experience/MatterWorkspace.tsx:492 and simple-case-detail/SimpleCaseDetail.tsx read; services/api/test/phase-32-8-d-frontend-matter-workspace.test.ts pins the frontend to the matter workspace, 'not the legacy /v1/cases/:id/workspace'. Consumer search 2026-09-17: 0 call sites in apps/web, apps/mobile, services/worker, e2e, packages, scripts. Handler is `async (_req, reply) => reply.code(410)...` replying 410 CASE_WORKSPACE_READ_RETIRED with `canonical` /v1/cases/:id/matter-workspace; it keeps requireAuth only and reads no case data. Pinned by services/api/test/retired-routes-2026-09-16.test.ts (case 11); code registered internal in apps/web/lib/feedback/error-code-registry.ts.",
+      "reviewedAtUtc": "2026-09-17",
+      "replacement": "GET /v1/cases/:id/matter-workspace"
     },
     {
       "routeId": "GET /v1/cases/summary",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "no product contract to build, but the repository's own behavioural suite pins the registration",
-      "evidence": "PINNED CONTRACT — services/api/test/phase-32-8-d-cases-reports.test.ts:266 (\"registers GET /v1/cases/summary\") and :637 (asserts its response shape carries per-section `status`). The frontend deliberately consumes GET /v1/cases/matter-queue instead — services/api/test/phase-32-8-d-frontend-matter-workspace.test.ts:7 states that as the design — so the ABSENCE of a UI caller is the intended state, not a gap. NO visible control exists for it (zero product consumers in the canonical consumer analysis), so nothing disconnected is on screen. No release-completion credit; stays in the canonical backlog. Original absence proof retained: DEAD_CONFIRMED · surfaces searched: apps/web (rg 'cases/summary') -> only two stale doc comments: apps/web/app/(app)/cases/page.tsx:6 and apps/web/components/cases-experience/types.ts:5. Zero apiFetch/fetch call sites.; apps/web (rg suffix '/summary') -> /v1/redaction/workspace/summary, /v1/ai/operations/summary, /v1/reviewer-ops/decisions/summary, /v1/security/summary, /v1/me/inbox/summary, /v1/r",
-      "reviewedAtUtc": "2026-08-17",
+      "disposition": "SUPERSEDED_REMOVE",
+      "reason": "duplicate of the canonical route the product calls (ledger DUPLICATE_ENDPOINT); no UI owed",
+      "evidence": "LEDGER DECISION (docs/admin/remediation/admin-enterprise-closure-ledger.json backendUiReconciliation \"GET /v1/cases/summary\", reconciled 2026-09-17): finalDisposition=DUPLICATE_ENDPOINT; J triage DUPLICATE_ENDPOINT (cases workspace read); consumer: GET /v1/cases/matter-queue (apps/web/components/cases-experience/CasesIndex.tsx). J triage (DUPLICATE_ENDPOINT): Superseded by GET /v1/cases/matter-queue (services/api/src/routes/case-workspace.routes.ts:307), which /cases uses at apps/web/components/cases-experience/CasesIndex.tsx:238; pinned by services/api/test/phase-32-8-d-frontend-matter-workspace.test.ts:7. apps/web/app/(app)/cases/page.tsx:6 and apps/we … Acceptance: services/api/test/phase-32-8-d-frontend-matter-workspace.test.ts > does NOT consume the legacy /v1/cases/summary endpoint anymore. Previous manifest reason (reviewed 2026-08-17): no product contract to build, but the repository's own behavioural suite pins the registration.",
+      "reviewedAtUtc": "2026-09-17",
       "revalidatedVerdict": "DEAD_CONFIRMED",
       "revalidationConfidence": "HIGH",
-      "postReleaseDecision": "PRESERVED_POST_RELEASE_CONTRACT"
+      "replacement": "GET /v1/cases/matter-queue"
     },
     {
       "routeId": "GET /v1/evidence/:evidenceId/custody/attestations",
@@ -259,10 +258,10 @@
     },
     {
       "routeId": "GET /v1/external-review/activity",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "workspace-wide external-review access feed is documented in the page header but never fetched",
-      "evidence": "reg services/api/src/routes/external-review.routes.ts:349 app.get(\"/v1/external-review/activity\", { preHandler: requireAuth }); apps/web/app/(app)/organizations/[id]/admin/governance/external-reviewers/page.tsx:19 \"- GET /v1/external-review/activity?teamId=… (gated audit.read)\" and :66 comment, but the page's only fetch is :144 /v1/external-review/grants; the per-invitation feed apps/web/app/(app)/review/external/page.tsx:733 `/v1/external-review/invitations/${row.grantId}/activity` is a different route",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "INTENTIONALLY_BACKEND_ONLY",
+      "reason": "no UI owed: the product already shows this data through another route (ledger UI_ALREADY_PRESENT_ELSEWHERE)",
+      "evidence": "reg services/api/src/routes/external-review.routes.ts:349 app.get(\"/v1/external-review/activity\", { preHandler: requireAuth }). LEDGER DECISION (docs/admin/remediation/admin-enterprise-closure-ledger.json backendUiReconciliation \"GET /v1/external-review/activity\", reconciled 2026-09-17): finalDisposition=UI_ALREADY_PRESENT_ELSEWHERE; J triage UI_ALREADY_PRESENT_ELSEWHERE (external review grants (legacy)); consumer: apps/web/app/(app)/organizations/[id]/admin/governance/external-reviewers/page.tsx (GET /v1/external-review/grants: Last accessed, Accesses). J triage (UI_ALREADY_PRESENT_ELSEWHERE): services/api/src/routes/external-review.routes.ts:389-423 calls the same listExternalReviewGrants as GET /v1/external-review/grants (:333) with a narrower projection. apps/web/app/(app)/organizations/[id]/admin/governance/external-reviewers/page.tsx:143-144 fetches /grants and renders Last accessed  … No product consumer (canonical consumer analysis). Previous manifest reason (reviewed 2026-08-16): workspace-wide external-review access feed is documented in the page header but never fetched.",
+      "reviewedAtUtc": "2026-09-17"
     },
     {
       "routeId": "GET /v1/governance/case-legal-holds",
@@ -274,10 +273,10 @@
     },
     {
       "routeId": "GET /v1/governance/destruction-reviews/:id",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Review drill-down duplicated by the list the destruction queue page already renders.",
-      "evidence": "reg services/api/src/routes/governance-lifecycle.routes.ts:476 app.get(\"/v1/governance/destruction-reviews/:id\"). Web calls only apps/web/app/(app)/governance/destruction/page.tsx:251/:272 `/v1/governance/destruction-reviews?teamId=...` (list), :330 `/${review.id}/transition`, plus apps/web/components/governance/DestructionImpactPreview.tsx:123 `/preview` and apps/web/components/governance/DestructionCertificate.tsx:70 `/certificate`.",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "INTENTIONALLY_BACKEND_ONLY",
+      "reason": "no UI owed: the product already shows this data through another route (ledger UI_ALREADY_PRESENT_ELSEWHERE)",
+      "evidence": "reg services/api/src/routes/governance-lifecycle.routes.ts:476 app.get(\"/v1/governance/destruction-reviews/:id\"). LEDGER DECISION (docs/admin/remediation/admin-enterprise-closure-ledger.json backendUiReconciliation \"GET /v1/governance/destruction-reviews/:id\", reconciled 2026-09-17): finalDisposition=UI_ALREADY_PRESENT_ELSEWHERE; J triage UI_ALREADY_PRESENT_ELSEWHERE (governance destruction); consumer: apps/web/app/(app)/governance/destruction/page.tsx (list projection, identical to detail). J triage (UI_ALREADY_PRESENT_ELSEWHERE): services/api/src/routes/governance-lifecycle.routes.ts:497 -> getDestructionReview returns projectReview(row) (destruction-review.service.ts:826-837), identical to the list projection (:803-824). apps/web/app/(app)/governance/destruction/page.tsx:252-275 renders the list and rereads after transition … No product consumer (canonical consumer analysis). Previous manifest reason (reviewed 2026-08-16): Review drill-down duplicated by the list the destruction queue page already renders.",
+      "reviewedAtUtc": "2026-09-17"
     },
     {
       "routeId": "GET /v1/governance/evidence/:id/holds",
@@ -319,24 +318,25 @@
     },
     {
       "routeId": "GET /v1/intelligence/evidence/:evidenceId/corrections",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Evidence-scoped correction list unsurfaced; the quality panel works record-by-record instead.",
-      "evidence": "reg services/api/src/routes/intelligence-platform.routes.ts:544 app.get(\"/v1/intelligence/evidence/:evidenceId/corrections\"). Panel calls: apps/web/app/(app)/intelligence-quality/_sections/IntelligenceRecordsPanel.tsx:176 `/v1/intelligence/evidence/${id}/records`, :204 `/v1/intelligence/records/${recordId}/version-chain`, :246 `/v1/intelligence/corrections` POST, :297/:339 `/v1/intelligence/corrections/${version.id}/accept|revert`.",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "INTENTIONALLY_BACKEND_ONLY",
+      "reason": "no UI owed: the product already shows this data through another route (ledger UI_ALREADY_PRESENT_ELSEWHERE)",
+      "evidence": "reg services/api/src/routes/intelligence-platform.routes.ts:544 app.get(\"/v1/intelligence/evidence/:evidenceId/corrections\"). LEDGER DECISION (docs/admin/remediation/admin-enterprise-closure-ledger.json backendUiReconciliation \"GET /v1/intelligence/evidence/:evidenceId/corrections\", reconciled 2026-09-17): finalDisposition=UI_ALREADY_PRESENT_ELSEWHERE; J triage UI_ALREADY_PRESENT_ELSEWHERE (intelligence records/corrections); consumer: apps/web/app/(app)/intelligence-quality/_sections/IntelligenceRecordsPanel.tsx (correctionCount per record + chain). J triage (UI_ALREADY_PRESENT_ELSEWHERE): services/api/src/routes/intelligence-platform.routes.ts:544 returns a flat evidence-wide list; IntelligenceRecordsPanel.tsx already shows correctionCount per record (:211) and opens each record's server-rendered chain (:239). No product consumer (canonical consumer analysis). Previous manifest reason (reviewed 2026-08-16): Evidence-scoped correction list unsurfaced; the quality panel works record-by-record instead.",
+      "reviewedAtUtc": "2026-09-17"
     },
     {
       "routeId": "GET /v1/intelligence/records/:id",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Single-record read superseded in the product by the version-chain read the panel actually issues.",
-      "evidence": "reg services/api/src/routes/intelligence-platform.routes.ts:353 app.get(\"/v1/intelligence/records/:id\"). apps/web/app/(app)/intelligence-quality/_sections/IntelligenceRecordsPanel.tsx:204 calls `/v1/intelligence/records/${recordId}/version-chain` (reg intelligence-platform.routes.ts:767); the file header at :18-20 lists `/records/:id` as documentation only.",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "INTENTIONALLY_BACKEND_ONLY",
+      "reason": "no UI owed: the product already shows this data through another route (ledger UI_ALREADY_PRESENT_ELSEWHERE)",
+      "evidence": "reg services/api/src/routes/intelligence-platform.routes.ts:353 app.get(\"/v1/intelligence/records/:id\"). LEDGER DECISION (docs/admin/remediation/admin-enterprise-closure-ledger.json backendUiReconciliation \"GET /v1/intelligence/records/:id\", reconciled 2026-09-17): finalDisposition=UI_ALREADY_PRESENT_ELSEWHERE; J triage UI_ALREADY_PRESENT_ELSEWHERE (intelligence records/corrections); consumer: apps/web/app/(app)/intelligence-quality/_sections/IntelligenceRecordsPanel.tsx (list + /version-chain). J triage (UI_ALREADY_PRESENT_ELSEWHERE): services/api/src/routes/intelligence-platform.routes.ts:353 returns the record + rendered chain; record fields equal the list projection and the chain equals GET /v1/intelligence/records/:id/version-chain (:767). apps/web/app/(app)/intelligence-quality/_sections/IntelligenceRecordsPanel.tsx fetches  … No product consumer (canonical consumer analysis). Previous manifest reason (reviewed 2026-08-16): Single-record read superseded in the product by the version-chain read the panel actually issues.",
+      "reviewedAtUtc": "2026-09-17"
     },
     {
       "routeId": "GET /v1/intelligence/records/:id/corrections",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Record correction list unsurfaced; the panel renders corrections from the version chain instead.",
-      "evidence": "reg services/api/src/routes/intelligence-platform.routes.ts:529 app.get(\"/v1/intelligence/records/:id/corrections\"). apps/web/app/(app)/intelligence-quality/_sections/IntelligenceRecordsPanel.tsx:204 version-chain read is the only records/:id sub-call; :19 lists this path in a doc comment only.",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "SUPERSEDED_REMOVE",
+      "reason": "duplicate of the canonical route the product calls (ledger DUPLICATE_ENDPOINT); no UI owed",
+      "evidence": "reg services/api/src/routes/intelligence-platform.routes.ts:529 app.get(\"/v1/intelligence/records/:id/corrections\"). LEDGER DECISION (docs/admin/remediation/admin-enterprise-closure-ledger.json backendUiReconciliation \"GET /v1/intelligence/records/:id/corrections\", reconciled 2026-09-17): finalDisposition=DUPLICATE_ENDPOINT; J triage DUPLICATE_ENDPOINT (intelligence records/corrections); consumer: GET /v1/intelligence/records/:id/version-chain (IntelligenceRecordsPanel.tsx). J triage (DUPLICATE_ENDPOINT): services/api/src/routes/intelligence-platform.routes.ts:529 returns a flat correction list, superseded by the server-rendered GET /v1/intelligence/records/:id/version-chain (:767; comment :760-765 forbids rebuilding the chain client-side), which the panel uses (apps/web/app/(app)/intelligence-qualit … No product consumer (canonical consumer analysis). Previous manifest reason (reviewed 2026-08-16): Record correction list unsurfaced; the panel renders corrections from the version chain instead.",
+      "reviewedAtUtc": "2026-09-17",
+      "replacement": "GET /v1/intelligence/records/:id/version-chain"
     },
     {
       "routeId": "GET /v1/intelligence/search",
@@ -370,10 +370,10 @@
     },
     {
       "routeId": "GET /v1/notifications/deliveries/:id",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Single-delivery read redundant; the shipped notification log renders the list projection and resends from it.",
-      "evidence": "reg services/api/src/routes/notifications.routes.ts:150 app.get(\"/v1/notifications/deliveries/:id\"). Shipped page: apps/web/app/(app)/notifications/page.tsx:134 `/v1/notifications/deliveries?${queryString}` (GET) and :160 `/v1/notifications/deliveries/${id}/resend` (POST).",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "INTENTIONALLY_BACKEND_ONLY",
+      "reason": "no UI owed: the product already shows this data through another route (ledger UI_ALREADY_PRESENT_ELSEWHERE)",
+      "evidence": "reg services/api/src/routes/notifications.routes.ts:150 app.get(\"/v1/notifications/deliveries/:id\"). LEDGER DECISION (docs/admin/remediation/admin-enterprise-closure-ledger.json backendUiReconciliation \"GET /v1/notifications/deliveries/:id\", reconciled 2026-09-17): finalDisposition=UI_ALREADY_PRESENT_ELSEWHERE; J triage UI_ALREADY_PRESENT_ELSEWHERE (notification delivery log); consumer: apps/web/app/(app)/settings/notifications/deliveries/page.tsx (same projector; resend wired). J triage (UI_ALREADY_PRESENT_ELSEWHERE): services/api/src/routes/notifications.routes.ts:185-219 returns projectNotificationDelivery(row), the same projector the list uses (:175-179). The shipped delivery log apps/web/app/(app)/settings/notifications/deliveries/page.tsx:143-144 renders that list (resend wired at :170); the single read adds … No product consumer (canonical consumer analysis). Previous manifest reason (reviewed 2026-08-16): Single-delivery read redundant; the shipped notification log renders the list projection and resends from it.",
+      "reviewedAtUtc": "2026-09-17"
     },
     {
       "routeId": "GET /v1/operations/exports/:id/manifest",
@@ -395,10 +395,10 @@
     },
     {
       "routeId": "GET /v1/ops/bulk-actions/:id",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "bulk-action detail read has no control; the command center only posts the fan-out",
-      "evidence": "reg services/api/src/routes/ops.routes.ts:1718; apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:457 apiFetch(`/v1/ops/bulk-actions`, { ... }) is the only call; :17 header comment \"POST /v1/ops/bulk-actions — multi-select fan-out\"",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "INTENTIONALLY_BACKEND_ONLY",
+      "reason": "no UI owed: the product already shows this data through another route (ledger UI_ALREADY_PRESENT_ELSEWHERE)",
+      "evidence": "reg services/api/src/routes/ops.routes.ts:1718. LEDGER DECISION (docs/admin/remediation/admin-enterprise-closure-ledger.json backendUiReconciliation \"GET /v1/ops/bulk-actions/:id\", reconciled 2026-09-17): finalDisposition=UI_ALREADY_PRESENT_ELSEWHERE; J triage UI_ALREADY_PRESENT_ELSEWHERE (ops bulk actions); consumer: apps/web/app/(app)/operations/page.tsx and apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx (POST returns {run, items} synchronously). J triage (UI_ALREADY_PRESENT_ELSEWHERE): runBulkAction is synchronous (services/api/src/services/dashboard/bulk-actions.service.ts:73) and POST /v1/ops/bulk-actions already returns {run, items} (ops.routes.ts:3049-3062); both consumers render per-item outcome: apps/web/app/(app)/operations/page.tsx:1263-1285 and apps/web/components/command … No product consumer (canonical consumer analysis). Previous manifest reason (reviewed 2026-08-16): bulk-action detail read has no control; the command center only posts the fan-out.",
+      "reviewedAtUtc": "2026-09-17"
     },
     {
       "routeId": "GET /v1/ops/seed/reviewer-ops",
@@ -410,20 +410,19 @@
     },
     {
       "routeId": "GET /v1/orgs/:id/invites/csv-template",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "no product contract to build, but the repository's own behavioural suite pins the registration",
-      "evidence": "PINNED CONTRACT — services/api/test/phase-8-bulk-invite.test.ts:227 asserts the route source contains this registration. The bulk-invite page currently renders a client-side STATIC_TEMPLATE (apps/web/app/(app)/organizations/[id]/admin/bulk-invite/page.tsx:551), so the server template is the un-adopted half of a shipped feature. NO visible control exists for it (zero product consumers in the canonical consumer analysis), so nothing disconnected is on screen. No release-completion credit; stays in the canonical backlog. Original absence proof retained: DEAD_CONFIRMED · surfaces searched: apps/web (rg 'csv-template') -> three doc-comment hits in apps/web/app/(app)/organizations/[id]/admin/bulk-invite/page.tsx (:16 header, :280 and :550 explaining the deliberate client-side reimplementation). Zero apiFetch/fetch call sites.; apps/web (rg suffix '/csv-template') -> 0; apps/mobile (full /v1/ enumeration) -> 0; services/worker -> 0; packages/* -> 0; ",
-      "reviewedAtUtc": "2026-08-17",
+      "disposition": "INTENTIONALLY_BACKEND_ONLY",
+      "reason": "no UI owed: the product already shows this data through another route (ledger UI_ALREADY_PRESENT_ELSEWHERE)",
+      "evidence": "LEDGER DECISION (docs/admin/remediation/admin-enterprise-closure-ledger.json backendUiReconciliation \"GET /v1/orgs/:id/invites/csv-template\", reconciled 2026-09-17): finalDisposition=UI_ALREADY_PRESENT_ELSEWHERE; J triage UI_ALREADY_PRESENT_ELSEWHERE (org bulk invite); consumer: apps/web/app/(app)/organizations/[id]/admin/bulk-invite/page.tsx (identical STATIC_TEMPLATE download). J triage (UI_ALREADY_PRESENT_ELSEWHERE): services/api/src/routes/organizations-bulk-invite.routes.ts:966-981 serves a fixed 3-line CSV; apps/web/app/(app)/organizations/[id]/admin/bulk-invite/page.tsx:279-284 already offers 'download template' emitting the identical STATIC_TEMPLATE (:556-560, kept in lock-step with the backend). Acceptance: services/api/test/phase-8-bulk-invite.test.ts > declares all five bulk/CSV endpoints. Previous manifest reason (reviewed 2026-08-17): no product contract to build, but the repository's own behavioural suite pins the registration.",
+      "reviewedAtUtc": "2026-09-17",
       "revalidatedVerdict": "DEAD_CONFIRMED",
-      "revalidationConfidence": "UNCERTAIN",
-      "postReleaseDecision": "PRESERVED_POST_RELEASE_CONTRACT"
+      "revalidationConfidence": "UNCERTAIN"
     },
     {
       "routeId": "GET /v1/redaction/derivatives/:id",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Redundant metadata read; the shipped panel reads derivative state from the project projection and only calls the download-url sibling.",
-      "evidence": "reg services/api/src/routes/redaction.routes.ts:1487 app.get(\"/v1/redaction/derivatives/:id\"). Only derivative call in web: apps/web/components/redaction/ApprovalPanel.tsx:97 apiFetch(`/v1/redaction/derivatives/${derivative.id}/download-url`); state read from `version.derivative` at ApprovalPanel.tsx:79-84.",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "INTENTIONALLY_BACKEND_ONLY",
+      "reason": "no UI owed: the product already shows this data through another route (ledger UI_ALREADY_PRESENT_ELSEWHERE)",
+      "evidence": "reg services/api/src/routes/redaction.routes.ts:1487 app.get(\"/v1/redaction/derivatives/:id\"). LEDGER DECISION (docs/admin/remediation/admin-enterprise-closure-ledger.json backendUiReconciliation \"GET /v1/redaction/derivatives/:id\", reconciled 2026-09-17): finalDisposition=UI_ALREADY_PRESENT_ELSEWHERE; J triage UI_ALREADY_PRESENT_ELSEWHERE (redaction derivative); consumer: apps/web/components/redaction/ApprovalPanel.tsx (version.derivative from the project projection). J triage (UI_ALREADY_PRESENT_ELSEWHERE): services/api/src/routes/redaction.routes.ts:1487-1535 is a state read; the project projection already carries version.derivative (id, kind, state, byteSize, fileSha256, renderedAtUtc, failureReason) at redaction-projection.service.ts:209-219, polled by apps/web/app/(app)/redaction/[projectId]/page.t … No product consumer (canonical consumer analysis). Previous manifest reason (reviewed 2026-08-16): Redundant metadata read; the shipped panel reads derivative state from the project projection and only calls the download-url sibling.",
+      "reviewedAtUtc": "2026-09-17"
     },
     {
       "routeId": "GET /v1/redaction/policy",
@@ -442,17 +441,17 @@
     },
     {
       "routeId": "GET /v1/redaction/videos/:evidenceId/tracks",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Track listing duplicated by the timeline projection which the shipped workspace already consumes.",
-      "evidence": "reg services/api/src/routes/redaction.routes.ts:1274 app.get(\"/v1/redaction/videos/:evidenceId/tracks\"). listVideoTracksForEvidence is consumed server-side by services/api/src/services/redaction/video/video-timeline.service.ts:131, and the timeline route (redaction.routes.ts:1413) is what apps/web/components/redaction/VideoReviewWorkspace.tsx:89 calls.",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "INTENTIONALLY_BACKEND_ONLY",
+      "reason": "no UI owed: the product already shows this data through another route (ledger UI_ALREADY_PRESENT_ELSEWHERE)",
+      "evidence": "reg services/api/src/routes/redaction.routes.ts:1274 app.get(\"/v1/redaction/videos/:evidenceId/tracks\"). LEDGER DECISION (docs/admin/remediation/admin-enterprise-closure-ledger.json backendUiReconciliation \"GET /v1/redaction/videos/:evidenceId/tracks\", reconciled 2026-09-17): finalDisposition=UI_ALREADY_PRESENT_ELSEWHERE; J triage UI_ALREADY_PRESENT_ELSEWHERE (redaction video); consumer: apps/web/components/redaction/VideoReviewWorkspace.tsx (timeline projection carries the tracks). J triage (UI_ALREADY_PRESENT_ELSEWHERE): services/api/src/routes/redaction.routes.ts:1274-1289 returns listVideoTracksForEvidence; the timeline projection calls the same function (services/api/src/services/redaction/video/video-timeline.service.ts:131-135) and apps/web/components/redaction/VideoReviewWorkspace.tsx:134 fetches /v1/redaction … No product consumer (canonical consumer analysis). Previous manifest reason (reviewed 2026-08-16): Track listing duplicated by the timeline projection which the shipped workspace already consumes.",
+      "reviewedAtUtc": "2026-09-17"
     },
     {
       "routeId": "GET /v1/reviewer-ops/runtime-probe",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "reviewer-ops diagnostics probe has no surface and no runbook procedure",
-      "evidence": "reg services/api/src/routes/reviewer-ops.routes.ts:708 app.get(\"/v1/reviewer-ops/runtime-probe\", { preHandler: requireAuth }) → buildReviewerOpsRuntimeProbe({ teamId }) with denial copy \"Select a workspace to load the diagnostics probe.\"; rg \"runtime-probe\" apps/web apps/mobile services/worker packages scripts .github = 0 hits; docs mention only the service file (docs/operations/phase-2b-high-schema-drift-plan.md:140) and the target matrix (docs/architecture/target-replacement-matrix.json:3529 targetAction BLOCKED_BY_PRODUCT_DECISION)",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "INTENTIONALLY_BACKEND_ONLY",
+      "reason": "deliberately no control: exposing it in a surface would be unsafe; the governed path is another route (ledger SECURITY_SENSITIVE_NO_UI)",
+      "evidence": "reg services/api/src/routes/reviewer-ops.routes.ts:708 app.get(\"/v1/reviewer-ops/runtime-probe\", { preHandler: requireAuth }) → buildReviewerOpsRuntimeProbe({ teamId }) with denial copy \"Select a workspace to load the diagnostics probe.\". LEDGER DECISION (docs/admin/remediation/admin-enterprise-closure-ledger.json backendUiReconciliation \"GET /v1/reviewer-ops/runtime-probe\", reconciled 2026-09-17): finalDisposition=SECURITY_SENSITIVE_NO_UI; J triage SECURITY_SENSITIVE_NO_UI (reviewer ops diagnostics); consumer: governed operator reads: GET /v1/reviewer-ops/dashboard (apps/web/app/(app)/reviewer-ops/sla/page.tsx), /v1/reviewer/metrics. J triage (SECURITY_SENSITIVE_NO_UI): services/api/src/routes/reviewer-ops.routes.ts:708-751 is a self-described diagnostics probe (:725) exposing process-env state (REVIEWER_OPS_RECONCILIATION_ENABLED) and workspace step-up policy flags (reviewer-ops-runtime-probe.service.ts:92-104); only callers are tests (services/api/test/phase-37-9 … No product consumer (canonical consumer analysis). Previous manifest reason (reviewed 2026-08-16): reviewer-ops diagnostics probe has no surface and no runbook procedure.",
+      "reviewedAtUtc": "2026-09-17"
     },
     {
       "routeId": "GET /v1/reviewer-ops/saved-views",
@@ -491,10 +490,10 @@
     },
     {
       "routeId": "GET /v1/uploads/sessions/:sessionId",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Full session read redundant; the recovery scanner uses the narrower /status projection.",
-      "evidence": "reg services/api/src/routes/upload-sessions.routes.ts:371 app.get(\"/v1/uploads/sessions/:sessionId\"). Wired sibling: apps/web/lib/uploads/recovery.ts:141 `/v1/uploads/sessions/${row.sessionId}/status?teamId=...`.",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "INTENTIONALLY_BACKEND_ONLY",
+      "reason": "no UI owed: the product already shows this data through another route (ledger UI_ALREADY_PRESENT_ELSEWHERE)",
+      "evidence": "reg services/api/src/routes/upload-sessions.routes.ts:371 app.get(\"/v1/uploads/sessions/:sessionId\"). LEDGER DECISION (docs/admin/remediation/admin-enterprise-closure-ledger.json backendUiReconciliation \"GET /v1/uploads/sessions/:sessionId\", reconciled 2026-09-17): finalDisposition=UI_ALREADY_PRESENT_ELSEWHERE; J triage UI_ALREADY_PRESENT_ELSEWHERE (upload sessions); consumer: apps/web/lib/uploads/recovery.ts (/status projection). J triage (UI_ALREADY_PRESENT_ELSEWHERE): services/api/src/routes/upload-sessions.routes.ts:371-398 returns session + parts; the sibling /status route (:405-432) returns what the product uses and is called by upload recovery (apps/web/lib/uploads/recovery.ts:141; the :16 hit is a comment). Resume/progress come from local uploader state (app … No product consumer (canonical consumer analysis). Previous manifest reason (reviewed 2026-08-16): Full session read redundant; the recovery scanner uses the narrower /status projection.",
+      "reviewedAtUtc": "2026-09-17"
     },
     {
       "routeId": "GET /v1/users/me/sessions",
@@ -563,13 +562,6 @@
       "reviewedAtUtc": "2026-08-16"
     },
     {
-      "routeId": "POST /v1/automation/webhooks/:id/disable",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Webhook destination management UI explicitly deferred.",
-      "evidence": "reg services/api/src/routes/automation-webhooks.routes.ts:423 app.post(\"/v1/automation/webhooks/:id/disable\"). docs/product/PHASE_E3_2_WEBHOOK_DELIVERY.md:223 \"Webhook UI is **deferred** to a thin follow-up phase.\"; apps/web/app/(app)/operations/analytics/page.tsx:641-646 states the destinations/deliveries endpoints are backend-only and that surface \"shows aggregate counters only\" (descriptive text, not a call)",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
       "routeId": "POST /v1/break-glass/activate",
       "disposition": "ADMIN_OPERATOR",
       "reason": "platform-staff emergency activation performed out of console by explicit product decision",
@@ -587,17 +579,18 @@
     },
     {
       "routeId": "POST /v1/cases/:id/share-email",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "case share-by-email has no control in any surface",
-      "evidence": "reg services/api/src/routes/cases.routes.ts:1677 app.post(\"/v1/cases/:id/share-email\", { preHandler: requireAuthAndLegal }); rg \"share-email\" apps/web apps/mobile services/worker packages scripts .github = 0 hits; MatterWorkspace.tsx:329-378 TABS = overview|evidence|timeline|graph|holds|decisions|risk|discussion|assignments|investigation-profile|audit|export (no access/share tab)",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "INTENTIONALLY_BACKEND_ONLY",
+      "reason": "deliberately no control: exposing it in a surface would be unsafe; the governed path is another route (ledger SECURITY_SENSITIVE_NO_UI)",
+      "evidence": "reg services/api/src/routes/cases.routes.ts:1677 app.post(\"/v1/cases/:id/share-email\", { preHandler: requireAuthAndLegal }). LEDGER DECISION (docs/admin/remediation/admin-enterprise-closure-ledger.json backendUiReconciliation \"POST /v1/cases/:id/share-email\", reconciled 2026-09-17): finalDisposition=SECURITY_SENSITIVE_NO_UI; J triage SECURITY_SENSITIVE_NO_UI (cases access acl); consumer: external reviewers: apps/web/app/(app)/review/external/page.tsx; members: MatterAccessTab via POST /v1/cases/:id/access. J triage (SECURITY_SENSITIVE_NO_UI): services/api/src/routes/cases.routes.ts:1677-1804 looks up any platform user by email and answers differently for no user (404), several users (400) and non-member (400): an account-existence probe for any case owner; for personal cases (teamId null) it grants standing access to any account (:1764-1 … Acceptance: services/api/test/matter-access-tab.integration.test.ts > answers byte-identically for a member, a foreign account, a suspended member and an unknown address; only the member is granted. Previous manifest reason (reviewed 2026-08-16): case share-by-email has no control in any surface.",
+      "reviewedAtUtc": "2026-09-17"
     },
     {
       "routeId": "POST /v1/cases/:id/share-team",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "case share-with-team has no control in any surface",
-      "evidence": "reg services/api/src/routes/cases.routes.ts:1582 app.post(\"/v1/cases/:id/share-team\", { preHandler: requireAuthAndLegal }); rg \"share-team\" apps/web apps/mobile services/worker packages scripts .github = 0 hits; MatterWorkspace.tsx:329-378 TABS = overview|evidence|timeline|graph|holds|decisions|risk|discussion|assignments|investigation-profile|audit|export (no access/share tab)",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "SUPERSEDED_REMOVE",
+      "reason": "duplicate of the canonical route the product calls (ledger DUPLICATE_ENDPOINT); no UI owed",
+      "evidence": "reg services/api/src/routes/cases.routes.ts:1582 app.post(\"/v1/cases/:id/share-team\", { preHandler: requireAuthAndLegal }). LEDGER DECISION (docs/admin/remediation/admin-enterprise-closure-ledger.json backendUiReconciliation \"POST /v1/cases/:id/share-team\", reconciled 2026-09-17): finalDisposition=DUPLICATE_ENDPOINT; J triage OWNER_DECISION_REQUIRED (cases access acl); consumer: POST /v1/cases/:id/access (apps/web/components/cases-experience/MatterAccessTab.tsx, whose header names share-team 'the same grant under an older name'). J triage (OWNER_DECISION_REQUIRED): Membership-checked per-case grant (services/api/src/routes/cases.routes.ts:1582-1675; owner-only, target must be ACTIVE, :1629-1648). UI dropped in commit 97226dc7 with no withdrawal note. Because the first grant hides the case from every other member (case-workspace.routes.ts:165-192), a 'Share' bu … No product consumer (canonical consumer analysis). Previous manifest reason (reviewed 2026-08-16): case share-with-team has no control in any surface.",
+      "reviewedAtUtc": "2026-09-17",
+      "replacement": "POST /v1/cases/:id/access"
     },
     {
       "routeId": "POST /v1/cases/:id/siu-profile/checklist/:itemId/map-evidence",
@@ -671,13 +664,6 @@
       "reviewedAtUtc": "2026-09-16"
     },
     {
-      "routeId": "POST /v1/evidence-requests/:id/assign",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "reviewer assignment on an evidence request has no control",
-      "evidence": "reg services/api/src/routes/evidence-requests.routes.ts:726 app.post(\"/v1/evidence-requests/:id/assign\", { preHandler: requireAuth }) (comment :725 \"ASSIGN REVIEWER (quick action)\"); rg \"evidence-requests/.*assign\" apps/web apps/mobile = 0 hits",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
       "routeId": "POST /v1/evidence/:evidenceId/custody/attestations/sign",
       "disposition": "ADMIN_OPERATOR",
       "reason": "single-event operator sign helper; the console uses the bulk backfill path",
@@ -687,13 +673,11 @@
     },
     {
       "routeId": "POST /v1/exchange/packages/:id/ready",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "planned product contract: the replacement matrix names the target surface and the behavioural suite it must ship with",
-      "evidence": "PLANNED CONTRACT — docs/architecture/target-replacement-matrix.json capabilityId \"POST:/v1/exchange/packages/:id/ready\": currentClassification=TARGET_PARTIAL, targetAction=COMPLETE_FRONTEND, targetProductSurface=apps/web/app/(app)/exchange/page.tsx, missingLayer=behavioral proof suite. NO visible control exists for it today (the route has zero product consumers in the canonical consumer analysis), so there is no disconnected affordance to hide. It receives no release-completion credit and remains in the canonical backlog. Original absence proof retained: DEAD_CONFIRMED · surfaces searched: apps/web (grep '/v1/' over apps/web/app/(app)/exchange/page.tsx) -> :175 /v1/exchange/packages/:packageId/deliveries, :205 and :227 POST /v1/exchange/packages, :247 /sign-url, :300 /deliveries, :350 /v1/exchange/deliveries/:id/download. NO /ready.; apps/web (rg suffix '/ready') -> 0; apps/mobile (full /v1/ enumeration) -> 0; services/worker (rg '/v1/') -> 0 HTTP calls; the worker performs the tran · docs/architecture/target-replacement-matrix.json:3085 \"capabi",
-      "reviewedAtUtc": "2026-08-17",
-      "revalidatedVerdict": "DEAD_CONFIRMED",
-      "revalidationConfidence": "UNCERTAIN",
-      "postReleaseDecision": "PRESERVED_POST_RELEASE_CONTRACT"
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "retired to a typed 410 naming what replaced it (or that the capability is not offered); kept so a stale client is told rather than 404-ed",
+      "evidence": "reg services/api/src/routes/product-and-lifecycle.routes.ts:488. SECURITY_SENSITIVE_NO_UI (J triage 2026-09-16), retired WCC 2026-09-17. It accepted a caller-typed storageKey/packageSha256/packageSizeBytes, forced the package READY and minted a signed URL outside the build; the worker (services/worker/src/exchange-package-builder.ts:903-914) is the only party that computes those facts and moves BUILDING->READY with metering, and a person requests a build with POST /v1/exchange/packages/:id/build (services/api/src/routes/product-and-lifecycle.routes.ts:393; web caller apps/web/app/(app)/exchange/page.tsx:379). Consumer search 2026-09-17: 0 call sites in apps/web, apps/mobile, services/worker (no HTTP call), e2e, packages, scripts. Handler is `async (_req, reply) => reply.code(410)...` replying 410 EXCHANGE_PACKAGE_MANUAL_READY_RETIRED with `canonical` /v1/exchange/packages/:id/build; it keeps requireAuth only and reads/writes no package data. Pinned by services/api/test/retired-routes-2026-09-16.test.ts (case 12); code registered internal in apps/web/lib/feedback/error-code-registry.ts.",
+      "reviewedAtUtc": "2026-09-17",
+      "replacement": "POST /v1/exchange/packages/:id/build"
     },
     {
       "routeId": "POST /v1/external-intake/:token/sessions/:sid/transition",
@@ -718,10 +702,11 @@
     },
     {
       "routeId": "POST /v1/external-review/grants/:id/revoke",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "primitive grant revoke has no control; product revokes through the invitations layer",
-      "evidence": "reg services/api/src/routes/external-review.routes.ts:237 app.post(\"/v1/external-review/grants/:id/revoke\"); apps/web/app/(app)/review/external/page.tsx:782 `/v1/external-review/invitations/${row.grantId}/revoke` and :320 \"/v1/external-review/invitations/bulk/revoke\" are the wired revokes; 0 hits for \"external-review/grants/\" + revoke in apps/web|apps/mobile",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "SUPERSEDED_REMOVE",
+      "reason": "duplicate of the canonical route the product calls (ledger DUPLICATE_ENDPOINT); no UI owed",
+      "evidence": "reg services/api/src/routes/external-review.routes.ts:237 app.post(\"/v1/external-review/grants/:id/revoke\"). LEDGER DECISION (docs/admin/remediation/admin-enterprise-closure-ledger.json backendUiReconciliation \"POST /v1/external-review/grants/:id/revoke\", reconciled 2026-09-17): finalDisposition=DUPLICATE_ENDPOINT; J triage DUPLICATE_ENDPOINT (external review grants (legacy)); consumer: POST /v1/external-review/invitations/:id/revoke (apps/web/app/(app)/review/external/page.tsx). J triage (DUPLICATE_ENDPOINT): services/api/src/routes/external-review.routes.ts:277 transitions the grant to REVOKED; canonical POST /v1/external-review/invitations/:id/revoke (external-portal.routes.ts:526, revokeInvitation, also writes GRANT_REVOKED activity, handles invitation-less grants: portal-invitation.service.ts:157-197 … No product consumer (canonical consumer analysis). Previous manifest reason (reviewed 2026-08-16): primitive grant revoke has no control; product revokes through the invitations layer.",
+      "reviewedAtUtc": "2026-09-17",
+      "replacement": "POST /v1/external-review/invitations/:id/revoke"
     },
     {
       "routeId": "POST /v1/external-review/invitations",
@@ -732,17 +717,11 @@
     },
     {
       "routeId": "POST /v1/external-review/invitations/:id/send-email",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "operator first-send has no control; the console uses the resend route",
-      "evidence": "reg services/api/src/routes/external-portal.routes.ts:1202 app.post(\"/v1/external-review/invitations/:id/send-email\", { preHandler: requireAuth }); apps/web/app/(app)/review/external/page.tsx:759 `/v1/external-review/invitations/${row.grantId}/resend` (services/api/src/routes/external-portal.routes.ts:713) is the wired delivery action",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
-      "routeId": "POST /v1/external-review/invitations/:id/sessions/revoke",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "session-lifecycle revoke has no control; the console revokes the invitation itself",
-      "evidence": "reg services/api/src/routes/external-portal.routes.ts:1143 app.post(\"/v1/external-review/invitations/:id/sessions/revoke\", { preHandler: requireAuth }); services/api/src/routes/external-portal.routes.ts:1136-1141 \"operator-initiated session revoke ... the actual revoke flows through revokeInvitation\"; wired: apps/web/app/(app)/review/external/page.tsx:782 /revoke",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "SUPERSEDED_REMOVE",
+      "reason": "duplicate of the canonical route the product calls (ledger DUPLICATE_ENDPOINT); no UI owed",
+      "evidence": "reg services/api/src/routes/external-portal.routes.ts:1202 app.post(\"/v1/external-review/invitations/:id/send-email\", { preHandler: requireAuth }). LEDGER DECISION (docs/admin/remediation/admin-enterprise-closure-ledger.json backendUiReconciliation \"POST /v1/external-review/invitations/:id/send-email\", reconciled 2026-09-17): finalDisposition=DUPLICATE_ENDPOINT; J triage DUPLICATE_ENDPOINT (external review console); consumer: POST /v1/external-review/invitations/:id/resend (apps/web/app/(app)/review/external/page.tsx). J triage (DUPLICATE_ENDPOINT): services/api/src/routes/external-portal.routes.ts:1211-1260 and the canonical /resend (:722) both call deliverInvitationEmail (portal-bulk-invitations.service.ts:497-522); first send happens in bulk issue (:250-280). The console uses Resend (apps/web/app/(app)/review/external/page.tsx:774). No web/m … No product consumer (canonical consumer analysis). Previous manifest reason (reviewed 2026-08-16): operator first-send has no control; the console uses the resend route.",
+      "reviewedAtUtc": "2026-09-17",
+      "replacement": "POST /v1/external-review/invitations/:id/resend"
     },
     {
       "routeId": "POST /v1/governance/case-legal-holds",
@@ -792,24 +771,25 @@
     },
     {
       "routeId": "POST /v1/governance/lifecycle/evidence/:id/transition",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Admin force-transition escape hatch, not presented in any surface and not cited by any runbook.",
-      "evidence": "reg services/api/src/routes/governance-lifecycle.routes.ts:930 app.post(\"/v1/governance/lifecycle/evidence/:id/transition\") (comment at :941-942 \"Manual lifecycle transition is an ADMIN action — direct manipulation of state machine pointers\"). The sibling read IS wired: apps/web/app/(app)/governance/destruction/page.tsx:355 `/v1/governance/lifecycle/evidence/${review.evidenceId}/events`. Runbook scan of docs/operations/runbooks/ for `v1/governance` returns zero hits.",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "INTENTIONALLY_BACKEND_ONLY",
+      "reason": "deliberately no control: exposing it in a surface would be unsafe; the governed path is another route (ledger SECURITY_SENSITIVE_NO_UI)",
+      "evidence": "reg services/api/src/routes/governance-lifecycle.routes.ts:930 app.post(\"/v1/governance/lifecycle/evidence/:id/transition\") (comment at :941-942 \"Manual lifecycle transition is an ADMIN action — direct manipulation of state machine pointers\"). LEDGER DECISION (docs/admin/remediation/admin-enterprise-closure-ledger.json backendUiReconciliation \"POST /v1/governance/lifecycle/evidence/:id/transition\", reconciled 2026-09-17): finalDisposition=SECURITY_SENSITIVE_NO_UI; J triage SECURITY_SENSITIVE_NO_UI (governance lifecycle); consumer: governed path: destruction-review transitions (apps/web/app/(app)/governance/destruction/page.tsx) and the canonical executor. J triage (SECURITY_SENSITIVE_NO_UI): services/api/src/routes/governance-lifecycle.routes.ts:951-994 force-transitions evidence to any lifecycle state (comment :962-963, 'direct manipulation of state machine pointers') via transitionLifecycle, bypassing the destruction executor; destruction-review.service.ts:632-648 documents that this  … Acceptance: services/api/test/lifecycle-force-destroy-refused.integration.test.ts > an Enterprise owner with an approved step-up still cannot force DESTROYED; the record is unchanged. Previous manifest reason (reviewed 2026-08-16): Admin force-transition escape hatch, not presented in any surface and not cited by any runbook.",
+      "reviewedAtUtc": "2026-09-17"
     },
     {
       "routeId": "POST /v1/identity-security/sessions/revoke",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "granular admin session revoke has no control; the security center revokes all sessions for a user",
-      "evidence": "reg services/api/src/routes/identity-security.routes.ts:311 app.post(\"/v1/identity-security/sessions/revoke\", { preHandler: requireAuth }) with body { teamId, userId, sessionIdHash }; apps/web/app/(app)/security-center/page.tsx:294 await apiFetch(\"/v1/identity-security/sessions/revoke-all\", { method: \"POST\" }); self-service equivalents apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1599 /my-sessions/revoke-others and :1644 /my-sessions/${sessionId}/revoke",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "SUPERSEDED_REMOVE",
+      "reason": "duplicate of the canonical route the product calls (ledger DUPLICATE_ENDPOINT); no UI owed",
+      "evidence": "reg services/api/src/routes/identity-security.routes.ts:311 app.post(\"/v1/identity-security/sessions/revoke\", { preHandler: requireAuth }) with body { teamId, userId, sessionIdHash }. LEDGER DECISION (docs/admin/remediation/admin-enterprise-closure-ledger.json backendUiReconciliation \"POST /v1/identity-security/sessions/revoke\", reconciled 2026-09-17): finalDisposition=DUPLICATE_ENDPOINT; J triage DUPLICATE_ENDPOINT (identity sessions); consumer: POST /v1/admin/identity/sessions/:id/revoke (apps/web/app/(app)/security-center/identity/sessions/_sections/ActiveSessionsSection.tsx). J triage (DUPLICATE_ENDPOINT): services/api/src/routes/identity-security.routes.ts:298 revokes by raw 64-char sessionIdHash, which no admin read exposes (GET /v1/identity-security/sessions :345 lists revocations only). Canonical: POST /v1/admin/identity/sessions/:id/revoke (services/api/src/routes/admin-identity.routes.ts:870), w … No product consumer (canonical consumer analysis). Previous manifest reason (reviewed 2026-08-16): granular admin session revoke has no control; the security center revokes all sessions for a user.",
+      "reviewedAtUtc": "2026-09-17",
+      "replacement": "POST /v1/admin/identity/sessions/:id/revoke"
     },
     {
       "routeId": "POST /v1/intelligence/evidence/:evidenceId/run/bytes",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Byte-payload provider run has no control; only the sibling text-payload run is wired.",
-      "evidence": "reg services/api/src/routes/intelligence-platform.routes.ts:381 app.post(\"/v1/intelligence/evidence/:evidenceId/run/bytes\"). Wired sibling reg intelligence-platform.routes.ts:419 \"/run/text\", called at apps/web/components/intelligence/ProviderBudgetPanel.tsx:92 `/v1/intelligence/evidence/${evidenceId}/run/text`.",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "INTENTIONALLY_BACKEND_ONLY",
+      "reason": "deliberately no control: exposing it in a surface would be unsafe; the governed path is another route (ledger SECURITY_SENSITIVE_NO_UI)",
+      "evidence": "reg services/api/src/routes/intelligence-platform.routes.ts:381 app.post(\"/v1/intelligence/evidence/:evidenceId/run/bytes\"). LEDGER DECISION (docs/admin/remediation/admin-enterprise-closure-ledger.json backendUiReconciliation \"POST /v1/intelligence/evidence/:evidenceId/run/bytes\", reconciled 2026-09-17): finalDisposition=SECURITY_SENSITIVE_NO_UI; J triage SECURITY_SENSITIVE_NO_UI (intelligence provider ops); consumer: governed paths: POST /v1/evidence/:evidenceId/media-intelligence/run (apps/web/lib/media-intelligence/useMediaIntelligence.ts), operator retry /v1/ops/media-intelligence/runs/:runId/retry, worker internal extraction. J triage (SECURITY_SENSITIVE_NO_UI): services/api/src/routes/intelligence-platform.routes.ts:381-414 runs a paid provider on caller-supplied bytesBase64 or an arbitrary url (schema :92-100) and attributes the records to the evidence without proving the bytes are the stored evidence bytes (provenance break). Governed paths: worker-only  … No product consumer (canonical consumer analysis). D62 (WCC 2026-09-17): the route now refuses bytes that do not hash to a sha256 recorded for the stored evidence (409 EVIDENCE_BYTES_MISMATCH / EVIDENCE_BYTES_UNVERIFIED), never forwards a caller URL, and answers another workspace's evidence as not found — services/api/test/defects-intelligence-run-bytes.integration.test.ts. Previous manifest reason (reviewed 2026-08-16): Byte-payload provider run has no control; only the sibling text-payload run is wired.",
+      "reviewedAtUtc": "2026-09-17"
     },
     {
       "routeId": "POST /v1/intelligence/evidence/:id/enqueue",
@@ -899,27 +879,28 @@
     },
     {
       "routeId": "POST /v1/search/reindex/evidence/:id",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Per-record operator reindex with no UI, no CLI and no runbook citation.",
-      "evidence": "reg services/api/src/routes/search.routes.ts:560 app.post(\"/v1/search/reindex/evidence/:id\") (comment at :557 \"operator reindex\"). No `search/reindex` string in apps/web, apps/mobile, services/worker, packages/*, scripts/*, e2e/* or docs/operations/runbooks/. The equivalent capability is exercised via the worker queue (services/worker/src/index.ts:906-922 runSearchIndexReconcilerTick) and services/api/scripts/backfill-search-index.ts:36.",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "SUPERSEDED_REMOVE",
+      "reason": "duplicate of the canonical route the product calls (ledger DUPLICATE_ENDPOINT); no UI owed",
+      "evidence": "reg services/api/src/routes/search.routes.ts:560 app.post(\"/v1/search/reindex/evidence/:id\") (comment at :557 \"operator reindex\"). LEDGER DECISION (docs/admin/remediation/admin-enterprise-closure-ledger.json backendUiReconciliation \"POST /v1/search/reindex/evidence/:id\", reconciled 2026-09-17): finalDisposition=DUPLICATE_ENDPOINT; J triage DUPLICATE_ENDPOINT (search reindex); consumer: POST /v1/search/reconcile (apps/web/app/(app)/search/page.tsx), worker reconciler, POST /v1/internal/search/reindex. J triage (DUPLICATE_ENDPOINT): services/api/src/routes/search.routes.ts:611-634 reindexes one record. Covered by POST /v1/search/reconcile ('the manual surface', search.routes.ts:911-960, wired at apps/web/app/(app)/search/page.tsx:940), the scheduled worker reconciler (services/worker/src/index.ts:1061-1144, services/worker/src/ … Acceptance: services/api/test/phase24-search.test.ts > reindex routes only accept POST. Previous manifest reason (reviewed 2026-08-16): Per-record operator reindex with no UI, no CLI and no runbook citation.",
+      "reviewedAtUtc": "2026-09-17",
+      "replacement": "POST /v1/search/reconcile"
     },
     {
       "routeId": "POST /v1/search/reindex/workflow/:id",
       "disposition": "COMPATIBILITY_TOMBSTONE",
       "reason": "retired to a typed 410 naming what replaced it (or that the capability is not offered); kept so a stale client is told rather than 404-ed",
-      "evidence": "reg services/api/src/routes/search.routes.ts:647. Proven obsolete: it was the only caller of indexWorkflowInstance (services/api/src/services/search/evidence-indexing.service.ts), serving the Phase 22 EvidenceWorkflowInstance family declared DEPRECATED in services/api/src/routes/workflow-instances.routes.ts; no product, worker or ops caller, and the reindex sweep never covered workflow documents. The handler replies 410 WORKFLOW_INSTANCE_REINDEX_RETIRED with `canonical` /v1/search/reindex/evidence/:id. The tombstone keeps requireAuth only and reads/writes no domain data; stored rows are untouched. 0 call sites in apps/web + apps/mobile, the intended end state for a tombstone; pinned by services/api/test/retired-routes-2026-09-16.test.ts.",
+      "evidence": "reg services/api/src/routes/search.routes.ts:647. Proven obsolete: it was the only caller of indexWorkflowInstance (services/api/src/services/search/evidence-indexing.service.ts), serving the Phase 22 EvidenceWorkflowInstance family declared DEPRECATED in services/api/src/routes/workflow-instances.routes.ts; no product, worker or ops caller, and the reindex sweep never covered workflow documents. The handler replies 410 WORKFLOW_INSTANCE_REINDEX_RETIRED with `canonical` /v1/search/reconcile. The tombstone keeps requireAuth only and reads/writes no domain data; stored rows are untouched. 0 call sites in apps/web + apps/mobile, the intended end state for a tombstone; pinned by services/api/test/retired-routes-2026-09-16.test.ts.",
       "reviewedAtUtc": "2026-09-16"
     },
     {
       "routeId": "POST /v1/search/relationships",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "no product contract to build, but the repository's own behavioural suite pins the registration",
-      "evidence": "PINNED CONTRACT — services/api/test/phase24-search.test.ts:150 pins the registration; `createRelationship` in services/api/src/services/search/evidence-search.service.ts:861 is its only writer and would become unreachable with it. NO visible control exists for it (zero product consumers in the canonical consumer analysis), so nothing disconnected is on screen. No release-completion credit; stays in the canonical backlog. Original absence proof retained: DEAD_CONFIRMED · surfaces searched: apps/web (rg 'search/relationships') -> single hit apps/web/app/(app)/search/page.tsx:669 `/v1/search/relationships/${encodeURIComponent(...)}` which is the GET READ on the :evidenceId sub-path, not this POST; apps/web (rg suffix '/relationships') -> the only relationship WRITES are apps/web/app/(app)/evidence/[id]/page.tsx:482 (POST /v1/evidence/:id/relationshi",
-      "reviewedAtUtc": "2026-08-17",
+      "disposition": "SUPERSEDED_REMOVE",
+      "reason": "duplicate of the canonical route the product calls (ledger DUPLICATE_ENDPOINT); no UI owed",
+      "evidence": "LEDGER DECISION (docs/admin/remediation/admin-enterprise-closure-ledger.json backendUiReconciliation \"POST /v1/search/relationships\", reconciled 2026-09-17): finalDisposition=DUPLICATE_ENDPOINT; J triage DUPLICATE_ENDPOINT (search relationships); consumer: POST /v1/evidence/:id/relationships (apps/web/app/(app)/evidence/[id]/page.tsx). J triage (DUPLICATE_ENDPOINT): services/api/src/routes/search.routes.ts:556-608 writes evidenceRelationship via createRelationship (services/api/src/services/search/evidence-search.service.ts:1092-1110). Canonical POST /v1/evidence/:id/relationships (services/api/src/routes/evidence.routes.ts:8267-8300, createEvidenceRelationship … Acceptance: services/api/test/phase24-search.test.ts > uses requireAuth on every Phase 24 route. Previous manifest reason (reviewed 2026-08-17): no product contract to build, but the repository's own behavioural suite pins the registration.",
+      "reviewedAtUtc": "2026-09-17",
       "revalidatedVerdict": "DEAD_CONFIRMED",
       "revalidationConfidence": "HIGH",
-      "postReleaseDecision": "PRESERVED_POST_RELEASE_CONTRACT"
+      "replacement": "POST /v1/evidence/:id/relationships"
     },
     {
       "routeId": "POST /v1/support-access/start",
@@ -1179,10 +1160,11 @@
     },
     {
       "routeId": "GET /v1/collaboration-teams/:teamId/activity/v2",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "its web client was deleted in the 2026-09-06 collaboration closure; the route still answers and has no product caller, and the capability is reached from another surface",
-      "evidence": "reg services/api/src/routes/collaboration-completion.routes.ts:658. Superseded by the Activity tab, which reads the canonical feed. apps/web/lib/api/collaboration-completion.ts:179 records the deletion of every client below that point by name, and 0 call sites remain in apps/web + apps/mobile. The route still answers, so it is COMPATIBILITY_TEMPORARY rather than a tombstone: the handler and its service are live code with no consumer, and removing them is a product decision for whoever owns the group surface. Recorded as MISSING_PRODUCT_UI_POST_RELEASE rather than SUPERSEDED_REMOVE because the replacement is a SURFACE, not a route: there is no single routeId that supersedes this one, and the generator refuses a SUPERSEDED_REMOVE with no named replacement — correctly, since a supersession claim that cannot name what supersedes it is not a claim.",
-      "reviewedAtUtc": "2026-09-07"
+      "disposition": "SUPERSEDED_REMOVE",
+      "reason": "duplicate of the canonical route the product calls (ledger DUPLICATE_ENDPOINT); no UI owed",
+      "evidence": "reg services/api/src/routes/collaboration-completion.routes.ts:658. LEDGER DECISION (docs/admin/remediation/admin-enterprise-closure-ledger.json backendUiReconciliation \"GET /v1/collaboration-teams/:teamId/activity/v2\", reconciled 2026-09-17): finalDisposition=DUPLICATE_ENDPOINT; J triage DUPLICATE_ENDPOINT (collaboration-team activity); consumer: GET /v1/collaboration-teams/:teamId/activity (apps/web/app/(app)/collaboration-teams/[teamId]/_tabs/ActivityTab.tsx). J triage (DUPLICATE_ENDPOINT): services/api/src/routes/collaboration-completion.routes.ts:717 (listTeamActivityFiltered) duplicates canonical GET /v1/collaboration-teams/:teamId/activity (collaboration-teams.routes.ts:1687), which the product uses via apps/web/lib/api/collaboration-teams.ts:718-735 in apps/web/app/(app)/collabora … No product consumer (canonical consumer analysis). Previous manifest reason (reviewed 2026-09-07): its web client was deleted in the 2026-09-06 collaboration closure; the route still answers and has no product caller, and the capability is reached from another surface.",
+      "reviewedAtUtc": "2026-09-17",
+      "replacement": "GET /v1/collaboration-teams/:teamId/activity"
     },
     {
       "routeId": "POST /v1/collaboration-teams/:teamId/invites/email",

@@ -50,6 +50,7 @@ import { apiFetch } from "../../../../lib/api";
 import { formatUserDate, formatUserDateTime } from "../../../../lib/date";
 import { notifyApiError } from "../../../../lib/feedback/notify";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
+import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 import { useToast, PageShell, PageHeader } from "../../../../components/ui";
 import { Card } from "../../../../components/ui/Card";
 import { EmptyState } from "../../../../components/ui/EmptyState";
@@ -107,6 +108,7 @@ type ExternalReviewCapabilities = {
   canBulkRevoke: boolean;
   canResend: boolean;
   canRevoke: boolean;
+  canEndSessions: boolean;
   canRevealToken: boolean;
 };
 
@@ -124,6 +126,8 @@ function useExternalReviewCapabilities(): ExternalReviewCapabilities {
     canBulkRevoke: canAct,
     canResend: canAct,
     canRevoke: canAct,
+    // Same tier as revoke on the server (review.assign + administrative tier).
+    canEndSessions: canAct,
     canRevealToken: canAct && isOwner,
   };
 }
@@ -150,6 +154,37 @@ function denialFromError(err: unknown): string {
   }
   if (code === "RATE_LIMITED" || status === 429) return "RATE_LIMITED";
   return code || "REFUSED";
+}
+
+// POST /v1/external-review/invitations/:id/sessions/revoke — ends every live
+// portal session of the invitation (D2). The invitation itself stays valid.
+async function endInvitationPortalSessions(
+  grantId: string,
+): Promise<{ ok?: boolean; sessionsEnded?: number } | null> {
+  return apiFetch(`/v1/external-review/invitations/${grantId}/sessions/revoke`, {
+    method: "POST",
+    body: JSON.stringify({ reason: "OPERATOR_REVOKE" }),
+  });
+}
+
+// Bounded copy for a refused "End sessions". Never the raw server string.
+function endSessionsFailureText(err: unknown): string {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const status = typeof (err as any)?.statusCode === "number" ? (err as any).statusCode : 0;
+  if (status === 403) {
+    return "You do not have permission to end this reviewer's sessions. Nothing was changed.";
+  }
+  if (status === 404) {
+    return "This invitation is no longer available in this workspace. Nothing was changed.";
+  }
+  if (status === 503) {
+    return "Sessions could not be ended right now because the session service is unavailable. Nothing was changed; try again shortly.";
+  }
+  const safe = toSafeUserError(err, {
+    title: "Could not end sessions",
+    message: "The sessions could not be ended. Nothing was changed.",
+  });
+  return safe.message;
 }
 
 // ---------------------------------------------------------------------------
@@ -503,6 +538,8 @@ function ExternalReviewManagementConsole() {
       {banner ? (
         <Card
           data-console-banner
+          data-console-banner-tone={banner.tone}
+          role="status"
           variant="status"
           tone={
             banner.tone === "ok"
@@ -565,6 +602,8 @@ function ExternalReviewManagementConsole() {
               onRefuse={(text) =>
                 setBanner({ tone: "warn", text: `Refused: ${text}` })
               }
+              onReread={refresh}
+              onNotice={(tone, text) => setBanner({ tone, text })}
             />
           ) : null}
         </div>
@@ -753,6 +792,8 @@ function InvitationDetailDrawer({
   onClose,
   onChanged,
   onRefuse,
+  onReread,
+  onNotice,
 }: {
   row: InvitationRow;
   caps: ExternalReviewCapabilities;
@@ -760,6 +801,8 @@ function InvitationDetailDrawer({
   onClose: () => void;
   onChanged: (msg: string) => void;
   onRefuse: (msg: string) => void;
+  onReread: () => Promise<boolean>;
+  onNotice: (tone: "ok" | "warn", text: string) => void;
 }) {
   const [activity, setActivity] = useState<ActivityRow[] | null>(null);
   const [deliveries, setDeliveries] = useState<DeliveryRow[] | null>(null);
@@ -768,18 +811,27 @@ function InvitationDetailDrawer({
     issuedFor: "operator-break-glass";
   } | null>(null);
   const [confirmReveal, setConfirmReveal] = useState(false);
+  const { confirm: confirmAction } = useConfirmAction();
+  const [endingSessions, setEndingSessions] = useState(false);
+
+  // Resolves true only when the activity trail was actually reread.
+  const loadActivity = useCallback(async (): Promise<boolean> => {
+    try {
+      const a = await apiFetch(
+        `/v1/external-review/invitations/${row.grantId}/activity`,
+        { method: "GET" },
+      );
+      setActivity((a?.activity ?? []) as ActivityRow[]);
+      return true;
+    } catch {
+      setActivity([]);
+      return false;
+    }
+  }, [row.grantId]);
 
   useEffect(() => {
     void (async () => {
-      try {
-        const a = await apiFetch(
-          `/v1/external-review/invitations/${row.grantId}/activity`,
-          { method: "GET" },
-        );
-        setActivity((a?.activity ?? []) as ActivityRow[]);
-      } catch {
-        setActivity([]);
-      }
+      await loadActivity();
       try {
         const d = await apiFetch(
           `/v1/external-review/invitations/${row.grantId}/delivery`,
@@ -790,7 +842,57 @@ function InvitationDetailDrawer({
         setDeliveries([]);
       }
     })();
-  }, [row.grantId]);
+  }, [row.grantId, loadActivity]);
+
+  // Ends every live portal session of this invitation. The invitation stays
+  // valid: the reviewer can sign in again with their link. Success is
+  // announced only after the activity trail and the list were reread.
+  const onEndSessions = useCallback(async () => {
+    if (!caps.canEndSessions) {
+      onRefuse("NOT_PERMITTED");
+      return;
+    }
+    const confirmed = await confirmAction({
+      title: `End ${row.inviteEmail}'s portal sessions?`,
+      description:
+        "Every signed-in portal session for this invitation stops working " +
+        "immediately. The invitation stays valid, so the reviewer can sign " +
+        "in again with their link. To withdraw access altogether, revoke " +
+        "the invitation instead.",
+      confirmLabel: "End sessions",
+      tone: "danger",
+    });
+    if (!confirmed) return;
+    setEndingSessions(true);
+    try {
+      let ended: number;
+      try {
+        const res = await endInvitationPortalSessions(row.grantId);
+        ended = typeof res?.sessionsEnded === "number" ? res.sessionsEnded : 0;
+      } catch (err) {
+        onNotice("warn", endSessionsFailureText(err));
+        return;
+      }
+      const activityReread = await loadActivity();
+      const listReread = await onReread();
+      if (!activityReread || !listReread) {
+        onNotice(
+          "warn",
+          "The request to end the sessions was accepted, but this invitation " +
+            "could not be reloaded to confirm it. Refresh the page to check.",
+        );
+        return;
+      }
+      onNotice(
+        "ok",
+        ended === 0
+          ? `${row.inviteEmail} had no signed-in portal sessions. Nothing else changed.`
+          : `Ended ${ended} portal ${ended === 1 ? "session" : "sessions"} for ${row.inviteEmail}. The invitation is still valid.`,
+      );
+    } finally {
+      setEndingSessions(false);
+    }
+  }, [caps.canEndSessions, confirmAction, row.grantId, row.inviteEmail, loadActivity, onReread, onRefuse, onNotice]);
 
   const onResend = useCallback(async () => {
     if (!caps.canResend) {
@@ -952,6 +1054,38 @@ function InvitationDetailDrawer({
         >
           Revoke
         </button>
+        <button
+          type="button"
+          data-invitation-end-sessions={row.grantId}
+          data-capability-allowed={caps.canEndSessions ? "true" : "false"}
+          onClick={onEndSessions}
+          disabled={!caps.canEndSessions || endingSessions}
+          aria-describedby={
+            caps.canEndSessions ? undefined : `end-sessions-reason-${row.grantId}`
+          }
+          style={{
+            ...dangerActionStyle,
+            ...(caps.canEndSessions && !endingSessions
+              ? {}
+              : {
+                  color: "var(--ink-muted, #94a3b8)",
+                  borderColor: "var(--border-default, #cbd5e1)",
+                  cursor: "not-allowed",
+                }),
+          }}
+        >
+          {endingSessions ? "Ending sessions…" : "End sessions"}
+        </button>
+        {!caps.canEndSessions ? (
+          <p
+            id={`end-sessions-reason-${row.grantId}`}
+            data-end-sessions-disabled-reason
+            style={{ ...mutedStyle, margin: 0, flexBasis: "100%" }}
+          >
+            Only workspace administrators and supervisors can end a
+            reviewer&apos;s portal sessions.
+          </p>
+        ) : null}
       </section>
 
       <section
