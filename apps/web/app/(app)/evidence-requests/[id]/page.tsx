@@ -715,7 +715,7 @@ function Inner() {
           `/v1/evidence-requests/:id/events` endpoint; real backend
           data, no mock. */}
       <section style={{ marginTop: 24 }}>
-        <EvidenceRequestEventsTab key={eventsRevision} requestId={data.id} />
+        <EvidenceRequestEventsTab requestId={data.id} key={eventsRevision} />
       </section>
 
       <footer style={{ marginTop: 24 }}>
