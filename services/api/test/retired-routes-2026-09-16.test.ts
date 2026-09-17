@@ -61,6 +61,7 @@ import { aiSearchRoutes } from "../src/routes/ai-search.routes.js";
 import { collaborationCompletionRoutes } from "../src/routes/collaboration-completion.routes.js";
 import { collaborationRoutes } from "../src/routes/collaboration.routes.js";
 import { intelligenceRoutes } from "../src/routes/intelligence.routes.js";
+import { reviewerWorkspaceRoutes } from "../src/routes/reviewer-workspace.routes.js";
 import { searchRoutes } from "../src/routes/search.routes.js";
 import { trustAndGovernanceRoutes } from "../src/routes/trust-and-governance.routes.js";
 import { workflowRoutes } from "../src/routes/workflow.routes.js";
@@ -196,6 +197,13 @@ const CASES: Case[] = [
     code: "COLLABORATION_TEAM_ACCESS_REVIEW_RETIRED",
     canonical: "/v1/teams/{workspaceId}/access-review",
   },
+  // 3b. Owner decision — custom coding-schema publish.
+  {
+    method: "POST",
+    url: `/v1/coding/schemas/${ID}/publish?teamId=${TEAM}`,
+    code: "CODING_SCHEMA_PUBLISH_RETIRED",
+    canonical: "/v1/coding/schemas/seed-defaults",
+  },
   // 7. Obsolete — workflow-instance reindex.
   {
     method: "POST",
@@ -217,6 +225,7 @@ beforeAll(async () => {
     collaborationCompletionRoutes,
     collaborationRoutes,
     intelligenceRoutes,
+    reviewerWorkspaceRoutes,
     searchRoutes,
     trustAndGovernanceRoutes,
     workflowRoutes,
@@ -258,9 +267,9 @@ describe("retired routes (2026-09-16) — typed 410 tombstones", () => {
     expect(H.dbCalls.length).toBeGreaterThan(0);
   });
 
-  it("covers the eighteen retired registrations", () => {
-    expect(CASES).toHaveLength(18);
-    expect(new Set(CASES.map((c) => `${c.method} ${c.url}`)).size).toBe(18);
+  it("covers the nineteen retired registrations", () => {
+    expect(CASES).toHaveLength(19);
+    expect(new Set(CASES.map((c) => `${c.method} ${c.url}`)).size).toBe(19);
   });
 
   for (const c of CASES) {

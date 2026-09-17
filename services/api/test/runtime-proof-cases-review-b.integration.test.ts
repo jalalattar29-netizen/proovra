@@ -455,13 +455,18 @@ describe("K4-B — reviewer and saved views (live PostgreSQL 16)", () => {
       ],
     });
 
+    /**
+     * A published schema, as the product produces one: the publish route is
+     * retired (owner decision 2026-09-16), and installed schemas are published
+     * by the service seed-defaults calls — the same function used here.
+     */
     async function publishedSchema(slug: string) {
       const a = h.fixtures.teamA;
       const created = await call({ method: "POST", url: `/v1/coding/schemas?teamId=${a.teamId}`, token: a.ownerToken, payload: schemaBody(slug) });
       expect(created.statusCode, created.body).toBe(201);
       const schemaId = created.json().schemaId as string;
-      const pub = await call({ method: "POST", url: `/v1/coding/schemas/${schemaId}/publish?teamId=${a.teamId}`, token: a.ownerToken });
-      expect(pub.statusCode, pub.body).toBe(200);
+      const { publishSchema } = await import("../src/services/reviewer-workspace/coding-schema.service.js");
+      expect(await publishSchema({ teamId: a.teamId, schemaId })).toMatchObject({ ok: true });
       const fields = await prisma.codingField.findMany({ where: { schemaId }, orderBy: { orderIndex: "asc" } });
       return { schemaId, fields };
     }
@@ -525,6 +530,22 @@ describe("K4-B — reviewer and saved views (live PostgreSQL 16)", () => {
       expect(foreign.statusCode).toBe(403);
       expect(foreign.json()).toEqual({ denial: "NOT_PERMITTED" });
       expect(await prisma.codingSchema.count({ where: { slug } })).toBe(0);
+    });
+
+    it("POST /v1/coding/schemas/:id/publish — retired: the owner gets 410 and the draft stays a draft", async () => {
+      const a = h.fixtures.teamA;
+      const created = await call({ method: "POST", url: `/v1/coding/schemas?teamId=${a.teamId}`, token: a.ownerToken, payload: schemaBody(`retired-${tag()}`) });
+      expect(created.statusCode, created.body).toBe(201);
+      const schemaId = created.json().schemaId as string;
+      const res = await call({ method: "POST", url: `/v1/coding/schemas/${schemaId}/publish?teamId=${a.teamId}`, token: a.ownerToken });
+      expect(res.statusCode, res.body).toBe(410);
+      expect(res.json()).toMatchObject({
+        error: { code: "CODING_SCHEMA_PUBLISH_RETIRED" },
+        canonical: "/v1/coding/schemas/seed-defaults",
+      });
+      const row = await prisma.codingSchema.findUniqueOrThrow({ where: { id: schemaId } });
+      expect(row).toMatchObject({ status: "DRAFT", publishedAt: null });
+      expect(await auditRow("reviewer.coding_schema.published", schemaId)).toBeNull();
     });
 
     it("POST /v1/reviewer/work/:id/code — a reviewer records then updates a coded value on a bound workflow", async () => {

@@ -7,7 +7,7 @@
  *   GET   /v1/coding/schemas                           — list workspace schemas
  *   POST  /v1/coding/schemas                           — author DRAFT schema
  *   GET   /v1/coding/schemas/:id                       — read schema + fields
- *   POST  /v1/coding/schemas/:id/publish               — DRAFT → PUBLISHED
+ *   POST  /v1/coding/schemas/:id/publish               — RETIRED (typed 410)
  *   POST  /v1/coding/schemas/:id/archive               — → ARCHIVED
  *   POST  /v1/coding/schemas/seed-defaults             — install 6 pre-built schemas
  *
@@ -60,7 +60,6 @@ import {
   getSchema,
   getWorkflowSchemaBinding,
   listSchemas,
-  publishSchema,
   seedDefaultSchemas,
 } from "../services/reviewer-workspace/coding-schema.service.js";
 import {
@@ -402,18 +401,26 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
     },
   );
 
+  // (RETIRED) POST /v1/coding/schemas/:id/publish — typed 410 (2026-09-16)
+  //
+  // OWNER DECISION (2026-09-16): workspace-level coding-schema authoring is
+  // not in scope. The shipped schemas page lists schemas and installs the
+  // pre-built set (seed-defaults, which publishes what it installs through
+  // the service directly); no surface ever published a custom draft. The
+  // route keeps authentication and does nothing else; stored schemas are
+  // untouched.
   app.post(
     "/v1/coding/schemas/:id/publish",
     { preHandler: requireAuth },
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = await resolveTeam(req, reply);
-      if (!ctx) return reply;
-      if (!requireCap(ctx, "review.schema.author")) return denyNoPermission(reply);
-      const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
-      const res = await publishSchema({ teamId: ctx.teamId, schemaId: id });
-      if (!res.ok) return denyWith(reply, 409, res.denial);
-      return reply.code(200).send({ publishedVersion: res.publishedVersion });
-    },
+    async (_req: FastifyRequest, reply: FastifyReply) =>
+      reply.code(410).send({
+        error: {
+          code: "CODING_SCHEMA_PUBLISH_RETIRED",
+          message:
+            "Publishing custom coding schemas is not offered. Install the pre-built schemas instead; they are published when installed.",
+        },
+        canonical: "/v1/coding/schemas/seed-defaults",
+      }),
   );
 
   app.post(

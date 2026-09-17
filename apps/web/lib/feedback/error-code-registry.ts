@@ -394,6 +394,13 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
       "templates are platform-managed; the Workflows page is read-only and no " +
       "surface ever created, edited or archived a template.",
   },
+  CODING_SCHEMA_PUBLISH_RETIRED: {
+    disposition: "internal",
+    why:
+      "A retired operation answering a legacy client, not a person. Custom " +
+      "coding-schema authoring is not offered; the schemas page installs the " +
+      "pre-built set, published on install.",
+  },
   SIMILARITY_RECONCILE_RETIRED: {
     disposition: "internal",
     why:

@@ -824,10 +824,11 @@
     },
     {
       "routeId": "POST /v1/coding/schemas/:id/publish",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Custom coding-schema authoring (publish) is not offered; the shipped page ships list + seed-defaults only.",
-      "evidence": "reg services/api/src/routes/reviewer-workspace.routes.ts:390. Shipped page apps/web/app/(app)/review/schemas/page.tsx:56 apiFetch(`/v1/coding/schemas?teamId=...`, GET) and :139 the only mutation button \"Seed 6 default schemas\" → apps/web/lib/reviewer-workspace/reviewer-api.ts:294 `/v1/coding/schemas/seed-defaults` (POST). Detail read at reviewer-api.ts:65 `/v1/coding/schemas/${schemaId}`. No create/publish/archive call in apps/web or apps/mobile.",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "retired to a typed 410 naming what replaced it (or that the capability is not offered); kept so a stale client is told rather than 404-ed",
+      "evidence": "reg services/api/src/routes/reviewer-workspace.routes.ts:413. OWNER DECISION (2026-09-16). Workspace-level coding-schema authoring is not in scope: the shipped schemas page lists schemas and installs the pre-built set through POST /v1/coding/schemas/seed-defaults, which publishes what it installs via the service (publishSchema is kept for that caller). The handler replies 410 CODING_SCHEMA_PUBLISH_RETIRED with `canonical` /v1/coding/schemas/seed-defaults, keeps requireAuth only and reads/writes no domain data; stored schemas are untouched. 0 call sites in apps/web + apps/mobile, the intended end state for a tombstone; pinned by services/api/test/retired-routes-2026-09-16.test.ts and runtime-proof-cases-review-b.integration.test.ts.",
+      "reviewedAtUtc": "2026-09-16",
+      "replacement": "POST /v1/coding/schemas/seed-defaults"
     },
     {
       "routeId": "POST /v1/collaboration/threads",
