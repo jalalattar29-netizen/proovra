@@ -187,7 +187,11 @@ await browser.close();
 const totalsTabs = { exercised: rows.reduce((n, r) => n + r.tabsExercised, 0), selected: rows.reduce((n, r) => n + r.tabsSelectedAfterClick, 0) };
 const byState = {};
 for (const r of rows) byState[r.state] = (byState[r.state] ?? 0) + 1;
-const out = join(REPO, "audit", "ui-truth", "data", `browser-probe-${persona}.json`);
+// An ad-hoc run (routes passed on the command line) must never overwrite the
+// full matrix file — it did once, and the report then counted 309 page loads
+// instead of 462.
+const adHoc = routeArgs.length > 0;
+const out = join(REPO, "audit", "ui-truth", "data", `browser-probe-${persona}${adHoc ? "-adhoc" : ""}.json`);
 writeFileSync(
   out,
   JSON.stringify(

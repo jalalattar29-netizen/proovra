@@ -511,5 +511,8 @@
       "dependencies": [],
       "evidenceClass": "SOURCE_AND_RUNTIME_PROVEN"
     }
-  ]
+  ],
+  "originMainAtReportTime": "5e20dc77",
+  "commitsOnMainNewerThanAudit": 14,
+  "driftNote": "The audit measured d6371ecc, which was origin/main when the branch was cut. While the audit ran, 14 commits landed on main (UC-3 Android continuous capture). Nothing in this report was re-measured against them, and no finding here should be read as describing that work."
 }

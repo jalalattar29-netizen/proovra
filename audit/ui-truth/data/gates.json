@@ -85,7 +85,7 @@
       "id": 11,
       "statement": "Every tab is exercised.",
       "status": "PARTIAL",
-      "measure": "41 tab clicks across three personas, 41 became selected",
+      "measure": "84 tab clicks across three personas, 84 became selected",
       "remainder": "Tabs on surfaces that answered not-found or a gate refusal for a persona were not exercised for that persona; the control inventory lists 41 tab controls in source"
     },
     {

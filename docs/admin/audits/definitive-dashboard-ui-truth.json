@@ -4,6 +4,9 @@
   "schemaVersion": 1,
   "auditedSha": "d6371ecc5a374a20fe7a96d9717c0eb2ad7082e8",
   "originMainSha": "d6371ecc5a374a20fe7a96d9717c0eb2ad7082e8",
+  "originMainAtReportTime": "5e20dc77",
+  "commitsOnMainNewerThanAudit": 14,
+  "driftNote": "The audit measured d6371ecc, which was origin/main when the branch was cut. While the audit ran, 14 commits landed on main (UC-3 Android continuous capture). Nothing in this report was re-measured against them, and no finding here should be read as describing that work.",
   "auditBranch": "audit/definitive-dashboard-ui-truth",
   "auditWorktree": "D:/pv-uitruth",
   "productFilesChanged": 0,
@@ -151,10 +154,10 @@
     "gatesMet": 13,
     "gatesPartial": 7,
     "gatesNotMet": 0,
-    "runtimePageLoads": 309,
+    "runtimePageLoads": 462,
     "runtimeSurfacesProbed": 154,
     "runtimeSurfacesBlocked": 14,
-    "tabsExercised": 41,
+    "tabsExercised": 84,
     "blockedProofs": 0,
     "ownerDecisions": 2,
     "browserProbePersonas": 3
@@ -2847,7 +2850,7 @@
       "id": 11,
       "statement": "Every tab is exercised.",
       "status": "PARTIAL",
-      "measure": "41 tab clicks across three personas, 41 became selected",
+      "measure": "84 tab clicks across three personas, 84 became selected",
       "remainder": "Tabs on surfaces that answered not-found or a gate refusal for a persona were not exercised for that persona; the control inventory lists 41 tab controls in source"
     },
     {
@@ -2969,13 +2972,14 @@
       },
       {
         "persona": "platform-admin",
-        "routes": 1,
+        "routes": 154,
         "byState": {
-          "NOT_FOUND": 1
+          "CONTENT_OR_EMPTY": 153,
+          "READ_FAILURE_STATED": 1
         },
         "tabs": {
-          "exercised": 0,
-          "selected": 0
+          "exercised": 43,
+          "selected": 43
         }
       }
     ],

@@ -9,7 +9,9 @@ See the findings table; the closing line of this report states the verdict.
 | Item | Value |
 |---|---|
 | Audited SHA | d6371ecc5a374a20fe7a96d9717c0eb2ad7082e8 |
-| origin/main SHA | d6371ecc5a374a20fe7a96d9717c0eb2ad7082e8 |
+| origin/main when the audit began | d6371ecc5a374a20fe7a96d9717c0eb2ad7082e8 |
+| origin/main at report time | 5e20dc77 |
+| Commits on main newer than the audit | 14 |
 | Audit branch | audit/definitive-dashboard-ui-truth |
 | Audit worktree | D:/pv-uitruth |
 | Product files changed | 0 |
@@ -18,6 +20,8 @@ See the findings table; the closing line of this report states the verdict.
 | P0 / P1 / P2 / P3 | 0 / 1 / 6 / 9 |
 | Blocked proofs | 0 |
 | Owner decisions | 2 |
+
+The audit measured d6371ecc, which was origin/main when the branch was cut. While the audit ran, 14 commits landed on main (UC-3 Android continuous capture). Nothing in this report was re-measured against them, and no finding here should be read as describing that work.
 
 ## Method
 
@@ -194,7 +198,7 @@ See the findings table; the closing line of this report states the verdict.
 | 8 | Every endpoint referenced by the UI has a backend registration or a finding. | MET | 1151 of 1152 routes production-registered; the single exception is recorded in the map | — |
 | 9 | Every visible data element has a source or a finding. | PARTIAL | 1060 of 3003 data elements resolved to an endpoint | 1943 unresolved, each labelled with why (render lambdas and props-fed shared components) |
 | 10 | Every raw internal label rendered to users has a disposition. | PARTIAL | 117 raw-value strings at 51 sites, all carried by finding UIT-012 | They are dispositioned as one finding with a per-site list, not as 117 individually reviewed decisions |
-| 11 | Every tab is exercised. | PARTIAL | 41 tab clicks across three personas, 41 became selected | Tabs on surfaces that answered not-found or a gate refusal for a persona were not exercised for that persona; the control inventory lists 41 tab controls in source |
+| 11 | Every tab is exercised. | PARTIAL | 84 tab clicks across three personas, 84 became selected | Tabs on surfaces that answered not-found or a gate refusal for a persona were not exercised for that persona; the control inventory lists 41 tab controls in source |
 | 12 | Every page has success, empty, error and refusal coverage as applicable. | PARTIAL | 154 surfaces probed signed-in for three personas (462 page loads), each recording the state the product itself marked | 14 surfaces blocked by fixture capability; error and stale states were not force-injected per page, so each surface has the states its data produced, not all four |
 | 13 | Every layout failure is classified. | MET | 234 classified for 234 measured failures | — |
 | 14 | Every finding id is unique. | MET | 16 findings | — |
@@ -207,13 +211,13 @@ See the findings table; the closing line of this report states the verdict.
 
 ## Runtime state matrix
 
-154 surfaces probed signed-in for each of three personas (309 page loads), 41 tabs clicked. 14 surfaces are blocked by fixture capability and were never probed with an invented id.
+154 surfaces probed signed-in for each of three personas (462 page loads), 84 tabs clicked. 14 surfaces are blocked by fixture capability and were never probed with an invented id.
 
 | Persona | Routes | States |
 |---|---|---|
 | org-owner | 154 | NOT_FOUND 56, CONTENT_OR_EMPTY 55, GATE_PLATFORM_ADMIN_ONLY 35, GATE_NEEDS_UPGRADE 8 |
 | free-personal | 154 | NOT_FOUND 56, CONTENT_OR_EMPTY 49, GATE_PLATFORM_ADMIN_ONLY 35, GATE_NEEDS_UPGRADE 5, GATE_NEEDS_ORGANIZATION 4, GATE_DENIED_NO_CAPABILITY 3, READ_FAILURE_STATED 2 |
-| platform-admin | 1 | NOT_FOUND 1 |
+| platform-admin | 154 | CONTENT_OR_EMPTY 153, READ_FAILURE_STATED 1 |
 
 ## Findings
 

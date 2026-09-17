@@ -40,7 +40,9 @@ out.push(
     ["Item", "Value"],
     [
       ["Audited SHA", a.auditedSha],
-      ["origin/main SHA", a.originMainSha],
+      ["origin/main when the audit began", a.originMainSha],
+      ["origin/main at report time", a.originMainAtReportTime ?? a.originMainSha],
+      ["Commits on main newer than the audit", String(a.commitsOnMainNewerThanAudit ?? 0)],
       ["Audit branch", a.auditBranch],
       ["Audit worktree", a.auditWorktree],
       ["Product files changed", String(a.productFilesChanged)],
@@ -54,6 +56,7 @@ out.push(
 );
 out.push("");
 
+if (a.driftNote) { out.push(a.driftNote); out.push(""); }
 out.push(`## Method`);
 out.push("");
 for (const m of a.method) out.push(`- ${m}`);
