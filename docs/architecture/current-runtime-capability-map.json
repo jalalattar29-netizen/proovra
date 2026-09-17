@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "350df28cd1b3592fbce302d87d8037fa4ec1ea078f008fcbdfae86936dbafd59",
   "routeInventoryHash": "73294b0aac761068494857b65a3b205929d31040a13ea4b0066d7f76a56e576d",
-  "consumerInventoryHash": "812fc593ce12f0205c3fb2421addf3f4b733148aab1cf68d950f47954955d5ee",
+  "consumerInventoryHash": "0662ea5fb855e36c6c9becbc15c3f4165d7dad35c5579c33fc5d621423aedffa",
   "dispositionsHash": "924bfb470e6c3ea01bf910b768b1d6d6190ee4716460e6fde21b954a99ea6d33",
   "totals": {
     "RegisteredRoutes": 1154,
@@ -8403,7 +8403,7 @@
       "method": "POST",
       "route": "/v1/capture/direct-sessions/:id/screen-complete",
       "registeringFile": "services/api/src/routes/capture-trust.routes.ts",
-      "productConsumer": "apps/mobile/src/screen-capture.ts:136",
+      "productConsumer": "apps/mobile/src/screen-capture.ts:133",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -129568,8 +129568,8 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/screen-capture.ts",
-          "line": 136,
-          "caller": "captureScreenToEvidence",
+          "line": 133,
+          "caller": "finalizeScreenCapture",
           "class": "MOBILE",
           "primitive": "apiFetch",
           "viaResolution": false
@@ -129578,7 +129578,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/screen-capture.ts:136 (captureScreenToEvidence, MOBILE)",
+      "dispositionEvidence": "apps/mobile/src/screen-capture.ts:133 (finalizeScreenCapture, MOBILE)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",

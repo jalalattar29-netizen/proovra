@@ -1,22 +1,13 @@
 /**
  * UC-2 — the mobile app's client for Android Direct Screen Capture.
  *
- * It reuses the SAME canonical direct-capture session the camera flow uses
- * (open → reserve → declare part digests → canonical presign/PUT), then seals
- * with a screen-capture manifest through `/screen-complete` — mirroring UC-1 web
- * capture. It creates NO second evidence path.
- *
- *   1. run the native bounded MediaProjection capture (consent + frames),
- *   2. open a session with mode DIRECT_SCREEN_CAPTURE_ANDROID,
- *   3. reserve ONE Evidence record,
- *   4. upload + declare each PNG frame (clientReportedSource SCREEN_FRAME),
- *   5. build the screen-capture manifest referencing the declared frame digests,
- *   6. upload + declare the manifest bytes (SCREEN_MANIFEST),
- *   7. seal through POST /screen-complete — the server recomputes every digest.
- *
- * The mode lives on the server-issued session; the app cannot self-assign it.
- * The server recomputes each frame's SHA-256 and refuses the record before
- * signing if any declared digest is wrong.
+ * The native capture is USER-DRIVEN (start → the user triggers each frame from the
+ * notification or the in-app button → stop). Only AFTER the user stops does this
+ * client seal the frames into ONE Evidence record through the SAME canonical
+ * direct-capture session the camera flow uses (open → reserve → declare part
+ * digests → canonical presign/PUT → screen-complete). It creates NO second
+ * evidence path; the PROOVRA session is opened at finalize (so a slow capture
+ * cannot expire it), and the server recomputes every frame's SHA-256.
  */
 import * as FileSystem from "expo-file-system";
 
@@ -27,13 +18,9 @@ import {
   type DirectCaptureSession,
 } from "./direct-capture";
 import { apiFetch } from "./api";
-import {
-  requestConsentAndCapture,
-  type ScreenCaptureOptions,
-  type ScreenCaptureResult,
-} from "../modules/proovra-screen-capture";
+import type { ScreenCaptureResult } from "../modules/proovra-screen-capture";
 
-const SCREEN_MANIFEST_SCHEMA_VERSION = "PROOVRA_SCREEN_CAPTURE_MANIFEST_V1";
+export const SCREEN_MANIFEST_SCHEMA_VERSION = "PROOVRA_SCREEN_CAPTURE_MANIFEST_V1";
 
 export type ScreenCaptureEvidence = {
   evidenceId: string;
@@ -41,12 +28,51 @@ export type ScreenCaptureEvidence = {
   stopReason: string;
 };
 
-function deriveCompleteness(capture: ScreenCaptureResult): "CAPTURED" | "PARTIAL" | "FAILED" {
-  if (capture.frames.length === 0) return "FAILED";
-  if (capture.stopReason === "USER_STOPPED" || capture.stopReason === "BOUNDS_REACHED") {
-    return capture.limitations.length > 0 ? "PARTIAL" : "CAPTURED";
+/** PURE: derive the manifest completeness from the native result. Unit-tested. */
+export function deriveScreenCompleteness(
+  result: Pick<ScreenCaptureResult, "frames" | "stopReason" | "limitations">,
+): "CAPTURED" | "PARTIAL" | "FAILED" {
+  if (result.frames.length === 0) return "FAILED";
+  if (result.stopReason === "USER_STOPPED" || result.stopReason === "BOUNDS_REACHED") {
+    return result.limitations.length > 0 ? "PARTIAL" : "CAPTURED";
   }
   return "PARTIAL";
+}
+
+/**
+ * PURE: build the screen-capture manifest from the native result + the declared
+ * frame digests/sizes. Unit-tested so the manifest shape stays correct without a
+ * device.
+ */
+export function buildScreenManifest(
+  sessionId: string,
+  result: ScreenCaptureResult,
+  frames: Array<{ partIndex: number; frameIndex: number; sha256Hex: string; sizeBytes: number; widthPx: number; heightPx: number; capturedAtOffsetMs: number }>,
+) {
+  return {
+    schemaVersion: SCREEN_MANIFEST_SCHEMA_VERSION,
+    captureSessionId: sessionId,
+    captureStartedAtUtc: result.captureStartedAtUtc,
+    captureEndedAtUtc: result.captureEndedAtUtc,
+    device: result.device,
+    osConsentGranted: result.osConsentGranted,
+    artifacts: frames.map((f) => ({
+      role: "screen_frame",
+      partIndex: f.partIndex,
+      frameIndex: f.frameIndex,
+      expectedSha256: f.sha256Hex,
+      sizeBytes: f.sizeBytes,
+      mediaType: "image/png",
+      widthPx: f.widthPx,
+      heightPx: f.heightPx,
+      capturedAtOffsetMs: f.capturedAtOffsetMs,
+      completeness: "CAPTURED",
+    })),
+    completeness: deriveScreenCompleteness(result),
+    stopReason: result.stopReason,
+    limitations: result.limitations,
+    notes: [],
+  };
 }
 
 async function fileSizeBytes(uri: string): Promise<number> {
@@ -55,72 +81,45 @@ async function fileSizeBytes(uri: string): Promise<number> {
 }
 
 /**
- * Run the full UC-2 screen-capture flow and return the sealed Evidence id. The
- * caller supplies the workspace/case context the reserve step needs.
+ * Seal a completed native capture into ONE canonical Evidence record. Called
+ * AFTER the user stops the native session, from the review screen's Finalize.
  */
-export async function captureScreenToEvidence(
-  options: ScreenCaptureOptions = {},
-): Promise<ScreenCaptureEvidence> {
-  // 1. Native bounded capture (consent dialog + frames). Nothing has entered
-  //    PROOVRA yet — this is purely on-device until we upload below.
-  const capture = await requestConsentAndCapture(options);
-  if (!capture.osConsentGranted || capture.frames.length === 0) {
+export async function finalizeScreenCapture(result: ScreenCaptureResult): Promise<ScreenCaptureEvidence> {
+  if (result.frames.length === 0) {
     throw new Error("No screen frames were captured.");
   }
 
-  // 2. Open the session for the UC-2 acquisition mode.
   const session: DirectCaptureSession = await openDirectCaptureSession("DIRECT_SCREEN_CAPTURE_ANDROID");
-
-  // 3. Reserve one Evidence record for the whole session.
   const evidenceId = await reserveDirectCaptureEvidence(session, {
     type: "PHOTO",
     mimeType: "image/png",
-    deviceTimeIso: capture.captureStartedAtUtc,
+    deviceTimeIso: result.captureStartedAtUtc,
   });
 
-  // 4. Upload + declare each frame; collect the declared digests for the manifest.
-  const artifacts: Array<Record<string, unknown>> = [];
-  for (let i = 0; i < capture.frames.length; i += 1) {
-    const frame = capture.frames[i];
-    const declared = await uploadDirectCaptureItem(session, evidenceId, {
+  const declared: Array<{ partIndex: number; frameIndex: number; sha256Hex: string; sizeBytes: number; widthPx: number; heightPx: number; capturedAtOffsetMs: number }> = [];
+  for (let i = 0; i < result.frames.length; i += 1) {
+    const frame = result.frames[i];
+    const up = await uploadDirectCaptureItem(session, evidenceId, {
       partIndex: i,
       uri: frame.uri,
       mimeType: "image/png",
       originalFilename: `screen-frame-${frame.frameIndex}.png`,
       source: "SCREEN_FRAME",
     });
-    artifacts.push({
-      role: "screen_frame",
+    declared.push({
       partIndex: i,
       frameIndex: frame.frameIndex,
-      expectedSha256: declared.sha256Hex,
+      sha256Hex: up.sha256Hex,
       sizeBytes: await fileSizeBytes(frame.uri),
-      mediaType: "image/png",
       widthPx: frame.widthPx,
       heightPx: frame.heightPx,
       capturedAtOffsetMs: frame.capturedAtOffsetMs,
-      completeness: "CAPTURED",
     });
   }
 
-  // 5. Build the screen-capture manifest referencing the declared frames.
-  const manifestPartIndex = capture.frames.length;
-  const manifest = {
-    schemaVersion: SCREEN_MANIFEST_SCHEMA_VERSION,
-    captureSessionId: session.captureSessionId,
-    captureStartedAtUtc: capture.captureStartedAtUtc,
-    captureEndedAtUtc: capture.captureEndedAtUtc,
-    device: capture.device,
-    osConsentGranted: capture.osConsentGranted,
-    artifacts,
-    completeness: deriveCompleteness(capture),
-    stopReason: capture.stopReason,
-    limitations: capture.limitations,
-    notes: [],
-  };
+  const manifestPartIndex = result.frames.length;
+  const manifest = buildScreenManifest(session.captureSessionId, result, declared);
   const manifestJson = JSON.stringify(manifest);
-
-  // 6. Upload + declare the manifest bytes as the CAPTURE_MANIFEST part.
   const manifestUri = `${FileSystem.cacheDirectory}proovra-screen-manifest-${session.captureSessionId}.json`;
   await FileSystem.writeAsStringAsync(manifestUri, manifestJson);
   await uploadDirectCaptureItem(session, evidenceId, {
@@ -131,8 +130,6 @@ export async function captureScreenToEvidence(
     source: "SCREEN_MANIFEST",
   });
 
-  // 7. Seal. The server recomputes every frame + manifest digest and refuses the
-  //    record before signing if any declared digest is wrong.
   const res = await apiFetch(
     `/v1/capture/direct-sessions/${session.captureSessionId}/screen-complete`,
     { method: "POST", body: JSON.stringify({ manifestJson }) },
@@ -140,9 +137,5 @@ export async function captureScreenToEvidence(
   const sealedId = res?.result?.evidenceId as string | undefined;
   if (!sealedId) throw new Error("Could not complete the screen capture.");
 
-  return {
-    evidenceId: sealedId,
-    frameCount: capture.frames.length,
-    stopReason: capture.stopReason,
-  };
+  return { evidenceId: sealedId, frameCount: result.frames.length, stopReason: result.stopReason };
 }

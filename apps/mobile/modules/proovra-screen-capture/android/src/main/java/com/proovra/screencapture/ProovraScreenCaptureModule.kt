@@ -9,8 +9,6 @@ import expo.modules.kotlin.Promise
 import expo.modules.kotlin.exception.CodedException
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
-import org.json.JSONArray
-import org.json.JSONObject
 
 /**
  * UC-2 — Android Direct Screen Capture Expo module.
@@ -18,17 +16,20 @@ import org.json.JSONObject
  * Coordinates the MediaProjection CONSENT (a system dialog — nothing is captured
  * before the user grants it), then hands the granted token to
  * [ScreenCaptureService], a foreground service (required for MediaProjection on
- * Android 10+/14+) that runs the bounded capture and reports the frames back.
+ * Android 10+/14+). The USER decides when each frame is taken, via the service's
+ * notification "Capture Frame" action or the in-app button (both routed through
+ * the SAME native authority); a timer never captures on its own.
  *
  * The module trusts nothing from JS about ownership; it only performs the
  * OS-authorised capture and returns file URIs + coarse context. It collects NO
- * app inventory, notifications, clipboard, contacts or hardware identifiers, and
- * never bypasses FLAG_SECURE.
+ * app inventory, notifications, clipboard, contacts or hardware identifiers,
+ * never bypasses FLAG_SECURE, and uses no overlay/Accessibility permission.
  */
 class ProovraScreenCaptureModule : Module() {
-  private var pending: Promise? = null
-  private var pendingMaxFrames: Int = 8
-  private var pendingIntervalMs: Int = 750
+  private var startPromise: Promise? = null
+  private var framePromise: Promise? = null
+  private var stopPromise: Promise? = null
+  private var pendingMaxFrames: Int = 20
 
   companion object {
     private const val CONSENT_REQUEST = 0x50D1 // "PROOVRA screen"
@@ -37,11 +38,20 @@ class ProovraScreenCaptureModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("ProovraScreenCapture")
 
+    Events("onScreenFrame", "onScreenCaptureStopped")
+
     Function("isSupported") {
       Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
     }
 
-    AsyncFunction("requestConsentAndCapture") { options: Map<String, Any?>, promise: Promise ->
+    Function("getState") {
+      mapOf(
+        "active" to ScreenCaptureService.isActive(),
+        "frameCount" to ScreenCaptureService.frameCount(),
+      )
+    }
+
+    AsyncFunction("startCapture") { options: Map<String, Any?>, promise: Promise ->
       if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
         promise.reject(CodedException("UNSUPPORTED", "Requires Android 8.0+.", null))
         return@AsyncFunction
@@ -51,49 +61,85 @@ class ProovraScreenCaptureModule : Module() {
         promise.reject(CodedException("NO_ACTIVITY", "No current activity.", null))
         return@AsyncFunction
       }
-      if (pending != null) {
+      if (startPromise != null || ScreenCaptureService.isActive()) {
         promise.reject(CodedException("BUSY", "A capture is already in progress.", null))
         return@AsyncFunction
       }
-      pending = promise
-      pendingMaxFrames = ((options["maxFrames"] as? Number)?.toInt() ?: 8).coerceIn(1, 60)
-      pendingIntervalMs = ((options["intervalMs"] as? Number)?.toInt() ?: 750).coerceAtLeast(200)
+      startPromise = promise
+      pendingMaxFrames = ((options["maxFrames"] as? Number)?.toInt() ?: 20).coerceIn(1, 60)
+
+      // Wire the service -> module callbacks (frame + stopped) before consent.
+      ScreenCaptureService.onFrame = { frameIndex, frameCount ->
+        framePromise?.resolve(mapOf("frameIndex" to frameIndex, "frameCount" to frameCount))
+        framePromise = null
+        sendEvent("onScreenFrame", mapOf("frameIndex" to frameIndex, "frameCount" to frameCount))
+      }
+      ScreenCaptureService.onStopped = { outcome ->
+        val js = outcome.toJsMap()
+        stopPromise?.resolve(js)
+        stopPromise = null
+        // Any awaited captureFrame that raced the stop resolves as a no-op.
+        framePromise?.resolve(mapOf("frameIndex" to -1, "frameCount" to outcome.frames.size))
+        framePromise = null
+        sendEvent("onScreenCaptureStopped", js)
+      }
 
       val mpm = activity.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-      // The consent dialog. Capture cannot start until this returns RESULT_OK.
       activity.startActivityForResult(mpm.createScreenCaptureIntent(), CONSENT_REQUEST)
     }
 
-    AsyncFunction("stop") { promise: Promise ->
-      ScreenCaptureService.requestStop(appContext.reactContext?.applicationContext, "USER_STOPPED")
-      promise.resolve(null)
+    AsyncFunction("captureFrame") { promise: Promise ->
+      val ctx = appContext.reactContext?.applicationContext
+      if (!ScreenCaptureService.isActive() || ctx == null) {
+        promise.reject(CodedException("NOT_ACTIVE", "No active screen-capture session.", null))
+        return@AsyncFunction
+      }
+      if (ScreenCaptureService.frameCount() >= pendingMaxFrames) {
+        promise.reject(CodedException("BOUNDS_REACHED", "The frame limit for this session was reached.", null))
+        return@AsyncFunction
+      }
+      framePromise?.reject(CodedException("SUPERSEDED", "A newer capture-frame request replaced this one.", null))
+      framePromise = promise
+      ScreenCaptureService.requestCaptureFrame(ctx)
+    }
+
+    AsyncFunction("stopCapture") { promise: Promise ->
+      val ctx = appContext.reactContext?.applicationContext
+      if (!ScreenCaptureService.isActive() || ctx == null) {
+        // Idempotent: stopping an already-stopped session is not an error.
+        promise.resolve(ScreenCaptureService.lastOutcome()?.toJsMap() ?: emptyMap<String, Any?>())
+        return@AsyncFunction
+      }
+      stopPromise = promise
+      ScreenCaptureService.requestStop(ctx, "USER_STOPPED")
     }
 
     OnActivityResult { _, payload ->
       if (payload.requestCode != CONSENT_REQUEST) return@OnActivityResult
-      val promise = pending ?: return@OnActivityResult
-      pending = null
+      val promise = startPromise ?: return@OnActivityResult
+      startPromise = null
       val ctx = appContext.reactContext?.applicationContext
       if (payload.resultCode != Activity.RESULT_OK || payload.data == null || ctx == null) {
         // The user declined the consent dialog. Fail closed — nothing captured.
         promise.reject(CodedException("PERMISSION_DENIED", "Screen capture consent was not granted.", null))
         return@OnActivityResult
       }
-      // Hand the granted token to the foreground service; it reports back here.
-      ScreenCaptureService.start(
-        ctx,
-        payload.resultCode,
-        payload.data!!,
-        pendingMaxFrames,
-        pendingIntervalMs,
-      ) { result ->
-        promise.resolve(result.toJsMap())
+      // Start the foreground service with the granted token. Session is now ACTIVE
+      // but EMPTY — the user triggers each frame.
+      ScreenCaptureService.start(ctx, payload.resultCode, payload.data!!, pendingMaxFrames) { started ->
+        promise.resolve(
+          mapOf(
+            "osConsentGranted" to true,
+            "captureStartedAtUtc" to started,
+            "maxFrames" to pendingMaxFrames,
+          ),
+        )
       }
     }
   }
 }
 
-/** Frames + context the service produces for one bounded session. */
+/** Frames + context the service produces for one session. */
 data class ScreenCaptureOutcome(
   val osConsentGranted: Boolean,
   val startedAtUtc: String,
@@ -110,18 +156,6 @@ data class ScreenCaptureOutcome(
   val limitations: List<String>,
 ) {
   fun toJsMap(): Map<String, Any?> {
-    val framesJson = JSONArray()
-    frames.forEach { f ->
-      framesJson.put(
-        JSONObject()
-          .put("uri", f.uri)
-          .put("frameIndex", f.frameIndex)
-          .put("widthPx", f.widthPx)
-          .put("heightPx", f.heightPx)
-          .put("capturedAtOffsetMs", f.capturedAtOffsetMs),
-      )
-    }
-    // Return a plain Map the Expo bridge serialises directly.
     val frameMaps = frames.map { f ->
       mapOf(
         "uri" to f.uri,

@@ -186,5 +186,78 @@ zero-frame and revocation paths end to end. Not faked as PASS.
 - **P3:** UI is functional, not fully themed; the manifest omits an upper cap on
   per-frame `sizeBytes` (server uses `headObject` size, so it fails closed).
 
+---
+
+## User-flow closure (2026-09-17)
+
+The first pass auto-captured frames on a TIMER right after consent — so the user
+could not capture what was on another app's screen (the whole point of UC-2). The
+native interaction was reworked to be **user-triggered**, without changing the
+acquisition mode, manifest, server, CaptureSession or Evidence.
+
+### The release-critical answer (§5): how the user captures another app's screen
+
+After `Start Screen Capture` → Android consent → the foreground-service
+**notification** carries **Capture Frame** and **Stop** actions. The user leaves
+PROOVRA, shows the target content in any app, and taps **Capture Frame** from the
+notification — the SAME `ScreenCaptureService` action the in-app button routes to.
+No timer, no overlay/`SYSTEM_ALERT_WINDOW`, no Accessibility service. Returning to
+PROOVRA reconnects to the SAME native session and CaptureSession via
+`getScreenCaptureState()` (never a new session); events keep the frame count live.
+
+### Button / navigation contract matrix (code-backed)
+
+| Control | File | Visible when | Handler → authority | Success dest | Failure dest | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| Direct Screen Capture (entry) | app/(tabs)/index.tsx | Android home hero | router.push("/screen-capture") | screen | — | EXISTS |
+| Start Screen Capture | (stack)/screen-capture.tsx | intro | startScreenCapture → native consent | active | error(denied) | EXISTS |
+| Cancel | screen-capture.tsx | intro | router.back() | Capture | — | EXISTS |
+| Capture Frame (in-app) | screen-capture.tsx | active | captureScreenFrame → ScreenCaptureService ACTION_CAPTURE_FRAME | frameCount++ | toast | EXISTS |
+| Capture Frame (notification) | ScreenCaptureService.kt | active (backgrounded) | same ACTION_CAPTURE_FRAME | frameCount++ | ignored if stale | EXISTS |
+| Stop & Review | screen-capture.tsx | active | stopScreenCapture → ACTION_STOP | review | error | EXISTS |
+| Stop (notification) | ScreenCaptureService.kt | active | same ACTION_STOP | review | — | EXISTS |
+| Finalize Evidence | screen-capture.tsx | review | finalizeScreenCapture → open/reserve/upload/screen-complete | success | error | EXISTS |
+| Discard | screen-capture.tsx | review | RESET | intro | — | EXISTS |
+| View Evidence | screen-capture.tsx | success | router.replace(`/evidence/:id`) | canonical Evidence Detail | — | EXISTS |
+| Capture Another | screen-capture.tsx | success | RESET | intro (fresh session) | — | EXISTS |
+| Done | screen-capture.tsx | success | router.back() | Capture | — | EXISTS |
+| Try Again | screen-capture.tsx | error(recoverable) | RESET | intro | — | EXISTS |
+| Back to Capture | screen-capture.tsx | error | router.back() | Capture | — | EXISTS |
+
+No placeholder/TODO/console-only handlers; every state is reachable and total.
+
+### State machine, app-switch, recovery
+
+`src/screen-capture-flow.ts` is a PURE, TOTAL reducer (intro → active → review →
+uploading → success; safe-only error branches) — an out-of-phase event never
+corrupts state, and a stopped session never appears successful without an explicit
+Finalize. Unit-tested (`test/screen-capture-flow.test.mjs`, 7 cases). OS revocation
+/ process death / zero-frame end in a recoverable error or `INTERRUPTED`, never a
+false COMPLETE. Digest mismatch is refused server-side (no "ignore"); the UI never
+shows "Verified" for local acquisition — only after server sealing.
+
+### Android permissions (all UC-2 adds)
+
+`FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PROJECTION`, `POST_NOTIFICATIONS`
+— nothing else. NO camera/microphone/location/contacts/media-library,
+`SYSTEM_ALERT_WINDOW` or Accessibility. Capture uses the MediaProjection system
+consent only.
+
+### Claim safety in UI
+
+Strings are neutral: "Screen Capture Active", "Evidence saved", "verifying
+integrity on the server". No "authentic/verified/tamper-proof screenshot".
+
+### Tests (this pass)
+
+mobile **15/15** (7 new reducer cases + 8 deep-link) + mobile typecheck GREEN;
+architecture audit PASS; `git diff --check` clean. Server/API unchanged
+(uc2-screen-capture integration 4/4 still valid). **ANDROID DEVICE ACCEPTANCE
+remains DEFERRED** — the native capture is real but unrun on a device here.
+
+**UC-2 USER FLOW COMPLETE (code) · ANDROID DEVICE ACCEPTANCE DEFERRED.**
+
+---
+
 **UC-2 CODE/ARCHITECTURE COMPLETE · ANDROID DEVICE ACCEPTANCE DEFERRED · UC-3 MAY BEGIN.**
 Not deployed to Production; not published to the Play Store.

@@ -1,23 +1,31 @@
 /**
  * UC-2 — PROOVRA Android Direct Screen Capture native module (JS binding).
  *
- * A thin, typed JS surface over the Android MediaProjection native module. It is
- * Android-only; on any other platform every call rejects. The native side:
- *   1. requests Android's MediaProjection consent (a system dialog — nothing is
- *      captured before the user grants it),
- *   2. runs a bounded foreground-service capture (a small number of frames — this
- *      is UC-2's SHORT session, never continuous recording, which is UC-3),
- *   3. writes each frame as a PNG in the app's cache and returns file:// URIs
- *      plus coarse display/device context and any limitations,
- *   4. stops promptly on the notification's Stop action, on `stop()`, or when the
- *      frame/time bound is reached, and reports why it stopped.
+ * A thin, typed, EVENT-DRIVEN surface over the Android MediaProjection native
+ * module. Android-only; on any other platform every call rejects. The user, not a
+ * timer, decides when a frame is taken — so they can leave PROOVRA, display the
+ * target content in another app, and trigger "Capture Frame" from the ongoing
+ * capture NOTIFICATION (or, while PROOVRA is foreground, from the in-app button).
+ * The notification and in-app actions invoke the SAME native authority.
+ *
+ * Flow:
+ *   startCapture()   → Android consent dialog; on grant the session is ACTIVE and
+ *                      a foreground-service notification with Capture Frame + Stop
+ *                      actions appears. Nothing is captured yet.
+ *   captureFrame()   → capture ONE frame now (same as the notification action).
+ *   stopCapture()    → stop, release native resources, resolve with all frames.
+ *   getState()       → { active, frameCount } for reconnect after an app switch.
+ *   events           → onScreenFrame / onScreenCaptureStopped for live UI state.
  *
  * It never captures outside the OS-authorised session, never bypasses FLAG_SECURE
- * (secure windows come back blank and are reported), and collects NO app
- * inventory, notifications, clipboard, contacts or hardware identifiers.
+ * (secure windows come back blank and are reported), collects NO app inventory,
+ * notifications, clipboard, contacts or hardware identifiers, and uses NO overlay
+ * / draw-over-other-apps or Accessibility permission.
  */
 import { Platform } from "react-native";
-import { requireNativeModule } from "expo-modules-core";
+import { EventEmitter, requireNativeModule } from "expo-modules-core";
+
+type Subscription = { remove: () => void };
 
 export type ScreenCaptureStopReason =
   | "USER_STOPPED"
@@ -34,58 +42,72 @@ export type ScreenCaptureLimitationCode =
   | "SCREEN_CONTENT_CHANGED_DURING_CAPTURE";
 
 export type ScreenCaptureFrame = {
-  /** file:// URI of the PNG frame in the app cache. */
   uri: string;
   frameIndex: number;
   widthPx: number;
   heightPx: number;
-  /** ms after captureStartedAtUtc. */
   capturedAtOffsetMs: number;
 };
 
+export type ScreenCaptureDevice = {
+  platform: "android";
+  osVersion: string;
+  model: string;
+  appVersion: string;
+  screenW: number;
+  screenH: number;
+  densityDpi: number;
+  orientation: "portrait" | "landscape";
+};
+
+export type ScreenCaptureStarted = {
+  osConsentGranted: boolean;
+  captureStartedAtUtc: string;
+  maxFrames: number;
+};
+
 export type ScreenCaptureResult = {
-  /** True only after the OS consent dialog was granted. */
   osConsentGranted: boolean;
   captureStartedAtUtc: string;
   captureEndedAtUtc: string;
-  device: {
-    platform: "android";
-    osVersion: string;
-    model: string;
-    appVersion: string;
-    screenW: number;
-    screenH: number;
-    densityDpi: number;
-    orientation: "portrait" | "landscape";
-  };
+  device: ScreenCaptureDevice;
   frames: ScreenCaptureFrame[];
   stopReason: ScreenCaptureStopReason;
   limitations: ScreenCaptureLimitationCode[];
 };
 
+export type ScreenCaptureState = { active: boolean; frameCount: number };
+
 export type ScreenCaptureOptions = {
-  /** Hard ceiling on frames (native clamps to a safe max; UC-2 is a short session). */
+  /** Hard ceiling on frames (native clamps to 60). UC-2 is a short session. */
   maxFrames?: number;
-  /** Delay between frames in ms. */
-  intervalMs?: number;
 };
 
-type NativeModule = {
+type NativeEvents = {
+  onScreenFrame: (e: { frameIndex: number; frameCount: number }) => void;
+  onScreenCaptureStopped: (e: ScreenCaptureResult) => void;
+};
+
+type NativeModuleType = {
   isSupported(): boolean;
-  /** Requests consent, runs the bounded capture, resolves when the session ends. */
-  requestConsentAndCapture(options: {
-    maxFrames: number;
-    intervalMs: number;
-  }): Promise<ScreenCaptureResult>;
-  /** Stops an in-flight capture promptly (idempotent). */
-  stop(): Promise<void>;
+  getState(): ScreenCaptureState;
+  startCapture(options: { maxFrames: number }): Promise<ScreenCaptureStarted>;
+  captureFrame(): Promise<{ frameIndex: number; frameCount: number }>;
+  stopCapture(): Promise<ScreenCaptureResult>;
 };
 
-let cached: NativeModule | undefined;
-function nativeModule(): NativeModule {
-  const mod = cached ?? requireNativeModule<NativeModule>("ProovraScreenCapture");
-  cached = mod;
+let cachedModule: NativeModuleType | undefined;
+let cachedEmitter: InstanceType<typeof EventEmitter> | undefined;
+
+function nativeModule(): NativeModuleType {
+  const mod = cachedModule ?? requireNativeModule<NativeModuleType>("ProovraScreenCapture");
+  cachedModule = mod;
   return mod;
+}
+function emitter(): InstanceType<typeof EventEmitter> {
+  const em = cachedEmitter ?? new EventEmitter(nativeModule() as never);
+  cachedEmitter = em;
+  return em;
 }
 
 export function isScreenCaptureSupported(): boolean {
@@ -97,31 +119,42 @@ export function isScreenCaptureSupported(): boolean {
   }
 }
 
-const DEFAULT_MAX_FRAMES = 8;
-const DEFAULT_INTERVAL_MS = 750;
+export function getScreenCaptureState(): ScreenCaptureState {
+  if (Platform.OS !== "android") return { active: false, frameCount: 0 };
+  try {
+    return nativeModule().getState();
+  } catch {
+    return { active: false, frameCount: 0 };
+  }
+}
 
-/**
- * Request Android consent and run a bounded screen capture. Resolves with the
- * captured frames + context when the session ends (user stop, bound reached, or
- * interruption). Rejects if consent is denied or the platform is not Android.
- */
-export async function requestConsentAndCapture(
-  options: ScreenCaptureOptions = {},
-): Promise<ScreenCaptureResult> {
+const DEFAULT_MAX_FRAMES = 20;
+
+/** Request Android consent and START an active (but empty) capture session. */
+export async function startScreenCapture(options: ScreenCaptureOptions = {}): Promise<ScreenCaptureStarted> {
   if (Platform.OS !== "android") {
     throw new Error("Direct Screen Capture is available on Android only.");
   }
-  return nativeModule().requestConsentAndCapture({
+  return nativeModule().startCapture({
     maxFrames: Math.max(1, Math.min(options.maxFrames ?? DEFAULT_MAX_FRAMES, 60)),
-    intervalMs: Math.max(200, options.intervalMs ?? DEFAULT_INTERVAL_MS),
   });
 }
 
-export async function stopScreenCapture(): Promise<void> {
-  if (Platform.OS !== "android") return;
-  try {
-    await nativeModule().stop();
-  } catch {
-    /* nothing in flight */
-  }
+/** Capture ONE frame now (same authority as the notification's Capture Frame). */
+export async function captureScreenFrame(): Promise<{ frameIndex: number; frameCount: number }> {
+  if (Platform.OS !== "android") throw new Error("Android only.");
+  return nativeModule().captureFrame();
+}
+
+/** Stop the session, release native resources, and return all captured frames. */
+export async function stopScreenCapture(): Promise<ScreenCaptureResult> {
+  if (Platform.OS !== "android") throw new Error("Android only.");
+  return nativeModule().stopCapture();
+}
+
+export function addScreenFrameListener(cb: NativeEvents["onScreenFrame"]): Subscription {
+  return emitter().addListener("onScreenFrame", cb as never) as Subscription;
+}
+export function addScreenStoppedListener(cb: NativeEvents["onScreenCaptureStopped"]): Subscription {
+  return emitter().addListener("onScreenCaptureStopped", cb as never) as Subscription;
 }
