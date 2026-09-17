@@ -1,0 +1,669 @@
+{
+  "artifact": "ui-truth/empty-on-failure-verification",
+  "schemaVersion": 1,
+  "note": "Second pass over the FAILED_READ_COERCED_TO_ZERO_OR_EMPTY hazards: a catch that records nothing visible is confirmed; one that records a typed failure is demoted.",
+  "totals": {
+    "flagged": 65,
+    "confirmedSilent": 36,
+    "demoted": 19,
+    "documentedDeliberate": 9,
+    "unverifiable": 1,
+    "confirmedByRoute": {
+      "SHARED_COMPONENT": 6,
+      "/security-center": 4,
+      "/investigation": 3,
+      "/redaction": 3,
+      "/review/external": 2,
+      "/search": 2,
+      "/security-center/mfa-recovery": 2,
+      "/teams/[id]": 2,
+      "/audit-transparency": 1,
+      "/budget-center": 1,
+      "/cases": 1,
+      "/executive": 1,
+      "/governance-platform/cross-org": 1,
+      "/governance-platform/delegated-admin": 1,
+      "/governance-platform": 1,
+      "/intelligence-quality": 1,
+      "/investigation/duplicates": 1,
+      "/organizations/[id]": 1,
+      "/settings": 1,
+      "/workflows/[id]": 1
+    }
+  },
+  "rows": [
+    {
+      "file": "apps/web/app/(app)/admin/platform/observability/page.tsx",
+      "line": 721,
+      "surfaceRoute": "/admin/platform/observability",
+      "catchStartLine": 719,
+      "catchSource": "} catch {\n        if (!cancelled) {\n          setSnapshot(null);\n          setSnapshotUnavailable(true);\n        }\n      }",
+      "verdict": "DEMOTED_RECORDS_FAILURE",
+      "recordedBy": [
+        "/set[A-Za-z0-9_]*(Error|Failure|Failed|Unavailable|Problem|Denial|Refus)/"
+      ]
+    },
+    {
+      "file": "apps/web/app/(app)/audit-transparency/page.tsx",
+      "line": 72,
+      "surfaceRoute": "/audit-transparency",
+      "catchStartLine": 71,
+      "catchSource": "} catch {\n      setEntries([]);\n    } finally {\n      setBusy(false);\n    }",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/budget-center/page.tsx",
+      "line": 54,
+      "surfaceRoute": "/budget-center",
+      "catchStartLine": 53,
+      "catchSource": "} catch {\n      setSpend(null);\n      setBreaches(null);\n    } finally {\n      setBusy(false);\n    }",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/cases/components/SiuPanel.tsx",
+      "line": 216,
+      "surfaceRoute": "/cases",
+      "catchStartLine": 215,
+      "catchSource": "} catch {\n      setHistory([]);\n    }",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/evidence-lifecycle/chain-transfers/page.tsx",
+      "line": 99,
+      "surfaceRoute": "/evidence-lifecycle/chain-transfers",
+      "catchStartLine": 98,
+      "catchSource": "} catch (err) {\n      setTransfers([]);\n      applyDenial(err, setDenial);\n    } finally {\n      setBusy(false);\n    }",
+      "verdict": "DEMOTED_RECORDS_FAILURE",
+      "recordedBy": [
+        "/set[A-Za-z0-9_]*(Error|Failure|Failed|Unavailable|Problem|Denial|Refus)/"
+      ]
+    },
+    {
+      "file": "apps/web/app/(app)/evidence-lifecycle/destruction/page.tsx",
+      "line": 83,
+      "surfaceRoute": "/evidence-lifecycle/destruction",
+      "catchStartLine": 82,
+      "catchSource": "} catch (err) {\n      setRequests([]);\n      setReadFailed(true);\n      applyDenial(err, setDenial);\n    } finally {\n      setBusy(false);\n    }",
+      "verdict": "DEMOTED_RECORDS_FAILURE",
+      "recordedBy": [
+        "/set[A-Za-z0-9_]*(Error|Failure|Failed|Unavailable|Problem|Denial|Refus)/"
+      ]
+    },
+    {
+      "file": "apps/web/app/(app)/evidence-lifecycle/legal-holds/page.tsx",
+      "line": 172,
+      "surfaceRoute": "/evidence-lifecycle/legal-holds",
+      "catchStartLine": 171,
+      "catchSource": "} catch (err) {\n      setHolds([]);\n      applyDenial(err, setDenial);\n    } finally {\n      setBusy(false);\n    }",
+      "verdict": "DEMOTED_RECORDS_FAILURE",
+      "recordedBy": [
+        "/set[A-Za-z0-9_]*(Error|Failure|Failed|Unavailable|Problem|Denial|Refus)/"
+      ]
+    },
+    {
+      "file": "apps/web/app/(app)/evidence-lifecycle/legal-holds/page.tsx",
+      "line": 210,
+      "surfaceRoute": "/evidence-lifecycle/legal-holds",
+      "catchStartLine": 207,
+      "catchSource": "} catch {\n      // The dashboard is a neighbouring read. If it fails, say nothing about\n      // entitlement rather than guessing in either direction.\n      setCreationEntitled(null);\n    }",
+      "verdict": "DOCUMENTED_DELIBERATE_SILENCE",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/evidence-lifecycle/webhooks/page.tsx",
+      "line": 166,
+      "surfaceRoute": "/evidence-lifecycle/webhooks",
+      "catchStartLine": 165,
+      "catchSource": "} catch (err) {\n      setEndpoints([]);\n      setDeliveries([]);\n      setEndpointsLoaded(true);\n      setEndpointsFailed(true);\n      setDeliveriesFailed(true);\n      applyDenial(err, setDenial);\n      return null;\n    } finally {\n      setBusy(false);\n    }",
+      "verdict": "DEMOTED_RECORDS_FAILURE",
+      "recordedBy": [
+        "/set[A-Za-z0-9_]*(Error|Failure|Failed|Unavailable|Problem|Denial|Refus)/"
+      ]
+    },
+    {
+      "file": "apps/web/app/(app)/executive/page.tsx",
+      "line": 65,
+      "surfaceRoute": "/executive",
+      "catchStartLine": 64,
+      "catchSource": "} catch {\n      setTrends(null);\n      setSnapshot(null);\n    } finally {\n      setBusy(false);\n    }",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/governance-platform/access-reviews/[campaignId]/page.tsx",
+      "line": 74,
+      "surfaceRoute": "/governance-platform/access-reviews/[campaignId]",
+      "catchStartLine": 73,
+      "catchSource": "} catch (err) {\n      setRows([]);\n      handleError(err, setDenial);\n    } finally {\n      setBusy(false);\n    }",
+      "verdict": "DEMOTED_RECORDS_FAILURE",
+      "recordedBy": [
+        "/set[A-Za-z0-9_]*(Error|Failure|Failed|Unavailable|Problem|Denial|Refus)/"
+      ]
+    },
+    {
+      "file": "apps/web/app/(app)/governance-platform/access-reviews/page.tsx",
+      "line": 116,
+      "surfaceRoute": "/governance-platform/access-reviews",
+      "catchStartLine": 114,
+      "catchSource": "} catch (err) {\n      if (isStale(captured)) return;\n      setEscalated([]);\n      setEscalatedFailure(classifyReadFailure(err));\n    }",
+      "verdict": "DEMOTED_RECORDS_FAILURE",
+      "recordedBy": [
+        "/set[A-Za-z0-9_]*(Error|Failure|Failed|Unavailable|Problem|Denial|Refus)/",
+        "/classifyReadFailure|toSafeUserError|notifyApiError|reportError|captureException/"
+      ]
+    },
+    {
+      "file": "apps/web/app/(app)/governance-platform/cross-org/page.tsx",
+      "line": 44,
+      "surfaceRoute": "/governance-platform/cross-org",
+      "catchStartLine": 43,
+      "catchSource": "} catch {\n      setRows([]);\n    } finally {\n      setBusy(false);\n    }",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/governance-platform/delegated-admin/page.tsx",
+      "line": 38,
+      "surfaceRoute": "/governance-platform/delegated-admin",
+      "catchStartLine": 37,
+      "catchSource": "} catch {\n      setRows([]);\n    } finally {\n      setBusy(false);\n    }",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/governance-platform/page.tsx",
+      "line": 40,
+      "surfaceRoute": "/governance-platform",
+      "catchStartLine": 39,
+      "catchSource": "} catch {\n      setDashboard(null);\n    } finally {\n      setBusy(false);\n    }",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/governance-platform/policies/page.tsx",
+      "line": 201,
+      "surfaceRoute": "/governance-platform/policies",
+      "catchStartLine": 199,
+      "catchSource": "} catch {\n      if (isStale(captured)) return;\n      setDepartments([]);\n      setDepartmentsFailed(true);\n    }",
+      "verdict": "DEMOTED_RECORDS_FAILURE",
+      "recordedBy": [
+        "/set[A-Za-z0-9_]*(Error|Failure|Failed|Unavailable|Problem|Denial|Refus)/"
+      ]
+    },
+    {
+      "file": "apps/web/app/(app)/governance/destruction/page.tsx",
+      "line": 388,
+      "surfaceRoute": "/governance/destruction",
+      "catchStartLine": 386,
+      "catchSource": "} catch (err) {\n      if (isStale(captured)) return;\n      setExecutions([]);\n      setExecutionsFailure(classifyReadFailure(err));\n    }",
+      "verdict": "DEMOTED_RECORDS_FAILURE",
+      "recordedBy": [
+        "/set[A-Za-z0-9_]*(Error|Failure|Failed|Unavailable|Problem|Denial|Refus)/",
+        "/classifyReadFailure|toSafeUserError|notifyApiError|reportError|captureException/"
+      ]
+    },
+    {
+      "file": "apps/web/app/(app)/governance/destruction/page.tsx",
+      "line": 413,
+      "surfaceRoute": "/governance/destruction",
+      "catchStartLine": 411,
+      "catchSource": "} catch (err) {\n      if (isStale(captured)) return;\n      setRuns([]);\n      setRunsFailure(classifyReadFailure(err));\n    }",
+      "verdict": "DEMOTED_RECORDS_FAILURE",
+      "recordedBy": [
+        "/set[A-Za-z0-9_]*(Error|Failure|Failed|Unavailable|Problem|Denial|Refus)/",
+        "/classifyReadFailure|toSafeUserError|notifyApiError|reportError|captureException/"
+      ]
+    },
+    {
+      "file": "apps/web/app/(app)/governance/retention/page.tsx",
+      "line": 278,
+      "surfaceRoute": "/governance/retention",
+      "catchStartLine": 276,
+      "catchSource": "} catch (err) {\n      if (isStale(captured)) return;\n      setEffective(null);\n      setEffectiveFailure(classifyReadFailure(err));\n    } finally {\n      if (!isStale(captured)) setEffectiveLoading(false);\n    }",
+      "verdict": "DEMOTED_RECORDS_FAILURE",
+      "recordedBy": [
+        "/set[A-Za-z0-9_]*(Error|Failure|Failed|Unavailable|Problem|Denial|Refus)/",
+        "/classifyReadFailure|toSafeUserError|notifyApiError|reportError|captureException/"
+      ]
+    },
+    {
+      "file": "apps/web/app/(app)/governance/retention/page.tsx",
+      "line": 303,
+      "surfaceRoute": "/governance/retention",
+      "catchStartLine": 301,
+      "catchSource": "} catch (err) {\n      if (isStale(captured)) return;\n      setCandidates([]);\n      setCandidatesFailure(classifyReadFailure(err));\n    }",
+      "verdict": "DEMOTED_RECORDS_FAILURE",
+      "recordedBy": [
+        "/set[A-Za-z0-9_]*(Error|Failure|Failed|Unavailable|Problem|Denial|Refus)/",
+        "/classifyReadFailure|toSafeUserError|notifyApiError|reportError|captureException/"
+      ]
+    },
+    {
+      "file": "apps/web/app/(app)/intake-links/page.tsx",
+      "line": 200,
+      "surfaceRoute": "/intake-links",
+      "catchStartLine": 200,
+      "catchSource": ".catch(() => {\n        // A failed template fetch must not block the page: the built-in\n        // request catalog resolves server-side without it.\n        if (!cancelled) setTemplates([]);\n      });",
+      "verdict": "DOCUMENTED_DELIBERATE_SILENCE",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/integrations/page.tsx",
+      "line": 303,
+      "surfaceRoute": "/integrations",
+      "catchStartLine": 299,
+      "catchSource": "} catch {\n        // Best-effort. If diagnostics fails we still render the panel\n        // without the reason chip — never surface the diagnostics error\n        // to normal users.\n        if (!cancelled) setDiagnostics(null);\n      }",
+      "verdict": "DOCUMENTED_DELIBERATE_SILENCE",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/intelligence-quality/page.tsx",
+      "line": 56,
+      "surfaceRoute": "/intelligence-quality",
+      "catchStartLine": 55,
+      "catchSource": "} catch {\n      setProviders(null);\n      setReviewers(null);\n      setTeams(null);\n    } finally {\n      setBusy(false);\n    }",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/investigation/duplicates/page.tsx",
+      "line": 202,
+      "surfaceRoute": "/investigation/duplicates",
+      "catchStartLine": 201,
+      "catchSource": "} catch {\n        if (!cancelled) setProducerModes([]);\n      }",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/investigation/page.tsx",
+      "line": 324,
+      "surfaceRoute": "/investigation",
+      "catchStartLine": 322,
+      "catchSource": "} catch {\n          if (!cancelled) {\n            setMetrics(null);\n            setMetricsState(\"unavailable\");\n          }\n        }",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/investigation/page.tsx",
+      "line": 343,
+      "surfaceRoute": "/investigation",
+      "catchStartLine": 342,
+      "catchSource": "} catch {\n        if (!cancelled) setReviewerActivity(null);\n      }",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/investigation/page.tsx",
+      "line": 351,
+      "surfaceRoute": "/investigation",
+      "catchStartLine": 350,
+      "catchSource": "} catch {\n        if (!cancelled) setCrossEvidence(null);\n      }",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/operations/page.tsx",
+      "line": 422,
+      "surfaceRoute": "/operations",
+      "catchStartLine": 422,
+      "catchSource": ".catch(() => {\n        if (seq !== groupsSeq.current) return;\n        // A failed grouped read leaves the groups EMPTY rather than stale.\n        // The flat list is still there, and an empty grouped view with a\n        // visible toggle is honest; a previous workspace's groups would not be.\n        setGroups([]);\n        setGroupTotals(null);\n      })",
+      "verdict": "DOCUMENTED_DELIBERATE_SILENCE",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/operations/page.tsx",
+      "line": 672,
+      "surfaceRoute": "/operations",
+      "catchStartLine": 672,
+      "catchSource": ".catch(() => {\n        // A missing picker is not worth a banner: ownership still renders, the\n        // filter still works, and the operator can retry by reopening.\n        setOperators([]);\n      });",
+      "verdict": "DOCUMENTED_DELIBERATE_SILENCE",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/organizations/[id]/page.tsx",
+      "line": 1314,
+      "surfaceRoute": "/organizations/[id]",
+      "catchStartLine": 1313,
+      "catchSource": "} catch {\n      setClosure(null);\n    }",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/packaging/page.tsx",
+      "line": 129,
+      "surfaceRoute": "/packaging",
+      "catchStartLine": 128,
+      "catchSource": "} catch (err) {\n      setEntitlements([]);\n      applyDenial(err, setDenial);\n    } finally {\n      setBusy(false);\n    }",
+      "verdict": "DEMOTED_RECORDS_FAILURE",
+      "recordedBy": [
+        "/set[A-Za-z0-9_]*(Error|Failure|Failed|Unavailable|Problem|Denial|Refus)/"
+      ]
+    },
+    {
+      "file": "apps/web/app/(app)/redaction/page.tsx",
+      "line": 85,
+      "surfaceRoute": "/redaction",
+      "catchStartLine": 84,
+      "catchSource": "} catch {\n      setRows([]);\n    }",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/redaction/page.tsx",
+      "line": 93,
+      "surfaceRoute": "/redaction",
+      "catchStartLine": 92,
+      "catchSource": "} catch {\n      setSummary(null);\n    }",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/redaction/page.tsx",
+      "line": 101,
+      "surfaceRoute": "/redaction",
+      "catchStartLine": 100,
+      "catchSource": "} catch {\n      setProviders([]);\n    }",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/review/disagreements/page.tsx",
+      "line": 153,
+      "surfaceRoute": "/review/disagreements",
+      "catchStartLine": 146,
+      "catchSource": "} catch (err) {\n      // eslint-disable-next-line no-console\n      console.warn(\"[reviewer-workspace] disagreements list refresh failed\", {\n        // eslint-disable-next-line @typescript-eslint/no-explicit-any\n        status: (err as any)?.statusCode ?? 0,\n      });\n      if (isStale?.()) return;\n      setRows([]);\n    }",
+      "verdict": "DEMOTED_RECORDS_FAILURE",
+      "recordedBy": [
+        "/console\\.(error|warn)/"
+      ]
+    },
+    {
+      "file": "apps/web/app/(app)/review/external/page.tsx",
+      "line": 328,
+      "surfaceRoute": "/review/external",
+      "catchStartLine": 319,
+      "catchSource": "} catch (err) {\n      // eslint-disable-next-line no-console\n      console.warn(\"[external-review] invitations list refresh failed\", {\n        // eslint-disable-next-line @typescript-eslint/no-explicit-any\n        status: (err as any)?.statusCode ?? 0,\n        // eslint-disable-next-line @typescript-eslint/no-explicit-any\n        code: (err as any)?.code ?? \"UNKNOWN\",\n      });\n      const denial ",
+      "verdict": "DEMOTED_RECORDS_FAILURE",
+      "recordedBy": [
+        "/console\\.(error|warn)/"
+      ]
+    },
+    {
+      "file": "apps/web/app/(app)/review/external/page.tsx",
+      "line": 827,
+      "surfaceRoute": "/review/external",
+      "catchStartLine": 826,
+      "catchSource": "} catch {\n      setActivity([]);\n      return false;\n    }",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/review/external/page.tsx",
+      "line": 842,
+      "surfaceRoute": "/review/external",
+      "catchStartLine": 841,
+      "catchSource": "} catch {\n        setDeliveries([]);\n      }",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/search/page.tsx",
+      "line": 710,
+      "surfaceRoute": "/search",
+      "catchStartLine": 710,
+      "catchSource": ".catch(() => {\n        if (!cancelled) setSavedViews([]);\n      });",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/search/page.tsx",
+      "line": 1088,
+      "surfaceRoute": "/search",
+      "catchStartLine": 1088,
+      "catchSource": ".catch(() => {\n        if (!cancelled) setRelationships([]);\n      });",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/search/page.tsx",
+      "line": 1332,
+      "surfaceRoute": "/search",
+      "catchStartLine": 1329,
+      "catchSource": "} catch {\n        // Aborted or network — silently clear; the empty list\n        // renders nothing and the user can still type.\n        setSuggestions([]);\n      }",
+      "verdict": "DOCUMENTED_DELIBERATE_SILENCE",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/security-center/components/CaptureDevicesSection.tsx",
+      "line": 127,
+      "surfaceRoute": "/security-center",
+      "catchStartLine": 124,
+      "catchSource": "} catch (err) {\n      if (!mountedRef.current || seq !== loadSeqRef.current) return;\n      const status = statusOf(err);\n      setDevices([]);\n      setLoadState(status === 403 || status === 404 ? \"denied\" : \"failed\");\n    }",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/security-center/identity/timeline/page.tsx",
+      "line": 178,
+      "surfaceRoute": "/security-center/identity/timeline",
+      "catchStartLine": 178,
+      "catchSource": ".catch((err: { message?: string }) => {\n        setEvents([]);\n        setError(toSafeUserError(err, { message: \"Could not load timeline.\" }).message);\n      });",
+      "verdict": "DEMOTED_RECORDS_FAILURE",
+      "recordedBy": [
+        "/set[A-Za-z0-9_]*(Error|Failure|Failed|Unavailable|Problem|Denial|Refus)/",
+        "/classifyReadFailure|toSafeUserError|notifyApiError|reportError|captureException/"
+      ]
+    },
+    {
+      "file": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx",
+      "line": 175,
+      "surfaceRoute": "/security-center/mfa-recovery",
+      "catchStartLine": 174,
+      "catchSource": "} catch {\n      setPreferences([]);\n    }",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx",
+      "line": 190,
+      "surfaceRoute": "/security-center/mfa-recovery",
+      "catchStartLine": 189,
+      "catchSource": "} catch {\n      setPreview(null);\n    }",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/security-center/page.tsx",
+      "line": 152,
+      "surfaceRoute": "/security-center",
+      "catchStartLine": 152,
+      "catchSource": "apiFetch(`/v1/identity-security/devices${qs}`, { method: \"GET\" }).catch(\n        () => ({ devices: [] }),",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/security-center/page.tsx",
+      "line": 155,
+      "surfaceRoute": "/security-center",
+      "catchStartLine": 155,
+      "catchSource": "apiFetch(`/v1/identity-security/sessions${qs}`, { method: \"GET\" }).catch(\n        () => ({ revoked: [] }),",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/security-center/page.tsx",
+      "line": 173,
+      "surfaceRoute": "/security-center",
+      "catchStartLine": 173,
+      "catchSource": ").catch(() => ({ requests: [] })),",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "type": "FAILED_READ_COERCED_TO_ZERO_OR_EMPTY",
+      "file": "apps/web/app/(app)/settings/_sections/AiSection.tsx",
+      "line": 200,
+      "explanation": "CATCH_BLOCK_SETS_AN_EMPTY_OR_ZERO_STATE: The catch writes an empty list, a zero or a null into the state the page renders, so the failure is indistinguishable from real absence.",
+      "evidence": "setMessage(null);",
+      "surfaceRoutes": [
+        "/settings"
+      ],
+      "verdict": "UNVERIFIABLE",
+      "reason": "no catch block found within 12 lines of the flagged line"
+    },
+    {
+      "file": "apps/web/app/(app)/settings/_sections/PrivacySection.tsx",
+      "line": 159,
+      "surfaceRoute": "/settings",
+      "catchStartLine": 158,
+      "catchSource": "} catch {\n      setRows([]);\n    }",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx",
+      "line": 113,
+      "surfaceRoute": "/teams/[id]",
+      "catchStartLine": 111,
+      "catchSource": "} catch {\n      // Non-owners get 403 — render nothing rather than a fake control.\n      setState(null);\n    }",
+      "verdict": "DOCUMENTED_DELIBERATE_SILENCE",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/teams/[id]/page.tsx",
+      "line": 520,
+      "surfaceRoute": "/teams/[id]",
+      "catchStartLine": 520,
+      "catchSource": "(apiFetch(`/v1/teams/${teamId}/cases`).catch(() => ({\n            items: [],\n          })) as Promise<TeamCasesResponse>),",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/teams/[id]/page.tsx",
+      "line": 523,
+      "surfaceRoute": "/teams/[id]",
+      "catchStartLine": 523,
+      "catchSource": "(apiFetch(`/v1/teams/${teamId}/activity`).catch(() => ({\n            activities: [],\n          })) as Promise<TeamActivitiesResponse>),",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/trust-center/subprocessors/page.tsx",
+      "line": 74,
+      "surfaceRoute": "/trust-center/subprocessors",
+      "catchStartLine": 73,
+      "catchSource": "} catch {\n      setRows([]);\n      setReason(null);\n      setFailed(\"Subprocessors could not be loaded. Press Refresh to try again.\");\n    } finally {\n      setLoaded(true);\n      setBusy(false);\n    }",
+      "verdict": "DEMOTED_RECORDS_FAILURE",
+      "recordedBy": [
+        "/set[A-Za-z0-9_]*(Error|Failure|Failed|Unavailable|Problem|Denial|Refus)/"
+      ]
+    },
+    {
+      "file": "apps/web/app/(app)/workflows/[id]/page.tsx",
+      "line": 193,
+      "surfaceRoute": "/workflows/[id]",
+      "catchStartLine": 193,
+      "catchSource": ").catch(() => ({ events: [] })),",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/app/(app)/workflows/page.tsx",
+      "line": 157,
+      "surfaceRoute": "/workflows",
+      "catchStartLine": 157,
+      "catchSource": ".catch((err: { message?: string }) => {\n        if (cancelled) return;\n        // Non-blocking error banner; still render the page chrome so\n        // the operator can retry by changing the sector filter.\n        setTemplates([]);\n        setError(toSafeUserError(err, { message: \"Could not load workflow templates.\" }).message);\n      });",
+      "verdict": "DEMOTED_RECORDS_FAILURE",
+      "recordedBy": [
+        "/set[A-Za-z0-9_]*(Error|Failure|Failed|Unavailable|Problem|Denial|Refus)/",
+        "/classifyReadFailure|toSafeUserError|notifyApiError|reportError|captureException/"
+      ]
+    },
+    {
+      "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
+      "line": 1427,
+      "surfaceRoute": "SHARED_COMPONENT",
+      "catchStartLine": 1419,
+      "catchSource": "} catch (err) {\n        if (cancelled) return;\n        // A REFUSAL and an OUTAGE are different answers and must not render\n        // the same. The previous handler set `candidates = []` for both, so a\n        // workspace the actor may not read announced \"no available evidence\n        // to link\" — a confident statement about a population it never saw.\n        const status = (err as { status?: n",
+      "verdict": "DOCUMENTED_DELIBERATE_SILENCE",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx",
+      "line": 246,
+      "surfaceRoute": "SHARED_COMPONENT",
+      "catchStartLine": 241,
+      "catchSource": "} catch {\n      if (!mountedRef.current) return;\n      // Fail CLOSED for the roster: an unknown roster must not be rendered as\n      // \"you have no factors\", because that invites a duplicate enrolment the\n      // server would then refuse with a conflict the user cannot explain.\n      setFactors(null);\n      setLoadFailed(true);\n    }",
+      "verdict": "DEMOTED_RECORDS_FAILURE",
+      "recordedBy": [
+        "/set[A-Za-z0-9_]*(Error|Failure|Failed|Unavailable|Problem|Denial|Refus)/"
+      ]
+    },
+    {
+      "file": "apps/web/components/intelligence/ProviderBudgetPanel.tsx",
+      "line": 61,
+      "surfaceRoute": "SHARED_COMPONENT",
+      "catchStartLine": 60,
+      "catchSource": "} catch {\n      setProbes([]);\n    }",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/components/intelligence/ProviderBudgetPanel.tsx",
+      "line": 69,
+      "surfaceRoute": "SHARED_COMPONENT",
+      "catchStartLine": 68,
+      "catchSource": "} catch {\n      setUsageSummary([]);\n    }",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/components/intelligence/ProviderBudgetPanel.tsx",
+      "line": 77,
+      "surfaceRoute": "SHARED_COMPONENT",
+      "catchStartLine": 76,
+      "catchSource": "} catch {\n      setBudgets([]);\n    }",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/components/notifications/ContextualDeliveryStatus.tsx",
+      "line": 50,
+      "surfaceRoute": "SHARED_COMPONENT",
+      "catchStartLine": 48,
+      "catchSource": "} catch {\n      // Delivery status is supplementary — never block the workflow page.\n      setRows([]);\n    }",
+      "verdict": "DOCUMENTED_DELIBERATE_SILENCE",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/components/redaction/DetectionReviewPanel.tsx",
+      "line": 72,
+      "surfaceRoute": "SHARED_COMPONENT",
+      "catchStartLine": 71,
+      "catchSource": "} catch {\n      setRows([]);\n    }",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/components/redaction/VideoFrameTrackPanels.tsx",
+      "line": 436,
+      "surfaceRoute": "SHARED_COMPONENT",
+      "catchStartLine": 434,
+      "catchSource": "} catch {\n      if (!mountedRef.current || seq !== framesSeqRef.current) return;\n      setFrames([]);\n      setFramesLoaded(true);\n    }",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    },
+    {
+      "file": "apps/web/components/redaction/VideoReviewWorkspace.tsx",
+      "line": 139,
+      "surfaceRoute": "SHARED_COMPONENT",
+      "catchStartLine": 138,
+      "catchSource": "} catch {\n      setTimeline(null);\n    }",
+      "verdict": "CONFIRMED_SILENT",
+      "recordedBy": []
+    }
+  ]
+}

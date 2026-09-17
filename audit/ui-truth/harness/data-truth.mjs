@@ -238,7 +238,7 @@ function firstLiteralPath(call) {
  *   const x = await apiFetch("/v1/…")
  *   setX(await apiFetch("/v1/…"))   /   .then((d) => setX(d))
  */
-function readBindings(rec) {
+function readBindings(rec, onlyCapped = false) {
   const sf = rec.sf;
   const setterToState = new Map();
   walk(sf, (n) => {
@@ -263,6 +263,9 @@ function readBindings(rec) {
     if (!READ_CALLEES.test(name)) return;
     const path = firstLiteralPath(n);
     if (!path || !path.startsWith("/")) return;
+    // For the cap rule: only the reads that ASK for a capped page count, so a
+    // count beside an uncapped list is never charged with another list's cap.
+    if (onlyCapped && !CAP_REQUEST.test(textOf(n, sf))) return;
 
     // Walk outward: the declaration or the setter this read feeds.
     let cur = n.parent;
@@ -290,6 +293,49 @@ function readBindings(rec) {
       });
     }
   });
+
+  /**
+   * A figure is rarely read straight off the response variable: the page does
+   * `const summary = data?.summary` or `const { rows } = payload` first. Three
+   * fixpoint passes carry the read down those derivations, so the tile that
+   * renders `summary.total` is still attributed to the read that filled
+   * `data`. Only DIRECT derivations are followed — nothing is carried across
+   * a function boundary or a prop.
+   */
+  for (let pass = 0; pass < 3; pass++) {
+    let changed = false;
+    walk(sf, (n) => {
+      if (!ts.isVariableDeclaration(n) || !n.initializer) return;
+      let src = rootIdentifier(textOf(n.initializer, sf));
+      // `const summary = useMemo(() => …, [data])` — a derivation with the
+      // hook in front of it. Carried ONLY when the memo reads exactly one
+      // identifier that a read filled; two would make the attribution a guess.
+      if (
+        ts.isCallExpression(n.initializer) &&
+        ts.isIdentifier(n.initializer.expression) &&
+        /^use(Memo|Callback)$/.test(n.initializer.expression.text)
+      ) {
+        const inner = new Set();
+        walk(n.initializer, (m) => {
+          if (ts.isIdentifier(m) && bindings.has(m.text)) inner.add(m.text);
+        });
+        src = inner.size === 1 ? [...inner][0] : null;
+      }
+      if (!src || !bindings.has(src)) return;
+      const names = [];
+      if (ts.isIdentifier(n.name)) names.push(n.name.text);
+      else if (ts.isObjectBindingPattern(n.name)) {
+        for (const el of n.name.elements) if (ts.isIdentifier(el.name)) names.push(el.name.text);
+      }
+      for (const name of names) {
+        if (name === src) continue;
+        const before = bindings.get(name)?.size ?? 0;
+        for (const p of bindings.get(src)) bind(name, p);
+        if ((bindings.get(name)?.size ?? 0) !== before) changed = true;
+      }
+    });
+    if (!changed) break;
+  }
   return bindings;
 }
 
@@ -328,6 +374,9 @@ const LIVE_WORDING = /\bLive\b|\bReal[- ]?time\b|\bright now\b|\bas it happens\b
 
 /** An error the catch actually RECORDS, as opposed to one it swallows. */
 const ERROR_RECORDED = /set\w*[Ee]rr|setError|setFailure|setProblem|notifyApiError|toSafeUserError|classifyFailure|classifyError|kind:\s*"error"|state="error"|addToast\([^)]*error/;
+
+/** Files where the cap rule could not be decided; reported, never guessed. */
+const undecidableCap = new Set();
 
 const lineAt = (text, index) => text.slice(0, index).split("\n").length;
 const lineText = (text, line) => (text.split("\n")[line - 1] ?? "").trim().slice(0, 200);
@@ -380,6 +429,10 @@ function coercionHazards(rec) {
         "The catch writes an empty list, a zero or a null into the state the page renders, so the failure is indistinguishable from real absence.");
     }
     for (const c of body.matchAll(/(?:\?\?|\|\|)\s*(?:0|\[\s*\])/g)) {
+      // `status: err?.statusCode ?? 0` defaults a STATUS CODE, not a figure on
+      // screen; it is the classifier's own bookkeeping and not this hazard.
+      const lead = body.slice(Math.max(0, c.index - 60), c.index);
+      if (/(?:status|statusCode|code|httpStatus)\s*:/.test(lead)) continue;
       push(lineAt(text, m.index + c.index), "FALLBACK_TO_ZERO_OR_EMPTY_ON_THE_ERROR_PATH",
         "A '?? 0' / '|| []' fallback sits on the error path, so a failed read renders as a measured zero.");
     }
@@ -387,7 +440,54 @@ function coercionHazards(rec) {
   return out;
 }
 
-function fileHazards(rec, endpointsOfSurfaces) {
+/**
+ * Only the strings that REACH THE SCREEN, with their lines. A type
+ * declaration (`type Status = "HEALTHY" | …`), a comment about a past bug and
+ * a console message all contain the words these rules hunt for and none of
+ * them renders, so the wording rules are asked of this list, never of the
+ * file's raw text.
+ */
+function renderedStrings(rec) {
+  const sf = rec.sf;
+  const out = [];
+  walk(sf, (n) => {
+    if (ts.isJsxText(n)) {
+      const t = n.getText(sf).replace(/\s+/g, " ").trim();
+      if (t) out.push({ line: lineOf(n, sf), text: decodeEntities(t) });
+      return;
+    }
+    if (!ts.isStringLiteral(n) && !ts.isNoSubstitutionTemplateLiteral(n) && !ts.isTemplateExpression(n)) return;
+    let p = n.parent;
+    let hops = 0;
+    while (p && hops < 6) {
+      if (ts.isJsxExpression(p) || ts.isJsxAttribute(p)) {
+        out.push({ line: lineOf(n, sf), text: decodeEntities(textOf(n, sf)) });
+        return;
+      }
+      if (ts.isTypeNode(p) || ts.isUnionTypeNode(p) || ts.isTypeAliasDeclaration(p)) return;
+      p = p.parent;
+      hops++;
+    }
+  });
+  return out;
+}
+
+/** Every place the file renders a count or a total, from the JSX itself. */
+function countSites(rec) {
+  const sf = rec.sf;
+  const out = [];
+  walk(sf, (n) => {
+    if (!ts.isJsxExpression(n) || !n.expression) return;
+    if (!n.parent || (!ts.isJsxElement(n.parent) && !ts.isJsxFragment(n.parent))) return;
+    const expr = textOf(n.expression, sf);
+    if (expr.length <= 220 && COUNTISH.test(expr) && !/=>/.test(expr)) {
+      out.push({ line: lineOf(n, sf), expr });
+    }
+  });
+  return out;
+}
+
+function fileHazards(rec) {
   const text = rec.text;
   const rows = [];
   const push = (type, line, explanation, evidence) => rows.push({ type, line, explanation, evidence });
@@ -395,41 +495,55 @@ function fileHazards(rec, endpointsOfSurfaces) {
   const coerced = coercionHazards(rec);
   for (const c of coerced) push("FAILED_READ_COERCED_TO_ZERO_OR_EMPTY", c.line, `${c.kind}: ${c.explanation}`, c.evidence);
 
-  // A count beside a capped read, with no disclosure of the cap.
-  const capHit = CAP_REQUEST.exec(text);
-  if (capHit) {
-    const countHit = /(?:\{[^{}\n]{0,60}\.length[^{}\n]{0,60}\}|\{[^{}\n]{0,60}\b(?:total|count)\b[^{}\n]{0,60}\})/.exec(text);
-    if (countHit && !CAP_DISCLOSED.test(text)) {
-      push(
-        "COUNT_BESIDE_AN_UNDISCLOSED_CAP",
-        lineAt(text, countHit.index),
-        `The read is capped at ${lineText(text, lineAt(text, capHit.index))} but the rendered count carries no cap, cursor or 'showing first' disclosure, so a partial list reads as the whole.`,
-        lineText(text, lineAt(text, countHit.index)),
-      );
+  const rendered = renderedStrings(rec);
+
+  // A count beside a capped read, with no disclosure of the cap. The count
+  // must render the very collection the capped read filled — a file may cap
+  // one list and count another, and that is not this hazard.
+  const capped = readBindings(rec, true);
+  if (capped.size === 0 && CAP_REQUEST.test(text) && countSites(rec).length > 0) {
+    // Said out loud rather than guessed: the file caps a read and renders a
+    // count, but the count's collection could not be traced to that read.
+    undecidableCap.add(rec.path);
+  }
+  if (capped.size > 0) {
+    const disclosedInCode = CAP_DISCLOSED.test(text);
+    const disclosedOnScreen = rendered.some((r) => CAP_DISCLOSED_RENDERED.test(r.text));
+    if (!disclosedInCode && !disclosedOnScreen) {
+      for (const site of countSites(rec)) {
+        const root = rootIdentifier(site.expr);
+        if (!root || !capped.has(root)) continue;
+        push(
+          "COUNT_BESIDE_AN_UNDISCLOSED_CAP",
+          site.line,
+          `${site.expr} counts the collection filled by the capped read ${[...capped.get(root)].sort().join(", ")}, and nothing on the page discloses the cap, so a partial list reads as the whole.`,
+          lineText(text, site.line),
+        );
+      }
     }
   }
 
   // All-clear wording reachable when the read failed.
   if (coerced.length > 0) {
-    const clear = ALL_CLEAR.exec(text);
+    const clear = rendered.find((r) => ALL_CLEAR.test(r.text));
     if (clear) {
       push(
         "SUCCESS_WORDING_REACHABLE_ON_A_FAILED_READ",
-        lineAt(text, clear.index),
-        `All-clear wording renders from the same state a failed read writes (see the coercion at line ${coerced[0].line} of this file).`,
-        lineText(text, lineAt(text, clear.index)),
+        clear.line,
+        `All-clear wording renders from the same state a failed read writes (the coercion is at line ${coerced[0].line} of this file).`,
+        clear.text.slice(0, 200),
       );
     }
   }
 
   // A cached or snapshot value presented as live.
-  const live = LIVE_WORDING.exec(text);
+  const live = rendered.find((r) => LIVE_WORDING.test(r.text));
   if (live && CACHE_MARKER.test(text) && !FRESHNESS_SHOWN.test(text)) {
     push(
       "CACHED_VALUE_PRESENTED_AS_LIVE",
-      lineAt(text, live.index),
+      live.line,
       "The file reads a cached or snapshot value and words it as live, with no rendered freshness ('last updated', 'as of') anywhere in the file.",
-      lineText(text, lineAt(text, live.index)),
+      live.text.slice(0, 200),
     );
   }
   return rows;
@@ -439,10 +553,16 @@ function fileHazards(rec, endpointsOfSurfaces) {
  * Element extraction
  * ------------------------------------------------------------------ */
 
-const WORKSPACE_WORDS = /\b(workspace|your team|this team|team's|tenant's|organisation|organization|your org)\b/i;
-const PLATFORM_WORDS = /\b(platform|all workspaces|every workspace|across (?:all )?(?:tenants|workspaces)|all tenants|global|fleet|estate|system-wide)\b/i;
+/**
+ * A scope CLAIM, not an entity name. "Workspace" as a column header names the
+ * workspace a row belongs to and claims nothing about whose data this is; it
+ * is "your workspace" / "across all tenants" that tells the reader where the
+ * figure came from, and only those can contradict the endpoint.
+ */
+const WORKSPACE_WORDS = /\b(?:your|this|current) (?:workspace|team|organisation|organization|org)\b|\bworkspace[- ]wide\b|\bin this (?:workspace|team)\b|\byour (?:data|records|evidence)\b/i;
+const PLATFORM_WORDS = /\ball (?:workspaces|tenants|organizations|organisations)\b|\bevery (?:workspace|tenant)\b|\bacross (?:all )?(?:tenants|workspaces|organizations)\b|\bplatform[- ]wide\b|\bsystem[- ]wide\b|\bfleet[- ]wide\b/i;
 
-function extractElements(rec, surface, bindings, statesHandled) {
+function extractElements(rec, surface, bindings, statesHandled, ownedSet) {
   const sf = rec.sf;
   const rows = [];
   const audience = audienceOf(surface.area);
@@ -451,6 +571,7 @@ function extractElements(rec, surface, bindings, statesHandled) {
     const root = rootIdentifier(fieldExpression);
     let endpoint = "UNRESOLVED";
     let endpointReason = "";
+    let attribution = "UNRESOLVED";
     let endpointScope = "UNRESOLVED";
     let endpointTenantType = "UNRESOLVED";
     const paths = root && bindings.has(root) ? [...bindings.get(root)].sort() : [];
@@ -460,16 +581,26 @@ function extractElements(rec, surface, bindings, statesHandled) {
         endpoint = `${ep.method} ${ep.path}`;
         endpointScope = ep.dataScope;
         endpointTenantType = ep.tenantType;
+        attribution = "TRACED";
         endpointReason = paths.length > 1 ? `IDENTIFIER_${root}_IS_FILLED_BY_${paths.length}_READS_FIRST_SHOWN` : "TRACED_THROUGH_THE_IDENTIFIER_THAT_HOLDS_THE_READ";
       } else {
         endpointReason = `READ_${paths[0]}_IS_NOT_AMONG_THE_ENDPOINTS_PLACEMENT_ATTRIBUTES_TO_THIS_SURFACE`;
       }
     } else {
       const reads = surface.endpoints.filter((e) => !e.mutating);
-      if (reads.length === 1) {
+      const filePaths = [...new Set([...bindings.values()].flatMap((v) => [...v]))].sort();
+      if (filePaths.length === 1 && matchEndpoint(filePaths[0], surface.endpoints)) {
+        const ep = matchEndpoint(filePaths[0], surface.endpoints);
+        endpoint = `${ep.method} ${ep.path}`;
+        endpointScope = ep.dataScope;
+        endpointTenantType = ep.tenantType;
+        attribution = "FALLBACK_ONLY_READ_IN_FILE";
+        endpointReason = "FILE_PERFORMS_EXACTLY_ONE_READ_SO_EVERY_FIGURE_IN_IT_COMES_FROM_THAT_READ";
+      } else if (reads.length === 1) {
         endpoint = `${reads[0].method} ${reads[0].path}`;
         endpointScope = reads[0].dataScope;
         endpointTenantType = reads[0].tenantType;
+        attribution = "FALLBACK_ONLY_READ_ON_SURFACE";
         endpointReason = "SURFACE_PERFORMS_EXACTLY_ONE_READ_SO_THE_VALUE_CAN_ONLY_COME_FROM_IT";
       } else {
         endpointReason = root
@@ -484,6 +615,7 @@ function extractElements(rec, surface, bindings, statesHandled) {
       surfaceArea: surface.area,
       audience,
       file: rec.path,
+      fileOrigin: ownedSet.has(rec.path) ? "OWNED_FILE" : "IMPORTED_FILE",
       line: lineOf(node, sf),
       elementKind: kind,
       visibleLabel: visibleLabel ?? UNRESOLVED,
@@ -492,6 +624,7 @@ function extractElements(rec, surface, bindings, statesHandled) {
       fieldExpressionReason: fieldExpression ? "EXPRESSION_READ_FROM_THE_RENDER_SITE" : fieldReason,
       endpoint,
       endpointReason,
+      endpointAttribution: attribution,
       endpointDataScope: endpointScope,
       endpointTenantType: endpointTenantType,
       statesDistinguished: statesHandled,
@@ -600,7 +733,7 @@ function main() {
         });
       }
       const cached = fileCache.get(relPath);
-      elements.push(...extractElements(rec, s, cached.bindings, cached.states));
+      elements.push(...extractElements(rec, s, cached.bindings, cached.states, new Set(s.ownedFiles)));
 
       for (const h of cached.hazards) {
         const key = `${relPath}|${h.line}|${h.type}`;
@@ -619,7 +752,48 @@ function main() {
     }
   }
 
+  /**
+   * A figure on a TENANT surface that comes from a platform-scoped read. The
+   * surface's own area is the scope claim here: a reader inside a workspace
+   * takes what the workspace's pages show them to be their workspace's. The
+   * other direction (an operator console reading one workspace) is how a
+   * drill-down is supposed to work and is not flagged.
+   */
+  const scopeClaimElements = [];
+  const scopeClaimUndecidable = [];
+  for (const e of elements) {
+    if (e.audience !== "TENANT_USER") continue;
+    if (e.endpoint === "UNRESOLVED") continue;
+    if (e.endpointTenantType !== "PLATFORM") continue;
+    // Only a TRACED attribution can carry this claim: the single-read fallback
+    // would charge a shared primitive with the scope of whatever page mounted it.
+    if (e.endpointAttribution !== "TRACED" && !(e.endpointAttribution === "FALLBACK_ONLY_READ_IN_FILE" && e.fileOrigin === "OWNED_FILE")) continue;
+    const key = `${e.file}|${e.line}|TENANT_SURFACE_RENDERS_A_PLATFORM_SCOPED_READ`;
+    if (!hazardsByKey.has(key)) {
+      hazardsByKey.set(key, {
+        type: "TENANT_SURFACE_RENDERS_A_PLATFORM_SCOPED_READ",
+        file: e.file,
+        line: e.line,
+        explanation: `A ${e.elementKind} on a tenant-facing surface renders ${e.endpoint}, which placement.json records as ${e.endpointTenantType} / ${e.endpointDataScope} — the figure is not this workspace's unless the endpoint filters by tenant internally.`,
+        evidence: `${e.visibleLabel} renders ${e.fieldExpression}`.slice(0, 200),
+        surfaceRoutes: new Set(),
+      });
+    }
+    hazardsByKey.get(key).surfaceRoutes.add(e.surfaceRoute);
+  }
+
   // A value labelled for one tenancy whose endpoint serves another.
+  for (const e of elements) {
+    if (e.endpoint === "UNRESOLVED" && e.visibleLabel !== UNRESOLVED && (WORKSPACE_WORDS.test(e.visibleLabel) || PLATFORM_WORDS.test(e.visibleLabel))) {
+      scopeClaimUndecidable.push({
+        surfaceRoute: e.surfaceRoute,
+        file: e.file,
+        line: e.line,
+        visibleLabel: e.visibleLabel,
+        reason: e.endpointReason,
+      });
+    }
+  }
   for (const e of elements) {
     if (e.endpoint === "UNRESOLVED" || e.visibleLabel === UNRESOLVED) continue;
     const label = e.visibleLabel;
@@ -630,6 +804,7 @@ function main() {
       mismatch = `Label says platform/all-workspaces but ${e.endpoint} is ${e.endpointTenantType}-scoped (${e.endpointDataScope}).`;
     }
     if (!mismatch) continue;
+    scopeClaimElements.push(e);
     const key = `${e.file}|${e.line}|SCOPE_LABEL_CONTRADICTS_ENDPOINT_SCOPE|${label}`;
     if (!hazardsByKey.has(key)) {
       hazardsByKey.set(key, {
@@ -693,6 +868,19 @@ function main() {
       byEndpointTenantType: tally(elements, (e) => e.endpointTenantType),
       hazards: hazards.length,
       hazardsByType: tally(hazards, (h) => h.type),
+      capRuleUndecidableFiles: undecidableCap.size,
+    },
+    scopeClaimUndecidable: {
+      note:
+        "Elements whose visible label makes a scope claim ('your workspace', 'across all tenants') but whose endpoint could not be resolved, so the claim is neither confirmed nor contradicted here.",
+      rows: scopeClaimUndecidable.sort((a, b) =>
+        `${a.file}|${String(a.line).padStart(6, "0")}` < `${b.file}|${String(b.line).padStart(6, "0")}` ? -1 : 1,
+      ),
+    },
+    capRuleUndecidable: {
+      note:
+        "These files cap a read and render a count, but the counted collection could not be traced to the capped read. COUNT_BESIDE_AN_UNDISCLOSED_CAP is neither asserted nor denied for them.",
+      files: [...undecidableCap].sort(),
     },
     hazards,
     dataElements: elements,

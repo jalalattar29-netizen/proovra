@@ -4,13 +4,13 @@
   "note": "Totals for audit/ui-truth/data/labels.json.",
   "totals": {
     "surfaces": 168,
-    "strings": 23896,
-    "distinctStrings": 9787,
+    "strings": 23894,
+    "distinctStrings": 9785,
     "rawValueStrings": 117,
     "byVerdict": {
       "AMBIGUOUS_LABEL": 49,
       "DEVELOPER_LANGUAGE": 61,
-      "HUMAN_READABLE": 23250,
+      "HUMAN_READABLE": 23248,
       "RAW_ENUM": 84,
       "SCREAMING_SNAKE": 1,
       "SNAKE_CASE": 32,
@@ -19,7 +19,7 @@
     "byAudience": {
       "EXTERNAL_PORTAL": 188,
       "PLATFORM_OPERATOR": 3607,
-      "TENANT_USER": 20101
+      "TENANT_USER": 20099
     },
     "byArea": {
       "EXTERNAL_PORTAL": 188,
@@ -28,7 +28,7 @@
       "PLATFORM_ADMIN_NAMESPACE": 3607,
       "SECURITY_CENTER": 2302,
       "SETTINGS": 846,
-      "WORKSPACE_DASHBOARD": 13079
+      "WORKSPACE_DASHBOARD": 13077
     },
     "excluded": {
       "CSS_CLASS_OR_STYLE": 32018,
@@ -36,7 +36,7 @@
       "INSIDE_CODE_OR_PRE": 622,
       "NON_TEXT_PROP": 17333,
       "NOT_A_TEXT_SLOT": 27668,
-      "NO_LETTERS": 1863,
+      "NO_LETTERS": 1865,
       "TEST_ID": 865,
       "URL_OR_PATH": 70
     }
@@ -62,7 +62,7 @@
     "HUMAN_READABLE": {
       "EXTERNAL_PORTAL": 185,
       "PLATFORM_OPERATOR": 3504,
-      "TENANT_USER": 19561
+      "TENANT_USER": 19559
     },
     "RAW_ENUM": {
       "PLATFORM_OPERATOR": 8,
