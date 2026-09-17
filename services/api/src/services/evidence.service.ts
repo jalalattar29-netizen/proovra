@@ -90,11 +90,13 @@ const UPLOAD_KIND_BY_ACQUISITION: Readonly<Record<EvidenceAcquisitionMode, strin
   PROOVRA_WEB_UPLOAD: "web_upload_authorization",
   SECURE_INTAKE_LINK: "intake_authorization",
   PROOVRA_MOBILE_APP: "mobile_app_upload_authorization",
+  DIRECT_WEB_CAPTURE_EXTENSION: "direct_web_capture_authorization",
 };
 const UPLOAD_LOCATION_BY_ACQUISITION: Readonly<Record<EvidenceAcquisitionMode, string>> = {
   PROOVRA_WEB_UPLOAD: "browser upload",
   SECURE_INTAKE_LINK: "intake",
   PROOVRA_MOBILE_APP: "mobile app upload",
+  DIRECT_WEB_CAPTURE_EXTENSION: "web capture",
 };
 
 function sanitizeFileName(value: string | null | undefined): string | null {

@@ -1570,6 +1570,13 @@
       "reason": "UC-2 PREREQUISITE (Android Play Integrity / Apple App Attest). Reserved server-side; grants no trust today because the verifier fails closed.",
       "evidence": "reg services/api/src/routes/capture-trust.routes.ts:443, preHandler requireAuth + authorizeOwnedSession (the session must belong to the caller's team). submitDirectCaptureAttestation → verifyDeviceAttestation (services/api/src/services/capture-trust/attestation-verifier.service.ts, UnverifiablePlatformProvider, CRYPTOGRAPHIC_VERIFIER_UNAVAILABLE) always yields UNVERIFIED. Executed by services/api/test/uc0-acquisition-capture.integration.test.ts, which proves a forged 'verified' payload is recorded UNVERIFIED. It is the prerequisite for UC-2, where a real platform verifier makes device attestation meaningful; until then the app submits no tokens and the route cannot raise the acquisition verdict. 0 call sites in apps/web + apps/mobile.",
       "reviewedAtUtc": "2026-09-17"
+    },
+    {
+      "routeId": "POST /v1/capture/direct-sessions/:id/web-complete",
+      "disposition": "PRODUCT_CONNECTED",
+      "reason": "UC-1 Direct Web Capture completion — its product consumer is the PROOVRA browser extension (apps/extension), which the web+mobile consumer analyzer does not scan.",
+      "evidence": "reg services/api/src/routes/capture-trust.routes.ts (POST /v1/capture/direct-sessions/:id/web-complete), preHandler requireAuth + authorizeOwnedSession. Consumed by apps/extension/src/lib/api-client.ts (apiClient.webComplete) via apps/extension/src/background.ts. It validates the capture manifest, classes the CAPTURE_MANIFEST part and seals through completeWebCaptureSession -> completeDirectCapture. Exercised end to end by services/api/test/uc1-web-capture.integration.test.ts (4 cases incl. refusals).",
+      "reviewedAtUtc": "2026-09-17"
     }
   ]
 }

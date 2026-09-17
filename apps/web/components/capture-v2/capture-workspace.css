@@ -2744,3 +2744,34 @@
   outline: 2px solid var(--capture-accent) !important;
   outline-offset: 2px !important;
 }
+
+/* UC-1 — Direct Web Capture entry card (informational, non-blocking). */
+.capture-direct-web {
+  border: 1px solid var(--capture-border, rgba(11, 46, 39, 0.14));
+  background: var(--capture-surface, rgba(11, 46, 39, 0.03));
+  border-radius: 14px;
+  padding: 16px 18px;
+  margin: 12px 0;
+  display: grid;
+  gap: 8px;
+}
+.capture-direct-web__title {
+  font-size: 14px;
+  margin: 0;
+  color: var(--capture-ink, #0b2e27);
+}
+.capture-direct-web__body {
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+  color: var(--capture-ink, #0b2e27);
+}
+.capture-direct-web__note {
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 0;
+  color: var(--capture-muted, #4a5b57);
+}
+.capture-direct-web__actions {
+  margin-top: 4px;
+}

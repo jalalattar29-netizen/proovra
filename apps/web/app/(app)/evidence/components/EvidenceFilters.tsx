@@ -169,6 +169,7 @@ export function EvidenceFilters({
             { value: "UPLOAD", label: "Uploaded" },
             { value: "SECURE_INTAKE", label: "Secure intake" },
             { value: "MOBILE_APP", label: "Mobile app" },
+            { value: "DIRECT_WEB_CAPTURE", label: "Web capture" },
             { value: "NOT_RECORDED", label: "Not recorded" },
           ]}
         />

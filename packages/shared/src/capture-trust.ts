@@ -34,7 +34,10 @@
  *      breaking change.
  */
 
-import type { EvidenceAcquisitionProjection } from "./evidence-acquisition.js";
+import type {
+  EvidenceAcquisitionProjection,
+  ProjectedAcquisitionMode,
+} from "./evidence-acquisition.js";
 
 // =============================================================================
 // 1. Provenance class — capture trust tier
@@ -554,7 +557,11 @@ export type ProvenanceChain = {
 
   /** Capture-side primitives (Class A/B only — Class C surfaces NOT_ATTEMPTED). */
   capture: {
-    mode: CaptureMode;
+    /**
+     * UC-0/UC-1 — sourced from the acquisition authority (the projected
+     * acquisition mode), not the retired capture-side `CaptureMode` enum.
+     */
+    mode: ProjectedAcquisitionMode;
     /** INTERNAL ordering only — never rendered as an assurance label. */
     provenanceClass: CaptureProvenanceClass;
     /** Capture session id (may be null for Class C bulk imports). */

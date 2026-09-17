@@ -2394,3 +2394,4 @@ export * from "./queue-job-correlation.js";
 // PROOVRA?"), artifact classes, derivative lineage vocabulary, and the typed
 // public Verify acquisition contract.
 export * from "./evidence-acquisition.js";
+export * from "./web-capture-manifest.js";

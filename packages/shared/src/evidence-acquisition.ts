@@ -39,6 +39,15 @@ export const EVIDENCE_ACQUISITION_MODES = [
   "SECURE_INTAKE_LINK",
   /** The PROOVRA mobile app, through a server-issued direct-capture session. */
   "PROOVRA_MOBILE_APP",
+  /**
+   * UC-1 — the PROOVRA browser extension captured a web page directly, in a
+   * server-issued capture session started BEFORE the capture. This is the
+   * first `isDirectCapture: true` mode: PROOVRA's own adapter produced the
+   * bytes and the server recomputed every artifact's digest. It still does not
+   * prove the page's content, the site's genuineness or the bytes' server
+   * origin (see the limitations below).
+   */
+  "DIRECT_WEB_CAPTURE_EXTENSION",
 ] as const;
 export type EvidenceAcquisitionMode = (typeof EVIDENCE_ACQUISITION_MODES)[number];
 
@@ -82,6 +91,7 @@ export const EVIDENCE_ACQUISITION_CATEGORIES = [
   "UPLOAD",
   "SECURE_INTAKE",
   "MOBILE_APP",
+  "DIRECT_WEB_CAPTURE",
   "NOT_RECORDED",
 ] as const;
 export type EvidenceAcquisitionCategory =
@@ -114,6 +124,10 @@ export const ACQUISITION_LIMITATION_CODES = [
   "ACQUISITION_NOT_RECORDED",
   "CLIENT_REPORTED_CAPTURE_SOURCE",
   "DEVICE_INTEGRITY_NOT_VERIFIED",
+  // UC-1 direct web capture.
+  "WEB_CONTENT_TRUTH_NOT_PROVEN",
+  "WEB_SERVER_ORIGIN_NOT_PROVEN",
+  "WEB_PAGE_STATE_AT_CAPTURE",
 ] as const;
 export type AcquisitionLimitationCode =
   (typeof ACQUISITION_LIMITATION_CODES)[number];
@@ -129,6 +143,12 @@ export const ACQUISITION_LIMITATION_TEXT: Readonly<
     "Whether an item came from the app's camera or from files on the device is reported by the app and is not independently verified.",
   DEVICE_INTEGRITY_NOT_VERIFIED:
     "The integrity of the submitting device and app was not independently verified.",
+  WEB_CONTENT_TRUTH_NOT_PROVEN:
+    "A web capture preserves the representation PROOVRA acquired. It does not establish that the page's content is true, who authored it, or that a website or account is genuine.",
+  WEB_SERVER_ORIGIN_NOT_PROVEN:
+    "PROOVRA does not prove that the captured bytes were served by the website's own servers. A locally modified page or a look-alike site cannot be ruled out.",
+  WEB_PAGE_STATE_AT_CAPTURE:
+    "A web page can change while it is being captured, and its appearance can be altered in the browser before capture. PROOVRA records the representation it received and any limitations it detected, not a guaranteed untouched original.",
 };
 
 const DESCRIPTORS: Readonly<Record<ProjectedAcquisitionMode, ModeDescriptor>> = {
@@ -158,6 +178,18 @@ const DESCRIPTORS: Readonly<Record<ProjectedAcquisitionMode, ModeDescriptor>> = 
       "CREATION_NOT_OBSERVED_BY_PROOVRA",
       "CLIENT_REPORTED_CAPTURE_SOURCE",
       "DEVICE_INTEGRITY_NOT_VERIFIED",
+    ],
+  },
+  DIRECT_WEB_CAPTURE_EXTENSION: {
+    category: "DIRECT_WEB_CAPTURE",
+    label: "Captured from the web with PROOVRA",
+    statement:
+      "PROOVRA captured this web page directly through its browser extension, in a server-issued capture session started before the capture. PROOVRA independently recomputed the digest of every captured artifact and established integrity when the session was completed.",
+    isDirectCapture: true,
+    limitations: [
+      "WEB_CONTENT_TRUTH_NOT_PROVEN",
+      "WEB_SERVER_ORIGIN_NOT_PROVEN",
+      "WEB_PAGE_STATE_AT_CAPTURE",
     ],
   },
   LEGACY_NOT_RECORDED: {
@@ -231,6 +263,7 @@ export const ACQUISITION_CATEGORY_LABELS: Readonly<
   UPLOAD: "Uploaded",
   SECURE_INTAKE: "Secure intake",
   MOBILE_APP: "Mobile app",
+  DIRECT_WEB_CAPTURE: "Web capture",
   NOT_RECORDED: "Not recorded",
 };
 
@@ -247,6 +280,9 @@ export function acquisitionTimestampLabel(
   }
   if (mode === "PROOVRA_MOBILE_APP") {
     return "Recorded at mobile app submission (server UTC)";
+  }
+  if (mode === "DIRECT_WEB_CAPTURE_EXTENSION") {
+    return "Captured from the web at (server UTC)";
   }
   return "Recorded at submission (server UTC)";
 }

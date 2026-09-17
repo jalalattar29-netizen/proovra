@@ -34,10 +34,28 @@ test("every persisted mode resolves to itself, recorded at creation by default",
     assert.equal(a.mode, mode);
     assert.equal(a.recorded, true);
     assert.equal(a.recordedBy, "RECORDED_AT_CREATION");
-    assert.equal(a.isDirectCapture, false, `${mode} is not a direct capture in UC-0`);
     assert.ok(a.statement.length > 0);
-    assert.ok(a.limitations.includes("CREATION_NOT_OBSERVED_BY_PROOVRA"));
+    if (mode === "DIRECT_WEB_CAPTURE_EXTENSION") {
+      // UC-1 — the FIRST direct-capture mode. PROOVRA's own adapter produced
+      // the bytes, so CREATION_NOT_OBSERVED does not apply; its own web-capture
+      // limitations do.
+      assert.equal(a.isDirectCapture, true, `${mode} is a direct capture`);
+      assert.ok(a.limitations.includes("WEB_CONTENT_TRUTH_NOT_PROVEN"));
+      assert.ok(a.limitations.includes("WEB_SERVER_ORIGIN_NOT_PROVEN"));
+    } else {
+      assert.equal(a.isDirectCapture, false, `${mode} is not a direct capture in UC-0`);
+      assert.ok(a.limitations.includes("CREATION_NOT_OBSERVED_BY_PROOVRA"));
+    }
   }
+});
+
+test("UC-1 direct web capture resolves to a direct-capture projection", () => {
+  const a = resolveEvidenceAcquisition({ acquisitionMode: "DIRECT_WEB_CAPTURE_EXTENSION" });
+  assert.equal(a.mode, "DIRECT_WEB_CAPTURE_EXTENSION");
+  assert.equal(a.category, "DIRECT_WEB_CAPTURE");
+  assert.equal(a.isDirectCapture, true);
+  assert.equal(a.label, "Captured from the web with PROOVRA");
+  assert.equal(acquisitionTimestampLabel("DIRECT_WEB_CAPTURE_EXTENSION", false), "Captured from the web at (server UTC)");
 });
 
 test("a backfilled value says so", () => {
@@ -88,7 +106,7 @@ test("no acquisition label or statement overclaims", () => {
 });
 
 test("filter categories partition the projected modes", () => {
-  const all = ["UPLOAD", "SECURE_INTAKE", "MOBILE_APP", "NOT_RECORDED"].flatMap((c) => [
+  const all = ["UPLOAD", "SECURE_INTAKE", "MOBILE_APP", "DIRECT_WEB_CAPTURE", "NOT_RECORDED"].flatMap((c) => [
     ...acquisitionModesForCategory(c),
   ]);
   assert.deepEqual(

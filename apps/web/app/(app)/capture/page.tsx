@@ -12,6 +12,7 @@ import { CaptureSuggestionsPanel } from "./_lib/CaptureSuggestionsPanel";
 import { CaptureIntakeRail } from "./_lib/CaptureIntakeRail";
 import { CaptureOperationalSummary } from "./_lib/CaptureOperationalSummary";
 import { CaptureTrustStrip } from "./_lib/CaptureTrustStrip";
+import { CaptureDirectWebCaptureCard } from "./_lib/CaptureDirectWebCaptureCard";
 import { CaptureDraftReattachNotice } from "./_lib/CaptureDraftReattachNotice";
 import { CaptureFinalReadiness } from "./_lib/CaptureFinalReadiness";
 import { CaptureActivityDisclosure } from "./_lib/CaptureActivityDisclosure";
@@ -774,6 +775,8 @@ onClick={async () => {
               session state, no admissibility claim. */}
           <CaptureTrustStrip />
         </section>
+
+        <CaptureDirectWebCaptureCard />
 
         {/* ORDER: identity first, then the guidance that supports it.
             Help, Capture readiness and Suggested next steps used to render

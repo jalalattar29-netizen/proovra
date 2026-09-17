@@ -1,0 +1,25 @@
+{
+  "name": "@proovra/extension",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "PROOVRA Direct Web Capture — Chrome/Edge (Manifest V3) capture adapter.",
+  "scripts": {
+    "build": "node build.mjs",
+    "build:deps": "pnpm --filter @proovra/shared build",
+    "prebuild": "pnpm run build:deps",
+    "typecheck": "tsc --noEmit",
+    "lint": "node scripts/validate-manifest.mjs && tsc --noEmit",
+    "test": "node --test \"test/*.test.mjs\"",
+    "validate:manifest": "node scripts/validate-manifest.mjs",
+    "pretest": "pnpm run build:deps && node build-test.mjs"
+  },
+  "dependencies": {
+    "@proovra/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.270",
+    "esbuild": "^0.27.3",
+    "typescript": "^5.6.3"
+  }
+}

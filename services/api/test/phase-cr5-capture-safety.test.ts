@@ -200,7 +200,13 @@ const CAPTURE_AI_FILES = captureAiSurfaceFiles();
 // 52,040 -> 52,520 rebaselines above stand on: no new UI, no new POST surface,
 // no re-absorbed mechanism. The invariant this number PROXIES for is asserted
 // directly below, so the ratchet is no longer the only thing guarding it.
-export const PRE_CR5_PAGE_BYTES = 52555;
+// UC-1 rebaseline: 52,555 → 52,678. The Direct Web Capture entry card
+// (<CaptureDirectWebCaptureCard/>) is added to the capture surface — one import
+// and one render line. It is a self-contained PRESENTATIONAL component in
+// _lib/CaptureDirectWebCaptureCard.tsx; no logic, no new POST surface, no
+// re-absorbed mechanism enters page.tsx, which is exactly the ground the
+// earlier rebaselines above stand on.
+export const PRE_CR5_PAGE_BYTES = 52678;
 // Phase HOME-DATA-OWNERSHIP rebaseline: 34,411 → 34,744. The capture
 // orchestration now stamps the ACTIVE workspace id (useActiveSpaceId →
 // `teamId` in the POST /v1/evidence body) so personal evidence is never

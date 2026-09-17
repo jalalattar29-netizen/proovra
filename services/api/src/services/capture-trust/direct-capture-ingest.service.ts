@@ -56,10 +56,23 @@ import { verifyDeviceAttestation } from "./attestation-verifier.service.js";
 // -----------------------------------------------------------------------------
 
 /** Acquisition modes a direct-capture session may be opened for. */
-export const DIRECT_CAPTURE_SESSION_MODES = ["PROOVRA_MOBILE_APP"] as const;
+export const DIRECT_CAPTURE_SESSION_MODES = [
+  "PROOVRA_MOBILE_APP",
+  // UC-1 — the PROOVRA browser extension, in an unbound (no device key) session.
+  "DIRECT_WEB_CAPTURE_EXTENSION",
+] as const;
 export type DirectCaptureSessionMode = (typeof DIRECT_CAPTURE_SESSION_MODES)[number];
 
-export const DIRECT_CAPTURE_CLIENT_SOURCES = ["CAMERA", "FILE_PICKER", "UNKNOWN"] as const;
+export const DIRECT_CAPTURE_CLIENT_SOURCES = [
+  "CAMERA",
+  "FILE_PICKER",
+  "UNKNOWN",
+  // UC-1 web-capture artifact roles (client-reported; the manifest is authoritative).
+  "WEB_VIEWPORT",
+  "WEB_FULL_PAGE",
+  "WEB_DOM",
+  "WEB_MANIFEST",
+] as const;
 export type DirectCaptureClientSource = (typeof DIRECT_CAPTURE_CLIENT_SOURCES)[number];
 
 export const DIRECT_CAPTURE_DENIALS = {
@@ -86,6 +99,11 @@ export const DIRECT_CAPTURE_DENIALS = {
   CAPTURE_PART_UNDECLARED: 409,
   CAPTURE_PART_DECLARATION_MISMATCH: 409,
   CAPTURE_PARTS_REQUIRED: 409,
+  // UC-1 web capture.
+  WEB_MANIFEST_REQUIRED: 400,
+  WEB_MANIFEST_INVALID: 422,
+  WEB_MANIFEST_DIGEST_UNDECLARED: 422,
+  WEB_MANIFEST_ARTIFACT_MISMATCH: 422,
 } as const;
 export type DirectCaptureDenial = keyof typeof DIRECT_CAPTURE_DENIALS;
 

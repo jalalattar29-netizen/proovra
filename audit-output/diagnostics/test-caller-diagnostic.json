@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "5ed058805558999585e841a2cb95ea5fe6e11219d63af300ee9319dda79d2fa6",
-  "capabilityRouteInventoryHash": "b17e04b121a244d9ea104f254b92dccffc9cdb028e31bcee3f13331e319d1f55",
+  "capabilityRouteInventoryHash": "4f969a091f0bed6e2d0201ecdc1bd984e6f8c08519a2782cba78c599acbebb34",
   "totals": {
-    "routes": 1150,
+    "routes": 1151,
     "routesWithAnyTestCaller": 39,
     "testOnlyRoutes": 5,
     "testCallSites": 67,
@@ -4139,6 +4139,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/capture/direct-sessions/:id/web-complete",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/capture/mobile/ingest",
       "testCallerCount": 0,
       "testOnly": false,
@@ -6997,5 +7003,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "07444b09cda7e2ef4900077e74ec5c2115dbb1334a570c8c18664b32c1746196"
+  "contentHash": "6e2bc4a5f97f191fb75f7feedb1f1659262ea07f23a32f940661c4907618c8b3"
 }

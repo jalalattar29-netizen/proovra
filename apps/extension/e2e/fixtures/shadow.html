@@ -1,0 +1,8 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>PROOVRA E2E — Shadow DOM</title></head>
+<body><div id="host"></div>
+<script>
+  const host = document.getElementById('host');
+  const root = host.attachShadow({ mode: 'open' });
+  root.innerHTML = '<p>SHADOW-DOM-MARKER</p>';
+</script></body></html>

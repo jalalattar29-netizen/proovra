@@ -1,29 +1,71 @@
 # UC-1 — CHROMIUM DIRECT WEB CAPTURE
 
-Status: **DESIGN / NOT IMPLEMENTED — NOT COMPLETE**
+Status: **IMPLEMENTATION COMPLETE — BROWSER ACCEPTANCE PENDING**
 Date: 2026-09-17
 Precondition: UC-0 Gate A CLOSED (`26ad3ddb`).
 
-## Why this document exists, and its honest status
+## Status
 
-UC-1 is a complete, cross-cutting product capability (browser acquisition through
-every downstream surface) plus a Manifest V3 browser extension. Its mandated
-acceptance gate is Chrome **and** Edge end-to-end automation. **This engineering
-environment has no Chrome/Edge automation and cannot execute that gate**, and the
-UC-1 prompt is explicit: when that gate cannot run, UC-1 must not be called
-complete. Shipping thousands of lines of extension + product code that cannot be
-executed or E2E-validated here would violate the prompt's own "no false success"
-rule and risk the parallel authorities UC-0 exists to prevent.
+UC-1 Direct Web Capture is **implemented** as a new acquisition adapter on the
+canonical UC-0 spine — the acquisition mode, the server capture path, the
+capture manifest, the Manifest V3 extension, and the downstream integration —
+and every gate that can execute in this environment is green. The one gate this
+sandbox cannot run is the **Chrome/Edge browser E2E acceptance** (no browser
+automation here); it is fully prepared as a runnable harness with exact commands
+(`apps/extension/e2e/README.md`). Per the UC-1 contract, UC-1 is therefore
+**IMPLEMENTATION COMPLETE — BROWSER ACCEPTANCE PENDING**, not CLOSED. It becomes
+CLOSED when both browser projects pass.
 
-Therefore this artifact is the **design of record**: the architecture, the
-permission model, the capture-manifest schema, the artifact→lineage mapping, the
-**claim matrix** (what UC-1 may and may not assert), the privacy and failure
-semantics, the exact integration points on the canonical authorities, and the
-test plan — so that a faithful, validated implementation can be built against a
-fixed contract without re-deriving it, and without over-claiming.
+## Artifact-semantics decision (resolved before coding)
 
-Nothing in UC-1 is wired into the running product yet. No `apps/extension/`
-exists yet. No `DIRECT_WEB_CAPTURE_EXTENSION` acquisition mode exists yet.
+`EvidencePart.artifactClass` ORIGINAL means a *directly acquired* output of the
+acquisition process that has not been transformed into another representation.
+Under that rule UC-1 captures:
+
+- **Direct acquisition (ORIGINAL parts):** the viewport screenshot; for a
+  full-page capture, each viewport TILE (deterministically ordered, its scroll
+  offset recorded in the manifest); and the sanitized DOM snapshot.
+- **CAPTURE_MANIFEST part:** the capture manifest.
+- **No server-side stitch in UC-1.** A stitched full-page image would be a
+  *constructed* representation (multiple source tiles), which the current
+  single-source `EvidencePartDerivedAsset` lineage cannot represent truthfully.
+  Rather than hack a false single-source lineage or grow a lineage-join table
+  for a feature UC-1 does not need, UC-1 does **not** produce a stitched
+  original: the full-page representation is the ordered set of tile ORIGINALS +
+  the manifest that records their order and offsets. Server-side multi-source
+  stitching (a bounded derivative-lineage join) is deferred to when a stitched
+  review artifact is actually required. This keeps the derivative authority
+  unchanged and every artifact class truthful.
+
+## What is implemented (code paths)
+
+- **Acquisition authority** (`packages/shared/src/evidence-acquisition.ts`): the
+  `DIRECT_WEB_CAPTURE_EXTENSION` mode (`isDirectCapture: true`, category
+  `DIRECT_WEB_CAPTURE`), its label/statement and three web-capture limitation
+  codes. One resolver; every surface projects from it.
+- **Capture manifest** (`packages/shared/src/web-capture-manifest.ts`):
+  `PROOVRA_WEB_CAPTURE_MANIFEST_V1`, a strict bounded validator, and the ONE
+  `publicDomainFromUrl` / `redactUrlForLog` URL-privacy projection.
+- **Migration** `20280610000000_uc1_direct_web_capture_acquisition_mode`: widens
+  the two `acquisition_mode` CHECK constraints (a constraint swap). EXPAND /
+  SAFE_TO_APPLY_NOW; registered in the inventory, deployment plan and gate
+  allowlists; clean-boot + drift proven.
+- **Server capture path**: the existing UC-0 direct-capture session accepts the
+  new mode; `web-capture.service.ts` validates the manifest, ties it to the
+  uploaded bytes by digest, classes the manifest part CAPTURE_MANIFEST,
+  cross-checks it against the declared parts, and seals through
+  `completeDirectCapture` (one CAPTURE_SESSION_BOUND). Route
+  `POST /v1/capture/direct-sessions/:id/web-complete`.
+- **Extension** (`apps/extension/`): MV3, TypeScript, esbuild reproducible build
+  (with SHA256SUMS), strict CSP, `activeTab`+`scripting`+`storage`+`identity`
+  only; PKCE auth; viewport + full-page tiled capture; DOM sanitizer; manifest
+  builder; canonical upload client; popup UI.
+- **Web product**: acquisition filter chip (`Web capture`) and the Direct Web
+  Capture entry card on the capture surface (install-extension link).
+
+The original design sections below (permission model, manifest schema, claim
+matrix, privacy, failure semantics, integration points) remain the contract the
+implementation was built to.
 
 ---
 
@@ -188,3 +230,67 @@ routes already exist (fail closed today, classified as UC-2 prerequisites in
 plugs into, and the session/digest/binding machine is channel-agnostic. UC-2
 (Android Direct Screen Capture) is a new acquisition channel on the same spine —
 **not implemented here.**
+
+---
+
+## Implementation record (2026-09-17)
+
+### Security threat matrix — disposition
+
+| Threat | Disposition |
+| --- | --- |
+| Client forges `acquisitionMode` | PREVENTED — the mode lives on the server-issued session; the open route only admits enum modes; `web-complete` refuses a non-web session. |
+| Forged / replayed manifest | PREVENTED — the manifest is bound to the session id and to the uploaded bytes by digest; a manifest for another session or that omits/invents a part is refused. |
+| Changed uploaded bytes | PREVENTED — the server recomputes every part digest at completion (`completeEvidence`); a mismatch refuses the seal (session INTERRUPTED). |
+| Wrong workspace / expired / reused session | PREVENTED — canonical `authorizeOrFail` + session ownership + ACTIVE→BOUND single claim. |
+| Nonce replay / leak | PREVENTED — nonce is server-issued, only its hash stored; unbound web session presents no signature; nonce never logged. |
+| XSS / script execution from stored DOM | MITIGATED — the DOM snapshot is sanitized inert (script/iframe/handlers removed) and served with safe disposition; secrets cleared. |
+| Secret capture (passwords/OTP/CSRF/tokens) | MITIGATED — sanitizer clears sensitive field values by type + name/autocomplete tokens (unit-tested). |
+| URL token leakage | PREVENTED (public) — public Verify/search use domain-only `publicDomainFromUrl`; full URL only on authorized private surfaces. |
+| Oversized manifest / DOM / serialization bomb | PREVENTED — manifest bounds (size, counts, string lengths) enforced client- and server-side; parts bounded by the existing upload limits. |
+| Local HTML clone / DevTools-modified DOM / look-alike site | NOT TECHNICALLY PROVABLE — recorded as limitations (`WEB_SERVER_ORIGIN_NOT_PROVEN`, `WEB_PAGE_STATE_AT_CAPTURE`), never claimed. |
+| Page mutation / navigation / SW restart mid-capture | DETECTED / RECORDED — `pageMutatedDuringCapture`, `CAPTURE_INTERRUPTED`; a partial capture is represented PARTIAL, never sealed as whole. |
+| Broad permission escalation | PREVENTED — MV3 lint forbids `cookies`/`webRequest`/`<all_urls>`/`debugger`; CSP forbids remote/unsafe code. |
+
+### Capability / commercial
+
+No new plan, no invented quota. The direct-capture session route already gates
+on the ONE canonical commercial authority (it returns `TEAM_PLAN_REQUIRED` /
+`ENTITLEMENT_REQUIRED` when the workspace's plan does not permit capture — proven
+in the integration suite). The extension surfaces that denial ("Direct Web
+Capture isn't available on this workspace's plan"). The exact FREE/PRO/TEAM/
+ENTERPRISE packaging of Direct Web Capture is a **product decision left open**;
+the capability plumbing is complete and reuses the canonical authority.
+
+### Test evidence (executed here)
+
+- shared: **923/0** node:test (adds the acquisition-mode + manifest-validator + URL-privacy cases).
+- API integration `uc1-web-capture.integration.test.ts`: **4/4** — seal, manifest-omission refusal, session-mismatch refusal, mobile-session/forged-mode refusal.
+- extension unit: **12/12** (capture-plan, sanitizer predicates, manifest builder).
+- extension: typecheck clean, `build.mjs` reproducible (SHA256SUMS), MV3 lint OK.
+- migration `20280610000000`: clean-boot + drift OK on disposable PG16.
+
+### Browser acceptance (the one pending gate)
+
+Chrome: **NOT EXECUTED** — no browser automation in this environment.
+Edge: **NOT EXECUTED** — same.
+Harness ready: `apps/extension/e2e/` (Playwright chromium + msedge projects,
+deterministic fixture pages, one spec tracing an Evidence id across Library /
+Detail / public Verify). Exact Windows commands in `apps/extension/e2e/README.md`.
+
+### Store readiness / legal
+
+- Store package: MV3 build in `apps/extension/dist` with `SHA256SUMS.json`;
+  least-privilege permissions, strict CSP, no remote code. **Icons are a
+  placeholder pending brand assets**; not published in this task.
+- Legal: a Direct Web Capture disclosure page is linked from the capture card
+  (`NEXT_PUBLIC_EXTENSION_INSTALL_URL`); Privacy/Terms/AUP/DPA text for the
+  extension's data handling is **counsel-review-required** and is the remaining
+  legal wiring before publication.
+
+### Residual risks
+
+- **P0:** none.
+- **P1:** browser E2E not yet executed (environment) — UC-1 is not CLOSED until it is.
+- **P2:** OAuth extension client + redirect URI must be registered server-side for the interactive PKCE flow (the E2E seeds the token directly); server-side multi-source stitching deferred; extension store icons + counsel-reviewed legal text pending.
+- **P3:** Direct Web Capture plan packaging unresolved (capability plumbing complete).

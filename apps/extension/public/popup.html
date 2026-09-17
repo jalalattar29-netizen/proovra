@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Preserve with PROOVRA</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="pv" aria-live="polite">
+      <header class="pv-head">
+        <h1 class="pv-title">Preserve with PROOVRA</h1>
+        <p class="pv-account" id="account" data-testid="account"></p>
+      </header>
+
+      <section id="signed-out" hidden>
+        <p class="pv-note">Sign in to preserve this page through a PROOVRA capture session.</p>
+        <button class="pv-primary" id="sign-in" data-testid="sign-in" type="button">Sign in</button>
+      </section>
+
+      <section id="signed-in" hidden>
+        <label class="pv-field">
+          <span>Workspace</span>
+          <select id="workspace" data-testid="workspace"></select>
+        </label>
+
+        <p class="pv-disclosure" data-testid="disclosure">
+          PROOVRA will capture the current page (a screenshot and a sanitized copy of
+          its structure) and record how and when it was captured. It does not
+          capture passwords, other tabs, or your browsing history, and it does not
+          establish that the page's content is true.
+        </p>
+
+        <div class="pv-actions">
+          <button class="pv-primary" id="capture-viewport" data-testid="capture-viewport" type="button">
+            Capture visible area
+          </button>
+          <button class="pv-secondary" id="capture-full" data-testid="capture-full" type="button">
+            Capture full page
+          </button>
+        </div>
+
+        <p class="pv-status" id="status" role="status" data-testid="status"></p>
+
+        <button class="pv-link" id="sign-out" data-testid="sign-out" type="button">Sign out</button>
+      </section>
+    </main>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

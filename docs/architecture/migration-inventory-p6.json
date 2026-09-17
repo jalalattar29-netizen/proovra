@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 271,
-    "classifiedMigrations": 271,
+    "filesystemMigrations": 272,
+    "classifiedMigrations": 272,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 271,
+    "productionSnapshotUnknown": 272,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 271,
-    "classifiedMigrations": 271,
+    "filesystemMigrations": 272,
+    "classifiedMigrations": 272,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 271,
+    "productionSnapshotUnknown": 272,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 49,
+      "EXPAND": 50,
       "BACKFILL": 21,
       "CONTRACT_DROP": 12,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 60,
+      "SAFE_TO_APPLY_NOW": 61,
       "WAIT_FOR_BACKFILL_READINESS": 13,
       "CONTRACT_DROP_LATER": 12,
       "WAIT_FOR_RUNTIME_CUTOVER": 1
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 271
+    "ProductionMigrationStateUnknown": 272
   },
   "gateFailures": [],
   "migrations": [
@@ -21106,8 +21106,74 @@
       "evidence": "UC-0 (A3, 2026-09-17) — DERIVATIVE VARIANT CONTRACT. Drops the narrow unique index evidence_part_derived_assets_team_part_kind_uk (team_id, evidence_part_id, asset_kind), leaving only the composite (team_id, evidence_part_id, asset_kind, variant_key) key added by 20280601000000. The narrow key forbade a second variant of one kind on the same part, which blocks deterministic multi-variant derivatives (e.g. UC-4 keyframes); the composite key keeps identical variants idempotent while letting distinct variants coexist. SELF-GUARDED: a DO-block RAISEs unless the composite key exists, so the drop can never leave derived assets with no uniqueness at all. ONE STATEMENT after the guard: DROP INDEX IF EXISTS (idempotent, loses no rows — an index is not data). ORDERING HAZARD IN ONE DIRECTION ONLY: the pre-UC-0 image upserts ON CONFLICT (team_id, evidence_part_id, asset_kind) against the narrow key, so this must NOT be applied until the UC-0 image (which upserts against the composite key) is live everywhere — hence safeBeforeCodeDeployment=false and REQUIRED_LATER_CONTRACT. Clean-boot rehearsed against disposable PostgreSQL 16 (full chain from empty leaves only the composite key), drift-check OK, raw-schema-verify OK, multiple variants of one kind proven to coexist while an identical variant stays idempotent. ROLLBACK is code-first: the index can be recreated. NOT APPLIED TO PRODUCTION."
     },
     {
-      "name": "email_password_auth",
+      "name": "20280610000000_uc1_direct_web_capture_acquisition_mode",
       "order": 270,
+      "sqlPresent": true,
+      "byteLength": 1772,
+      "checksumSha256": "717e766b8bb67390c48efd14fe02f93a42857e063c2765716e221ed433c09461",
+      "checksumSha256Raw": "717e766b8bb67390c48efd14fe02f93a42857e063c2765716e221ed433c09461",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": false,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "REPAIR",
+      "sqlShapeEvidence": "alters existing objects only (defaults / nullability / constraints / indexes / type conversion); creates nothing, drops nothing, mutates no pre-existing rows",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "capture_sessions",
+          "evidence"
+        ],
+        "addedColumns": [],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [],
+        "droppedIndexes": [],
+        "addedConstraints": [
+          "capture_sessions_acquisition_mode_check",
+          "evidence_acquisition_mode_check"
+        ],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20260131235343_init",
+        "20260510120000_add_capture_sessions"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM pg_constraint WHERE conname='evidence_acquisition_mode_check'\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "UC-1 DIRECT WEB CAPTURE (2026-09-17). Widens the two acquisition_mode CHECK constraints (evidence_acquisition_mode_check, capture_sessions_acquisition_mode_check) to admit DIRECT_WEB_CAPTURE_EXTENSION — the first isDirectCapture acquisition mode, produced by the PROOVRA browser extension in a server-issued capture session. EXPAND: a CHECK IN-list cannot be extended in place, so each constraint is DROPPED and RE-ADDED with the same name and a strictly WIDER value set (a constraint SWAP, not a removal — recognised as such by the artifact scanner's constraintDropsAreAllSwaps, so it carries no destructive classification). Every existing row already satisfies the narrower set, so it satisfies the wider one. SAFE ON EITHER IMAGE: the pre-UC-1 image writes only PROOVRA_WEB_UPLOAD/SECURE_INTAKE_LINK/PROOVRA_MOBILE_APP, still admitted; the UC-1 image writes the new mode, admitted only by the widened constraint, so this must be applied BEFORE that image. Idempotent (DROP CONSTRAINT IF EXISTS + ADD). Clean-boot rehearsed on disposable PostgreSQL 16, drift OK. ROLLBACK is code-first: revert the image and leave the widened constraint. NOT APPLIED TO PRODUCTION."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 271,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

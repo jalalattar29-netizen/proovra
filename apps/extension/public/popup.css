@@ -1,0 +1,55 @@
+:root {
+  --pv-ink: #0b2e27;
+  --pv-bg: #ffffff;
+  --pv-muted: #4a5b57;
+  --pv-accent: #0b6b57;
+  --pv-border: rgba(11, 46, 39, 0.16);
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--pv-ink);
+  background: var(--pv-bg);
+}
+.pv { width: 320px; padding: 16px; }
+.pv-head { margin-bottom: 12px; }
+.pv-title { font-size: 15px; margin: 0; }
+.pv-account { font-size: 12px; color: var(--pv-muted); margin: 4px 0 0; }
+.pv-note, .pv-disclosure { font-size: 12.5px; color: var(--pv-muted); line-height: 1.5; }
+.pv-disclosure {
+  background: rgba(11, 46, 39, 0.04);
+  border: 1px solid var(--pv-border);
+  border-radius: 10px;
+  padding: 10px;
+  margin: 10px 0;
+}
+.pv-field { display: block; font-size: 12px; color: var(--pv-muted); margin-bottom: 10px; }
+.pv-field select {
+  display: block; width: 100%; margin-top: 4px; padding: 8px;
+  border: 1px solid var(--pv-border); border-radius: 8px; font-size: 13px; color: var(--pv-ink);
+}
+.pv-actions { display: grid; gap: 8px; }
+.pv-primary, .pv-secondary {
+  font-size: 13px; padding: 10px 12px; border-radius: 8px; cursor: pointer; border: 1px solid transparent;
+}
+.pv-primary { background: var(--pv-accent); color: #fff; }
+.pv-primary:hover { background: #095845; }
+.pv-secondary { background: #fff; color: var(--pv-ink); border-color: var(--pv-border); }
+.pv-primary:focus-visible, .pv-secondary:focus-visible, .pv-link:focus-visible {
+  outline: 2px solid var(--pv-accent); outline-offset: 2px;
+}
+button:disabled { opacity: 0.55; cursor: default; }
+.pv-status { font-size: 12.5px; margin: 12px 0 0; min-height: 1.2em; }
+.pv-status[data-tone="error"] { color: #a3341f; }
+.pv-status[data-tone="ok"] { color: var(--pv-accent); }
+.pv-link {
+  background: none; border: none; color: var(--pv-muted); font-size: 12px; cursor: pointer;
+  padding: 8px 0 0; text-decoration: underline;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --pv-ink: #e7efec; --pv-bg: #0b1512; --pv-muted: #9fb3ad; --pv-border: rgba(255,255,255,0.14); }
+  body { color: #e7efec; background: #0b1512; }
+  .pv-disclosure { background: rgba(255,255,255,0.05); }
+  .pv-field select, .pv-secondary { background: #10201b; color: #e7efec; }
+}

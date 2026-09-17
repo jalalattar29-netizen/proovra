@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>PROOVRA E2E — Mutating</title>
+<style>.b{height:800px}</style></head>
+<body><div class="b">Block A</div><div class="b" id="grow">Block B</div>
+<script>
+  // The page grows while it is captured, so pageMutatedDuringCapture must be true.
+  let n = 0;
+  const t = setInterval(() => {
+    const d = document.createElement('div'); d.className='b'; d.textContent='Added '+(++n);
+    document.body.appendChild(d);
+    if (n > 6) clearInterval(t);
+  }, 150);
+</script></body></html>

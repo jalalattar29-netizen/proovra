@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>PROOVRA E2E — SPA</title></head>
+<body><div id="app">loading…</div>
+<script>
+  // A tiny SPA: content is rendered after load + a lazy section appears on scroll.
+  setTimeout(() => { document.getElementById('app').innerHTML =
+    '<h1>SPA rendered</h1><p id="spa-marker">SPA-CONTENT-MARKER</p><div id="lazy" style="height:1200px"></div>'; }, 50);
+  window.addEventListener('scroll', () => {
+    const lazy = document.getElementById('lazy');
+    if (lazy && !lazy.dataset.filled && window.scrollY > 300) {
+      lazy.dataset.filled = '1'; lazy.textContent = 'LAZY-LOADED-MARKER';
+    }
+  });
+</script></body></html>

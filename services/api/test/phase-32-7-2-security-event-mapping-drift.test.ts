@@ -1299,6 +1299,10 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // distinct variants coexist. One guarded DROP INDEX. No `security_events`
       // column, index, enum or mapping is touched.
       "20280602000000_derived_asset_variant_contract",
+      // UC-1 (2026-09-17) — widen the acquisition_mode CHECK constraints to
+      // admit DIRECT_WEB_CAPTURE_EXTENSION (a constraint swap). No
+      // `security_events` column, index, enum or mapping is touched.
+      "20280610000000_uc1_direct_web_capture_acquisition_mode",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

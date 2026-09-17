@@ -545,6 +545,11 @@ export const PHASE0_ENGINE_REFERENCES = Object.freeze([
 export const PRODUCTION_RUNTIME_ROOTS = Object.freeze([
   "services/api/src/",
   "services/worker/src/",
+  // UC-1 — the PROOVRA browser extension ships as product runtime: its TypeScript
+  // source and its packaged assets (MV3 manifest, popup) are what the store
+  // distributes. Build scripts and config are classified below (RELEASE_CONFIGURATION).
+  "apps/extension/src/",
+  "apps/extension/public/",
   "apps/web/app/",
   "apps/web/components/",
   "apps/web/lib/",
@@ -755,8 +760,8 @@ export const CHANGED_PATH_CLASSES = Object.freeze([
     class: "RELEASE_CONFIGURATION",
     test: (p) =>
       /^(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|turbo\.json)$/.test(p) ||
-      /^\.(gitignore|dockerignore|gitattributes|npmrc|nvmrc)$/.test(p) ||
-      /^tsconfig(\.[\w.-]+)?\.json$/.test(p) ||
+      /(^|\/)\.(gitignore|dockerignore|gitattributes|npmrc|nvmrc)$/.test(p) ||
+      /(^|\/)tsconfig(\.[\w.-]+)?\.json$/.test(p) ||
       /(^|\/)package\.json$/.test(p) ||
       // Lint configuration, at the root or scoped to one workspace. It ships
       // nothing and executes nothing, but CI runs `pnpm -r lint`, so it decides
@@ -775,7 +780,12 @@ export const CHANGED_PATH_CLASSES = Object.freeze([
       // it), which is how `services/api/vitest.config.ts` reached the change
       // set with no class at all.
       /(^|\/)vitest(\.[\w.-]+)?\.config\.[cm]?[jt]s$/.test(p) ||
-      /(^|\/)playwright(\.[\w.-]+)?\.config\.[cm]?[jt]s$/.test(p),
+      /(^|\/)playwright(\.[\w.-]+)?\.config\.[cm]?[jt]s$/.test(p) ||
+      // UC-1 — the extension's build + validation scripts. They ship nothing but
+      // decide whether the extension is releasable (esbuild bundle, MV3 lint), on
+      // the same reasoning as the lint/runner configs above.
+      /^apps\/extension\/build[\w-]*\.mjs$/.test(p) ||
+      /^apps\/extension\/scripts\//.test(p),
   },
   { class: "INFRASTRUCTURE", test: (p) => p.startsWith("infra/") || p.startsWith("deploy/") },
 ]);

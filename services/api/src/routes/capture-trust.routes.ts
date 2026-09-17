@@ -56,6 +56,7 @@ import {
   registerDevice,
   revokeDevice,
 } from "../services/capture-trust/device-identity.service.js";
+import { completeWebCaptureSession } from "../services/capture-trust/web-capture.service.js";
 import {
   DIRECT_CAPTURE_CLIENT_SOURCES,
   DIRECT_CAPTURE_SESSION_MODES,
@@ -197,6 +198,13 @@ const AttestationBody = z
   .strict();
 
 const SessionParams = z.object({ id: z.string().uuid() });
+const WebCompleteBody = z
+  .object({
+    // The EXACT manifest bytes the extension uploaded, as a string. Bounded to
+    // the manifest size ceiling; the shared validator enforces the schema.
+    manifestJson: z.string().min(2).max(256 * 1024),
+  })
+  .strict();
 const PartParams = z.object({
   id: z.string().uuid(),
   partIndex: z.coerce.number().int().min(0).max(199),
@@ -472,6 +480,35 @@ export async function captureTrustRoutes(app: FastifyInstance) {
       if (!(await authorizeOwnedSession(req, reply, id, userId))) return reply;
       try {
         const done = await completeDirectCapture({ sessionId: id, ownerUserId: userId });
+        return reply.code(200).send({ result: done });
+      } catch (err) {
+        return sendDirectCaptureError(reply, err);
+      }
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // POST /v1/capture/direct-sessions/:id/web-complete  (UC-1 Direct Web Capture)
+  //
+  // Seals a DIRECT_WEB_CAPTURE_EXTENSION session with its capture manifest. The
+  // manifest is validated server-side, tied to the uploaded bytes by digest,
+  // cross-checked against the declared parts, then the session seals through the
+  // canonical direct-capture completion. A non-web session is refused here.
+  // ---------------------------------------------------------------------------
+  app.post(
+    "/v1/capture/direct-sessions/:id/web-complete",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const userId = getAuthUserId(req);
+      const { id } = SessionParams.parse(req.params);
+      const body = WebCompleteBody.parse(req.body ?? {});
+      if (!(await authorizeOwnedSession(req, reply, id, userId))) return reply;
+      try {
+        const done = await completeWebCaptureSession({
+          sessionId: id,
+          ownerUserId: userId,
+          manifestJson: body.manifestJson,
+        });
         return reply.code(200).send({ result: done });
       } catch (err) {
         return sendDirectCaptureError(reply, err);
