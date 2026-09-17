@@ -565,13 +565,13 @@ export const UPLOAD_NOT_FOUND_BODY = JSON.stringify({
 });
 
 /**
- * The Organization routes' refusal shape.
+ * The Organization routes' concealment shape (PV-ORG-001).
  *
- * `checkOrgAccess` returns `not_found` for an Organization that does not exist
- * and `forbidden` for one the caller is not an ACTIVE member of, and every
- * roster route maps BOTH to `403 {"message":"Forbidden"}` — see
- * `organizations.routes.ts:489`. That collapse is the non-disclosure property,
- * and it is asserted by comparing the two responses to each other, not to this
- * constant alone.
+ * `checkOrgAccess` answers `not_found` both for an Organization that does not
+ * exist and for one the caller holds no ACTIVE membership in, and
+ * `orgAccessDenial` renders that as `404 {"error":{"code":"not_found"}}` on
+ * every /v1/orgs route. That sameness is the non-disclosure property, and it is
+ * asserted by comparing the two responses to each other, not to this constant
+ * alone.
  */
-export const ORG_FORBIDDEN_BODY = JSON.stringify({ message: "Forbidden" });
+export const ORG_NOT_FOUND_BODY = JSON.stringify({ error: { code: "not_found" } });

@@ -53,7 +53,7 @@ import {
   sql,
 } from "./_harness";
 import {
-  ORG_FORBIDDEN_BODY,
+  ORG_NOT_FOUND_BODY,
   orgMembersUrl,
   provisionEnterpriseOrganization,
   readMembership,
@@ -584,8 +584,8 @@ test.describe("NEW-031 authorization", () => {
    * The property is not "the outsider gets an error" — it is that the error
    * for "this Organization exists and you are not in it" is INDISTINGUISHABLE
    * from "no such Organization". `checkOrgAccess` returns `not_found` for the
-   * second and `forbidden` for the first, and every roster route collapses
-   * both to the same 403 body. The assertion therefore compares the two
+   * second and — since PV-ORG-001 — for the first too, and every roster route
+   * renders both as the same 404 body. The assertion therefore compares the two
    * responses TO EACH OTHER; comparing each to a constant would still pass if
    * both drifted together into something that leaked.
    */
@@ -616,8 +616,8 @@ test.describe("NEW-031 authorization", () => {
 
     expect(existing.status).toBe(absent.status);
     expect(existing.body).toBe(absent.body);
-    expect(existing.status).toBe(403);
-    expect(existing.body).toBe(ORG_FORBIDDEN_BODY);
+    expect(existing.status).toBe(404);
+    expect(existing.body).toBe(ORG_NOT_FOUND_BODY);
 
     // The mutation surface refuses on the same terms.
     const crossSuspend = await directApiCall(page, {

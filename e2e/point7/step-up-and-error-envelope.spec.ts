@@ -372,7 +372,11 @@ test("p7.stepup.methods_drive_the_factor_input", async ({ page }) => {
     page,
     { fragment: `/v1/teams/${teamId}/closure`, method: "POST" },
     async () => {
-      await ui.stepUpInput.fill(totpCodeFor(factor.secretBase32));
+      // WCC-NEW-008: a code is spent once, and enrolment already claimed the
+      // current time step. The next step's code is inside the server's ±1-step
+      // window and strictly later than any step claimed so far — what an
+      // authenticator shows a moment later.
+      await ui.stepUpInput.fill(totpCodeFor(factor.secretBase32, 1));
       await ui.stepUpSubmit.click();
     },
   );
