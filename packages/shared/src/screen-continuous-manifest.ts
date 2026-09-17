@@ -256,6 +256,7 @@ export function validateScreenContinuousManifest(
   }
   const seenParts = new Set<number>();
   const sequences: number[] = [];
+  const orientations = new Set<string>();
   for (const s of m.segments as unknown[]) {
     if (typeof s !== "object" || s === null) return { ok: false, error: "a segment is not an object" };
     const seg = s as Record<string, unknown>;
@@ -280,6 +281,13 @@ export function validateScreenContinuousManifest(
     if (seg.orientation !== "portrait" && seg.orientation !== "landscape") {
       return { ok: false, error: "invalid segment.orientation" };
     }
+    // A segment's declared orientation MUST agree with its own pixel geometry —
+    // a segment recorded after a rotation carries its true (new) geometry.
+    const landscapeByDims = (seg.widthPx as number) >= (seg.heightPx as number);
+    if (landscapeByDims !== (seg.orientation === "landscape")) {
+      return { ok: false, error: "segment orientation does not match its dimensions" };
+    }
+    orientations.add(seg.orientation as string);
     if (!isBoundedString(seg.mediaType, 80)) return { ok: false, error: "invalid segment.mediaType" };
   }
   // Ordering MUST be explicit and contiguous 0..N-1: a gap means a missing
@@ -289,6 +297,13 @@ export function validateScreenContinuousManifest(
     if (sorted[i] !== i) {
       return { ok: false, error: "segment sequence numbers are not contiguous from 0" };
     }
+  }
+  // Orientation transitions must be RECORDED, not silent: if the segments span both
+  // orientations, the session experienced a display transition, so the manifest must
+  // carry ORIENTATION_CHANGED_DURING_CAPTURE. A transition that changed the segment
+  // geometry but was not flagged would misrepresent a continuous session.
+  if (orientations.size > 1 && !(m.limitations as string[]).includes("ORIENTATION_CHANGED_DURING_CAPTURE")) {
+    return { ok: false, error: "orientation transition across segments is not recorded in limitations" };
   }
   return { ok: true, manifest: input as ScreenContinuousManifest };
 }

@@ -1,4 +1,5 @@
 import { prisma } from "../db.js";
+import { readMaxEvidenceSizeBytes } from "@proovra/shared";
 import { canonicalJson, sha256Hex } from "../crypto.js";
 import { resolveEvidenceOutputEntitlements } from "@proovra/shared-billing";
 import { getEvidenceSigner } from "../signing/signer.js";
@@ -100,16 +101,6 @@ type CompleteEvidenceReturn = {
 
 function asIso(d: Date | null | undefined): string | null {
   return d ? d.toISOString() : null;
-}
-
-function readMaxEvidenceSizeBytes(): number {
-  const raw = process.env.MAX_EVIDENCE_SIZE_MB;
-  if (!raw) return 1024 * 1024 * 1024;
-
-  const mb = Number.parseInt(raw, 10);
-  if (!Number.isFinite(mb) || mb <= 0) return 1024 * 1024 * 1024;
-
-  return mb * 1024 * 1024;
 }
 
 function clean(v: string | null | undefined): string | null {

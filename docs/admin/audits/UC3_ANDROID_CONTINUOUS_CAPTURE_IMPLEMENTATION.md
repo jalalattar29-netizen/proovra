@@ -391,5 +391,60 @@ per-segment loop (segments only declare + upload; the single reserve happens onc
 
 ---
 
+## 18. FINAL ENGINEERING HARDENING — PART I (2026-09-18)
+
+A further hardening pass closed the two named engineering residuals that can be
+implemented and verified deterministically, and made an honest determination on the
+worker streaming refactor.
+
+### §1 Orientation / display-transition closure — DONE
+
+`ContinuousScreenCaptureService.kt` now handles a display geometry change
+DETERMINISTICALLY: a `DisplayManager.DisplayListener` detects the transition, the
+current ORIGINAL segment is finalized and preserved, the `VirtualDisplay` is resized
+to the new geometry, and the next segment starts at that geometry — same
+CaptureSession, same Evidence, continuous sequence numbering, no new Evidence, no
+corrupted/stretched media, no unrecorded gap. Each segment records ITS OWN geometry
+(`widthPx`/`heightPx`/`orientation`), and a transition adds
+`ORIENTATION_CHANGED_DURING_CAPTURE`. The shared validator now ENFORCES the
+semantics: a segment's orientation must match its own dimensions, and a session
+whose segments span both orientations MUST carry the transition limitation (a silent
+transition is refused). Tests: shared validator — portrait-only, landscape-only,
+portrait↔landscape recorded (accepted) vs unrecorded (rejected), multiple
+transitions, orientation/dimension mismatch; integration — mixed-orientation
+segments seal as ONE Evidence, one bind. Physical-device acceptance remains DEFERRED;
+code semantics are complete.
+
+### §4 Worker size backstop — DONE
+
+`services/worker/src/evidence-processing-bounds.ts` derives its ceiling from the ONE
+canonical authority `readMaxEvidenceSizeBytes` (`@proovra/shared`, env
+`MAX_EVIDENCE_SIZE_MB`, default 1 GiB) — the SAME function `completeEvidence` now uses
+(the API's private copy was removed). The worker fails closed with a bounded
+`EVIDENCE_TOO_LARGE_FOR_PROCESSING` error BEFORE any buffering/decode if malformed or
+historical state ever presents an Evidence beyond the processing bound — never OOM,
+never crash, never truncate, never mutate Evidence truth. Tests: 6 deterministic
+cases (ceiling from env, at/under/over boundary, many-segment-under-ceiling,
+oversized refusal, bigint/number/null-safe sum).
+
+### §2 / §3 Package / Report / Validator STREAMING — DEFERRED (architectural + infra)
+
+The Report/Package worker buffers evidence bytes; memory is already SAFE, bounded by
+the canonical 1 GiB cap AND now the §4 backstop (fail-closed before OOM). The
+`desired` streaming architecture was NOT shipped this pass because it is a genuine
+architectural change that cannot be safely inferred or verified here:
+`createVerificationPackage`'s output is consumed by a package-artifact ALLOWANCE gate
+that checks the exact ZIP byte size BEFORE upload (`processor.ts` ~4277) — streaming
+does not know the final size until the stream completes, so the allowance-gate ↔
+size ↔ upload ordering must be redesigned (a product decision), and a streaming
+rewrite of the integrity-critical package/report/validator path cannot be
+end-to-end validated in this environment (no MinIO + BullMQ worker-job harness). The
+safety requirement (bounded, no OOM) is met; the optimization is the remaining step
+and is documented as such rather than shipped unverified.
+
+**UC-3 PART I: §1 + §4 COMPLETE and verified; §2/§3 streaming DEFERRED (memory SAFE via §4 + 1 GiB cap).**
+
+---
+
 **UC-3 CODE/ARCHITECTURE COMPLETE · FINAL CLOSURE COMPLETE · ANDROID DEVICE ACCEPTANCE DEFERRED · UC-4 MAY BEGIN.**
 Not deployed to Production; not published to the Play Store.

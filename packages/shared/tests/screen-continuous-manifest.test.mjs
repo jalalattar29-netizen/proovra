@@ -123,6 +123,65 @@ test("rejects an empty and an oversized segment set", () => {
   assert.equal(validateScreenContinuousManifest(goodManifest({ segments: many })).ok, false);
 });
 
+const landscape = (over = {}) =>
+  segment({ widthPx: 2400, heightPx: 1080, orientation: "landscape", ...over });
+
+test("accepts a portrait-only and a landscape-only session", () => {
+  assert.equal(validateScreenContinuousManifest(goodManifest()).ok, true); // portrait-only
+  assert.equal(
+    validateScreenContinuousManifest(
+      goodManifest({
+        device: {
+          platform: "android", osVersion: "14", model: "Pixel 7", appVersion: "1.0.0",
+          screenW: 2400, screenH: 1080, densityDpi: 420, orientation: "landscape",
+        },
+        segments: [
+          landscape({ partIndex: 0, sequence: 0 }),
+          landscape({ partIndex: 1, sequence: 1, startedAtOffsetMs: 6000, expectedSha256: "b".repeat(64) }),
+        ],
+      }),
+    ).ok,
+    true,
+  );
+});
+
+test("rejects a segment whose orientation disagrees with its dimensions", () => {
+  const bad = goodManifest({ segments: [segment({ partIndex: 0, sequence: 0, orientation: "landscape" })] }); // portrait dims
+  const r = validateScreenContinuousManifest(bad);
+  assert.equal(r.ok, false);
+  assert.match(r.error, /orientation does not match/);
+});
+
+test("ORIENTATION TRANSITION: portrait->landscape must be recorded in limitations", () => {
+  const segs = [
+    segment({ partIndex: 0, sequence: 0 }),
+    landscape({ partIndex: 1, sequence: 1, startedAtOffsetMs: 6000, expectedSha256: "b".repeat(64) }),
+  ];
+  // Without the flag → rejected (silent transition).
+  const noFlag = validateScreenContinuousManifest(goodManifest({ segments: segs }));
+  assert.equal(noFlag.ok, false);
+  assert.match(noFlag.error, /orientation transition/);
+  // With the flag → accepted, ONE manifest, transition recorded.
+  const flagged = validateScreenContinuousManifest(
+    goodManifest({ segments: segs, limitations: ["ORIENTATION_CHANGED_DURING_CAPTURE"] }),
+  );
+  assert.equal(flagged.ok, true);
+});
+
+test("ORIENTATION TRANSITION: multiple transitions still validate with the flag", () => {
+  const segs = [
+    segment({ partIndex: 0, sequence: 0 }),
+    landscape({ partIndex: 1, sequence: 1, startedAtOffsetMs: 6000, expectedSha256: "b".repeat(64) }),
+    segment({ partIndex: 2, sequence: 2, startedAtOffsetMs: 12000, expectedSha256: "c".repeat(64) }),
+  ];
+  assert.equal(
+    validateScreenContinuousManifest(
+      goodManifest({ segments: segs, limitations: ["ORIENTATION_CHANGED_DURING_CAPTURE"] }),
+    ).ok,
+    true,
+  );
+});
+
 test("accepts INTERRUPTED_SESSION; rejects unknown completeness / termination / limitation", () => {
   assert.equal(
     validateScreenContinuousManifest(

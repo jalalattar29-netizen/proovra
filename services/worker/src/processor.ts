@@ -74,6 +74,11 @@ import {
   resolveEvidenceAcquisition,
 } from "@proovra/shared";
 import { appendCustodyEventTx, evaluateCustodyChain } from "./custody-events.js";
+import {
+  EVIDENCE_TOO_LARGE_FOR_PROCESSING,
+  exceedsProcessingCeiling,
+  sumPartBytes,
+} from "./evidence-processing-bounds.js";
 import { appendWorkerAnalyticsEvent } from "./analytics-events.js";
 import { recordWorkerIncident } from "./governance/incident-emitter.js";
 import { prisma } from "./db.js";
@@ -2147,6 +2152,17 @@ let storageKey = evidence.storageKey ?? null;
 let fileSha256 = "";
 const verificationEvidenceFiles: VerificationEvidenceFile[] = [];
 const loadedArtifacts: LoadedEvidenceArtifact[] = [];
+
+  // Defence-in-depth size backstop (derived from the canonical evidence-size
+  // authority): fail closed BEFORE any large buffering/decode work if malformed or
+  // historical state presents an Evidence beyond the supported processing bound.
+  {
+    const totalEvidenceBytes =
+      parts.length > 0 ? sumPartBytes(parts) : Number(evidence.sizeBytes ?? 0);
+    if (exceedsProcessingCeiling(totalEvidenceBytes)) {
+      throw createWorkerError(EVIDENCE_TOO_LARGE_FOR_PROCESSING, false);
+    }
+  }
 
   if (parts.length > 0) {
     const hashes: string[] = [];

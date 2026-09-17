@@ -1676,6 +1676,7 @@ export {
 export type { UploadSessionStatus } from "./reliability.js";
 
 export {
+  DEFAULT_MAX_EVIDENCE_SIZE_BYTES,
   DEFAULT_MAX_UPLOAD_FILE_SIZE_BYTES,
   DEFAULT_MULTIPART_PART_SIZE_BYTES,
   DEFAULT_MULTIPART_THRESHOLD_BYTES,
@@ -1692,6 +1693,7 @@ export {
   isAllowedUploadSessionTransition,
   isTerminalUploadSessionStatus,
   listAllowedUploadSessionTransitions,
+  readMaxEvidenceSizeBytes,
 } from "./reliability.js";
 
 export {

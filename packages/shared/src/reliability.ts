@@ -144,6 +144,24 @@ export const UPLOAD_ABANDONED_HOURS_MAX = 24 * 30; // one month
 /** Default cap on a single original upload size (10 GiB). */
 export const DEFAULT_MAX_UPLOAD_FILE_SIZE_BYTES = 10 * 1024 * 1024 * 1024;
 
+/** Default TOTAL evidence size ceiling across all parts (1 GiB). */
+export const DEFAULT_MAX_EVIDENCE_SIZE_BYTES = 1024 * 1024 * 1024;
+
+/**
+ * THE canonical total-evidence size ceiling (bytes), read from `MAX_EVIDENCE_SIZE_MB`
+ * (default 1 GiB). This is the single authority both the API completion gate
+ * (`completeEvidence`, which refuses a larger seal) AND the worker report/package
+ * defence-in-depth backstop derive from — no independent limits. It is a technical
+ * processing bound, NOT a commercial entitlement.
+ */
+export function readMaxEvidenceSizeBytes(): number {
+  const raw = typeof process !== "undefined" ? process.env?.MAX_EVIDENCE_SIZE_MB : undefined;
+  if (!raw) return DEFAULT_MAX_EVIDENCE_SIZE_BYTES;
+  const mb = Number.parseInt(raw, 10);
+  if (!Number.isFinite(mb) || mb <= 0) return DEFAULT_MAX_EVIDENCE_SIZE_BYTES;
+  return mb * 1024 * 1024;
+}
+
 /** Above this size, prefer multipart uploads (~100 MiB). */
 export const DEFAULT_MULTIPART_THRESHOLD_BYTES = 100 * 1024 * 1024;
 

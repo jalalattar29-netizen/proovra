@@ -65,9 +65,15 @@ class ContinuousScreenCaptureService : Service() {
     private var startedAtUtc = ""
     private var segmentMs = 6000
     private var maxSegments = 600
+    // Session-INITIAL display geometry (the manifest's session-level device block).
     private var widthPx = 0
     private var heightPx = 0
     private var densityDpi = 0
+    // Geometry the CURRENT segment is being recorded at (may differ after a
+    // rotation; each ORIGINAL segment records its own true geometry).
+    private var segW = 0
+    private var segH = 0
+    private var segDpi = 0
     private var currentFile: File? = null
     private var segmentStartMs = 0L
     @Volatile private var active = false
@@ -146,16 +152,40 @@ class ContinuousScreenCaptureService : Service() {
     @Suppress("DEPRECATION")
     (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay.getRealMetrics(metrics)
     widthPx = metrics.widthPixels; heightPx = metrics.heightPixels; densityDpi = metrics.densityDpi
+    segW = widthPx; segH = heightPx; segDpi = densityDpi
     startedAtMs = System.currentTimeMillis(); startedAtUtc = iso(startedAtMs)
 
     mp.registerCallback(object : MediaProjection.Callback() {
       override fun onStop() { finish("PERMISSION_REVOKED") }
     }, null)
 
+    // Deterministic rotation handling: a display geometry change finalizes the
+    // current segment and starts the next at the new geometry (same Evidence).
+    registerDisplayListener()
+
     active = true
     onStartedCb?.invoke(startedAtUtc)
     onStartedCb = null
     if (!startNextSegment()) finish("ERROR")
+  }
+
+  private var displayListener: DisplayManager.DisplayListener? = null
+
+  private fun registerDisplayListener() {
+    val dm = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+    val l = object : DisplayManager.DisplayListener {
+      override fun onDisplayChanged(displayId: Int) { onDisplayGeometryChanged() }
+      override fun onDisplayAdded(displayId: Int) {}
+      override fun onDisplayRemoved(displayId: Int) {}
+    }
+    displayListener = l
+    dm.registerDisplayListener(l, null)
+  }
+
+  private fun unregisterDisplayListener() {
+    val l = displayListener ?: return
+    displayListener = null
+    try { (getSystemService(Context.DISPLAY_SERVICE) as DisplayManager).unregisterDisplayListener(l) } catch (_: Throwable) {}
   }
 
   private fun newRecorder(outFile: File): MediaRecorder {
@@ -164,7 +194,9 @@ class ContinuousScreenCaptureService : Service() {
     r.setVideoSource(MediaRecorder.VideoSource.SURFACE)
     r.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
     r.setVideoEncoder(MediaRecorder.VideoEncoder.H264)
-    r.setVideoSize(widthPx, heightPx)
+    // Each segment records at ITS OWN geometry (segW/segH), so a segment started
+    // after a rotation encodes at the new geometry — never a stretched/cropped frame.
+    r.setVideoSize(segW, segH)
     r.setVideoFrameRate(FRAME_RATE)
     r.setVideoEncodingBitRate(BITRATE)
     r.setOutputFile(outFile.absolutePath)
@@ -192,10 +224,15 @@ class ContinuousScreenCaptureService : Service() {
       finish("BOUNDS_REACHED")
       return true
     }
-    // The recording surface stays at the session's initial geometry and AUTO_MIRROR
-    // scales rotated content into it (letterboxed, never corrupted). A rotation is
-    // not a media-corruption event, but it IS material context, so flag it once.
-    if (orientationChangedFromStart()) limitations.add("ORIENTATION_CHANGED_DURING_CAPTURE")
+    // Capture the CURRENT display geometry for THIS segment. On a rotation the next
+    // segment is recorded at the new geometry (the VirtualDisplay is resized), so a
+    // transition is represented as a clean segment boundary — never a corrupted or
+    // stretched frame, and never a new Evidence.
+    val m = DisplayMetrics()
+    @Suppress("DEPRECATION")
+    (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay.getRealMetrics(m)
+    segW = m.widthPixels; segH = m.heightPixels; segDpi = m.densityDpi
+    if ((segW >= segH) != (widthPx >= heightPx)) limitations.add("ORIENTATION_CHANGED_DURING_CAPTURE")
     return try {
       val file = File(cacheDir, "proovra-continuous-${startedAtMs}-${segments.size}.mp4")
       currentFile = file
@@ -204,10 +241,12 @@ class ContinuousScreenCaptureService : Service() {
       val vd = virtualDisplay
       if (vd == null) {
         virtualDisplay = projection!!.createVirtualDisplay(
-          "proovra-continuous", widthPx, heightPx, densityDpi,
+          "proovra-continuous", segW, segH, segDpi,
           DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, r.surface, null, null,
         )
       } else {
+        // Resize to the current geometry FIRST, then bind the new segment's surface.
+        try { vd.resize(segW, segH, segDpi) } catch (_: Throwable) {}
         vd.surface = r.surface
       }
       r.start()
@@ -226,6 +265,19 @@ class ContinuousScreenCaptureService : Service() {
     startNextSegment()
   }
 
+  /**
+   * A display geometry change during an active segment finalizes the current
+   * ORIGINAL segment and starts a new one at the new geometry — a deterministic
+   * transition boundary. Same session, same Evidence, continuous sequence.
+   */
+  private fun onDisplayGeometryChanged() {
+    if (!active) return
+    val m = DisplayMetrics()
+    @Suppress("DEPRECATION")
+    (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay.getRealMetrics(m)
+    if (m.widthPixels != segW || m.heightPixels != segH) rolloverSegment()
+  }
+
   private fun finalizeCurrentSegment() {
     val r = recorder ?: return
     val file = currentFile
@@ -235,14 +287,17 @@ class ContinuousScreenCaptureService : Service() {
     try { virtualDisplay?.surface = null } catch (_: Throwable) {}
     if (file != null && file.exists() && file.length() > 0) {
       val seq = segments.size
+      // Record THIS segment's own geometry (segW/segH), which reflects any rotation
+      // that took effect at its start boundary — so the manifest's per-segment
+      // orientation is truthful across transitions.
       val seg = mapOf<String, Any?>(
         "uri" to "file://${file.absolutePath}",
         "sequence" to seq,
         "startedAtOffsetMs" to (segmentStartMs - startedAtMs),
         "durationMs" to (System.currentTimeMillis() - segmentStartMs),
-        "widthPx" to widthPx,
-        "heightPx" to heightPx,
-        "orientation" to if (widthPx >= heightPx) "landscape" else "portrait",
+        "widthPx" to segW,
+        "heightPx" to segH,
+        "orientation" to if (segW >= segH) "landscape" else "portrait",
       )
       segments.add(seg)
       updateNotification(seq + 1)
@@ -274,6 +329,7 @@ class ContinuousScreenCaptureService : Service() {
   private fun finish(reason: String) {
     if (!active && last != null) return
     active = false
+    unregisterDisplayListener()
     finalizeCurrentSegment()
     try { virtualDisplay?.release() } catch (_: Throwable) {}
     try { projection?.stop() } catch (_: Throwable) {}
@@ -305,16 +361,6 @@ class ContinuousScreenCaptureService : Service() {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) stopForeground(STOP_FOREGROUND_REMOVE)
     else @Suppress("DEPRECATION") stopForeground(true)
     stopSelf()
-  }
-
-  /** True when the live display orientation differs from the session's initial one. */
-  private fun orientationChangedFromStart(): Boolean = try {
-    val m = DisplayMetrics()
-    @Suppress("DEPRECATION")
-    (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay.getRealMetrics(m)
-    (m.widthPixels >= m.heightPixels) != (widthPx >= heightPx)
-  } catch (_: Throwable) {
-    false
   }
 
   private fun appVersionName(): String = try {

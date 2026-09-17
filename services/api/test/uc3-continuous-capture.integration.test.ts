@@ -165,6 +165,7 @@ describe("UC-3 android continuous screen capture — live PostgreSQL 16", () => 
       tamperManifestDigest?: boolean;
       reverseUpload?: boolean;
       tamperStoredBytes?: boolean;
+      orientationTransition?: boolean;
     } = {},
   ) {
     const token = owner().ownerToken;
@@ -212,6 +213,8 @@ describe("UC-3 android continuous screen capture — live PostgreSQL 16", () => 
     for (let i = 0; i < segCount; i++) {
       if (opts.omitLastSegment && i === segCount - 1) continue;
       const declared = declaredByIndex.get(i)!;
+      // A mid-session rotation: segment 1 is landscape (its own true geometry).
+      const isLandscape = opts.orientationTransition && i === 1;
       segments.push({
         role: "screen_segment",
         partIndex: i,
@@ -224,9 +227,9 @@ describe("UC-3 android continuous screen capture — live PostgreSQL 16", () => 
         mediaType: "video/mp4",
         startedAtOffsetMs: i * 1000,
         durationMs: 1000,
-        widthPx: 1080,
-        heightPx: 2400,
-        orientation: "portrait",
+        widthPx: isLandscape ? 2400 : 1080,
+        heightPx: isLandscape ? 1080 : 2400,
+        orientation: isLandscape ? "landscape" : "portrait",
       });
     }
 
@@ -250,7 +253,7 @@ describe("UC-3 android continuous screen capture — live PostgreSQL 16", () => 
       segments,
       sessionCompleteness: "COMPLETE_SESSION",
       terminationReason: "USER_STOPPED",
-      limitations: [],
+      limitations: opts.orientationTransition ? ["ORIENTATION_CHANGED_DURING_CAPTURE"] : [],
       notes: [],
     };
     const manifestJson = JSON.stringify(manifest);
@@ -370,6 +373,23 @@ describe("UC-3 android continuous screen capture — live PostgreSQL 16", () => 
     expect(ev.status).toBe("SIGNED");
     const parts = await prisma.evidencePart.count({ where: { evidenceId } });
     expect(parts).toBe(4); // 3 segments + manifest, all present regardless of upload order
+  });
+
+  it("ORIENTATION TRANSITION: mixed portrait/landscape segments seal as ONE Evidence (recorded, not new Evidence)", async () => {
+    const { token, sessionId, evidenceId, manifestJson } = await stageContinuous({ segments: 3, orientationTransition: true });
+    const done = await call("POST", `/v1/capture/direct-sessions/${sessionId}/continuous-complete`, token, { manifestJson });
+    expect(done.statusCode, done.body).toBe(200);
+    expect(done.json().result.bound).toBe(true);
+    const ev = await prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId } });
+    expect(ev.status).toBe("SIGNED");
+    expect(ev.acquisitionMode).toBe("DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS");
+    // ONE Evidence with all 3 segments + manifest despite the rotation; one bind.
+    const parts = await prisma.evidencePart.count({ where: { evidenceId } });
+    expect(parts).toBe(4);
+    const bound = await prisma.captureTrustEventRecord.count({
+      where: { captureSessionId: sessionId, code: "CAPTURE_SESSION_BOUND" },
+    });
+    expect(bound).toBe(1);
   });
 
   it("fails CLOSED when a segment's stored bytes no longer match its declared digest (server recompute)", async () => {
