@@ -33,10 +33,6 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
-// The ONE writer of the export-package monthly meter. It lives in
-// shared-runtime because the Worker's package builder meters through it too;
-// it shares its period clock with the reader (`assertQuotaEntitlement`).
-import { recordExportPackageUsage } from "@proovra/shared-runtime";
 import { signPackageManifest } from "./signed-delivery.service.js";
 
 // ---------------------------------------------------------------------------
@@ -216,99 +212,6 @@ export async function requestExchangePackageRebuild(input: {
   });
   if (!now) return { ok: false, reason: "NOT_FOUND" };
   return { ok: false, reason: "NOT_DRAFT", state: now.state as ExchangePackageState };
-}
-
-// ---------------------------------------------------------------------------
-// markPackageReady
-// ---------------------------------------------------------------------------
-
-export type MarkPackageReadyInput = {
-  prisma?: PrismaClient;
-  teamId: string;
-  packageId: string;
-  storageKey: string;
-  packageSha256: string;
-  packageSizeBytes: number | bigint;
-};
-
-export async function markPackageReady(
-  input: MarkPackageReadyInput,
-): Promise<{ ok: boolean }> {
-  const prisma = input.prisma ?? defaultPrisma;
-  const row = await prisma.evidenceExchangePackage.findFirst({
-    where: { id: input.packageId, teamId: input.teamId },
-    select: { id: true, state: true },
-  });
-  if (!row) return { ok: false };
-  if (row.state !== "DRAFT" && row.state !== "BUILDING") return { ok: false };
-
-  /*
-   * ===========================================================================
-   * THE COMMERCIAL COMPLETION BOUNDARY — ONE TRANSACTION.
-   * ===========================================================================
-   * The billable transition and the meter that records it now commit together
-   * or not at all. Both models live on the same datasource, so this is an
-   * ordinary `$transaction` and not a distributed-commit problem.
-   *
-   * WHAT THIS CLOSES. The two writes used to be sequential and the meter
-   * swallowed its own failures, which produced a state nothing could repair:
-   *
-   *   1. the package committed DRAFT/BUILDING → READY;
-   *   2. the usage write failed, silently;
-   *   3. every retry found no DRAFT/BUILDING row to transition, returned
-   *      `{ ok: false }`, and never attempted the meter again.
-   *
-   * The package was READY, the customer had it, and the month's count was
-   * permanently one short — under-billing that no reconciliation pass could
-   * detect, because nothing recorded that the attempt had ever happened.
-   *
-   * Inside the transaction a metering failure rolls the READY transition back,
-   * so the package is exactly as it was before the call and the next attempt is
-   * a normal first attempt. Nothing is swallowed here, deliberately: a
-   * swallowed failure inside this transaction would commit READY with no meter
-   * and rebuild the divergence with extra steps.
-   *
-   * WHY THE PREDICATE IS IN THE WRITE. `state: { in: [...] }` inside the
-   * `updateMany` — not the read above it — is what makes the transition
-   * single-winner. The read is a fast path that distinguishes "no such package
-   * in this workspace" from "already ready"; two concurrent callers can both
-   * pass it, and exactly one can have `count === 1`. That one caller is the one
-   * that meters.
-   *
-   * WHAT IS METERED, AND WHOSE. ONE produced package, ONE monthly unit, here
-   * and nowhere else. Deliberately NOT at creation: `createExchangePackage`
-   * writes a DRAFT whose build can still fail, so metering there would charge
-   * for packages that never existed. Deliberately NOT at signed-URL generation
-   * or delivery: those are reads and re-sends of an artifact already paid for,
-   * and a customer who downloads twice has not bought twice.
-   *
-   * The subject is the workspace that OWNS the package. `teamId` is NOT NULL on
-   * the model and is re-named in the `updateMany` predicate, so a call carrying
-   * another workspace's id matches zero rows, meters nothing, and returns
-   * `{ ok: false }` — never the actor's personal workspace, never the recipient
-   * of the download.
-   */
-  return prisma.$transaction(async (tx) => {
-    const transition = await tx.evidenceExchangePackage.updateMany({
-      where: {
-        id: row.id,
-        teamId: input.teamId,
-        state: { in: ["DRAFT", "BUILDING"] },
-      },
-      data: {
-        state: "READY",
-        storageKey: input.storageKey.slice(0, 400),
-        packageSha256: input.packageSha256.slice(0, 64),
-        packageSizeBytes: BigInt(input.packageSizeBytes),
-        readyAtUtc: new Date(),
-      },
-    });
-    if (transition.count !== 1) return { ok: false };
-
-    await recordExportPackageUsage({ prisma: tx, teamId: input.teamId });
-
-    return { ok: true };
-  });
 }
 
 // ---------------------------------------------------------------------------

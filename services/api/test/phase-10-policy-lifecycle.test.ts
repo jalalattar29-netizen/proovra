@@ -59,11 +59,14 @@ describe("§item-1 — schema: Organization owns the policy lifecycle", () => {
 
 describe("§item-1 — writers upsert by organizationId; teamId not mutated on patch", () => {
   it("no writer upserts OrganizationSecurityPolicy by teamId", () => {
-    // Both the Phase-10 patch writer and the MFA writer upsert by organizationId.
+    // Both the Phase-10 patch writer and the MFA writer key by organizationId.
     expect(SVC).not.toMatch(/organizationSecurityPolicy\.upsert\(\{\s*where:\s*\{\s*teamId/);
     expect(MFA).not.toMatch(/organizationSecurityPolicy\.upsert\(\{\s*where:\s*\{\s*teamId/);
     expect(SVC).toMatch(/organizationSecurityPolicy\.upsert\(\{\s*where:\s*\{\s*organizationId/);
-    expect(MFA).toMatch(/organizationSecurityPolicy\.upsert\(\{\s*where:\s*\{\s*organizationId/);
+    // The MFA writer is the VERSIONED one (the unversioned upsert writer was
+    // removed, 2026-09-17); its compare-and-set is keyed by organizationId.
+    expect(MFA).toMatch(/organizationSecurityPolicy\.updateMany\(\{\s*where:\s*\{\s*organizationId/);
+    expect(MFA).not.toMatch(/organizationSecurityPolicy\.updateMany\(\{\s*where:\s*\{\s*teamId/);
   });
 
   it("ordinary patch updates do NOT mutate teamId (compat metadata set once on create)", () => {

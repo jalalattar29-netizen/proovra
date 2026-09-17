@@ -11,7 +11,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | dimension            | status  | basis                                                                 |
 | -------------------- | ------- | --------------------------------------------------------------------- |
 | AuditEngineIntegrity | PASS    | instrument counters, conservation identities, single-authority checks |
-| ProductClosure       | OPEN    | undisposed routes + locally actionable open findings                  |
+| ProductClosure       | CLOSED  | undisposed routes + locally actionable open findings                  |
 | ExternalClosure      | NOT RUN | requires a real environment; never asserted from source analysis      |
 
 `AuditEngineIntegrity = PASS` alongside `ProductClosure = OPEN` is the expected state while work remains. They are separate exit codes on purpose: a permanent red meaning "open work" teaches everyone to ignore a red meaning "every number here is a guess".
@@ -21,7 +21,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | 2d8744dcbc6f627a1835186ef2c9bef7166dde69945acf99ef19a622a077e13c |
+| engineHash    | f99764490cb070b6709a48e3763404f145d973109a4158315e269c0c81eaa329 |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
@@ -204,5 +204,4 @@ _(none — the instrument is sound)_
 
 ### Product closure
 
-- UNWIRED EXECUTABLE WRITERS: 23 terminal writers have zero entrypoints (PRESERVED_PLANNED_WRITER + DEAD_UNREACHABLE)
-- CHECKPOINT: 11 violation(s) — SCALAR_DISAGREES_WITH_FACTS: ProductionRegisteredRoutes: checkpoint says 1150, facts say 1151 | SCALAR_DISAGREES_WITH_FACTS: RegisteredRoutes: checkpoint says 1151, facts say 1152 | SCALAR_DISAGREES_WITH_FACTS: TerminalWriters: checkpoint says 1274, facts say 1271 | SCALAR_DISAGREES_WITH_FACTS: ROUTE_ATTRIBUTED_REACHABLE: checkpoint says 1144, facts say 1117 | SCALAR_DISAGREES_WITH_FACTS: STARTUP_OR_SCHEDULED: checkpoint says 13, facts say 14
+_(none)_

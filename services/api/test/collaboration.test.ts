@@ -238,8 +238,9 @@ describe("Discussion service — audit chain reuse", () => {
       "DISCUSSION_ESCALATED",
       "MENTION_CREATED",
       "CONTRIBUTOR_REPLY_RECEIVED",
-      "CONTRIBUTOR_ACCESS_GRANTED",
-      "CONTRIBUTOR_ACCESS_REVOKED",
+      // CONTRIBUTOR_ACCESS_GRANTED / _REVOKED were emitted only by
+      // grantContributorAccess / revokeContributorAccess, removed with their
+      // retired routes (2026-09-17).
     ]) {
       expect(src).toMatch(new RegExp(`"${ev}"`));
     }

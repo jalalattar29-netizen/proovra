@@ -368,11 +368,10 @@ describe("Phase R16 — service module", () => {
       "getMyNotificationPreference",
       "inviteGuest",
       "listGuests",
-      "revokeGuest",
-      "openAccessReview",
+      // revokeGuest / openAccessReview / decideAccessReviewItem /
+      // completeAccessReview were removed with their retired routes
+      // (2026-09-17); listAccessReviews stays as the read of stored rows.
       "listAccessReviews",
-      "decideAccessReviewItem",
-      "completeAccessReview",
       "listTeamActivityFiltered",
     ];
     for (const sym of required) {
@@ -467,7 +466,7 @@ describe("Phase R16 — service module", () => {
     expect(svc).toContain("export async function listGuests");
   });
 
-  it("access review items only decidable by LEAD/ADMIN", () => {
+  it("moderation is decided by the shared LEAD/ADMIN predicate", () => {
     // PHASE 12 POINT 4 STEP 1 — this was a source regex over
     // `decideAccessReviewItem ... role !== "LEAD" && role !== "ADMIN"`. The
     // literal comparison is gone: the gate and the `viewerCapabilities`
@@ -482,18 +481,16 @@ describe("Phase R16 — service module", () => {
         `${String(role)} must not moderate`,
       ).toBe(false);
     }
-    // Every moderator-gated entry point rejects through the shared predicate
-    // rather than an inline role comparison of its own.
-    for (const fn of [
-      "decideAccessReviewItem",
-      "openAccessReview",
-      "completeAccessReview",
-    ]) {
+    // Every moderator-gated entry point decides through the shared predicate
+    // rather than an inline role comparison of its own. (The access-review
+    // writers that also gated on it were removed with their retired routes,
+    // 2026-09-17; comment moderation is what remains.)
+    for (const fn of ["editComment", "deleteComment"]) {
       expect(
         svc,
         `${fn} must gate through isCollaborationTeamModerator`,
       ).toMatch(
-        new RegExp(`${fn}[\\s\\S]{0,900}!isCollaborationTeamModerator\\(role\\)`),
+        new RegExp(`export async function ${fn}\\b[\\s\\S]{0,1500}isCollaborationTeamModerator\\(role\\)`),
       );
     }
     expect(svc).not.toMatch(/role !== "LEAD" && role !== "ADMIN"/);
@@ -579,11 +576,7 @@ describe("Phase R16 — API routes", () => {
     for (const fn of [
       "listGuests",
       "inviteGuest",
-      "revokeGuest",
       "listAccessReviews",
-      "openAccessReview",
-      "decideAccessReviewItem",
-      "completeAccessReview",
     ]) {
       expect(routes, `${fn} must not be called by the route file`).not.toMatch(
         new RegExp(`\\b${fn}\\(`),

@@ -30,7 +30,6 @@
  *      seed list directly (capture.routes.ts), unchanged.
  */
 
-import { Prisma } from "@prisma/client";
 import type { PrismaClient, EvidenceWorkflowTemplate as DbWorkflowTemplate } from "@prisma/client";
 import {
   WORKFLOW_BASELINE_EXPORT_POLICY,
@@ -321,150 +320,11 @@ export async function getEffectiveWorkflowTemplateBySlug(
 }
 
 // -----------------------------------------------------------------------------
-// Persistence helpers — used by routes only. Validates input via Phase 1
-// schemas before touching the DB.
+// Persistence helpers — createWorkspaceWorkflowTemplate,
+// updateWorkspaceWorkflowTemplate and archiveWorkspaceWorkflowTemplate were
+// removed with their retired routes (2026-09-17). Stored rows are untouched
+// and still read by listEffectiveWorkflowTemplates.
 // -----------------------------------------------------------------------------
-
-export type CreateWorkflowTemplateContext = {
-  teamId: string;
-  actorUserId: string;
-};
-
-export async function createWorkspaceWorkflowTemplate(
-  input: WorkflowTemplatePersistInput,
-  ctx: CreateWorkflowTemplateContext,
-  client: Pick<PrismaClient, "evidenceWorkflowTemplate"> = defaultPrisma,
-): Promise<DbWorkflowTemplate> {
-  const validated = validateWorkflowTemplatePayload(input);
-
-  return client.evidenceWorkflowTemplate.create({
-    data: {
-      slug: input.slug,
-      teamId: ctx.teamId,
-      workspaceCategory: input.workspaceCategory ?? null,
-      version: 1,
-      name: input.name,
-      description: input.description ?? null,
-      archived: false,
-      planMode: input.planMode,
-      locationRequirement: input.locationRequirement,
-      intakeModes: input.intakeModes,
-      allowedRoles: input.allowedRoles ?? [],
-      stepsJson: validated.steps as unknown as Prisma.InputJsonValue,
-      rulesJson:
-        validated.rules && validated.rules.length > 0
-          ? (validated.rules as unknown as Prisma.InputJsonValue)
-          : Prisma.JsonNull,
-      visibilityPolicyJson:
-        input.visibilityPolicy
-          ? (input.visibilityPolicy as unknown as Prisma.InputJsonValue)
-          : Prisma.JsonNull,
-      reviewPolicyJson:
-        input.reviewPolicy
-          ? (input.reviewPolicy as unknown as Prisma.InputJsonValue)
-          : Prisma.JsonNull,
-      exportPolicyJson:
-        input.exportPolicy
-          ? (input.exportPolicy as unknown as Prisma.InputJsonValue)
-          : Prisma.JsonNull,
-      createdByUserId: ctx.actorUserId,
-      updatedByUserId: ctx.actorUserId,
-    },
-  });
-}
-
-export type UpdateWorkflowTemplateContext = {
-  templateId: string;
-  teamId: string;
-  actorUserId: string;
-};
-
-export async function updateWorkspaceWorkflowTemplate(
-  input: Partial<WorkflowTemplatePersistInput>,
-  ctx: UpdateWorkflowTemplateContext,
-  client: Pick<PrismaClient, "evidenceWorkflowTemplate"> = defaultPrisma,
-): Promise<DbWorkflowTemplate | null> {
-  const existing = await client.evidenceWorkflowTemplate.findFirst({
-    where: { id: ctx.templateId, teamId: ctx.teamId },
-  });
-  if (!existing) return null;
-
-  // Reconstruct a full template payload for re-validation. Any field omitted
-  // from the patch falls back to the persisted value.
-  const projected: WorkflowTemplatePersistInput = {
-    slug: existing.slug,
-    name: input.name ?? existing.name,
-    description: input.description ?? existing.description,
-    workspaceCategory: input.workspaceCategory ?? existing.workspaceCategory ?? null,
-    planMode: (input.planMode ?? existing.planMode) as WorkflowPlanMode,
-    locationRequirement: (input.locationRequirement ??
-      existing.locationRequirement) as WorkflowTemplate["locationRequirement"],
-    intakeModes: (input.intakeModes ??
-      existing.intakeModes) as WorkflowTemplate["intakeModes"],
-    allowedRoles: (input.allowedRoles ??
-      existing.allowedRoles) as WorkflowTemplate["allowedRoles"],
-    steps: input.steps ?? (existing.stepsJson as unknown as WorkflowStep[]),
-    rules:
-      input.rules ?? ((existing.rulesJson as unknown as WorkflowRule[]) ?? []),
-    visibilityPolicy:
-      input.visibilityPolicy ??
-      (existing.visibilityPolicyJson as unknown as WorkflowVisibilityPolicy | null) ??
-      null,
-    reviewPolicy:
-      input.reviewPolicy ??
-      (existing.reviewPolicyJson as unknown as WorkflowReviewPolicy | null) ??
-      null,
-    exportPolicy:
-      input.exportPolicy ??
-      (existing.exportPolicyJson as unknown as WorkflowExportPolicy | null) ??
-      null,
-  };
-
-  validateWorkflowTemplatePayload(projected);
-
-  return client.evidenceWorkflowTemplate.update({
-    where: { id: ctx.templateId },
-    data: {
-      name: projected.name,
-      description: projected.description ?? null,
-      workspaceCategory: projected.workspaceCategory ?? null,
-      planMode: projected.planMode,
-      locationRequirement: projected.locationRequirement,
-      intakeModes: projected.intakeModes,
-      allowedRoles: projected.allowedRoles ?? [],
-      stepsJson: projected.steps as unknown as Prisma.InputJsonValue,
-      rulesJson:
-        projected.rules && projected.rules.length > 0
-          ? (projected.rules as unknown as Prisma.InputJsonValue)
-          : Prisma.JsonNull,
-      visibilityPolicyJson: projected.visibilityPolicy
-        ? (projected.visibilityPolicy as unknown as Prisma.InputJsonValue)
-        : Prisma.JsonNull,
-      reviewPolicyJson: projected.reviewPolicy
-        ? (projected.reviewPolicy as unknown as Prisma.InputJsonValue)
-        : Prisma.JsonNull,
-      exportPolicyJson: projected.exportPolicy
-        ? (projected.exportPolicy as unknown as Prisma.InputJsonValue)
-        : Prisma.JsonNull,
-      version: { increment: 1 },
-      updatedByUserId: ctx.actorUserId,
-    },
-  });
-}
-
-export async function archiveWorkspaceWorkflowTemplate(
-  ctx: { templateId: string; teamId: string; actorUserId: string },
-  client: Pick<PrismaClient, "evidenceWorkflowTemplate"> = defaultPrisma,
-): Promise<DbWorkflowTemplate | null> {
-  const result = await client.evidenceWorkflowTemplate.updateMany({
-    where: { id: ctx.templateId, teamId: ctx.teamId, archived: false },
-    data: { archived: true, updatedByUserId: ctx.actorUserId },
-  });
-  if (result.count === 0) return null;
-  return client.evidenceWorkflowTemplate.findUnique({
-    where: { id: ctx.templateId },
-  });
-}
 
 // -----------------------------------------------------------------------------
 // Validation

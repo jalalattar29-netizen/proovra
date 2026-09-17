@@ -492,15 +492,6 @@ vi.mock("../src/services/identity-security/mfa-policy.service.js", async (orig) 
     H.rec("evaluateMfaRequirement", i);
     return { required: true, reason: "role_in_policy_scope" };
   },
-  updateMfaPolicy: async (i: Record<string, unknown>) => {
-    H.rec("updateMfaPolicy", i);
-    return {
-      teamId: i.teamId, level: i.level,
-      stepUpTtlSeconds: i.stepUpTtlSeconds ?? null,
-      trustedDeviceTtlDays: i.trustedDeviceTtlDays ?? null,
-      policyVersion: 2,
-    };
-  },
 }));
 
 // WCC-NEW-011 — the PUT alias enforces the SAME Enterprise entitlement the
@@ -1495,12 +1486,11 @@ describe("workspace MFA policy", () => {
     });
     expect(res.statusCode).toBe(200);
     // WCC-NEW-011 — the canonical writer is the VERSIONED one, fed the version
-    // the alias read itself; the unversioned writer is never reached.
+    // the alias read itself. (The unversioned writer was removed, 2026-09-17.)
     expect(called("updateMfaPolicyVersioned")).toHaveLength(1);
     expect(callInput("updateMfaPolicyVersioned")).toMatchObject({
       teamId: TEAM, level: "ALL_MEMBERS", actorUserId: ACTOR, expectedPolicyVersion: 1,
     });
-    expect(called("updateMfaPolicy")).toHaveLength(0);
     expect(JSON.parse(res.body).policy.level).toBe("ALL_MEMBERS");
   });
 
@@ -1530,7 +1520,6 @@ describe("workspace MFA policy", () => {
       teamId: TEAM, feature: "mfaEnforcement",
     });
     expect(called("updateMfaPolicyVersioned")).toHaveLength(0);
-    expect(called("updateMfaPolicy")).toHaveLength(0);
     expect(called("requireStepUpForSensitiveAction")).toHaveLength(0);
   });
 
@@ -1542,7 +1531,6 @@ describe("workspace MFA policy", () => {
     });
     expect(res.statusCode).toBe(401);
     expect(called("updateMfaPolicyVersioned")).toHaveLength(0);
-    expect(called("updateMfaPolicy")).toHaveLength(0);
     expect(callInput("requireStepUpForSensitiveAction")).toMatchObject({
       purpose: "MFA_POLICY_UPDATE", resourceKind: "organization_security_policy", resourceId: TEAM,
     });
@@ -1555,7 +1543,7 @@ describe("workspace MFA policy", () => {
       payload: { teamId: TEAM, level: "ALL_MEMBERS" },
     });
     expect(res.statusCode).toBe(403);
-    expect(called("updateMfaPolicy")).toHaveLength(0);
+    expect(called("updateMfaPolicyVersioned")).toHaveLength(0);
     expect(called("requireStepUpForSensitiveAction")).toHaveLength(0);
   });
 });

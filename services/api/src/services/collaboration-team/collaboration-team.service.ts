@@ -1051,10 +1051,11 @@ export async function getCollaborationTeamDetail(
     // management and access-review controls. Each flag below is computed by
     // the SAME predicate its gate in `collaboration-completion.service.ts`
     // uses — `isCollaborationTeamModerator` for comment moderation
-    // (editComment / deleteComment) and access reviews (openAccessReview /
-    // decideAccessReviewItem / completeAccessReview), and the shared
-    // permission catalog for guests (inviteGuest / revokeGuest). Those gates
-    // remain the enforcement point on every direct API call.
+    // (editComment / deleteComment) and access reviews, and the shared
+    // permission catalog for guests (listGuests). Those gates remain the
+    // enforcement point on every direct API call. (The access-review writers
+    // openAccessReview / decideAccessReviewItem / completeAccessReview and
+    // revokeGuest were removed with their retired routes, 2026-09-17.)
     viewerCapabilities: {
       canModerateComments: isCollaborationTeamModerator(viewer.role),
       canManageGuests: collaborationTeamRoleHasPermission(

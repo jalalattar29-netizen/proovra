@@ -244,7 +244,7 @@ describe("R8.1.5 — per-org MFA enforcement fail-mode", () => {
   // ---------------------------------------------------------------------------
   // 13. Fail-mode update emits event.
   // ---------------------------------------------------------------------------
-  it("test 13: updateMfaPolicy emits org_mfa_fail_mode_updated when value changed", () => {
+  it("test 13: updateMfaPolicyVersioned emits org_mfa_fail_mode_updated when value changed", () => {
     expect(POLICY_SVC).toMatch(/eventType:\s*["']org_mfa_fail_mode_updated["']/);
     // Only emitted when changed (avoids noisy SIEM rows).
     expect(POLICY_SVC).toMatch(/!==\s*priorFailMode/);

@@ -22,7 +22,6 @@ import "../src/env.js";
  *   - upsertEvidenceReviewerWorkflow + createEscalation (reviewer ops)
  *   - issueExternalReviewGrant (external review)
  *   - reconcileTeamGraph (shared-runtime graph builder)
- *   - reconcileSimilaritiesForEvidence (intelligence detector)
  *   - buildInvestigationDiagnostics (the canonical counters)
  *
  * Hard rules:
@@ -66,7 +65,6 @@ import { addEvidenceLink } from "../src/services/cases/case-lifecycle.service.js
 import { upsertEvidenceReviewerWorkflow } from "../src/services/evidence-review/reviewer-workflow.service.js";
 import { createEscalation } from "../src/services/reviewer-ops/escalation-engine.service.js";
 import { issueExternalReviewGrant } from "../src/services/external-review/external-review-grant.service.js";
-import { reconcileSimilaritiesForEvidence } from "../src/services/intelligence/similarity.service.js";
 import { enqueueGraphReconcileJob } from "../src/queue/graph-reconcile-queue.js";
 import { reconcileTeamGraph } from "@proovra/shared-runtime/graph";
 import { buildInvestigationDiagnostics } from "../src/services/investigation-diagnostics.service.js";
@@ -484,22 +482,6 @@ async function main(): Promise<void> {
     );
   } else {
     console.warn(`[dev:populate-investigation] grant skipped: ${grant.reason}`);
-  }
-
-  // ---- Similarity detector (writes HASH_DUPLICATE for A <-> B) -----------
-  // This runs through the same code path the route handlers use and
-  // populates evidence_similarities with the kind that the diagnostics
-  // count surfaces as duplicateExactCount.
-  try {
-    const summaryA = await reconcileSimilaritiesForEvidence(evA.id);
-    const summaryB = await reconcileSimilaritiesForEvidence(evB.id);
-    console.log(
-      `[dev:populate-investigation] similarity detector A=${JSON.stringify(summaryA)} B=${JSON.stringify(summaryB)}`,
-    );
-  } catch (err) {
-    console.warn(
-      `[dev:populate-investigation] similarity detector failed: ${(err as Error).message?.slice(0, 200)}`,
-    );
   }
 
   // ---- Graph reconcile (inline + enqueue) --------------------------------

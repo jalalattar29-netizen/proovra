@@ -130,41 +130,6 @@ export function configuredTranscriptProviderName(): string {
 // Job lifecycle
 // -----------------------------------------------------------------------------
 
-export async function enqueueIntelligenceJob(
-  input: {
-    evidenceId: string;
-    teamId: string;
-    kind: EvidenceIntelligenceJobKind;
-    provider?: string | null;
-  },
-  client: PrismaClient = defaultPrisma,
-): Promise<DbJob | null> {
-  try {
-    // Idempotency: skip if there's an in-flight job of the same kind.
-    const existing = await client.evidenceIntelligenceJob.findFirst({
-      where: {
-        evidenceId: input.evidenceId,
-        kind: input.kind,
-        status: { in: ["PENDING", "PROCESSING"] },
-      },
-      orderBy: { createdAt: "desc" },
-    });
-    if (existing) return existing;
-    return await client.evidenceIntelligenceJob.create({
-      data: {
-        evidenceId: input.evidenceId,
-        teamId: input.teamId,
-        kind: input.kind,
-        status: "PENDING",
-        provider: input.provider ?? null,
-        scheduledAtUtc: new Date(),
-      },
-    });
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Run extraction inline (for callers that already have bytes in
  * memory; e.g. small image / PDF previews). Idempotent: a row with

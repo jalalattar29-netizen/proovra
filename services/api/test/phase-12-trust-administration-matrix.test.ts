@@ -219,7 +219,6 @@ vi.mock("../src/services/trust/trust-drift.service.js", () => ({
       lastReferenceCheckAtUtc: "2026-07-01T00:00:00.000Z",
     },
   ],
-  markArticleNeedsReview: async () => ({ ok: true }),
   runTrustArticleDriftScan: async () => {
     H.writes.push("runTrustArticleDriftScan");
     return { scanned: 10, current: 9, stale: 1, missingReferenceCount: 2 };

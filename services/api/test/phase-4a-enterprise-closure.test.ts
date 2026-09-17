@@ -240,11 +240,6 @@ describe("Phase 4A Closure — service module surface", () => {
     expect(typeof m.probeAll).toBe("function");
   });
 
-  it("trust-drift service exposes needs-review", async () => {
-    const m = await import("../src/services/trust/trust-drift.service.js");
-    expect(typeof m.markArticleNeedsReview).toBe("function");
-  });
-
   it("trust-and-governance-audit service exposes every subject emitter", async () => {
     const m = await import(
       "../src/services/trust/trust-and-governance-audit.service.js"

@@ -78,9 +78,9 @@
       "capability": "fan-out of collaboration-team notifications to the members an event concerns",
       "classification": "CURRENT_FEATURE_MISSING_INTEGRATION",
       "evidence": "Two live read surfaces render CollaborationTeamNotification rows — the team collaboration console's NotificationsCard (with unread badge, mark-read and mark-all-read) and the Operations-Center unified inbox, whose route comment promises exactly this class of row. Of the ten declared CollaborationTeamNotificationType values, exactly one (MENTION_IN_COMMENT) had a producer; the other nine, ACCESS_REVIEW_OPENED among them, were dead by construction.",
-      "wiredAt": "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
+      "wiredAt": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "wiredSymbol": "emitTeamNotifications",
-      "integration": "openAccessReview, inside the transaction that creates the review and its per-member items, so an access review cannot exist without the members it reviews having been told. `activeMembers` now selects userId alongside id, which costs no extra read.",
+      "integration": "createAssignment and updateAssignment, inside the transaction that writes the assignment, so ASSIGNMENT_ASSIGNED / ASSIGNMENT_COMPLETED notifications commit with it. The original integration site, openAccessReview (ACCESS_REVIEW_OPENED), was removed with its retired route on 2026-09-17.",
       "reviewedAtUtc": "2026-08-17"
     },
     {

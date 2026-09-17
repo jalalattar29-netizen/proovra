@@ -153,7 +153,7 @@ describe("intelligence routes — anti-enumeration + scope", () => {
 });
 
 describe("similarity service — wording contract", () => {
-  it("upsert path uses the canonical similaritySummaryFor (advisory wording)", async () => {
+  it("is read-only after the detector retirement, and never words a hint as confirmed", async () => {
     const { readFile } = await import("node:fs/promises");
     const { fileURLToPath } = await import("node:url");
     const src = await readFile(
@@ -165,7 +165,9 @@ describe("similarity service — wording contract", () => {
       ),
       "utf8",
     );
-    expect(src).toMatch(/similaritySummaryFor\(/);
+    // The detectors were removed with POST /v1/intelligence/evidence/:id/reconcile-similarity
+    // (retired 2026-09-16); nothing here may write a similarity row again.
+    expect(src).not.toMatch(/evidenceSimilarity\.(?:create|createMany|upsert|update|updateMany|delete|deleteMany)\(/);
     // No raw "duplicate confirmed" wording in the service.
     expect(src).not.toMatch(/duplicate\s+confirmed/i);
     expect(src).not.toMatch(/authentic/i);

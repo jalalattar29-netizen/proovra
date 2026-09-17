@@ -578,105 +578,11 @@ export async function listMessagesForThread(
 // -----------------------------------------------------------------------------
 // Participants — contributor access lifecycle
 // -----------------------------------------------------------------------------
-
-export type GrantContributorAccessInput = {
-  threadId: string;
-  teamId: string;
-  intakeSessionId: string;
-  contributorLabel?: string | null;
-  actorUserId: string;
-};
-
-export async function grantContributorAccess(
-  input: GrantContributorAccessInput,
-  client: PrismaClient = defaultPrisma,
-): Promise<DbParticipant> {
-  const thread = await client.discussionThread.findUnique({
-    where: { id: input.threadId },
-  });
-  if (!thread) throw new DiscussionError("thread_not_found");
-  if (thread.teamId !== input.teamId) {
-    throw new DiscussionError("evidence_not_in_workspace");
-  }
-  if (thread.visibility !== "CONTRIBUTOR_SCOPED") {
-    throw new DiscussionError("internal_only");
-  }
-  const existing = await client.discussionParticipant.findFirst({
-    where: { threadId: thread.id, intakeSessionId: input.intakeSessionId },
-  });
-  let row: DbParticipant;
-  if (existing) {
-    row = await client.discussionParticipant.update({
-      where: { id: existing.id },
-      data: { revokedAtUtc: null, revokedByUserId: null },
-    });
-  } else {
-    row = await client.discussionParticipant.create({
-      data: {
-        threadId: thread.id,
-        teamId: thread.teamId,
-        intakeSessionId: input.intakeSessionId,
-        role: "CONTRIBUTOR" as DbRole,
-        addedByUserId: input.actorUserId,
-      },
-    });
-  }
-  emitAudit(
-    client,
-    thread.evidenceId,
-    input.actorUserId,
-    "CONTRIBUTOR_ACCESS_GRANTED",
-    {
-      threadId: thread.id,
-      intakeSessionId: input.intakeSessionId,
-      contributorLabel: input.contributorLabel?.slice(0, 180) ?? null,
-    },
-  );
-  return row;
-}
-
-export async function revokeContributorAccess(
-  input: {
-    threadId: string;
-    teamId: string;
-    intakeSessionId: string;
-    actorUserId: string;
-  },
-  client: PrismaClient = defaultPrisma,
-): Promise<DbParticipant | null> {
-  const thread = await client.discussionThread.findUnique({
-    where: { id: input.threadId },
-  });
-  if (!thread) throw new DiscussionError("thread_not_found");
-  if (thread.teamId !== input.teamId) {
-    throw new DiscussionError("evidence_not_in_workspace");
-  }
-  const row = await client.discussionParticipant.findFirst({
-    where: {
-      threadId: thread.id,
-      intakeSessionId: input.intakeSessionId,
-    },
-  });
-  if (!row) return null;
-  const updated = await client.discussionParticipant.update({
-    where: { id: row.id },
-    data: {
-      revokedAtUtc: new Date(),
-      revokedByUserId: input.actorUserId,
-    },
-  });
-  emitAudit(
-    client,
-    thread.evidenceId,
-    input.actorUserId,
-    "CONTRIBUTOR_ACCESS_REVOKED",
-    {
-      threadId: thread.id,
-      intakeSessionId: input.intakeSessionId,
-    },
-  );
-  return updated;
-}
+//
+// Removed 2026-09-17 with their retired routes: grantContributorAccess and
+// revokeContributorAccess (and GrantContributorAccessInput). Existing
+// DiscussionParticipant rows are untouched and still read by canReadThread.
+// -----------------------------------------------------------------------------
 
 // -----------------------------------------------------------------------------
 // Safe projection

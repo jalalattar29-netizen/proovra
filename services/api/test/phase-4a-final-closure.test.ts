@@ -465,29 +465,8 @@ describe("5. Trust article SUPERSEDED emission", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Section 6: Trust drift legacy casts removed
-// ---------------------------------------------------------------------------
-
-describe("6. Trust drift legacy casts removed", () => {
-  it("trust-drift.service.ts does NOT contain 'as never' casts paired with TRUST_ARTICLE_REVIEWED code", () => {
-    const src = fs.readFileSync(
-      path.resolve("src/services/trust/trust-drift.service.ts"),
-      "utf8",
-    );
-    // The service still calls emitTrustArticleEvent with this code
-    expect(src).toContain("TRUST_ARTICLE_REVIEWED");
-    // The event-code line should not be accompanied by 'as never' on the same line
-    const lines = src.split("\n");
-    for (const line of lines) {
-      if (line.includes("TRUST_ARTICLE_REVIEWED") && line.includes("as never")) {
-        throw new Error(
-          `Found 'as never' on line with event code: ${line.trim()}`,
-        );
-      }
-    }
-  });
-});
+// Section 6 (trust-drift TRUST_ARTICLE_REVIEWED cast check) was removed with
+// markArticleNeedsReview, the only emitter it inspected (2026-09-17).
 
 // ---------------------------------------------------------------------------
 // Section 7: Security Center seed paths corrected
@@ -842,7 +821,7 @@ describe("19. New POST /v1/trust/articles/:id/review route", () => {
   // RETIRED 2026-09-16 (owner decision). The NEEDS_REVIEW flag it set was
   // overwritten by the next drift scan, listed nowhere and cleared by nothing.
   // The route stays registered as a typed 410 and no longer calls
-  // markArticleNeedsReview (which remains exported by trust-drift.service).
+  // markArticleNeedsReview (removed from trust-drift.service, 2026-09-17).
   it("the route is a typed 410 tombstone that no longer marks articles", () => {
     const src = fs.readFileSync(
       path.resolve("src/routes/trust-and-governance.routes.ts"),

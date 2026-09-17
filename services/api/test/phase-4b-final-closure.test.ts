@@ -85,10 +85,6 @@ import {
   countPolicyViolations,
 } from "../src/services/lifecycle/policy-violation.service.js";
 
-import {
-  markPackageReady,
-} from "../src/services/exchange/evidence-exchange.service.js";
-
 // ---------------------------------------------------------------------------
 // Path helpers for source-grep tests
 // ---------------------------------------------------------------------------
@@ -742,35 +738,6 @@ describe("12. C5 — exchange-package builder state transitions", () => {
   it("evidence-exchange.service.ts has BUILDING state reference", () => {
     const src = readSrc("services/exchange/evidence-exchange.service.ts");
     expect(src).toContain("BUILDING");
-  });
-
-  it("markPackageReady transitions package state to READY", async () => {
-    let updatedState: string | undefined;
-    const prisma = makePrismaStub({
-      evidenceExchangePackage: {
-        findFirst: async () => ({ id: "pkg-1", state: "BUILDING" }),
-        // EXPORT PACKAGE METER (2026-09-07) — the completion transition is a
-        // CONDITIONAL `updateMany` now, so one package can be completed, and
-        // metered, exactly once. Same behaviour under test; the double
-        // follows the call the service actually makes.
-        updateMany: async (args: { data: Record<string, unknown> }) => {
-          updatedState = args.data.state as string;
-          return { count: 1 };
-        },
-        create: async (args: { data: Record<string, unknown> }) => ({ id: "pkg-1", ...args.data }),
-        findMany: async () => [],
-      },
-    });
-    const result = await markPackageReady({
-      prisma: prisma as never,
-      teamId: "team-1",
-      packageId: "pkg-1",
-      storageKey: "s3/key/pkg-1.zip",
-      packageSha256: "a".repeat(64),
-      packageSizeBytes: 1024,
-    });
-    expect(result.ok).toBe(true);
-    expect(updatedState).toBe("READY");
   });
 
   it("source emits PACKAGE_DOWNLOADED or records PackageDelivery on download", () => {

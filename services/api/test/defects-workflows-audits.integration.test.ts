@@ -161,23 +161,29 @@ describe("D48 + D52 — workflow instances and audit rows (live PostgreSQL 16)",
   // D48 — workflow instances
   // ===========================================================================
   describe("D48 — /v1/workflows/instances/*", () => {
-    /** Seeds a DRAFT Phase 22 instance through the engine (create is retired). */
+    /**
+     * Seeds a DRAFT Phase 22 instance with its step snapshot directly (create is
+     * retired and its engine function was removed, 2026-09-17).
+     */
     async function seedInstance(title = `d48 wf ${tag()}`) {
       const a = h.fixtures.teamA;
-      const { createWorkflowInstance } = await import(
-        "../src/services/workflows/evidence-workflow-engine.service.js"
-      );
-      const row = await createWorkflowInstance({
-        teamId: a.teamId,
-        intakeMode: "AUTHENTICATED_STANDARD",
-        actorRole: "OPERATOR",
-        title,
-        createdByUserId: a.ownerUserId,
-        steps: [
-          { stepKey: "scene-photo", title: "Scene photo", required: true, orderIndex: 0, acceptedKinds: ["PHOTO"] },
-          { stepKey: "statement", title: "Written statement", required: false, orderIndex: 1, acceptedKinds: ["DOCUMENT"] },
-        ],
-      } as never);
+      const row = await prisma.evidenceWorkflowInstance.create({
+        data: {
+          teamId: a.teamId,
+          status: "DRAFT",
+          intakeMode: "AUTHENTICATED_STANDARD",
+          actorRole: "OPERATOR",
+          title,
+          createdByUserId: a.ownerUserId,
+          stepInstances: {
+            create: [
+              { stepKey: "scene-photo", title: "Scene photo", required: true, orderIndex: 0, status: "NOT_STARTED", acceptedKindsJson: ["PHOTO"] },
+              { stepKey: "statement", title: "Written statement", required: false, orderIndex: 1, status: "NOT_STARTED", acceptedKindsJson: ["DOCUMENT"] },
+            ],
+          },
+        },
+        select: { id: true },
+      });
       return row.id;
     }
 

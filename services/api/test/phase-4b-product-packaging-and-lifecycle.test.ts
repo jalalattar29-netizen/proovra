@@ -54,7 +54,6 @@ import {
 
 import {
   createExchangePackage,
-  markPackageReady,
   generateSignedUrl,
   listPackages,
   revokePackage,
@@ -501,7 +500,6 @@ describe("3. Service module surface — typeof checks", () => {
 
   it("evidence-exchange service exports all documented functions", () => {
     expect(typeof createExchangePackage).toBe("function");
-    expect(typeof markPackageReady).toBe("function");
     expect(typeof generateSignedUrl).toBe("function");
     expect(typeof listPackages).toBe("function");
     expect(typeof revokePackage).toBe("function");
@@ -1433,41 +1431,6 @@ describe("15. Evidence exchange package lifecycle", () => {
         data: { state: "BUILDING" },
       },
     ]);
-  });
-
-  it("markPackageReady → state=READY", async () => {
-    /*
-     * EXPORT PACKAGE METER (2026-09-07) — the double gained `updateMany`.
-     *
-     * The transition moved from a read-then-`update` into a CONDITIONAL
-     * `updateMany` carrying the state predicate, so two callers cannot both
-     * complete one package and cannot both be metered for it. The behaviour
-     * under test is unchanged — DRAFT becomes READY — and the double now
-     * exercises the real path instead of a method the service no longer
-     * calls.
-     */
-    let updatedState: string | undefined;
-    const prisma = makePrismaStub({
-      evidenceExchangePackage: {
-        findFirst: async () => ({ id: "pkg-1", state: "DRAFT" }),
-        updateMany: async (args: { data: Record<string, unknown> }) => {
-          updatedState = args.data.state as string;
-          return { count: 1 };
-        },
-        create: async () => ({ id: "pkg-1" }),
-        findMany: async () => [],
-      },
-    });
-    const result = await markPackageReady({
-      prisma: prisma as never,
-      teamId: "team-1",
-      packageId: "pkg-1",
-      storageKey: "s3/key/pkg-1.zip",
-      packageSha256: "a".repeat(64),
-      packageSizeBytes: 1024,
-    });
-    expect(result.ok).toBe(true);
-    expect(updatedState).toBe("READY");
   });
 
   it("generateSignedUrl on READY package persists signedUrl + expiresAtUtc", async () => {

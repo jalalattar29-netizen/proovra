@@ -570,13 +570,12 @@ export async function assertQuotaEntitlement(input: {
  * The ONE writer of the export-package monthly meter now lives in
  * `@proovra/shared-runtime` (`billing/export-package-meter.ts`).
  *
- * It moved because a package becomes READY in TWO processes — the API's
- * `markPackageReady` and the Worker's package builder — and the Worker may
- * not import this module. While the writer lived here, the Worker's READY step
- * (the one every product-created package goes through) recorded no usage, so
- * `QUOTA_EXPORT_PACKAGES_PER_MONTH` could not trip. It still THROWS, and both
- * callers invoke it inside the transaction that performs the conditional READY
- * transition. This module keeps the READER (`assertQuotaEntitlement`) and
+ * It moved because a package becomes READY in the Worker's package builder,
+ * which may not import this module. While the writer lived here, that READY
+ * step recorded no usage, so `QUOTA_EXPORT_PACKAGES_PER_MONTH` could not trip.
+ * It still THROWS, and its caller invokes it inside the transaction that
+ * performs the conditional READY transition. (The API's `markPackageReady` was
+ * removed with its retired route, 2026-09-17.) This module keeps the READER (`assertQuotaEntitlement`) and
  * shares the writer's period clock (imported above).
  */
 

@@ -14,7 +14,7 @@
  *   - apps/web/app/(app)/workflows/[id]/page.tsx                   (performAction body)
  * The Phase 22 instance mutations with no consumer (create, submit, approve,
  * request-changes, cancel, assign-reviewer, map-evidence) were retired to typed
- * 410s on 2026-09-17 (D48); instances are seeded through the engine and the
+ * 410s on 2026-09-17 (D48); instances are seeded directly with prisma and the
  * tombstones are pinned here. The workspace template mutations were retired to
  * typed 410s on 2026-09-16; their block pins the tombstone.
  *
@@ -186,19 +186,35 @@ describe("K4-C — workflow instances, intake links, templates (live PostgreSQL 
     });
 
     /**
-     * D48 — create is retired (no consumer), so a DRAFT instance is seeded
-     * through the engine function the route used to call.
+     * D48 — create is retired (no consumer) and its engine function was
+     * removed (2026-09-17), so a DRAFT instance with its step snapshot is
+     * seeded directly.
      */
     async function createInstance(title = `k4 wf ${tag()}`) {
       const a = h.fixtures.teamA;
-      const { createWorkflowInstance } = await import(
-        "../src/services/workflows/evidence-workflow-engine.service.js"
-      );
       const body = createBody(a.teamId, title);
-      const row = await createWorkflowInstance({
-        ...body,
-        createdByUserId: a.memberUserId,
-      } as never);
+      const row = await prisma.evidenceWorkflowInstance.create({
+        data: {
+          teamId: body.teamId,
+          status: "DRAFT",
+          intakeMode: body.intakeMode,
+          actorRole: body.actorRole,
+          title: body.title,
+          matterRef: body.matterRef,
+          createdByUserId: a.memberUserId,
+          stepInstances: {
+            create: body.steps.map((st) => ({
+              stepKey: st.stepKey,
+              title: st.title,
+              required: st.required,
+              orderIndex: st.orderIndex,
+              status: "NOT_STARTED",
+              acceptedKindsJson: st.acceptedKinds,
+            })),
+          },
+        } as never,
+        select: { id: true },
+      });
       return row.id;
     }
 
@@ -212,35 +228,6 @@ describe("K4-C — workflow instances, intake links, templates (live PostgreSQL 
         canonical: "/v1/reviewer-ops/queue",
       });
       expect(await prisma.evidenceWorkflowInstance.count({ where: { title } })).toBe(0);
-    });
-
-    it("the engine seed used by this block creates a DRAFT instance with its step snapshot; audited", async () => {
-      const a = h.fixtures.teamA;
-      const title = `Claim intake ${tag()}`;
-      const id = await createInstance(title);
-      const row = await prisma.evidenceWorkflowInstance.findUniqueOrThrow({
-        where: { id },
-        include: { stepInstances: { orderBy: { orderIndex: "asc" } } },
-      });
-      expect(row).toMatchObject({
-        teamId: a.teamId,
-        status: "DRAFT",
-        intakeMode: "AUTHENTICATED_STANDARD",
-        actorRole: "OPERATOR",
-        title,
-        matterRef: "MAT-2026-041",
-        createdByUserId: a.memberUserId,
-      });
-      expect(row.stepInstances.map((s) => [s.stepKey, s.required, s.status])).toEqual([
-        ["scene-photo", true, "NOT_STARTED"],
-        ["statement", false, "NOT_STARTED"],
-      ]);
-      expect(await auditRow("workflow.instance.create", id)).toMatchObject({
-        userId: a.memberUserId,
-        workspaceId: a.teamId,
-        outcome: "success",
-        resourceType: "evidence_workflow_instance",
-      });
     });
 
     it("POST /v1/workflows/instances/:id/steps/:stepKey/waive — refused without step-up and for another tenant; step unchanged", async () => {

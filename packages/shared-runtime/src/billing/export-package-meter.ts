@@ -3,15 +3,14 @@
  * `QUOTA_EXPORT_PACKAGES_PER_MONTH` consumption, and the entitlement period
  * clock its reader uses.
  *
- * WHY IT LIVES HERE. An exchange package becomes READY in two processes: the
- * API (`markPackageReady`, the explicit completion route) and the Worker
+ * WHY IT LIVES HERE. An exchange package becomes READY in the Worker
  * (`buildExchangePackage`, the builder that produces the artifact for every
  * package the product creates). The writer used to live in the API's
  * `entitlement.service.ts`, which the Worker may not import (the service build
  * boundary), so the Worker's READY step — the one every real package goes
  * through — recorded no usage at all and the monthly quota could not trip.
- * One writer, both hosts, is the only arrangement in which the two completion
- * paths cannot disagree about which meter, which period, or whether to meter.
+ * (The API's explicit completion path, `markPackageReady`, was removed with its
+ * retired route on 2026-09-17.)
  *
  * WHY THE PERIOD CLOCK MOVED WITH IT. The reader (`assertQuotaEntitlement` in
  * the API) and this writer must name the same period row. Both now derive it
